@@ -21,6 +21,18 @@ protocol NoteEditorBridge: AnyObject {
     func reveal(_ id: String)
     /// 幻灯片的操作（"…"菜单的放映 / 导出、放映中的返回）：交给网页（`window.notefableEmbed.slides`）。
     func slides(_ command: String)
+    /// 在常驻 WebView 里就地切到另一篇页面（`window.notefableEmbed.openPage`）；返回 false 表示旧版服务端或尚未挂好，由界面回退到整页加载。
+    func openPage(id: String, reveal: String?, model: String?, reasoning: String?) async -> Bool
+    /// 离开笔记回到列表 / 聊天时卸载编辑器 DOM，保留轻量缓存（`window.notefableEmbed.close`）。
+    func close()
+    /// 移进回收站的页面从常驻 WebView 缓存里清掉（`window.notefableEmbed.pageTrashed`）。
+    func pageTrashed(_ ids: [String])
+}
+
+extension NoteEditorBridge {
+    func openPage(id: String, reveal: String?, model: String?, reasoning: String?) async -> Bool { false }
+    func close() {}
+    func pageTrashed(_ ids: [String]) {}
 }
 
 /// 对网页执行的脚本。和 Android 端逐字相同，网页那边没有对应函数时什么都不做。
@@ -93,6 +105,44 @@ enum NoteEmbedScripts {
     /// 幻灯片的操作（JSON：{ action: "present" | "end" | "export", format? }）。
     static func slides(_ command: String) -> String {
         "(function(){var e=window.notefableEmbed;if(e&&typeof e.slides==='function')e.slides(\(quote(command)))})()"
+    }
+
+    /// 网页只认 `[A-Za-z0-9_-]{1,120}` 的页面 / 块 / 元素 id（src/lib/native-bridge.ts 的 REVEAL_TARGET）。
+    private static func isValidTargetId(_ value: String) -> Bool {
+        guard !value.isEmpty, value.count <= 120 else { return false }
+        return value.unicodeScalars.allSatisfy { scalar in
+            (scalar.value >= 0x30 && scalar.value <= 0x39)
+                || (scalar.value >= 0x41 && scalar.value <= 0x5A)
+                || (scalar.value >= 0x61 && scalar.value <= 0x7A)
+                || scalar == "_" || scalar == "-"
+        }
+    }
+
+    /// 离开笔记但保留热缓存：卸载编辑器 DOM，返回 true 表示网页已处理。
+    static let close =
+        "(function(){var e=window.notefableEmbed;if(e&&typeof e.close==='function')return e.close()===true;return false})()"
+
+    /// 在常驻 WebView 里就地切页（window.notefableEmbed.openPage）；id 不合法返回 nil。
+    static func openPage(id: String, reveal: String? = nil, model: String? = nil, reasoning: String? = nil) -> String? {
+        guard isValidTargetId(id) else { return nil }
+        var fields = ["\"id\":\(quote(id))"]
+        if let reveal, isValidTargetId(reveal) {
+            fields.append("\"reveal\":\(quote(reveal))")
+        }
+        if let model = model?.trimmingCharacters(in: .whitespacesAndNewlines), !model.isEmpty {
+            fields.append("\"model\":\(quote(model))")
+        }
+        if let reasoning = reasoning?.trimmingCharacters(in: .whitespacesAndNewlines), !reasoning.isEmpty {
+            fields.append("\"reasoning\":\(quote(reasoning))")
+        }
+        return "(function(){var e=window.notefableEmbed;if(e&&typeof e.openPage==='function')return e.openPage({\(fields.joined(separator: ","))})===true;return false})()"
+    }
+
+    /// 把移进回收站的页面 id 通知常驻 WebView 清理缓存（window.notefableEmbed.pageTrashed）。
+    static func pageTrashed(_ ids: [String]) -> String? {
+        let valid = ids.filter(isValidTargetId)
+        guard !valid.isEmpty else { return nil }
+        return "(function(){var e=window.notefableEmbed;if(e&&typeof e.pageTrashed==='function')return e.pageTrashed([\(valid.map(quote).joined(separator: ","))])===true;return false})()"
     }
 
     /// 返回手势先交给网页：有打开的 <dialog>（版本历史等）就发 cancel 事件关最上面一层（等同网页里按 Esc），返回 true。
@@ -247,6 +297,22 @@ final class NoteEmbedBridge {
     func pushTheme(_ value: String) {
         theme = value
         editor?.theme(value)
+    }
+
+    /// 在常驻 WebView 里就地切到另一篇笔记（返回 false 表示旧版服务端或尚未挂好，由界面回退整页加载）。
+    func openPage(id: String, reveal: String? = nil, model: String? = nil, reasoning: String? = nil) async -> Bool {
+        await editor?.openPage(id: id, reveal: reveal, model: model, reasoning: reasoning) ?? false
+    }
+
+    /// 离开笔记但保留热缓存：卸载编辑器 DOM。
+    func close() {
+        editor?.close()
+    }
+
+    /// 页面移进回收站：从热缓存里清掉。
+    func pageTrashed(_ ids: [String]) {
+        guard !ids.isEmpty else { return }
+        editor?.pageTrashed(ids)
     }
 }
 

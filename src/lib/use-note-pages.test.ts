@@ -776,4 +776,114 @@ describe("useNotePages instant switching & prefetch", () => {
     await flushMicrotasks();
     expect(history.pushState).toHaveBeenCalledWith(null, "", expect.objectContaining({ search: "?view=pages&page=b" }));
   });
+
+  it("supports deactivate() + instant reopen and caps clean embedded queues at 8 while keeping dirty queues", async () => {
+    createFakeBrowser("https://app.notefable.com/note-embed?page=p1");
+    const pages = Array.from({ length: 10 }, (_, i) => makePage(`p${i + 1}`, `Page ${i + 1}`, 1));
+    const revalP1 = deferred<Response>();
+    let p1Calls = 0;
+
+    vi.stubGlobal("fetch", vi.fn((url: string) => {
+      const match = /^\/api\/pages\/(p\d+)$/.exec(url);
+      if (match) {
+        const id = match[1];
+        const page = pages.find((p) => p.id === id)!;
+        if (id === "p1") {
+          p1Calls += 1;
+          return p1Calls === 1 ? Promise.resolve(jsonResponse({ page })) : revalP1.promise;
+        }
+        return Promise.resolve(jsonResponse({ page }));
+      }
+      return Promise.reject(new Error(`unexpected ${url}`));
+    }));
+
+    const hook = hookRuntime.mount(() => useNotePages(false, { embedded: true }));
+    await flushMicrotasks();
+
+    // Open p1 and deactivate (native went back to Home): active clears, cache stays warm.
+    await hook.current.select("p1", "none", { keepCurrent: false });
+    await flushMicrotasks();
+    expect(hook.current.activeId).toBe("p1");
+    hook.current.deactivate();
+    await flushMicrotasks();
+    expect(hook.current.activeId).toBeNull();
+    expect(hook.current.hasCached("p1")).toBe(true);
+
+    // Reopen p1 immediately from cache BEFORE revalP1 resolves.
+    await hook.current.select("p1", "none", { keepCurrent: false });
+    await flushMicrotasks();
+    expect(hook.current.activeId).toBe("p1");
+    expect(hook.current.loading).toBe(false);
+    revalP1.resolve(jsonResponse({ page: pages[0] }));
+    await flushMicrotasks();
+
+    // Make p2 dirty; then open p3..p10 (10 pages total > cap of 8).
+    // Oldest clean page (p1) is evicted, while dirty p2 and recent p3..p10 stay cached.
+    await hook.current.select("p2", "none", { keepCurrent: false });
+    await flushMicrotasks();
+    hook.current.active!.edit({ ...hook.current.active!.content, title: "Dirty p2" });
+    await flushMicrotasks();
+    for (let i = 3; i <= 10; i++) {
+      await hook.current.select(`p${i}`, "none", { keepCurrent: false });
+      await flushMicrotasks();
+    }
+    expect(hook.current.hasCached("p1")).toBe(false);
+    expect(hook.current.hasCached("p2")).toBe(true);
+    expect(hook.current.hasCached("p10")).toBe(true);
+  });
+
+  it("notifies onMissing when a clean cached note revalidates as 404 and retries failed cached drafts on reopen", async () => {
+    createFakeBrowser();
+    const pageA = makePage("a", "Alpha", 1);
+    const pageB = makePage("b", "Beta", 1);
+    let aFetchCount = 0;
+    let bPatchCount = 0;
+    const missing: string[] = [];
+
+    vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+      if (url === "/api/pages/a") {
+        aFetchCount += 1;
+        return aFetchCount === 1
+          ? Promise.resolve(jsonResponse({ page: pageA }))
+          : Promise.resolve(jsonResponse({ error: "Not found" }, 404));
+      }
+      if (url === "/api/pages/b" && init?.method === "PATCH") {
+        bPatchCount += 1;
+        if (bPatchCount === 1) return Promise.resolve(jsonResponse({ error: "Temporary outage" }, 503));
+        return Promise.resolve(jsonResponse({ page: makePage("b", "Unsaved B", 2) }));
+      }
+      if (url === "/api/pages/b") return Promise.resolve(jsonResponse({ page: pageB }));
+      return Promise.reject(new Error(`unexpected ${url}`));
+    }));
+
+    const hook = hookRuntime.mount(() => useNotePages(false, { embedded: true, onMissing: (id) => { missing.push(id); } }));
+    await flushMicrotasks();
+
+    // 1. Open A, deactivate, reopen A -> background 404 must notify onMissing("a").
+    await hook.current.select("a", "none", { keepCurrent: false });
+    await flushMicrotasks();
+    hook.current.deactivate();
+    await flushMicrotasks();
+    await hook.current.select("a", "none", { keepCurrent: false });
+    await flushMicrotasks();
+    expect(missing).toEqual(["a"]);
+    expect(hook.current.activeId).toBeNull();
+
+    // 2. Open B, make an edit whose save fails (503), leave, reopen B -> revalidation confirms v1 and retries save.
+    await hook.current.select("b", "none", { keepCurrent: false });
+    await flushMicrotasks();
+    hook.current.active!.edit({ ...hook.current.active!.content, title: "Unsaved B" });
+    await hook.current.active!.flush();
+    await flushMicrotasks();
+    expect(hook.current.active?.status).toBe("error");
+    hook.current.deactivate();
+    await flushMicrotasks();
+
+    await hook.current.select("b", "none", { keepCurrent: false });
+    await flushMicrotasks();
+    await flushMicrotasks();
+    expect(bPatchCount).toBe(2);
+    expect(hook.current.active?.status).toBe("saved");
+    expect(hook.current.active?.version).toBe(2);
+  });
 });

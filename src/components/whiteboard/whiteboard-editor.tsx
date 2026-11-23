@@ -15,7 +15,7 @@ import { StorageLimitError } from "@/lib/usage-plans";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { connectWhiteboardActions, type WhiteboardActions } from "@/lib/whiteboard/excalidraw-bridge";
 import { exportWhiteboard, type WhiteboardExportFormat } from "@/lib/whiteboard/export";
-import { saveExportFile } from "@/lib/export-file";
+import { getNativeExportEpoch, saveExportFile } from "@/lib/export-file";
 import { pageCardLabel, pageIdFromLink, pageLinkUrl } from "@/lib/whiteboard/links";
 import { importPdfPages, MAX_PDF_IMPORT_PAGES, type PdfImportResult } from "@/lib/whiteboard/pdf-import";
 import { consumeWhiteboardReveal, WHITEBOARD_REVEAL_EVENT, type WhiteboardRevealDetail } from "@/lib/whiteboard/reveal";
@@ -571,15 +571,19 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   // ---- 書き出し ----
   const runExport = useCallback(async (format: WhiteboardExportFormat) => {
     if (!api || busy) return;
+    const exportEpoch = getNativeExportEpoch();
     setNotice(null);
     setBusy(t("Exporting…"));
     try {
       const file = await exportWhiteboard(api, format, props.title);
-      const result = await saveExportFile(file.blob, file.fileName);
+      if (exportEpoch !== getNativeExportEpoch()) return;
+      const result = await saveExportFile(file.blob, file.fileName, exportEpoch);
+      if (result === "cancelled") return;
       if (result === "unsupported") setNotice({ text: msg("Update the app to save exported files.") });
       else if (result === "tooLarge") setNotice({ text: msg("This file is too large to save in the app.") });
       else if (result === "failed") setNotice({ text: msg("Could not export the whiteboard.") });
     } catch (error) {
+      if (exportEpoch !== getNativeExportEpoch()) return;
       setNotice({ text: error instanceof Error && error.message ? error.message : msg("Could not export the whiteboard.") });
     } finally { setBusy(null); }
   }, [api, busy, props.title, t]);

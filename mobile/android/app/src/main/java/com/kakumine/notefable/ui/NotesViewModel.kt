@@ -253,6 +253,11 @@ class NotesViewModel(
      */
     var revealInEditor: ((String) -> Unit)? = null
 
+    /**
+     * 有页面移进了回收站（本地删除、聊天提案撤销）：通知常驻 WebView 清理对应缓存（即使当前未停留在编辑页）。
+     */
+    var notifyPagesTrashed: ((Collection<String>) -> Unit)? = null
+
     private var loadJob: Job? = null
     private var navigationJob: Job? = null
     private var trashJob: Job? = null
@@ -566,6 +571,7 @@ class NotesViewModel(
                 saveState = if (closing) null else state.saveState,
             )
         }
+        notifyPagesTrashed?.invoke(removed)
     }
 
     // ---- 移到回收站 ----
@@ -595,6 +601,7 @@ class NotesViewModel(
                         saveState = if (closing) null else state.saveState,
                     )
                 }
+                notifyPagesTrashed?.invoke(removed)
             }
         } catch (e: CancellationException) {
             if (owner == identity) _state.update { it.copy(busy = false) }
