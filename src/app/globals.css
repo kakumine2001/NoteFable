@@ -547,9 +547,12 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 .notes-block-editor .bn-block-content[data-content-type="table"] th > p,
 .notes-block-editor .bn-block-content[data-content-type="table"] td > p { min-height: 21px; margin: 0; }
 
-/* 数式（KaTeX）: ブロック数式・行内数式と編集ポップオーバー。RTL 環境でも数式と TeX 入力は左から右に固定する。 */
+/* 数式（KaTeX）: ブロック数式・行内数式と編集ポップオーバー。RTL 環境でも数式と TeX 入力は左から右に固定する。
+   公開ページ（/s/:token）も同じ .notes-math-block / .notes-math-inline で描く。 */
 .notes-block-editor .katex,
-.notes-block-editor .katex-display { direction: ltr; unicode-bidi: isolate; }
+.notes-block-editor .katex-display,
+.public-note-body .katex,
+.public-note-body .katex-display { direction: ltr; unicode-bidi: isolate; }
 .notes-block-editor .bn-block-content[data-content-type="mathBlock"] { margin: 4px 0; padding: 0; border-radius: 6px; }
 .notes-math-block {
   position: relative; display: block; width: 100%; min-width: 0; padding: 12px 16px; border-radius: 6px;
@@ -3783,6 +3786,8 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
   font-size: 0.85em; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
 }
 .public-note-divider { border: 0; border-top: 1px solid var(--notion-border); margin: 0.75rem 0; }
+/* ブロックの数式。見た目は .notes-math-block（エディターと共通）、上下の間隔もエディターと同じ 4px。 */
+.public-note-math-block { margin: 4px 0; }
 .public-note-table-wrap { overflow-x: auto; margin: 0.35rem 0; }
 .public-note-table { border-collapse: collapse; width: 100%; font-size: 0.9em; }
 .public-note-table :is(th, td) {

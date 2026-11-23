@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractNoteChunks, inlineText, leadingText, MAX_CHUNK_CHARS, MAX_CHUNKS_PER_NOTE, MIN_HEADING_SPLIT_CHARS, walkBlocks } from "./note-text";
+import { blocksHaveMath, extractNoteChunks, inlineText, leadingText, MAX_CHUNK_CHARS, MAX_CHUNKS_PER_NOTE, MIN_HEADING_SPLIT_CHARS, walkBlocks } from "./note-text";
 
 const text = (value: string, styles = {}) => ({ type: "text", text: value, styles });
 const link = (...content: unknown[]) => ({ type: "link", href: "https://example.com", content });
@@ -18,6 +18,26 @@ describe("note-text helpers", () => {
     expect(inlineText([text("hello "), link(text("world", { bold: true }))])).toBe("hello world");
     expect(inlineText({ rows: [{ cells: [[text("A")], [text("B")]] }, { cells: [[text("C")], [text("D")]] }] })).toBe("A B C D");
     expect(leadingText([block("a", "paragraph", [text("First")]), block("b", "paragraph", [text("Second")])])).toBe("First Second");
+  });
+
+  it("finds math anywhere in a note and ignores empty equations", () => {
+    const math = (latex: string) => ({ type: "mathInline", props: { latex } });
+    const mathBlock = (latex: string) => ({ id: "m", type: "mathBlock", props: { latex }, children: [] });
+    const columns = (...children: unknown[]) => ({ id: "cl", type: "columnList", props: {}, children: [{ id: "c1", type: "column", props: {}, children }] });
+    const table = (cell: unknown) => ({ id: "t", type: "table", props: {}, content: { type: "tableContent", rows: [{ cells: [[text("A")], cell] }] }, children: [] });
+
+    expect(blocksHaveMath([])).toBe(false);
+    expect(blocksHaveMath(null)).toBe(false);
+    expect(blocksHaveMath([block("a", "paragraph", [text("It costs $5 and $10, see $x$")]), block("b", "codeBlock", [text("$$x$$")])])).toBe(false);
+    expect(blocksHaveMath([mathBlock(""), mathBlock("  \n"), block("a", "paragraph", [math(""), math(" ")])])).toBe(false);
+
+    expect(blocksHaveMath([mathBlock("E = mc^2")])).toBe(true);
+    expect(blocksHaveMath([block("a", "paragraph", [text("Euler "), math("e^{i\\pi}")])])).toBe(true);
+    expect(blocksHaveMath([block("a", "toggleListItem", [text("more")], [block("b", "quote", [math("x")])])])).toBe(true);
+    expect(blocksHaveMath([columns(block("a", "paragraph", [text("left")]), mathBlock("\\sum"))])).toBe(true);
+    expect(blocksHaveMath([table([math("a^2")])])).toBe(true);
+    expect(blocksHaveMath([table({ type: "tableCell", props: {}, content: [text("b "), math("b^2")] })])).toBe(true);
+    expect(blocksHaveMath([table([text("plain")])])).toBe(false);
   });
 
   it("returns empty chunks for blank or Untitled notes with no body", () => {
