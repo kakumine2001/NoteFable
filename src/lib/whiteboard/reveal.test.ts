@@ -18,4 +18,11 @@ describe("whiteboard reveal requests", () => {
     requestWhiteboardReveal("p1", "e2", 0);
     expect(consumeWhiteboardReveal("p1", 10)).toBe("e2");
   });
+
+  it("keeps the reveal pending when accept rejects a cached scene and consumes it after refresh", () => {
+    requestWhiteboardReveal("p1", "new-el", 1000);
+    expect(consumeWhiteboardReveal("p1", 1010, (id) => id === "old-el")).toBeNull();
+    expect(consumeWhiteboardReveal("p1", 1020, (id) => id === "new-el")).toBe("new-el");
+    expect(consumeWhiteboardReveal("p1", 1030, () => true)).toBeNull();
+  });
 });

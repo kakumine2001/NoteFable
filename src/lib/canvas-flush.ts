@@ -4,13 +4,30 @@
 
 // 渡し切れたら true。待っても終わらないもの（アップロード中の画像など）が残ったら false。
 type CanvasFlusher = () => Promise<boolean> | boolean;
+// 同期で未提出の編集をキューへ渡す。アップロード中の画像などまだ完了していない作業が残っていれば true。
+type CanvasSyncFlusher = () => boolean;
 
 const flushers = new Set<CanvasFlusher>();
+const syncFlushers = new Set<CanvasSyncFlusher>();
 
 // エディターが開いている間だけ登録する。戻り値で登録を外す。
-export function registerCanvasFlusher(flusher: CanvasFlusher): () => void {
+export function registerCanvasFlusher(flusher: CanvasFlusher, syncFlush?: CanvasSyncFlusher): () => void {
   flushers.add(flusher);
-  return () => { flushers.delete(flusher); };
+  if (syncFlush) syncFlushers.add(syncFlush);
+  return () => {
+    flushers.delete(flusher);
+    if (syncFlush) syncFlushers.delete(syncFlush);
+  };
+}
+
+// 開いているエディターの未提出の編集（400ms 待ちなど）を同期でキューへ渡す。
+// 画像アップロード中など同期では渡し切れない作業が残っていれば true を返す。
+export function flushCanvasEditorsSync(): boolean {
+  let pending = false;
+  for (const flush of syncFlushers) {
+    try { if (flush()) pending = true; } catch { pending = true; }
+  }
+  return pending;
 }
 
 // 開いているエディターの未提出の変更をキューへ渡す（画像のアップロードは各エディターが決めた時間まで待つ）。

@@ -13,11 +13,13 @@ export function requestWhiteboardReveal(pageId: string, elementId: string, now =
   if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent<WhiteboardRevealDetail>(WHITEBOARD_REVEAL_EVENT, { detail: { pageId, elementId } }));
 }
 
-// このページ宛ての依頼があれば、要素の ID を返して依頼を消す。
-export function consumeWhiteboardReveal(pageId: string, now = Date.now()): string | null {
+// このページ宛ての依頼があれば、accept を満たした時だけ要素の ID を返して依頼を消す。
+// キャッシュ表示中の古いシーンに要素がまだ無ければ消さずに残し、裏の再検証で新しいシーンが載った後に再試行できるようにする。
+export function consumeWhiteboardReveal(pageId: string, now = Date.now(), accept?: (elementId: string) => boolean): string | null {
   if (!pending) return null;
   if (pending.expires < now) { pending = null; return null; }
   if (pending.pageId !== pageId) return null;
+  if (accept && !accept(pending.elementId)) return null;
   const { elementId } = pending;
   pending = null;
   return elementId;

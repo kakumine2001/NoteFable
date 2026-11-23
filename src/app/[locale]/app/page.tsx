@@ -252,10 +252,7 @@ export default function Home() {
     if (!isPhone) {
       // パソコン・タブレット幅：サイドバーごと揺れる全面スライドは使わず、Notion と同じく右側の内容だけをその場で切り替える。
       // キャッシュ済み（一度開いた・先読み済み）なら即座に切り替え、未キャッシュでも今の画面を保ったまま裏で読んでから差し替える。
-      if (notes.activeId === id && !notesList) {
-        notes.cancelPending();
-        return;
-      }
+      // 表示中のページを選び直したときも select() に通すことで、検索結果の先読み中に変わっていた URL を元のページへ戻す。
       if (notes.hasCached(id)) {
         void notes.select(id, "push").then((opened) => { if (!opened) forgetMissingNote(id); });
         setNotesList(false);
