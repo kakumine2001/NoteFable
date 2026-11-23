@@ -9,6 +9,7 @@ import { CalendarDays, Check, CheckSquare, ChevronRight, Code2, Columns2, Column
 import { createContext, useCallback, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref } from "react";
 import "@blocknote/ariakit/style.css";
 import { MAX_NOTE_FILE_BYTES } from "@/lib/note-file-keys";
+import { externalFilesGuard } from "@/components/note-external-files";
 import { storageLimitFromUpload } from "@/lib/storage-limit-client";
 import { StorageLimitError } from "@/lib/usage-plans";
 import { normalizeQuote } from "@/lib/chat-quote";
@@ -539,7 +540,7 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, o
   const uploadEditorRef = useRef<{ getBlock: (id: string) => { props: unknown } | undefined; removeBlocks: (ids: string[]) => unknown } | null>(null);
   const editor = useCreateBlockNote({
     schema,
-    extensions: [syntaxHighlighter],
+    extensions: [syntaxHighlighter, externalFilesGuard],
     tabBehavior: "prefer-indent",
     // 表: 見出しの行・列、セルの結合と分割、セルごとの文字色・背景色（いずれも BlockNote の既定では無効）。
     tables: { headers: true, splitCells: true, cellBackgroundColor: true, cellTextColor: true },
