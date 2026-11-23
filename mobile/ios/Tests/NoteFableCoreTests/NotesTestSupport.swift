@@ -245,6 +245,7 @@ final class NotesTestIcons: NoteIconBackend {
 final class NotesTestEditor: NoteEditorBridge {
     var calls: [String] = []
     var mounted = true
+    var openPageResult = true
     var flushGate: NoteDeferred<Bool>?
     /// 网页收到 flush 后要做的事（一般是回一条 flushed 消息）。
     var onFlush: (@MainActor (String) -> Void)?
@@ -264,4 +265,10 @@ final class NotesTestEditor: NoteEditorBridge {
     func theme(_ value: String) { calls.append("theme:\(value)") }
     func reveal(_ id: String) { calls.append("reveal:\(id)") }
     func slides(_ command: String) { calls.append("slides:\(command)") }
+    func openPage(id: String, reveal: String?, model: String?, reasoning: String?) async -> Bool {
+        calls.append("openPage:\(id):\(reveal ?? "-"):\(model ?? "-"):\(reasoning ?? "-")")
+        return openPageResult
+    }
+    func close() { calls.append("close") }
+    func pageTrashed(_ ids: [String]) { calls.append("trashed:\(ids.joined(separator: ","))") }
 }

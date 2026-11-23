@@ -1048,4 +1048,18 @@ final class NotesViewModelTests: XCTestCase {
         XCTAssertEqual(page(vm, "a")?.font, "mono")
         XCTAssertEqual(backend.count("settings:a"), 2)
     }
+
+    @MainActor
+    func testTrashingNotesNotifiesTheWarmWebViewCacheEvenWhenClosed() async {
+        let backend = NotesTestBackend()
+        let vm = await notesVm(backend)
+        var notified: [Set<String>] = []
+        vm.notifyPagesTrashed = { notified.append(Set($0)) }
+
+        let trashed = await vm.trashNote("a")
+        XCTAssertTrue(trashed)
+        vm.onPagesTrashed(["b"])
+
+        XCTAssertEqual(notified, [Set(["a"]), Set(["b"])])
+    }
 }

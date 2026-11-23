@@ -31,4 +31,37 @@ class NoteEmbedBridgeTest {
         assertNull(loadReveal(open, generation = 1))
         assertNull(loadReveal(open.copy(reveal = null), generation = 0))
     }
+
+    @Test
+    fun `openPageScript encodes valid page id and optional fields`() {
+        assertEquals(
+            "(function(){var e=window.notefableEmbed;if(e&&typeof e.openPage==='function')return e.openPage({\"id\":\"page_1\"})===true;return false})()",
+            NoteEmbedBridge.openPageScript("page_1"),
+        )
+        assertEquals(
+            "(function(){var e=window.notefableEmbed;if(e&&typeof e.openPage==='function')return e.openPage({\"id\":\"page_1\",\"reveal\":\"blk-2\",\"model\":\"gpt-5\",\"reasoning\":\"high\"})===true;return false})()",
+            NoteEmbedBridge.openPageScript("page_1", reveal = "blk-2", model = " gpt-5 ", reasoning = "high"),
+        )
+        // 非法 reveal 会被忽略，不破坏脚本；非法 id 返回 null。
+        assertEquals(
+            "(function(){var e=window.notefableEmbed;if(e&&typeof e.openPage==='function')return e.openPage({\"id\":\"page_1\"})===true;return false})()",
+            NoteEmbedBridge.openPageScript("page_1", reveal = "bad reveal!"),
+        )
+        assertNull(NoteEmbedBridge.openPageScript(""))
+        assertNull(NoteEmbedBridge.openPageScript("bad/id"))
+    }
+
+    @Test
+    fun `pageTrashedScript filters valid ids and returns null when empty`() {
+        assertEquals(
+            "(function(){var e=window.notefableEmbed;if(e&&typeof e.pageTrashed==='function')return e.pageTrashed([\"p1\",\"p_2\"])===true;return false})()",
+            NoteEmbedBridge.pageTrashedScript(listOf("p1", "bad id", "p_2")),
+        )
+        assertNull(NoteEmbedBridge.pageTrashedScript(emptyList()))
+        assertNull(NoteEmbedBridge.pageTrashedScript(listOf("bad/id")))
+        assertEquals(
+            "(function(){var e=window.notefableEmbed;if(e&&typeof e.close==='function')return e.close()===true;return false})()",
+            NoteEmbedBridge.CLOSE_SCRIPT,
+        )
+    }
 }

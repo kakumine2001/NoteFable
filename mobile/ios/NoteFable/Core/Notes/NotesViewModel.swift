@@ -33,6 +33,8 @@ final class NotesViewModel {
     @ObservationIgnored var revealInEditor: (@MainActor (String) -> Void)?
     /// 幻灯片的放映 / 导出（"…"菜单、放映中的返回）：交给网页编辑器（window.notefableEmbed.slides）。由界面在编辑器打开时设置。
     @ObservationIgnored var sendSlidesCommand: (@MainActor (String) -> Void)?
+    /// 有页面移进了回收站（本地删除、聊天提案撤销）：通知常驻 WebView 清理对应缓存（即使当前未停留在编辑页）。
+    @ObservationIgnored var notifyPagesTrashed: (@MainActor ([String]) -> Void)?
 
     @ObservationIgnored private let backend: NotesBackend
     @ObservationIgnored private let prefs: NotesPrefs
@@ -544,6 +546,7 @@ final class NotesViewModel {
                 state.saveState = nil
             }
         }
+        notifyPagesTrashed?(Array(removed))
     }
 
     // ---- 移到回收站 ----
@@ -581,6 +584,7 @@ final class NotesViewModel {
                         state.saveState = nil
                     }
                 }
+                notifyPagesTrashed?(Array(removed))
             }
         } catch {
             if owner == identity {

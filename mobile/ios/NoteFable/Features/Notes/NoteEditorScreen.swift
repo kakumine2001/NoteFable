@@ -16,6 +16,7 @@ struct NoteEditorScreen: View {
     @Binding private var dialog: NotesDialogState?
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router
+    @Environment(NoteEditorPool.self) private var editorPool
     /// 编辑页现在显示的外观（设置里选的，或跟随系统）：原样交给网页编辑器。
     @Environment(\.colorScheme) private var colorScheme
     /// 等着写进用户选的位置的笔记 Markdown。
@@ -59,7 +60,7 @@ struct NoteEditorScreen: View {
                     .padding(.top, 8)
             }
             NoteEditorWebView(
-                editor: open.editor, app: app, router: router,
+                open: open, pool: editorPool, app: app, router: router,
                 appIcon: app.appIcon.icon, language: app.language.uiLocale,
                 theme: (colorScheme == .dark ? ResolvedTheme.dark : ResolvedTheme.light).rawValue,
                 edgeBack: !kind.capturesEdgeSwipes

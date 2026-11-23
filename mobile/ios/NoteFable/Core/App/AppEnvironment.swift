@@ -92,6 +92,9 @@ final class AppEnvironment {
     /// 当前打开着的网页编辑器的桥（没有打开笔记时为 nil）。用 [registerEditor] 设置。
     @ObservationIgnored private(set) var editorBridge: NoteEmbedBridge?
 
+    /// 常驻 WebView 池的缓存更新入口（即使当前没有打开笔记也能把聊天提案的改动同步进热缓存）。界面层在根视图绑定。
+    @ObservationIgnored var warmPageUpdated: (@MainActor (String) -> Void)?
+
     /// 每换一次身份（登录、退出、删除账号）加一。界面用它清掉自己手上属于旧身份的状态（比如开着的「整理成笔记」窗口）。
     private(set) var identityGeneration = 0
 
@@ -360,8 +363,12 @@ final class AppEnvironment {
         // 撤销新建提案移进回收站的页面先从列表里拿掉（开着的关掉），再按服务端的列表刷新。
         notes.onPagesTrashed(change.trashedIds)
         notes.refresh()
-        if !change.created, let page = change.page, let pageId = change.pageId, notes.state.open?.id == pageId {
-            editorBridge?.pageUpdated(page)
+        if !change.created, let page = change.page {
+            if let warm = warmPageUpdated {
+                warm(page)
+            } else if let pageId = change.pageId, notes.state.open?.id == pageId {
+                editorBridge?.pageUpdated(page)
+            }
         }
     }
 

@@ -12,41 +12,51 @@ import { parseThemePreference, saveThemePreference } from "@/lib/theme";
 import { useNotePages } from "@/lib/use-note-pages";
 import { pageKindOf } from "@/lib/page-kinds";
 import { revealNoteBlock } from "@/lib/search-reveal";
-import { requestWhiteboardReveal } from "@/lib/whiteboard/reveal";
+import { cancelWhiteboardReveal, requestWhiteboardReveal } from "@/lib/whiteboard/reveal";
 import { flushCanvasEditors } from "@/lib/canvas-flush";
 
 const noop = () => {};
 
-// Android アプリが WebView に載せる、1 ページだけのノート画面（/note-embed?page=<id>）。
-// ホワイトボード・スライドもこの同じ URL で開く（古いアプリは別の URL をシステムのブラウザに渡してしまうため）。エディターができるまでは
-// NotesWorkspace が読み取り専用の仮の画面を出し、橋渡し（flush・saveState・openHistory・pageUpdated・pageSettings・theme・language など）は
-// ノートと同じに動く（保存するものが無いので flush はいつも ok）。
+// Android / iOS アプリが WebView に載せる埋め込みノート画面（/note-embed?page=<id>）。
+// ホワイトボード・スライドもこの同じ URL で開く（古いアプリは別の URL をシステムのブラウザに渡してしまうため）。
+// 新しいアプリは 1 つの WebView を常駐再利用し、window.notefableEmbed.openPage / close / pageTrashed で
+// ページ全体を再読み込みせずにキャッシュ済みのページへ即座に切り替える。
 // 中身は /app のスマホのノート画面の本文（封面・アイコン・題名・BlockNote・AI ボタン）と同じ部品で、上部バーとサイドバーはアプリ側が描く。
 // 保存・下書きの退避・衝突の扱いは useNotePages と NoteSaveQueue をそのまま使う。アプリとのやり取りは src/lib/native-bridge.ts。
 export function NoteEmbed() {
   const { t, locale, setPreference, changeError } = useI18n();
   const notes = useNotePages(false, { embedded: true });
-  const { active, activeId, loading } = notes;
+  const { active, activeId, loading, select, deactivate } = notes;
   const [pageId, setPageId] = useState<string | null>(null);
+  // アプリが一時的に一覧・チャットへ戻っている間（close() 後）は、編集画面の DOM を外してキャッシュだけ保つ。
+  const [idle, setIdle] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  // AI アシスタントは、アプリが URL（&model=&reasoning=）で渡したモデルと推論強度を使う。渡されていない・今の一覧にないときは
-  // /app と同じく、このブラウザ（WebView）で最後に選んだもの、それもなければサーバーの標準。
+  // AI アシスタントは、アプリが URL（&model=&reasoning=）または openPage で渡したモデルと推論強度を使う。
+  // 渡されていない・今の一覧にないときは /app と同じく、このブラウザ（WebView）で最後に選んだもの、それもなければサーバーの標準。
   const { defaultModel, getModelOption, options } = useModels();
   const [model, setModel] = useState(defaultModel);
   const [reasoning, setReasoning] = useState<string>(() => getModelOption(defaultModel).defaultReasoning);
+  const optionsRef = useRef(options);
   const activeRef = useRef(active);
   // 開いたページの読み込みが終わってから動かす（ページの種類で動かし方が違う）。
   const revealRef = useRef<{ pageId: string; target: string } | null>(null);
+  const expectedPageRef = useRef<string | null>(null);
+  const initialLoadedRef = useRef(false);
   const backupErrorRef = useRef(notes.backupError);
   // 最後の flush で、ホワイトボードなどのエディターが変更を渡し切れたか（アップロードが終わらない画像が残ると false）。
   const canvasHanded = useRef(true);
   const sent = useRef({ readyId: "", meta: "", state: "", goneId: "" });
-  const { select } = notes;
 
-  useEffect(() => { activeRef.current = active; backupErrorRef.current = notes.backupError; }, [active, notes.backupError]);
-
-  // ページは静的に配るので、開くノートは表示後に URL から読む。
   useEffect(() => {
+    optionsRef.current = options;
+    activeRef.current = active;
+    backupErrorRef.current = notes.backupError;
+  }, [options, active, notes.backupError]);
+
+  // ページは静的に配るので、初回に開くノートは表示後に URL から読む（2 ページ目以降は openPage で切り替える）。
+  useEffect(() => {
+    if (initialLoadedRef.current) return;
+    initialLoadedRef.current = true;
     const params = new URL(window.location.href).searchParams;
     const id = params.get("page");
     const restored = resolveModelPreference(readEmbedModelPreference(params), options)
@@ -54,13 +64,20 @@ export function NoteEmbed() {
     queueMicrotask(() => {
       if (restored) { setModel(restored.model); setReasoning(restored.reasoning); }
       setPageId(id);
+      if (!id && params.get("warm") === "1") setIdle(true);
     });
-    if (!id) { postToNative({ type: "missing" }); return; }
+    if (!id) {
+      if (params.get("warm") !== "1") postToNative({ type: "missing" });
+      return;
+    }
+    expectedPageRef.current = id;
     // reveal：検索の結果から開いたとき、一致したブロック（ノート）・要素（ホワイトボード）まで動かす。
     const reveal = params.get("reveal");
     // 読み込みの前に預けておく（読み込み後の描画で下の effect が受け取る）。
     if (reveal && REVEAL_TARGET.test(reveal)) revealRef.current = { pageId: id, target: reveal };
-    void select(id, "none").then((opened) => { if (!opened) postToNative({ type: "missing" }); });
+    void select(id, "none", { keepCurrent: false }).then((opened) => {
+      if (!opened && expectedPageRef.current === id) postToNative({ type: "missing" });
+    });
   }, [select, options]);
 
   // AI ボタンのアイコンは、アプリの設定で選んだものに合わせる（アプリが渡さないときは変えない）。開いている間の変更は
@@ -98,8 +115,46 @@ export function NoteEmbed() {
       if (pageKindOf(queue.page) === "whiteboard") requestWhiteboardReveal(queue.page.id, target);
       else void revealNoteBlock(target);
     },
+    // 常駐 WebView の中で別ページ（または以前開いたページ）へ即座に切り替える。履歴は積まない（canGoBack を汚さない）。
+    openPage: ({ id, reveal, model: nextModel, reasoning: nextReasoning }) => {
+      cancelWhiteboardReveal();
+      setHistoryOpen(false);
+      sent.current = { readyId: "", meta: "", state: "", goneId: "" };
+      expectedPageRef.current = id;
+      revealRef.current = reveal ? { pageId: id, target: reveal } : null;
+      if (nextModel || nextReasoning) {
+        const params = new URLSearchParams();
+        if (nextModel) params.set("model", nextModel);
+        if (nextReasoning) params.set("reasoning", nextReasoning);
+        const resolved = resolveModelPreference(readEmbedModelPreference(params), optionsRef.current);
+        if (resolved) { setModel(resolved.model); setReasoning(resolved.reasoning); }
+      }
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set("page", id);
+        url.searchParams.delete("reveal");
+        url.searchParams.delete("warm");
+        window.history.replaceState(null, "", url);
+      } catch { /* URL 更新できなくても表示切り替えは続ける。 */ }
+      setIdle(false);
+      setPageId(id);
+      void select(id, "none", { keepCurrent: false }).then((opened) => {
+        if (!opened && expectedPageRef.current === id) postToNative({ type: "missing" });
+      });
+    },
+    // 一覧・チャットへ戻るとき：エディター DOM を外してキャッシュだけ残す。
+    close: () => {
+      cancelWhiteboardReveal();
+      setHistoryOpen(false);
+      revealRef.current = null;
+      expectedPageRef.current = null;
+      sent.current = { readyId: "", meta: "", state: "", goneId: "" };
+      setIdle(true);
+      setPageId(null);
+      deactivate();
+    },
     post: (message) => { postToNative(message); },
-  })), [setPreference]);
+  })), [deactivate, select, setPreference]);
 
   const title = active?.content.title;
   const icon = active?.content.icon;
@@ -107,10 +162,11 @@ export function NoteEmbed() {
   const gone = active?.gone;
   const kind = pageKindOf(active?.page);
   useEffect(() => {
-    if (!active || !activeId || loading || title === undefined) return;
+    if (idle || !active || !activeId || loading || title === undefined) return;
     const meta = pageMeta({ title, icon: icon ?? null });
     // 衝突を「新しいノートとして保存」すると、開いているノートが新しいページに替わる。そのときも ready を送り直す。
     if (sent.current.readyId !== activeId) {
+      expectedPageRef.current = activeId;
       sent.current = { readyId: activeId, meta: JSON.stringify(meta), state: "", goneId: "" };
       postToNative({ type: "ready", page: { id: activeId, ...meta, kind } });
     } else if (sent.current.meta !== JSON.stringify(meta)) {
@@ -128,17 +184,21 @@ export function NoteEmbed() {
       sent.current.goneId = activeId;
       postToNative({ type: "missing" });
     }
-  }, [active, activeId, loading, title, icon, status, gone, kind]);
+  }, [idle, active, activeId, loading, title, icon, status, gone, kind]);
 
   useEffect(() => {
     const request = revealRef.current;
-    if (!request || !active || activeId !== request.pageId || loading) return;
+    if (idle || !request || !active || activeId !== request.pageId || loading) return;
     revealRef.current = null;
     if (kind === "whiteboard") requestWhiteboardReveal(request.pageId, request.target);
     else void revealNoteBlock(request.target);
-  }, [active, activeId, loading, kind]);
+  }, [idle, active, activeId, loading, kind]);
 
-  const retry = async () => { if (pageId) await select(pageId, "none"); };
+  const retry = async () => { if (pageId) await select(pageId, "none", { keepCurrent: false }); };
+
+  if (idle) {
+    return <main className="notion-workspace flex h-dvh" />;
+  }
 
   return (
     <main className="notion-workspace flex h-dvh">

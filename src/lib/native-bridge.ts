@@ -2,6 +2,7 @@ import { isLocale, type Locale } from "@/lib/i18n/locale";
 import { isImageIcon, parseCharacterIcon, saveAppIcon, toCharacterIcon } from "@/lib/app-icon";
 import { parseThemePreference, saveThemePreference, type ThemePreference } from "@/lib/theme";
 import { pageSettingsOf, type NotePage, type NotePageSummary, type NoteSaveStatus, type PageKind } from "@/types/notes";
+import { PAGES_TRASHED_EVENT } from "@/lib/proposal-sync";
 import type { UsageTier } from "@/lib/usage-plans";
 
 // Android アプリ（mobile/android）の WebView にノートのエディターだけを載せる /note-embed と、アプリ側とのやり取り。
@@ -62,6 +63,12 @@ export type EmbedApi = {
   reveal: (target: unknown) => boolean;
   // スライドの操作（アプリの「…」メニュー・戻るボタン）：{ action: "present" | "end" | "next" | "previous" | "goto" | "export", index?, format? }（JSON 文字列でもよい）。
   slides: (command: unknown) => boolean;
+  // 常駐再利用している /note-embed WebView 内で、ページ全体を再読み込みせずに別ページへ切り替える。
+  openPage: (request: unknown) => boolean;
+  // 一覧・チャットへ戻るときに現在のエディター DOM を閉じてメモリを解放し、WebView とキャッシュだけ残す。
+  close: () => boolean;
+  // アプリ側でゴミ箱へ移したページ（およびサブページ）の ID を知らせ、常駐 WebView 内のキャッシュと下書きを消す。
+  pageTrashed: (ids: unknown) => boolean;
 };
 
 type BridgeWindow = { NoteFableNative?: unknown; notefableEmbed?: EmbedApi };
@@ -246,7 +253,50 @@ export function dispatchSlidesCommand(command: SlidesCommand) {
   window.dispatchEvent(new CustomEvent<SlidesCommand>("notefable:slides-command", { detail: command }));
 }
 
-export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, theme = saveThemePreference, slides = dispatchSlidesCommand, language, reveal = () => {}, post }: {
+export type OpenPageRequest = {
+  id: string;
+  reveal: string | null;
+  model: string | null;
+  reasoning: string | null;
+};
+
+// 常駐 WebView のページ切り替え依頼を確かめる。ID 文字列か JSON（{ id, reveal?, model?, reasoning? }）を受け付ける。
+export function parseOpenPageRequest(value: unknown): OpenPageRequest | null {
+  let raw: unknown = value;
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    if (trimmed.startsWith("{")) {
+      try { raw = JSON.parse(trimmed); } catch { return null; }
+    } else {
+      raw = { id: trimmed };
+    }
+  }
+  if (!raw || typeof raw !== "object") return null;
+  const candidate = raw as { id?: unknown; reveal?: unknown; model?: unknown; reasoning?: unknown };
+  if (typeof candidate.id !== "string" || !REVEAL_TARGET.test(candidate.id)) return null;
+  const reveal = typeof candidate.reveal === "string" && REVEAL_TARGET.test(candidate.reveal) ? candidate.reveal : null;
+  const model = typeof candidate.model === "string" && candidate.model.trim() ? candidate.model.trim() : null;
+  const reasoning = typeof candidate.reasoning === "string" && candidate.reasoning.trim() ? candidate.reasoning.trim() : null;
+  return { id: candidate.id, reveal, model, reasoning };
+}
+
+// ゴミ箱へ移したページ ID の配列を確かめる（JSON 文字列でもよい）。
+export function parseTrashedPageIds(value: unknown): string[] | null {
+  let raw: unknown = value;
+  if (typeof raw === "string") {
+    try { raw = JSON.parse(raw); } catch { return null; }
+  }
+  if (!Array.isArray(raw)) return null;
+  const ids = raw.filter((item): item is string => typeof item === "string" && REVEAL_TARGET.test(item));
+  return ids.length ? ids : null;
+}
+
+export function dispatchPagesTrashed(ids: string[]) {
+  window.dispatchEvent(new CustomEvent<{ ids: string[] }>(PAGES_TRASHED_EVENT, { detail: { ids } }));
+}
+
+export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, theme = saveThemePreference, slides = dispatchSlidesCommand, openPage, close, pageTrashed = dispatchPagesTrashed, language, reveal = () => {}, post }: {
   flush: () => Promise<boolean>;
   reveal?: (target: string) => void;
   language?: (locale: Locale) => Promise<boolean>;
@@ -258,6 +308,9 @@ export function createEmbedApi({ flush, draftKept = () => false, openHistory, pa
   // 既定では web の設定と同じ場所（この WebView の localStorage）に書き、表示中のアイコンをその場で替える。
   appIcon?: (icon: string | null) => unknown;
   slides?: (command: SlidesCommand) => void;
+  openPage?: (request: OpenPageRequest) => void;
+  close?: () => void;
+  pageTrashed?: (ids: string[]) => void;
   post: (message: NativeMessage) => void;
 }): EmbedApi {
   return {
@@ -308,6 +361,24 @@ export function createEmbedApi({ flush, draftKept = () => false, openHistory, pa
       const command = parseSlidesCommand(value);
       if (!command) return false;
       slides(command);
+      return true;
+    },
+    openPage(value) {
+      if (!openPage) return false;
+      const request = parseOpenPageRequest(value);
+      if (!request) return false;
+      openPage(request);
+      return true;
+    },
+    close() {
+      if (!close) return false;
+      close();
+      return true;
+    },
+    pageTrashed(value) {
+      const ids = parseTrashedPageIds(value);
+      if (!ids) return false;
+      pageTrashed(ids);
       return true;
     },
   };
