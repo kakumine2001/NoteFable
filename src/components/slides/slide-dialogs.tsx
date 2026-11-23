@@ -4,14 +4,18 @@ import { LoaderCircle, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useT } from "@/components/i18n-provider";
 import { localizeSystemText } from "@/lib/i18n/translate";
+import { useBackToClose } from "@/lib/use-back-to-close";
 import { copyChatImage, generateSlideImage, type GenerateSize, type SlideImage } from "@/lib/slides/images";
 import { StorageLimitError } from "@/lib/usage-plans";
 
 // スライドのエディターのダイアログ：チャットの画像から選ぶ・AI で画像を作る・AI の画像を報告する。
 
-function Modal({ label, onClose, children, className = "" }: { label: string; onClose: () => void; children: ReactNode; className?: string }) {
+// busy の間は閉じない（「戻る」・Esc も）。
+function Modal({ label, onClose, children, className = "", busy = false }: { label: string; onClose: () => void; children: ReactNode; className?: string; busy?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => { ref.current?.showModal(); }, []);
+  // スマホのブラウザの「戻る」で閉じる（AGENTS.md：戻るキーが要るパネルは履歴を積む）。
+  useBackToClose(true, () => (busy ? false : onClose()));
   return <dialog ref={ref} onCancel={(event) => { event.preventDefault(); onClose(); }} aria-label={label} className={`notes-dialog slides-dialog ${className}`}>{children}</dialog>;
 }
 
@@ -23,6 +27,9 @@ export function ChatImagesDialog({ onPicked, onClose }: { onPicked: (image: Slid
   const [images, setImages] = useState<ChatImage[] | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  // 閉じたあとに写し終えた画像は置かない。
+  const open = useRef(true);
+  useEffect(() => () => { open.current = false; }, []);
   useEffect(() => {
     let cancelled = false;
     fetch("/api/pages/chat-images", { cache: "no-store" })
@@ -37,11 +44,11 @@ export function ChatImagesDialog({ onPicked, onClose }: { onPicked: (image: Slid
   async function pick(id: string) {
     setBusy(id);
     setError("");
-    try { onPicked(await copyChatImage(id)); onClose(); }
+    try { const image = await copyChatImage(id); if (!open.current) return; onPicked(image); onClose(); }
     catch (caught) { if (!(caught instanceof StorageLimitError)) setError(caught instanceof Error ? caught.message : t("Could not add the image.")); else onClose(); }
     finally { setBusy(null); }
   }
-  return <Modal label={t("Images from chats")} onClose={onClose} className="slides-chat-images">
+  return <Modal label={t("Images from chats")} onClose={onClose} className="slides-chat-images" busy={!!busy}>
     <h2 className="text-base font-semibold">{t("Images from chats")}</h2>
     {error && <p role="alert" className="slides-dialog-error">{localizeSystemText(error, t)}</p>}
     {images === null ? <p className="slides-dialog-muted"><LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> {t("Loading…")}</p>
@@ -79,7 +86,7 @@ export function GenerateImageDialog({ onGenerated, onClose }: { onGenerated: (im
     catch (caught) { if (caught instanceof StorageLimitError) onClose(); else setError(caught instanceof Error ? caught.message : t("Could not create the image. Try again.")); }
     finally { setBusy(false); }
   }
-  return <Modal label={t("Generate an image")} onClose={() => { if (!busy) onClose(); }}>
+  return <Modal label={t("Generate an image")} onClose={() => { if (!busy) onClose(); }} busy={busy}>
     <form onSubmit={(event) => { event.preventDefault(); void submit(); }}>
       <h2 className="text-base font-semibold">{t("Generate an image")}</h2>
       <p className="slides-dialog-muted">{t("Describe the image. Each image uses one image generation from your plan.")}</p>

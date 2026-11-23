@@ -14,7 +14,7 @@ type DragState = { ids: Set<string>; pointerId: number; startX: number; startY: 
 
 // 縮小図のドラッグ。マウスは 6px 動いたら、指（タッチ）は少し長押ししてから動かすと始める（すぐ動かすと一覧のスクロール）。
 // 始めたら指を捕まえて（画面のどこで離しても）落とす位置を追う。ドラッグの後のクリックは選択にしない。
-function useThumbDrag(onDrop: (ids: Set<string>, clientX: number, clientY: number) => void, onHover: (clientX: number, clientY: number) => void) {
+function useThumbDrag(onDrop: (ids: Set<string>, clientX: number, clientY: number) => void, onHover: (clientX: number, clientY: number) => void, onCancel: () => void) {
   const drag = useRef<DragState | null>(null);
   const suppressClick = useRef(false);
   const [dragging, setDragging] = useState(false);
@@ -62,10 +62,12 @@ function useThumbDrag(onDrop: (ids: Set<string>, clientX: number, clientY: numbe
         clearTimeout(current?.timer);
         if (!current?.active) return;
         suppressClick.current = true;
+        // ドラッグの後に click が来ないブラウザでも、次の本当のクリックを飲み込まない。
+        setTimeout(() => { suppressClick.current = false; }, 0);
         setDragging(false);
         onDrop(current.ids, event.clientX, event.clientY);
       },
-      onPointerCancel() { clearTimeout(drag.current?.timer); drag.current = null; setDragging(false); },
+      onPointerCancel() { clearTimeout(drag.current?.timer); drag.current = null; setDragging(false); onCancel(); },
     }),
     // ドラッグの直後のクリックか（そうなら選択を変えない）。
     consumeClick() {
@@ -111,11 +113,13 @@ export function SlideFilmstrip({ deck, currentId, selected, editable, horizontal
     for (let i = 0; i < thumbs.length; i++) {
       const rect = thumbs[i].getBoundingClientRect();
       const middle = horizontal ? rect.left + rect.width / 2 : rect.top + rect.height / 2;
-      if ((horizontal ? clientX : clientY) < middle) return i;
+      // 右から左の言語では、横の帯は右から並ぶ。
+      if (horizontal ? (rtl() ? clientX > middle : clientX < middle) : clientY < middle) return i;
     }
     return thumbs.length;
   };
-  const drag = useThumbDrag((ids, x, y) => { setInsertAt(null); onMove(ids, indexAt(x, y)); }, (x, y) => setInsertAt(indexAt(x, y)));
+  const rtl = () => !!list.current && getComputedStyle(list.current).direction === "rtl";
+  const drag = useThumbDrag((ids, x, y) => { setInsertAt(null); onMove(ids, indexAt(x, y)); }, (x, y) => setInsertAt(indexAt(x, y)), () => setInsertAt(null));
   const rows = slideRows(deck.slides);
   const { setRoot } = drag;
   const attach = useCallback((node: HTMLDivElement | null) => { list.current = node; setRoot(node); }, [setRoot]);
@@ -159,15 +163,18 @@ export function SlideGrid({ deck, currentId, selected, editable, thumbWidth = 23
       if (clientY <= rowNodes[i].getBoundingClientRect().bottom) { rowIndex = i; break; }
     }
     if (rowIndex >= rowNodes.length) return { row: rowNodes.length, position: 0 };
+    // 右から左の言語では、行の中は右から並ぶ。
+    const rtl = !!root.current && getComputedStyle(root.current).direction === "rtl";
     let position = 0;
     for (const thumb of Array.from(rowNodes[rowIndex].querySelectorAll<HTMLElement>(".slides-thumb"))) {
       const rect = thumb.getBoundingClientRect();
       const cy = rect.top + rect.height / 2;
-      if (cy < clientY - rect.height / 2 || (Math.abs(cy - clientY) <= rect.height / 2 && rect.left + rect.width / 2 < clientX)) position++;
+      const pastMiddle = rtl ? clientX < rect.left + rect.width / 2 : rect.left + rect.width / 2 < clientX;
+      if (cy < clientY - rect.height / 2 || (Math.abs(cy - clientY) <= rect.height / 2 && pastMiddle)) position++;
     }
     return { row: rowIndex, position };
   };
-  const drag = useThumbDrag((ids, x, y) => { setTarget(null); const { row, position } = targetAt(x, y); onMoveToRow(ids, row, position); }, (x, y) => setTarget(targetAt(x, y)));
+  const drag = useThumbDrag((ids, x, y) => { setTarget(null); const { row, position } = targetAt(x, y); onMoveToRow(ids, row, position); }, (x, y) => setTarget(targetAt(x, y)), () => setTarget(null));
   const { setRoot } = drag;
   const attach = useCallback((node: HTMLDivElement | null) => { root.current = node; setRoot(node); }, [setRoot]);
   return <div ref={attach} className={`slides-grid${drag.dragging ? " is-dragging" : ""}`} role="listbox" aria-label={t("Slides")} aria-multiselectable="true">

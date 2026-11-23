@@ -68,6 +68,11 @@ describe("public share tree and page kinds", () => {
     expect((await resolvePublicShare(token, "child"))?.page.id).toBe("child");
   });
 
+  it("never reports \"include sub-pages\" for a slide deck (publishing it does not save the pages below first)", async () => {
+    mocks.findFirst.mockResolvedValue(page("deck", { kind: "slides", shareToken: token, shareEnabled: true, shareIncludeSubpages: true }));
+    expect((await resolveOwnerShareState("owner", "deck", "https://example.com"))?.includeSubpages).toBe(false);
+  });
+
   it("does not report a page as published through its parent when a whiteboard is in between, or when the page itself is a whiteboard", async () => {
     const shared = ancestor("root", { shareToken: token, shareEnabled: true, depth: 2 });
     mocks.findFirst.mockResolvedValue(page("child", { parentId: "board" }));

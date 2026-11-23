@@ -67,7 +67,8 @@ export function slideImageReportEmail(report: { userId: string; signedIn: boolea
     "--- Image (storage path) ---",
     report.path,
   ];
-  return { subject: `[NoteFable] Reported slide image ${report.pageId}/${report.elementId}`, text: lines.join("\n") };
+  const plain = (value: string) => value.replace(/[\u0000-\u001f\u007f]+/g, " ");
+  return { subject: `[NoteFable] Reported slide image ${plain(report.pageId)}/${plain(report.elementId)}`, text: lines.join("\n") };
 }
 
 // 自分のチャットの AI の回答だけを通報できる。見つからなければ null。

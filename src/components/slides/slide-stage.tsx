@@ -57,7 +57,7 @@ function TableEditor({ element, onChange, onExit }: { element: TableElement; onC
   const first = useRef<HTMLTextAreaElement>(null);
   useEffect(() => { first.current?.focus(); }, []);
   return <table className="slide-table slide-table-editing" style={{ fontFamily: theme.fonts[element.style.font].css, fontSize: `${element.style.size}px`, color: resolveColor(element.style.color, theme) }}
-    onPointerDown={(event) => event.stopPropagation()}>
+    onPointerDown={(event) => event.stopPropagation()} onContextMenu={(event) => event.stopPropagation()}>
     <colgroup>{element.cols.map((col, index) => <col key={index} style={{ width: `${(col / total) * 100}%` }} />)}</colgroup>
     <tbody>{element.rows.map((row, rowIndex) => <tr key={rowIndex} style={{ height: `${100 / element.rows.length}%` }}>
       {row.cells.map((cell, cellIndex) => {
@@ -66,7 +66,7 @@ function TableEditor({ element, onChange, onExit }: { element: TableElement; onC
         return <Cell key={cellIndex} style={{ borderColor: resolveColor(element.style.border, theme), background: header ? resolveColor(element.style.headerFill, theme) : undefined }}>
           <textarea ref={rowIndex === 0 && cellIndex === 0 ? first : undefined} className="slide-table-cell-input" value={cell.text}
             aria-label={t("Table cell {row}, {column}", { row: rowIndex + 1, column: cellIndex + 1 })}
-            onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); onExit(); } }}
+            onKeyDown={(event) => { if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.preventDefault(); onExit(); } }}
             onChange={(event) => onChange({
               ...element,
               rows: element.rows.map((r, ri) => ri !== rowIndex ? r : { cells: r.cells.map((c, ci) => (ci === cellIndex ? { text: event.target.value.slice(0, 2000) } : c)) }),

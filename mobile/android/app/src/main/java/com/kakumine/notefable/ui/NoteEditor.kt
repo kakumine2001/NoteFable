@@ -11,6 +11,7 @@ import com.kakumine.notefable.data.isShared
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.ActivityNotFoundException
+import android.provider.DocumentsContract
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
@@ -154,50 +155,69 @@ class NoteEmbedBridge(
     @Volatile
     var exportDir: File? = null
     /** 一个导出文件收齐了：交给界面打开系统的"保存到"（主线程）。 */
+    @Volatile
     var onFileReady: ((File, String, String) -> Unit)? = null
+    /** 导出文件在 App 这边没能收齐（写不进临时文件、分块乱序、太大）：界面提示"无法保存文件"（主线程）。 */
+    @Volatile
+    var onFileFailed: (() -> Unit)? = null
 
     private class ExportFile(val file: File, val out: FileOutputStream, val name: String, val mime: String, var next: Int = 0, var bytes: Long = 0)
     private val exports = ConcurrentHashMap<String, ExportFile>()
+    // 分块在 JS 线程上写，release 在主线程上清理：同一时刻只让一边动导出文件。
+    private val fileLock = Any()
+
+    private fun failFile() {
+        main.post { onFileFailed?.invoke() }
+    }
 
     private fun startFile(message: EmbedMessage.FileStart) {
-        val dir = exportDir ?: return
-        runCatching {
-            dir.mkdirs()
-            // 前一次没保存完留下的临时文件（超过一天的）顺便清掉。
-            dir.listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > 24 * 60 * 60 * 1000L }?.forEach { it.delete() }
-            val file = File(dir, UUID.randomUUID().toString() + ".part")
-            exports.put(message.id, ExportFile(file, FileOutputStream(file), message.name, message.mime))?.let { it.out.close(); it.file.delete() }
+        val dir = exportDir ?: return failFile()
+        val ok = synchronized(fileLock) {
+            runCatching {
+                dir.mkdirs()
+                // 前一次没保存完留下的临时文件（超过一天的）顺便清掉。
+                dir.listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > 24 * 60 * 60 * 1000L }?.forEach { it.delete() }
+                val file = File(dir, UUID.randomUUID().toString() + ".part")
+                exports.put(message.id, ExportFile(file, FileOutputStream(file), message.name, message.mime))?.let { runCatching { it.out.close() }; it.file.delete() }
+            }.isSuccess
         }
+        if (!ok) failFile()
     }
 
     private fun appendFile(message: EmbedMessage.FileChunk) {
-        val export = exports[message.id] ?: return
-        val ok = runCatching {
-            if (message.index != export.next) error("chunk order")
-            val bytes = Base64.decode(message.data, Base64.DEFAULT)
-            export.bytes += bytes.size
-            if (export.bytes > MAX_EXPORT_BYTES) error("too large")
-            export.out.write(bytes)
-            export.next++
-        }.isSuccess
-        if (!ok) abortFile(message.id)
+        val ok = synchronized(fileLock) {
+            val export = exports[message.id] ?: return
+            runCatching {
+                if (message.index != export.next) error("chunk order")
+                val bytes = Base64.decode(message.data, Base64.DEFAULT)
+                export.bytes += bytes.size
+                if (export.bytes > MAX_EXPORT_BYTES) error("too large")
+                export.out.write(bytes)
+                export.next++
+            }.isSuccess
+        }
+        if (!ok) { abortFile(message.id); failFile() }
     }
 
     private fun finishFile(id: String) {
-        val export = exports.remove(id) ?: return
-        runCatching { export.out.close() }
+        val export = synchronized(fileLock) { exports.remove(id) } ?: return
+        // 没写完（close 失败）的文件不交出去。
+        if (runCatching { export.out.close() }.isFailure) { export.file.delete(); return failFile() }
         main.post { onFileReady?.invoke(export.file, export.name, export.mime) ?: export.file.delete() }
     }
 
     private fun abortFile(id: String) {
-        val export = exports.remove(id) ?: return
+        val export = synchronized(fileLock) { exports.remove(id) } ?: return
         runCatching { export.out.close() }
         export.file.delete()
     }
 
     /** 幻灯片的操作（"…"菜单的放映 / 导出、放映中的返回键）：交给网页（`window.notefableEmbed.slides`）。 */
-    fun slides(command: String) {
-        webView?.evaluateJavascript("(function(){var e=window.notefableEmbed;if(e&&typeof e.slides==='function')e.slides(${JSONObject.quote(command)})})()", null)
+    fun slides(command: String, onResult: ((Boolean) -> Unit)? = null) {
+        val view = webView ?: return run { onResult?.invoke(false) }
+        view.evaluateJavascript("(function(){var e=window.notefableEmbed;if(e&&typeof e.slides==='function')return e.slides(${JSONObject.quote(command)})===true;return false})()") { result ->
+            onResult?.invoke(result == "true")
+        }
     }
 
     /** Swap the dictionary without reloading the note, its draft or AI stream. */
@@ -263,8 +283,9 @@ class NoteEmbedBridge(
 
     /** WebView 被销毁（离开编辑页、渲染进程崩溃）：等着它回答的保存都算失败，不再等。 */
     fun release(view: WebView) {
-        exports.keys.toList().forEach(::abortFile)
+        // 已经换上新的 WebView 时，不动它正在进行的导出。
         if (webView !== view) return
+        exports.keys.toList().forEach(::abortFile)
         webView = null
         mounting.values.forEach { it.complete(false) }
         pending.values.forEach { it.complete(FlushResult(false)) }
@@ -363,6 +384,8 @@ fun NoteEditorScreen(
     onShare: (() -> Unit)? = null,
     /** 编辑器上方的提示（上传因存储空间不够被拒绝时的 [StorageLimitPrompt]）。 */
     prompt: (@Composable () -> Unit)? = null,
+    /** 幻灯片放映的开始 / 结束（放映中侧栏的滑动打开要关掉）。 */
+    onPresentingChange: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     val currentOnMessage by rememberUpdatedState(onMessage)
@@ -384,34 +407,44 @@ fun NoteEditorScreen(
         }
     }
     PresentationMode(presenting)
+    val currentOnPresentingChange by rememberUpdatedState(onPresentingChange)
+    LaunchedEffect(presenting) { currentOnPresentingChange(presenting) }
+    DisposableEffect(Unit) { onDispose { currentOnPresentingChange(false) } }
     // 导出：网页做好的文件先存进缓存，再让用户用系统的"保存到"选位置。
     val exportDir = remember(context) { File(context.cacheDir, "exports") }
     val pendingExport = remember(open.editor) { arrayOfNulls<File>(1) }
     val savedText = stringResource(R.string.slides_file_saved)
     val saveFailedText = stringResource(R.string.slides_file_save_failed)
-    val exportScope = rememberCoroutineScope()
+    val app = context.applicationContext as com.kakumine.notefable.NoteFableApp
     val saver = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val file = pendingExport[0]
         pendingExport[0] = null
         val uri = result.data?.data
         if (file == null) return@rememberLauncherForActivityResult
         if (uri == null || result.resultCode != Activity.RESULT_OK) { file.delete(); return@rememberLauncherForActivityResult }
-        // 大きなファイル（PNG の ZIP など）でも画面が止まらないよう、書き写しは IO スレッドで。
-        exportScope.launch {
+        // 大文件（PNG 的 ZIP 等）也不卡界面：在 IO 线程里写；离开编辑页也写完（App 的 scope）。
+        // 写失败就删掉保存位置里已经建好的空文件。
+        app.scope.launch {
             val ok = withContext(Dispatchers.IO) {
-                runCatching { context.contentResolver.openOutputStream(uri)?.use { out -> file.inputStream().use { it.copyTo(out) } } ?: error("no stream") }.isSuccess
-                    .also { file.delete() }
+                try {
+                    runCatching { (app.contentResolver.openOutputStream(uri, "wt") ?: error("no stream")).use { out -> file.inputStream().use { it.copyTo(out) } } }.isSuccess
+                        .also { saved -> if (!saved) runCatching { DocumentsContract.deleteDocument(app.contentResolver, uri) } }
+                } finally {
+                    file.delete()
+                }
             }
-            Toast.makeText(context, if (ok) savedText else saveFailedText, Toast.LENGTH_SHORT).show()
+            Toast.makeText(app, if (ok) savedText else saveFailedText, Toast.LENGTH_SHORT).show()
         }
     }
     remember(bridge) {
         bridge.exportDir = exportDir
+        bridge.onFileFailed = { Toast.makeText(context, saveFailedText, Toast.LENGTH_SHORT).show() }
         bridge.onFileReady = { file, name, mime ->
             pendingExport[0]?.delete()
             pendingExport[0] = file
             val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType(mime).putExtra(Intent.EXTRA_TITLE, name)
-            try { saver.launch(intent) } catch (_: ActivityNotFoundException) {
+            try { saver.launch(intent) } catch (_: RuntimeException) {
+                // 没有选择保存位置的画面（ActivityNotFoundException），或编辑页已经关了（IllegalStateException）。
                 pendingExport[0] = null
                 file.delete()
                 Toast.makeText(context, saveFailedText, Toast.LENGTH_SHORT).show()
@@ -442,6 +475,9 @@ fun NoteEditorScreen(
         registerFlush(bridge)
         onDispose {
             registerFlush(null)
+            // 关掉之后才收齐的导出不再弹保存画面（launcher 已经不能用），临时文件由 finishFile 删掉。
+            bridge.onFileReady = null
+            bridge.onFileFailed = null
             fileCallback[0]?.onReceiveValue(null)
             fileCallback[0] = null
         }
@@ -454,7 +490,8 @@ fun NoteEditorScreen(
         val view = bridge.webView
         when {
             // 放映中：先结束放映（网页收到后发 presentation end，App 恢复竖屏和顶栏），不离开幻灯片。
-            presenting -> bridge.slides("""{"action":"end"}""")
+            // 网页没有回应（加载失败等）时由这里结束放映，不把人困在横屏全屏里。
+            presenting -> bridge.slides("""{"action":"end"}""") { handled -> if (!handled) presentingState.value = false }
             view == null -> onBack()
             view.canGoBack() -> view.goBack()
             else -> view.evaluateJavascript(CLOSE_TOP_DIALOG) { closed -> if (closed != "true") onBack() }
@@ -571,6 +608,8 @@ fun NoteEditorScreen(
 
                         // 渲染进程被系统杀掉或崩溃：不处理的话整个 App 会跟着退出。丢掉这个 WebView，换新的重新加载。
                         override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                            // 放映中的网页没了：先结束放映，重新加载失败也不会困在横屏全屏里。
+                            presentingState.value = false
                             bridge.release(view)
                             generation++
                             return true

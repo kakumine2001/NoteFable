@@ -6,7 +6,7 @@ import { InputRule, inputRules, textblockTypeInputRule, wrappingInputRule } from
 import { keymap } from "@tiptap/pm/keymap";
 import type { MarkType, Node as PMNode, NodeType } from "@tiptap/pm/model";
 import { liftListItem, sinkListItem, splitListItem, wrapInList } from "@tiptap/pm/schema-list";
-import { EditorState, NodeSelection, TextSelection, type Command, type Transaction } from "@tiptap/pm/state";
+import { AllSelection, EditorState, NodeSelection, TextSelection, type Command, type Transaction } from "@tiptap/pm/state";
 import { EditorView, type NodeView } from "@tiptap/pm/view";
 import { useEffect, useLayoutEffect, useRef, type CSSProperties } from "react";
 import { currentSlideKatex, loadSlideKatex, slideMathHtml } from "@/components/slides/slide-math";
@@ -232,7 +232,10 @@ function slideInputRules() {
     new InputRule(/^\$\$\s$/, (state, _match, start, end) => {
       const $start = state.doc.resolve(start);
       if (!$start.parent.isTextblock) return null;
-      return state.tr.delete(start, end).replaceRangeWith($start.before(), $start.after(), nodes.math_block.create({ latex: "" }));
+      // 「$」を消してから、縮んだ段落の位置で置き換える（消す前の位置を使うと段落の外を指す）。
+      const tr = state.tr.delete(start, end);
+      const $paragraph = tr.doc.resolve(tr.mapping.map(start));
+      return tr.replaceRangeWith($paragraph.before(), $paragraph.after(), nodes.math_block.create({ latex: "" }));
     }),
   ] });
 }
@@ -299,7 +302,7 @@ export function SlideTextEditor({ doc, style, className = "slide-text", onChange
     });
     if (commandsRef) commandsRef.current = textCommands(view);
     view.focus();
-    const end = selectAll ? TextSelection.create(view.state.doc, 0, view.state.doc.content.size) : TextSelection.atEnd(view.state.doc);
+    const end = selectAll ? new AllSelection(view.state.doc) : TextSelection.atEnd(view.state.doc);
     try { view.dispatch(view.state.tr.setSelection(end)); } catch { /* 空の文書 */ }
     return () => {
       if (commandsRef?.current?.view === view) commandsRef.current = null;
@@ -309,6 +312,6 @@ export function SlideTextEditor({ doc, style, className = "slide-text", onChange
   }, [commandsRef, selectAll, editable]);
   return <div className={`${className} slide-text-editing`} style={style} ref={host}
     // スライドの上の操作（ドラッグで動かす・選び直す）に、文字を選ぶ操作を渡さない。
-    onPointerDown={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()} />;
+    onPointerDown={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()} onContextMenu={(event) => event.stopPropagation()} />;
 }
 

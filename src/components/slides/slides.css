@@ -325,3 +325,5 @@
   .public-slides-topbar .public-note-brand span { display: none; }
   .public-slides-main { padding: 12px 8px 16px; }
 }
+
+.slides-inspector-fields { min-width: 0; margin: 0; padding: 0; border: 0; }

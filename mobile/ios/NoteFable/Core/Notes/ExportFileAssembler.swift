@@ -66,14 +66,16 @@ final class ExportFileAssembler {
     /// 收齐了：文件名换成网页给的名字（同名的文件夹里）后返回。没有这个 id（已放弃）时 nil。
     func finish(id: String) -> Ready? {
         guard let file = pending.removeValue(forKey: id) else { return nil }
-        try? file.handle.close()
         let folder = directory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let target = folder.appendingPathComponent(file.name)
         do {
+            // 写不完（关闭时失败）的文件不交出去。
+            try file.handle.close()
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             try FileManager.default.moveItem(at: file.url, to: target)
         } catch {
             try? FileManager.default.removeItem(at: file.url)
+            try? FileManager.default.removeItem(at: folder)
             return nil
         }
         return Ready(url: target, name: file.name, mime: file.mime)

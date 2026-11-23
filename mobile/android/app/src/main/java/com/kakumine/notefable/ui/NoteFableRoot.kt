@@ -86,6 +86,8 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     val activity = LocalActivity.current ?: return
     val app = LocalContext.current.applicationContext as NoteFableApp
     val drawerState = rememberDrawerState(DrawerValue.Closed)
+    // 幻灯片在放映（编辑页报上来的）：放映中侧栏不跟着滑动打开。
+    var slidesPresenting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     var dialog by remember { mutableStateOf<NotesDialogState?>(null) }
     // 笔记编辑器里上传因存储空间不够被拒绝（网页经桥发来的 storageLimit）：编辑器上方显示提示，关掉为止。
@@ -219,6 +221,8 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
 
     ModalNavigationDrawer(
         drawerState = drawerState,
+        // 幻灯片放映中不让侧栏跟着边缘滑动打开（和翻回上一页、呼出系统栏的手势冲突）。
+        gesturesEnabled = !slidesPresenting,
         drawerContent = {
             AppDrawer(
                 workspace = notes.workspace,
@@ -380,6 +384,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                     onMenu = { scope.launch { drawerState.open() } },
                     onBack = notesViewModel::closeNote,
                     onDismissNotice = notesViewModel::dismissNotice,
+                    onPresentingChange = { slidesPresenting = it },
                     onMessage = { editor, message ->
                         when (message) {
                             is EmbedMessage.Ready -> notesViewModel.onEditorReady(editor, message.id, message.title, message.icon, message.kind)

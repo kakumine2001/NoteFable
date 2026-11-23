@@ -16,12 +16,15 @@ export const runtime = "nodejs";
 const LIST_LIMIT = 60;
 // URL 全体の上限（parseNoteFileUrl の 600 文字）に収まるよう、長い（CJK などの）ファイル名を縮める。
 const URL_BUDGET = 560;
+// 文字は code point 単位で切る（絵文字などのサロゲートペアを分けると URL にできない）。
 function fitName(path: string, name: string, extension: string) {
-  const dot = name.lastIndexOf(".");
-  const base = dot > 0 ? name.slice(0, dot) : name;
-  const suffix = dot > 0 ? name.slice(dot) : "";
+  // 切れた（対になっていない）サロゲートは捨てる。
+  const whole = name.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "");
+  const dot = whole.lastIndexOf(".");
+  const base = Array.from(dot > 0 ? whole.slice(0, dot) : whole);
+  const suffix = dot > 0 ? whole.slice(dot) : "";
   for (let length = base.length; length > 0; length = length > 10 ? length - 10 : length - 1) {
-    const candidate = base.slice(0, length) + suffix;
+    const candidate = base.slice(0, length).join("") + suffix;
     if (noteFileUrl(path, candidate).length <= URL_BUDGET) return candidate;
   }
   return `image.${extension}`;

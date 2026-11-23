@@ -263,7 +263,8 @@ export async function resolveOwnerShareState(
     expired,
     token: page.shareToken,
     url: page.shareToken ? sharePageUrl(page.shareToken, origin) : null,
-    includeSubpages: page.shareIncludeSubpages,
+    // スライドは公開の木の葉：サブページを含める設定は無い（含めると、公開の前に下のページまで保存しに行く）。
+    includeSubpages: page.shareIncludeSubpages && !leafKind(page),
     expiresAt: page.shareExpiresAt ? page.shareExpiresAt.toISOString() : null,
     excludeFromParent: page.shareExcludeFromParent,
     hasParent: Boolean(page.parentId),

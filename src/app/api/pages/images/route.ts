@@ -4,7 +4,8 @@ import { getOrCreateUser } from "@/lib/auth";
 import { createImageApiGeneration, findGeneratedImage, type GenerationSize } from "@/lib/image-generation";
 import { msg } from "@/lib/i18n/translate";
 import { noteApiError } from "@/lib/note-api";
-import { noteFileUrl } from "@/lib/note-file-keys";
+import sharp from "sharp";
+import { MAX_NOTE_FILE_BYTES, noteFileUrl, sniffImage } from "@/lib/note-file-keys";
 import { assertStorageRoom, scheduleStorageMaintenance, storeFile } from "@/lib/stored-files";
 import { clientNetworkKey, consumeUsage, refundUsage, usageLimitResponse, type UsageTicket } from "@/lib/usage-limits";
 
@@ -18,6 +19,20 @@ export const maxDuration = 120;
 const MAX_PROMPT_CHARS = 4_000;
 const SIZES: GenerationSize[] = ["1536x1024", "1024x1024", "1024x1536"];
 const ATTEMPTS = 2;
+
+// 作った画像をノートのファイルとして保存できる形にする。画像でなければ null。ノートのファイルは関数を通して返す（Vercel の応答は 4.5 MB まで）ので、
+// 大きすぎる PNG は WebP に変え（足りなければ縮めて）上限（MAX_NOTE_FILE_BYTES）に収める。
+async function fitGeneratedImage(buffer: Buffer): Promise<{ buffer: Buffer; mime: string; extension: string } | null> {
+  const mime = sniffImage(buffer);
+  if (!mime) return null;
+  if (buffer.byteLength <= MAX_NOTE_FILE_BYTES) return { buffer, mime, extension: mime === "image/png" ? "png" : mime === "image/jpeg" ? "jpg" : mime === "image/webp" ? "webp" : "gif" };
+  for (const [width, quality] of [[undefined, 90], [1280, 85], [1024, 80]] as const) {
+    const pipeline = sharp(buffer);
+    const out = await (width ? pipeline.resize({ width, withoutEnlargement: true }) : pipeline).webp({ quality }).toBuffer();
+    if (out.byteLength <= MAX_NOTE_FILE_BYTES) return { buffer: out, mime: "image/webp", extension: "webp" };
+  }
+  return null;
+}
 
 export async function POST(request: Request) {
   let ticket: UsageTicket | null = null;
@@ -45,12 +60,18 @@ export async function POST(request: Request) {
       await refundUsage(ticket);
       return NextResponse.json({ error: msg("Could not create the image. Try again.") }, { status: 502 });
     }
-    const buffer = Buffer.from(image, "base64");
-    const path = `note-files/${user.id}/${randomUUID()}.png`;
-    await storeFile(user, { path, kind: "NOTE_FILE", buffer, mimeType: "image/png" }, { enforce: false });
+    const stored = await fitGeneratedImage(Buffer.from(image, "base64"));
+    if (!stored) {
+      console.error("Slide image generation returned an unreadable image");
+      await refundUsage(ticket);
+      return NextResponse.json({ error: msg("Could not create the image. Try again.") }, { status: 502 });
+    }
+    const name = `ai-image.${stored.extension}`;
+    const path = `note-files/${user.id}/${randomUUID()}.${stored.extension}`;
+    await storeFile(user, { path, kind: "NOTE_FILE", buffer: stored.buffer, mimeType: stored.mime }, { enforce: false });
     ticket = null;
     scheduleStorageMaintenance();
-    return NextResponse.json({ url: noteFileUrl(path, "ai-image.png"), name: "ai-image.png", size: buffer.byteLength, prompt }, { status: 201, headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ url: noteFileUrl(path, name), name, size: stored.buffer.byteLength, prompt }, { status: 201, headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     await refundUsage(ticket);
     return noteApiError(error);

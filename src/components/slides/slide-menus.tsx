@@ -48,26 +48,27 @@ export function MenuItem({ icon, label, shortcut, onClick, disabled = false, che
 }
 
 // 色を選ぶ：主題の色（主題を替えると一緒に替わる）・よく使う色・自由な色。none を許すときは「なし」。
-export function ColorPicker({ value, theme, onChange, allowNone = false }: { value: ColorRef | null; theme: ResolvedTheme; onChange: (value: ColorRef | null) => void; allowNone?: boolean }) {
+// done は選び終わったか（見本・「なし」は true、自由な色の入力はつまみを動かしている間なので false）。
+export function ColorPicker({ value, theme, onChange, allowNone = false }: { value: ColorRef | null; theme: ResolvedTheme; onChange: (value: ColorRef | null, done: boolean) => void; allowNone?: boolean }) {
   const t = useT();
   const custom = value && value.startsWith("#") ? value : resolveColor(value, theme);
   return <div className="slides-colors">
     <div className="slides-colors-label">{t("Theme colors")}</div>
     <div className="slides-colors-grid">
       {PALETTE_TOKENS.map((token) => <button key={token} type="button" role="menuitemradio" aria-checked={value === token} title={t(TOKEN_LABELS[token])} aria-label={t(TOKEN_LABELS[token])}
-        className="slides-swatch" style={{ background: theme.palette[token] }} onClick={() => onChange(token)} />)}
+        className="slides-swatch" style={{ background: theme.palette[token] }} onClick={() => onChange(token, true)} />)}
     </div>
     <div className="slides-colors-label">{t("Colors")}</div>
     <div className="slides-colors-grid">
       {FIXED_COLORS.map((color) => <button key={color} type="button" role="menuitemradio" aria-checked={value === color} title={color} aria-label={color}
-        className="slides-swatch" style={{ background: color }} onClick={() => onChange(color)} />)}
+        className="slides-swatch" style={{ background: color }} onClick={() => onChange(color, true)} />)}
     </div>
     <div className="slides-colors-row">
       <label className="slides-color-custom">
-        <input type="color" value={/^#[0-9a-f]{6}$/i.test(custom) ? custom : "#000000"} onChange={(event) => { if (isColorRef(event.target.value)) onChange(event.target.value as ColorRef); }} />
+        <input type="color" value={/^#[0-9a-f]{6}$/i.test(custom) ? custom : "#000000"} onChange={(event) => { if (isColorRef(event.target.value)) onChange(event.target.value as ColorRef, false); }} />
         <span>{t("Custom")}</span>
       </label>
-      {allowNone && <button type="button" role="menuitemradio" aria-checked={value === null} className="slides-color-none" onClick={() => onChange(null)}>{t("No color")}</button>}
+      {allowNone && <button type="button" role="menuitemradio" aria-checked={value === null} className="slides-color-none" onClick={() => onChange(null, true)}>{t("No color")}</button>}
     </div>
   </div>;
 }

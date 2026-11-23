@@ -82,12 +82,27 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         super.init()
         // 幻灯片导出的文件：收齐后用系统的“存储到文件”让用户选位置（Android 是 SAF 的 CreateDocument）。
         bridge.onFileReady = { [weak self] ready in self?.saveExport(ready) }
+        bridge.onFileFailed = { Toast.show(L("slides_file_save_failed")) }
     }
 
     /// 导出的文件交给系统的“存储到文件”（拷贝过去，临时文件随后删掉）。
-    private func saveExport(_ ready: ExportFileAssembler.Ready) {
+    private func saveExport(_ ready: ExportFileAssembler.Ready, attempt: Int = 0) {
         guard let presenter = webView?.window?.rootViewController.map(Self.topmost) else {
             try? FileManager.default.removeItem(at: ready.url.deletingLastPathComponent())
+            Toast.show(L("slides_file_save_failed"))
+            return
+        }
+        // 别的画面正在出现或消失时 present 会被忽略（之后也收不到回调）：等一下再试，还不行就放弃并提示。
+        if presenter.isBeingPresented || presenter.isBeingDismissed {
+            guard attempt < 5 else {
+                try? FileManager.default.removeItem(at: ready.url.deletingLastPathComponent())
+                Toast.show(L("slides_file_save_failed"))
+                return
+            }
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(400))
+                self?.saveExport(ready, attempt: attempt + 1)
+            }
             return
         }
         let picker = UIDocumentPickerViewController(forExporting: [ready.url], asCopy: true)
@@ -312,6 +327,11 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         // 放映中：先结束放映（网页收到后发 presentation end，App 恢复竖屏和顶栏），不离开幻灯片。
         if notes.state.presenting {
             slides(#"{"action":"end"}"#)
+            // 网页没有回应（加载失败等）时也结束放映，不把人困在横屏全屏里。
+            Task { @MainActor [weak notes] in
+                try? await Task.sleep(for: .milliseconds(1500))
+                if notes?.state.presenting == true { notes?.presentationEnded() }
+            }
             return
         }
         guard let webView else {
@@ -472,6 +492,8 @@ extension NoteEditorController: WKNavigationDelegate {
 
     /// 网页进程被系统杀掉或崩溃：等着它回答的保存都算失败（Android bridge.release），再重新加载。
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        // 放映中的网页没了：先结束放映，重新加载失败也不会困在横屏全屏里。
+        app.notes.presentationEnded()
         bridge.release(self)
         bridge.attach(self)
         loadPage()

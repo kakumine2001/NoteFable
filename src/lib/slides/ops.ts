@@ -1,5 +1,5 @@
 import { createSlide } from "@/lib/slides/layouts";
-import { newId, normalizeElement, slideRows, slidesFromRows, type Deck, type LayoutId, type Slide, type SlideElement } from "@/lib/slides/model";
+import { isColorRef, newId, normalizeElement, slideRows, slidesFromRows, type ColorRef, type Deck, type LayoutId, type Slide, type SlideElement } from "@/lib/slides/model";
 import { MAX_SLIDE_ELEMENTS, MAX_SLIDES } from "@/lib/canvas-document";
 
 // スライドの本体を変える純粋な関数（元のオブジェクトは書き換えず、新しいものを返す。取り消し・やり直しは前の値を持つだけ）。
@@ -90,13 +90,16 @@ export function moveSlides(deck: Deck, ids: Set<string>, index: number): Deck {
   if (target && !ids.has(target.id)) {
     const row = rows.find((entry) => entry.slides.some((slide) => slide.id === target.id))!;
     row.slides.splice(row.slides.findIndex((slide) => slide.id === target.id), 0, ...moving);
+  } else if (target) {
+    // 目標が動かす枚自身：その枚がいた行の、同じ位置に入れる（自分の上に落としても行が変わらない・章が消えない）。
+    const original = slideRows(deck.slides);
+    const rowIndex = original.findIndex((row) => row.slides.some((slide) => slide.id === target.id));
+    const inRow = original[rowIndex].slides;
+    const position = inRow.slice(0, inRow.findIndex((slide) => slide.id === target.id)).filter((slide) => !ids.has(slide.id)).length;
+    rows[rowIndex].slides.splice(position, 0, ...moving);
   } else {
-    // 目標が動かす枚自身（または末尾）：その後ろで、まだ残っている最初の枚の前。無ければ最後の行の末尾。
-    const after = deck.slides.slice(index).find((slide) => !ids.has(slide.id));
-    if (after) {
-      const row = rows.find((entry) => entry.slides.some((slide) => slide.id === after.id))!;
-      row.slides.splice(row.slides.findIndex((slide) => slide.id === after.id), 0, ...moving);
-    } else {
+    // 末尾：最後の行の末尾。
+    {
       const last = [...rows].reverse().find((row) => row.slides.length) ?? rows[0];
       if (last) last.slides.push(...moving);
       else rows.push({ title: "", slides: moving });
@@ -207,13 +210,15 @@ export function parseClipboard(text: string): { elements: SlideElement[]; slides
     .map((element) => normalizeElement(element, newId())).filter((element): element is SlideElement => element !== null));
   const slides = (Array.isArray(payload.slides) ? payload.slides : []).slice(0, MAX_SLIDES).flatMap((raw) => {
     if (!raw || typeof raw !== "object") return [];
-    const source = raw as { elements?: unknown };
-    const slideElements = (Array.isArray(source.elements) ? source.elements : []).map((element) => normalizeElement(element, newId())).filter((element): element is SlideElement => element !== null);
+    const source = raw as { elements?: unknown; background?: unknown; hidden?: unknown };
+    const slideElements = (Array.isArray(source.elements) ? source.elements : []).slice(0, MAX_SLIDE_ELEMENTS).map((element) => normalizeElement(element, newId())).filter((element): element is SlideElement => element !== null);
     const layout = (raw as { layout?: unknown }).layout;
     const notes = (raw as { notes?: unknown }).notes;
     const slide: Slide = { ...createSlide("blank"), elements: cloneElements(slideElements) };
     if (typeof layout === "string") slide.layout = (["title", "section", "bullets", "twoColumn", "imageText", "quote", "fullImage", "blank"].includes(layout) ? layout : "blank") as LayoutId;
     if (typeof notes === "string" && notes) slide.notes = notes.slice(0, 20_000);
+    if (source.hidden === true) slide.hidden = true;
+    if (source.background === null || isColorRef(source.background)) slide.background = source.background as ColorRef | null;
     return [slide];
   });
   return { elements: cloneElements(elements), slides };

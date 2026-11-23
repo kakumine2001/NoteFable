@@ -35,13 +35,15 @@ export function PublicSlidesPlayer({ deck, mathHtml, token, pageId, title, homeH
     if (presenting) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.ctrlKey || event.metaKey || event.altKey) return;
-      if (["ArrowRight", "ArrowDown", "PageDown", " "].includes(event.key)) { event.preventDefault(); go(1); }
+      // ボタンなどにフォーカスがあるときのスペース・Enter はそのボタンのもの。
+      const onControl = event.target instanceof Element && !!event.target.closest("button, a, input, textarea, select, [role='button']");
+      if (["ArrowRight", "ArrowDown", "PageDown"].includes(event.key) || (event.key === " " && !onControl)) { event.preventDefault(); go(1); }
       if (["ArrowLeft", "ArrowUp", "PageUp"].includes(event.key)) { event.preventDefault(); go(-1); }
-      if (event.key === "F5" || (event.key === "Enter" && event.target === document.body)) { event.preventDefault(); setPresenting(true); }
+      if (deck.slides.length && (event.key === "F5" || (event.key === "Enter" && !onControl))) { event.preventDefault(); setPresenting(true); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [go, presenting]);
+  }, [deck.slides.length, go, presenting]);
   const slide = deck.slides[index] ?? null;
   return <SlideRenderRoot theme={theme} mode="view" imageSrc={imageSrc} mathHtml={mathHtml}>
     <div className="public-slides">

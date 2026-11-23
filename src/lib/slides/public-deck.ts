@@ -4,16 +4,19 @@ import { normalizeDeck, type Deck } from "@/lib/slides/model";
 import { richDocLatex } from "@/lib/slides/rich-text";
 
 // 公開の放映ページ（/s/:token）に出すスライド。隠した枚・演説者ノート・AI の画像の説明（プロンプト）は出さない。
+// 公開ページで使わない編集用の情報（章の名前、取り込んだホワイトボードのページ・枠の ID）も落とす。
 export function publicDeck(data: unknown): Deck {
   const deck = normalizeDeck(data);
   return {
     ...deck,
     slides: deck.slides.filter((slide) => !slide.hidden).map((slide) => {
-      const { notes: _notes, ...rest } = slide;
+      const { notes: _notes, section: _section, ...rest } = slide;
       void _notes;
+      void _section;
       return {
         ...rest,
         elements: slide.elements.map((element) => {
+          if (element.type === "whiteboard") return { ...element, pageId: "", frameId: "" };
           if (element.type !== "image" || !element.generated) return element;
           const { generated: _generated, ...image } = element;
           void _generated;

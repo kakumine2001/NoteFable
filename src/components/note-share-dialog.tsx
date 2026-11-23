@@ -91,7 +91,7 @@ export function NoteShareDialog({
     setError("");
     try {
       if (patch.enabled === true && beforePublish) {
-        const flushed = await beforePublish(patch.includeSubpages ?? share?.includeSubpages ?? true);
+        const flushed = await beforePublish(kind !== "slides" && (patch.includeSubpages ?? share?.includeSubpages ?? true));
         if (!flushed) {
           setError(msg("Failed to update share settings."));
           return;
@@ -246,7 +246,7 @@ export function NoteShareDialog({
                 type="button"
                 disabled={busy}
                 className="notion-button notion-button-primary w-full justify-center"
-                onClick={() => void save({ enabled: true, includeSubpages: draftIncludeSubpages })}
+                onClick={() => void save({ enabled: true, includeSubpages: kind !== "slides" && draftIncludeSubpages })}
               >
                 {share.expired ? t("Republish") : t("Publish")}
               </button>

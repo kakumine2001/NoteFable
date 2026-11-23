@@ -58,7 +58,7 @@ function ColorField({ label, value, theme, onChange, allowNone = false }: { labe
     <span>{label}</span>
     <MenuButton label={label} className="slides-color-button" icon={<span className={`slides-color-chip${value === null ? " is-none" : ""}`} style={value === null ? undefined : { background: resolveColor(value, theme) }} />}
       text={<span className="slides-color-name">{value === null ? t("No color") : value.startsWith("#") ? value : t(TOKEN_NAME[value] ?? value)}</span>}>
-      {(close) => <ColorPicker value={value} theme={theme} allowNone={allowNone} onChange={(next) => { onChange(next); close(); }} />}
+      {(close) => <ColorPicker value={value} theme={theme} allowNone={allowNone} onChange={(next, done) => { onChange(next); if (done) close(); }} />}
     </MenuButton>
   </div>;
 }
@@ -124,6 +124,7 @@ export function SlideInspector({ slide, selection, theme, editable, onChange, on
 
   if (!selected.length) {
     return <div className="slides-inspector" aria-label={t("Slide settings")}>
+      <fieldset className="slides-inspector-fields" disabled={!editable}>
       <Section title={t("Layout")}>
         <div className="slides-layout-grid">
           {LAYOUTS.map((layout) => <button key={layout.id} type="button" disabled={!editable} className={`slides-layout-option${slide.layout === layout.id ? " is-active" : ""}`}
@@ -139,6 +140,7 @@ export function SlideInspector({ slide, selection, theme, editable, onChange, on
           {slide.hidden ? <Eye size={16} aria-hidden="true" /> : <EyeOff size={16} aria-hidden="true" />}{slide.hidden ? t("Show slide") : t("Hide slide")}
         </button>
       </Section>
+      </fieldset>
     </div>;
   }
 
@@ -150,6 +152,7 @@ export function SlideInspector({ slide, selection, theme, editable, onChange, on
   const allText = selected.every((element) => element.type === "text" || element.type === "shape");
 
   return <div className="slides-inspector" aria-label={t("Selection settings")}>
+    <fieldset className="slides-inspector-fields" disabled={!editable}>
     <Section title={single ? t(ELEMENT_LABELS[single.type]) : t("{count} selected", { count: selected.length })}>
       <div className="slides-button-row" role="group" aria-label={t("Align")}>
         {([
@@ -250,7 +253,6 @@ export function SlideInspector({ slide, selection, theme, editable, onChange, on
         <span>{t("Alt text")}</span>
         <input type="text" value={single.alt} maxLength={500} onChange={(event) => update(ids, (element) => (element.type === "image" ? { ...element, alt: event.target.value } : element), "alt")} />
       </label>
-      {single.generated && <button type="button" className="slides-wide-button" onClick={() => onReportImage(single.id)}><Flag size={16} aria-hidden="true" />{t("Report image")}</button>}
     </Section>}
 
     {single?.type === "table" && <Section title={t("Table")}>
@@ -282,6 +284,11 @@ export function SlideInspector({ slide, selection, theme, editable, onChange, on
       <input type="range" className="slides-range" min={0.05} max={1} step={0.05} value={single?.opacity ?? 1} aria-label={t("Opacity")}
         onChange={(event) => update(ids, (element) => ({ ...element, opacity: Number(event.target.value) >= 1 ? undefined : Number(event.target.value) }), "opacity")} />
     </Section>}
+    </fieldset>
+    {/* AI で作った画像の報告は、読み取り専用でもできる。 */}
+    {single?.type === "image" && single.generated && <div className="slides-inspector-section">
+      <button type="button" className="slides-wide-button" onClick={() => onReportImage(single.id)}><Flag size={16} aria-hidden="true" />{t("Report image")}</button>
+    </div>}
   </div>;
 }
 
@@ -323,12 +330,12 @@ export function TextFormatBar({ commands, tick, theme }: { commands: TextCommand
     <IconButton label={t("Inline equation")} onClick={() => commands.insertMath(false)}><Sigma size={16} /></IconButton>
     <IconButton label={t("Block equation")} onClick={() => commands.insertMath(true)}><SquareFunction size={16} /></IconButton>
     <MenuButton label={t("Text color")} className="slides-icon-button" icon={<span className="slides-color-chip is-text" style={{ background: theme.palette.accent }} />}>
-      {(close) => <ColorPicker value={null} theme={theme} allowNone onChange={(color) => { commands.setColor(color); close(); }} />}
+      {(close) => <ColorPicker value={null} theme={theme} allowNone onChange={(color, done) => { commands.setColor(color); if (done) { close(); requestAnimationFrame(() => commands.focus()); } }} />}
     </MenuButton>
     <MenuButton label={t("Font size")} className="slides-icon-button" text={<span className="slides-size-label">Aa</span>}>
       {(close) => <div className="slides-size-list">
-        {[24, 32, 40, 48, 64, 80, 96, 120, 160].map((size) => <button key={size} type="button" role="menuitem" className="chat-menu-item" onClick={() => { commands.setSize(size); close(); }}>{size}</button>)}
-        <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { commands.setSize(null); close(); }}>{t("Default size")}</button>
+        {[24, 32, 40, 48, 64, 80, 96, 120, 160].map((size) => <button key={size} type="button" role="menuitem" className="chat-menu-item" onClick={() => { commands.setSize(size); close(); requestAnimationFrame(() => commands.focus()); }}>{size}</button>)}
+        <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { commands.setSize(null); close(); requestAnimationFrame(() => commands.focus()); }}>{t("Default size")}</button>
       </div>}
     </MenuButton>
     {math && <label className="slides-math-input">

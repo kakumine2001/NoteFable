@@ -6,6 +6,7 @@ import { deckImageSources, normalizeDeck, slideRows, type Deck, type Slide, type
 import { addSlide, cloneElements, deleteSlides, duplicateSlides, groupElements, moveSlides, moveSlidesToRow, parseClipboard, clipboardPayload, reorderElements, setHidden } from "./ops";
 import { normalizeRichDoc, richDocFromText, richDocLatex, richDocText, safeHref } from "./rich-text";
 import { resolveColor, resolveTheme } from "./themes";
+import { publicDeck } from "./public-deck";
 
 const FILE = "/api/pages/files?key=note-files%2Fuser1%2F0e4b3f7c-1111-4c3a-9b1d-2f6f1f2a3b4c.png&name=a.png";
 const text = (element: SlideElement | undefined) => (element && element.type === "text" ? richDocText(element.doc) : null);
@@ -210,5 +211,31 @@ describe("themes", () => {
     expect(resolveColor("background", dark)).not.toBe("#ffffff");
     expect(resolveColor("#123456", dark)).toBe("#123456");
     expect(resolveTheme({ id: "missing", mode: "light" }).theme.id).toBe("simple");
+  });
+});
+
+describe("cross-review fixes", () => {
+  it("keeps a slide in its own row when it is dropped onto itself", () => {
+    const start = deck([slide("s1", { section: "Intro" }), slide("s2", { section: "Agenda" }), slide("s3")]);
+    const moved = moveSlides(start, new Set(["s1"]), 0);
+    expect(slideRows(moved.slides).map((row) => [row.title, row.slides.map((entry) => entry.id)])).toEqual([["Intro", ["s1"]], ["Agenda", ["s2", "s3"]]]);
+  });
+
+  it("pastes slides with their background and hidden flag", () => {
+    const parsed = parseClipboard(clipboardPayload({ slides: [slide("s1", { hidden: true, background: "#112233" })] }));
+    expect(parsed?.slides[0]).toMatchObject({ hidden: true, background: "#112233" });
+    expect(parsed?.slides[0].id).not.toBe("s1");
+  });
+
+  it("drops text that is empty once NUL characters are removed", () => {
+    const doc = normalizeRichDoc({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "\u0000" }, { type: "text", text: "ok" }] }] });
+    expect(doc.content[0]).toEqual({ type: "paragraph", attrs: { align: null }, content: [{ type: "text", text: "ok" }] });
+  });
+
+  it("keeps section names and private whiteboard ids out of the public deck", () => {
+    const board = { id: "w1", type: "whiteboard", x: 0, y: 0, w: 100, h: 100, rotation: 0, src: FILE, pageId: "privatePage", frameId: "frame-1", frameName: "Sketch" };
+    const result = publicDeck({ slides: [{ id: "s1", layout: "blank", section: "Secret plan", elements: [board] }] });
+    expect(result.slides[0].section).toBeUndefined();
+    expect(result.slides[0].elements[0]).toMatchObject({ type: "whiteboard", pageId: "", frameId: "", frameName: "Sketch" });
   });
 });

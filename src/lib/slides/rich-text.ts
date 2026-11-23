@@ -67,7 +67,8 @@ function normalizeInline(value: unknown, out: RichInline[]) {
   if (!Array.isArray(value)) return;
   for (const node of value) {
     if (!object(node)) continue;
-    if (node.type === "text" && typeof node.text === "string" && node.text) {
+    if (node.type === "text" && typeof node.text === "string" && cleanText(node.text)) {
+      // 空の文字のノードは ProseMirror が読めない（NUL だけの文字は消すと空になる）。
       const marks = normalizeMarks(node.marks);
       out.push(marks ? { type: "text", text: cleanText(node.text), marks } : { type: "text", text: cleanText(node.text) });
     } else if (node.type === "hard_break") out.push({ type: "hard_break" });
@@ -105,8 +106,8 @@ function normalizeBlocks(value: unknown, depth: number): RichBlock[] {
         blocks.push({ type: "ordered_list", attrs: { order }, content: items });
       }
     } else if (node.type === "code_block") {
-      const text = (Array.isArray(node.content) ? node.content : []).map((child) => (object(child) && typeof child.text === "string" ? child.text : "")).join("");
-      blocks.push(text ? { type: "code_block", content: [{ type: "text", text: cleanText(text) }] } : { type: "code_block" });
+      const text = cleanText((Array.isArray(node.content) ? node.content : []).map((child) => (object(child) && typeof child.text === "string" ? child.text : "")).join(""));
+      blocks.push(text ? { type: "code_block", content: [{ type: "text", text }] } : { type: "code_block" });
     } else if (node.type === "math_block") {
       blocks.push({ type: "math_block", attrs: { latex: latexOf(node.attrs) } });
     } else if (Array.isArray(node.content)) {

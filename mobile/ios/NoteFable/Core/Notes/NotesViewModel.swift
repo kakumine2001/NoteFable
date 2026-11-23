@@ -67,7 +67,8 @@ final class NotesViewModel {
         var next = state
         change(&next)
         // 换了编辑器（打开别的笔记、关掉编辑器、切到聊天）时，前一个编辑器的容量提示不再显示。
-        if next.open?.editor != state.open?.editor { next.storageLimit = nil }
+        // 放映也随之结束：新的编辑器没有在放映（否则一直横屏、没有顶栏）。
+        if next.open?.editor != state.open?.editor { next.storageLimit = nil; next.presenting = false }
         state = next
     }
 

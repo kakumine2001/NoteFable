@@ -124,6 +124,8 @@ final class NoteEmbedBridge {
     private let exports = ExportFileAssembler()
     /// 导出文件收齐了：界面打开系统的“存储到文件”。没设定时丢掉文件。
     var onFileReady: (@MainActor (ExportFileAssembler.Ready) -> Void)?
+    /// 导出文件在 App 这边没能收齐（写不进临时文件、分块乱序、太大）：界面提示“无法保存文件”。
+    var onFileFailed: (@MainActor () -> Void)?
 
     private let currentLanguage: @MainActor () -> String
     private let sleep: @Sendable (Duration) async throws -> Void
@@ -173,7 +175,9 @@ final class NoteEmbedBridge {
             return
         case .fileEnd(let id):
             if let ready = exports.finish(id: id) {
-                if let onFileReady { onFileReady(ready) } else { try? FileManager.default.removeItem(at: ready.url) }
+                if let onFileReady { onFileReady(ready) } else { try? FileManager.default.removeItem(at: ready.url.deletingLastPathComponent()) }
+            } else {
+                onFileFailed?()
             }
             return
         case .fileAbort(let id):

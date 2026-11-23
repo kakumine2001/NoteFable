@@ -71,6 +71,8 @@ export function SlidePlayer({ deck, startId, onExit, onChange, allowPresenter = 
   // 呼び出し側は onExit を毎回作り直して渡す。全画面・常時点灯の効果が描き直しのたびにやり直されないよう、最新の値だけを持つ。
   const onExitRef = useRef(onExit);
   useLayoutEffect(() => { onExitRef.current = onExit; });
+  // 発表者ビューのウィンドウを開くと、ブラウザは全画面を抜ける。そのときは放映を終えない。
+  const presenterOpen = useRef(false);
   const digitsRef = useRef(digits);
   useLayoutEffect(() => { digitsRef.current = digits; });
 
@@ -144,7 +146,7 @@ export function SlidePlayer({ deck, startId, onExit, onChange, allowPresenter = 
     let entered = false;
     const onFullscreen = () => {
       if (document.fullscreenElement) { entered = true; return; }
-      if (entered) onExitRef.current();
+      if (entered && !presenterOpen.current) onExitRef.current();
     };
     if (fullscreen && node?.requestFullscreen) {
       document.addEventListener("fullscreenchange", onFullscreen);
@@ -172,8 +174,9 @@ export function SlidePlayer({ deck, startId, onExit, onChange, allowPresenter = 
 
   function openPresenter() {
     if (presenter && !presenter.closed) { presenter.focus(); return; }
+    presenterOpen.current = true;
     const popup = window.open("", "notefable-presenter", "popup,width=1100,height=720");
-    if (!popup) return;
+    if (!popup) { presenterOpen.current = false; return; }
     popup.document.title = t("Presenter view");
     popup.document.documentElement.lang = document.documentElement.lang;
     popup.document.documentElement.dir = document.documentElement.dir;
@@ -181,12 +184,12 @@ export function SlidePlayer({ deck, startId, onExit, onChange, allowPresenter = 
     popup.document.head.querySelectorAll("link[rel=stylesheet], style").forEach((node) => node.remove());
     document.head.querySelectorAll("link[rel=stylesheet], style").forEach((node) => popup.document.head.appendChild(node.cloneNode(true)));
     popup.document.body.className = "slides-presenter-body";
-    popup.addEventListener("pagehide", () => setPresenter(null));
+    popup.addEventListener("pagehide", () => { presenterOpen.current = false; setPresenter(null); });
     setPresenter(popup);
   }
   useEffect(() => {
     if (!presenter) return;
-    const timer = setInterval(() => { if (presenter.closed) setPresenter(null); }, 1000);
+    const timer = setInterval(() => { if (presenter.closed) { presenterOpen.current = false; setPresenter(null); } }, 1000);
     return () => clearInterval(timer);
   }, [presenter]);
   useEffect(() => () => { presenter?.close(); }, [presenter]);

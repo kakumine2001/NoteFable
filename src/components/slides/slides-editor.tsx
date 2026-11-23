@@ -74,7 +74,11 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   }, [deck, onChange]);
 
   // 新しい本体か、最新の本体から新しい本体を作る関数（アップロードの完了など、待ったあとの変更は関数で渡す）。
+  // 読み取り専用（ロック中・作成や削除の途中）のあいだは、どこから来た変更も受け付けない（保存もされない）。
+  const editableRef = useRef(editable);
+  useLayoutEffect(() => { editableRef.current = editable; }, [editable]);
   const commit = useCallback((change: Deck | ((deck: Deck) => Deck), merge?: string) => {
+    if (!editableRef.current) return;
     setHistory((current) => {
       const next = typeof change === "function" ? change(current.deck) : change;
       if (next === current.deck) return current;
@@ -83,8 +87,9 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
       return { deck: next, past: merging ? current.past : [...current.past, current.deck].slice(-HISTORY_LIMIT), future: [], merge: merge ?? null, mergedAt: now };
     });
   }, []);
-  const undo = useCallback(() => setHistory((current) => (current.past.length ? { deck: current.past[current.past.length - 1], past: current.past.slice(0, -1), future: [current.deck, ...current.future], merge: null, mergedAt: 0 } : current)), []);
-  const redo = useCallback(() => setHistory((current) => (current.future.length ? { deck: current.future[0], past: [...current.past, current.deck], future: current.future.slice(1), merge: null, mergedAt: 0 } : current)), []);
+  // 文字の編集中は閉じてから戻す（開いている文字の編集は外からの変更を取り込まない）。
+  const undo = useCallback(() => { setEditing(null); setHistory((current) => (current.past.length ? { deck: current.past[current.past.length - 1], past: current.past.slice(0, -1), future: [current.deck, ...current.future], merge: null, mergedAt: 0 } : current)); }, []);
+  const redo = useCallback(() => { setEditing(null); setHistory((current) => (current.future.length ? { deck: current.future[0], past: [...current.past, current.deck], future: current.future.slice(1), merge: null, mergedAt: 0 } : current)); }, []);
 
   // 待ったあと（アップロード・生成の完了）に、いま見えている本体を読むため。
   const deckRef = useRef(deck);
@@ -98,7 +103,7 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   const [formatTick, setFormatTick] = useState(0);
   const [presenting, setPresenting] = useState<{ startId: string | null } | null>(null);
   const [dialog, setDialog] = useState<{ kind: "chat" | "generate"; target: string | null } | { kind: "report"; target: string } | null>(null);
-  const [menu, setMenu] = useState<{ x: number; y: number; kind: "element" | "slide" } | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number; kind: "element" | "slide"; slideId?: string } | null>(null);
   const [notice, setNotice] = useState("");
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
   const [notesOpen, setNotesOpen] = useState(true);
@@ -108,6 +113,7 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   const fileInput = useRef<HTMLInputElement>(null);
   const imageTarget = useRef<string | null>(null);
   const clipboard = useRef<string | null>(null);
+  const copiedText = useRef<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const playerControl = useRef<PlayerControl | null>(null);
   const capture = useSlideCapture(theme);
@@ -117,7 +123,7 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   const current: Slide | null = deck.slides[currentIndex] ?? null;
   // 選んでいる要素のうち、今の枚に無いものは外す。
   const liveSelection = useMemo(() => new Set([...selection].filter((id) => current?.elements.some((element) => element.id === id))), [selection, current]);
-  const editingId = editing && current?.elements.some((element) => element.id === editing.id) ? editing.id : null;
+  const editingId = editable && editing && current?.elements.some((element) => element.id === editing.id) ? editing.id : null;
 
   const commitSlide = useCallback((next: Slide, merge?: string) => {
     if (!current) return;
@@ -261,37 +267,50 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   };
 
   // ---- クリップボード ----
-  useEffect(() => {
-    const inside = () => !!root.current && root.current.contains(document.activeElement) && !isTypingTarget(document.activeElement) && !presenting;
-    const onCopy = (event: ClipboardEvent, cut: boolean) => {
-      if (!inside() || !current) return;
-      // 読み取り専用（ロック中など）では切り取らない（コピーはできる）。
-      if (cut && !editable) return;
-      let payload: string | null = null;
-      let text = "";
-      if (liveSelection.size) {
+  // 写すもの（選んだ要素、または縮小図の一覧で選んだ枚）を作る。cut なら消す。写すものが無ければ null。
+  const takeClipboard = (cut: boolean, slidesAllowed: boolean): { payload: string; text: string } | null => {
+    if (!current || (cut && !editable)) return null;
+    let payload: string | null = null;
+    let text = "";
+    if (liveSelection.size) {
         const elements = current.elements.filter((element) => liveSelection.has(element.id));
         payload = clipboardPayload({ elements });
         text = elements.map((element) => (element.type === "text" || element.type === "shape" ? richDocText(element.doc) : element.type === "table" ? element.rows.map((row) => row.cells.map((cell) => cell.text).join("\t")).join("\n") : "")).filter(Boolean).join("\n\n");
         if (cut) deleteSelection();
-      } else if (selectedSlides.size && document.activeElement?.closest(".slides-filmstrip, .slides-grid")) {
+      } else if (selectedSlides.size && slidesAllowed) {
         // 枚をまるごと写すのは、縮小図の一覧（帯・総覧）を操作しているときだけ（スライドの面で何も選ばずに切り取っても枚は消さない）。
         const slides = deck.slides.filter((slide) => selectedSlides.has(slide.id));
         payload = clipboardPayload({ slides });
         text = slides.map((slide) => slide.elements.map((element) => (element.type === "text" ? richDocText(element.doc) : "")).filter(Boolean).join("\n")).join("\n\n");
         if (cut) deleteSelectedSlides();
       }
-      if (!payload) return;
+    if (!payload) return null;
+    clipboard.current = payload;
+    copiedText.current = text || " ";
+    return { payload, text: text || " " };
+  };
+  // 右クリックのメニューから：execCommand("cut") はボタンの上では効かないので、ここで写して文字だけシステムのクリップボードへ。
+  const copyFromMenu = (cut: boolean) => {
+    const taken = takeClipboard(cut, menu?.kind === "slide");
+    if (taken) void navigator.clipboard?.writeText(taken.text).catch(() => {});
+  };
+  useEffect(() => {
+    const inside = () => !!root.current && root.current.contains(document.activeElement) && !isTypingTarget(document.activeElement) && !presenting;
+    const onCopy = (event: ClipboardEvent, cut: boolean) => {
+      if (!inside()) return;
+      const taken = takeClipboard(cut, !!document.activeElement?.closest(".slides-filmstrip, .slides-grid"));
+      if (!taken) return;
       event.preventDefault();
-      clipboard.current = payload;
-      event.clipboardData?.setData(CLIPBOARD_MIME, payload);
-      event.clipboardData?.setData("text/plain", text || " ");
+      event.clipboardData?.setData(CLIPBOARD_MIME, taken.payload);
+      event.clipboardData?.setData("text/plain", taken.text);
     };
     const onPaste = (event: ClipboardEvent) => {
       if (!inside() || !editable) return;
       const data = event.clipboardData;
       const files = Array.from(data?.files ?? []).filter((file) => SLIDE_IMAGE_TYPES.includes(file.type));
-      const custom = data?.getData(CLIPBOARD_MIME) || null;
+      // メニューから写したときは、システムのクリップボードに文字しか無い。その文字のままなら、写した要素・枚を貼る。
+      const plain = data?.getData("text/plain") ?? "";
+      const custom = data?.getData(CLIPBOARD_MIME) || (clipboard.current && copiedText.current === plain ? clipboard.current : null);
       const parsed = custom ? parseClipboard(custom) : null;
       if (parsed) {
         event.preventDefault();
@@ -317,6 +336,8 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   // ---- 書き出し・放映 ----
   const runExport = async (format: ExportFormat) => {
     if (exporting) return;
+    // PDF・PNG は隠した枚を入れない。見せる枚が無ければ空のファイルを作らない。
+    if (!deck.slides.length || (format !== "pptx" && !deck.slides.some((slide) => !slide.hidden))) { setNotice(t("This deck has no slides to show.")); return; }
     setExporting(format);
     setNotice("");
     try {
@@ -364,6 +385,8 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     const key = event.key.toLowerCase();
     if (event.key === "F5") { event.preventDefault(); present(event.shiftKey ? "current" : "start"); return; }
     if (isTypingTarget(event.target)) return;
+    // 文字を編集している間（書式バーのボタンにフォーカスがあるときも）は、要素の操作（削除・移動など）をしない。
+    if (editingId) return;
     if (editable && mod && key === "z") { event.preventDefault(); if (event.shiftKey) redo(); else undo(); return; }
     if (editable && mod && key === "y") { event.preventDefault(); redo(); return; }
     if (!editable) {
@@ -377,9 +400,10 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
       if (event.key === "Escape") { setSelection(new Set()); return; }
       if (mod && key === "d") { event.preventDefault(); duplicateSelection(); return; }
       if (mod && key === "g") { event.preventDefault(); commitSlide(event.shiftKey ? ungroupElements(current, liveSelection) : groupElements(current, liveSelection).slide); return; }
-      if (mod && (event.key === "]" || event.key === "[")) {
+      // Shift を押すと key は「}」「{」になるので、キーの位置（code）で見る。
+      if (mod && (event.code === "BracketRight" || event.code === "BracketLeft")) {
         event.preventDefault();
-        commitSlide(reorderElements(current, liveSelection, event.key === "]" ? (event.shiftKey ? "front" : "forward") : (event.shiftKey ? "back" : "backward")));
+        commitSlide(reorderElements(current, liveSelection, event.code === "BracketRight" ? (event.shiftKey ? "front" : "forward") : (event.shiftKey ? "back" : "backward")));
         return;
       }
       if (event.key === "Enter") {
@@ -412,6 +436,11 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     }
   }
 
+  // 枚の右クリックのメニュー：章の操作は押した枚に、上下の移動は選んだ枚まとめて（一番上・一番下の位置から）。
+  const menuSlide = menu?.kind === "slide" ? deck.slides.find((slide) => slide.id === menu.slideId) ?? current : null;
+  const menuIndex = menuSlide ? deck.slides.indexOf(menuSlide) : -1;
+  const targetIndexes = menu?.kind === "slide" ? deck.slides.flatMap((slide, index) => (slideTargets().has(slide.id) ? [index] : [])) : [];
+  const targetRange = { first: targetIndexes.length ? Math.min(...targetIndexes) : 0, last: targetIndexes.length ? Math.max(...targetIndexes) : deck.slides.length - 1 };
   const selectedElement = liveSelection.size === 1 && current ? current.elements.find((element) => liveSelection.has(element.id)) ?? null : null;
   const layoutMenu = (close: () => void) => <div className="slides-layout-grid is-menu">
     {LAYOUTS.map((layout) => <button key={layout.id} type="button" role="menuitem" className={`slides-layout-option${current?.layout === layout.id ? " is-active" : ""}`}
@@ -537,10 +566,10 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
         onMoveToRow={(ids, row, position) => commit(moveSlidesToRow(deck, ids, row, position))}
         onRenameRow={(slideId, name) => commit(renameRow(deck, slideId, name), `row:${slideId}`)}
         onAddSlide={(rowIndex) => { const row = slideRows(deck.slides)[rowIndex]; addSlide("bullets", row ? row.start + row.slides.length : deck.slides.length); }}
-        onContextMenu={(x, y) => setMenu({ x, y, kind: "slide" })} />
+        onContextMenu={(x, y, slideId) => setMenu({ x, y, kind: "slide", slideId })} />
       : <div className="slides-body">
         {!phone && <SlideFilmstrip deck={deck} currentId={current?.id ?? null} selected={selectedSlides} editable={editable} horizontal={false} onSelect={selectSlide}
-          onMove={(ids, index) => commit(moveSlides(deck, ids, index))} onContextMenu={(x, y) => setMenu({ x, y, kind: "slide" })} onAdd={() => addSlide()} />}
+          onMove={(ids, index) => commit(moveSlides(deck, ids, index))} onContextMenu={(x, y, slideId) => setMenu({ x, y, kind: "slide", slideId })} onAdd={() => addSlide()} />}
         <div className="slides-center">
           <div className="slides-stage-area">
           {current && <SlideRenderRoot theme={theme} mode={editable ? "edit" : "view"}>
@@ -567,7 +596,7 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
               aria-label={t("Speaker notes")} onChange={(event) => commitSlide({ ...current, notes: event.target.value || undefined }, `notes:${current.id}`)} />}
           </div>}
           {phone && <SlideFilmstrip deck={deck} currentId={current?.id ?? null} selected={selectedSlides} editable={editable} horizontal onSelect={selectSlide}
-            onMove={(ids, index) => commit(moveSlides(deck, ids, index))} onContextMenu={(x, y) => setMenu({ x, y, kind: "slide" })} onAdd={() => addSlide()} />}
+            onMove={(ids, index) => commit(moveSlides(deck, ids, index))} onContextMenu={(x, y, slideId) => setMenu({ x, y, kind: "slide", slideId })} onAdd={() => addSlide()} />}
         </div>
         {!phone && inspector}
         {phone && (liveSelection.size > 0 || inspectorOpen) && <div className="slides-sheet">
@@ -579,8 +608,8 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
       <input ref={fileInput} type="file" accept={SLIDE_IMAGE_TYPES.join(",")} multiple className="sr-only" tabIndex={-1} aria-hidden="true"
         onChange={(event) => { const files = Array.from(event.target.files ?? []); event.target.value = ""; if (files.length) void uploadFiles(files, imageTarget.current); }} />
       {menu?.kind === "element" && current && <PointMenu x={menu.x} y={menu.y} label={selectedElement ? t(ELEMENT_LABELS[selectedElement.type]) : t("Selection")} onClose={() => setMenu(null)}>
-        <MenuItem icon={<Scissors size={16} />} label={t("Cut")} shortcut={`${MOD}X`} disabled={!editable} onClick={() => { setMenu(null); document.execCommand("cut"); }} />
-        <MenuItem icon={<Copy size={16} />} label={t("Copy")} shortcut={`${MOD}C`} onClick={() => { setMenu(null); document.execCommand("copy"); }} />
+        <MenuItem icon={<Scissors size={16} />} label={t("Cut")} shortcut={`${MOD}X`} disabled={!editable} onClick={() => { copyFromMenu(true); setMenu(null); }} />
+        <MenuItem icon={<Copy size={16} />} label={t("Copy")} shortcut={`${MOD}C`} onClick={() => { copyFromMenu(false); setMenu(null); }} />
         <MenuItem icon={<Clipboard size={16} />} label={t("Paste")} shortcut={`${MOD}V`} disabled={!editable || !clipboard.current} onClick={() => { setMenu(null); const parsed = clipboard.current ? parseClipboard(clipboard.current) : null; if (parsed?.elements.length) insertElements(parsed.elements); }} />
         <MenuItem icon={<Copy size={16} />} label={t("Duplicate")} shortcut={`${MOD}D`} disabled={!editable} onClick={() => { setMenu(null); duplicateSelection(); }} />
         <MenuItem icon={<SquareDashed size={16} />} label={t("Bring to front")} disabled={!editable} onClick={() => { setMenu(null); commitSlide(reorderElements(current, liveSelection, "front")); }} />
@@ -593,10 +622,10 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
         <MenuItem icon={<Copy size={16} />} label={t("Duplicate")} disabled={!editable} onClick={() => { setMenu(null); duplicateSelectedSlides(); }} />
         <MenuItem icon={deck.slides.some((slide) => slideTargets().has(slide.id) && !slide.hidden) ? <EyeOff size={16} /> : <Eye size={16} />}
           label={deck.slides.some((slide) => slideTargets().has(slide.id) && !slide.hidden) ? t("Hide slide") : t("Show slide")} disabled={!editable} onClick={() => { setMenu(null); toggleHidden(); }} />
-        {current && current.section === undefined && currentIndex > 0 && <MenuItem icon={<PenTool size={16} />} label={t("Start a new section here")} disabled={!editable} onClick={() => { setMenu(null); commit(startRowAt(deck, current.id)); }} />}
-        {current && current.section !== undefined && currentIndex > 0 && <MenuItem icon={<PenTool size={16} />} label={t("Merge with the previous section")} disabled={!editable} onClick={() => { setMenu(null); commit(joinRowAt(deck, current.id)); }} />}
-        {currentIndex > 0 && <MenuItem icon={<ChevronDown size={16} className="rotate-180" />} label={t("Move up")} disabled={!editable} onClick={() => { setMenu(null); commit(moveSlides(deck, slideTargets(), Math.max(0, currentIndex - 1))); }} />}
-        {currentIndex < deck.slides.length - 1 && <MenuItem icon={<ChevronDown size={16} />} label={t("Move down")} disabled={!editable} onClick={() => { setMenu(null); commit(moveSlides(deck, slideTargets(), currentIndex + 2)); }} />}
+        {menuSlide && menuSlide.section === undefined && menuIndex > 0 && <MenuItem icon={<PenTool size={16} />} label={t("Start a new section here")} disabled={!editable} onClick={() => { setMenu(null); commit(startRowAt(deck, menuSlide.id)); }} />}
+        {menuSlide && menuSlide.section !== undefined && menuIndex > 0 && <MenuItem icon={<PenTool size={16} />} label={t("Merge with the previous section")} disabled={!editable} onClick={() => { setMenu(null); commit(joinRowAt(deck, menuSlide.id)); }} />}
+        {targetRange.first > 0 && <MenuItem icon={<ChevronDown size={16} className="rotate-180" />} label={t("Move up")} disabled={!editable} onClick={() => { setMenu(null); commit(moveSlides(deck, slideTargets(), targetRange.first - 1)); }} />}
+        {targetRange.last < deck.slides.length - 1 && <MenuItem icon={<ChevronDown size={16} />} label={t("Move down")} disabled={!editable} onClick={() => { setMenu(null); commit(moveSlides(deck, slideTargets(), targetRange.last + 2)); }} />}
         <MenuItem icon={<Trash2 size={16} />} label={t("Delete")} danger disabled={!editable} onClick={() => { setMenu(null); deleteSelectedSlides(); }} />
       </PointMenu>}
       {dialog?.kind === "chat" && <ChatImagesDialog onClose={() => setDialog(null)} onPicked={(image) => placeImage(image, dialog.target)} />}
