@@ -15,6 +15,7 @@
 - `src/lib/whiteboard/excalidraw-bridge.ts`：公开 API 没有执行内置操作的入口。我们注册一个只用于“拿到编辑器本体”的操作（`keyTest` 总是返回 false），在容器里派发一次不存在的按键，从 `keyTest` 的参数拿到 App，之后用 `actionManager.executeAction` 按名字执行内置操作（对齐、等距分布、组合、层级、线色 / 背景 / 粗细 / 线型 / 字体 / 字号 / 对齐 / 不透明度 / 箭头、撤销重做、缩放、网格、吸附、锁定、复制、删除、翻转）。这样撤销历史、绑在形状上的文字和连接线都由 Excalidraw 自己处理。
 - 动作的参数格式（`changeStrokeColor` 的 `{ color }`、`changeStrokeWidth` 的 `thin` / `medium` / `bold`、`changeArrowhead` 的 `{ position, type }` 等）和 `appState` 的字段名（`currentItemStrokeWidthKey`、`currentItemStrokeVariability` 等）。
 - 荧光笔用手写线的 `extraBold` 宽度键（类型里没有，运行时有）。
+- 抓手的光标：Excalidraw 把 `cursor: grab` / `grabbing` 直接写在 `canvas.interactive` 的 style 上，`whiteboard.css` 按这个属性换成我们画的手（改了写法就会退回浏览器自带的白手）。
 
 ## 编辑器
 
