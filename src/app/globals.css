@@ -3709,6 +3709,21 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 
 /* 公開ノート閲覧ページ（/s/:token）。 */
 .public-note-shell { min-height: 100dvh; background: var(--notion-bg); color: var(--notion-text); display: flex; flex-direction: column; }
+/* ブロック・文字の色（BlockNote の色名。public-note-view.tsx の colorStyle が var() で使う）。ライトは Notion の色、
+   ダークは下の :root[data-theme="dark"] .public-note-shell でエディターと同じ色にする。 */
+.public-note-shell {
+  --public-note-gray-text: #787774; --public-note-gray-bg: #f1f1ef;
+  --public-note-brown-text: #9f6b53; --public-note-brown-bg: #f4eeee;
+  --public-note-red-text: #d44c47; --public-note-red-bg: #fdebec;
+  --public-note-orange-text: #d9730d; --public-note-orange-bg: #fbecdd;
+  --public-note-yellow-text: #cb912f; --public-note-yellow-bg: #fbf3db;
+  --public-note-green-text: #448361; --public-note-green-bg: #edf3ec;
+  --public-note-blue-text: #337ea9; --public-note-blue-bg: #e7f3f8;
+  --public-note-purple-text: #9065b0; --public-note-purple-bg: #f6f3f9;
+  --public-note-pink-text: #c14c8a; --public-note-pink-bg: #faf1f5;
+  /* コールアウトの既定（灰色）の地。エディターの色を付けていないコールアウトと同じ。 */
+  --public-note-callout-bg: #f1f1ef;
+}
 .public-note-topbar {
   position: sticky; top: 0; z-index: 20; display: flex; height: 3rem; align-items: center; justify-content: space-between; gap: 0.75rem;
   padding: 0 1rem; border-bottom: 1px solid var(--notion-border); background: rgba(255, 255, 255, 0.92); backdrop-filter: blur(8px);
@@ -3841,3 +3856,17 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 :root[data-theme="dark"] .public-note-topbar { background: rgba(25, 25, 25, 0.92); }
 :root[data-theme="dark"] .public-note-code { background: #1f1f22; }
 :root[data-theme="dark"] .notes-share-expired { color: #f0b46a; }
+/* ブロック・文字の色は、エディターがダークで出す色（BlockNote のダークの色）と同じにする。
+   淡い地のままだと、ダークの明るい文字が読めなくなる。 */
+:root[data-theme="dark"] .public-note-shell {
+  --public-note-gray-text: #bebdb8; --public-note-gray-bg: #9b9a97;
+  --public-note-brown-text: #8e6552; --public-note-brown-bg: #64473a;
+  --public-note-red-text: #ec4040; --public-note-red-bg: #be3434;
+  --public-note-orange-text: #e3790d; --public-note-orange-bg: #b7600a;
+  --public-note-yellow-text: #dfab01; --public-note-yellow-bg: #b58b00;
+  --public-note-green-text: #6b8b87; --public-note-green-bg: #4d6461;
+  --public-note-blue-text: #0e87bc; --public-note-blue-bg: #0b6e99;
+  --public-note-purple-text: #8552d7; --public-note-purple-bg: #6940a5;
+  --public-note-pink-text: #da208f; --public-note-pink-bg: #ad1a72;
+  --public-note-callout-bg: rgba(255, 255, 255, 0.05);
+}

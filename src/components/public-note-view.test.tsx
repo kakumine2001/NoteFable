@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Locale } from "@/lib/i18n/locale";
@@ -81,7 +84,7 @@ describe("public note math", { timeout: 30_000 }, () => {
     expect(count(html, "data-katex-styles")).toBe(1);
     expect(html).toContain(`<span dir="ltr" class="notes-math-inline"><span class="notes-math-rendered">${renderKatex(katex, "e^{i\\pi} + 1 = 0", false).html}</span></span>`);
     expect(html).toContain(
-      `<div dir="ltr" class="notes-math-block public-note-math-block" style="color:#d44c47;background-color:#e7f3f8"><div class="notes-math-rendered">${renderKatex(katex, "\\int_0^1 x^2\\,dx = \\tfrac{1}{3}", true).html}</div></div>`,
+      `<div dir="ltr" class="notes-math-block public-note-math-block" style="color:var(--public-note-red-text);background-color:var(--public-note-blue-bg)"><div class="notes-math-rendered">${renderKatex(katex, "\\int_0^1 x^2\\,dx = \\tfrac{1}{3}", true).html}</div></div>`,
     );
     expect(count(html, 'class="katex-display"')).toBe(1);
     expect(html).toContain("Euler: ");
@@ -133,5 +136,91 @@ describe("public note math", { timeout: 30_000 }, () => {
     expect(html).toContain('<span dir="ltr" class="notes-math-inline"><code class="notes-math-fallback">\\pi r^2</code></span>');
     expect(html).toContain('<code class="notes-math-fallback">a^2</code>');
     expect(html).not.toContain("data-katex-styles");
+  });
+});
+
+// ライトの色（文字・背景）は以前の Notion の色のまま。
+const LIGHT_COLORS: Record<string, [text: string, background: string]> = {
+  gray: ["#787774", "#f1f1ef"], brown: ["#9f6b53", "#f4eeee"], red: ["#d44c47", "#fdebec"],
+  orange: ["#d9730d", "#fbecdd"], yellow: ["#cb912f", "#fbf3db"], green: ["#448361", "#edf3ec"],
+  blue: ["#337ea9", "#e7f3f8"], purple: ["#9065b0", "#f6f3f9"], pink: ["#c14c8a", "#faf1f5"],
+};
+
+// CSS の中で、セレクターがちょうど selector の宣言ブロック（同じセレクターが複数あれば全部）の宣言を集める。
+function declarations(css: string, selector: RegExp) {
+  const found: Record<string, string> = {};
+  for (const [, body] of css.matchAll(new RegExp(`(?:^|[\\n}])${selector.source}\\s*\\{([^}]*)\\}`, "g"))) {
+    for (const [, name, value] of body.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([\w-]+)\s*:\s*([^;]+?)\s*(?:;|$)/g)) found[name] = value;
+  }
+  return found;
+}
+
+describe("public note colors", { timeout: 30_000 }, () => {
+  it("colors blocks, highlights and table cells with theme variables instead of fixed colors", async () => {
+    const html = await render([
+      { id: "h", type: "heading", props: { level: 2, textColor: "red", backgroundColor: "blue", textAlignment: "center" }, content: [text("Title")], children: [] },
+      paragraph([
+        { type: "text", text: "marked", styles: { textColor: "green", backgroundColor: "yellow" } },
+        { type: "text", text: "tinted", styles: { textColor: "pink" } },
+      ]),
+      {
+        id: "t", type: "table", props: {}, children: [],
+        content: { type: "tableContent", headerRows: 1, rows: [
+          { cells: [{ type: "tableCell", props: { backgroundColor: "gray" }, content: [text("head")] }] },
+          { cells: [{ type: "tableCell", props: { textColor: "orange", backgroundColor: "purple", textAlignment: "right" }, content: [text("cell")] }] },
+        ] },
+      },
+    ]);
+    expect(html).toContain('<div class="public-note-block" style="color:var(--public-note-red-text);background-color:var(--public-note-blue-bg);text-align:center"><h2 class="public-note-h2">');
+    expect(html).toContain('<span style="color:var(--public-note-green-text);background-color:var(--public-note-yellow-bg)" class="public-note-highlight">marked</span>');
+    expect(html).toContain('<span style="color:var(--public-note-pink-text)">tinted</span>');
+    expect(html).toContain('<th style="background-color:var(--public-note-gray-bg)">');
+    expect(html).toContain('<td style="color:var(--public-note-orange-text);background-color:var(--public-note-purple-bg);text-align:right">');
+    expect(html).not.toMatch(/style="[^"]*#[0-9a-f]{3,8}/i);
+  });
+
+  it("gives the default callout the editor's callout background and outlines a 'default' one", async () => {
+    const html = await render([
+      { id: "c1", type: "callout", props: { emoji: "💡" }, content: [text("no stored color")], children: [] },
+      { id: "c2", type: "callout", props: { backgroundColor: "gray", textColor: "red" }, content: [text("gray")], children: [] },
+      { id: "c3", type: "callout", props: { backgroundColor: "blue" }, content: [text("blue")], children: [] },
+      { id: "c4", type: "callout", props: { backgroundColor: "default" }, content: [text("outlined")], children: [] },
+    ]);
+    expect(html).toContain('<div class="public-note-callout " style="background-color:var(--public-note-callout-bg)">');
+    expect(html).toContain('<div class="public-note-callout " style="color:var(--public-note-red-text);background-color:var(--public-note-callout-bg)">');
+    expect(html).toContain('<div class="public-note-callout " style="background-color:var(--public-note-blue-bg)">');
+    expect(html).toContain('<div class="public-note-callout is-outlined">');
+    expect(html).not.toContain("--public-note-gray-bg");
+  });
+
+  it("ignores unknown color names, including inherited object keys", async () => {
+    const html = await render([
+      paragraph([{ type: "text", text: "plain", styles: { textColor: "constructor", backgroundColor: "default" } }]),
+      { id: "p", type: "paragraph", props: { textColor: "toString", backgroundColor: "teal" }, content: [text("block")], children: [] },
+    ]);
+    expect(html).toContain('<div class="public-note-block public-note-paragraph"><p><span>plain</span></p></div>');
+    expect(html).toContain('<div class="public-note-block public-note-paragraph"><p><span>block</span></p></div>');
+  });
+
+  it("keeps the light colors and uses the editor's colors in dark mode", () => {
+    const css = readFileSync(fileURLToPath(new URL("../app/globals.css", import.meta.url)), "utf8");
+    const light = declarations(css, /\.public-note-shell/);
+    const dark = declarations(css, /:root\[data-theme="dark"\] \.public-note-shell/);
+    // エディターの色は、note-editor.tsx が読み込む BlockNote のテーマのダークの色。
+    const editorTheme = readFileSync(createRequire(import.meta.url).resolve("@blocknote/ariakit/style.css"), "utf8");
+    const editorDark = declarations(editorTheme, /\.bn-root\[data-color-scheme=dark\]/);
+    for (const [color, [lightText, lightBackground]] of Object.entries(LIGHT_COLORS)) {
+      expect(light[`--public-note-${color}-text`]).toBe(lightText);
+      expect(light[`--public-note-${color}-bg`]).toBe(lightBackground);
+      expect(dark[`--public-note-${color}-text`]).toMatch(/^#[0-9a-f]{6}$/);
+      expect(dark[`--public-note-${color}-text`]).toBe(editorDark[`--bn-colors-highlights-${color}-text`]);
+      expect(dark[`--public-note-${color}-bg`]).toMatch(/^#[0-9a-f]{6}$/);
+      expect(dark[`--public-note-${color}-bg`]).toBe(editorDark[`--bn-colors-highlights-${color}-background`]);
+    }
+    // 既定のコールアウトの地は、エディターの色を付けていないコールアウトと同じ。
+    const editorCallout = /\.notes-block-editor \.bn-block-content\[data-content-type="callout"\]:not\(\[data-background-color\]\)/;
+    expect(light["--public-note-callout-bg"]).toBe(declarations(css, editorCallout).background);
+    expect(dark["--public-note-callout-bg"]).toBe(declarations(css, new RegExp(`:root\\[data-theme="dark"\\] ${editorCallout.source}`)).background);
+    expect(dark["--public-note-callout-bg"]).toBe("rgba(255, 255, 255, 0.05)");
   });
 });
