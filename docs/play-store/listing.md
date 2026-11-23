@@ -23,6 +23,7 @@ ASK ANYTHING
 KEEP WHAT MATTERS
 • Save any answer as a note in your Workspace with one tap, or turn a whole chat into a page.
 • A clean block editor with headings, lists, to-dos, code, math equations, images and files.
+• Whiteboards for free-form thinking: draw, add sticky notes, shapes, arrows and images, mark up PDF pages, and share a read-only link.
 • Organize notes with sub-pages, groups, favorites and emoji icons.
 • Edit history and a trash bin, so nothing is lost by accident.
 • Import Markdown files as notes, and export any note as Markdown.
@@ -65,6 +66,7 @@ NoteFable 把 AI 对话和你的笔记放在一起，学到的东西不会埋没
 留住重要的内容
 • 一键把回答存为笔记放进工作区，或把整段对话整理成一页笔记。
 • 简洁的块编辑器：标题、列表、待办、代码、数学公式、图片和文件。
+• 白板：自由地画，贴便签，放形状、箭头和图片，在 PDF 页面上批注，还能分享只读链接。
 • 用子页面、分组、收藏和表情图标整理笔记。
 • 编辑历史和回收站，误删也能找回。
 • 把 Markdown 文件导入成笔记，也可以把笔记导出为 Markdown。
@@ -107,6 +109,7 @@ NoteFable 把 AI 對話和你的筆記放在一起，學到的東西不會埋沒
 留住重要的內容
 • 一鍵把回答存成筆記放進工作區，或把整段對話整理成一頁筆記。
 • 簡潔的區塊編輯器：標題、清單、待辦、程式碼、數學公式、圖片和檔案。
+• 白板：自由地畫，貼便利貼，放形狀、箭頭和圖片，在 PDF 頁面上批註，還能分享唯讀連結。
 • 用子頁面、群組、收藏和表情符號圖示整理筆記。
 • 編輯紀錄和垃圾桶，誤刪也能找回。
 • 把 Markdown 檔案匯入成筆記，也可以把筆記匯出為 Markdown。
@@ -149,6 +152,7 @@ NoteFable は AI チャットとノートをひとつにまとめたアプリで
 大事なことを残す
 • 回答をワンタップでノートとしてワークスペースに保存。チャット全体を 1 ページにまとめることもできます。
 • 見出し・リスト・ToDo・コード・数式・画像・ファイルが使えるシンプルなブロックエディタ。
+• ホワイトボード：自由に描いて、付箋・図形・矢印・画像を置き、PDF のページに書き込み、閲覧専用のリンクで共有できます。
 • サブページ・グループ・お気に入り・絵文字アイコンでノートを整理。
 • 編集履歴とゴミ箱があるので、うっかり消しても戻せます。
 • Markdown ファイルをノートとして読み込み、ノートを Markdown で書き出せます。
@@ -191,6 +195,7 @@ NoteFable은 AI 채팅과 노트를 한곳에 모아, 배운 내용이 채팅 �
 중요한 것은 남기기
 • 답변을 탭 한 번으로 워크스페이스에 노트로 저장하거나, 채팅 전체를 한 페이지로 정리하세요.
 • 제목, 목록, 할 일, 코드, 수식, 이미지, 파일을 쓸 수 있는 깔끔한 블록 편집기.
+• 화이트보드: 자유롭게 그리고, 메모지·도형·화살표·이미지를 놓고, PDF 페이지에 필기하고, 보기 전용 링크로 공유할 수 있어요.
 • 하위 페이지, 그룹, 즐겨찾기, 이모지 아이콘으로 노트를 정리하세요.
 • 편집 기록과 휴지통이 있어 실수로 지워도 되살릴 수 있어요.
 • Markdown 파일을 노트로 가져오고, 어떤 노트든 Markdown으로 내보낼 수 있어요.
@@ -233,6 +238,7 @@ PREGUNTA LO QUE QUIERAS
 GUARDA LO IMPORTANTE
 • Guarda cualquier respuesta como nota en tu Espacio con un toque o convierte un chat completo en una página.
 • Un editor de bloques limpio con títulos, listas, tareas, código, ecuaciones, imágenes y archivos.
+• Pizarras para pensar con libertad: dibuja, añade notas adhesivas, formas, flechas e imágenes, anota páginas de PDF y comparte un enlace de solo lectura.
 • Organiza tus notas con subpáginas, grupos, favoritos e iconos emoji.
 • Historial de ediciones y papelera, para que nada se pierda por error.
 • Importa archivos Markdown como notas y exporta cualquier nota en Markdown.
@@ -275,6 +281,7 @@ POSEZ VOS QUESTIONS
 GARDEZ L'ESSENTIEL
 • Enregistrez une réponse comme note dans votre Espace en un geste, ou transformez toute une conversation en page.
 • Un éditeur par blocs épuré : titres, listes, tâches, code, équations, images et fichiers.
+• Des tableaux blancs pour réfléchir librement : dessinez, ajoutez des notes adhésives, des formes, des flèches et des images, annotez des pages PDF et partagez un lien en lecture seule.
 • Organisez vos notes avec des sous-pages, des groupes, des favoris et des icônes emoji.
 • Historique des modifications et corbeille : rien ne se perd par erreur.
 • Importez des fichiers Markdown comme notes et exportez n'importe quelle note en Markdown.
@@ -317,6 +324,7 @@ FRAG, WAS DU WILLST
 BEHALTE, WAS ZÄHLT
 • Speichere jede Antwort mit einem Tipp als Notiz in deinem Arbeitsbereich oder mache aus einem ganzen Chat eine Seite.
 • Ein übersichtlicher Block-Editor mit Überschriften, Listen, To-dos, Code, Formeln, Bildern und Dateien.
+• Whiteboards zum freien Denken: zeichnen, Haftnotizen, Formen, Pfeile und Bilder hinzufügen, PDF-Seiten beschriften und einen schreibgeschützten Link teilen.
 • Ordne Notizen mit Unterseiten, Gruppen, Favoriten und Emoji-Symbolen.
 • Bearbeitungsverlauf und Papierkorb, damit nichts versehentlich verloren geht.
 • Importiere Markdown-Dateien als Notizen und exportiere jede Notiz als Markdown.
@@ -359,6 +367,7 @@ PERGUNTE O QUE QUISER
 GUARDE O QUE IMPORTA
 • Salve qualquer resposta como nota no seu Espaço com um toque ou transforme uma conversa inteira em uma página.
 • Um editor de blocos simples com títulos, listas, tarefas, código, equações, imagens e arquivos.
+• Quadros brancos para pensar livremente: desenhe, adicione notas adesivas, formas, setas e imagens, anote páginas de PDF e compartilhe um link somente leitura.
 • Organize as notas com subpáginas, grupos, favoritos e ícones de emoji.
 • Histórico de edições e lixeira, para nada se perder por engano.
 • Importe arquivos Markdown como notas e exporte qualquer nota em Markdown.
@@ -401,6 +410,7 @@ CHIEDI QUALSIASI COSA
 CONSERVA CIÒ CHE CONTA
 • Salva qualsiasi risposta come nota nel tuo Spazio con un tocco, o trasforma un'intera chat in una pagina.
 • Un editor a blocchi pulito con titoli, elenchi, attività, codice, equazioni, immagini e file.
+• Lavagne per pensare liberamente: disegna, aggiungi note adesive, forme, frecce e immagini, annota pagine PDF e condividi un link di sola lettura.
 • Organizza le note con sottopagine, gruppi, preferiti e icone emoji.
 • Cronologia delle modifiche e cestino, così niente va perso per errore.
 • Importa file Markdown come note ed esporta qualsiasi nota in Markdown.
@@ -443,6 +453,7 @@ TANYA APA SAJA
 SIMPAN YANG PENTING
 • Simpan jawaban sebagai catatan di Ruang kerja dengan sekali ketuk, atau ubah seluruh chat menjadi satu halaman.
 • Editor blok yang rapi dengan judul, daftar, tugas, kode, persamaan, gambar, dan file.
+• Papan tulis untuk berpikir bebas: menggambar, menambahkan catatan tempel, bentuk, panah, dan gambar, membuat catatan di halaman PDF, serta membagikan tautan hanya-baca.
 • Atur catatan dengan subhalaman, grup, favorit, dan ikon emoji.
 • Riwayat edit dan tempat sampah, jadi tidak ada yang hilang karena salah hapus.
 • Impor file Markdown sebagai catatan, dan ekspor catatan apa pun sebagai Markdown.
@@ -485,6 +496,7 @@ HỎI BẤT CỨ ĐIỀU GÌ
 GIỮ LẠI ĐIỀU QUAN TRỌNG
 • Lưu câu trả lời thành ghi chú trong Không gian chỉ với một chạm, hoặc biến cả cuộc trò chuyện thành một trang.
 • Trình soạn thảo khối gọn gàng với tiêu đề, danh sách, việc cần làm, mã, công thức toán, hình ảnh và tệp.
+• Bảng trắng để suy nghĩ tự do: vẽ, thêm ghi chú dán, hình, mũi tên và hình ảnh, ghi chú lên trang PDF và chia sẻ liên kết chỉ xem.
 • Sắp xếp ghi chú bằng trang con, nhóm, mục yêu thích và biểu tượng emoji.
 • Lịch sử chỉnh sửa và thùng rác, để không mất gì vì lỡ tay.
 • Nhập tệp Markdown thành ghi chú và xuất bất kỳ ghi chú nào ra Markdown.
@@ -527,6 +539,7 @@ NoteFable รวมแชท AI และโน้ตของคุณไว้
 เก็บสิ่งสำคัญไว้
 • บันทึกคำตอบเป็นโน้ตในพื้นที่ทำงานได้ในแตะเดียว หรือเปลี่ยนแชททั้งหมดเป็นหนึ่งหน้า
 • ตัวแก้ไขแบบบล็อกที่เรียบง่าย มีหัวข้อ รายการ สิ่งที่ต้องทำ โค้ด สมการ รูปภาพ และไฟล์
+• ไวท์บอร์ดสำหรับคิดอย่างอิสระ: วาดได้ตามใจ เพิ่มโน้ตแปะ รูปทรง ลูกศร และรูปภาพ เขียนกำกับบนหน้า PDF และแชร์ลิงก์แบบดูอย่างเดียว
 • จัดระเบียบโน้ตด้วยหน้าย่อย กลุ่ม รายการโปรด และไอคอนอีโมจิ
 • มีประวัติการแก้ไขและถังขยะ ไม่ต้องกลัวลบผิด
 • นำเข้าไฟล์ Markdown เป็นโน้ต และส่งออกโน้ตใดก็ได้เป็น Markdown
@@ -569,6 +582,7 @@ NoteFable AI चैट और आपके नोट्स को एक ही 
 ज़रूरी चीज़ें सहेजें
 • किसी भी जवाब को एक टैप में नोट के रूप में अपने वर्कस्पेस में सहेजें, या पूरी चैट को एक पेज बना दें।
 • हेडिंग, सूची, टू-डू, कोड, गणित के समीकरण, इमेज और फ़ाइलों वाला साफ़-सुथरा ब्लॉक एडिटर।
+• खुलकर सोचने के लिए व्हाइटबोर्ड: ड्रॉ करें, स्टिकी नोट, आकृतियाँ, तीर और छवियाँ जोड़ें, PDF पेजों पर निशान लगाएँ और केवल देखने वाला लिंक साझा करें।
 • सब-पेज, ग्रुप, पसंदीदा और इमोजी आइकन से नोट्स व्यवस्थित करें।
 • एडिट हिस्ट्री और ट्रैश, ताकि गलती से कुछ न खोए।
 • Markdown फ़ाइलों को नोट्स के रूप में इंपोर्ट करें और किसी भी नोट को Markdown में एक्सपोर्ट करें।
@@ -611,6 +625,7 @@ AI संदेशों और इमेज की दैनिक और म�
 احتفظ بما يهمك
 • احفظ أي إجابة كملاحظة في مساحة العمل بلمسة واحدة، أو حوّل محادثة كاملة إلى صفحة.
 • محرر كتل بسيط يدعم العناوين والقوائم والمهام والشيفرات والمعادلات والصور والملفات.
+• لوحات بيضاء للتفكير بحرية: ارسم وأضف ملاحظات لاصقة وأشكالًا وأسهمًا وصورًا، ودوّن على صفحات PDF، وشارك رابطًا للعرض فقط.
 • نظّم ملاحظاتك بالصفحات الفرعية والمجموعات والمفضلة وأيقونات الرموز التعبيرية.
 • سجل للتعديلات وسلة مهملات، فلا يضيع شيء بالخطأ.
 • استورد ملفات Markdown كملاحظات، وصدّر أي ملاحظة بصيغة Markdown.
@@ -653,6 +668,7 @@ HER ŞEYİ SOR
 ÖNEMLİ OLANI SAKLA
 • Herhangi bir yanıtı tek dokunuşla Çalışma alanına not olarak kaydet ya da bütün bir sohbeti sayfaya dönüştür.
 • Başlık, liste, yapılacaklar, kod, denklem, görsel ve dosya içeren sade bir blok düzenleyici.
+• Özgürce düşünmek için beyaz tahtalar: çizin; yapışkan not, şekil, ok ve görsel ekleyin; PDF sayfalarına not alın ve salt okunur bir bağlantı paylaşın.
 • Notlarını alt sayfalar, gruplar, favoriler ve emoji simgeleriyle düzenle.
 • Düzenleme geçmişi ve çöp kutusu sayesinde yanlışlıkla hiçbir şey kaybolmaz.
 • Markdown dosyalarını not olarak içe aktar, istediğin notu Markdown olarak dışa aktar.
@@ -695,6 +711,7 @@ NoteFable объединяет ИИ-чат и ваши заметки в одн�
 СОХРАНЯЙТЕ ВАЖНОЕ
 • Сохраняйте любой ответ как заметку в «Пространстве» одним нажатием или превращайте весь чат в страницу.
 • Удобный блочный редактор: заголовки, списки, задачи, код, формулы, изображения и файлы.
+• Доски для свободных идей: рисуйте, добавляйте стикеры, фигуры, стрелки и изображения, делайте пометки на страницах PDF и делитесь ссылкой только для просмотра.
 • Упорядочивайте заметки с помощью подстраниц, групп, избранного и значков-эмодзи.
 • История правок и корзина — ничего не пропадёт по ошибке.
 • Импортируйте файлы Markdown как заметки и экспортируйте любую заметку в Markdown.

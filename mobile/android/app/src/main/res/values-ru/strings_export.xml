@@ -12,4 +12,6 @@
     <string name="answer_download_failed">Не удалось скачать диалог. Попробуйте ещё раз.</string>
     <string name="answer_save_failed">Не удалось сохранить как заметку. Попробуйте ещё раз.</string>
     <string name="answer_save_too_large">Этот ответ слишком длинный, чтобы сохранить его как заметку.</string>
+    <string name="export_file_saved">Файл сохранён.</string>
+    <string name="export_file_failed">Не удалось сохранить файл.</string>
 </resources>

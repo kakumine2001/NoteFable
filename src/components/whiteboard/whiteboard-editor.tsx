@@ -22,7 +22,7 @@ import { consumeWhiteboardReveal, WHITEBOARD_REVEAL_EVENT, type WhiteboardReveal
 import { fitStoredWhiteboard, isEmbeddedDataUrl, sceneToStored, storedToScene, type StoredWhiteboard, type WhiteboardElement } from "@/lib/whiteboard/scene";
 import { MAX_CANVAS_BYTES } from "@/lib/canvas-document";
 import { uploadWhiteboardImage } from "@/lib/whiteboard/upload";
-import { WhiteboardChrome, isDrawingTool, toolType, type WhiteboardTool, type WhiteboardUiState } from "@/components/whiteboard/whiteboard-ui";
+import { WhiteboardChrome, toolType, type WhiteboardTool, type WhiteboardUiState } from "@/components/whiteboard/whiteboard-ui";
 import { WhiteboardLinkDialog } from "@/components/whiteboard/whiteboard-link-dialog";
 import { excalidrawLang, useKeepDocumentLanguage } from "@/components/whiteboard/excalidraw-locale";
 import { WhiteboardMinimap } from "@/components/whiteboard/whiteboard-minimap";
@@ -121,7 +121,8 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   const { resolved: theme } = useTheme();
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const actionsRef = useRef<WhiteboardActions | null>(null);
+  // Excalidraw の組み込みの操作（excalidraw-bridge.ts）。editor が用意できてからつなぐ。
+  const [actions, setActions] = useState<WhiteboardActions | null>(null);
   const [ui, setUi] = useState<WhiteboardUiState | null>(null);
   // キャンバスの上に出すお知らせ。text は英語の文（訳は表示する時）、vars はその中の値。
   const [notice, setNotice] = useState<{ text: string; vars?: TranslateVars } | null>(null);
@@ -186,19 +187,20 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   }, [api]);
 
   const scheduleSave = useCallback(() => {
-    clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
+    const tick = () => {
       if (!api || api.isDestroyed) return;
       const appState = api.getAppState();
       // 描いている途中・動かしている途中は待つ（終わってから 1 回だけ保存の形を作る）。
-      if (appState.newElement || appState.selectedElementsAreBeingDragged || appState.isResizing || appState.isRotating) { scheduleSave(); return; }
+      if (appState.newElement || appState.selectedElementsAreBeingDragged || appState.isResizing || appState.isRotating) { saveTimer.current = setTimeout(tick, 400); return; }
       const signature = signatureOf(api.getSceneElementsIncludingDeleted(), appState);
       if (signature === lastSignature.current) return;
       lastSignature.current = signature;
       setSceneVersion(signature);
       updateContentHidden();
       if (editable) serializeNow();
-    }, 400);
+    };
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(tick, 400);
   }, [api, editable, serializeNow, signatureOf, updateContentHidden]);
 
   useEffect(() => () => clearTimeout(saveTimer.current), []);
@@ -262,7 +264,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     const signature = signatureOf(api.getSceneElementsIncludingDeleted(), api.getAppState());
     lastSignature.current = signature;
     queueMicrotask(() => setSceneVersion(signature));
-    actionsRef.current = connectWhiteboardActions(api as never, containerRef.current?.querySelector(".excalidraw") as HTMLElement | null);
+    setActions(connectWhiteboardActions(api as never, containerRef.current?.querySelector(".excalidraw") as HTMLElement | null));
     readUi(api.getSceneElements(), api.getAppState());
     queueMicrotask(updateContentHidden);
   }, [api, readUi, signatureOf, updateContentHidden]);
@@ -369,11 +371,14 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   useEffect(() => () => { if (embedded) postToNative({ type: "drawing", active: false }); }, [embedded]);
 
   // 手で触る端末（スマホ・アプリ）は、最初は手のひら（1 本指でスクロール）。ペンを選ぶと 1 本指で描き、2 本指で拡大縮小・移動する。
+  // Excalidraw は最初の内容を読み終えた時に道具を選択へ戻すので、読み終えた後（onInitialize）に手のひらにする。
   const touchOnly = useMediaQuery("(pointer: coarse) and (hover: none)");
-  useEffect(() => {
-    if (!api || !editable || !(touchOnly || embedded)) return;
-    api.setActiveTool({ type: "hand" });
-  }, [api, editable, touchOnly, embedded]);
+  const startWithHand = editable && (touchOnly || embedded);
+  const startWithHandRef = useRef(startWithHand);
+  useEffect(() => { startWithHandRef.current = startWithHand; }, [startWithHand]);
+  const onInitialize = useCallback((ready: ExcalidrawImperativeAPI) => {
+    if (startWithHandRef.current) ready.setActiveTool({ type: "hand" });
+  }, []);
 
   // 画面の幅ではなく、キャンバスの幅で並べ方を変える（サイドバー・分割表示で狭くなる）。
   const [width, setWidth] = useState(1024);
@@ -513,6 +518,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     <div ref={containerRef} className={`whiteboard${embedded ? " is-embedded" : ""}${editable ? "" : " is-readonly"}${compact ? " is-compact" : narrow ? " is-narrow" : ""}`} data-theme={theme}>
       <Excalidraw
         onExcalidrawAPI={setApi}
+        onInitialize={onInitialize}
         initialData={initial}
         ui={false}
         theme={theme}
@@ -523,7 +529,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
         imageOptions={{ maxFileSizeBytes: MAX_NOTE_FILE_BYTES, maxWidthOrHeight: 2560 }}
         autoFocus={!embedded}
       />
-      {ui && api && <WhiteboardChrome ui={ui} drawMode={drawMode} editable={editable} embedded={embedded} compact={compact} theme={theme} actions={actionsRef.current}
+      {ui && api && <WhiteboardChrome ui={ui} drawMode={drawMode} editable={editable} embedded={embedded} compact={compact} theme={theme} actions={actions}
         title={props.title} icon={props.icon} onTitleChange={props.onTitleChange} onIconChange={props.onIconChange}
         onSelectTool={selectTool} onLink={openLinkDialog} onOpenLink={openLink} onInsertPageCard={() => setLinkDialog({ mode: "card" })}
         onExport={(format) => void runExport(format)} onImportPdf={() => pdfInputRef.current?.click()}
@@ -596,4 +602,3 @@ function deriveUiState(selected: readonly NonDeletedExcalidrawElement[], appStat
   };
 }
 
-export { isDrawingTool };

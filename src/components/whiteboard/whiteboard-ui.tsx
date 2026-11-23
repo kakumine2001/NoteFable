@@ -2,7 +2,7 @@
 
 import {
   Circle, Diamond, Ellipsis, Eraser, FileDown, FileUp, Frame, Grid3x3, Hand, Highlighter, ImagePlus, Lasso, LocateFixed, Magnet, Map as MapIcon,
-  Maximize, Minus, MousePointer2, MoveUpRight, Pen, Redo2, Spline, Square, StickyNote, Type, Undo2, Wand2, ZoomIn, ZoomOut, Link2, PenTool, Palette,
+  Maximize, Minus, MousePointer2, MoveUpRight, Pen, Redo2, Square, StickyNote, Type, Undo2, Wand2, ZoomIn, ZoomOut, Link2, PenTool, Palette,
 } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { AnswerMenu } from "@/components/answer-actions";
@@ -275,4 +275,3 @@ function WhiteboardTitle({ title, icon, editable, onTitleChange, onIconChange }:
   </div>;
 }
 
-export function SplineIcon() { return <Spline size={16} />; }

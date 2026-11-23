@@ -3,12 +3,14 @@ import type { ExcalidrawImperativeAPI, BinaryFiles } from "@excalidraw/excalidra
 import type { NonDeletedExcalidrawElement, ExcalidrawFrameLikeElement } from "@excalidraw/excalidraw/element/types";
 import { msg } from "@/lib/i18n/translate";
 import { buildPdf, rgbaToRgb, type PdfImage, type PdfPage } from "@/lib/whiteboard/pdf-writer";
+import { exportFileName, frameOrder, type WhiteboardExportFormat } from "@/lib/whiteboard/export-utils";
+
+export type { WhiteboardExportFormat };
 
 // ホワイトボードの書き出し（PNG・SVG・PDF）。いつも浅色（白地）で書き出す（印刷・共有しても読みやすいように）。
 // PDF は枠（Frame）ごとに 1 ページ。枠が無ければ全体を 1 ページにする。
 // 画像は note-files の URL のまま描ける（同じサイト）が、SVG はファイルの外で開くので、画像を data: に埋め込む。
 
-export type WhiteboardExportFormat = "png" | "svg" | "pdf";
 export type ExportedFile = { blob: Blob; fileName: string; mimeType: string };
 
 const MIME: Record<WhiteboardExportFormat, string> = { png: "image/png", svg: "image/svg+xml", pdf: "application/pdf" };
@@ -16,12 +18,6 @@ const PADDING = 32;
 // 1 枚の画素数の上限（スマホの Safari の canvas の上限 16.7M より小さく）。
 const MAX_PIXELS = 16_000_000;
 const scaleFor = (preferred: number) => (width: number, height: number) => Math.max(0.1, Math.min(preferred, Math.sqrt(MAX_PIXELS / Math.max(1, width * height))));
-
-// ファイル名に使えない文字を落とす。空なら Whiteboard。
-export function exportFileName(title: string, format: WhiteboardExportFormat) {
-  const base = title.replace(/[\u0000-\u001f\u007f\\/:*?"<>|]/g, "").replace(/\s+/g, " ").trim().slice(0, 120) || "Whiteboard";
-  return `${base === "Untitled" ? "Whiteboard" : base}.${format}`;
-}
 
 async function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -62,16 +58,6 @@ async function canvasToPdfImage(canvas: HTMLCanvasElement): Promise<PdfImage> {
   }
   const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((result) => result ? resolve(result) : reject(new Error(msg("Could not export the whiteboard."))), "image/jpeg", 0.92));
   return { kind: "jpeg", data: new Uint8Array(await blob.arrayBuffer()), pixelWidth: canvas.width, pixelHeight: canvas.height };
-}
-
-// 枠を、上から下・左から右の順に並べる（スライドのように読む順）。
-export function frameOrder<T extends { x: number; y: number; height: number }>(frames: readonly T[]): T[] {
-  return [...frames].sort((a, b) => {
-    // 縦にほぼ同じ高さ（重なっている）なら左から右。
-    const overlap = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
-    if (overlap > Math.min(a.height, b.height) / 2) return a.x - b.x;
-    return a.y - b.y;
-  });
 }
 
 export async function exportWhiteboard(api: ExcalidrawImperativeAPI, format: WhiteboardExportFormat, title: string): Promise<ExportedFile> {
