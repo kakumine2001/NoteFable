@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 vi.mock("@/components/answer-actions", () => ({ ReportDialog: () => null }));
-import { changeLabel, initialState, resolveProposalState, type ProposalCardState } from "./page-proposal";
+import { changeLabel, initialState, openPageId, resolveProposalState, type ProposalCardState } from "./page-proposal";
 import { createTranslator } from "@/lib/i18n/translate";
 import { restoreNoteChatMessages } from "./page-assistant";
 import type { Message } from "@/types/chat";
@@ -18,6 +18,15 @@ describe("proposal card state", () => {
     expect(resolveProposalState(state("applied"), state("undone"))).toEqual(state("undone"));
     expect(resolveProposalState(state("idle"), state("applying"))).toEqual(state("applying"));
     expect(resolveProposalState(state("idle"), undefined)).toEqual(state("idle"));
+  });
+
+  it("opens applied pages and undone edits, never a created page on its way to the Trash or the panel's own page", () => {
+    const statuses: ProposalCardState["status"][] = ["idle", "applying", "discarding", "applied", "discarded", "undoing", "undone"];
+    expect(statuses.map((status) => openPageId(state(status, { pageId: "pg" }), "proposal"))).toEqual([null, null, null, "pg", null, "pg", "pg"]);
+    expect(statuses.map((status) => openPageId(state(status, { pageId: "pg" }), "create_proposal"))).toEqual([null, null, null, "pg", null, null, null]);
+    expect(openPageId(state("applied"), "proposal")).toBeNull();
+    expect(openPageId(state("applied", { pageId: "pg" }), "proposal", "pg")).toBeNull();
+    expect(openPageId(state("applied", { pageId: "pg" }), "proposal", "other")).toBe("pg");
   });
 
   it("starts from the saved status and the page to open", () => {

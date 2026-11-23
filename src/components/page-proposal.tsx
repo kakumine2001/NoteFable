@@ -52,6 +52,14 @@ function subscribe(listener: () => void) {
 }
 
 const busyStatuses = new Set<State["status"]>(["applying", "discarding", "undoing"]);
+
+// 「開く」の行き先：適用したページと、元に戻している途中・戻した後の編集（ページは残る）。新しく作ったページは、元に戻している間
+// （ゴミ箱へ移る途中）と戻した後は開けない。AI パネルの中で、そのパネルのページそのものなら出さない（もう開いている）。
+// Android（ProposalState.openPageId）・iOS（ProposalState.openPageId）と同じ規則。
+export function openPageId(state: Pick<State, "status" | "pageId">, kind: Proposal["kind"], currentPageId?: string) {
+  const openable = state.status === "applied" || ((state.status === "undoing" || state.status === "undone") && kind === "proposal");
+  return openable && state.pageId && state.pageId !== currentPageId ? state.pageId : null;
+}
 // サーバーに保存された確定状態は、手元の古い状態（エラー後の未適用など）より優先する。別のタブで先に操作された場合も、
 // 読み込み直せばその結果が出る。適用済みのあとは、この画面で元に戻している・戻した結果だけを手元から使う。
 // 画面の表示（useProposalState）と操作（適用・破棄・元に戻す）が、同じ規則で今の状態を決める。
@@ -172,10 +180,7 @@ function Card({ proposal, state, icon, title, label, applyLabel, doneBadge, open
   const open = busy || !!state.error || (manual ?? !settled);
   const badge = state.status === "applied" || state.status === "undoing" ? doneBadge : state.status === "discarded" ? t("Discarded") : state.status === "undone" ? t("Undone") : "";
   const host = useContext(ProposalHostContext);
-  // AI パネルの中で、そのパネルのページそのものなら「開く」は出さない（もう開いている）。
-  // 新しく作ったページは、元に戻している間（ゴミ箱へ移る途中）と戻した後は開けない。編集したページは残る。
-  const canOpen = (state.status === "applied" || ((state.status === "undoing" || state.status === "undone") && proposal.kind === "proposal"))
-    && state.pageId && state.pageId !== host.currentPageId;
+  const canOpen = !!openPageId(state, proposal.kind, host.currentPageId);
   const href = state.pageId ? `/?view=pages&page=${encodeURIComponent(state.pageId)}` : "";
   return (
     <section className={`page-edit ${settled ? "is-settled" : ""} ${open ? "" : "is-minimized"}`} aria-label={label}>
