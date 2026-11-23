@@ -73,9 +73,10 @@
 "err_some_more" = "%1$d dosya daha ekleyebilirsiniz (mesaj başına en fazla %2$d). Seçilen %3$d dosyanın hiçbiri eklenmedi. Daha az dosya seçin.";
 "err_not_added" = "%1$s Yeni dosya eklenmedi.";
 "chat_mode" = "Sohbet";
-"note_mode" = "Not";
-"workspace_mode" = "Çalışma alanı modu";
+"note_mode" = "Çalışma alanı";
+"workspace_mode" = "Sohbet ve Çalışma alanı arasında geçiş yap";
 "notes" = "Notlar";
+"workspace" = "Çalışma alanı";
 "new_note" = "Yeni not";
 "projects" = "Projeler";
 "new_project" = "Yeni proje";
@@ -127,7 +128,7 @@
 "days_left" = "%1$d gün kaldı";
 "loading_notes" = "Notlar yükleniyor…";
 "notes_intro" = "Bloklarla not yazın — başlık, liste, yapılacaklar ve kod eklemek için %1$s yazın.";
-"notes_storage_hint" = "Notlar sunucuya kaydedilir ve bu cihazla ilişkilendirilir. Başka cihazlarda açmak için giriş yapın. Uygulama veya site verilerini temizlemek ayrı bir çalışma alanı oluşturur.";
+"notes_storage_hint" = "Notlar sunucuya kaydedilir ve bu cihazla ilişkilendirilir. Başka cihazlarda açmak için giriş yapın. Giriş yapmadan önce uygulama veya site verilerini temizlerseniz notlarınıza bir daha erişemezsiniz.";
 "all_notes" = "Tüm notlar";
 "version_history" = "Sürüm geçmişi";
 "save_saved" = "Kaydedildi";
@@ -277,9 +278,9 @@
 "err_pages_image_mode" = "Görsel oluştururken sayfa eklenemez. Sayfaları kaldırın veya görsel oluşturmayı kapatın.";
 "create_page" = "Nota dönüştür";
 "create_page_title" = "Bu sohbetten not oluştur";
-"create_page_body" = "NoteFable, seçili modeli kullanarak bu konuşmayı Notlar içinde düzenli bir nota dönüştürür. Çok uzun sohbetler, en son mesajlar korunarak kısaltılır. Bu işlem bugünkü mesaj limitinizden bir mesaj olarak sayılır.";
-"create_page_working" = "Not yazılıyor… Bu işlem bir dakika kadar sürebilir. Bu pencereyi kapatabilirsiniz; hazır olduğunda notunuz Notlar listesinde görünecektir.";
-"create_page_done" = "Notlarda “%1$s” oluşturuldu.";
+"create_page_body" = "NoteFable, seçili modeli kullanarak bu konuşmayı Çalışma alanında düzenli bir nota dönüştürür. Çok uzun sohbetler, en son mesajlar korunarak kısaltılır. Bu işlem bugünkü mesaj limitinizden bir mesaj olarak sayılır.";
+"create_page_working" = "Not yazılıyor… Bu işlem bir dakika kadar sürebilir. Bu pencereyi kapatabilirsiniz; hazır olduğunda notunuz Çalışma alanında görünecektir.";
+"create_page_done" = "Çalışma alanında “%1$s” oluşturuldu.";
 "create_page_partial" = "Bu sohbet uzun olduğu için bir kısmı dışarıda bırakıldı.";
 "open_page" = "Notu aç";
 "language_current" = "Dil: %1$s";
@@ -331,14 +332,14 @@
 /* strings_export.xml */
 "answer_options" = "Yanıt seçenekleri";
 "answer_more_options" = "Diğer yanıt seçenekleri";
-"answer_save_to_page" = "Nota kaydet";
-"answer_saved_to_page" = "Nota kaydedildi";
-"answer_retry_save" = "Nota kaydetmeyi tekrar dene";
+"answer_save_to_page" = "Not olarak kaydet";
+"answer_saved_to_page" = "Not olarak kaydedildi";
+"answer_retry_save" = "Not olarak kaydetmeyi tekrar dene";
 "answer_open_saved_page" = "Kaydedilen notu aç";
 "answer_download_conversation" = "Konuşmayı indir";
 "answer_conversation_downloaded" = "Konuşma indirildi";
 "answer_download_failed" = "Konuşma indirilemedi. Tekrar deneyin.";
-"answer_save_failed" = "Notlara kaydedilemedi. Tekrar deneyin.";
+"answer_save_failed" = "Not olarak kaydedilemedi. Tekrar deneyin.";
 "answer_save_too_large" = "Bu yanıt not olarak kaydedilemeyecek kadar uzun.";
 
 /* strings_i18n.xml */

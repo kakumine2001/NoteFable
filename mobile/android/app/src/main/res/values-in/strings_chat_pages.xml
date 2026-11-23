@@ -11,9 +11,9 @@
     <string name="err_pages_image_mode">Halaman tidak dapat dilampirkan saat membuat gambar. Hapus halaman tersebut atau matikan pembuatan gambar.</string>
     <string name="create_page">Rangkum jadi catatan</string>
     <string name="create_page_title">Buat catatan dari chat ini</string>
-    <string name="create_page_body">NoteFable menyusun ulang percakapan ini menjadi catatan yang rapi di Catatan menggunakan model yang dipilih. Chat yang sangat panjang akan diringkas agar muat dengan mengutamakan pesan terbaru. Ini dihitung sebagai satu pesan dalam batas hari ini.</string>
-    <string name="create_page_working">Menulis catatan… Ini mungkin perlu waktu sekitar satu menit. Anda dapat menutup jendela ini; catatan akan muncul di Catatan saat sudah siap.</string>
-    <string name="create_page_done">“%1$s” dibuat di Catatan.</string>
+    <string name="create_page_body">NoteFable menyusun ulang percakapan ini menjadi catatan yang rapi di Ruang kerja menggunakan model yang dipilih. Chat yang sangat panjang akan diringkas agar muat dengan mengutamakan pesan terbaru. Ini dihitung sebagai satu pesan dalam batas hari ini.</string>
+    <string name="create_page_working">Menulis catatan… Ini mungkin perlu waktu sekitar satu menit. Anda dapat menutup jendela ini; catatan akan muncul di Ruang kerja saat sudah siap.</string>
+    <string name="create_page_done">“%1$s” dibuat di Ruang kerja.</string>
     <string name="create_page_partial">Chat ini sangat panjang, sehingga sebagian isinya dilewati.</string>
     <string name="open_page">Buka catatan</string>
     <string name="language_current">Bahasa: %1$s</string>

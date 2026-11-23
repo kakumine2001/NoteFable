@@ -7,14 +7,12 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import { createPortal } from "react-dom";
 import { type FloatingPosition } from "@/components/emoji-picker";
 import { useT } from "@/components/i18n-provider";
+import { renderKatex, type KatexApi } from "@/lib/katex-render";
 import { MAX_MATH_LATEX } from "@/lib/note-document";
 import { useBackToClose } from "@/lib/use-back-to-close";
 
 // ---- KaTeX の遅延読み込み ----
 // 数式を含まないノートでは KaTeX 本体とスタイル・字体を読み込まない。
-type KatexApi = {
-  renderToString: (tex: string, options?: { displayMode?: boolean; throwOnError?: boolean; strict?: boolean; trust?: boolean; errorColor?: string }) => string;
-};
 let katexApi: KatexApi | null = null;
 let katexLoading: Promise<void> | null = null;
 const katexListeners = new Set<() => void>();
@@ -47,28 +45,6 @@ function useKatex(needed: boolean) {
     if (needed) loadKatex();
   }, [needed]);
   return api;
-}
-
-function renderKatex(katex: KatexApi, latex: string, displayMode: boolean): { html: string; error: string | null } {
-  const source = latex.trim();
-  if (!source) return { html: "", error: null };
-  try {
-    return {
-      html: katex.renderToString(source, { displayMode, throwOnError: true, strict: false, trust: false }),
-      error: null,
-    };
-  } catch (caught) {
-    const message = caught instanceof Error ? caught.message.replace(/^KaTeX parse error:\s*/i, "") : "Invalid equation";
-    try {
-      return {
-        html: katex.renderToString(source, { displayMode, throwOnError: false, strict: false, trust: false, errorColor: "currentColor" }),
-        error: message,
-      };
-    } catch {
-      // 深い入れ子などで throwOnError: false でも失敗した時は、元の TeX をそのまま文字で出す。
-      return { html: "", error: message };
-    }
-  }
 }
 
 // ---- 新規挿入直後の自動オープン制御 ----

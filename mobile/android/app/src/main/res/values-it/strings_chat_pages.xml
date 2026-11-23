@@ -11,9 +11,9 @@
     <string name="err_pages_image_mode">Non è possibile allegare pagine durante la creazione di un’immagine. Rimuovile o disattiva la creazione di immagini.</string>
     <string name="create_page">Riassumi in una nota</string>
     <string name="create_page_title">Crea una nota da questa chat</string>
-    <string name="create_page_body">NoteFable riscrive questa conversazione in una nota organizzata in Note usando il modello selezionato. Le chat molto lunghe vengono accorciate mantenendo i messaggi più recenti. Conta come un messaggio nel limite giornaliero.</string>
-    <string name="create_page_working">Scrittura della nota in corso… Può richiedere circa un minuto. Puoi chiudere questa finestra: la nota comparirà in Note non appena sarà pronta.</string>
-    <string name="create_page_done">“%1$s” è stata creata in Note.</string>
+    <string name="create_page_body">NoteFable riscrive questa conversazione in una nota organizzata nel tuo Spazio usando il modello selezionato. Le chat molto lunghe vengono accorciate mantenendo i messaggi più recenti. Conta come un messaggio nel limite giornaliero.</string>
+    <string name="create_page_working">Scrittura della nota in corso… Può richiedere circa un minuto. Puoi chiudere questa finestra: la nota comparirà nel tuo Spazio non appena sarà pronta.</string>
+    <string name="create_page_done">“%1$s” è stata creata nel tuo Spazio.</string>
     <string name="create_page_partial">Questa chat è lunga, quindi una parte è stata tralasciata.</string>
     <string name="open_page">Apri nota</string>
     <string name="language_current">Lingua: %1$s</string>

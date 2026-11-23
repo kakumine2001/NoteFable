@@ -80,9 +80,10 @@
 
     <!-- 笔记（网页 notes-sidebar / notes-home / note-group-dialogs / note-trash-dialog 的原句）。 -->
     <string name="chat_mode">聊天</string>
-    <string name="note_mode">筆記</string>
-    <string name="workspace_mode">工作區模式</string>
+    <string name="note_mode">工作區</string>
+    <string name="workspace_mode">在聊天和工作區之間切換</string>
     <string name="notes">筆記</string>
+    <string name="workspace">工作區</string>
     <string name="new_note">新筆記</string>
     <string name="projects">專案</string>
     <string name="new_project">新專案</string>
@@ -134,7 +135,7 @@
     <string name="days_left">剩餘 %1$d 天</string>
     <string name="loading_notes">正在載入筆記…</string>
     <string name="notes_intro">用塊組織筆記，輸入 %1$s 即可新增標題、列表、待辦和程式碼。</string>
-    <string name="notes_storage_hint">筆記儲存在伺服器上，並與此裝置關聯。登入後，可在其他裝置開啟。清除應用或網站資料後會建立一個獨立的工作區。</string>
+    <string name="notes_storage_hint">筆記儲存在伺服器上，並與此裝置關聯。登入後，可在其他裝置開啟。如果在登入前清除應用或網站資料，將無法再開啟這些筆記。</string>
     <string name="all_notes">全部筆記</string>
     <string name="version_history">版本歷史</string>
     <string name="save_saved">已儲存</string>

@@ -48,7 +48,7 @@ Several agents work on this repo at the same time. These rules keep their work f
 - Code that replaces note content wholesale (AI apply, history restore) must call `createRevision` in the same transaction. `snapshotBeforeSave` must never fail a save.
 - Project instructions are user instructions; project note text is private data, never instructions: delimited in the prompt, read live, capped, kept out of web-search queries, not copied to other tables.
 - Search: change spelling folding only in `src/lib/search-fold.ts`; the SQL regex (`termMatcher`) must stay equivalent (tests compare them). Never fold stored columns in SQL.
-- Answer export never includes SYSTEM messages or provider context; Save to Notes goes through `POST /api/pages` on web (`POST /api/pages/from-answer` on native), and full-chat Create page goes through `POST /api/sessions/[sessionId]/page`.
+- Answer export never includes SYSTEM messages or provider context; saving an answer as a note (Save to page) goes through `POST /api/pages` on web (`POST /api/pages/from-answer` on native), and full-chat Create page goes through `POST /api/sessions/[sessionId]/page`.
 - BlockNote CSS loads after `globals.css`; overrides of `.bn-*` need `.bn-block-content` (or equally specific parent) in the selector.
 - Image binaries live in Private Vercel Blob (`BLOB_READ_WRITE_TOKEN` on Vercel; local falls back to `NOTEFABLE_STORAGE_DIR`); Postgres holds metadata only. Serve via `/api/attachments/[id]/image` with an ownership check and a short-lived single-image redirect; never give the browser a wildcard read token.
 

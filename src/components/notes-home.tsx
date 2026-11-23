@@ -89,7 +89,7 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
         {/* プロジェクトから外すドロップ先（スマホ幅では下の見出しが同じ役目）。 */}
         <h2 className="notes-home-section" data-note-group-drop=""><FileText size={15} aria-hidden="true" />{t("All notes")}</h2>
       </div>
-      <h1 className="notes-home-title" data-note-group-drop="">{t("Notes")}</h1>
+      <h1 className="notes-home-title" data-note-group-drop="">{t("Workspace")}</h1>
       {favorites.length > 0 && <section>
         <h2 className="notes-home-group">{t("Favorites")}<span>{favorites.length}</span></h2>
         <ul className="notes-home-list">{favorites.map((page) => <li key={page.id} className="notes-home-node"><div className="notes-home-item">

@@ -21,7 +21,7 @@ export default function TermsPage() {
 
       <LegalSection title="2. The service">
         <p>
-          NoteFable is an AI study assistant: you can chat with AI models, keep Notes, attach files and generate images. It is a personal project provided
+          NoteFable is an AI study assistant: you can chat with AI models, keep notes in your Workspace, attach files and generate images. It is a personal project provided
           “as is”. It is free to use within daily and monthly limits and a storage limit for your files; a paid Pro plan raises those limits (section 3). Features, models and limits can change,
           and the service can be interrupted or stopped at any time without notice. Keep your own copy of anything important.
         </p>
@@ -73,7 +73,7 @@ export default function TermsPage() {
           described in the Privacy Policy.
         </p>
         <p>
-          Files you upload or generate (images in chats, generated images, and files, covers and icons in Notes) count toward a storage limit:
+          Files you upload or generate (images in chats, generated images, and files, covers and icons in your Workspace) count toward a storage limit:
           {" "}{formatStorageSize(STORAGE_LIMITS.guest)} without signing in, {formatStorageSize(STORAGE_LIMITS.member)} when signed in and {formatStorageSize(STORAGE_LIMITS.pro)} with Pro.
           Each file can be up to {formatStorageSize(MAX_STORED_FILE_BYTES)} ({formatStorageSize(MAX_UPLOAD_FILE_BYTES)} for chat attachments). When the limit is reached, new uploads are refused until you delete files; the files you
           already have stay. Files you delete are removed from storage about a week after nothing uses them any more; files that a note in Trash or a note’s

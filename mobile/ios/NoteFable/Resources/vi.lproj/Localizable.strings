@@ -73,9 +73,10 @@
 "err_some_more" = "Bạn chỉ có thể thêm %1$d tệp nữa (tối đa %2$d tệp mỗi tin nhắn). Chưa tệp nào trong %3$d tệp này được thêm. Hãy chọn ít tệp hơn.";
 "err_not_added" = "%1$s Không có tệp mới nào được thêm.";
 "chat_mode" = "Đoạn chat";
-"note_mode" = "Ghi chú";
-"workspace_mode" = "Chế độ không gian làm việc";
+"note_mode" = "Không gian";
+"workspace_mode" = "Chuyển giữa Đoạn chat và Không gian";
 "notes" = "Ghi chú";
+"workspace" = "Không gian";
 "new_note" = "Ghi chú mới";
 "projects" = "Dự án";
 "new_project" = "Dự án mới";
@@ -127,7 +128,7 @@
 "days_left" = "Còn %1$d ngày";
 "loading_notes" = "Đang tải ghi chú…";
 "notes_intro" = "Viết ghi chú theo từng khối — gõ %1$s để thêm tiêu đề, danh sách, việc cần làm và mã nguồn.";
-"notes_storage_hint" = "Ghi chú được lưu trên máy chủ và liên kết với thiết bị này. Hãy đăng nhập để mở trên các thiết bị khác. Việc xóa dữ liệu ứng dụng hoặc trang web sẽ tạo ra một không gian làm việc riêng biệt.";
+"notes_storage_hint" = "Ghi chú được lưu trên máy chủ và liên kết với thiết bị này. Hãy đăng nhập để mở trên các thiết bị khác. Nếu xóa dữ liệu ứng dụng hoặc trang web trước khi đăng nhập, bạn sẽ không mở được các ghi chú này nữa.";
 "all_notes" = "Tất cả ghi chú";
 "version_history" = "Lịch sử phiên bản";
 "save_saved" = "Đã lưu";
@@ -277,9 +278,9 @@
 "err_pages_image_mode" = "Không thể đính kèm trang khi tạo hình ảnh. Hãy gỡ các trang đính kèm hoặc tắt tạo hình ảnh.";
 "create_page" = "Tổng hợp thành ghi chú";
 "create_page_title" = "Tổng hợp đoạn chat này thành ghi chú";
-"create_page_body" = "NoteFable dùng mô hình đang chọn để viết lại cuộc trò chuyện này thành một ghi chú mạch lạc trong mục Ghi chú. Các đoạn chat quá dài sẽ được rút gọn vừa vặn và ưu tiên giữ lại những tin nhắn gần nhất. Thao tác này được tính là 1 tin nhắn trong giới hạn hôm nay.";
-"create_page_working" = "Đang viết ghi chú… Việc này có thể mất khoảng một phút. Bạn có thể đóng cửa sổ này; ghi chú sẽ xuất hiện trong mục Ghi chú khi hoàn tất.";
-"create_page_done" = "Đã tạo “%1$s” trong Ghi chú.";
+"create_page_body" = "NoteFable dùng mô hình đang chọn để viết lại cuộc trò chuyện này thành một ghi chú mạch lạc trong Không gian. Các đoạn chat quá dài sẽ được rút gọn vừa vặn và ưu tiên giữ lại những tin nhắn gần nhất. Thao tác này được tính là 1 tin nhắn trong giới hạn hôm nay.";
+"create_page_working" = "Đang viết ghi chú… Việc này có thể mất khoảng một phút. Bạn có thể đóng cửa sổ này; ghi chú sẽ xuất hiện trong Không gian khi hoàn tất.";
+"create_page_done" = "Đã tạo “%1$s” trong Không gian.";
 "create_page_partial" = "Đoạn chat này khá dài nên một phần nội dung đã được lược bớt.";
 "open_page" = "Mở ghi chú";
 "language_current" = "Ngôn ngữ: %1$s";
@@ -331,14 +332,14 @@
 /* strings_export.xml */
 "answer_options" = "Tùy chọn câu trả lời";
 "answer_more_options" = "Thêm tùy chọn câu trả lời";
-"answer_save_to_page" = "Lưu vào ghi chú";
-"answer_saved_to_page" = "Đã lưu vào ghi chú";
-"answer_retry_save" = "Thử lưu lại vào ghi chú";
+"answer_save_to_page" = "Lưu thành ghi chú";
+"answer_saved_to_page" = "Đã lưu thành ghi chú";
+"answer_retry_save" = "Thử lưu lại thành ghi chú";
 "answer_open_saved_page" = "Mở ghi chú đã lưu";
 "answer_download_conversation" = "Tải xuống cuộc trò chuyện";
 "answer_conversation_downloaded" = "Đã tải xuống cuộc trò chuyện";
 "answer_download_failed" = "Không thể tải xuống cuộc trò chuyện. Hãy thử lại.";
-"answer_save_failed" = "Không thể lưu vào Ghi chú. Hãy thử lại.";
+"answer_save_failed" = "Không thể lưu thành ghi chú. Hãy thử lại.";
 "answer_save_too_large" = "Câu trả lời này quá dài để lưu thành ghi chú.";
 
 /* strings_i18n.xml */

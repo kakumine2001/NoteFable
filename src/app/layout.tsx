@@ -25,7 +25,7 @@ export const metadata: Metadata = {
   // ブラウザタブや検索結果で使われるアプリ名。
   title: "NoteFable",
   // Next.js の Metadata API へ渡すページ説明。
-  description: "A personal space for AI conversations, notes, and ideas.",
+  description: "AI chat and a personal workspace for your notes.",
 };
 
 // モバイルのキーボード表示時も本文の表示領域を追従させる。

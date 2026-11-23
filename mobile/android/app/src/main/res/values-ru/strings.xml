@@ -73,9 +73,10 @@
     <string name="err_some_more">Можно добавить ещё файлов: %1$d (максимум %2$d на сообщение). Ни один из выбранных файлов (%3$d) не был добавлен. Выберите меньше файлов.</string>
     <string name="err_not_added">%1$s Новые файлы не добавлены.</string>
     <string name="chat_mode">Чат</string>
-    <string name="note_mode">Заметка</string>
-    <string name="workspace_mode">Режим рабочего пространства</string>
+    <string name="note_mode">Пространство</string>
+    <string name="workspace_mode">Переключение между «Чатом» и «Пространством»</string>
     <string name="notes">Заметки</string>
+    <string name="workspace">Пространство</string>
     <string name="new_note">Новая заметка</string>
     <string name="projects">Проекты</string>
     <string name="new_project">Новый проект</string>
@@ -127,7 +128,7 @@
     <string name="days_left">Осталось %1$d дн.</string>
     <string name="loading_notes">Загрузка заметок…</string>
     <string name="notes_intro">Пишите заметки из блоков — введите %1$s для заголовков, списков, задач и кода.</string>
-    <string name="notes_storage_hint">Заметки хранятся на сервере и привязаны к этому устройству. Войдите в аккаунт, чтобы открывать их на других устройствах. Очистка данных приложения или сайта создаст отдельное рабочее пространство.</string>
+    <string name="notes_storage_hint">Заметки хранятся на сервере и привязаны к этому устройству. Войдите в аккаунт, чтобы открывать их на других устройствах. Если очистить данные приложения или сайта до входа, доступ к ним будет потерян.</string>
     <string name="all_notes">Все заметки</string>
     <string name="version_history">История версий</string>
     <string name="save_saved">Сохранено</string>

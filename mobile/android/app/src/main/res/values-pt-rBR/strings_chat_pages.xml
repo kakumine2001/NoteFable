@@ -11,9 +11,9 @@
     <string name="err_pages_image_mode">Não é possível anexar páginas ao criar uma imagem. Remova-as ou desative a criação de imagens.</string>
     <string name="create_page">Criar nota</string>
     <string name="create_page_title">Criar uma nota a partir deste chat</string>
-    <string name="create_page_body">O NoteFable reescreve esta conversa em uma nota organizada em Notas usando o modelo selecionado. Conversas muito longas são resumidas para caber, mantendo as mensagens mais recentes. Isso conta como uma mensagem no limite de hoje.</string>
-    <string name="create_page_working">Escrevendo a nota… Isso pode levar um minuto. Você pode fechar esta janela; a nota aparecerá em Notas quando estiver pronta.</string>
-    <string name="create_page_done">“%1$s” foi criada em Notas.</string>
+    <string name="create_page_body">O NoteFable reescreve esta conversa em uma nota organizada no seu Espaço usando o modelo selecionado. Conversas muito longas são resumidas para caber, mantendo as mensagens mais recentes. Isso conta como uma mensagem no limite de hoje.</string>
+    <string name="create_page_working">Escrevendo a nota… Isso pode levar um minuto. Você pode fechar esta janela; a nota aparecerá no seu Espaço quando estiver pronta.</string>
+    <string name="create_page_done">“%1$s” foi criada no seu Espaço.</string>
     <string name="create_page_partial">Este chat é longo, por isso uma parte ficou de fora.</string>
     <string name="open_page">Abrir nota</string>
     <string name="language_current">Idioma: %1$s</string>

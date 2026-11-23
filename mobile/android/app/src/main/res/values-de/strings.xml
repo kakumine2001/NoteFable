@@ -73,9 +73,10 @@
     <string name="err_some_more">Du kannst noch %1$d weitere Dateien hinzufügen (%2$d pro Nachricht). Keine dieser %3$d Dateien wurde hinzugefügt. Wähle weniger Dateien aus.</string>
     <string name="err_not_added">%1$s Es wurden keine neuen Dateien hinzugefügt.</string>
     <string name="chat_mode">Chat</string>
-    <string name="note_mode">Notiz</string>
-    <string name="workspace_mode">Arbeitsbereich-Modus</string>
+    <string name="note_mode">Arbeitsbereich</string>
+    <string name="workspace_mode">Zwischen Chat und Arbeitsbereich wechseln</string>
     <string name="notes">Notizen</string>
+    <string name="workspace">Arbeitsbereich</string>
     <string name="new_note">Neue Notiz</string>
     <string name="projects">Projekte</string>
     <string name="new_project">Neues Projekt</string>
@@ -127,7 +128,7 @@
     <string name="days_left">Noch %1$d Tage</string>
     <string name="loading_notes">Notizen werden geladen…</string>
     <string name="notes_intro">Schreibe Notizen mit Blöcken – tippe %1$s für Überschriften, Listen, Aufgaben und Code.</string>
-    <string name="notes_storage_hint">Notizen werden auf dem Server gespeichert und mit diesem Gerät verknüpft. Melde dich an, um sie auf anderen Geräten zu öffnen. Das Löschen von App- oder Website-Daten erstellt einen neuen, getrennten Arbeitsbereich.</string>
+    <string name="notes_storage_hint">Notizen werden auf dem Server gespeichert und mit diesem Gerät verknüpft. Melde dich an, um sie auf anderen Geräten zu öffnen. Wenn du App- oder Website-Daten löschst, bevor du dich angemeldet hast, kannst du sie nicht mehr öffnen.</string>
     <string name="all_notes">Alle Notizen</string>
     <string name="version_history">Versionsverlauf</string>
     <string name="save_saved">Gespeichert</string>

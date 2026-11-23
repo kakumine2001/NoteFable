@@ -73,9 +73,10 @@
 "err_some_more" = "Vous pouvez ajouter encore %1$d fichiers (%2$d par message). Aucun de ces %3$d fichiers n’a été ajouté. Choisissez moins de fichiers.";
 "err_not_added" = "%1$s Aucun nouveau fichier n’a été ajouté.";
 "chat_mode" = "Discussion";
-"note_mode" = "Note";
-"workspace_mode" = "Mode de l’espace de travail";
+"note_mode" = "Espace";
+"workspace_mode" = "Basculer entre Discussion et Espace";
 "notes" = "Notes";
+"workspace" = "Espace";
 "new_note" = "Nouvelle note";
 "projects" = "Projets";
 "new_project" = "Nouveau projet";
@@ -127,7 +128,7 @@
 "days_left" = "%1$d jours restants";
 "loading_notes" = "Chargement des notes…";
 "notes_intro" = "Rédigez vos notes par blocs — tapez %1$s pour les titres, listes, tâches et blocs de code.";
-"notes_storage_hint" = "Les notes sont enregistrées sur le serveur et associées à cet appareil. Connectez-vous pour les ouvrir sur d’autres appareils. Effacer les données de l’application ou du site crée un espace de travail distinct.";
+"notes_storage_hint" = "Les notes sont enregistrées sur le serveur et associées à cet appareil. Connectez-vous pour les ouvrir sur d’autres appareils. Si vous effacez les données de l’application ou du site avant de vous connecter, vous n’y aurez plus accès.";
 "all_notes" = "Toutes les notes";
 "version_history" = "Historique des versions";
 "save_saved" = "Enregistré";
@@ -277,9 +278,9 @@
 "err_pages_image_mode" = "Impossible de joindre des pages lors de la création d’une image. Retirez-les ou désactivez la création d’images.";
 "create_page" = "Synthétiser en note";
 "create_page_title" = "Créer une note à partir de cette discussion";
-"create_page_body" = "NoteFable réécrit cette discussion sous forme de note structurée dans Notes à l’aide du modèle sélectionné. Les discussions très longues sont raccourcies en conservant les messages les plus récents. Cela compte pour un message dans votre limite du jour.";
-"create_page_working" = "Rédaction de la note… Cela peut prendre une minute. Vous pouvez fermer cette fenêtre ; la note apparaîtra dans Notes dès qu’elle sera prête.";
-"create_page_done" = "« %1$s » a été créée dans Notes.";
+"create_page_body" = "NoteFable réécrit cette discussion sous forme de note structurée dans votre Espace à l’aide du modèle sélectionné. Les discussions très longues sont raccourcies en conservant les messages les plus récents. Cela compte pour un message dans votre limite du jour.";
+"create_page_working" = "Rédaction de la note… Cela peut prendre une minute. Vous pouvez fermer cette fenêtre ; la note apparaîtra dans votre Espace dès qu’elle sera prête.";
+"create_page_done" = "« %1$s » a été créée dans votre Espace.";
 "create_page_partial" = "Cette discussion étant longue, une partie a été omise.";
 "open_page" = "Ouvrir la note";
 "language_current" = "Langue : %1$s";
@@ -331,14 +332,14 @@
 /* strings_export.xml */
 "answer_options" = "Options de la réponse";
 "answer_more_options" = "Plus d’options pour la réponse";
-"answer_save_to_page" = "Enregistrer dans les notes";
-"answer_saved_to_page" = "Enregistré dans les notes";
-"answer_retry_save" = "Réessayer d’enregistrer dans les notes";
+"answer_save_to_page" = "Enregistrer comme note";
+"answer_saved_to_page" = "Enregistrée comme note";
+"answer_retry_save" = "Réessayer d’enregistrer comme note";
 "answer_open_saved_page" = "Ouvrir la note enregistrée";
 "answer_download_conversation" = "Télécharger la discussion";
 "answer_conversation_downloaded" = "Discussion téléchargée";
 "answer_download_failed" = "Impossible de télécharger la discussion. Réessayez.";
-"answer_save_failed" = "Impossible d’enregistrer dans Notes. Réessayez.";
+"answer_save_failed" = "Impossible d’enregistrer comme note. Réessayez.";
 "answer_save_too_large" = "Cette réponse est trop volumineuse pour être enregistrée en note.";
 
 /* strings_i18n.xml */

@@ -11,9 +11,9 @@
     <string name="err_pages_image_mode">Impossible de joindre des pages lors de la création d’une image. Retirez-les ou désactivez la création d’images.</string>
     <string name="create_page">Synthétiser en note</string>
     <string name="create_page_title">Créer une note à partir de cette discussion</string>
-    <string name="create_page_body">NoteFable réécrit cette discussion sous forme de note structurée dans Notes à l’aide du modèle sélectionné. Les discussions très longues sont raccourcies en conservant les messages les plus récents. Cela compte pour un message dans votre limite du jour.</string>
-    <string name="create_page_working">Rédaction de la note… Cela peut prendre une minute. Vous pouvez fermer cette fenêtre ; la note apparaîtra dans Notes dès qu’elle sera prête.</string>
-    <string name="create_page_done">« %1$s » a été créée dans Notes.</string>
+    <string name="create_page_body">NoteFable réécrit cette discussion sous forme de note structurée dans votre Espace à l’aide du modèle sélectionné. Les discussions très longues sont raccourcies en conservant les messages les plus récents. Cela compte pour un message dans votre limite du jour.</string>
+    <string name="create_page_working">Rédaction de la note… Cela peut prendre une minute. Vous pouvez fermer cette fenêtre ; la note apparaîtra dans votre Espace dès qu’elle sera prête.</string>
+    <string name="create_page_done">« %1$s » a été créée dans votre Espace.</string>
     <string name="create_page_partial">Cette discussion étant longue, une partie a été omise.</string>
     <string name="open_page">Ouvrir la note</string>
     <string name="language_current">Langue : %1$s</string>

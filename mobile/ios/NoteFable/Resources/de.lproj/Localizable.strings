@@ -73,9 +73,10 @@
 "err_some_more" = "Du kannst noch %1$d weitere Dateien hinzufügen (%2$d pro Nachricht). Keine dieser %3$d Dateien wurde hinzugefügt. Wähle weniger Dateien aus.";
 "err_not_added" = "%1$s Es wurden keine neuen Dateien hinzugefügt.";
 "chat_mode" = "Chat";
-"note_mode" = "Notiz";
-"workspace_mode" = "Arbeitsbereich-Modus";
+"note_mode" = "Arbeitsbereich";
+"workspace_mode" = "Zwischen Chat und Arbeitsbereich wechseln";
 "notes" = "Notizen";
+"workspace" = "Arbeitsbereich";
 "new_note" = "Neue Notiz";
 "projects" = "Projekte";
 "new_project" = "Neues Projekt";
@@ -127,7 +128,7 @@
 "days_left" = "Noch %1$d Tage";
 "loading_notes" = "Notizen werden geladen…";
 "notes_intro" = "Schreibe Notizen mit Blöcken – tippe %1$s für Überschriften, Listen, Aufgaben und Code.";
-"notes_storage_hint" = "Notizen werden auf dem Server gespeichert und mit diesem Gerät verknüpft. Melde dich an, um sie auf anderen Geräten zu öffnen. Das Löschen von App- oder Website-Daten erstellt einen neuen, getrennten Arbeitsbereich.";
+"notes_storage_hint" = "Notizen werden auf dem Server gespeichert und mit diesem Gerät verknüpft. Melde dich an, um sie auf anderen Geräten zu öffnen. Wenn du App- oder Website-Daten löschst, bevor du dich angemeldet hast, kannst du sie nicht mehr öffnen.";
 "all_notes" = "Alle Notizen";
 "version_history" = "Versionsverlauf";
 "save_saved" = "Gespeichert";
@@ -277,9 +278,9 @@
 "err_pages_image_mode" = "Beim Erstellen eines Bildes können keine Seiten angehängt werden. Entferne sie oder deaktiviere die Bilderstellung.";
 "create_page" = "Als Notiz zusammenfassen";
 "create_page_title" = "Diesen Chat als Notiz zusammenfassen";
-"create_page_body" = "NoteFable fasst diese Unterhaltung mithilfe des gewählten Modells als übersichtliche Notiz in Notizen zusammen. Sehr lange Chats werden gekürzt, wobei die neuesten Nachrichten erhalten bleiben. Dies zählt als eine Nachricht für dein Tageslimit.";
-"create_page_working" = "Die Notiz wird erstellt… Das kann etwa eine Minute dauern. Du kannst dieses Fenster schließen; die fertige Notiz erscheint anschließend in Notizen.";
-"create_page_done" = "„%1$s“ wurde in Notizen erstellt.";
+"create_page_body" = "NoteFable fasst diese Unterhaltung mithilfe des gewählten Modells als übersichtliche Notiz im Arbeitsbereich zusammen. Sehr lange Chats werden gekürzt, wobei die neuesten Nachrichten erhalten bleiben. Dies zählt als eine Nachricht für dein Tageslimit.";
+"create_page_working" = "Die Notiz wird erstellt… Das kann etwa eine Minute dauern. Du kannst dieses Fenster schließen; die fertige Notiz erscheint anschließend im Arbeitsbereich.";
+"create_page_done" = "„%1$s“ wurde im Arbeitsbereich erstellt.";
 "create_page_partial" = "Dieser Chat ist sehr lang, daher wurde ein Teil ausgelassen.";
 "open_page" = "Notiz öffnen";
 "language_current" = "Sprache: %1$s";
@@ -331,14 +332,14 @@
 /* strings_export.xml */
 "answer_options" = "Antwortoptionen";
 "answer_more_options" = "Weitere Antwortoptionen";
-"answer_save_to_page" = "In Notizen speichern";
-"answer_saved_to_page" = "In Notizen gespeichert";
-"answer_retry_save" = "Speichern in Notizen wiederholen";
+"answer_save_to_page" = "Als Notiz speichern";
+"answer_saved_to_page" = "Als Notiz gespeichert";
+"answer_retry_save" = "Erneut als Notiz speichern";
 "answer_open_saved_page" = "Gespeicherte Notiz öffnen";
 "answer_download_conversation" = "Unterhaltung herunterladen";
 "answer_conversation_downloaded" = "Unterhaltung heruntergeladen";
 "answer_download_failed" = "Die Unterhaltung konnte nicht heruntergeladen werden. Versuche es erneut.";
-"answer_save_failed" = "Speichern in Notizen fehlgeschlagen. Versuche es erneut.";
+"answer_save_failed" = "Konnte nicht als Notiz gespeichert werden. Versuche es erneut.";
 "answer_save_too_large" = "Diese Antwort ist zu umfangreich, um als Notiz gespeichert zu werden.";
 
 /* strings_i18n.xml */

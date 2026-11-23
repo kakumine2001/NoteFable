@@ -2388,7 +2388,7 @@ export default function Home() {
                 {workspaceView === "chat" && activeSession && (
                   <ChatTopbarIcon key={activeSession.id} icon={activeSession.icon} onChange={(icon) => changeSessionIcon(activeSession.id, icon)} />
                 )}
-                <span className="truncate">{workspaceView === "pages" ? (!notesList && notes.active?.content.title) || t("Notes") : activeTitle}</span>
+                <span className="truncate">{workspaceView === "pages" ? (!notesList && notes.active?.content.title) || t("Workspace") : activeTitle}</span>
               </div>
             </div>
           </div>
