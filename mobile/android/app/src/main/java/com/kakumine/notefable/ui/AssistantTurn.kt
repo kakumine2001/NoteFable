@@ -69,6 +69,7 @@ import com.kakumine.notefable.data.CharacterState
 import com.kakumine.notefable.data.GeneratedImageDto
 import com.kakumine.notefable.data.ImageSaver
 import com.kakumine.notefable.data.ProposalStore
+import com.kakumine.notefable.data.ReportTarget
 import com.kakumine.notefable.data.mergeProposals
 import com.kakumine.notefable.data.progressSteps
 import kotlinx.coroutines.CancellationException
@@ -203,6 +204,7 @@ private fun ProposalCards(proposals: List<com.kakumine.notefable.data.Proposal>,
                 state = store.stateOf(proposal, local),
                 onApply = { store.apply(proposal) },
                 onDiscard = { store.discard(proposal) },
+                onUndo = { store.undo(proposal) },
                 onOpen = openNote,
             )
         }
@@ -368,5 +370,5 @@ private fun ReportOnlyAction(messageId: String) {
     ) {
         LucideIcon(FlagIcon, 16.dp, Sm.Muted, strokeWidth = 1.9f)
     }
-    if (open) ReportAnswerDialog(messageId, onClose = { open = false })
+    if (open) ReportDialog(ReportTarget.Answer(messageId), onClose = { open = false })
 }

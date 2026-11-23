@@ -26,23 +26,47 @@ data class ContextNote(val id: String, val title: String, val truncated: Boolean
 
 data class ContextInfo(val projectName: String, val hasInstructions: Boolean, val notes: List<ContextNote>)
 
-/** 笔记编辑提案里的一处改动（`src/lib/page-edit.ts` 的 PageEditChange）。 */
+/** 改动的对象（网页 src/lib/page-ai/types.ts 的 ProposalTarget）：笔记用块编号 [ProposalChange.block]，没有这个。 */
+sealed interface ProposalTarget {
+    /** 幻灯片的第几张（从 1 起）。 */
+    data class Slide(val number: Int) : ProposalTarget
+
+    /** 白板的元素：只有一个时 [name] 是它的文字，多个时看 [count]。 */
+    data class Elements(val count: Int, val name: String? = null) : ProposalTarget
+}
+
+/** 提案里的一处改动（网页 src/lib/page-ai/types.ts 的 ProposalChange，由服务端按页面类型的适配器生成）。 */
 data class ProposalChange(
-    /** `replace`、`insert_after` 或 `delete`。 */
+    /** [PROPOSAL_OPS] 之一；读到不认识的操作时按 `update`。 */
     val op: String,
-    /** read_note 里看到的块编号；0 表示插在开头。 */
+    /** 笔记：read_note 里看到的块编号，0 表示插在开头。其它类型总是 0。 */
     val block: Int,
     val before: String? = null,
     val after: String? = null,
     val dropsFormatting: Boolean = false,
     val dropsMedia: Boolean = false,
+    /** 幻灯片的第几张 / 白板的哪些元素；笔记没有。 */
+    val target: ProposalTarget? = null,
+    /** 改前 / 改后的缩略图（白板、幻灯片）：同源的相对地址 `/api/proposals/:id/image?…`，要带 App 的 Cookie 读。 */
+    val beforeImage: String? = null,
+    val afterImage: String? = null,
 )
 
-/** AI 的笔记提案：编辑已有笔记或新建笔记。[status] 只有服务端保存过的提案才有。 */
+/** 改动的操作（网页 PROPOSAL_OPS）。笔记用前三个，白板、幻灯片还会用后四个。 */
+val PROPOSAL_OPS = listOf("replace", "insert_after", "delete", "add", "update", "move", "reorder")
+
+/**
+ * AI 的页面提案：编辑已有页面或新建页面（笔记、白板、幻灯片共用一种卡片，网页 page-proposal.tsx）。
+ * [status]（pending / applied / discarded / undone）只有服务端保存过的提案才有；[pageKind] 旧服务端不返回，按笔记。
+ * [autoApplied]：AI 面板的"自动应用"没经确认就应用了；[undoable]：已应用、服务端记着应用的版本，可以撤销。
+ */
 sealed interface Proposal {
     val id: String
     val status: String?
     val appliedPageId: String?
+    val pageKind: PageKind
+    val autoApplied: Boolean
+    val undoable: Boolean
 
     data class Edit(
         override val id: String,
@@ -54,16 +78,27 @@ sealed interface Proposal {
         val changes: List<ProposalChange> = emptyList(),
         override val status: String? = null,
         override val appliedPageId: String? = null,
+        override val pageKind: PageKind = PageKind.Note,
+        override val autoApplied: Boolean = false,
+        override val undoable: Boolean = false,
     ) : Proposal
 
     data class Create(
         override val id: String,
         val title: String,
         val icon: String? = null,
-        /** 要显示的正文 Markdown。 */
+        /** 要显示的正文（笔记是 Markdown，其它类型是读得懂的文字）。 */
         val content: String,
         override val status: String? = null,
         override val appliedPageId: String? = null,
+        override val pageKind: PageKind = PageKind.Note,
+        override val autoApplied: Boolean = false,
+        override val undoable: Boolean = false,
+        /** 作为子页面建在哪一页里；[parentTitle] 是那一页的标题（空字符串显示"Untitled"），没有就不显示"位于…中"。 */
+        val parentId: String? = null,
+        val parentTitle: String? = null,
+        /** 正文以外要看的改动（白板、幻灯片的缩略图等）。 */
+        val changes: List<ProposalChange> = emptyList(),
     ) : Proposal
 }
 
@@ -235,6 +270,7 @@ object Activity {
         }
     }
 
+    // proposed.blocks 现在总是空数组（应用只用服务端保存的内容），但旧版 App 也靠它校验，仍然要求是数组。
     private fun proposed(json: JsonObject): JsonObject? {
         val proposed = json["proposed"] as? JsonObject ?: return null
         return proposed.takeIf { it.string("title") != null && it["blocks"] is JsonArray }
@@ -256,20 +292,12 @@ object Activity {
             baseVersion = baseVersion,
             titleBefore = title?.string("before"),
             titleAfter = title?.string("after"),
-            changes = changes.mapNotNull { item ->
-                val change = item as? JsonObject ?: return@mapNotNull null
-                val op = change.string("op") ?: return@mapNotNull null
-                ProposalChange(
-                    op = op,
-                    block = (change["block"] as? JsonPrimitive)?.takeIf { !it.isString }?.intOrNull ?: 0,
-                    before = change.string("before"),
-                    after = change.string("after"),
-                    dropsFormatting = change.bool("dropsFormatting") == true,
-                    dropsMedia = change.bool("dropsMedia") == true,
-                )
-            },
+            changes = parseChanges(changes),
             status = json.string("status"),
             appliedPageId = json.string("appliedPageId"),
+            pageKind = PageKind.of(json.string("pageKind")),
+            autoApplied = json.bool("autoApplied") == true,
+            undoable = json.bool("undoable") == true,
         )
     }
 
@@ -285,8 +313,46 @@ object Activity {
             content = content,
             status = json.string("status"),
             appliedPageId = json.string("appliedPageId"),
+            pageKind = PageKind.of(json.string("pageKind")),
+            autoApplied = json.bool("autoApplied") == true,
+            undoable = json.bool("undoable") == true,
+            parentId = json.string("parentId"),
+            parentTitle = json.string("parentTitle"),
+            changes = parseChanges(json["changes"] as? JsonArray),
         )
     }
+
+    // 和网页卡片一样不因为一处改动的形状不对就丢掉整个提案：不是对象的跳过，操作不认识（或没有）的按 update 显示。
+    private fun parseChanges(array: JsonArray?): List<ProposalChange> = array.orEmpty().mapNotNull { item ->
+        val change = item as? JsonObject ?: return@mapNotNull null
+        ProposalChange(
+            op = change.string("op")?.takeIf { it in PROPOSAL_OPS } ?: "update",
+            block = (change["block"] as? JsonPrimitive)?.takeIf { !it.isString }?.intOrNull ?: 0,
+            before = change.string("before"),
+            after = change.string("after"),
+            dropsFormatting = change.bool("dropsFormatting") == true,
+            dropsMedia = change.bool("dropsMedia") == true,
+            target = parseTarget(change["target"]),
+            beforeImage = imagePath(change["beforeImage"]),
+            afterImage = imagePath(change["afterImage"]),
+        )
+    }
+
+    private fun parseTarget(value: JsonElement?): ProposalTarget? {
+        val target = value as? JsonObject ?: return null
+        fun number(key: String) = (target[key] as? JsonPrimitive)?.takeIf { !it.isString }?.intOrNull
+        return when (target.string("type")) {
+            "slide" -> number("number")?.let(ProposalTarget::Slide)
+            "elements" -> number("count")?.let { ProposalTarget.Elements(it, target.string("name")) }
+            else -> null
+        }
+    }
+
+    // 缩略图要带登录 Cookie 读：只收服务端给的同源提案图片地址，不读别的地方。
+    private fun imagePath(value: JsonElement?): String? =
+        (value as? JsonPrimitive)?.takeIf { it.isString }?.content?.takeIf { it.startsWith(PROPOSAL_IMAGE_PREFIX) }
+
+    private const val PROPOSAL_IMAGE_PREFIX = "/api/proposals/"
 
     private fun JsonObject.string(key: String): String? =
         (this[key] as? JsonPrimitive)?.takeIf { it.isString && it !is JsonNull }?.content

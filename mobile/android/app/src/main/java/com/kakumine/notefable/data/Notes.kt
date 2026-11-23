@@ -92,6 +92,8 @@ data class NotePageSummary(
     val shareExpiresAt: String? = null,
     /** 页面类型（笔记 / 白板 / 幻灯片）。旧服务端不返回，按笔记。 */
     val kind: PageKind = PageKind.Note,
+    /** AI 最后一次写这一页内容的时刻（ISO）；null 是 AI 没写过。有值时页面的"…"菜单多一项"报告 AI 内容"。 */
+    val aiUpdatedAt: String? = null,
 )
 
 fun NotePageSummary.isShared(nowMillis: Long = System.currentTimeMillis()): Boolean {
