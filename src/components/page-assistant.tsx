@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, History, Image as ImageIcon, Paperclip, Sparkles, SquarePen, X, Zap } from "lucide-react";
+import { ArrowUp, History, Image as ImageIcon, Paperclip, SquarePen, X, Zap } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent, type UIEvent } from "react";
 import { createPortal } from "react-dom";
 import { AppIcon } from "@/components/app-icon";
@@ -965,7 +965,6 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
         {hasSelection && (
           <div className="note-ai-selection">
             <div className="chat-quote note-ai-quote" role="group" aria-label={selectionText ? t("Selected text") : t("Selected items")}>
-              <Sparkles size={13} className="note-ai-quote-icon" aria-hidden="true" />
               <span className="chat-quote-text">{selectionText || t("{count} items selected", { count: selectionIds.length })}</span>
               {Boolean(selection?.captureImage && modelOption.supportsImageInput) && (
                 <ImageIcon size={13} className="note-ai-quote-vision" aria-hidden="true" />
@@ -1045,7 +1044,7 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
         <AppIcon size={phone ? 42 : 40} state={noteCharacterState} animated />
         {!open && hasSelection && (
           <span className="note-ai-fab-badge" aria-hidden="true">
-            {selectionIds.length > 0 ? selectionIds.length : <Sparkles size={10} />}
+            {selectionIds.length > 0 ? selectionIds.length : 1}
           </span>
         )}
       </button>

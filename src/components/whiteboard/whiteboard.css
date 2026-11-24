@@ -237,7 +237,6 @@ button.whiteboard-zoom-value:hover { background: var(--notion-hover); }
   display: inline-grid;
   place-items: center;
 }
-.whiteboard-panel-ai-spark { flex: none; color: var(--nf-accent); }
 .whiteboard-actions-row {
   display: flex;
   flex-wrap: nowrap;

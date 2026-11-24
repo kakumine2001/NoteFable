@@ -2,10 +2,11 @@
 
 import "@/components/slides/slides.css";
 import {
-  ChevronDown, Copy, Download, Eye, EyeOff, FileImage, FileText, Image as ImageIcon, LayoutGrid, LayoutTemplate, MessageSquareText, Minus, Monitor, MoveRight, Palette, PenTool,
-  Play, Plus, Presentation, Redo2, Scissors, Shapes, Sparkles, SquareDashed, StickyNote, Table, Trash2, Type, Undo2, Upload, Clipboard,
+  ChevronDown, Copy, Download, Eye, EyeOff, FileImage, FileText, Flag, Image as ImageIcon, ImagePlus, LayoutGrid, LayoutTemplate, MessageSquareText, Minus, Monitor, MoveRight, Palette, PenTool,
+  Play, Plus, Presentation, Redo2, Scissors, Shapes, SquareDashed, StickyNote, Table, Trash2, Type, Undo2, Upload, Clipboard,
 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { AppIcon } from "@/components/app-icon";
 import type { CanvasEditorProps } from "@/components/canvas-editors";
 import { useT } from "@/components/i18n-provider";
 import { ChatImagesDialog, GenerateImageDialog, ReportImageDialog } from "@/components/slides/slide-dialogs";
@@ -558,7 +559,7 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
         {(close) => <>
           <MenuItem icon={<Upload size={16} />} label={t("Upload image")} onClick={() => { close(); requestImage(null); }} />
           <MenuItem icon={<MessageSquareText size={16} />} label={t("From chats")} onClick={() => { close(); setDialog({ kind: "chat", target: null }); }} />
-          <MenuItem icon={<Sparkles size={16} />} label={t("Generate with AI")} onClick={() => { close(); setDialog({ kind: "generate", target: null }); }} />
+          <MenuItem icon={<ImagePlus size={16} />} label={t("Generate with AI")} onClick={() => { close(); setDialog({ kind: "generate", target: null }); }} />
         </>}
       </MenuButton>
       <MenuButton label={t("Shape")} icon={<Shapes size={18} />} disabled={!current} menuClassName="slides-shape-menu">
@@ -605,9 +606,9 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     <span className="slides-toolbar-spacer" />
     {onAskAi && deck.slides.length > 0 && (
       <button type="button" className={`slides-tool slides-ask-ai${liveSelection.size > 0 || (view === "grid" && selectedSlides.size > 0) ? " is-highlighted" : ""}`}
-        onClick={() => askAi()} aria-label={t("Ask AI")} title={t("Ask AI")}>
-        <Sparkles size={15} aria-hidden="true" />
-        {!phone && <span>{t("Ask AI")}</span>}
+        onClick={() => askAi()} aria-label={t("Ask NoteFable")} title={t("Ask NoteFable")}>
+        <AppIcon size={16} />
+        {!phone && <span>{t("Ask NoteFable")}</span>}
       </button>
     )}
     <MenuButton label={t("Export")} icon={<Download size={18} />} disabled={!deck.slides.length || !!exporting} text={exporting ? <span className="slides-tool-busy" aria-hidden="true" /> : null}>
@@ -699,18 +700,18 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
       <input ref={fileInput} type="file" accept={SLIDE_IMAGE_TYPES.join(",")} multiple className="sr-only" tabIndex={-1} aria-hidden="true"
         onChange={(event) => { const files = Array.from(event.target.files ?? []); event.target.value = ""; if (files.length) void uploadFiles(files, imageTarget.current); }} />
       {menu?.kind === "element" && current && <PointMenu x={menu.x} y={menu.y} label={selectedElement ? t(ELEMENT_LABELS[selectedElement.type]) : t("Selection")} onClose={() => setMenu(null)}>
-        {onAskAi && <MenuItem icon={<Sparkles size={16} />} label={t("Ask AI")} onClick={() => { setMenu(null); askAi(); }} />}
+        {onAskAi && <MenuItem icon={<AppIcon size={16} />} label={t("Ask NoteFable")} onClick={() => { setMenu(null); askAi(); }} />}
         <MenuItem icon={<Scissors size={16} />} label={t("Cut")} shortcut={`${MOD}X`} disabled={!editable} onClick={() => { copyFromMenu(true); setMenu(null); }} />
         <MenuItem icon={<Copy size={16} />} label={t("Copy")} shortcut={`${MOD}C`} onClick={() => { copyFromMenu(false); setMenu(null); }} />
         <MenuItem icon={<Clipboard size={16} />} label={t("Paste")} shortcut={`${MOD}V`} disabled={!editable || !clipboard.current} onClick={() => { setMenu(null); const parsed = clipboard.current ? parseClipboard(clipboard.current) : null; if (parsed?.elements.length) insertElements(parsed.elements); }} />
         <MenuItem icon={<Copy size={16} />} label={t("Duplicate")} shortcut={`${MOD}D`} disabled={!editable} onClick={() => { setMenu(null); duplicateSelection(); }} />
         <MenuItem icon={<SquareDashed size={16} />} label={t("Bring to front")} disabled={!editable} onClick={() => { setMenu(null); commitSlide(reorderElements(current, liveSelection, "front")); }} />
         <MenuItem icon={<SquareDashed size={16} />} label={t("Send to back")} disabled={!editable} onClick={() => { setMenu(null); commitSlide(reorderElements(current, liveSelection, "back")); }} />
-        {selectedElement?.type === "image" && selectedElement.generated && <MenuItem icon={<Sparkles size={16} />} label={t("Report image")} onClick={() => { setMenu(null); setDialog({ kind: "report", target: selectedElement.id }); }} />}
+        {selectedElement?.type === "image" && selectedElement.generated && <MenuItem icon={<Flag size={16} />} label={t("Report image")} onClick={() => { setMenu(null); setDialog({ kind: "report", target: selectedElement.id }); }} />}
         <MenuItem icon={<Trash2 size={16} />} label={t("Delete")} danger disabled={!editable} onClick={() => { setMenu(null); deleteSelection(); }} />
       </PointMenu>}
       {menu?.kind === "slide" && <PointMenu x={menu.x} y={menu.y} label={t("Slide")} onClose={() => setMenu(null)}>
-        {onAskAi && <MenuItem icon={<Sparkles size={16} />} label={t("Ask AI")} onClick={() => { const targets = [...slideTargets()]; setMenu(null); askAi({ slideIds: targets, elementIds: [] }); }} />}
+        {onAskAi && <MenuItem icon={<AppIcon size={16} />} label={t("Ask NoteFable")} onClick={() => { const targets = [...slideTargets()]; setMenu(null); askAi({ slideIds: targets, elementIds: [] }); }} />}
         <MenuItem icon={<Plus size={16} />} label={t("New slide")} shortcut={`${MOD}M`} disabled={!editable} onClick={() => { setMenu(null); addSlide(); }} />
         <MenuItem icon={<Copy size={16} />} label={t("Duplicate")} disabled={!editable} onClick={() => { setMenu(null); duplicateSelectedSlides(); }} />
         <MenuItem icon={deck.slides.some((slide) => slideTargets().has(slide.id) && !slide.hidden) ? <EyeOff size={16} /> : <Eye size={16} />}

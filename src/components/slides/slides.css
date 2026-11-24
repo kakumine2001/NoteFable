@@ -47,7 +47,7 @@
 .slides-tool { display: inline-flex; height: 32px; min-width: 32px; align-items: center; justify-content: center; gap: 2px; padding: 0 6px; border-radius: 6px; color: var(--notion-text); }
 .slides-tool:hover:not(:disabled), .slides-tool.is-active { background: var(--notion-hover); }
 .slides-tool:disabled { opacity: 0.4; }
-.slides-tool.slides-ask-ai { gap: 5px; padding-inline: 8px 10px; color: var(--notion-blue); font-size: 13px; font-weight: 600; }
+.slides-tool.slides-ask-ai { gap: 6px; padding-inline: 8px 10px; color: var(--notion-text); font-size: 13px; font-weight: 600; }
 .slides-tool.slides-ask-ai:hover:not(:disabled),
 .slides-tool.slides-ask-ai.is-highlighted { background: var(--nf-accent-soft); }
 .slides-tool:focus-visible, .slides-icon-button:focus-visible, .slides-present-button:focus-visible { outline: 2px solid var(--nf-accent-line); outline-offset: 1px; }
@@ -210,7 +210,6 @@
   display: inline-grid;
   place-items: center;
 }
-.slides-inspector-ask-ai-spark { flex: none; color: var(--nf-accent); }
 @media (prefers-reduced-motion: reduce) {
   .slides-wide-button.slides-inspector-ask-ai { transition: none; }
 }

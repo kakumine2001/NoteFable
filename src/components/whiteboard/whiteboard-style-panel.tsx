@@ -4,7 +4,7 @@ import { applyDarkModeFilter } from "@excalidraw/excalidraw";
 import {
   AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalDistributeCenter, AlignStartHorizontal,
   AlignStartVertical, AlignVerticalDistributeCenter, ArrowDownToLine, ArrowUpToLine, ChevronDown, ChevronUp, ChevronsDown, ChevronsUp, Copy, Group,
-  ExternalLink, Link2, Lock, LockOpen, Plus, Sparkles, Trash2, Ungroup, AlignLeft, AlignCenter, AlignRight, FlipHorizontal2, FlipVertical2,
+  ExternalLink, Link2, Lock, LockOpen, Plus, Trash2, Ungroup, AlignLeft, AlignCenter, AlignRight, FlipHorizontal2, FlipVertical2,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { AppIcon } from "@/components/app-icon";
@@ -136,7 +136,6 @@ export function WhiteboardStylePanel({ ui, drawMode, compact, theme, actions, on
       <AppIcon size={18} />
       <span className="whiteboard-panel-ai-label">{t("Ask NoteFable")}</span>
       {ui.selectedCount > 1 && <span className="whiteboard-panel-ai-count">{ui.selectedCount}</span>}
-      <Sparkles size={14} className="whiteboard-panel-ai-spark" aria-hidden="true" />
     </button>
   ) : null;
 

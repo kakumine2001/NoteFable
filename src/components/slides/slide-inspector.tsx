@@ -3,7 +3,7 @@
 import {
   AlignCenter, AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalDistributeCenter, AlignJustify, AlignLeft, AlignRight,
   AlignStartHorizontal, AlignStartVertical, AlignVerticalDistributeCenter, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, ArrowDown, ArrowUp,
-  Bold, BringToFront, Code, Eye, EyeOff, Flag, Group, ImagePlus, Italic, Link, List, ListOrdered, Minus, Plus, SendToBack, Sigma, Sparkles, SquareFunction, Strikethrough, Trash2,
+  Bold, BringToFront, Code, Eye, EyeOff, Flag, Group, ImagePlus, Italic, Link, List, ListOrdered, Minus, Plus, SendToBack, Sigma, SquareFunction, Strikethrough, Trash2,
   Underline, Ungroup,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -130,7 +130,6 @@ export function SlideInspector({ slide, selection, theme, editable, onChange, on
         <AppIcon size={18} />
         <span className="slides-inspector-ask-ai-label">{t("Ask NoteFable")}</span>
         {selected.length > 1 && <span className="slides-inspector-ask-ai-count">{selected.length}</span>}
-        <Sparkles size={14} className="slides-inspector-ask-ai-spark" aria-hidden="true" />
       </button>
     </div>
   ) : null;

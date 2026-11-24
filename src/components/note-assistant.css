@@ -103,7 +103,6 @@
   background: var(--nf-accent-soft);
   color: var(--notion-text);
 }
-.note-ai-quote-icon { flex: none; margin-top: 2px; color: var(--nf-accent); }
 .note-ai-quote-vision { flex: none; margin-top: 2px; color: var(--notion-muted); opacity: 0.85; }
 .note-ai-selection-chips { gap: 0.35rem; }
 .note-ai-chip.is-compact { min-height: 1.85rem; padding: 0 0.65rem; font-size: 0.8125rem; }

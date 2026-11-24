@@ -1,6 +1,6 @@
 "use client";
 
-import { LoaderCircle, Sparkles } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { GuestLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
 import { useT } from "@/components/i18n-provider";
@@ -155,7 +155,7 @@ export function GenerateImageDialog({ pageId, embedded = false, onGenerated, onC
     <div className="mt-5 flex justify-end gap-2">
       <button type="button" className="notion-button" disabled={busy} onClick={onClose}>{t("Cancel")}</button>
       <button type="submit" form={formId} className="notion-button notion-button-primary inline-flex items-center gap-2" disabled={busy || !prompt.trim()}>
-        {busy ? <LoaderCircle size={15} className="animate-spin" aria-hidden="true" /> : <Sparkles size={15} aria-hidden="true" />}{busy ? t("Generating…") : t("Generate")}
+        {busy && <LoaderCircle size={15} className="animate-spin" aria-hidden="true" />}{busy ? t("Generating…") : t("Generate")}
       </button>
     </div>
   </Modal>;
