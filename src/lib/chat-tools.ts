@@ -2,9 +2,12 @@
 // 各プロバイダーのループ（anthropic-messages.ts / responses-tool-loop.ts）はここを経由して実行する。
 
 export type ToolDefinition = { name: string; description: string; parameters: Record<string, unknown> };
+// ツール結果に添える画像（ページの予覧）。base64 は data: を付けない本体。
+export type ToolImage = { mimeType: "image/png" | "image/jpeg" | "image/webp"; base64: string };
 // label は進捗表示用の短い説明。content がモデルへ返すツール結果の本文になる。
 // events はモデルには見せず、画面へ流すだけの追加イベント（編集案など）。
-export type ToolRun = { content: string; isError?: boolean; label: string; events?: object[] };
+// images は結果の本文と一緒にモデルへ返す画像（Claude は tool_result の image、OpenAI・DeepSeek は function_call_output の input_image）。
+export type ToolRun = { content: string; isError?: boolean; label: string; events?: object[]; images?: ToolImage[] };
 export type ToolRunner = (name: string, input: unknown) => Promise<ToolRun>;
 export type ToolCall = { id: string; name: string; input: unknown };
 
@@ -22,6 +25,30 @@ export function parseToolArguments(raw: unknown): unknown {
   } catch {
     return {};
   }
+}
+
+// Responses API（OpenAI・DeepSeek）の function_call_output.output。画像があれば本文と画像の配列にする。
+export function toResponsesToolOutput(run: ToolRun): string | object[] {
+  if (!run.images?.length) return run.content;
+  return [
+    { type: "input_text", text: run.content },
+    ...run.images.map((image) => ({ type: "input_image", image_url: `data:${image.mimeType};base64,${image.base64}` })),
+  ];
+}
+
+// Messages API（Claude）の tool_result.content。画像があれば本文と画像のブロックの配列にする。
+export function toAnthropicToolContent(run: ToolRun): string | object[] {
+  if (!run.images?.length) return run.content;
+  return [
+    { type: "text", text: run.content },
+    ...run.images.map((image) => ({ type: "image", source: { type: "base64", media_type: image.mimeType, data: image.base64 } })),
+  ];
+}
+
+// 会話の文脈（圧縮のチェックポイント）に保存するツール結果。予覧の画像は保存しない（モデルはその回で見ている）。
+export function storedToolText(run: ToolRun): string {
+  if (!run.images?.length) return run.content;
+  return `${run.content}\n\n[${run.images.length === 1 ? "The preview image is" : "The preview images are"} not kept in the conversation history.]`;
 }
 
 // 同じラウンドの呼び出しは並列に実行し、結果は呼び出し順で返す。

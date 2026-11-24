@@ -202,6 +202,30 @@ final class NotesViewModelTests: XCTestCase {
     }
 
     @MainActor
+    func testPagesTrashedFromAProposalCardLeaveTheListAndCloseTheOpenOne() async {
+        let vm = await notesVm()
+        vm.openNote("a")
+        await notesSettle()
+        vm.flushEditor = {
+            XCTFail("the page is already in the trash: nothing to save")
+            return FlushResult(false)
+        }
+        vm.onEditorSaveState("a", "saved")
+        // 聊天里撤销了 AI 新建的页面：建的那篇和它的子页面一起进了回收站（子页面可能不在列表里）。
+        vm.onPagesTrashed(["a", "child"])
+        XCTAssertNil(vm.state.open)
+        XCTAssertNil(vm.state.saveState)
+        XCTAssertEqual(vm.state.pages.map(\.id), ["b"])
+        // 别的页面开着时不关；没有页面时什么也不变。
+        vm.openNote("b")
+        await notesSettle()
+        vm.onPagesTrashed(["gone"])
+        vm.onPagesTrashed([])
+        XCTAssertEqual(vm.state.open?.id, "b")
+        XCTAssertEqual(vm.state.pages.map(\.id), ["b"])
+    }
+
+    @MainActor
     func testTrashingTheOpenNoteSavesItFirstAndRefusesWhenItCannot() async {
         let backend = NotesTestBackend()
         let vm = await notesVm(backend)

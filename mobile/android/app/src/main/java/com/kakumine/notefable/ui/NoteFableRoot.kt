@@ -296,14 +296,16 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
         },
     ) {
         val open = notes.open
-        // 回答里的"打开笔记"（项目参考笔记、提案卡片）去笔记页；应用了提案后刷新笔记列表（网页 notefable:page-updated / page-created），
+        // 回答里的"打开笔记"（项目参考笔记、提案卡片）去笔记页；应用、撤销了提案后刷新笔记列表（网页 notefable:page-updated / page-created），
         // 改动的笔记正开在编辑器里时把新版本交给网页编辑器（不然它还拿着旧版本，下次保存会 409）。
+        // 撤销了新建的页面：移进回收站的页面先从列表里去掉，开着的关掉（网页 notefable:pages-trashed）。
         // 回答"存到笔记"建好了笔记（可能已离开那段对话）：同样刷新笔记列表（网页 notefable:page-created）。
         LaunchedEffect(app) {
             app.answerExports().created.collect { notesViewModel.refresh() }
         }
         LaunchedEffect(app) {
             app.proposals.changes.collect { change ->
+                notesViewModel.onPagesTrashed(change.trashed)
                 notesViewModel.refresh()
                 val page = change.page
                 if (!change.created && page != null && change.pageId != null && notesViewModel.state.value.open?.id == change.pageId) {

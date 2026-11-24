@@ -71,6 +71,7 @@ describe("POST /api/pages/:id/revisions/:revisionId/restore", () => {
     vi.clearAllMocks();
     mocks.raw.mockResolvedValue(0);
     mocks.revFindMany.mockResolvedValue([]);
+    mocks.revCreate.mockResolvedValue({ id: "rev1" });
   });
 
   it("restores title, icon and blocks with version + 1, after keeping the current state as a RESTORE revision", async () => {
@@ -83,7 +84,7 @@ describe("POST /api/pages/:id/revisions/:revisionId/restore", () => {
     expect((await response.json()).page).toMatchObject({ title: "Old title", version: 7, cover: "solid-red" });
 
     expect(mocks.revFind.mock.calls[0][0].where).toEqual({ id: "r1", noteId: "n1", userId: "mine" });
-    expect(mocks.revCreate).toHaveBeenCalledWith({ data: { noteId: "n1", userId: "mine", reason: "RESTORE", title: "Current", icon: null, blocks: live.blocks, version: 6 } });
+    expect(mocks.revCreate).toHaveBeenCalledWith({ select: { id: true }, data: { noteId: "n1", userId: "mine", reason: "RESTORE", title: "Current", icon: null, blocks: live.blocks, version: 6 } });
     const update = mocks.pageUpdate.mock.calls[0][0];
     expect(update.where).toEqual({ id: "n1", userId: "mine", version: 6, deletedAt: null });
     // カバー・カバー位置・グループには触れない。

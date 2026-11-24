@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 export const LEGAL_CONTACT_EMAIL = "kakumine0824@gmail.com";
 // 法的文書の最終更新日。どれかの本文を変えたらここを変える（英語の表記と特商法ページの日本語の表記はこれから作る）。
-export const LEGAL_UPDATED_ISO = "2026-11-23";
+export const LEGAL_UPDATED_ISO = "2026-11-24";
 const legalUpdatedDate = new Date(`${LEGAL_UPDATED_ISO}T00:00:00Z`);
 export const LEGAL_UPDATED = legalUpdatedDate.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
 export const LEGAL_UPDATED_JA = legalUpdatedDate.toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });

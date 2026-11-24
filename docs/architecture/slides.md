@@ -80,7 +80,7 @@
 ## 与其他功能的接口
 
 - **白板（#152）**：`src/lib/slides/whiteboard-embed.tsx`。白板端调用 `registerWhiteboardFrameProvider({ renderPicker })` 注册“选框并转成图片”的组件后，幻灯片工具栏才出现“白板框”按钮；选中的框由白板端上传成 note-files 后通过 `onPick({ pageId, frameId, frameName, src, width, height })` 交回，幻灯片里放的是那一刻的静态图（`whiteboard` 元素）。没注册时不显示按钮。
-- **AI（#150 / #158）**：编辑器在选择变化时发 `notefable:slides-selection`（`{ pageId, slideIds, elementIds }`），`slidesContextText(deck, selection)` 把所选页 / 元素变成给 AI 看的文字（页码、章、文字、备注）。编辑器的 `aiSlot` 属性（`ReactNode`）放在单页编辑画面的右下（`.slides-ai-slot`），给 AI 面板用。AI 编辑幻灯片的工具在 #150 做。
+- **AI（#150 / #158）**：编辑器在选择变化时发 `notefable:slides-selection`（`{ pageId, slideIds, elementIds }`），`slidesContextText(deck, selection)` 把所选页 / 元素变成给 AI 看的文字（页码、章、文字、备注）。编辑器的 `aiSlot` 属性（`ReactNode`，`CanvasEditorProps.aiSlot`）放在单页编辑画面的右下（`.slides-ai-slot`）：#158 的 AI 按钮没被拖动过时就放在这里（`NotesWorkspace` 放一个看不见的目印，`PageAssistant` 的 `anchor`），重叠顺序和这个位置一样（z-index 5），所以手机的设置面板和菜单会盖住它。AI 编辑幻灯片的工具在 #150 做。
 
 ## 已知限制
 

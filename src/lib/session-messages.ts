@@ -1,7 +1,7 @@
 import { parseStoredActivity } from "@/lib/chat-activity";
 import { versionsOf } from "@/lib/chat-branches";
 import { loadBranchTree } from "@/lib/chat-branch-store";
-import { proposalsByMessage } from "@/lib/note-proposals";
+import { proposalsByMessage } from "@/lib/page-ai/proposals";
 import { prisma } from "@/lib/prisma";
 
 function toPublicAttachment<T extends { imageStoragePath?: string | null; id: string }>(attachment: T) {

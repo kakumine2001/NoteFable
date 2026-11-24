@@ -164,6 +164,11 @@ object Lucide {
         "M14 19h6",
         "M17 16v6",
     )
+    /** 提案卡片的"撤销"（网页 page-proposal.tsx 的 Undo2，lucide-react 1.16.0）。 */
+    val Undo2 = listOf(
+        "M9 14 4 9l5-5",
+        "M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11",
+    )
     val FileSearch = listOf(
         "M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z",
         "M14 2v5a1 1 0 0 0 1 1h5",

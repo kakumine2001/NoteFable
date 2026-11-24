@@ -126,6 +126,28 @@ describe("references", () => {
     expect(sql).toContain('FROM "notefable"."NoteCanvas" c JOIN "notefable"."NotePage" p ON p."id" = c."noteId" WHERE p."userId" = ');
     expect(sql).toContain('SELECT "data"::text AS body FROM "notefable"."NoteRevision" WHERE "userId" = ');
   });
+
+  it("counts an AI proposal thumbnail as used while any of the owner's proposals lists it, reading only the images list", async () => {
+    mocks.prisma.$queryRaw.mockReset();
+    mocks.prisma.$queryRaw.mockResolvedValue([{ path: "proposal-images/m1/a.png" }]);
+    const found = await referencedPaths([
+      { path: "proposal-images/m1/a.png", userId: "m1", kind: "PROPOSAL_IMAGE" },
+      { path: "proposal-images/m1/b.png", userId: "m1", kind: "PROPOSAL_IMAGE" },
+      { path: "proposal-images/gone/c.png", userId: null, kind: "PROPOSAL_IMAGE" },
+    ]);
+    expect([...found]).toEqual(["proposal-images/m1/a.png"]);
+    // 持ち主ごとに 1 回。本文全体ではなく images の path だけを見る。
+    expect(mocks.prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    const sql = (mocks.prisma.$queryRaw.mock.calls[0][0] as { sql: string }).sql;
+    expect(sql).toContain(`jsonb_array_elements`);
+    expect(sql).toContain(`p."payload" -> 'images'`);
+    expect(sql).not.toContain("::text) > 0");
+  });
+
+  it("caps the owners of proposal thumbnails per cleanup batch like note files", () => {
+    const rows = Array.from({ length: 30 }, (_, index) => ({ path: `proposal-images/u${index}/a.png`, userId: `u${index}`, kind: "PROPOSAL_IMAGE" as const }));
+    expect(limitNoteFileOwners(rows)).toHaveLength(NOTE_FILE_OWNERS_PER_BATCH);
+  });
 });
 
 describe("claiming the files of whiteboards and slide decks", () => {

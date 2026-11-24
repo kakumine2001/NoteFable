@@ -111,6 +111,14 @@ final class NotesApiTests: XCTestCase {
         XCTAssertNil(json?["favoritedAt"])
     }
 
+    func testOnlyPagesTheAIWroteOfferReportingFromTheirMenu() async throws {
+        let server = FakeTransport()
+        server.enqueue(#"{"pages":[{"id":"ai","aiUpdatedAt":"2026-11-23T09:00:00.000Z"},{"id":"own","aiUpdatedAt":null},{"id":"old"}],"groups":[]}"#)
+        let list = try await makeApi(server).notes()
+        XCTAssertEqual(list.pages.map(\.aiUpdatedAt), ["2026-11-23T09:00:00.000Z", nil, nil])
+        XCTAssertEqual(list.pages.map(notePageReportable), [true, false, false])
+    }
+
     func testNoteIconsReadUploadedImagesAndKeepEmojiAsText() {
         let key = "upload:page-covers/user1/0e111e3a-9e25-4944-ade7-b460580fa921.png"
         XCTAssertEqual(NoteIcons.imagePath(key), "/api/pages/covers?key=page-covers%2Fuser1%2F0e111e3a-9e25-4944-ade7-b460580fa921.png")

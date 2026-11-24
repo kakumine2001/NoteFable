@@ -1,6 +1,6 @@
 // 回答前の途中経過（推論要約、Web 検索、Notes ツールの動き）を、プロバイダー非依存の形にそろえる。
 // サーバーは上流イベントを ActivityEvent に変換して流し、クライアントは ActivityStep に積み上げて表示する。
-import type { PageCreateProposal, PageEditProposal } from "@/lib/page-edit";
+import type { PageCreateProposal, PageEditProposal } from "@/lib/page-ai/types";
 import { isFailureInfo, type FailureInfo } from "@/lib/failure-text";
 
 export type WebAction =

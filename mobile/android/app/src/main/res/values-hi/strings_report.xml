@@ -9,4 +9,6 @@
     <string name="report_sending">भेजा जा रहा है…</string>
     <string name="report_sent">रिपोर्ट भेज दी गई। धन्यवाद।</string>
     <string name="report_failed">रिपोर्ट भेजी नहीं जा सकी।</string>
+    <string name="report_ai_content">AI सामग्री की रिपोर्ट करें</string>
+    <string name="report_ai_help">बताएँ कि इस AI सामग्री में क्या गलत है। यह सामग्री के साथ NoteFable टीम को भेजी जाएगी।</string>
 </resources>

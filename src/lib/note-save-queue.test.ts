@@ -41,6 +41,27 @@ describe("page autosave queue", () => {
     expect(queue.status).toBe("saved");
   });
 
+  it("does nothing more after it was dropped while a save was in flight", async () => {
+    for (const outcome of ["resolve", "reject"] as const) {
+      let finish!: () => void;
+      const save = vi.fn(() => new Promise<NotePage>((resolve, reject) => {
+        finish = () => (outcome === "resolve" ? resolve({ ...page, version: 1 }) : reject(new NoteSaveError("Not found", 404)));
+      }));
+      const changed = vi.fn();
+      const queue = new NoteSaveQueue(page, save, changed);
+      queue.edit({ title: "Mine", icon: null, cover: null, coverPosition: null, blocks: [] });
+      const flight = queue.flush();
+      // 送っている間にもう一度入力してから、ゴミ箱へ移る（キューを捨てる）。
+      queue.edit({ title: "Mine 2", icon: null, cover: null, coverPosition: null, blocks: [] });
+      queue.dispose();
+      const calls = changed.mock.calls.length;
+      finish();
+      await flight;
+      expect(changed.mock.calls.length).toBe(calls);
+      expect(save).toHaveBeenCalledTimes(1);
+    }
+  });
+
   it("marks the queue gone when the note no longer exists and keeps the draft", async () => {
     const save = vi.fn().mockRejectedValue(new NoteSaveError("Not found", 404));
     const queue = new NoteSaveQueue(page, save, () => {});
@@ -74,5 +95,19 @@ describe("page autosave queue", () => {
     const stale = new NoteSaveQueue({ ...page, version: 1 }, vi.fn(), () => {}, { title: "Recovered", icon: null, cover: null, coverPosition: null, blocks: [], version: 0 });
     expect(stale.status).toBe("conflict");
     expect(stale.content.title).toBe("Recovered");
+  });
+
+  it("stops a pending autosave once the page was trashed elsewhere", async () => {
+    vi.useFakeTimers();
+    const save = vi.fn();
+    const changed = vi.fn();
+    const queue = new NoteSaveQueue(page, save, changed);
+    queue.edit({ title: "Second", icon: null, cover: null, coverPosition: null, blocks: [] });
+    queue.dispose();
+    await vi.advanceTimersByTimeAsync(2000);
+    queue.edit({ title: "Third", icon: null, cover: null, coverPosition: null, blocks: [] });
+    expect(await queue.flush()).toBe(true);
+    expect(save).not.toHaveBeenCalled();
+    expect(changed).toHaveBeenCalledTimes(1);
   });
 });

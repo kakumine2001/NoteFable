@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 报告 AI 回答（网页 answer-actions.tsx 的 ReportAnswerDialog）。 -->
+<!-- 报告 AI 回答和 AI 内容（网页 answer-actions.tsx 的 ReportDialog）。 -->
 <resources>
     <string name="report_answer">回答を報告</string>
     <string name="report_title">この回答を報告</string>
@@ -9,4 +9,6 @@
     <string name="report_sending">送信中…</string>
     <string name="report_sent">報告を送信しました。ありがとうございます。</string>
     <string name="report_failed">報告を送信できませんでした。</string>
+    <string name="report_ai_content">AI の内容を報告</string>
+    <string name="report_ai_help">この AI の内容のどこに問題があるか教えてください。内容と一緒に NoteFable チームに送信されます。</string>
 </resources>

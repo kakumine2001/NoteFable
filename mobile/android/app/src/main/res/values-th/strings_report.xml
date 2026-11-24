@@ -9,4 +9,6 @@
     <string name="report_sending">กำลังส่ง…</string>
     <string name="report_sent">ส่งรายงานแล้ว ขอบคุณ</string>
     <string name="report_failed">ไม่สามารถส่งรายงานได้</string>
+    <string name="report_ai_content">รายงานเนื้อหาจาก AI</string>
+    <string name="report_ai_help">บอกเราว่าเนื้อหาจาก AI นี้มีปัญหาอะไร รายงานจะถูกส่งถึงทีม NoteFable พร้อมกับเนื้อหานั้น</string>
 </resources>

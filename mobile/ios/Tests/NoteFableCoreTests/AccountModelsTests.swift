@@ -95,10 +95,11 @@ private final class StubReports: ReportBackend {
     var fail: Error?
     var gate: TestGate?
 
-    func reportAnswer(messageId: String, reason: String) async throws {
+    func report(_ target: ReportTarget, reason: String) async throws {
         await gate?.pass()
         if let fail { throw fail }
-        sent.append("\(messageId):\(reason)")
+        let field = target.field
+        sent.append("\(field.name)=\(field.id):\(reason)")
     }
 }
 
@@ -773,13 +774,15 @@ final class AccountModelsTests: XCTestCase {
         XCTAssertEqual(model.state.plan?.isPro, true)
     }
 
-    // ---- 举报回答 ----
+    // ---- 举报回答 / AI 内容 ----
 
     @MainActor
     func testReportingAnAnswerSendsOnceAndShowsThanksOrTheReason() async {
         let reports = StubReports()
         let log = Log()
-        let model = ReportAnswerModel(messageId: "m1", backend: reports, onClose: { log.add("close") })
+        let model = ReportModel(target: .answer(messageId: "m1"), backend: reports, onClose: { log.add("close") })
+        XCTAssertEqual(model.titleKey, "report_title")
+        XCTAssertEqual(model.helpKey, "report_help")
         model.setReason(String(repeating: "x", count: 1200))
         XCTAssertEqual(model.state.reason.count, MAX_REPORT_REASON)
         model.setReason("Wrong date")
@@ -801,11 +804,37 @@ final class AccountModelsTests: XCTestCase {
         await gate.entered()
         gate.open()
         await model.idle()
-        XCTAssertEqual(reports.sent, ["m1:Wrong date"])
+        XCTAssertEqual(reports.sent, ["messageId=m1:Wrong date"])
         XCTAssertTrue(model.state.sent)
         XCTAssertNil(model.state.error)
         model.close()
         XCTAssertEqual(log.list, ["close"])
+    }
+
+    @MainActor
+    func testProposalsAndPagesAreReportedAsAIContent() async {
+        let reports = StubReports()
+        let card = ReportModel(target: .proposal(proposalId: "pr1"), backend: reports, onClose: {})
+        XCTAssertEqual(card.titleKey, "report_ai_content")
+        XCTAssertEqual(card.helpKey, "report_ai_help")
+        card.send()
+        await card.idle()
+        XCTAssertTrue(card.state.sent)
+        // 已发送：再按不会再发。
+        card.send()
+        await card.idle()
+
+        let page = ReportModel(target: .page(pageId: "pg1"), backend: reports, onClose: {})
+        XCTAssertEqual(page.titleKey, "report_ai_content")
+        reports.fail = ApiException(status: 404, message: "This content is no longer available.")
+        page.setReason("Invented quotes")
+        page.send()
+        await page.idle()
+        XCTAssertEqual(page.state.error?.text("report_failed", system), "This content is no longer available.")
+        reports.fail = nil
+        page.send()
+        await page.idle()
+        XCTAssertEqual(reports.sent, ["proposalId=pr1:", "pageId=pg1:Invented quotes"])
     }
 
     // ---- 语言 ----

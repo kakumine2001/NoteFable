@@ -60,6 +60,8 @@ export async function POST(_request: Request, context: Context) {
               parentId: source.id === root.id ? root.parentId : copies.get(source.parentId!)!,
               fullWidth: source.fullWidth, smallText: source.smallText, font: source.font, locked: source.locked,
               shareExcludeFromParent: source.shareExcludeFromParent,
+              // AI が書いた内容は複製にも残るので、「AI の内容を報告」の目印も写す。
+              aiUpdatedAt: source.aiUpdatedAt,
             },
             select: { id: true },
           });

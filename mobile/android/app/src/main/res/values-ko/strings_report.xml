@@ -9,4 +9,6 @@
     <string name="report_sending">보내는 중…</string>
     <string name="report_sent">신고가 접수되었어요. 감사합니다.</string>
     <string name="report_failed">신고를 보내지 못했어요.</string>
+    <string name="report_ai_content">AI 콘텐츠 신고</string>
+    <string name="report_ai_help">이 AI 콘텐츠의 문제를 알려 주세요. 해당 콘텐츠와 함께 NoteFable 팀에 전송됩니다.</string>
 </resources>

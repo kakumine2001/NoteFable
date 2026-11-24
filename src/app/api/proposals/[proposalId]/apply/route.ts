@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getOrCreateUser } from "@/lib/auth";
-import { applyProposal } from "@/lib/note-proposals";
+import { applyProposal } from "@/lib/page-ai/proposals";
 import { scheduleNoteEmbeddingSync } from "@/lib/note-embeddings";
 import { msg } from "@/lib/i18n/translate";
 
@@ -13,7 +13,8 @@ export async function POST(_request: Request, context: Context) {
     const user = await getOrCreateUser();
     const { proposalId } = await context.params;
     const result = await applyProposal(user.id, proposalId);
-    if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.httpStatus });
+    // 提案がもう待確認でなければ、その状態（status）と適用先（pageId）も返す（カードがその状態に合わせる）。
+    if (!result.ok) return NextResponse.json({ error: result.error, ...(result.status ? { status: result.status } : {}), ...(result.pageId ? { pageId: result.pageId } : {}), ...(result.undoable ? { undoable: true } : {}) }, { status: result.httpStatus });
     const appliedPageId = (result.page as { id?: unknown } | null)?.id;
     if (typeof appliedPageId === "string") scheduleNoteEmbeddingSync(user.id, [appliedPageId]);
     return NextResponse.json({ status: result.status, kind: result.kind, page: result.page });

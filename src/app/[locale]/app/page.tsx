@@ -47,7 +47,8 @@ import { isPageShared, pageSettingsOf, TRASH_RETENTION_DAYS } from "@/types/note
 import { NotesSidebar } from "@/components/notes-sidebar";
 import { SearchDialog, useSearchShortcut } from "@/components/search-dialog";
 import type { WorkspaceView } from "@/components/workspace-nav";
-import { NOTE_CHAT_SAVED_EVENT } from "@/components/note-assistant";
+import { NOTE_CHAT_SAVED_EVENT } from "@/components/page-assistant";
+import { PAGES_TRASHED_EVENT } from "@/lib/proposal-sync";
 import { NotesWorkspace } from "@/components/notes-workspace";
 import { SplitNotePane } from "@/components/split-note-pane";
 import { recentPages } from "@/lib/notes-home-text";
@@ -2112,9 +2113,9 @@ export default function Home() {
     replaceCachedMessages(sessionId, fetched);
   }
 
-  const linkOpenersRef = useRef({ note: openNoteFromLink, chat: openChatFromLink, projects: refreshChatProjects, sessions: (id?: string) => void refreshAfterNoteChat(id) });
+  const linkOpenersRef = useRef({ note: openNoteFromLink, chat: openChatFromLink, projects: refreshChatProjects, sessions: (id?: string) => void refreshAfterNoteChat(id), notesList: syncNotesList });
   useEffect(() => {
-    linkOpenersRef.current = { note: openNoteFromLink, chat: openChatFromLink, projects: refreshChatProjects, sessions: (id?: string) => void refreshAfterNoteChat(id) };
+    linkOpenersRef.current = { note: openNoteFromLink, chat: openChatFromLink, projects: refreshChatProjects, sessions: (id?: string) => void refreshAfterNoteChat(id), notesList: syncNotesList };
   });
   useEffect(() => {
     function detailOf(event: Event) {
@@ -2133,6 +2134,12 @@ export default function Home() {
     function onPageCreated() {
       linkOpenersRef.current.projects();
     }
+    // AI の提案で作ったページを「元に戻す」でゴミ箱へ移した：参照ノートの件数を合わせ、開いていたページが消えたら一覧に戻す。
+    // 一覧と URL は use-note-pages.ts が先に直すので、その後で一覧の表示を決め直す。
+    function onPagesTrashed() {
+      linkOpenersRef.current.projects();
+      queueMicrotask(() => linkOpenersRef.current.notesList());
+    }
     function onNoteChatSaved(event: Event) {
       const id = detailOf(event)?.id;
       linkOpenersRef.current.sessions(typeof id === "string" ? id : undefined);
@@ -2140,6 +2147,7 @@ export default function Home() {
     window.addEventListener("notefable:open-note", onOpenNote);
     window.addEventListener("notefable:open-chat", onOpenChat);
     window.addEventListener("notefable:page-created", onPageCreated);
+    window.addEventListener(PAGES_TRASHED_EVENT, onPagesTrashed);
     // ノートの AI パネルで会話が増えた・進んだら、Chats の一覧にもすぐ出す。
     window.addEventListener(NOTE_CHAT_SAVED_EVENT, onNoteChatSaved);
     return () => {
@@ -2147,6 +2155,7 @@ export default function Home() {
       window.removeEventListener("notefable:open-note", onOpenNote);
       window.removeEventListener("notefable:open-chat", onOpenChat);
       window.removeEventListener("notefable:page-created", onPageCreated);
+      window.removeEventListener(PAGES_TRASHED_EVENT, onPagesTrashed);
       revealAbortRef.current?.abort();
     };
   }, []);

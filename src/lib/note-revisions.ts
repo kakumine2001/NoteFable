@@ -94,18 +94,20 @@ export async function snapshotBeforeSave(tx: RevisionClient, input: { noteId: st
 }
 
 // AI の編集案の適用・履歴からの復元の直前に、その時点の状態を残す（呼び出し側のトランザクションの中で。巻き戻されれば履歴も消える）。
-// ホワイトボード・スライドは data に本体を入れる（blocks は空配列）。
+// ホワイトボード・スライドは data に本体を入れる（blocks は空配列）。戻り値は残した履歴の ID（AI の編集を元に戻すときに使う）。
 export async function createRevision(tx: RevisionClient, input: {
   noteId: string; userId: string; reason: NoteRevisionReason; title: string; icon: string | null; blocks: unknown; version: number; kind?: PageKind; data?: unknown;
-}) {
-  await tx.noteRevision.create({
+}): Promise<string> {
+  const row = await tx.noteRevision.create({
     data: {
       noteId: input.noteId, userId: input.userId, reason: input.reason, title: input.title, icon: input.icon,
       blocks: input.blocks as Prisma.InputJsonValue, version: input.version,
       ...(input.data === undefined || input.data === null ? {} : { data: input.data as Prisma.InputJsonValue }),
     },
+    select: { id: true },
   });
   await pruneRevisions(tx, input.noteId, input.userId, input.kind);
+  return row.id;
 }
 
 export const REVISION_SUMMARY_SELECT = { id: true, reason: true, title: true, version: true, createdAt: true } as const;
