@@ -623,12 +623,17 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     if (startWithHandRef.current) ready.setActiveTool({ type: "hand" });
     // 検索の結果から開いたときは、その要素まで動かす。それ以外で、この端末で初めて開くときは内容がすべて見えるように縮める
     // （100% より大きくはしない）。前回の表示位置があればそれを使う。
-    const pending = consumeWhiteboardReveal(pageId);
     const { width, height } = ready.getAppState();
     // 枠の大きさがまだ 0（見えていない枠・後から広がる App の WebView）のときに合わせると、10% まで縮んで左上に寄る。
     // 大きさが決まってから合わせる（handleChange が Excalidraw の大きさの変化を見て行う）。
-    if (width && height) placeOnOpen(ready, pending, fitOnOpen);
-    else if (pending || fitOnOpen) deferredPlacement.current = { reveal: pending, fit: fitOnOpen };
+    if (width && height) {
+      const revealed = Boolean(consumeWhiteboardReveal(pageId, Date.now(), (elementId) => revealIn(ready, elementId, false)));
+      const elements = ready.getSceneElements();
+      if (!revealed && fitOnOpen && elements.length) ready.setViewport({ target: elements, fit: "scale-down" });
+    } else {
+      const pending = consumeWhiteboardReveal(pageId);
+      if (pending || fitOnOpen) deferredPlacement.current = { reveal: pending, fit: fitOnOpen };
+    }
     queueMicrotask(() => { if (mounted.current) setContentHidden(contentHiddenIn(ready)); });
   }, [applyNewerData, fitOnOpen, pageId, readUi, signatureOf]);
 

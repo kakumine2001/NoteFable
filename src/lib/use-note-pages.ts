@@ -77,9 +77,6 @@ export function useNotePages(
   const invalidationSeq = useRef(new Map<string, number>());
   const prefetchTimer = useRef<{ id: string; timer: ReturnType<typeof setTimeout> } | null>(null);
   const createdWhileLoading = useRef<NotePageSummary[]>([]);
-  // いまの一覧（イベントの受け手から、サブページを探すのに使う）。
-  const pagesRef = useRef<NotePageSummary[]>([]);
-  useEffect(() => { pagesRef.current = pages; }, [pages]);
   const loaded = useRef(false);
   const started = useRef(false);
   const navigation = useRef(0);
