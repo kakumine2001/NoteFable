@@ -87,6 +87,7 @@ import { failureText } from "@/lib/failure-text";
 import { NoteIcon } from "@/components/note-icon";
 import { PageKindIcon } from "@/components/page-kind-icon";
 import { isPageKind, pageKindFeatures, pageKindOf } from "@/lib/page-kinds";
+import { dispatchSlidesCommand } from "@/lib/native-bridge";
 import type { NewPageRequest } from "@/lib/workspace-sections";
 
 const INPUT_RESTORE_GUARD_MS = 5000;
@@ -2516,6 +2517,7 @@ export default function Home() {
             {workspaceView === "pages" && !notesList && activeSummary && (
               <NotePageMenu page={activeSummary} busy={notes.busy} error={notes.groupError}
                 onSettings={(settings) => void notes.updateSettings(activeSummary.id, settings)}
+                onPresent={() => dispatchSlidesCommand({ action: "present" })}
                 onFavorite={(favorite) => void notes.setFavorite(activeSummary.id, favorite)}
                 onDuplicate={() => void notes.duplicate(activeSummary.id)}
                 onAddSubpage={() => createNote({ parentId: activeSummary.id })}

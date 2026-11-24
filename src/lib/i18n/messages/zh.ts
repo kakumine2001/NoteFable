@@ -1147,4 +1147,11 @@ export const zh: Record<string, string> = {
   "Empty page": "空白页面",
   "Proposed page edit": "页面修改建议",
   "Applied automatically": "已自动应用",
+  "Transition": "转场",
+  "Fade": "淡入",
+  "Slide in": "滑入",
+  "Apply to all slides": "应用到全部幻灯片",
+  "Slide transitions aren’t included in PPTX export.": "导出为 PPTX 时不包含幻灯片转场效果。",
+  "Save as slide deck": "另存为幻灯片",
+  "Could not save as slide deck.": "无法另存为幻灯片。",
 };

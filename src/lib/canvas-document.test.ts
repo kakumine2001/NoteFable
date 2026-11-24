@@ -176,4 +176,11 @@ describe("text for search, semantic search and chat", () => {
     // 文字の無いスライドがあっても、番号は実際の何枚目か。
     expect(canvasReadableText("slides", [{ id: "a", text: "Intro", index: 0 }, { id: "c", text: "End", index: 2 }])).toBe("Slide 1: Intro\nSlide 3: End");
   });
+
+  it("validates optional slide transition strings on slide decks", () => {
+    expect(() => validateCanvasData("slides", { slides: [{ id: "s1", transition: "fade", elements: [] }] })).not.toThrow();
+    expect(() => validateCanvasData("slides", { slides: [{ id: "s1", transition: "slide", elements: [] }] })).not.toThrow();
+    expect(status(() => validateCanvasData("slides", { slides: [{ id: "s1", transition: 123, elements: [] }] }))).toBe(400);
+    expect(status(() => validateCanvasData("slides", { slides: [{ id: "s1", transition: "x".repeat(65), elements: [] }] }))).toBe(400);
+  });
 });

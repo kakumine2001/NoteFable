@@ -1138,4 +1138,11 @@ export const ko: Record<string, string> = {
   "Empty page": "빈 페이지",
   "Proposed page edit": "페이지 편집 제안",
   "Applied automatically": "자동으로 적용됨",
+  "Transition": "화면 전환",
+  "Fade": "페이드",
+  "Slide in": "밀어내기",
+  "Apply to all slides": "모든 슬라이드에 적용",
+  "Slide transitions aren’t included in PPTX export.": "PPTX 내보내기에는 슬라이드 전환 효과가 포함되지 않습니다.",
+  "Save as slide deck": "슬라이드로 저장",
+  "Could not save as slide deck.": "슬라이드로 저장하지 못했습니다.",
 };

@@ -1138,4 +1138,11 @@ export const ar: Record<string, string> = {
   "Empty page": "صفحة فارغة",
   "Proposed page edit": "تعديل مقترح للصفحة",
   "Applied automatically": "طُبّق تلقائيًا",
+  "Transition": "الانتقال",
+  "Fade": "تلاشي",
+  "Slide in": "انزلاق",
+  "Apply to all slides": "تطبيق على جميع الشرائح",
+  "Slide transitions aren’t included in PPTX export.": "لا تُضمَّن انتقالات الشرائح عند التصدير إلى PPTX.",
+  "Save as slide deck": "حفظ كعرض شرائح",
+  "Could not save as slide deck.": "تعذّر الحفظ كعرض شرائح.",
 };

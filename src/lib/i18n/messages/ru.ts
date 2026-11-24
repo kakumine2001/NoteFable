@@ -1138,4 +1138,11 @@ export const ru: Record<string, string> = {
   "Empty page": "Пустая страница",
   "Proposed page edit": "Предложенная правка страницы",
   "Applied automatically": "Применено автоматически",
+  "Transition": "Переход",
+  "Fade": "Появление",
+  "Slide in": "Сдвиг",
+  "Apply to all slides": "Применить ко всем слайдам",
+  "Slide transitions aren’t included in PPTX export.": "Переходы между слайдами не сохраняются при экспорте в PPTX.",
+  "Save as slide deck": "Сохранить как презентацию",
+  "Could not save as slide deck.": "Не удалось сохранить как презентацию.",
 };

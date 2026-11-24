@@ -1138,4 +1138,11 @@ export const id: Record<string, string> = {
   "Empty page": "Halaman kosong",
   "Proposed page edit": "Usulan edit halaman",
   "Applied automatically": "Diterapkan otomatis",
+  "Transition": "Transisi",
+  "Fade": "Pudar",
+  "Slide in": "Geser masuk",
+  "Apply to all slides": "Terapkan ke semua slide",
+  "Slide transitions aren’t included in PPTX export.": "Transisi slide tidak disertakan saat mengekspor ke PPTX.",
+  "Save as slide deck": "Simpan sebagai slide",
+  "Could not save as slide deck.": "Tidak dapat menyimpan sebagai slide.",
 };

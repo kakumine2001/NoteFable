@@ -17,6 +17,7 @@ import { useI18n, useT } from "@/components/i18n-provider";
 import { localizeSystemText } from "@/lib/i18n/translate";
 import { StorageLimitPrompt } from "@/components/guest-limit-prompt";
 import { nativeCanOpenPage, nativeCanShowStorageLimit, postToNative } from "@/lib/native-bridge";
+import { SLIDES_EVENTS } from "@/lib/slides/ai-context";
 import { creatablePageKinds, isCanvasKind, pageKindFeatures, pageKindOf } from "@/lib/page-kinds";
 import type { NewPageRequest } from "@/lib/workspace-sections";
 import { STORAGE_LIMIT_EVENT, type StorageLimitDetail } from "@/lib/storage-limit-client";
@@ -27,6 +28,43 @@ import { normalizeQuote } from "@/lib/chat-quote";
 const NoteEditor = dynamic(() => import("@/components/note-editor"), {
   ssr: false, loading: () => <EditorLoading />,
 });
+// ノートの一時放映は「放映」を押したときだけ読み込む（通常のノート表示の初回バンドルにスライドのコード・CSS を入れない）。
+const NotePresentPlayer = dynamic(() => import("@/components/slides/note-present-player"), { ssr: false });
+
+function NotePresentationBridge({
+  title, icon, blocks, parentId, groupId, embedded, onOpenSaved,
+}: {
+  title: string;
+  icon: string | null;
+  blocks: unknown;
+  parentId: string | null;
+  groupId: string | null;
+  embedded: boolean;
+  onOpenSaved: (id: string) => void;
+}) {
+  const [presenting, setPresenting] = useState(false);
+  useEffect(() => {
+    const onCommand = (event: Event) => {
+      const detail = (event as CustomEvent<{ action?: string }>).detail;
+      if (detail?.action === "present") setPresenting(true);
+    };
+    window.addEventListener(SLIDES_EVENTS.command, onCommand);
+    return () => window.removeEventListener(SLIDES_EVENTS.command, onCommand);
+  }, []);
+  if (!presenting) return null;
+  return (
+    <NotePresentPlayer
+      title={title}
+      icon={icon}
+      blocks={blocks}
+      parentId={parentId}
+      groupId={groupId}
+      embedded={embedded}
+      onExit={() => setPresenting(false)}
+      onSaved={(id) => { setPresenting(false); onOpenSaved(id); }}
+    />
+  );
+}
 
 function EditorLoading() {
   const t = useT();
@@ -249,6 +287,16 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
       <PageAssistant key={activeId} pageId={activeId} pageTitle={active.content.title} model={model} reasoning={reasoning}
         onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={() => active.flush()} embedded={embedded}
         selection={aiSelection} onClearSelection={() => setAiAsk((current) => (current?.noteId === activeId ? { ...current, selection: null } : current))} openSignal={aiOpenSignal} hidden={split} />
+      <NotePresentationBridge
+        key={`present:${activeId}`}
+        title={active.content.title}
+        icon={active.content.icon}
+        blocks={active.content.blocks}
+        parentId={activeSummary?.parentId ?? active.page.parentId ?? null}
+        groupId={activeSummary?.groupId ?? active.page.groupId ?? null}
+        embedded={embedded}
+        onOpenSaved={(id) => { if (!embedded) onOpen(id); else void notes.select(id, "none"); }}
+      />
     </> : embedded ? !error && <div className="notes-column pt-24"><p className="notes-loading">{t("Loading note…")}</p></div>
     : !error && <>{!listMode && <div className="notes-column"><div className="notion-home-switch lg:hidden"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div></div>}<div className="notes-column notes-empty">
       <div className="notes-empty-emblem" aria-hidden="true"><LayoutGrid size={26} strokeWidth={1.6} /></div>

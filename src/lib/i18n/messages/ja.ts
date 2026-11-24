@@ -1139,4 +1139,11 @@ export const ja: Record<string, string> = {
   "Empty page": "空のページ",
   "Proposed page edit": "ページの編集案",
   "Applied automatically": "自動で適用済み",
+  "Transition": "切り替え効果",
+  "Fade": "フェード",
+  "Slide in": "スライド",
+  "Apply to all slides": "すべてのスライドに適用",
+  "Slide transitions aren’t included in PPTX export.": "PPTX 書き出しにはスライドの切り替え効果は含まれません。",
+  "Save as slide deck": "スライドとして保存",
+  "Could not save as slide deck.": "スライドとして保存できませんでした。",
 };

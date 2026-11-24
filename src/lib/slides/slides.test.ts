@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { validateCanvasData, extractCanvasSegments } from "@/lib/canvas-document";
 import { alignElements, distributeElements, lineEndpoints, lineFromEndpoints, resizeFrame, rotatedBounds, rotationFor, snapBox } from "./geometry";
 import { applyLayout, createSlide, LAYOUTS } from "./layouts";
-import { deckImageSources, normalizeDeck, slideRows, type Deck, type Slide, type SlideElement, type TextElement } from "./model";
-import { addSlide, cloneElements, deleteSlides, duplicateSlides, groupElements, moveSlides, moveSlidesToRow, parseClipboard, clipboardPayload, reorderElements, setHidden } from "./ops";
+import { deckImageSources, normalizeDeck, slideRows, slideTransitionClass, type Deck, type Slide, type SlideElement, type TextElement } from "./model";
+import { addSlide, cloneElements, deleteSlides, duplicateSlides, groupElements, moveSlides, moveSlidesToRow, parseClipboard, clipboardPayload, reorderElements, setHidden, setTransition } from "./ops";
 import { normalizeRichDoc, richDocFromText, richDocLatex, richDocText, safeHref } from "./rich-text";
 import { resolveColor, resolveTheme } from "./themes";
 import { publicDeck } from "./public-deck";
@@ -237,5 +237,65 @@ describe("cross-review fixes", () => {
     const result = publicDeck({ slides: [{ id: "s1", layout: "blank", section: "Secret plan", elements: [board] }] });
     expect(result.slides[0].section).toBeUndefined();
     expect(result.slides[0].elements[0]).toMatchObject({ type: "whiteboard", pageId: "", frameId: "", frameName: "Sketch" });
+  });
+
+  it("normalizes slide transitions backward-compatibly, applies them via setTransition, and preserves them across clipboard & publicDeck", () => {
+    const normalized = normalizeDeck({
+      format: 1,
+      theme: { id: "simple", mode: "light" },
+      slides: [
+        { id: "s1", layout: "blank", elements: [] },
+        { id: "s2", layout: "blank", transition: "none", elements: [] },
+        { id: "s3", layout: "blank", transition: "fade", elements: [] },
+        { id: "s4", layout: "blank", transition: "slide", elements: [] },
+        { id: "s5", layout: "blank", transition: "spin", elements: [] },
+      ],
+    });
+    expect("transition" in normalized.slides[0]).toBe(false);
+    expect("transition" in normalized.slides[1]).toBe(false);
+    expect(normalized.slides[2].transition).toBe("fade");
+    expect(normalized.slides[3].transition).toBe("slide");
+    expect("transition" in normalized.slides[4]).toBe(false);
+
+    const updated = setTransition(normalized, new Set(["s1", "s3"]), "slide");
+    expect(updated.slides[0].transition).toBe("slide");
+    expect(updated.slides[2].transition).toBe("slide");
+    // すでに同じ値なら参照を変えない（無駄な取り消し履歴・保存を防ぐ）。
+    expect(setTransition(updated, new Set(["s1", "s3"]), "slide")).toBe(updated);
+    const cleared = setTransition(updated, new Set(["s1"]), "none");
+    expect("transition" in cleared.slides[0]).toBe(false);
+    expect(setTransition(cleared, new Set(["s1"]), "none")).toBe(cleared);
+
+    const pasted = parseClipboard(clipboardPayload({ slides: [slide("s3", { transition: "fade" })] }));
+    expect(pasted?.slides[0].transition).toBe("fade");
+
+    const pub = publicDeck(updated);
+    expect(pub.slides[0].transition).toBe("slide");
+    expect(pub.slides[3].transition).toBe("slide");
+  });
+
+  it("computes slideTransitionClass respecting direction and prefers-reduced-motion", () => {
+    expect(slideTransitionClass(undefined, "forward", false)).toBe("");
+    expect(slideTransitionClass("none", "forward", false)).toBe("");
+    expect(slideTransitionClass("fade", "forward", false)).toBe("slide-transition-fade");
+    expect(slideTransitionClass("fade", "backward", false)).toBe("slide-transition-fade");
+    expect(slideTransitionClass("slide", "forward", false)).toBe("slide-transition-slide-forward");
+    expect(slideTransitionClass("slide", "backward", false)).toBe("slide-transition-slide-backward");
+    expect(slideTransitionClass("fade", "forward", true)).toBe("");
+    expect(slideTransitionClass("slide", "forward", true)).toBe("");
+  });
+
+  it("normalizes optional code_block language while omitting empty or plain defaults", () => {
+    const doc = normalizeRichDoc({
+      type: "doc",
+      content: [
+        { type: "code_block", attrs: { language: "TypeScript" }, content: [{ type: "text", text: "let a = 1;" }] },
+        { type: "code_block", attrs: { language: "text" }, content: [{ type: "text", text: "plain" }] },
+        { type: "code_block", content: [{ type: "text", text: "raw" }] },
+      ],
+    });
+    expect(doc.content[0]).toEqual({ type: "code_block", attrs: { language: "TypeScript" }, content: [{ type: "text", text: "let a = 1;" }] });
+    expect(doc.content[1]).toEqual({ type: "code_block", content: [{ type: "text", text: "plain" }] });
+    expect(doc.content[2]).toEqual({ type: "code_block", content: [{ type: "text", text: "raw" }] });
   });
 });

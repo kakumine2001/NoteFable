@@ -1138,4 +1138,11 @@ export const tr: Record<string, string> = {
   "Empty page": "Boş sayfa",
   "Proposed page edit": "Sayfa düzenleme önerisi",
   "Applied automatically": "Otomatik uygulandı",
+  "Transition": "Geçiş",
+  "Fade": "Solma",
+  "Slide in": "Kaydırarak gir",
+  "Apply to all slides": "Tüm slaytlara uygula",
+  "Slide transitions aren’t included in PPTX export.": "Slayt geçişleri PPTX dışa aktarımına dahil edilmez.",
+  "Save as slide deck": "Slayt olarak kaydet",
+  "Could not save as slide deck.": "Slayt olarak kaydedilemedi.",
 };

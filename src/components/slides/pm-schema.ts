@@ -32,9 +32,9 @@ export const slideSchema = new Schema({
     },
     list_item: { content: "paragraph block*", defining: true, parseDOM: [{ tag: "li" }], toDOM: (): DOMOutputSpec => ["li", 0] },
     code_block: {
-      group: "block", content: "text*", marks: "", code: true, defining: true,
-      parseDOM: [{ tag: "pre", preserveWhitespace: "full" }],
-      toDOM: (): DOMOutputSpec => ["pre", { class: "slide-code-block", dir: "ltr" }, ["code", 0]],
+      group: "block", content: "text*", marks: "", code: true, defining: true, attrs: { language: { default: null } },
+      parseDOM: [{ tag: "pre", preserveWhitespace: "full", getAttrs: (dom) => ({ language: (dom as HTMLElement).getAttribute("data-language") || null }) }],
+      toDOM: (node): DOMOutputSpec => ["pre", { class: "slide-code-block", dir: "ltr", ...(node.attrs.language ? { "data-language": node.attrs.language } : {}) }, ["code", 0]],
     },
     math_block: {
       group: "block", atom: true, attrs: { latex: { default: "" } },

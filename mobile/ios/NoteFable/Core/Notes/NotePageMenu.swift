@@ -17,7 +17,7 @@ struct NotePageMenuActions {
     /// "导出 Markdown"（网页 onExport）。
     var onExport: () -> Void
     var onTrash: () -> Void
-    /// 幻灯片的放映和导出（网页 `window.notefableEmbed.slides` 的 JSON 命令）。nil 时不显示。
+    /// 放映和导出（网页 `window.notefableEmbed.slides` 的 JSON 命令）。nil 时不显示。
     var onSlides: ((String) -> Void)? = nil
 }
 
@@ -75,4 +75,9 @@ func notePageFavoriteLabel(_ page: NotePageSummary) -> String {
 /// 菜单里有"报告 AI 内容"：AI 写过这个页面的内容（`aiUpdatedAt` 不是 nil；应用商店对 AI 生成内容的要求）。
 func notePageReportable(_ page: NotePageSummary) -> Bool {
     page.aiUpdatedAt != nil
+}
+
+/// 笔记和幻灯片都支持在"…"菜单里放映（导出仅幻灯片可用；Android `supportsPresentation`）。
+func notePageSupportsPresentation(_ kind: PageKind) -> Bool {
+    kind == .note || kind == .slides
 }

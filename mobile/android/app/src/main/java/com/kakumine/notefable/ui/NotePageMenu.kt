@@ -46,8 +46,12 @@ import androidx.compose.ui.unit.sp
 import com.kakumine.notefable.R
 import com.kakumine.notefable.data.NotePageSettings
 import com.kakumine.notefable.data.NotePageSummary
+import com.kakumine.notefable.data.PageKind
 import com.kakumine.notefable.data.ReportTarget
 import kotlin.math.roundToInt
+
+/** 笔记和幻灯片都支持在"…"菜单里放映（导出仅幻灯片可用）。 */
+internal fun supportsPresentation(kind: PageKind): Boolean = kind == PageKind.Note || kind == PageKind.Slides
 
 /** 笔记顶栏"…"菜单的操作（网页 note-page-menu.tsx）。 */
 class NotePageMenuActions(
@@ -61,7 +65,7 @@ class NotePageMenuActions(
     /** "Export Markdown"：把这一篇存成 .md 文件。 */
     val onExport: () -> Unit,
     val onTrash: () -> Unit,
-    /** 幻灯片的放映和导出（网页 `window.notefableEmbed.slides` 的 JSON 命令）。只有编辑页传入，幻灯片才显示这几项。 */
+    /** 放映和导出（网页 `window.notefableEmbed.slides` 的 JSON 命令）。只有编辑页传入，笔记显示放映、幻灯片显示放映和导出。 */
     val onSlides: ((String) -> Unit)? = null,
 ) {
     fun withSlides(handler: (String) -> Unit) = NotePageMenuActions(error, busy, onSettings, onFavorite, onDuplicate, onAddInside, onMove, onExport, onTrash, handler)
@@ -124,13 +128,15 @@ fun NotePageMenuButton(page: NotePageSummary, actions: NotePageMenuActions) {
             ToggleItem(stringResource(R.string.pg_lock_page), Lucide.Lock, page.locked) { actions.onSettings(NotePageSettings(locked = !page.locked)) }
             Divider()
             val slides = actions.onSlides
-            if (slides != null && page.kind == com.kakumine.notefable.data.PageKind.Slides) {
+            if (slides != null && supportsPresentation(page.kind)) {
                 MenuItem(stringResource(R.string.slides_present), Lucide.Presentation, onClick = run { slides("""{"action":"present"}""") })
-                MenuItem(stringResource(R.string.slides_export_pdf), Lucide.Download, onClick = run { slides("""{"action":"export","format":"pdf"}""") })
-                MenuItem(stringResource(R.string.slides_export_pdf_notes), Lucide.Download, onClick = run { slides("""{"action":"export","format":"pdf-notes"}""") })
-                MenuItem(stringResource(R.string.slides_export_png), Lucide.Download, onClick = run { slides("""{"action":"export","format":"png"}""") })
-                MenuItem(stringResource(R.string.slides_export_pptx), Lucide.Download, onClick = run { slides("""{"action":"export","format":"pptx"}""") })
-                Divider()
+                if (page.kind == PageKind.Slides) {
+                    MenuItem(stringResource(R.string.slides_export_pdf), Lucide.Download, onClick = run { slides("""{"action":"export","format":"pdf"}""") })
+                    MenuItem(stringResource(R.string.slides_export_pdf_notes), Lucide.Download, onClick = run { slides("""{"action":"export","format":"pdf-notes"}""") })
+                    MenuItem(stringResource(R.string.slides_export_png), Lucide.Download, onClick = run { slides("""{"action":"export","format":"png"}""") })
+                    MenuItem(stringResource(R.string.slides_export_pptx), Lucide.Download, onClick = run { slides("""{"action":"export","format":"pptx"}""") })
+                    Divider()
+                }
             }
             val favorite = page.favoritedAt != null
             MenuItem(stringResource(if (favorite) R.string.pg_remove_from_favorites else R.string.pg_add_to_favorites), if (favorite) Lucide.StarOff else Lucide.Star,

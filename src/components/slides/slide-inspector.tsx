@@ -12,7 +12,7 @@ import { ColorPicker, MenuButton } from "@/components/slides/slide-menus";
 import type { TextCommands } from "@/components/slides/text-editor";
 import { alignElements, distributeElements, selectionUnits, type AlignMode } from "@/lib/slides/geometry";
 import { LAYOUTS } from "@/lib/slides/layouts";
-import { SHAPE_KINDS, type ColorRef, type FontRole, type LayoutId, type LineCap, type Slide, type SlideElement, type TableElement, type TextStyle } from "@/lib/slides/model";
+import { SHAPE_KINDS, SLIDE_TRANSITIONS, type ColorRef, type FontRole, type LayoutId, type LineCap, type Slide, type SlideElement, type SlideTransition, type TableElement, type TextStyle } from "@/lib/slides/model";
 import { groupElements, reorderElements, ungroupElements, updateElements, type ZOrder } from "@/lib/slides/ops";
 import { SHAPE_LABELS } from "@/lib/slides/shapes";
 import { resolveColor, type ResolvedTheme } from "@/lib/slides/themes";
@@ -23,6 +23,7 @@ import { msg } from "@/lib/i18n/translate";
 const FONT_ROLES: { key: FontRole; label: string }[] = [{ key: "heading", label: msg("Heading font") }, { key: "body", label: msg("Body font") }, { key: "mono", label: msg("Monospace") }];
 const CAPS: { key: LineCap; label: string }[] = [{ key: "none", label: msg("No arrow") }, { key: "arrow", label: msg("Arrow") }, { key: "triangle", label: msg("Triangle") }, { key: "oval", label: msg("Dot") }];
 const DASHES = [{ key: "solid", label: msg("Solid") }, { key: "dash", label: msg("Dashed") }, { key: "dot", label: msg("Dotted") }] as const;
+const TRANSITION_LABELS: Record<SlideTransition, string> = { none: msg("None"), fade: msg("Fade"), slide: msg("Slide in") };
 export const ELEMENT_LABELS: Record<SlideElement["type"], string> = {
   text: msg("Text box"), shape: msg("Shape"), line: msg("Line"), image: msg("Image"), table: msg("Table"), whiteboard: msg("Whiteboard frame"),
 };
@@ -105,8 +106,9 @@ function tableWithSize(element: TableElement, rows: number, cols: number): Table
   return { ...element, rows: nextRows, cols: nextCols, h: Math.max(element.h * (rows / element.rows.length), 40) };
 }
 
-export function SlideInspector({ slide, selection, theme, editable, onChange, onReplaceImage, onReportImage, onDelete, onLayout, onToggleHidden }: {
+export function SlideInspector({ slide, slideCount, selection, theme, editable, onChange, onReplaceImage, onReportImage, onDelete, onLayout, onToggleHidden, onTransition, onApplyTransitionAll }: {
   slide: Slide;
+  slideCount: number;
   selection: Set<string>;
   theme: ResolvedTheme;
   editable: boolean;
@@ -116,6 +118,8 @@ export function SlideInspector({ slide, selection, theme, editable, onChange, on
   onDelete: () => void;
   onLayout: (layout: LayoutId) => void;
   onToggleHidden: () => void;
+  onTransition: (transition: SlideTransition) => void;
+  onApplyTransitionAll: (transition: SlideTransition) => void;
 }) {
   const t = useT();
   const selected = slide.elements.filter((element) => selection.has(element.id));
@@ -123,6 +127,7 @@ export function SlideInspector({ slide, selection, theme, editable, onChange, on
     onChange(updateElements(slide, ids, patch), `${field}:${[...ids].join(",")}`);
 
   if (!selected.length) {
+    const currentTransition: SlideTransition = slide.transition ?? "none";
     return <div className="slides-inspector" aria-label={t("Slide settings")}>
       <fieldset className="slides-inspector-fields" disabled={!editable}>
       <Section title={t("Layout")}>
@@ -138,6 +143,18 @@ export function SlideInspector({ slide, selection, theme, editable, onChange, on
           onChange={(color) => onChange({ ...slide, background: color && color !== "background" ? color : null })} />
         <button type="button" className="slides-wide-button" disabled={!editable} onClick={onToggleHidden}>
           {slide.hidden ? <Eye size={16} aria-hidden="true" /> : <EyeOff size={16} aria-hidden="true" />}{slide.hidden ? t("Show slide") : t("Hide slide")}
+        </button>
+      </Section>
+      <Section title={t("Transition")}>
+        <div className="slides-transition-group" role="group" aria-label={t("Transition")}>
+          {SLIDE_TRANSITIONS.map((option) => <button key={option} type="button" disabled={!editable}
+            className={`slides-transition-option${currentTransition === option ? " is-active" : ""}`}
+            aria-pressed={currentTransition === option} onClick={() => onTransition(option)}>
+            {t(TRANSITION_LABELS[option])}
+          </button>)}
+        </div>
+        <button type="button" className="slides-wide-button" disabled={!editable || slideCount <= 1} onClick={() => onApplyTransitionAll(currentTransition)}>
+          {t("Apply to all slides")}
         </button>
       </Section>
       </fieldset>

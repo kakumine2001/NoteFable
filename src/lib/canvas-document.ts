@@ -124,7 +124,8 @@ function validSlides(data: Record<string, unknown>) {
     (slide.elements === undefined || validItems(slide.elements, MAX_SLIDE_ELEMENTS, elementIds))
     && (slide.notes === undefined || (typeof slide.notes === "string" && slide.notes.length <= MAX_SLIDE_NOTES))
     && (slide.hidden === undefined || typeof slide.hidden === "boolean")
-    && (slide.layout === undefined || (typeof slide.layout === "string" && slide.layout.length <= MAX_TYPE_LENGTH)));
+    && (slide.layout === undefined || (typeof slide.layout === "string" && slide.layout.length <= MAX_TYPE_LENGTH))
+    && (slide.transition === undefined || (typeof slide.transition === "string" && slide.transition.length <= MAX_TYPE_LENGTH)));
 }
 
 // 保存してよい本体か確かめる。大きさは JSON のバイト数。fileOwners は参照しているファイルの持ち主（保存時に本人だけか確かめる）。

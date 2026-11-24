@@ -1138,4 +1138,11 @@ export const it: Record<string, string> = {
   "Empty page": "Pagina vuota",
   "Proposed page edit": "Modifica della pagina proposta",
   "Applied automatically": "Applicata automaticamente",
+  "Transition": "Transizione",
+  "Fade": "Dissolvenza",
+  "Slide in": "Scorrimento",
+  "Apply to all slides": "Applica a tutte le diapositive",
+  "Slide transitions aren’t included in PPTX export.": "Le transizioni tra diapositive non sono incluse nell’esportazione PPTX.",
+  "Save as slide deck": "Salva come presentazione",
+  "Could not save as slide deck.": "Impossibile salvare come presentazione.",
 };

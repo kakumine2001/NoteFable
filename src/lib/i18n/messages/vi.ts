@@ -1138,4 +1138,11 @@ export const vi: Record<string, string> = {
   "Empty page": "Trang trống",
   "Proposed page edit": "Đề xuất chỉnh sửa trang",
   "Applied automatically": "Đã tự động áp dụng",
+  "Transition": "Chuyển tiếp",
+  "Fade": "Mờ dần",
+  "Slide in": "Trượt vào",
+  "Apply to all slides": "Áp dụng cho tất cả trang chiếu",
+  "Slide transitions aren’t included in PPTX export.": "Hiệu ứng chuyển tiếp trang chiếu không được bao gồm khi xuất PPTX.",
+  "Save as slide deck": "Lưu thành bản trình bày",
+  "Could not save as slide deck.": "Không thể lưu thành bản trình bày.",
 };

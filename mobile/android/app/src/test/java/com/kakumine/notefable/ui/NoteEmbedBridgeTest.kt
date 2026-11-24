@@ -1,8 +1,11 @@
 package com.kakumine.notefable.ui
 
+import com.kakumine.notefable.data.PageKind
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** App → 网页编辑器的脚本（window.notefableEmbed.reveal，src/lib/native-bridge.ts）。 */
@@ -63,5 +66,12 @@ class NoteEmbedBridgeTest {
             "(function(){var e=window.notefableEmbed;if(e&&typeof e.close==='function')return e.close()===true;return false})()",
             NoteEmbedBridge.CLOSE_SCRIPT,
         )
+    }
+
+    @Test
+    fun `notes and slide decks both expose presentation in the page menu`() {
+        assertTrue(supportsPresentation(PageKind.Note))
+        assertTrue(supportsPresentation(PageKind.Slides))
+        assertFalse(supportsPresentation(PageKind.Whiteboard))
     }
 }

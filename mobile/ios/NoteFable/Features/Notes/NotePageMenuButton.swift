@@ -60,9 +60,12 @@ private struct NotePageMenuContent: View {
                 }
             }
             ActionsMenuDivider()
-            if page.kind == .slides, let onSlides = actions.onSlides {
-                slideCommands(onSlides)
-                ActionsMenuDivider()
+            if notePageSupportsPresentation(page.kind), let onSlides = actions.onSlides {
+                ActionsMenuItem(L("slides_present"), icon: Lucide.presentation, action: run { onSlides(#"{"action":"present"}"#) })
+                if page.kind == .slides {
+                    slideExportCommands(onSlides)
+                    ActionsMenuDivider()
+                }
             }
             commands(page)
             if let error = app.notes.state.groupError {
@@ -123,10 +126,9 @@ private struct NotePageMenuContent: View {
         }
     }
 
-    /// 幻灯片：放映、导出 PDF / 带备注的 PDF / PNG / PPTX（Android NotePageMenu.kt）。
+    /// 幻灯片的导出：PDF / 带备注的 PDF / PNG / PPTX（Android NotePageMenu.kt）。
     @ViewBuilder
-    private func slideCommands(_ onSlides: @escaping (String) -> Void) -> some View {
-        ActionsMenuItem(L("slides_present"), icon: Lucide.presentation, action: run { onSlides(#"{"action":"present"}"#) })
+    private func slideExportCommands(_ onSlides: @escaping (String) -> Void) -> some View {
         ActionsMenuItem(L("slides_export_pdf"), icon: Lucide.download, action: run { onSlides(#"{"action":"export","format":"pdf"}"#) })
         ActionsMenuItem(L("slides_export_pdf_notes"), icon: Lucide.download, action: run { onSlides(#"{"action":"export","format":"pdf-notes"}"#) })
         ActionsMenuItem(L("slides_export_png"), icon: Lucide.download, action: run { onSlides(#"{"action":"export","format":"png"}"#) })

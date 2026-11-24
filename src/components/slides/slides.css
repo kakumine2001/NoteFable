@@ -19,7 +19,8 @@
 .slide-text li > p { margin: 0; }
 .slide-text strong { font-weight: 700; }
 .slide-text .slide-code, .slide-text code { font-family: var(--slide-font-jetbrains-mono), "JetBrains Mono", ui-monospace, monospace; font-size: 0.88em; padding: 0.05em 0.3em; border-radius: 0.25em; background: rgba(127, 127, 127, 0.16); }
-.slide-text .slide-code-block { margin: 0.2em 0; padding: 0.5em 0.7em; border-radius: 0.3em; background: rgba(127, 127, 127, 0.14); font-family: var(--slide-font-jetbrains-mono), "JetBrains Mono", ui-monospace, monospace; font-size: 0.8em; white-space: pre-wrap; text-align: left; }
+.slide-text .slide-code-block { position: relative; margin: 0.2em 0; padding: 0.5em 0.7em; border-radius: 0.3em; background: rgba(127, 127, 127, 0.14); font-family: var(--slide-font-jetbrains-mono), "JetBrains Mono", ui-monospace, monospace; font-size: 0.8em; white-space: pre-wrap; text-align: left; }
+.slide-text .slide-code-lang { display: block; margin-bottom: 0.35em; font-size: 0.72em; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.6; }
 .slide-text .slide-code-block code { padding: 0; background: none; font-size: 1em; }
 .slide-text .slide-link { color: inherit; text-decoration: underline; text-underline-offset: 0.12em; }
 .slide-math-inline { display: inline-block; direction: ltr; }
@@ -171,6 +172,13 @@
 .slides-color-name { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .slides-wide-button { display: flex; width: 100%; align-items: center; justify-content: center; gap: 6px; height: 32px; margin-top: 4px; border: 1px solid var(--notion-border); border-radius: 6px; background: var(--notion-surface); color: var(--notion-text); font-size: 13px; }
 .slides-wide-button:hover:not(:disabled) { background: var(--notion-hover); }
+.slides-wide-button:disabled { opacity: 0.45; }
+.slides-transition-group { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-bottom: 8px; }
+.slides-transition-option { height: 30px; padding: 0 6px; border: 1px solid var(--notion-border); border-radius: 6px; background: var(--notion-surface); color: var(--notion-text); font-size: 12px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slides-transition-option:hover:not(:disabled) { background: var(--notion-hover); }
+.slides-transition-option:focus-visible { outline: 2px solid var(--nf-accent-line); outline-offset: 1px; }
+.slides-transition-option.is-active { border-color: #3b82f6; background: var(--nf-accent-soft); color: var(--nf-accent); }
+.slides-menu-note { max-width: 240px; margin: 4px 0 0; padding: 6px 12px 4px; border-top: 1px solid var(--notion-border); color: var(--notion-muted); font-size: 11.5px; line-height: 1.4; }
 .slides-check { display: flex; align-items: center; gap: 8px; margin: 4px 0 10px; color: var(--notion-text); }
 .slides-stepper { display: flex; flex: 1; align-items: center; gap: 4px; margin-bottom: 8px; color: var(--notion-muted); font-size: 12px; }
 .slides-stepper span { flex: 1; }
@@ -248,9 +256,16 @@
 .slides-notes-page-text { flex: 1; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 /* ---- 放映 ---- */
-.slides-player { position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column; background: #000; color: #fff; }
-.slides-player-stage { position: relative; display: flex; min-height: 0; flex: 1; align-items: center; justify-content: center; touch-action: pan-y; cursor: pointer; user-select: none; }
+.slides-player { --slide-dir: 1; position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column; background: #000; color: #fff; }
+.slides-player-stage { position: relative; display: flex; min-height: 0; flex: 1; align-items: center; justify-content: center; overflow: hidden; touch-action: pan-y; cursor: pointer; user-select: none; }
 .slides-player-frame { border-radius: 0; }
+.slides-player-header { position: absolute; top: max(16px, env(safe-area-inset-top)); inset-inline-end: max(16px, env(safe-area-inset-right)); z-index: 4; display: flex; align-items: center; gap: 8px; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+.slides-player.show-controls .slides-player-header, .slides-player-header:focus-within, .slides-player-header.is-pinned { opacity: 1; pointer-events: auto; }
+.slides-player-action { display: inline-flex; height: 36px; align-items: center; gap: 6px; padding: 0 12px; border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 10px; background: rgba(24, 24, 27, 0.86); color: #fff; font-size: 13px; font-weight: 550; }
+.slides-player-action:hover:not(:disabled) { background: rgba(39, 39, 42, 0.94); }
+.slides-player-action:focus-visible { outline: 2px solid var(--nf-accent-line); outline-offset: 2px; }
+.slides-player-action:disabled { opacity: 0.6; }
+.slides-player-error { max-width: min(360px, 60vw); padding: 6px 10px; border-radius: 8px; background: rgba(153, 27, 27, 0.92); color: #fef2f2; font-size: 12.5px; line-height: 1.35; }
 .slides-player-blank { position: absolute; inset: 0; z-index: 2; }
 .slides-player-blank.is-black { background: #000; }
 .slides-player-blank.is-white { background: #fff; }
@@ -262,7 +277,19 @@
 .slides-player-controls button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.14); }
 .slides-player-controls button:disabled { opacity: 0.35; }
 .slides-player-counter { min-width: 64px; color: #e4e4e7; font-size: 13px; font-variant-numeric: tabular-nums; text-align: center; }
-@media (pointer: coarse) { .slides-player.show-controls .slides-player-controls { opacity: 1; } }
+@media (pointer: coarse) { .slides-player.show-controls .slides-player-controls, .slides-player.show-controls .slides-player-header { opacity: 1; } }
+
+/* 簡易スライド転場（初回表示では適用しない。RTL ではスライド方向を反転し、動きを減らす設定では無効化）。 */
+[dir="rtl"] .slides-player, [dir="rtl"] .public-slides { --slide-dir: -1; }
+.slide-transition-fade { animation: slide-enter-fade 260ms ease-out both; }
+.slide-transition-slide-forward { animation: slide-enter-forward 300ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.slide-transition-slide-backward { animation: slide-enter-backward 300ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes slide-enter-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slide-enter-forward { from { opacity: 0; transform: translateX(calc(16% * var(--slide-dir, 1))); } to { opacity: 1; transform: translateX(0); } }
+@keyframes slide-enter-backward { from { opacity: 0; transform: translateX(calc(-16% * var(--slide-dir, 1))); } to { opacity: 1; transform: translateX(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .slide-transition-fade, .slide-transition-slide-forward, .slide-transition-slide-backward { animation: none !important; }
+}
 
 /* 発表者ビュー（別のウィンドウ） */
 .slides-presenter-body { margin: 0; background: #18181b; color: #f4f4f5; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
@@ -306,12 +333,12 @@
 
 /* ---- 公開の放映ページ（/s/:token） ---- */
 .public-slides-shell { min-height: 100dvh; background: var(--notion-sidebar); color: var(--notion-text); }
-.public-slides { display: flex; min-height: 100dvh; flex-direction: column; }
+.public-slides { --slide-dir: 1; display: flex; min-height: 100dvh; flex-direction: column; }
 .public-slides-topbar { display: flex; align-items: center; gap: 12px; padding: 10px 20px; border-bottom: 1px solid var(--notion-border); background: var(--notion-bg); }
 .public-slides-title { min-width: 0; flex: 1; margin: 0; overflow: hidden; font-size: 16px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .slides-present-button.is-standalone { border-radius: 8px; }
 .public-slides-main { display: flex; min-height: 0; flex: 1; flex-direction: column; align-items: center; gap: 12px; padding: 20px 16px 24px; }
-.public-slides-stage { display: flex; width: min(1280px, 100%); height: min(72vh, calc((100vw - 32px) * 9 / 16)); align-items: center; justify-content: center; }
+.public-slides-stage { display: flex; width: min(1280px, 100%); height: min(72vh, calc((100vw - 32px) * 9 / 16)); align-items: center; justify-content: center; overflow: hidden; }
 .public-slides-frame { box-shadow: 0 1px 3px rgba(15, 23, 42, 0.18), 0 8px 28px rgba(15, 23, 42, 0.12); }
 .public-slides-nav { display: flex; align-items: center; gap: 8px; }
 .public-slides-nav button { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 8px; color: var(--notion-text); }

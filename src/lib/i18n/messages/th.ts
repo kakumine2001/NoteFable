@@ -1138,4 +1138,11 @@ export const th: Record<string, string> = {
   "Empty page": "หน้าว่าง",
   "Proposed page edit": "ข้อเสนอการแก้ไขหน้า",
   "Applied automatically": "นำไปใช้อัตโนมัติแล้ว",
+  "Transition": "การเปลี่ยนสไลด์",
+  "Fade": "ค่อยๆ จาง",
+  "Slide in": "เลื่อนเข้า",
+  "Apply to all slides": "ใช้กับทุกสไลด์",
+  "Slide transitions aren’t included in PPTX export.": "การเปลี่ยนสไลด์จะไม่รวมอยู่ในการส่งออก PPTX",
+  "Save as slide deck": "บันทึกเป็นสไลด์",
+  "Could not save as slide deck.": "ไม่สามารถบันทึกเป็นสไลด์ได้",
 };

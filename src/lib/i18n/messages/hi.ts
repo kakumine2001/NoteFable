@@ -1138,4 +1138,11 @@ export const hi: Record<string, string> = {
   "Empty page": "खाली पेज",
   "Proposed page edit": "पेज संपादन का सुझाव",
   "Applied automatically": "अपने आप लागू किया गया",
+  "Transition": "ट्रांज़िशन",
+  "Fade": "फ़ेड",
+  "Slide in": "स्लाइड इन",
+  "Apply to all slides": "सभी स्लाइड पर लागू करें",
+  "Slide transitions aren’t included in PPTX export.": "PPTX एक्सपोर्ट में स्लाइड ट्रांज़िशन शामिल नहीं होते हैं।",
+  "Save as slide deck": "स्लाइड डेक के रूप में सहेजें",
+  "Could not save as slide deck.": "स्लाइड डेक के रूप में सहेजा नहीं जा सका।",
 };
