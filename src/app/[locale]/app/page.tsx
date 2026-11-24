@@ -65,6 +65,7 @@ import type { ReorderRequest } from "@/lib/list-order";
 import { ChatProjectSync, SessionOrganizationSync } from "@/lib/session-organization-sync";
 import { SessionIconSync } from "@/lib/session-icon-sync";
 import { readChatEventStream } from "@/lib/chat-stream";
+import { reconcileFetchedMessages } from "@/lib/chat-message-sync";
 import { createSessionOutcomeStore, deriveTurnCharacterState, type CharacterTurnOutcome } from "@/lib/characters";
 import { useDocumentHidden } from "@/lib/use-document-hidden";
 import { useSwipeDismiss } from "@/lib/use-swipe-dismiss";
@@ -748,6 +749,13 @@ export default function Home() {
     }
   }
 
+  function applyFetchedMessages(sessionKey: string, fetchedMessages: Message[]) {
+    replaceCachedMessages(
+      sessionKey,
+      reconcileFetchedMessages(sessionMessagesRef.current[sessionKey] ?? [], fetchedMessages),
+    );
+  }
+
   function updateCachedMessages(
     sessionKey: string,
     updater: (current: Message[]) => Message[],
@@ -836,7 +844,7 @@ export default function Home() {
     if (!fetchedMessages || fetchedMessages === "missing") return false;
     if (fetchedMessages.length === 0 && (sessionMessagesRef.current[sessionId]?.length ?? 0) > 0) return false;
 
-    replaceCachedMessages(sessionId, fetchedMessages);
+    applyFetchedMessages(sessionId, fetchedMessages);
     return true;
   }
 
@@ -958,7 +966,7 @@ export default function Home() {
       if (!fetched || fetched === "missing") continue;
       const last = fetched.at(-1);
       if (!(last?.role === "ASSISTANT" && !known.has(last.id))) continue;
-      replaceCachedMessages(sessionKey, fetched);
+      applyFetchedMessages(sessionKey, fetched);
       return true;
     }
     return false;
@@ -1197,7 +1205,7 @@ export default function Home() {
 
     setHistoryFailedId(null);
     // 最新の選択に対応する履歴だけを表示へ反映する。
-    replaceCachedMessages(sessionId, fetchedMessages);
+    applyFetchedMessages(sessionId, fetchedMessages);
     if (sessionLoadAbortRef.current === controller) {
       sessionLoadAbortRef.current = null;
     }
@@ -2156,7 +2164,7 @@ export default function Home() {
     if (busy()) return;
     const fetched = await fetchSessionMessages(sessionId);
     if (!fetched || fetched === "missing" || busy()) return;
-    replaceCachedMessages(sessionId, fetched);
+    applyFetchedMessages(sessionId, fetched);
   }
 
   const linkOpenersRef = useRef({ note: openNoteFromLink, chat: openChatFromLink, projects: refreshChatProjects, sessions: (id?: string) => void refreshAfterNoteChat(id), notesList: syncNotesList });
@@ -2574,7 +2582,7 @@ export default function Home() {
 
                     return (
                       <ChatMessage
-                        key={message.id}
+                        key={message.renderKey ?? message.id}
                         message={message}
                         isStreaming={isActiveSessionStreaming && isWaitingAssistant}
                         thinkingSeconds={

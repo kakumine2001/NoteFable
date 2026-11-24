@@ -10,7 +10,8 @@ import { useT } from "@/components/i18n-provider";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
 import { TurnBusyContext, VersionNav, type TurnActions } from "@/components/turn-actions";
 import type { MessageVersions } from "@/lib/chat-branches";
-
+import { isSavedMessageId } from "@/lib/chat-message-sync";
+export { isSavedMessageId };
 type Props = {
   messageId: string;
   // この回答の Markdown。コピーとノート保存に使い、ダウンロードは会話全体を別途読み込む。
@@ -204,11 +205,6 @@ export function ReportDialog({ target, onClose }: { target: ReportTarget; onClos
       </div>
     </form>}
   </dialog>;
-}
-
-// サーバーに保存済みの発言の ID（cuid）か。表示中だけの発言は crypto.randomUUID() の仮の ID で、報告・編集・再生成はできない。
-export function isSavedMessageId(id: string) {
-  return /^c[a-z0-9]{20,}$/.test(id);
 }
 
 // コピーや保存の操作行が出ない AI の出力（画像だけの回答、ノートの AI アシスタントの返事）にも、報告だけは出す。
