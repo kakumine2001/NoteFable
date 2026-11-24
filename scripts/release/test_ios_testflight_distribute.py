@@ -249,6 +249,63 @@ class DistributeExternalFlowTests(unittest.TestCase):
                 time_fn=lambda: 0.0,
             )
 
+    def test_409_with_sibling_build_in_review_gives_actionable_error(self) -> None:
+        def handler(method: str, path: str, payload: Any, allow_404: bool) -> Any:
+            if method == "GET" and path.startswith("/apps?"):
+                return {"data": [{"id": "app-1", "attributes": {"bundleId": "com.kakumine.notefable"}}]}
+            if method == "GET" and path == "/apps/app-1/betaGroups?limit=200":
+                return {"data": [{"id": "grp-ext", "attributes": {"name": "External", "isInternalGroup": False}}]}
+            if method == "GET" and path.startswith("/builds?") and "include=betaAppReviewSubmission" in path:
+                return {
+                    "data": [
+                        {
+                            "id": "bld-3",
+                            "attributes": {"version": "3"},
+                            "relationships": {
+                                "betaAppReviewSubmission": {"data": {"type": "betaAppReviewSubmissions", "id": "sub-3"}}
+                            },
+                        },
+                        {"id": "bld-4", "attributes": {"version": "4"}},
+                    ],
+                    "included": [
+                        {
+                            "type": "betaAppReviewSubmissions",
+                            "id": "sub-3",
+                            "attributes": {"betaReviewState": "WAITING_FOR_REVIEW"},
+                        }
+                    ],
+                }
+            if method == "GET" and path.startswith("/builds?"):
+                return {"data": [{"id": "bld-4", "attributes": {"processingState": "VALID"}}]}
+            if method == "GET" and path == "/builds/bld-4/betaBuildLocalizations?limit=50":
+                return {"data": []}
+            if method == "POST" and path == "/betaBuildLocalizations":
+                return {"data": {"id": "loc-4"}}
+            if method == "POST" and path == "/betaGroups/grp-ext/relationships/builds":
+                return None
+            if method == "GET" and path == "/builds/bld-4/betaAppReviewSubmission":
+                return None
+            if method == "POST" and path == "/betaAppReviewSubmissions":
+                raise dist_mod.AscError("HTTP 409: STATE_ERROR", status=409)
+            raise AssertionError(f"Unexpected call: {method} {path}")
+
+        client = FakeAscClient(handler)
+        with self.assertRaises(dist_mod.AscError) as ctx:
+            dist_mod.distribute_external(
+                client=client,
+                bundle_id="com.kakumine.notefable",
+                marketing_version="0.1.0",
+                build_number="4",
+                group_name="External",
+                locale="en-US",
+                whats_new="Bug fixes.",
+                sleep_fn=lambda _: None,
+                time_fn=lambda: 0.0,
+            )
+        self.assertIn("0.1.0 (3)", str(ctx.exception))
+        self.assertIn("WAITING_FOR_REVIEW", str(ctx.exception))
+        self.assertIn("distribute_external", str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

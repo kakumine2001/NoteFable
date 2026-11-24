@@ -2,9 +2,13 @@
 """Extract TestFlight 'What to Test' notes from a merged PR description.
 
 Reads the PR body from --pr-body-file (or stdin) and looks for a dedicated
-Markdown section (e.g. `## TestFlight` or `## What to Test`). If no custom
-user-facing notes are present (or the section is a placeholder like `none` /
-`N/A`), falls back to a generic beta-testing message.
+TestFlight Markdown section (e.g. `## TestFlight` or `## What to Test`). If no
+custom user-facing notes are present (or the section is a placeholder like
+`none` / `N/A`), falls back to a generic beta-testing message.
+
+Strips HTML comments outside fenced code blocks before heading detection so
+commented-out template sections are never published, and strips characters
+rejected by App Store Connect `whatsNew` (such as `<`, `>`, and non-BMP emoji).
 """
 
 from __future__ import annotations
@@ -24,7 +28,6 @@ ACCEPTED_HEADINGS = {
     "testflight",
     "testflight notes",
     "what to test",
-    "release notes",
     "测试内容",
     "测试说明",
 }
@@ -66,13 +69,69 @@ def _truncate(text: str, limit: int = MAX_WHATS_NEW_LENGTH) -> str:
     return text[: limit - 3].rstrip() + "..."
 
 
+def _strip_html_comments_outside_fences(text: str) -> str:
+    """Remove HTML comments while preserving fenced code blocks intact."""
+    lines = text.split("\n")
+    segments: list[tuple[bool, list[str]]] = []
+    in_fence = False
+    fence_char = ""
+    fence_len = 0
+
+    for line in lines:
+        fence_match = _FENCE_RE.match(line)
+        is_fence_line = False
+        if fence_match:
+            marker = fence_match.group(1)
+            if not in_fence:
+                in_fence = True
+                fence_char = marker[0]
+                fence_len = len(marker)
+                is_fence_line = True
+            elif marker[0] == fence_char and len(marker) >= fence_len:
+                in_fence = False
+                fence_char = ""
+                fence_len = 0
+                is_fence_line = True
+
+        in_code = in_fence or is_fence_line
+        if segments and segments[-1][0] == in_code:
+            segments[-1][1].append(line)
+        else:
+            segments.append((in_code, [line]))
+
+    out_parts: list[str] = []
+    for is_code, seg_lines in segments:
+        chunk = "\n".join(seg_lines)
+        if not is_code:
+            chunk = _HTML_COMMENT_RE.sub("", chunk)
+        out_parts.append(chunk)
+    return "\n".join(out_parts)
+
+
+def _sanitize_asc_text(text: str) -> str:
+    """Remove characters rejected by App Store Connect TestFlight `whatsNew`."""
+    cleaned_chars: list[str] = []
+    for ch in text:
+        code = ord(ch)
+        # App Store Connect rejects 4-byte UTF-8 (non-BMP emoji) and angle brackets.
+        if code > 0xFFFF or ch in ("<", ">", "\u200d", "\ufe0e", "\ufe0f"):
+            continue
+        cleaned_chars.append(ch)
+    cleaned = "".join(cleaned_chars)
+    cleaned_lines = [re.sub(r"[ \t]{2,}", " ", ln).rstrip() for ln in cleaned.split("\n")]
+    cleaned = "\n".join(cleaned_lines)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+    return cleaned
+
+
 def extract_whats_new(pr_body: str | None) -> str:
     """Return user-facing TestFlight notes from a PR body, or the default."""
     if not pr_body:
         return DEFAULT_WHATS_NEW
 
     normalized = pr_body.replace("\r\n", "\n").replace("\r", "\n")
-    lines = normalized.split("\n")
+    without_comments = _strip_html_comments_outside_fences(normalized)
+    lines = without_comments.split("\n")
 
     in_fence = False
     fence_char = ""
@@ -119,14 +178,11 @@ def extract_whats_new(pr_body: str | None) -> str:
     if not capturing:
         return DEFAULT_WHATS_NEW
 
-    raw_section = "\n".join(captured_lines)
-    raw_section = _HTML_COMMENT_RE.sub("", raw_section)
-    raw_section = re.sub(r"\n{3,}", "\n\n", raw_section).strip()
-
-    if _is_placeholder(raw_section):
+    sanitized = _sanitize_asc_text("\n".join(captured_lines))
+    if _is_placeholder(sanitized):
         return DEFAULT_WHATS_NEW
 
-    return _truncate(raw_section)
+    return _truncate(sanitized)
 
 
 def main(argv: list[str] | None = None) -> int:

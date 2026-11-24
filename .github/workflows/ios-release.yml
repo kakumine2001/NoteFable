@@ -26,7 +26,7 @@ jobs:
       build_number: ${{ steps.version.outputs.build_number }}
       marketing_version: ${{ steps.version.outputs.marketing_version }}
       commit_sha: ${{ steps.target.outputs.sha }}
-      pr_number: ${{ steps.pr.outputs.pr_number }}
+      whats_new_b64: ${{ steps.notes.outputs.whats_new_b64 }}
     steps:
       # Check out main, resolve the target commit (push SHA or manual replay SHA on main's first-parent history),
       # and verify it came from a merged PR targeting main.
@@ -79,6 +79,35 @@ jobs:
             git checkout --detach "$TARGET_SHA"
           fi
           bash scripts/release/ios-version.sh
+      - name: Resolve TestFlight What to Test notes
+        if: steps.version.outputs.publish == 'true'
+        id: notes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # Restore the workflow revision so replays of older merges still have ios-testflight-notes.py.
+          if [[ "$WORKFLOW_SHA" != "$(git rev-parse HEAD)" ]]; then
+            git checkout --detach "$WORKFLOW_SHA"
+          fi
+          pr_body_file="$RUNNER_TEMP/pr-body.md"
+          whats_new_file="$RUNNER_TEMP/whats-new.txt"
+          if [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+            if ! gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.body // ""' > "$pr_body_file"; then
+              echo "::warning::Failed to fetch PR #$PR_NUMBER body; falling back to default TestFlight notes."
+              : > "$pr_body_file"
+            fi
+          else
+            : > "$pr_body_file"
+          fi
+          python3 scripts/release/ios-testflight-notes.py --pr-body-file "$pr_body_file" > "$whats_new_file"
+          echo "Resolved TestFlight What to Test notes:"
+          cat "$whats_new_file"
+          encoded=$(python3 -c 'import base64, sys; print(base64.b64encode(open(sys.argv[1], "rb").read()).decode("ascii"))' "$whats_new_file")
+          printf 'whats_new_b64=%s\n' "$encoded" >> "$GITHUB_OUTPUT"
 
   release:
     needs: plan
@@ -377,7 +406,6 @@ jobs:
     if: needs.plan.outputs.publish == 'true' && needs.release.outputs.uploaded == 'true'
     permissions:
       contents: read
-      pull-requests: read
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: appstore-publish
@@ -386,31 +414,12 @@ jobs:
       cancel-in-progress: false
       queue: max
     steps:
+      # Check out the workflow revision (not commit_sha) so manual replays of older merges still have the scripts.
       - uses: actions/checkout@v7
         with:
-          ref: ${{ needs.plan.outputs.commit_sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 1
           persist-credentials: false
-
-      - name: Resolve TestFlight What to Test notes
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ needs.plan.outputs.pr_number }}
-        run: |
-          set -euo pipefail
-          pr_body_file="$RUNNER_TEMP/pr-body.md"
-          whats_new_file="$RUNNER_TEMP/whats-new.txt"
-          if [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
-            if ! gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.body // ""' > "$pr_body_file"; then
-              echo "::warning::Failed to fetch PR #$PR_NUMBER body; falling back to default TestFlight notes."
-              : > "$pr_body_file"
-            fi
-          else
-            : > "$pr_body_file"
-          fi
-          python3 scripts/release/ios-testflight-notes.py --pr-body-file "$pr_body_file" > "$whats_new_file"
-          echo "Resolved TestFlight What to Test notes:"
-          cat "$whats_new_file"
 
       - name: Distribute build to TestFlight External group
         env:
@@ -419,14 +428,17 @@ jobs:
           APPSTORE_API_KEY_P8_B64: ${{ secrets.APPSTORE_API_KEY_P8_B64 }}
           MARKETING_VERSION: ${{ needs.plan.outputs.marketing_version }}
           BUILD_NUMBER: ${{ needs.plan.outputs.build_number }}
+          WHATS_NEW_B64: ${{ needs.plan.outputs.whats_new_b64 }}
         run: |
           set -euo pipefail
+          whats_new_file="$RUNNER_TEMP/whats-new.txt"
+          python3 -c 'import base64, os, sys; open(sys.argv[1], "wb").write(base64.b64decode(os.environ["WHATS_NEW_B64"]))' "$whats_new_file"
           python3 scripts/release/ios-testflight-distribute.py \
             --bundle-id com.kakumine.notefable \
             --marketing-version "$MARKETING_VERSION" \
             --build-number "$BUILD_NUMBER" \
             --group-name External \
             --locale en-US \
-            --whats-new-file "$RUNNER_TEMP/whats-new.txt" \
+            --whats-new-file "$whats_new_file" \
             --poll-interval 20 \
             --poll-timeout 1200

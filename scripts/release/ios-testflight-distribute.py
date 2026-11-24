@@ -394,7 +394,49 @@ def _get_review_state(client: AscClient, build_id: str) -> str | None:
     return None
 
 
-def submit_for_beta_review(client: AscClient, build_id: str) -> str:
+def _find_in_review_sibling_build(
+    client: AscClient, app_id: str, marketing_version: str, current_build_id: str
+) -> tuple[str, str] | None:
+    """Return (version, state) if another build of the same version is in Beta App Review."""
+    query = urllib.parse.urlencode(
+        {
+            "filter[app]": app_id,
+            "filter[preReleaseVersion.version]": marketing_version,
+            "include": "betaAppReviewSubmission",
+            "limit": 20,
+        }
+    )
+    resp = client.request("GET", f"/builds?{query}") or {}
+    submissions_by_id: dict[str, str] = {}
+    for item in resp.get("included") or []:
+        if item.get("type") == "betaAppReviewSubmissions":
+            state = (item.get("attributes") or {}).get("betaReviewState")
+            if isinstance(state, str):
+                submissions_by_id[item["id"]] = state
+
+    for build in resp.get("data") or []:
+        if build.get("id") == current_build_id:
+            continue
+        rel_data = (
+            ((build.get("relationships") or {}).get("betaAppReviewSubmission") or {}).get(
+                "data"
+            )
+        )
+        if isinstance(rel_data, dict) and rel_data.get("id") in submissions_by_id:
+            state = submissions_by_id[rel_data["id"]]
+            if state in ("WAITING_FOR_REVIEW", "IN_REVIEW"):
+                ver = (build.get("attributes") or {}).get("version", "unknown")
+                return ver, state
+    return None
+
+
+def submit_for_beta_review(
+    client: AscClient,
+    build_id: str,
+    app_id: str | None = None,
+    marketing_version: str | None = None,
+    build_number: str | None = None,
+) -> str:
     existing_state = _get_review_state(client, build_id)
     if existing_state in SUBMITTED_REVIEW_STATES:
         print(
@@ -428,6 +470,21 @@ def submit_for_beta_review(client: AscClient, build_id: str) -> str:
                     f"Build {build_id} is already in Beta App Review state '{rechecked}'."
                 )
                 return rechecked
+            if app_id and marketing_version:
+                sibling = _find_in_review_sibling_build(
+                    client, app_id, marketing_version, build_id
+                )
+                if sibling:
+                    sib_ver, sib_state = sibling
+                    raise AscError(
+                        f"Build {marketing_version} ({build_number or build_id}) has been added to "
+                        f"the external group with What-to-Test notes, but Beta App Review submission "
+                        f"is blocked because build {marketing_version} ({sib_ver}) is currently "
+                        f"{sib_state}. Re-run the distribute_external job once that review completes "
+                        f"to submit this build without re-uploading.",
+                        status=409,
+                        body=exc.body,
+                    ) from exc
         raise
 
 
@@ -458,7 +515,13 @@ def distribute_external(
     )
     upsert_whats_new(client, build_id=build_id, locale=locale, whats_new=whats_new)
     add_build_to_group(client, group_id=group_id, build_id=build_id)
-    review_state = submit_for_beta_review(client, build_id=build_id)
+    review_state = submit_for_beta_review(
+        client,
+        build_id=build_id,
+        app_id=app_id,
+        marketing_version=marketing_version,
+        build_number=build_number,
+    )
     return {
         "app_id": app_id,
         "group_id": group_id,

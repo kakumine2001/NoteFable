@@ -55,7 +55,6 @@ class ExtractWhatsNewTests(unittest.TestCase):
         for heading in (
             "## What to Test:",
             "### TestFlight Notes",
-            "## Release Notes",
             "## 测试内容：",
         ):
             body = f"{heading}\nTry out the new whiteboard export.\n"
@@ -63,6 +62,37 @@ class ExtractWhatsNewTests(unittest.TestCase):
                 notes_mod.extract_whats_new(body),
                 "Try out the new whiteboard export.",
             )
+
+    def test_ignores_generic_release_notes_and_prefers_testflight(self) -> None:
+        generic_only = "## Release Notes\nInternal refactors.\n"
+        self.assertEqual(
+            notes_mod.extract_whats_new(generic_only), notes_mod.DEFAULT_WHATS_NEW
+        )
+        both = (
+            "## Release Notes\nInternal refactors.\n\n"
+            "## TestFlight\nTry the updated dark mode.\n"
+        )
+        self.assertEqual(notes_mod.extract_whats_new(both), "Try the updated dark mode.")
+
+    def test_ignores_commented_out_testflight_heading(self) -> None:
+        body = (
+            "<!--\n"
+            "## TestFlight\n"
+            "Template placeholder that should never be published.\n"
+            "-->\n\n"
+            "## TestFlight\n"
+            "Real user-facing update.\n"
+        )
+        self.assertEqual(notes_mod.extract_whats_new(body), "Real user-facing update.")
+
+        commented_only = "<!--\n## TestFlight\nHidden template text.\n-->\n"
+        self.assertEqual(
+            notes_mod.extract_whats_new(commented_only), notes_mod.DEFAULT_WHATS_NEW
+        )
+
+    def test_sanitizes_emoji_and_angle_brackets(self) -> None:
+        body = "## TestFlight\n- 🚀 Fast <sync> fixed!\n"
+        self.assertEqual(notes_mod.extract_whats_new(body), "- Fast sync fixed!")
 
     def test_ignores_headings_inside_fenced_code_blocks(self) -> None:
         body = (
