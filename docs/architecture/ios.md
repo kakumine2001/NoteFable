@@ -7,8 +7,8 @@
 ## PR 检查
 
 - 工作流：[`.github/workflows/ios-pr.yml`](../../.github/workflows/ios-pr.yml)
-- 改动 `mobile/ios/**`、`mobile/android/app/src/main/assets/**`、`.github/workflows/ios-*.yml`、`scripts/release/ios-version*.sh` 或 `scripts/release/verify-merged-pr*.sh` 并向 `main` 提 PR 时运行；只改 PR 标题或描述时不触发。
-- 先在 `ubuntu-latest` 上运行合并 PR 校验脚本测试（`scripts/release/verify-merged-pr.test.sh`）、版本号校验脚本测试（`scripts/release/ios-version.test.sh`）与本次 PR 的版本号检查（`scripts/release/ios-version.sh`），避免版本号出错时白耗高倍率的 macOS 分钟数。
+- 改动 `mobile/ios/**`、`mobile/android/app/src/main/assets/**`、`.github/workflows/ios-*.yml`、`scripts/release/ios-version*.sh`、`scripts/release/ios-testflight-*.py`、`scripts/release/test_ios_testflight_*.py` 或 `scripts/release/verify-merged-pr*.sh` 并向 `main` 提 PR 时运行；只改 PR 标题或描述时不触发。
+- 先在 `ubuntu-latest` 上运行合并 PR 校验脚本测试（`scripts/release/verify-merged-pr.test.sh`）、版本号校验脚本测试（`scripts/release/ios-version.test.sh`）、TestFlight 外部测试分发脚本测试（`scripts/release/test_ios_testflight_*.py`）与本次 PR 的版本号检查（`scripts/release/ios-version.sh`），避免脚本或版本号出错时白耗高倍率的 macOS 分钟数。
 - 只有校验通过且仓库存在 `mobile/ios/project.yml` 时，才启动 `xcode-27` 镜像（macOS + Xcode 27）运行 Core 的单元测试（`mobile/ios/scripts/ci-core-tests.sh`：`swift test` 加一个时限，测试挂住时打印卡住的调用栈并提前结束，不把任务时限耗完）、XcodeGen 生成工程和模拟器无签名构建。PR 检查不接触任何发布凭据。
 
 ## 自动打包与上传 App Store Connect（TestFlight）
@@ -36,6 +36,7 @@
   3. 从构建配置读取 `CODE_SIGN_ENTITLEMENTS`（若配置了 entitlements 文件但缺失则直接失败），用 ad-hoc `codesign --force --sign "-" --entitlements ...` 补写权限声明，防止 `CODE_SIGNING_ALLOWED=NO` 导致 Associated Domains（`applinks:app.notefable.com`）在导出阶段丢失。
   4. 通过 `xcodebuild -exportArchive`（`method: app-store-connect`、`signingStyle: automatic`、`destination: export`、`manageAppVersionAndBuildNumber: false`）配合 `-allowProvisioningUpdates` 和 App Store Connect API Key（`.p8`）由 Apple 云端自动签名导出 `.ipa`，无需本地 `.p12` 证书或手动维护描述文件。
   5. 通过 `API_PRIVATE_KEYS_DIR` 指向 `$RUNNER_TEMP` 下的临时目录，用 `xcrun altool --upload-app` 将 `.ipa` 上传到 App Store Connect（进入 TestFlight）。
+  6. 上传完成后，`distribute_external` 任务在 `ubuntu-latest` 上运行（不消耗 macOS 分钟数）：通过 `scripts/release/ios-testflight-notes.py` 优先提取本次合并 PR 描述中的 `## TestFlight`（或 `## What to Test`）段落作为「测试内容」，若 PR 未填写面向用户的说明（例如仅后端优化）则回退到通用 Beta 测试文案；随后通过 `scripts/release/ios-testflight-distribute.py` 复用同一套 App Store Connect API 凭据，等待构建处理完成（`VALID`）、写入 `en-US` 测试说明、将构建加入 `External` 外部测试组并在需要时提交 Beta 审核。
 - **安全边界**：发布 Secrets 仅存于限制 `main` 分支的 GitHub Environment `appstore-publish`，不放仓库级 Secrets；临时 `Config/Local.xcconfig` 写入 `mobile/ios/Config/` 并在归档步骤结束时由 `trap` 删除，`.p8`、`ExportOptions.plist`、`.xcarchive` 与 `.ipa` 均落在 `$RUNNER_TEMP`（`umask 077`）并通过 `trap` 清理；不把持密任务的输出写入共享 Actions cache。
 
 ## 注册 Apple Developer 账号后的启用清单

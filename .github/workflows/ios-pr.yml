@@ -12,6 +12,8 @@ on:
       - "mobile/android/app/src/main/assets/**"
       - ".github/workflows/ios-*.yml"
       - "scripts/release/ios-version*.sh"
+      - "scripts/release/ios-testflight-*.py"
+      - "scripts/release/test_ios_testflight_*.py"
       - "scripts/release/verify-merged-pr*.sh"
 
 permissions:
@@ -37,6 +39,8 @@ jobs:
         run: bash scripts/release/verify-merged-pr.test.sh
       - name: Test iOS version script
         run: bash scripts/release/ios-version.test.sh
+      - name: Test iOS TestFlight distribution scripts
+        run: python3 -m unittest discover -s scripts/release -p 'test_ios_testflight_*.py' -v
       - name: Validate iOS version
         run: bash scripts/release/ios-version.sh
       - name: Check iOS project presence
