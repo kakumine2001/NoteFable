@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, History, Paperclip, SquarePen, X, Zap } from "lucide-react";
+import { ArrowUp, History, Image as ImageIcon, Paperclip, Sparkles, SquarePen, X, Zap } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent, type UIEvent } from "react";
 import { createPortal } from "react-dom";
 import { AppIcon } from "@/components/app-icon";
@@ -460,9 +460,10 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
     }
   }, [openSignal, hidden, phone]);
 
+  // パネルを新しく開いたときだけ入力欄へフォーカスする。すでに開いた状態でキャンバス上の選択が変わったときはフォーカスを奪わない（Delete キーなどの操作を妨げないため）。
   useEffect(() => {
     if (open && !phone) inputRef.current?.focus();
-  }, [open, phone, selectionText, selectionIds.length]);
+  }, [open, phone]);
 
   // 新しい発言や回答が増えたら下へ送る。ただし、読み返すために上へ戻っている間は動かさない。
   useEffect(() => {
@@ -960,7 +961,11 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
         {hasSelection && (
           <div className="note-ai-selection">
             <div className="chat-quote note-ai-quote" role="group" aria-label={selectionText ? t("Selected text") : t("Selected items")}>
+              <Sparkles size={13} className="note-ai-quote-icon" aria-hidden="true" />
               <span className="chat-quote-text">{selectionText || t("{count} items selected", { count: selectionIds.length })}</span>
+              {Boolean(selection?.captureImage && modelOption.supportsImageInput) && (
+                <ImageIcon size={13} className="note-ai-quote-vision" aria-hidden="true" />
+              )}
               <button type="button" className="chat-quote-remove" disabled={busy} onClick={() => { setNotice(""); onClearSelection?.(); }}
                 aria-label={t("Remove selection")} title={t("Remove selection")}>
                 <X size={14} aria-hidden="true" />
@@ -1028,12 +1033,17 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
 
   return (
     <>
-      <button ref={fabRef} type="button" className={`note-ai-fab ${open ? "is-open" : ""} ${dragging ? "is-dragging" : ""} ${anchored ? "is-anchored" : ""}`}
+      <button ref={fabRef} type="button" className={`note-ai-fab ${open ? "is-open" : ""} ${!open && hasSelection ? "has-selection" : ""} ${dragging ? "is-dragging" : ""} ${anchored ? "is-anchored" : ""}`}
         style={fab ? { right: fab.right, bottom: fab.bottom } : undefined}
         onPointerDown={onFabPointerDown} onPointerMove={onFabPointerMove} onPointerUp={onFabPointerEnd} onPointerCancel={onFabPointerEnd}
         onClick={() => { if (skipClick.current) { skipClick.current = false; return; } setOpen((current) => !current); }}
-        aria-label={t(kindText.title)} aria-expanded={open} title={t("Ask AI")}>
+        aria-label={t(kindText.title)} aria-expanded={open} title={t("Ask NoteFable")}>
         <AppIcon size={phone ? 42 : 40} state={noteCharacterState} animated />
+        {!open && hasSelection && (
+          <span className="note-ai-fab-badge" aria-hidden="true">
+            {selectionIds.length > 0 ? selectionIds.length : <Sparkles size={10} />}
+          </span>
+        )}
       </button>
       {open && (phone
         ? createPortal(

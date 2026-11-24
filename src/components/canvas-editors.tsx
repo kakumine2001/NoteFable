@@ -33,8 +33,10 @@ export type CanvasEditorProps = {
   saveStatus: NoteSaveStatus;
   onChange: (data: CanvasData) => void;
   onTitleChange: (title: string) => void;
-  // 選んだ要素・スライドについて AI に聞く（エディターの「Ask AI」）。AI パネルが開き、text は引用、ids は要素・スライドの ID として送られる。
+  // 選んだ要素・スライドについて AI に聞く（エディターの「Ask NoteFable / Ask AI」）。AI パネルが開き、text は引用、ids は要素・スライドの ID として送られる。
   onAskAi?: (selection: PageSelection) => void;
+  // キャンバス上の選択が変わったことをリアルタイムに伝える（AI パネルが開いている時や、右下の AI キャラクターを押した時にも現在の選択を自動で添付する）。
+  onSelectionChange?: (selection: PageSelection | null) => void;
   // AI ボタンの置き場所。エディターは自分の操作を避けた場所（スライドは単ページ編集の面の右下）にこれを置く。
   // 中身は見えない目印で、ボタンを動かしていない間はそこにボタンが重なる（page-assistant.tsx の anchor）。
   // 目印を包む枠は押せなくなる（note-assistant.css）。分割表示では渡さない。

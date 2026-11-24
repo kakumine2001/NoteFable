@@ -7,6 +7,7 @@ import {
   Underline, Ungroup,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { AppIcon } from "@/components/app-icon";
 import { useT } from "@/components/i18n-provider";
 import { ColorPicker, MenuButton } from "@/components/slides/slide-menus";
 import type { TextCommands } from "@/components/slides/text-editor";
@@ -125,9 +126,11 @@ export function SlideInspector({ slide, selection, theme, editable, onChange, on
   // ロック中でも AI に質問できるよう、fieldset（disabled={!editable}）の外に出す。
   const askAiSection = onAskAi ? (
     <div className="slides-inspector-section slides-inspector-ai">
-      <button type="button" className="slides-wide-button slides-inspector-ask-ai" onClick={onAskAi}>
-        <Sparkles size={15} aria-hidden="true" />
-        <span>{t("Ask AI")}</span>
+      <button type="button" className="slides-wide-button slides-inspector-ask-ai" onClick={onAskAi} title={t("Ask NoteFable")}>
+        <AppIcon size={18} />
+        <span className="slides-inspector-ask-ai-label">{t("Ask NoteFable")}</span>
+        {selected.length > 1 && <span className="slides-inspector-ask-ai-count">{selected.length}</span>}
+        <Sparkles size={14} className="slides-inspector-ask-ai-spark" aria-hidden="true" />
       </button>
     </div>
   ) : null;

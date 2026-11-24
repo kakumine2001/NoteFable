@@ -58,7 +58,7 @@ function isTypingTarget(target: EventTarget | null) {
 const MOD = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
 
 // aiSlot: AI の面板（#150）を置く場所。単ページ編集の面の右下（スマホでは縮小図の帯の上）に重ねて出す。
-export default function SlidesEditor({ pageId, title, data, version, editable, embedded, onChange, onTitleChange, onAskAi, aiSlot }: CanvasEditorProps & { aiSlot?: ReactNode }) {
+export default function SlidesEditor({ pageId, title, data, version, editable, embedded, onChange, onTitleChange, onAskAi, onSelectionChange, aiSlot }: CanvasEditorProps & { aiSlot?: ReactNode }) {
   const t = useT();
   const phone = useMediaQuery("(max-width: 640px)");
   // 作ったばかりで中身の無いスライドは、最初の 1 枚（標題）を入れて始める（作成の続き。開いただけで書き換えるのはこの時だけ）。
@@ -159,6 +159,51 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     const detail: SlidesSelectionDetail = { pageId, slideIds: view === "grid" ? [...selectedSlides] : current ? [current.id] : [], elementIds: [...liveSelection] };
     window.dispatchEvent(new CustomEvent<SlidesSelectionDetail>(SLIDES_EVENTS.selection, { detail }));
   }, [pageId, view, selectedSlides, current, liveSelection]);
+
+  // 要素を選んだ状態・総覧で複数枚を選んだ状態をリアルタイムに AI パネルへ同期する（パネルが開いている時や、右下の AI ボタンを押した時にも自動で添付する）。
+  useEffect(() => {
+    if (!onSelectionChange) return;
+    return () => { onSelectionChange(null); };
+  }, [onSelectionChange]);
+  useEffect(() => {
+    if (!onSelectionChange) return;
+    const isElementSelection = view === "slide" && current && liveSelection.size > 0;
+    const isMultiSlideSelection = view === "grid" && selectedSlides.size > 1;
+    if (!isElementSelection && !isMultiSlideSelection) {
+      onSelectionChange(null);
+      return;
+    }
+    const slideIds = isElementSelection
+      ? [current.id]
+      : deck.slides.filter((slide) => selectedSlides.has(slide.id)).map((slide) => slide.id);
+    if (!slideIds.length) { onSelectionChange(null); return; }
+    const elementIds = isElementSelection ? [...liveSelection] : [];
+    const sel = { slideIds, elementIds };
+    const text = slidesContextText(deck, sel);
+    const ids = slidesSelectionIds(deck, sel);
+    const targetSlideId = (current && slideIds.includes(current.id) ? current.id : slideIds[0]) ?? null;
+    const fallbackSlide = targetSlideId ? deck.slides.find((slide) => slide.id === targetSlideId) ?? null : null;
+    const fallbackSnapshot = fallbackSlide ? { ...fallbackSlide, elements: fallbackSlide.elements.map((el) => ({ ...el })) } : null;
+    const fallbackTheme = theme;
+    const captureImage = targetSlideId
+      ? async () => {
+        if (exportingRef.current || captureBusyRef.current) return null;
+        captureBusyRef.current = true;
+        try {
+          const latestDeck = deckRef.current;
+          const liveSlide = latestDeck.slides.find((slide) => slide.id === targetSlideId) ?? fallbackSnapshot;
+          if (!liveSlide) return null;
+          const liveTheme = resolveTheme(latestDeck.theme) ?? fallbackTheme;
+          const targetElementIds = elementIds.filter((id) => liveSlide.elements.some((el) => el.id === id));
+          if (elementIds.length > 0 && !targetElementIds.length) return null;
+          return await captureSlideSelectionPng(capture, { ...liveSlide, elements: liveSlide.elements.map((el) => ({ ...el })) }, liveTheme, targetElementIds);
+        } finally {
+          captureBusyRef.current = false;
+        }
+      }
+      : undefined;
+    onSelectionChange({ text, ids, captureImage });
+  }, [onSelectionChange, view, deck, selectedSlides, current, liveSelection, theme, capture]);
 
   // 選んだスライドや要素について AI に聞く（ロック中のスライドからも利用可能）。
   const askAi = useCallback((override?: { slideIds?: string[]; elementIds?: string[] }) => {

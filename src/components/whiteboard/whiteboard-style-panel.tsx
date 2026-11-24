@@ -4,9 +4,10 @@ import { applyDarkModeFilter } from "@excalidraw/excalidraw";
 import {
   AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalDistributeCenter, AlignStartHorizontal,
   AlignStartVertical, AlignVerticalDistributeCenter, ArrowDownToLine, ArrowUpToLine, ChevronDown, ChevronUp, ChevronsDown, ChevronsUp, Copy, Group,
-  ExternalLink, Link2, Lock, LockOpen, Plus, Trash2, Ungroup, AlignLeft, AlignCenter, AlignRight, FlipHorizontal2, FlipVertical2,
+  ExternalLink, Link2, Lock, LockOpen, Plus, Sparkles, Trash2, Ungroup, AlignLeft, AlignCenter, AlignRight, FlipHorizontal2, FlipVertical2,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { AppIcon } from "@/components/app-icon";
 import { useT } from "@/components/i18n-provider";
 import { msg } from "@/lib/i18n/translate";
 import { useBackToClose } from "@/lib/use-back-to-close";
@@ -75,7 +76,7 @@ const ARROWHEADS: { value: string | null; label: string }[] = [
   { value: "dot", label: msg("Dot") }, { value: "bar", label: msg("Bar") },
 ];
 
-export function WhiteboardStylePanel({ ui, drawMode, compact, theme, actions, onLink, onOpenLink, textOnly = false }: {
+export function WhiteboardStylePanel({ ui, drawMode, compact, theme, actions, onLink, onOpenLink, onAskAi, textOnly = false }: {
   ui: WhiteboardUiState;
   drawMode: "pen" | "highlighter" | null;
   compact: boolean;
@@ -83,6 +84,7 @@ export function WhiteboardStylePanel({ ui, drawMode, compact, theme, actions, on
   actions: WhiteboardActions | null;
   onLink: () => void;
   onOpenLink: (link: string) => void;
+  onAskAi?: () => void;
   // 文字の入力中（文字の見た目だけを出す）。
   textOnly?: boolean;
 }) {
@@ -112,9 +114,46 @@ export function WhiteboardStylePanel({ ui, drawMode, compact, theme, actions, on
   const collapsed = compact && !expanded;
 
   const color = (value: string) => theme === "dark" && value !== "transparent" ? applyDarkModeFilter(value) : value;
+  const hasStyleControls = showStroke || showBackground || showWidth || !collapsed;
+
+  const actionsButtons = (
+    <div className="whiteboard-actions-row" role="toolbar" aria-label={t("Actions")}>
+      {multi && !ui.groupSelected && <IconAction label={t("Group")} onClick={() => run("group")}><Group size={15} /></IconAction>}
+      {ui.groupSelected && <IconAction label={t("Ungroup")} onClick={() => run("ungroup")}><Ungroup size={15} /></IconAction>}
+      <IconAction label={t("Duplicate")} onClick={() => run("duplicateSelection")}><Copy size={15} /></IconAction>
+      {!collapsed && <IconAction label={t("Flip horizontal")} onClick={() => run("flipHorizontal")}><FlipHorizontal2 size={15} /></IconAction>}
+      {!collapsed && <IconAction label={t("Flip vertical")} onClick={() => run("flipVertical")}><FlipVertical2 size={15} /></IconAction>}
+      {!collapsed && <IconAction label={ui.link ? t("Edit link") : t("Add link")} onClick={onLink}><Link2 size={15} /></IconAction>}
+      {ui.link && !collapsed && <IconAction label={t("Open link")} onClick={() => onOpenLink(ui.link!)}><ExternalLink size={15} /></IconAction>}
+      {!collapsed && <IconAction label={ui.allLocked ? t("Unlock") : t("Lock")} onClick={() => run("toggleElementLock")}>{ui.allLocked ? <LockOpen size={15} /> : <Lock size={15} />}</IconAction>}
+      <span className="whiteboard-actions-sep" aria-hidden="true" />
+      <IconAction label={t("Delete")} danger onClick={() => run("deleteSelectedElements")}><Trash2 size={15} /></IconAction>
+    </div>
+  );
+
+  const askAiButton = onAskAi ? (
+    <button type="button" className="whiteboard-panel-ai" onClick={onAskAi} title={t("Ask NoteFable")}>
+      <AppIcon size={18} />
+      <span className="whiteboard-panel-ai-label">{t("Ask NoteFable")}</span>
+      {ui.selectedCount > 1 && <span className="whiteboard-panel-ai-count">{ui.selectedCount}</span>}
+      <Sparkles size={14} className="whiteboard-panel-ai-spark" aria-hidden="true" />
+    </button>
+  ) : null;
 
   return <div className={`whiteboard-panel${compact ? " is-compact" : ""}${collapsed ? " is-collapsed" : ""}`} role="region" aria-label={t("Style")} data-viewport-ui={compact ? "bottom" : "side"}
     onKeyDown={(event) => event.stopPropagation()}>
+    {selection && (collapsed ? (
+      <div className="whiteboard-compact-top">
+        {askAiButton}
+        {actionsButtons}
+      </div>
+    ) : (
+      <div className="whiteboard-panel-head">
+        {askAiButton}
+        <Section label={t("Actions")}>{actionsButtons}</Section>
+        {hasStyleControls && <hr className="whiteboard-panel-divider" />}
+      </div>
+    ))}
     {showStroke && <Section label={freedraw && drawMode === "highlighter" ? t("Highlighter color") : t("Stroke")}>
       <Swatches picks={picks} current={style.strokeColor} display={color} onPick={(value) => run("changeStrokeColor", { color: value })} />
     </Section>}
@@ -198,19 +237,6 @@ export function WhiteboardStylePanel({ ui, drawMode, compact, theme, actions, on
         </div>}
       </Section>}
     </>}
-    {selection && <Section label={t("Actions")}>
-      <div className="whiteboard-row">
-        {multi && !ui.groupSelected && <IconAction label={t("Group")} onClick={() => run("group")}><Group size={15} /></IconAction>}
-        {ui.groupSelected && <IconAction label={t("Ungroup")} onClick={() => run("ungroup")}><Ungroup size={15} /></IconAction>}
-        <IconAction label={t("Duplicate")} onClick={() => run("duplicateSelection")}><Copy size={15} /></IconAction>
-        {!collapsed && <IconAction label={t("Flip horizontal")} onClick={() => run("flipHorizontal")}><FlipHorizontal2 size={15} /></IconAction>}
-        {!collapsed && <IconAction label={t("Flip vertical")} onClick={() => run("flipVertical")}><FlipVertical2 size={15} /></IconAction>}
-        <IconAction label={ui.link ? t("Edit link") : t("Add link")} onClick={onLink}><Link2 size={15} /></IconAction>
-        {ui.link && <IconAction label={t("Open link")} onClick={() => onOpenLink(ui.link!)}><ExternalLink size={15} /></IconAction>}
-        <IconAction label={ui.allLocked ? t("Unlock") : t("Lock")} onClick={() => run("toggleElementLock")}>{ui.allLocked ? <LockOpen size={15} /> : <Lock size={15} />}</IconAction>
-        <IconAction label={t("Delete")} danger onClick={() => run("deleteSelectedElements")}><Trash2 size={15} /></IconAction>
-      </div>
-    </Section>}
     {compact && <button type="button" className="whiteboard-panel-expand" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
       {expanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}<span>{expanded ? t("Fewer options") : t("More options")}</span>
     </button>}

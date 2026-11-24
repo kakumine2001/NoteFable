@@ -175,8 +175,45 @@
 .slides-wide-button { display: flex; width: 100%; align-items: center; justify-content: center; gap: 6px; height: 32px; margin-top: 4px; border: 1px solid var(--notion-border); border-radius: 6px; background: var(--notion-surface); color: var(--notion-text); font-size: 13px; }
 .slides-wide-button:hover:not(:disabled) { background: var(--notion-hover); }
 .slides-inspector-ai { padding: 8px 0; }
-.slides-wide-button.slides-inspector-ask-ai { margin-top: 0; border-color: var(--nf-accent-line); background: var(--nf-accent-soft); color: var(--notion-blue); font-weight: 600; }
-.slides-wide-button.slides-inspector-ask-ai:hover:not(:disabled) { filter: brightness(0.97); }
+.slides-wide-button.slides-inspector-ask-ai {
+  justify-content: flex-start;
+  gap: 7px;
+  min-height: 36px;
+  margin-top: 0;
+  padding-block: 5px;
+  padding-inline: 8px 10px;
+  border-radius: 10px;
+  border-color: var(--nf-accent-line);
+  background: linear-gradient(135deg, var(--nf-accent-soft) 0%, var(--kind-whiteboard-soft) 100%);
+  color: var(--notion-text);
+  font-size: 13px;
+  font-weight: 600;
+  transition: background-color .14s ease, border-color .14s ease, box-shadow .14s ease;
+}
+.slides-wide-button.slides-inspector-ask-ai:hover:not(:disabled) {
+  border-color: var(--nf-accent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--nf-accent) 16%, transparent) 0%, color-mix(in srgb, var(--kind-whiteboard) 16%, transparent) 100%);
+  box-shadow: 0 2px 10px var(--nf-accent-soft);
+}
+.slides-inspector-ask-ai-label { flex: 1; min-width: 0; text-align: start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slides-inspector-ask-ai-count {
+  flex: none;
+  min-width: 18px;
+  height: 18px;
+  padding-inline: 5px;
+  border-radius: 999px;
+  background: var(--nf-accent);
+  color: var(--nf-on-ink);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  display: inline-grid;
+  place-items: center;
+}
+.slides-inspector-ask-ai-spark { flex: none; color: var(--nf-accent); }
+@media (prefers-reduced-motion: reduce) {
+  .slides-wide-button.slides-inspector-ask-ai { transition: none; }
+}
 .slides-check { display: flex; align-items: center; gap: 8px; margin: 4px 0 10px; color: var(--notion-text); }
 .slides-stepper { display: flex; flex: 1; align-items: center; gap: 4px; margin-bottom: 8px; color: var(--notion-muted); font-size: 12px; }
 .slides-stepper span { flex: 1; }

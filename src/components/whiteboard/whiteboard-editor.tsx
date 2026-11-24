@@ -87,6 +87,8 @@ export type WhiteboardEditorProps = {
   onIconChange: (icon: string | null) => void;
   // 選んだ要素について AI に聞く（AI パネルを開いて選区コンテキストと画像キャプチャを渡す）。
   onAskAi?: (selection: PageSelection) => void;
+  // キャンバス上の選択が変わったことをリアルタイムに知らせる（AI パネルが開いている時や、右下の AI ボタンを押した時にも自動添付する）。
+  onSelectionChange?: (selection: PageSelection | null) => void;
   // 右下（AI ボタン、#153）用に空けておく場所の中身。
   aiSlot?: ReactNode;
   handleRef?: Ref<WhiteboardEditorHandle>;
@@ -443,16 +445,105 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
 
   // ---- 画面の状態（自前のツールバー・パネルに出すもの）。変わった時だけ描き直す。 ----
   const uiKey = useRef("");
-  const readUi = useCallback((elements: readonly ExcalidrawElement[], appState: AppState) => {
+  const lastLiveSelectionKey = useRef("");
+  const onSelectionChangeRef = useRef(props.onSelectionChange);
+  const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
+  useEffect(() => { apiRef.current = api; }, [api]);
+
+  const makeCapture = useCallback((selectedIdList: readonly string[], fallbackElements: readonly NonDeletedExcalidrawElement[], fallbackFiles: BinaryFiles, fallbackBg: string) => {
+    const fallbackSnapshot = {
+      elements: fallbackElements.map((element) => ({ ...element })) as NonDeletedExcalidrawElement[],
+      files: fallbackFiles,
+      viewBackgroundColor: fallbackBg,
+    };
+    const idSet = new Set(selectedIdList);
+    return () => {
+      const liveApi = apiRef.current;
+      if (liveApi && mounted.current) {
+        const liveElements = liveApi.getSceneElements();
+        const liveAppState = liveApi.getAppState();
+        const liveExpanded = expandWhiteboardSelection(liveElements, idSet);
+        if (liveExpanded.elements.length) {
+          const allLiveFiles = liveApi.getFiles();
+          const liveFiles: BinaryFiles = {};
+          for (const element of liveExpanded.elements) {
+            if (element.type === "image" && typeof element.fileId === "string" && allLiveFiles[element.fileId]) {
+              liveFiles[element.fileId] = allLiveFiles[element.fileId];
+            }
+          }
+          return exportWhiteboardSelectionPng({
+            elements: liveExpanded.elements.map((element) => ({ ...element })) as NonDeletedExcalidrawElement[],
+            files: liveFiles,
+            viewBackgroundColor: liveAppState.viewBackgroundColor,
+          });
+        }
+      }
+      return exportWhiteboardSelectionPng(fallbackSnapshot);
+    };
+  }, []);
+
+  const readUi = useCallback((elements: readonly ExcalidrawElement[], appState: AppState, files?: BinaryFiles) => {
     const selected = elements.filter((element) => !element.isDeleted && appState.selectedElementIds[element.id]) as NonDeletedExcalidrawElement[];
     const next = deriveUiState(selected, appState, elements);
     const key = JSON.stringify(next);
     if (key !== uiKey.current) { uiKey.current = key; setUi(next); }
-  }, []);
+    const listener = onSelectionChangeRef.current;
+    if (!listener) return;
+    if (!selected.length) {
+      if (lastLiveSelectionKey.current !== "") {
+        lastLiveSelectionKey.current = "";
+        listener(null);
+      }
+      return;
+    }
+    const liveElements = elements.filter((element): element is NonDeletedExcalidrawElement => !element.isDeleted);
+    const selectedIdSet = new Set(selected.map((element) => element.id));
+    const expanded = expandWhiteboardSelection(liveElements, selectedIdSet);
+    if (!expanded.elements.length) {
+      if (lastLiveSelectionKey.current !== "") {
+        lastLiveSelectionKey.current = "";
+        listener(null);
+      }
+      return;
+    }
+    const selKey = `${[...expanded.ids].sort().join(",")}\0${expanded.text}`;
+    if (selKey === lastLiveSelectionKey.current) return;
+    lastLiveSelectionKey.current = selKey;
+    const allFiles = files ?? apiRef.current?.getFiles() ?? {};
+    const snapFiles: BinaryFiles = {};
+    for (const element of expanded.elements) {
+      if (element.type === "image" && typeof element.fileId === "string" && allFiles[element.fileId]) {
+        snapFiles[element.fileId] = allFiles[element.fileId];
+      }
+    }
+    listener({
+      ids: expanded.ids,
+      text: expanded.text,
+      captureImage: makeCapture([...selectedIdSet], expanded.elements, snapFiles, appState.viewBackgroundColor),
+    });
+  }, [makeCapture]);
+
+  const onSelectionChangeProp = props.onSelectionChange;
+  useEffect(() => {
+    onSelectionChangeRef.current = onSelectionChangeProp;
+    if (!onSelectionChangeProp) {
+      lastLiveSelectionKey.current = "";
+      return;
+    }
+    const latest = latestScene.current;
+    if (latest) {
+      lastLiveSelectionKey.current = "";
+      readUi(latest.elements, latest.appState, latest.files);
+    }
+    return () => {
+      lastLiveSelectionKey.current = "";
+      onSelectionChangeProp(null);
+    };
+  }, [onSelectionChangeProp, readUi]);
 
   const handleChange = useCallback((elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
     latestScene.current = { elements, appState, files };
-    readUi(elements, appState);
+    readUi(elements, appState, files);
     // Excalidraw 自身のエラー（大きすぎる画像など）。既定の画面を出していないので、こちらで知らせて消す。
     if (appState.errorMessage) {
       const message = appState.errorMessage;
@@ -541,17 +632,12 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
         files[element.fileId] = allFiles[element.fileId];
       }
     }
-    const snapshot = {
-      elements: expanded.elements.map((element) => ({ ...element })) as NonDeletedExcalidrawElement[],
-      files,
-      viewBackgroundColor: appState.viewBackgroundColor,
-    };
     return {
       ids: expanded.ids,
       text: expanded.text,
-      captureImage: () => exportWhiteboardSelectionPng(snapshot),
+      captureImage: makeCapture([...selectedIds], expanded.elements, files, appState.viewBackgroundColor),
     };
-  }, [api]);
+  }, [api, makeCapture]);
 
   const onAskAiProp = props.onAskAi;
   const askAiSelection = useCallback(() => {
@@ -655,7 +741,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     dirty.current = false;
     initialized.current = true;
     setSceneVersion(signature);
-    readUi(all, ready.getAppState());
+    readUi(all, ready.getAppState(), ready.getFiles());
     if (startWithHandRef.current) ready.setActiveTool({ type: "hand" });
     // 検索の結果から開いたときは、その要素まで動かす。それ以外で、この端末で初めて開くときは内容がすべて見えるように縮める
     // （100% より大きくはしない）。前回の表示位置があればそれを使う。

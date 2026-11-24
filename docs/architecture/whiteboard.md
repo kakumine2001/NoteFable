@@ -63,7 +63,7 @@
 
 - `WhiteboardEditorHandle.selectionContext()`：当前选中元素的 ID 和其中的文字（选中框时包含框名及框内元素文字，绑定文字算到容器上）。
 - `aiSlot`：右下角的挂载位置（`.whiteboard-ai-slot`），手机布局下工具栏已经给它让出位置。NotesWorkspace 把页面 AI 面板（#158 的 `PageAssistant`）按钮的位置标记放进来（分屏不放），按钮就停在这里。
-- 选区问 AI（`CanvasEditorProps.onAskAi`）：`whiteboard-canvas.tsx` 转发 `handleRef` 与 `onAskAi`；选中元素后顶部浮动条（`.whiteboard-selection-bar`）出现 **Ask AI**，点击时快照选中元素（含框内子元素与绑定文字）并传出 `{ ids, text, captureImage }`。模型支持看图时，`PageAssistant` 通过 `exportWhiteboardSelectionPng`（浅色 PNG，长边 ≤ 1568 px）走常规 `/api/uploads` + `/api/chat` 附带选区图，非视觉模型只发文字，截图失败时降级为纯文字并轻提示「本次仅发送了文字」。锁定白板时仍可通过右下角 AI 按钮就整板提问。
+- 选区问 AI 与实时选区同步（`CanvasEditorProps.onAskAi` / `onSelectionChange`）：`whiteboard-canvas.tsx` 转发 `handleRef`、`onAskAi` 与 `onSelectionChange`；不在画布顶部额外弹出悬浮按钮，而是将 **Ask NoteFable** 置于左侧选中属性面板最顶部（紧接单行化的操作栏：复制/翻转/链接/锁定/分隔线/删除，全部保持一排不折行，下方为样式调整；手机折叠态同样收在顶部单行条内）。同时白板实时向 `PageAssistant` 同步当前选区：即使不点按钮，只要画布有选中元素，右下角 AI 角色按钮即亮起数量角标，点开或已展开的 AI 面板会自动附带该选区（点击 `×` 或发送后解除当前选区绑定，切换选区或重新选中时自动恢复，且面板已展开时切换画布选区不抢焦点）。模型支持看图时，`PageAssistant` 通过 `exportWhiteboardSelectionPng`（实时取最新场景，浅色 PNG，长边 ≤ 1568 px）走常规 `/api/uploads` + `/api/chat` 附带选区图，非视觉模型只发文字，截图失败时降级为纯文字并轻提示「本次仅发送了文字」。锁定白板时仍可通过右下角 AI 按钮就整板提问。
 
 ## 测试
 
