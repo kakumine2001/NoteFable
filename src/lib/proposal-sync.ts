@@ -21,6 +21,17 @@ export async function saveBeforeTrash(ids: string[]): Promise<boolean> {
 }
 
 const synced = new Set<string>();
+// この画面でゴミ箱へ移した（AI の提案を元に戻した）ページ。読み直しの途中で移ったら、届いた結果で一覧に戻さない。
+const trashedPages = new Set<string>();
+let listening = false;
+function watchTrashed() {
+  if (listening || typeof window === "undefined" || typeof window.addEventListener !== "function") return;
+  listening = true;
+  window.addEventListener(PAGES_TRASHED_EVENT, (event) => {
+    const ids = (event as CustomEvent<{ ids?: unknown } | undefined>).detail?.ids;
+    if (Array.isArray(ids)) for (const id of ids) if (typeof id === "string") trashedPages.add(id);
+  });
+}
 // 読み直しを試す間隔（通信やサーバーの一時的な失敗のあと）。
 const RETRY_DELAYS_MS = [1_000, 3_000, 8_000];
 
@@ -42,10 +53,13 @@ export function syncAutoAppliedProposal(event: ActivityEvent) {
   if (event.status !== "applied" || !event.autoApplied || synced.has(event.id)) return;
   const pageId = event.type === "proposal" ? event.pageId : event.appliedPageId;
   if (!pageId) return;
+  watchTrashed();
   synced.add(event.id);
   void readPage(pageId).then((page) => {
     // 読み直せなかった（何度か試しても）。次に同じ提案が届いたときにもう一度試せるようにする（開き直せば最新が読まれる）。
     if (!page) { synced.delete(event.id); return; }
+    // 読んでいる間に元に戻して（ゴミ箱へ移して）いたら、一覧や編集に戻さない。
+    if (trashedPages.has(pageId)) return;
     window.dispatchEvent(new CustomEvent(event.type === "proposal" ? "notefable:page-updated" : "notefable:page-created", { detail: page }));
   });
 }

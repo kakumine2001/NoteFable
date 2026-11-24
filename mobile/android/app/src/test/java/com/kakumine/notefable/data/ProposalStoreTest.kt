@@ -98,10 +98,16 @@ class ProposalStoreTest {
         store.apply(edit)
         advanceUntilIdle()
         assertEquals(ProposalState(ProposalState.Status.Undone, pageId = "p1"), store.stateOf(edit))
-        backend.fail = ProposalException("This proposal was already applied.", "applied", "new-page")
+        backend.fail = ProposalException("This proposal was already applied.", "applied", "new-page", undoable = true)
         store.discard(create)
         advanceUntilIdle()
-        assertEquals(ProposalState(ProposalState.Status.Applied, pageId = "new-page"), store.stateOf(create))
+        // 服务端说能撤销时，撤销键照常出现。
+        assertEquals(ProposalState(ProposalState.Status.Applied, pageId = "new-page", undoable = true), store.stateOf(create))
+        // 别处已经撤销过：撤销换成"已撤销"，不显示错误。
+        backend.fail = ProposalException("Note not found.", "undone", "new-page")
+        store.undo(create)
+        advanceUntilIdle()
+        assertEquals(ProposalState(ProposalState.Status.Undone, pageId = "new-page"), store.stateOf(create))
     }
 
     @Test
@@ -238,7 +244,7 @@ class ProposalStoreTest {
         val server = MockWebServer()
         server.enqueue(MockResponse().setBody("""{"status":"applied","page":{"id":"pg9","title":"Plan","version":4}}"""))
         server.enqueue(MockResponse().setResponseCode(409).setBody("""{"error":"The note changed."}"""))
-        server.enqueue(MockResponse().setResponseCode(409).setBody("""{"error":"This change was undone.","status":"undone","pageId":"p1"}"""))
+        server.enqueue(MockResponse().setResponseCode(409).setBody("""{"error":"This change was undone.","status":"undone","pageId":"p1","undoable":true}"""))
         server.enqueue(MockResponse().setBody("{}"))
         server.start()
         try {
@@ -254,6 +260,7 @@ class ProposalStoreTest {
             assertEquals(null, error.finalStatus)
             val settled = runCatching { api.apply("pr1") }.exceptionOrNull() as ProposalException
             assertEquals(Triple("This change was undone.", "undone", "p1"), Triple(settled.serverMessage, settled.finalStatus, settled.pageId))
+            assertEquals(true, settled.undoable)
             api.discard("pr1")
             server.takeRequest()
             server.takeRequest()

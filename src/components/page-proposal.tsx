@@ -84,7 +84,7 @@ export function initialState(proposal: Proposal): State {
 
 // 操作の失敗。提案がもう待確認でない（別のタブ・端末で処理済み）ときは、サーバーが返したその状態（final）を持つ。
 class ProposalActionError extends Error {
-  constructor(message: string, readonly final?: { status: State["status"]; pageId?: string }) { super(message); }
+  constructor(message: string, readonly final?: { status: State["status"]; pageId?: string; undoable?: boolean }) { super(message); }
 }
 
 const FINAL_STATUSES = new Set(["applied", "discarded", "undone"]);
@@ -95,7 +95,7 @@ async function post(url: string, fallback: string) {
   if (!response.ok) {
     const status = typeof data.status === "string" && FINAL_STATUSES.has(data.status) ? data.status as State["status"] : undefined;
     throw new ProposalActionError(typeof data.error === "string" ? data.error : fallback,
-      status ? { status, ...(typeof data.pageId === "string" ? { pageId: data.pageId } : {}) } : undefined);
+      status ? { status, ...(typeof data.pageId === "string" ? { pageId: data.pageId } : {}), undoable: data.undoable === true } : undefined);
   }
   return data as { page?: { id?: string }; ids?: unknown };
 }
@@ -104,7 +104,7 @@ async function post(url: string, fallback: string) {
 function settledByServer(proposal: Proposal, caught: unknown): boolean {
   const final = caught instanceof ProposalActionError ? caught.final : undefined;
   if (!final) return false;
-  setState(proposal.id, { status: final.status, error: "", pageId: final.pageId ?? current(proposal).pageId, undoable: false });
+  setState(proposal.id, { status: final.status, error: "", pageId: final.pageId ?? current(proposal).pageId, undoable: final.status === "applied" && final.undoable === true });
   return true;
 }
 
@@ -153,7 +153,7 @@ async function undo(proposal: Proposal) {
     if (proposal.kind === "proposal") window.dispatchEvent(new CustomEvent("notefable:page-updated", { detail: data.page }));
     else window.dispatchEvent(new CustomEvent(PAGES_TRASHED_EVENT, { detail: { ids: Array.isArray(data.ids) ? data.ids : [] } }));
   } catch (caught) {
-    if (caught instanceof ProposalActionError && caught.final?.status === "discarded") { settledByServer(proposal, caught); return; }
+    if (caught instanceof ProposalActionError && (caught.final?.status === "discarded" || caught.final?.status === "undone")) { settledByServer(proposal, caught); return; }
     setState(proposal.id, { ...before, error: caught instanceof Error ? caught.message : msg("Could not undo the change.") });
   }
 }

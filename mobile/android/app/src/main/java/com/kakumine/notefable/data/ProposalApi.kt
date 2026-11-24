@@ -41,7 +41,13 @@ data class UndoneProposal(val page: AppliedPage? = null, val trashedIds: List<St
  * 服务端拒绝了操作。[serverMessage] 是响应里的 `error`（英文原句），没有时界面用"无法应用修改建议。"等本地文案。
  * 提案已经在别的标签页 / 设备处理过时，[finalStatus] 是服务端的状态（applied / discarded / undone），[pageId] 是应用到的页面。
  */
-class ProposalException(val serverMessage: String?, val finalStatus: String? = null, val pageId: String? = null) : Exception(serverMessage)
+class ProposalException(
+    val serverMessage: String?,
+    val finalStatus: String? = null,
+    val pageId: String? = null,
+    /** 已应用的提案能不能撤销（服务端记下了应用的版本）。 */
+    val undoable: Boolean = false,
+) : Exception(serverMessage)
 
 class ProposalApi(
     private val client: OkHttpClient,
@@ -80,7 +86,8 @@ class ProposalApi(
             if (!it.isSuccessful) {
                 val body = json(text)
                 fun field(name: String) = (body?.get(name) as? JsonPrimitive)?.takeIf { value -> value.isString }?.content?.takeIf { value -> value.isNotBlank() }
-                throw ProposalException(field("error"), field("status"), field("pageId"))
+                val undoable = (body?.get("undoable") as? JsonPrimitive)?.takeIf { value -> !value.isString }?.content == "true"
+                throw ProposalException(field("error"), field("status"), field("pageId"), undoable)
             }
             text
         }
@@ -230,7 +237,8 @@ class ProposalStore(private val backend: ProposalBackend, private val scope: Cor
                 set(proposal.id, before.copy(error = null))
                 throw e
             } catch (e: Throwable) {
-                if ((e as? ProposalException)?.finalStatus != "discarded" || !settledByServer(proposal.id, before, e)) {
+                val final = (e as? ProposalException)?.finalStatus
+                if ((final != "discarded" && final != "undone") || !settledByServer(proposal.id, before, e)) {
                     set(proposal.id, before.copy(error = ProposalError(ProposalError.Action.Undo, (e as? ProposalException)?.serverMessage)))
                 }
             }
@@ -249,7 +257,7 @@ class ProposalStore(private val backend: ProposalBackend, private val scope: Cor
             "undone" -> ProposalState.Status.Undone
             else -> return false
         }
-        set(id, ProposalState(status, pageId = failure.pageId ?: before.pageId, undoable = false))
+        set(id, ProposalState(status, pageId = failure.pageId ?: before.pageId, undoable = status == ProposalState.Status.Applied && failure.undoable))
         return true
     }
 

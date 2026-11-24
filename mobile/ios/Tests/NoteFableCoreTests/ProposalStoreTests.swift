@@ -114,9 +114,19 @@ final class ProposalStoreTests: XCTestCase {
         let store = ProposalStore(backend: backend)
         await store.apply(edit)?.value
         XCTAssertEqual(store.stateOf(edit), ProposalState(status: .undone, pageId: "p1"))
-        backend.fail = ProposalException(serverMessage: "This proposal was already applied.", finalStatus: "applied", pageId: "new-page")
+        backend.fail = ProposalException(serverMessage: "This proposal was already applied.", finalStatus: "applied", pageId: "new-page", undoable: true)
         await store.discard(create)?.value
-        XCTAssertEqual(store.stateOf(create), ProposalState(status: .applied, pageId: "new-page"))
+        // 服务端说能撤销时，撤销键照常出现。
+        XCTAssertEqual(store.stateOf(create), ProposalState(status: .applied, pageId: "new-page", undoable: true))
+        // 别处已经撤销过：撤销换成"已撤销"，不显示错误。
+        backend.fail = ProposalException(serverMessage: "Note not found.", finalStatus: "undone", pageId: "new-page")
+        await store.undo(create)?.value
+        XCTAssertEqual(store.stateOf(create), ProposalState(status: .undone, pageId: "new-page"))
+        // 放弃一个别处已应用的编辑提案：没带 pageId 时，"打开"仍指向被改的页面。
+        backend.fail = ProposalException(serverMessage: "This proposal was already applied.", finalStatus: "applied")
+        let otherEdit = TestProposal(id: "pr2", editedPageId: "p2")
+        await store.discard(otherEdit)?.value
+        XCTAssertEqual(store.stateOf(otherEdit).pageId, "p2")
     }
 
     @MainActor

@@ -255,6 +255,7 @@ export const frServer: Record<string, string> = {
   "This change can't be undone here. Restore an earlier version from the page history.": "Cette modification ne peut pas être annulée ici. Restaurez une version antérieure depuis l’historique de la page.",
   "This page changed after the AI edit. Restore an earlier version from the page history.": "La page a changé après la modification de l’IA. Restaurez une version antérieure depuis l’historique de la page.",
   "This page changed after the AI created it. Move it to Trash from its page menu instead.": "La page a changé après sa création par l’IA. Placez-la plutôt dans la corbeille depuis le menu de la page.",
+  "The page was locked, so the change was not applied automatically.": "La page était verrouillée, la modification n’a donc pas été appliquée automatiquement.",
   "Invalid page list": "Liste de pages non valide",
   "Listed pages": "Pages listées",
   "Applied edits to “{title}”": "Modifications appliquées à « {title} »",

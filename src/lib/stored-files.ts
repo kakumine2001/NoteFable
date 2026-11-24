@@ -271,9 +271,12 @@ async function proposalImageReferences(candidates: Candidate[]) {
     if (candidate.userId) byUser.set(candidate.userId, [...(byUser.get(candidate.userId) ?? []), candidate.path]);
   }
   for (const [userId, paths] of byUser) {
+    // 提案の images の path だけを、持ち主ごとに 1 回で取り出す（本文全体を文字列にして探さない）。
     const rows = await prisma.$queryRaw<{ path: string }[]>(Prisma.sql`
-      SELECT f."path" FROM unnest(${paths}::text[]) AS f("path")
-      WHERE EXISTS (SELECT 1 FROM ${table("NoteProposal")} p WHERE p."userId" = ${userId} AND position(f."path" in p."payload"::text) > 0)`);
+      SELECT DISTINCT e->>'path' AS "path"
+      FROM ${table("NoteProposal")} p
+      CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(p."payload" -> 'images') = 'array' THEN p."payload" -> 'images' ELSE '[]'::jsonb END) AS e
+      WHERE p."userId" = ${userId} AND e->>'path' = ANY(${paths}::text[])`);
     for (const row of rows) found.add(row.path);
   }
   return found;
@@ -314,7 +317,8 @@ export const NOTE_FILE_OWNERS_PER_BATCH = 20;
 export function limitNoteFileOwners<T extends Candidate>(rows: T[]) {
   const owners = new Set<string>();
   return rows.filter((row) => {
-    if (row.kind !== "NOTE_FILE" || !row.userId || owners.has(row.userId)) return true;
+    // 提案の縮小画像も、持ち主ごとに提案の表を読むので同じく数を抑える。
+    if ((row.kind !== "NOTE_FILE" && row.kind !== "PROPOSAL_IMAGE") || !row.userId || owners.has(row.userId)) return true;
     if (owners.size >= NOTE_FILE_OWNERS_PER_BATCH) return false;
     owners.add(row.userId);
     return true;

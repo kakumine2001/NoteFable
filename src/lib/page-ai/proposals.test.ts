@@ -398,11 +398,31 @@ describe("auto-apply and undo", () => {
     expect(db.proposals[0].status).toBe("APPLIED");
   });
 
+  it("does not move a created page to the trash when a save lands between the check and the move", async () => {
+    const view = await saveProposal("u1", "s1", create());
+    await applyProposal("u1", view.id);
+    // 確かめた後、移す直前に別のタブの保存が入る（版が進む）。
+    db.beforePageWrite = () => { db.pages[0].version = (db.pages[0].version as number) + 1; };
+    expect(await undoProposal("u1", view.id)).toMatchObject({ ok: false, httpStatus: 409 });
+    expect(db.pages[0].deletedAt).toBeNull();
+    expect(db.proposals[0].status).toBe("APPLIED");
+  });
+
+  it("does not auto-apply to a page that was locked while the change was being prepared", async () => {
+    db.pages.push({ kind: "note", id: "n1", userId: "u1", title: "Notes", blocks: [para("a")], version: 3, deletedAt: null, locked: true });
+    const view = await saveProposal("u1", "s1", { kind: "EDIT", pageKind: "note", page: { id: "n1", title: "Notes", version: 3 }, draft: { changes: [], proposed: { title: "Notes", blocks: [para("b")] } } });
+    expect(await applyProposal("u1", view.id, { auto: true })).toMatchObject({ ok: false, httpStatus: 409 });
+    expect(db.pages.find((row) => row.id === "n1")).toMatchObject({ version: 3, locked: true });
+    expect(db.proposals.find((row) => row.id === view.id)?.status).toBe("PENDING");
+    // 利用者が自分で適用するときは、ロックの有無を問わない（ロックは画面の保護）。
+    expect(await applyProposal("u1", view.id)).toMatchObject({ ok: true });
+  });
+
   it("says what happened to a proposal that is no longer pending, so the card can show it", async () => {
     const view = await saveProposal("u1", "s1", create());
     await applyProposal("u1", view.id);
     const pageId = db.pages[0].id as string;
-    expect(await discardProposal("u1", view.id)).toEqual({ ok: false, httpStatus: 409, error: "This proposal was already applied.", status: "applied", pageId });
+    expect(await discardProposal("u1", view.id)).toEqual({ ok: false, httpStatus: 409, error: "This proposal was already applied.", status: "applied", pageId, undoable: true });
     await undoProposal("u1", view.id);
     expect(await discardProposal("u1", view.id)).toEqual({ ok: false, httpStatus: 409, error: "This change was undone.", status: "undone", pageId });
     expect(await applyProposal("u1", view.id)).toEqual({ ok: false, httpStatus: 409, error: "This change was undone.", status: "undone", pageId });

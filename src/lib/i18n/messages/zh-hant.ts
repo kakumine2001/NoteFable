@@ -1062,6 +1062,7 @@ export const zhHant: Record<string, string> = {
   "The image description is too long.": "圖片描述太長了。",
   "The model requested an unavailable tool. Please retry.": "模型呼叫了不可用的工具，請重試。",
   "The model returned an empty response. Please retry.": "模型返回了空回答，請重試。",
+  "The page was locked, so the change was not applied automatically.": "頁面已鎖定，所以這項修改沒有自動應用。",
   "The page was moved to Trash.": "這個頁面已移到回收站。",
   "The trash is empty.": "回收站是空的。",
   "Theme": "主題",

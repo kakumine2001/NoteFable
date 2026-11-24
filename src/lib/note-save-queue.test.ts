@@ -41,6 +41,27 @@ describe("page autosave queue", () => {
     expect(queue.status).toBe("saved");
   });
 
+  it("does nothing more after it was dropped while a save was in flight", async () => {
+    for (const outcome of ["resolve", "reject"] as const) {
+      let finish!: () => void;
+      const save = vi.fn(() => new Promise<NotePage>((resolve, reject) => {
+        finish = () => (outcome === "resolve" ? resolve({ ...page, version: 1 }) : reject(new NoteSaveError("Not found", 404)));
+      }));
+      const changed = vi.fn();
+      const queue = new NoteSaveQueue(page, save, changed);
+      queue.edit({ title: "Mine", icon: null, cover: null, coverPosition: null, blocks: [] });
+      const flight = queue.flush();
+      // 送っている間にもう一度入力してから、ゴミ箱へ移る（キューを捨てる）。
+      queue.edit({ title: "Mine 2", icon: null, cover: null, coverPosition: null, blocks: [] });
+      queue.dispose();
+      const calls = changed.mock.calls.length;
+      finish();
+      await flight;
+      expect(changed.mock.calls.length).toBe(calls);
+      expect(save).toHaveBeenCalledTimes(1);
+    }
+  });
+
   it("marks the queue gone when the note no longer exists and keeps the draft", async () => {
     const save = vi.fn().mockRejectedValue(new NoteSaveError("Not found", 404));
     const queue = new NoteSaveQueue(page, save, () => {});

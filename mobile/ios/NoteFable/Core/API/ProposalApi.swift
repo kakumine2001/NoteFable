@@ -32,11 +32,14 @@ struct ProposalException: Error, Equatable, Sendable {
     var serverMessage: String?
     var finalStatus: String?
     var pageId: String?
+    /// 已应用的提案能不能撤销（服务端记下了应用的版本）。
+    var undoable: Bool
 
-    init(serverMessage: String?, finalStatus: String? = nil, pageId: String? = nil) {
+    init(serverMessage: String?, finalStatus: String? = nil, pageId: String? = nil, undoable: Bool = false) {
         self.serverMessage = serverMessage
         self.finalStatus = finalStatus
         self.pageId = pageId
+        self.undoable = undoable
     }
 }
 
@@ -76,7 +79,7 @@ final class ProposalApi: ProposalBackend, @unchecked Sendable {
         guard response.isSuccessful else {
             let body = JSONValue.parse(data)
             func field(_ name: String) -> String? { body?[name]?.stringValue.flatMap { ApiText.isBlank($0) ? nil : $0 } }
-            throw ProposalException(serverMessage: field("error"), finalStatus: field("status"), pageId: field("pageId"))
+            throw ProposalException(serverMessage: field("error"), finalStatus: field("status"), pageId: field("pageId"), undoable: body?["undoable"]?.boolValue == true)
         }
         return data
     }
@@ -224,6 +227,7 @@ final class ProposalStore {
     func discard(_ proposal: some ProposalTarget) -> Task<Void, Never>? {
         guard stateOf(proposal).status == .idle else { return nil }
         let id = proposal.id
+        let editedPageId = proposal.editedPageId
         states[id] = ProposalState(status: .discarding)
         return Task {
             do {
@@ -232,7 +236,7 @@ final class ProposalStore {
             } catch is CancellationError {
                 states[id] = ProposalState()
             } catch {
-                if settledByServer(id, error, pageId: nil) { return }
+                if settledByServer(id, error, pageId: editedPageId) { return }
                 let message = (error as? ProposalException)?.serverMessage
                 states[id] = ProposalState(error: ProposalError(action: .discard, serverMessage: message))
             }
@@ -267,7 +271,8 @@ final class ProposalStore {
             } catch is CancellationError {
                 states[id] = applied
             } catch {
-                if (error as? ProposalException)?.finalStatus == "discarded", settledByServer(id, error, pageId: applied.pageId) { return }
+                let final = (error as? ProposalException)?.finalStatus
+                if final == "discarded" || final == "undone", settledByServer(id, error, pageId: applied.pageId) { return }
                 var failed = applied
                 failed.error = ProposalError(action: .undo, serverMessage: (error as? ProposalException)?.serverMessage)
                 states[id] = failed
@@ -286,7 +291,7 @@ final class ProposalStore {
         case "undone": status = .undone
         default: return false
         }
-        states[id] = ProposalState(status: status, pageId: failure.pageId ?? pageId, undoable: false)
+        states[id] = ProposalState(status: status, pageId: failure.pageId ?? pageId, undoable: status == .applied && failure.undoable)
         return true
     }
 

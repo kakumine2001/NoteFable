@@ -178,7 +178,7 @@ export async function proposalView(userId: string, id: string): Promise<Proposal
 
 // 失敗。提案がもう待確認でない（別のタブ・端末で適用・破棄・元に戻した）ときは、その状態（status）と適用先（pageId）も返し、
 // 画面のカードがその状態に合わせられるようにする。
-export type ProposalFailure = { ok: false; httpStatus: number; error: string; status?: ProposalStatus; pageId?: string };
+export type ProposalFailure = { ok: false; httpStatus: number; error: string; status?: ProposalStatus; pageId?: string; undoable?: boolean };
 
 export type ApplyResult =
   | { ok: true; status: "applied"; kind: "edit" | "create"; page: unknown }
@@ -190,11 +190,17 @@ export type UndoResult =
   | ProposalFailure;
 
 class Conflict extends Error {}
+// 自動適用の途中でページがロックされた（ロックは版を進めないので、適用の時にもう一度確かめる）。
+class Locked extends Error {}
 
-const fail = (httpStatus: number, error: string, final?: { status: ProposalStatus; pageId?: string | null }): ProposalFailure => ({
-  ok: false, httpStatus, error, ...(final ? { status: final.status, ...(final.pageId ? { pageId: final.pageId } : {}) } : {}),
+const fail = (httpStatus: number, error: string, final?: { status: ProposalStatus; pageId?: string | null; undoable?: boolean }): ProposalFailure => ({
+  ok: false, httpStatus, error,
+  ...(final ? { status: final.status, ...(final.pageId ? { pageId: final.pageId } : {}), ...(final.undoable ? { undoable: true } : {}) } : {}),
 });
-const finalState = (row: Pick<Row, "status" | "appliedPageId">) => ({ status: STATUS[row.status], pageId: row.appliedPageId });
+// 適用済みの提案は、元に戻せる（適用した版を記録してある）かも返す（カードの「元に戻す」）。
+const finalState = (row: Pick<Row, "status" | "appliedPageId" | "appliedVersion">) => ({
+  status: STATUS[row.status], pageId: row.appliedPageId, undoable: row.status === "APPLIED" && row.appliedVersion !== null,
+});
 
 // 適用済みなら、そのときの結果（いまのページ）をそのまま返す。
 async function appliedResult(userId: string, row: Row): Promise<ApplyResult> {
@@ -243,9 +249,10 @@ export async function applyProposal(userId: string, id: string, { auto = false }
         // 提案を作った時点の版と一致する時だけ書く（ゴミ箱のページ・種類の違うページには書かない）。外れたら「適用済み」への切り替えごと取り消す。
         const current = await tx.notePage.findFirst({
           where: { id: edit.pageId, userId, version: edit.baseVersion, deletedAt: null, kind: row.pageKind },
-          select: { id: true, title: true, icon: true, blocks: true, version: true },
+          select: { id: true, title: true, icon: true, blocks: true, version: true, locked: true },
         });
         if (!current) throw new Conflict();
+        if (auto && current.locked) throw new Locked();
         const version = current.version;
         // ファイルの行を先に取る（保存と同じロックの順序：ファイル → 履歴とページの行）。
         await adapter.claim(tx, userId, content);
@@ -262,10 +269,12 @@ export async function applyProposal(userId: string, id: string, { auto = false }
     }, { timeout: 20_000 });
     if (!applied) return afterLostClaim();
     const page = await loadFullPage(userId, applied);
-    if (!page) return fail(404, msg("This note no longer exists."));
+    if (!page) return fail(404, msg("This note no longer exists."), { status: "applied", pageId: applied, undoable: true });
     return { ok: true, status: "applied", kind: edit ? "edit" : "create", page };
   } catch (error) {
     if (error instanceof Conflict) return editConflict(userId, row, edit!.pageId);
+    // 自動適用だけが通る（画面には出ない、モデルへの結果）。提案は待確認のまま残る。
+    if (error instanceof Locked) return fail(409, msg("The page was locked, so the change was not applied automatically."));
     if (error instanceof NoteValidationError) return fail(error.status, error.message);
     throw error;
   }
@@ -274,10 +283,10 @@ export async function applyProposal(userId: string, id: string, { auto = false }
 export async function discardProposal(userId: string, id: string): Promise<{ ok: true; status: "discarded" } | ProposalFailure> {
   const changed = await prisma.noteProposal.updateMany({ where: { id, userId, status: "PENDING" }, data: { status: "DISCARDED" } });
   if (changed.count) return { ok: true, status: "discarded" };
-  const row = await prisma.noteProposal.findFirst({ where: { id, userId }, select: { status: true, appliedPageId: true } });
+  const row = await prisma.noteProposal.findFirst({ where: { id, userId }, select: { status: true, appliedPageId: true, appliedVersion: true } });
   if (!row) return fail(404, msg("Proposal not found."));
   if (row.status === "DISCARDED") return { ok: true, status: "discarded" };
-  return fail(409, row.status === "UNDONE" ? msg("This change was undone.") : msg("This proposal was already applied."), finalState(row as Pick<Row, "status" | "appliedPageId">));
+  return fail(409, row.status === "UNDONE" ? msg("This change was undone.") : msg("This proposal was already applied."), finalState(row as Pick<Row, "status" | "appliedPageId" | "appliedVersion">));
 }
 
 class Changed extends Error {}
@@ -306,7 +315,9 @@ export async function undoProposal(userId: string, id: string): Promise<UndoResu
         if (!page) return [];
         // 作った後に書かれた・下にページが足された（どちらも利用者の作業）ページは、カードからは捨てない。
         if (row.appliedVersion === null || page.version !== row.appliedVersion || (await descendantIds(tx, userId, row.appliedPageId)).length) throw new Changed();
-        await tx.notePage.updateMany({ where: { id: row.appliedPageId, userId, deletedAt: null }, data: { deletedAt: new Date() } });
+        // 確かめた後に保存が割り込んでも捨てないよう、版を条件に入れて移す（移せなければ、書かれたので止める）。
+        const moved = await tx.notePage.updateMany({ where: { id: row.appliedPageId, userId, version: row.appliedVersion, deletedAt: null }, data: { deletedAt: new Date() } });
+        if (!moved.count) throw new Changed();
         return [row.appliedPageId];
       });
       if (!trashed) return undoneAfterLostClaim(userId, id);
@@ -343,7 +354,7 @@ export async function undoProposal(userId: string, id: string): Promise<UndoResu
     }, { timeout: 20_000 });
     if (!done) return undoneAfterLostClaim(userId, id);
     const page = await loadFullPage(userId, pageId);
-    if (!page) return fail(404, msg("Note not found."));
+    if (!page) return fail(404, msg("Note not found."), { status: "undone", pageId });
     return { ok: true, status: "undone", kind: "edit", page };
   } catch (error) {
     if (error instanceof Changed) {
@@ -365,7 +376,7 @@ async function undoneResult(userId: string, row: Row): Promise<UndoResult> {
     return { ok: true, status: "undone", kind: "create", trashedIds: trashed ? [trashed.id] : [] };
   }
   const page = row.appliedPageId ? await loadFullPage(userId, row.appliedPageId) : null;
-  if (!page) return fail(404, msg("Note not found."));
+  if (!page) return fail(404, msg("Note not found."), finalState(row));
   return { ok: true, status: "undone", kind: "edit", page };
 }
 

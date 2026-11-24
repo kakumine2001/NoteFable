@@ -255,6 +255,7 @@ export const esServer: Record<string, string> = {
   "This change can't be undone here. Restore an earlier version from the page history.": "Este cambio no se puede deshacer aquí. Restaura una versión anterior desde el historial de la página.",
   "This page changed after the AI edit. Restore an earlier version from the page history.": "La página cambió después de la edición de la IA. Restaura una versión anterior desde el historial de la página.",
   "This page changed after the AI created it. Move it to Trash from its page menu instead.": "La página cambió después de que la IA la creara. En su lugar, muévela a la papelera desde el menú de la página.",
+  "The page was locked, so the change was not applied automatically.": "La página estaba bloqueada, así que el cambio no se aplicó automáticamente.",
   "Invalid page list": "Lista de páginas no válida",
   "Listed pages": "Páginas listadas",
   "Applied edits to “{title}”": "Ediciones aplicadas a “{title}”",
