@@ -1,5 +1,7 @@
 package com.kakumine.notefable.data
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -28,11 +30,12 @@ data class NoteIconWrite(val page: NotePageSummary, val json: String?)
 class NoteIconApi internal constructor(private val http: NoteFableHttp) : NoteIconBackend {
     override suspend fun setNoteIcon(id: String, icon: String?): NotePageSummary = setNoteIconWithPage(id, icon).page
 
-    override suspend fun setNoteIconWithPage(id: String, icon: String?): NoteIconWrite {
+    // 白板、幻灯片的应答带整份画布数据（最多约 2 MB）：解析和重新序列化都不放在主线程上做。
+    override suspend fun setNoteIconWithPage(id: String, icon: String?): NoteIconWrite = withContext(Dispatchers.Default) {
         val body = buildJsonObject { put("icon", icon?.let(::JsonPrimitive) ?: JsonNull) }.toString()
         val url = http.absoluteUrl("/api/pages/${URLEncoder.encode(id, "UTF-8")}/icon")
         val response = http.send<JsonObject>(Request.Builder().url(url).put(body.toRequestBody(NoteFableHttp.JSON)))
         val page = response["page"] as? JsonObject ?: throw IllegalStateException("missing page")
-        return NoteIconWrite(NoteFableJson.decodeFromJsonElement(NotePageSummary.serializer(), page), page.toString())
+        NoteIconWrite(NoteFableJson.decodeFromJsonElement(NotePageSummary.serializer(), page), page.toString())
     }
 }

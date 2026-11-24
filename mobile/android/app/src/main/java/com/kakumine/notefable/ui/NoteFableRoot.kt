@@ -131,7 +131,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     }
     DisposableEffect(notesViewModel, noteEmbedHost) {
         notesViewModel.notifyPagesTrashed = noteEmbedHost::pageTrashed
-        notesViewModel.notifyPageUpdated = noteEmbedHost::pageUpdated
+        notesViewModel.notifyPageUpdated = { pageId, pageJson -> noteEmbedHost.pageUpdated(pageJson, pageId) }
         notesViewModel.notifyPageSettings = { page ->
             noteEmbedHost.pageSettings(com.kakumine.notefable.data.NoteFableJson.encodeToString(com.kakumine.notefable.data.NotePageSummary.serializer(), page))
         }

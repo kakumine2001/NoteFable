@@ -70,6 +70,9 @@ export function NoteEmbed() {
   // openPage のたびに進める。閉じてすぐ同じページを開き直すと idle・activeId などが前の描画と同じ値に戻り、
   // ready を送る effect が走らない（アプリはその ready を待って以降のメッセージを捨て続ける）ので、依存に入れて必ず走らせる。
   const [openToken, setOpenToken] = useState(0);
+  // 最新の openPage の番号（同期で進める）。openPage より前の描画の effect が後から走っても、前のページを ready として送り直したり
+  // expectedPageRef を前のページへ戻したりしない（戻すと新しいページの missing と URL の書き換えが止まる）。
+  const openTokenRef = useRef(0);
   // openPage で切り替えた先。URL の書き換えは描画の後（閉じたシートの history.back の予約が済んでから）に行う。
   const urlPageRef = useRef<string | null>(null);
   // 前のページ宛ての検索結果への移動（DOM の監視・預かり）を、切り替え・閉じる時に止める。
@@ -151,7 +154,8 @@ export function NoteEmbed() {
       sent.current = { readyId: "", meta: "", state: "", goneId: "" };
       expectedPageRef.current = id;
       urlPageRef.current = id;
-      setOpenToken((value) => value + 1);
+      openTokenRef.current += 1;
+      setOpenToken(openTokenRef.current);
       revealRef.current = reveal ? { pageId: id, target: reveal } : null;
       if (nextModel || nextReasoning) {
         const params = new URLSearchParams();
@@ -189,6 +193,7 @@ export function NoteEmbed() {
   const kind = pageKindOf(active?.page);
   useEffect(() => {
     if (idle || !active || !activeId || loading || title === undefined) return;
+    if (openToken !== openTokenRef.current) return;
     const meta = pageMeta({ title, icon: icon ?? null });
     // 衝突を「新しいノートとして保存」すると、開いているノートが新しいページに替わる。そのときも ready を送り直す。
     if (sent.current.readyId !== activeId) {
