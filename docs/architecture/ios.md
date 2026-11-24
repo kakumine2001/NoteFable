@@ -7,8 +7,8 @@
 ## PR 检查
 
 - 工作流：[`.github/workflows/ios-pr.yml`](../../.github/workflows/ios-pr.yml)
-- 改动 `mobile/ios/**`、`mobile/android/app/src/main/assets/**`、`.github/workflows/ios-*.yml` 或 `scripts/release/ios-version*.sh` 并向 `main` 提 PR 时运行；只改 PR 标题或描述时不触发。
-- 先在 `ubuntu-latest` 上运行版本号校验脚本测试（`scripts/release/ios-version.test.sh`）与本次 PR 的版本号检查（`scripts/release/ios-version.sh`），避免版本号出错时白耗高倍率的 macOS 分钟数。
+- 改动 `mobile/ios/**`、`mobile/android/app/src/main/assets/**`、`.github/workflows/ios-*.yml`、`scripts/release/ios-version*.sh` 或 `scripts/release/verify-merged-pr*.sh` 并向 `main` 提 PR 时运行；只改 PR 标题或描述时不触发。
+- 先在 `ubuntu-latest` 上运行合并 PR 校验脚本测试（`scripts/release/verify-merged-pr.test.sh`）、版本号校验脚本测试（`scripts/release/ios-version.test.sh`）与本次 PR 的版本号检查（`scripts/release/ios-version.sh`），避免版本号出错时白耗高倍率的 macOS 分钟数。
 - 只有校验通过且仓库存在 `mobile/ios/project.yml` 时，才启动 `xcode-27` 镜像（macOS + Xcode 27）运行 Core 的单元测试（`mobile/ios/scripts/ci-core-tests.sh`：`swift test` 加一个时限，测试挂住时打印卡住的调用栈并提前结束，不把任务时限耗完）、XcodeGen 生成工程和模拟器无签名构建。PR 检查不接触任何发布凭据。
 
 ## 自动打包与上传 App Store Connect（TestFlight）
@@ -19,7 +19,7 @@
 ### 触发与版本规则
 
 - **何时发布**：平时合并改动保持 `mobile/ios/project.yml` 的 `CURRENT_PROJECT_VERSION` 不变，不会触发打包或启动 macOS runner。需要上传 TestFlight 时，在合入 `main` 的 PR 中调高 `CURRENT_PROJECT_VERSION`（并按需调高 `MARKETING_VERSION`），在 PR 描述里标明这次会上传 TestFlight。
-- **合并校验**：PR 以 merge commit 合入 `main` 后，`plan` 任务在 `ubuntu-latest` 上比较合并提交 `HEAD` 与第一父提交 `HEAD^1`（仓库只允许 merge commit，不是合并提交时直接失败）：
+- **合并校验**：`main` 收到推送后，`plan` 任务在 `ubuntu-latest` 上先核实该提交是合入 `main` 的已合并 PR（`scripts/release/verify-merged-pr.sh`，非 PR 直接推送跳过，接口异常则失败），再比较合并提交 `HEAD` 与第一父提交 `HEAD^1`（仓库只允许 merge commit，不是合并提交时直接失败）：
   - `mobile/ios/project.yml` 尚未存在，或本次合并首次引入该文件时：校验通过并跳过发布（`publish=false`），不会在首次合入客户端骨架时意外触发发布。
   - `CURRENT_PROJECT_VERSION` 未变且 `MARKETING_VERSION` 未变：跳过发布（`publish=false`）。
   - `CURRENT_PROJECT_VERSION` 降低、格式非正整数、重复定义，或 `MARKETING_VERSION` 降低、格式无效、修改了 `MARKETING_VERSION` 却未递增 `CURRENT_PROJECT_VERSION`，或 PR 把 `CURRENT_PROJECT_VERSION` 改到了 `main` 已被其他 PR 达到的同一个值：报错失败。

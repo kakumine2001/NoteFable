@@ -1,8 +1,7 @@
 name: iOS release to App Store Connect
 
 on:
-  pull_request_target:
-    types: [closed]
+  push:
     branches: [main]
 
 permissions:
@@ -10,7 +9,10 @@ permissions:
 
 jobs:
   plan:
-    if: github.event.pull_request.merged == true && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.event.deleted != true && github.event.forced != true
+    permissions:
+      contents: read
+      pull-requests: read
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -18,13 +20,21 @@ jobs:
       build_number: ${{ steps.version.outputs.build_number }}
       marketing_version: ${{ steps.version.outputs.marketing_version }}
     steps:
-      # Check out the commit merged into main. This event has base-repository privileges.
-      - uses: actions/checkout@v4
+      # Check out the commit pushed to main, then verify it came from a merged PR targeting main.
+      - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Verify commit is a merged PR targeting main
+        id: pr
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: bash scripts/release/verify-merged-pr.sh
       - name: Compare iOS version with main before the merge
+        if: steps.pr.outputs.is_merged_pr == 'true'
         id: version
         shell: bash
         run: bash scripts/release/ios-version.sh
@@ -45,9 +55,9 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 2
           persist-credentials: false
 
