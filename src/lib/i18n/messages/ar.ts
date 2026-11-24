@@ -1139,5 +1139,5 @@ export const ar: Record<string, string> = {
   "Proposed page edit": "تعديل مقترح للصفحة",
   "Applied automatically": "طُبّق تلقائيًا",
   "Group & organize": "تجميع وتنظيم",
-  "Sent text only this time.": "تم إرسال النص فقط هذه المرة.",
+  "Could not attach the selection screenshot this time.": "تعذّر إرفاق لقطة التحديد هذه المرة.",
 };

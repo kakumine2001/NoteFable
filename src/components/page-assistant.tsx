@@ -14,7 +14,7 @@ import { composeQuotedMessage, normalizeQuote, splitQuotedMessage } from "@/lib/
 import { cleanupClientUploads, uploadChatFilesWithSelection } from "@/lib/client-chat-upload";
 import { createUploadFile, getClipboardImageFiles, getUploadRequestError, getUploadSelectionError, getUploadValidationError, revokeUploadPreviews } from "@/lib/client-files";
 import { GuestLimitPrompt, StorageLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
-import { keepRejectedDraft, savePendingDraft, takePendingDraft, useKeepDraftOnLeave } from "@/lib/pending-draft";
+import { keepRejectedDraft, savePendingDraft, takePendingDraft, takePendingDraftSelection, useKeepDraftOnLeave } from "@/lib/pending-draft";
 import "@/components/note-assistant.css";
 import { applyActivityEvent, type ActivityEvent } from "@/lib/chat-activity";
 import { readChatEventStream } from "@/lib/chat-stream";
@@ -242,7 +242,10 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
   // エディターが渡した文字も、ノートの「Ask AI」と同じく整えて長さを抑える（normalizeQuote）。
   const selectionText = selection?.text ? normalizeQuote(selection.text) : "";
   // サーバーが受け付ける形にそろえる（重複・空・長すぎる ID を外し、上限の数まで）。上限を超えた選択でも送れなくならない。
-  const selectionIds = [...new Set((selection?.ids ?? []).filter(isSelectionId))].slice(0, MAX_SELECTION_IDS);
+  const liveSelectionIds = [...new Set((selection?.ids ?? []).filter(isSelectionId))].slice(0, MAX_SELECTION_IDS);
+  // 上限で断られてログイン後に WebView / 画面を再作成した場合に復元した選区 ID（文字なし図形や矢印の対象を失わないため）。
+  const [restoredSelectionIds, setRestoredSelectionIds] = useState<string[]>([]);
+  const selectionIds = liveSelectionIds.length ? liveSelectionIds : restoredSelectionIds;
   const hasSelection = Boolean(selectionText || selectionIds.length);
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -314,7 +317,7 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
   const showStorageLimit = (error: StorageLimitError, { inline = false } = {}) => {
     if (error.tier !== "pro") guestLimitHitRef.current = true;
     if (embedded && error.tier !== "pro" && inputValueRef.current.trim()) {
-      savePendingDraft(`note:${noteId}`, draftToKeep(inputValueRef.current), { persistent: true });
+      savePendingDraft(`note:${noteId}`, draftToKeep(inputValueRef.current), { persistent: true, selectionIds: selectionIdsRef.current });
     }
     if (embedded && composerMountedRef.current && nativeCanShowStorageLimit() && postToNative({ type: "storageLimit", tier: error.tier, used: error.used, limit: error.limit })) {
       showLimitPrompt({});
@@ -340,21 +343,32 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
   const inputValueRef = useRef("");
   inputValueRef.current = input;
   // 選んだ範囲はこの画面の状態で、再読み込みやノートの切り替えで消える。預けるときは引用として本文に入れ、
-  // 戻したあと「これを書き直して」がノート全体に向かないようにする。
+  // 戻したあと「これを書き直して」がノート全体に向かないようにする。文字のない図形・矢印向けに選区 ID も一緒に預ける。
   const selectionRef = useRef(selectionText);
   selectionRef.current = selectionText;
+  const selectionIdsRef = useRef(selectionIds);
+  selectionIdsRef.current = selectionIds;
   const draftToKeep = (text: string) => (text.trim() ? composeQuotedMessage(selectionRef.current, text) : "");
   const composerMountedRef = useKeepDraftOnLeave(
     `note:${noteId}`,
     () => (guestLimitHitRef.current ? draftToKeep(inputValueRef.current) : null),
-    { persistent: embedded },
+    { persistent: embedded, getSelectionIds: () => selectionIdsRef.current },
   );
   // アプリの WebView はログイン成功時に破棄・再作成される（pagehide が走らないこともある）ため、
-  // 上限到達後は下書きの変化をその都度 localStorage に反映しておく。
+  // 上限到達後は下書きと選区 ID の変化をその都度 localStorage に反映しておく。
+  const selectionIdsKey = selectionIds.join(",");
   useEffect(() => {
     if (!embedded || !guestLimitHitRef.current) return;
-    savePendingDraft(`note:${noteId}`, input.trim() ? composeQuotedMessage(selectionRef.current, input) : "", { persistent: true });
-  }, [embedded, noteId, input]);
+    savePendingDraft(`note:${noteId}`, input.trim() ? composeQuotedMessage(selectionRef.current, input) : "", {
+      persistent: true,
+      selectionIds: selectionIdsRef.current,
+    });
+  }, [embedded, noteId, input, selectionIdsKey]);
+  // キャンバスで新しく要素を選び直したら、以前の下書き復元で持っていた選区 ID は破棄する。
+  const liveSelectionCount = liveSelectionIds.length;
+  useEffect(() => {
+    if (liveSelectionCount > 0) queueMicrotask(() => setRestoredSelectionIds([]));
+  }, [liveSelectionCount]);
   const lastOpenSignalRef = useRef(openSignal);
   const [seconds, setSeconds] = useState(0);
   const sessionId = useRef("");
@@ -492,13 +506,20 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
     // 分割表示で隠れている間は取り出さない（見えない入力欄に入れると、預けた本文が失われる）。
     if (hidden) return;
     const pending = takePendingDraft(`note:${noteId}`);
-    if (!pending) return;
+    const pendingSelectionIds = takePendingDraftSelection(`note:${noteId}`).filter(isSelectionId).slice(0, MAX_SELECTION_IDS);
+    if (!pending) {
+      queueMicrotask(() => setRestoredSelectionIds([]));
+      return;
+    }
     // 戻した本文は、送るか消すまで次に離れるときも預け続ける。
     guestLimitHitRef.current = true;
     // 預けた本文に引用として入っている範囲が画面にも残っていたら（パネルを閉じて開き直したとき）、二重に送らないよう画面の方を外す。
     const kept = selectionRef.current?.trim();
     if (kept && pending.startsWith(composeQuotedMessage(kept, ""))) onClearSelection?.();
-    queueMicrotask(() => setInput((current) => current || pending));
+    queueMicrotask(() => {
+      setInput((current) => current || pending);
+      setRestoredSelectionIds(pendingSelectionIds);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ノートが変わったとき（と、隠れていたパネルが出たとき）に 1 回だけ取り出す。
   }, [noteId, hidden]);
 
@@ -581,6 +602,7 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
     resetChat();
     setError("");
     setHistoryOpen(false);
+    setRestoredSelectionIds([]);
     onClearSelection?.();
     if (!phone) inputRef.current?.focus();
   }
@@ -718,13 +740,13 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
               selectionUpload = createUploadFile(imageFile);
               if (selectionUpload.previewUrl) previewUrlsRef.current.add(selectionUpload.previewUrl);
             } else {
-              setNotice(msg("Sent text only this time."));
+              setNotice(msg("Could not attach the selection screenshot this time."));
             }
           } else {
-            setNotice(msg("Sent text only this time."));
+            setNotice(msg("Could not attach the selection screenshot this time."));
           }
         } catch {
-          setNotice(msg("Sent text only this time."));
+          setNotice(msg("Could not attach the selection screenshot this time."));
         }
       }
       if (rawFiles.length || selectionUpload) {
@@ -735,7 +757,7 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
         if (uploaded.selectionDropped && selectionUpload) {
           releaseSelectionPreview();
           selectionUpload = null;
-          setNotice(msg("Sent text only this time."));
+          setNotice(msg("Could not attach the selection screenshot this time."));
         }
       }
     } catch (caught) {
@@ -797,7 +819,10 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
           accepted = true;
           guestLimitHitRef.current = false;
           savePendingDraft(`note:${noteId}`, "", { persistent: embedded });
-          if (activeSelection || activeIds.length) onClearSelection?.(submittedSelection);
+          if (activeSelection || activeIds.length) {
+            setRestoredSelectionIds([]);
+            onClearSelection?.(submittedSelection);
+          }
           if (display === undefined) {
             setFiles((list) => list.filter((item) => !sentFiles.includes(item)));
             setAttachedPages((list) => list.filter((page) => !sentPages.includes(page)));
@@ -825,12 +850,12 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
       // 上限で断られた本文は保存されていない。入力欄から送ったものなら戻す（待つ間に書き足した文は後ろに残す）。
       // 待つ間に別のノートへ移っていたら、入力欄の代わりにこのノートの分として預けておく。
       if (limited && display === undefined && !composerMountedRef.current) {
-        keepRejectedDraft(`note:${noteId}`, activeSelection ? payloadText : text, { persistent: embedded });
+        keepRejectedDraft(`note:${noteId}`, activeSelection ? payloadText : text, { persistent: embedded, selectionIds: activeIds });
       }
       if (limited && display === undefined) {
         const nextInput = inputValueRef.current.trim() ? [text.trimEnd(), inputValueRef.current].join("\n\n") : text;
         if (embedded && guestLimitHitRef.current) {
-          savePendingDraft(`note:${noteId}`, activeSelection ? composeQuotedMessage(activeSelection, nextInput) : nextInput, { persistent: true });
+          savePendingDraft(`note:${noteId}`, activeSelection ? composeQuotedMessage(activeSelection, nextInput) : nextInput, { persistent: true, selectionIds: activeIds });
         }
         setInput((current) => (current.trim() ? [text.trimEnd(), current].join("\n\n") : text));
       }
@@ -953,11 +978,12 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
       )}
 
       {upgradeLimit && <UpgradePrompt kind="chat" onClose={() => setUpgradeLimit(false)} attachmentsLost={files.length > 0 || attachedPages.length > 0}
-        onBeforeUpgrade={() => savePendingDraft(`note:${noteId}`, draftToKeep(input))} />}
+        onBeforeUpgrade={() => savePendingDraft(`note:${noteId}`, draftToKeep(input), { selectionIds: selectionIdsRef.current })} />}
       {storageLimit && <StorageLimitPrompt limit={storageLimit} actions={!embedded} onClose={() => setStorageLimit(null)} attachmentsLost={files.length > 0 || attachedPages.length > 0}
-        onBeforeSignIn={() => savePendingDraft(`note:${noteId}`, draftToKeep(input))} onBeforeUpgrade={() => savePendingDraft(`note:${noteId}`, draftToKeep(input))} />}
+        onBeforeSignIn={() => savePendingDraft(`note:${noteId}`, draftToKeep(input), { selectionIds: selectionIdsRef.current })}
+        onBeforeUpgrade={() => savePendingDraft(`note:${noteId}`, draftToKeep(input), { selectionIds: selectionIdsRef.current })} />}
       {guestLimit && <GuestLimitPrompt kind="chat" onClose={() => setGuestLimit(false)} attachmentsLost={files.length > 0 || attachedPages.length > 0}
-        onBeforeSignIn={() => savePendingDraft(`note:${noteId}`, draftToKeep(input))} />}
+        onBeforeSignIn={() => savePendingDraft(`note:${noteId}`, draftToKeep(input), { selectionIds: selectionIdsRef.current })} />}
       {(uploadError || error) && <p className="note-ai-error" role="alert">{uploadError || t(error)}</p>}
       {notice && !uploadError && !error && <p className="note-ai-notice" role="status">{t(notice)}</p>}
       {/* チャットの入力欄と同じ理由で、ページ翻訳の対象から外す（書き換えられると React の更新が失敗する）。 */}
@@ -969,7 +995,7 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
               {Boolean(selection?.captureImage && modelOption.supportsImageInput) && (
                 <ImageIcon size={13} className="note-ai-quote-vision" aria-hidden="true" />
               )}
-              <button type="button" className="chat-quote-remove" disabled={busy} onClick={() => { setNotice(""); onClearSelection?.(); }}
+              <button type="button" className="chat-quote-remove" disabled={busy} onClick={() => { setNotice(""); setRestoredSelectionIds([]); onClearSelection?.(); }}
                 aria-label={t("Remove selection")} title={t("Remove selection")}>
                 <X size={14} aria-hidden="true" />
               </button>

@@ -1139,5 +1139,5 @@ export const id: Record<string, string> = {
   "Proposed page edit": "Usulan edit halaman",
   "Applied automatically": "Diterapkan otomatis",
   "Group & organize": "Kelompokkan & rapikan",
-  "Sent text only this time.": "Kali ini hanya teks yang dikirim.",
+  "Could not attach the selection screenshot this time.": "Tangkapan layar pilihan tidak dapat dilampirkan kali ini.",
 };

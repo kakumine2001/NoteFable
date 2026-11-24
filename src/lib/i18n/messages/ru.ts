@@ -1139,5 +1139,5 @@ export const ru: Record<string, string> = {
   "Proposed page edit": "Предложенная правка страницы",
   "Applied automatically": "Применено автоматически",
   "Group & organize": "Сгруппировать и упорядочить",
-  "Sent text only this time.": "В этот раз отправлен только текст.",
+  "Could not attach the selection screenshot this time.": "В этот раз не удалось прикрепить снимок выделения.",
 };

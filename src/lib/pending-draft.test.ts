@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { keepRejectedDraft, savePendingDraft, takePendingDraft } from "./pending-draft";
+import { keepRejectedDraft, savePendingDraft, takePendingDraft, takePendingDraftSelection } from "./pending-draft";
 
 function stubStorage() {
   const session = new Map<string, string>();
@@ -58,6 +58,22 @@ describe("pending draft", () => {
     savePendingDraft("slides-image:p1", "expired prompt", { persistent: true });
     vi.advanceTimersByTime(3 * 60 * 60 * 1000);
     expect(takePendingDraft("slides-image:p1")).toBe("");
+  });
+
+  it("persists and restores selection IDs alongside rejected drafts across session resets and clears them with blank text", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-24T12:00:00Z"));
+    const { session, local } = stubStorage();
+    savePendingDraft("note:wb1", "What does this connect to?", { persistent: true, selectionIds: ["arrow-1", "shape-2", "arrow-1"] });
+    session.clear();
+    expect(takePendingDraft("note:wb1")).toBe("What does this connect to?");
+    expect(takePendingDraftSelection("note:wb1")).toEqual(["arrow-1", "shape-2"]);
+    expect(takePendingDraftSelection("note:wb1")).toEqual([]);
+
+    savePendingDraft("note:wb2", "draft", { persistent: true, selectionIds: ["el-1"] });
+    savePendingDraft("note:wb2", "   ", { persistent: true });
+    expect(local.size).toBe(0);
+    expect(takePendingDraftSelection("note:wb2")).toEqual([]);
   });
 });
 

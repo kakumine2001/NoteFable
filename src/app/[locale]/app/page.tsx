@@ -1525,13 +1525,13 @@ export default function Home() {
               selectionUpload = createUploadFile(imageFile);
               if (selectionUpload.previewUrl) selectionPreviewsRef.current.add(selectionUpload.previewUrl);
             } else {
-              setSendNotice(msg("Sent text only this time."));
+              setSendNotice(msg("Could not attach the selection screenshot this time."));
             }
           } else {
-            setSendNotice(msg("Sent text only this time."));
+            setSendNotice(msg("Could not attach the selection screenshot this time."));
           }
         } catch {
-          setSendNotice(msg("Sent text only this time."));
+          setSendNotice(msg("Could not attach the selection screenshot this time."));
         }
       }
       const uploaded = await uploadChatFilesWithSelection(rawSubmittedFiles, selectionUpload?.file ?? null, (name, index, total, percentage) => {
@@ -1541,7 +1541,7 @@ export default function Home() {
       if (uploaded.selectionDropped && selectionUpload) {
         releaseSelectionPreview();
         selectionUpload = null;
-        setSendNotice(msg("Sent text only this time."));
+        setSendNotice(msg("Could not attach the selection screenshot this time."));
       }
       if (navigationIntent !== sessionNavigationIntentRef.current) {
         releaseSelectionPreview();
@@ -1803,6 +1803,8 @@ export default function Home() {
         submittedInputRestoreGuardRef.current = null;
         const typedMeanwhile = inputRef.current?.value ?? "";
         // 引用を付けて送った本文は、引用を入力欄の上へ戻し、質問だけを入力欄に戻す。引用が無ければ打ったままの原文を戻す。
+        // 待つ間に別の引用・選区が選ばれていたらそちらを優先し、古い選区メタデータで上書きしない。
+        const hadNewerQuote = Boolean(quoteRef.current);
         const rejectedText = submittedQuote ? userContent : submittedInputValue;
         const rejectedBody = submittedQuote ? restoreComposerText(userContent) : submittedInputValue;
         const restored = typedMeanwhile.trim() ? [rejectedBody.trimEnd(), typedMeanwhile].join("\n\n") : rejectedBody;
@@ -1813,7 +1815,9 @@ export default function Home() {
         if (submittedFiles.length) setFiles((current) => [...submittedFiles, ...current.filter((item) => !submittedFiles.some((sent) => sent.id === item.id))]);
         // 合わせて上限を超えても切り捨てない（送る前に知らせて、利用者に外してもらう）。
         if (submittedPages.length) setAttachedPages((current) => [...submittedPages, ...current.filter((item) => !submittedPages.some((sent) => sent.id === item.id))]);
-        if (activeSplitSelection) setSplitSelection(activeSplitSelection);
+        if (activeSplitSelection && !hadNewerQuote) {
+          setSplitSelection((current) => current ?? activeSplitSelection);
+        }
       }
       if (selectionUpload) releaseSelectionPreview();
       const droppedSelectionId = selectionUpload?.id;

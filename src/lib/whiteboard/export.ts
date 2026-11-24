@@ -175,18 +175,36 @@ export type WhiteboardSelectionSnapshot = {
 };
 
 // 選んだ要素だけを浅色 PNG（長辺 <= 1568px）として書き出す（AI の選区視覚入力、D5）。
-export async function exportWhiteboardSelectionPng(snapshot: WhiteboardSelectionSnapshot): Promise<Blob | null> {
+// 外部画像の読み込みが止まっても送信を永久に塞がないよう、既定 5 秒で打ち切って null にフォールバックする。
+export const SELECTION_CAPTURE_TIMEOUT_MS = 5000;
+
+export async function exportWhiteboardSelectionPng(
+  snapshot: WhiteboardSelectionSnapshot,
+  timeoutMs = SELECTION_CAPTURE_TIMEOUT_MS,
+): Promise<Blob | null> {
   const elements = snapshot.elements.filter((element) => !isInvisiblySmallElement(element));
   if (!elements.length) return null;
   let canvas: HTMLCanvasElement | null = null;
   let scaledCanvas: HTMLCanvasElement | null = null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let timedOut = false;
   try {
-    canvas = await exportScene({
+    const exportPromise = exportScene({
       type: "canvas",
       data: { elements, files: snapshot.files, appState: { viewBackgroundColor: snapshot.viewBackgroundColor } } as Parameters<typeof exportScene>[0]["data"],
       config: { padding: 24, theme: "light", scale: (width: number, height: number) => selectionImageScale(width, height, MAX_SELECTION_IMAGE_SIDE, 2) },
     });
-    if (!canvas.width || !canvas.height) return null;
+    const timeoutPromise = new Promise<null>((resolve) => {
+      timer = setTimeout(() => { timedOut = true; resolve(null); }, timeoutMs);
+    });
+    canvas = await Promise.race([exportPromise, timeoutPromise]);
+    if (timer !== undefined) clearTimeout(timer);
+    if (timedOut) {
+      // 遅れて解決した canvas のピクセルバッファを解放し、拒否されても未処理エラーにしない。
+      void exportPromise.then((late) => { if (late) { late.width = 0; late.height = 0; } }).catch(() => undefined);
+      return null;
+    }
+    if (!canvas || !canvas.width || !canvas.height) return null;
     const clamped = clampImageDimensions(canvas.width, canvas.height, MAX_SELECTION_IMAGE_SIDE);
     let output = canvas;
     if (clamped.scaled) {
@@ -206,6 +224,7 @@ export async function exportWhiteboardSelectionPng(snapshot: WhiteboardSelection
       }
     });
   } finally {
+    if (timer !== undefined) clearTimeout(timer);
     if (canvas) { canvas.width = 0; canvas.height = 0; }
     if (scaledCanvas) { scaledCanvas.width = 0; scaledCanvas.height = 0; }
   }

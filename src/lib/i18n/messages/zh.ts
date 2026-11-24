@@ -1148,5 +1148,5 @@ export const zh: Record<string, string> = {
   "Proposed page edit": "页面修改建议",
   "Applied automatically": "已自动应用",
   "Group & organize": "归类整理",
-  "Sent text only this time.": "本次仅发送了文字。",
+  "Could not attach the selection screenshot this time.": "本次未能附上选区截图。",
 };

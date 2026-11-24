@@ -1139,5 +1139,5 @@ export const it: Record<string, string> = {
   "Proposed page edit": "Modifica della pagina proposta",
   "Applied automatically": "Applicata automaticamente",
   "Group & organize": "Raggruppa e organizza",
-  "Sent text only this time.": "Questa volta è stato inviato solo il testo.",
+  "Could not attach the selection screenshot this time.": "Impossibile allegare lo screenshot della selezione questa volta.",
 };

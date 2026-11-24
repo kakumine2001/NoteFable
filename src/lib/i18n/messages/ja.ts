@@ -1140,5 +1140,5 @@ export const ja: Record<string, string> = {
   "Proposed page edit": "ページの編集案",
   "Applied automatically": "自動で適用済み",
   "Group & organize": "分類・整理",
-  "Sent text only this time.": "今回はテキストのみ送信しました。",
+  "Could not attach the selection screenshot this time.": "今回は選択範囲のスクリーンショットを添付できませんでした。",
 };

@@ -1139,5 +1139,5 @@ export const vi: Record<string, string> = {
   "Proposed page edit": "Đề xuất chỉnh sửa trang",
   "Applied automatically": "Đã tự động áp dụng",
   "Group & organize": "Phân nhóm & sắp xếp",
-  "Sent text only this time.": "Lần này chỉ gửi văn bản.",
+  "Could not attach the selection screenshot this time.": "Lần này không thể đính kèm ảnh chụp vùng chọn.",
 };

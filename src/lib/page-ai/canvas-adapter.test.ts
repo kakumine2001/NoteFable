@@ -266,4 +266,39 @@ describe("canvasTextAdapter structured slides read", () => {
     expect(result).toContain("- text (id: t_58) [role: title]: Slide title 58");
     expect(result).toMatch(/\[Truncated: \d+ more slides? omitted \(limit: 20000 characters\)\.\]/);
   });
+
+  it("reserves read space for every selected slide even when the first selected slide has huge speaker notes", () => {
+    const slides = [
+      {
+        id: "s_big",
+        layout: "bullets",
+        notes: `Huge speaker notes: ${"x".repeat(20_000)}`,
+        elements: [{
+          id: "t_big",
+          type: "text",
+          role: "title",
+          doc: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "First selected slide" }] }] },
+        }],
+      },
+      {
+        id: "s_small",
+        layout: "bullets",
+        elements: [{
+          id: "t_small",
+          type: "text",
+          role: "title",
+          doc: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Second selected short line" }] }] },
+        }],
+      },
+    ];
+    const result = adapter.read(page("slides", {
+      data: { format: 1, theme: { id: "simple", mode: "light" }, slides },
+      focusIds: ["s_big", "s_small"],
+    }));
+    expect(result.length).toBeLessThanOrEqual(MAX_READ_CHARS);
+    expect(result).toContain("## Slide 1 (id: s_big, layout: bullets)");
+    expect(result).toContain("First selected slide");
+    expect(result).toContain("## Slide 2 (id: s_small, layout: bullets)");
+    expect(result).toContain("Second selected short line");
+  });
 });

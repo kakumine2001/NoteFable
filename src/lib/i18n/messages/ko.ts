@@ -1139,5 +1139,5 @@ export const ko: Record<string, string> = {
   "Proposed page edit": "페이지 편집 제안",
   "Applied automatically": "자동으로 적용됨",
   "Group & organize": "분류 및 정리",
-  "Sent text only this time.": "이번에는 텍스트만 보냈습니다.",
+  "Could not attach the selection screenshot this time.": "이번에는 선택 영역 스크린샷을 첨부하지 못했습니다.",
 };

@@ -567,15 +567,23 @@ function readSlides(page: AdapterPage, budget: number): string {
   }));
 
   const fullLength = metaHeader.length + slideEntries.reduce((sum, entry) => sum + 2 + entry.block.length, 0);
-  const singleSlideBudget = Math.max(0, budget - metaHeader.length - 2 - noticeReserve);
-  const orderedBlocks = fullLength > budget && slideEntries.some((entry) => entry.focused)
-    ? [
-        ...slideEntries.filter((entry) => entry.focused).map((entry) => (
-          entry.block.length > singleSlideBudget ? formatSlideBlock(entry.slide, entry.index, true) : entry.block
-        )),
-        ...slideEntries.filter((entry) => !entry.focused).map((entry) => entry.block),
-      ]
-    : slideEntries.map((entry) => entry.block);
+  const focusedEntries = slideEntries.filter((entry) => entry.focused);
+  const unfocusedEntries = slideEntries.filter((entry) => !entry.focused);
+  // 複数枚が選ばれているときは、先頭の 1 枚（長い発表者ノートなど）が枠を使い切らないよう各選択スライドに均等枠を確保してから残りを未選択に回す。
+  const orderedBlocks: string[] = (() => {
+    if (fullLength <= budget || !focusedEntries.length) {
+      return slideEntries.map((entry) => entry.block);
+    }
+    const availableForFocused = Math.max(0, budget - metaHeader.length - noticeReserve);
+    const perFocusedBudget = Math.max(0, Math.floor(availableForFocused / focusedEntries.length) - 2);
+    const preparedFocused = focusedEntries.map((entry) => {
+      if (entry.block.length <= perFocusedBudget) return entry.block;
+      const compact = formatSlideBlock(entry.slide, entry.index, true);
+      if (compact.length <= perFocusedBudget) return compact;
+      return clipToBudget(compact, perFocusedBudget) || compact.slice(0, perFocusedBudget);
+    });
+    return [...preparedFocused, ...unfocusedEntries.map((entry) => entry.block)];
+  })();
 
   const out: string[] = metaHeader ? [metaHeader] : [];
   let used = metaHeader.length;

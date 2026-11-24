@@ -273,6 +273,32 @@ describe("slides AI context and selection capture", () => {
     expect(wholeSlide).toContain("Heading One");
     expect(wholeSlide).toContain("[Whiteboard frame: Architecture]");
     expect(wholeSlide).toContain("Notes: Private speaker notes for slide 1");
+
+    const localized = slidesContextText(sampleDeck, { slideIds: ["s1"], elementIds: [] }, {
+      t: (key, vars) => ({
+        "Slide {number}": `スライド ${vars?.number}`,
+        "Section {number}": `セクション ${vars?.number}`,
+        "Bullets": "箇条書き",
+        "Whiteboard frame": "ホワイトボードの枠",
+        "Speaker notes": "発表者ノート",
+      }[key] ?? key),
+    });
+    expect(localized).toContain("スライド 1 (箇条書き, Intro):");
+    expect(localized).toContain("[ホワイトボードの枠: Architecture]");
+    expect(localized).toContain("発表者ノート: Private speaker notes for slide 1");
+
+    const untitledSection = slidesContextText(
+      { ...sampleDeck, slides: [{ ...sampleDeck.slides[0], section: undefined }] },
+      { slideIds: ["s1"], elementIds: [] },
+      {
+        t: (key, vars) => ({
+          "Slide {number}": `スライド ${vars?.number}`,
+          "Section {number}": `セクション ${vars?.number}`,
+          "Bullets": "箇条書き",
+        }[key] ?? key),
+      },
+    );
+    expect(untitledSection).toContain("スライド 1 (箇条書き, セクション 1):");
   });
 
   it("produces read_note-aligned selectionIds (element IDs when selected, otherwise slide IDs)", () => {

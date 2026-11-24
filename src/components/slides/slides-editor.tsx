@@ -201,13 +201,13 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     if (!slideIds.length) { onSelectionChange(null); return; }
     const elementIds = isElementSelection ? [...liveSelection] : [];
     const sel = { slideIds, elementIds };
-    const text = slidesContextText(deck, sel);
+    const text = slidesContextText(deck, sel, { t });
     const ids = slidesSelectionIds(deck, sel);
     const targetSlideId = (current && slideIds.includes(current.id) ? current.id : slideIds[0]) ?? null;
     const fallbackSlide = targetSlideId ? deck.slides.find((slide) => slide.id === targetSlideId) ?? null : null;
     const captureImage = makeSlideCapture(targetSlideId, elementIds, fallbackSlide, theme);
     onSelectionChange({ text, ids, captureImage });
-  }, [onSelectionChange, view, deck, selectedSlides, current, liveSelection, theme, makeSlideCapture]);
+  }, [onSelectionChange, view, deck, selectedSlides, current, liveSelection, theme, makeSlideCapture, t]);
 
   // 選んだスライドや要素について AI に聞く（ロック中のスライドからも利用可能）。
   const askAi = useCallback((override?: { slideIds?: string[]; elementIds?: string[] }) => {
@@ -222,7 +222,7 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
       ? override.elementIds
       : view === "slide" ? [...liveSelection] : [];
     const sel = { slideIds, elementIds };
-    const text = slidesContextText(deck, sel);
+    const text = slidesContextText(deck, sel, { t });
     const ids = slidesSelectionIds(deck, sel);
     // 複数枚選択時はアクティブな枚（なければ先頭）を対象にし、送信時点の最新スライド（保存後）を描画する。
     const targetSlideId = (current && slideIds.includes(current.id) ? current.id : slideIds[0]) ?? null;
@@ -231,7 +231,7 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     // スマホでは設定シートが開いたままだと AI 引き出しと重なるため閉じる。
     if (phone) { setInspectorOpen(false); setSelection(new Set()); }
     onAskAi({ text, ids, captureImage });
-  }, [onAskAi, view, deck, selectedSlides, current, liveSelection, theme, makeSlideCapture, phone]);
+  }, [onAskAi, view, deck, selectedSlides, current, liveSelection, theme, makeSlideCapture, phone, t]);
 
   // ---- 枚の操作 ----
   const addSlide = useCallback((layout: LayoutId = "bullets", index?: number) => {

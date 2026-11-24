@@ -638,7 +638,8 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
         });
         if (cannotReadImages(prompt?.attachments ?? [])) return { error: "images" as const };
         const promptNotes = prompt?.notes ?? [];
-        const livePromptNotes = promptNotes.length ? await liveOwnedNoteIds(user.id, promptNotes.map((item) => item.noteId)) : [];
+        const hasStoredSelection = promptNotes.some((item) => parseStoredSelectionIds(item.selectionIds).length > 0);
+        const livePromptNotes = hasStoredSelection ? await liveOwnedNoteIds(user.id, promptNotes.map((item) => item.noteId), tx) : [];
         return { userMessageId: promptNode.id, replaced: below, selection: storedSelectionFrom(promptNotes, livePromptNotes) };
       }
       // 編集：元の発言の添付とノート（選区 ID を含む）を引き継いだ新しい版を同じ親の下に作り、元の版とその先を隠す（消さない）。
@@ -648,7 +649,7 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
       });
       if (cannotReadImages(original?.attachments ?? [])) return { error: "images" as const };
       const originalNotes = original?.notes ?? [];
-      const keptPages = await liveOwnedNoteIds(user.id, originalNotes.map((item) => item.noteId));
+      const keptPages = await liveOwnedNoteIds(user.id, originalNotes.map((item) => item.noteId), tx);
       const selectionByNoteId = new Map(originalNotes.map((item) => [item.noteId, item.selectionIds ?? null]));
       await tx.message.updateMany({ where: { sessionId: session.id, id: { in: below }, active: true }, data: { active: false } });
       const created = await tx.message.create({

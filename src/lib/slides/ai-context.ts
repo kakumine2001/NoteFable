@@ -1,4 +1,5 @@
 import { isSelectionId, MAX_SELECTION_IDS } from "@/lib/page-ai/types";
+import { layoutDefinition } from "@/lib/slides/layouts";
 import { slideRows, type Deck } from "@/lib/slides/model";
 import { richDocText } from "@/lib/slides/rich-text";
 
@@ -15,21 +16,29 @@ export const SLIDES_EVENTS = {
 
 export type SlidesSelectionDetail = { pageId: string; slideIds: string[]; elementIds: string[] };
 
+export type SlidesContextTranslate = (key: string, vars?: Record<string, string | number>) => string;
+
 export type SlidesContextOptions = {
   // 明示的に指定しない限り、枚全体を選んだとき（elementIds が空）だけ演説者ノートを添える。
   // 個別の要素だけを選んだときは、その要素の文脈だけに絞る。
   includeNotes?: boolean;
+  // 画面の引用チップにも出すため、UI 翻訳関数を渡すと「スライド」「セクション」「レイアウト名」「発表者ノート」を現在の言語で組み立てる。
+  t?: SlidesContextTranslate;
 };
 
-// 選んでいる枚・要素を、AI に渡す読みやすい文字にする（枚の番号・章・文字・必要なときだけノート）。
+// 選んでいる枚・要素を、AI と引用チップに渡す読みやすい文字にする（枚の番号・章・文字・必要なときだけノート）。
 export function slidesContextText(
   deck: Deck,
   selection: Pick<SlidesSelectionDetail, "slideIds" | "elementIds">,
   options?: SlidesContextOptions,
 ): string {
+  const translate = options?.t;
   const rows = slideRows(deck.slides);
   const sectionOf = new Map<string, string>();
-  rows.forEach((row, index) => row.slides.forEach((slide) => sectionOf.set(slide.id, row.title || `Section ${index + 1}`)));
+  rows.forEach((row, index) => row.slides.forEach((slide) => sectionOf.set(
+    slide.id,
+    row.title || (translate ? translate("Section {number}", { number: index + 1 }) : `Section ${index + 1}`),
+  )));
   const includeNotes = options?.includeNotes ?? selection.elementIds.length === 0;
   const lines: string[] = [];
   deck.slides.forEach((slide, index) => {
@@ -38,12 +47,18 @@ export function slidesContextText(
     const texts = elements
       .map((element) => (element.type === "text" || element.type === "shape" ? richDocText(element.doc)
         : element.type === "table" ? element.rows.map((row) => row.cells.map((cell) => cell.text).join(" | ")).join("\n")
-        : element.type === "image" ? `[Image: ${element.alt || "image"}]`
-        : element.type === "whiteboard" ? `[Whiteboard frame: ${element.frameName || "whiteboard"}]`
+        : element.type === "image" ? `[${translate ? translate("Image") : "Image"}: ${element.alt || (translate ? translate("Image") : "image")}]`
+        : element.type === "whiteboard" ? `[${translate ? translate("Whiteboard frame") : "Whiteboard frame"}: ${element.frameName || (translate ? translate("Whiteboard") : "whiteboard")}]`
         : ""))
       .filter((text) => text.trim());
-    lines.push(`Slide ${index + 1} (${slide.layout}, ${sectionOf.get(slide.id)})${slide.hidden ? " [hidden]" : ""}:`, ...texts.map((text) => `- ${text.replace(/\n/g, " / ")}`));
-    if (includeNotes && slide.notes?.trim()) lines.push(`  Notes: ${slide.notes.trim()}`);
+    const slideLabel = translate ? translate("Slide {number}", { number: index + 1 }) : `Slide ${index + 1}`;
+    const layoutLabel = translate ? translate(layoutDefinition(slide.layout).name) : slide.layout;
+    const hiddenSuffix = slide.hidden ? ` [${translate ? translate("Hidden in presentation") : "hidden"}]` : "";
+    lines.push(`${slideLabel} (${layoutLabel}, ${sectionOf.get(slide.id)})${hiddenSuffix}:`, ...texts.map((text) => `- ${text.replace(/\n/g, " / ")}`));
+    if (includeNotes && slide.notes?.trim()) {
+      const notesLabel = translate ? translate("Speaker notes") : "Notes";
+      lines.push(`  ${notesLabel}: ${slide.notes.trim()}`);
+    }
   });
   return lines.join("\n");
 }

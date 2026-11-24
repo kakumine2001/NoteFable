@@ -1139,5 +1139,5 @@ export const tr: Record<string, string> = {
   "Proposed page edit": "Sayfa düzenleme önerisi",
   "Applied automatically": "Otomatik uygulandı",
   "Group & organize": "Grupla ve düzenle",
-  "Sent text only this time.": "Bu sefer yalnızca metin gönderildi.",
+  "Could not attach the selection screenshot this time.": "Bu sefer seçimin ekran görüntüsü eklenemedi.",
 };
