@@ -93,6 +93,9 @@ struct AssistantTurn: View {
         let failed = message.errorDetail != nil || message.usageLimit
         if !message.streaming && !failed && !message.generatingImage && !ChatText.isBlank(message.content) {
             AnswerActions(message: message, sessionId: sessionId)
+        } else if message.streaming && !failed && !message.generatingImage && !ChatText.isBlank(message.content) {
+            // 生成中先预留与操作行相同的高度（上距 6.4 + 按钮 36），避免完成瞬间正文往上跳（网页 answer-actions-placeholder）。
+            Color.clear.frame(height: 42.4).accessibilityHidden(true)
         } else if !message.streaming, let versions = message.versions, message.images.isEmpty {
             // 没有操作行的回答（没有正文）也要能切换版本（网页 chat-message.tsx 的同一分支）。
             AnswerVersionNav(versions: versions)

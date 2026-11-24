@@ -749,10 +749,10 @@ export default function Home() {
     }
   }
 
-  function applyFetchedMessages(sessionKey: string, fetchedMessages: Message[]) {
+  function applyFetchedMessages(sessionKey: string, fetchedMessages: Message[], handoffIds?: readonly string[]) {
     replaceCachedMessages(
       sessionKey,
-      reconcileFetchedMessages(sessionMessagesRef.current[sessionKey] ?? [], fetchedMessages),
+      reconcileFetchedMessages(sessionMessagesRef.current[sessionKey] ?? [], fetchedMessages, handoffIds),
     );
   }
 
@@ -839,12 +839,12 @@ export default function Home() {
     }
   }
 
-  async function refreshSessionMessages(sessionId: string) {
+  async function refreshSessionMessages(sessionId: string, handoffIds?: readonly string[]) {
     const fetchedMessages = await fetchSessionMessages(sessionId);
     if (!fetchedMessages || fetchedMessages === "missing") return false;
     if (fetchedMessages.length === 0 && (sessionMessagesRef.current[sessionId]?.length ?? 0) > 0) return false;
 
-    applyFetchedMessages(sessionId, fetchedMessages);
+    applyFetchedMessages(sessionId, fetchedMessages, handoffIds);
     return true;
   }
 
@@ -951,7 +951,7 @@ export default function Home() {
   // 何も届いていないときは、サーバーの状態が分からないので画面は書き換えない（再生成なら、呼び出し側が元の表示に戻す）。
   // knownBefore は、作り直しを始める前に表示していた発言。作り直しでは置き換える回答を画面から外しているので、
   // それを「新しく保存された回答」と取り違えないように渡す。
-  async function finishStoppedStream(sessionKey: string, assistantMessageId: string, knownBefore: Message[] = []) {
+  async function finishStoppedStream(sessionKey: string, assistantMessageId: string, knownBefore: Message[] = [], handoffIds?: readonly string[]) {
     const partial = (sessionMessagesRef.current[sessionKey] ?? []).find((message) => message.id === assistantMessageId);
     const hasAnswer = !!partial && (partial.content.trim().length > 0
       || !!partial.activity?.some((step) => step.kind === "proposal" || step.kind === "create_proposal"));
@@ -966,7 +966,7 @@ export default function Home() {
       if (!fetched || fetched === "missing") continue;
       const last = fetched.at(-1);
       if (!(last?.role === "ASSISTANT" && !known.has(last.id))) continue;
-      applyFetchedMessages(sessionKey, fetched);
+      applyFetchedMessages(sessionKey, fetched, handoffIds);
       return true;
     }
     return false;
@@ -1668,7 +1668,7 @@ export default function Home() {
 
         await loadSessions();
         if (completedSessionId) {
-          shouldCleanupSubmittedPreviews = await refreshSessionMessages(completedSessionId);
+          shouldCleanupSubmittedPreviews = await refreshSessionMessages(completedSessionId, [localUserMessage.id, assistantMessageId]);
         }
         pendingOutcome = "completed";
         return;
@@ -1689,7 +1689,7 @@ export default function Home() {
 
       await loadSessions();
       if (resolvedSessionId) {
-        shouldCleanupSubmittedPreviews = await refreshSessionMessages(resolvedSessionId);
+        shouldCleanupSubmittedPreviews = await refreshSessionMessages(resolvedSessionId, [localUserMessage.id, assistantMessageId]);
       }
       if (streamFailed) {
         pendingOutcome = "error";
@@ -1699,7 +1699,7 @@ export default function Home() {
     } catch (error) {
       if (chatController?.signal.aborted) {
         // 利用者が止めた。失敗ではないので、届いた分をそのまま残す。
-        shouldCleanupSubmittedPreviews = await finishStoppedStream(requestSessionKey, assistantMessageId);
+        shouldCleanupSubmittedPreviews = await finishStoppedStream(requestSessionKey, assistantMessageId, [], [localUserMessage.id, assistantMessageId]);
         return;
       }
       pendingOutcome = "error";
@@ -1787,11 +1787,13 @@ export default function Home() {
     cancelReveal();
     submittingSessionKeysRef.current.add(sessionId);
     // 対象から先を画面から外し、新しい版が入る枠を置く。サーバー側では消えず、隠れるだけ。
+    const editedUserMessageId = kind === "edit" ? crypto.randomUUID() : null;
     const assistantMessageId = crypto.randomUUID();
+    const rerunHandoffIds = editedUserMessageId ? [editedUserMessageId, assistantMessageId] : [assistantMessageId];
     followBottomRef.current = true;
     replaceCachedMessages(sessionId, [
       ...before.slice(0, index),
-      ...(kind === "edit" ? [{ ...target, id: crypto.randomUUID(), content, versions: undefined }] : []),
+      ...(editedUserMessageId ? [{ ...target, id: editedUserMessageId, content, versions: undefined }] : []),
       { id: assistantMessageId, role: "ASSISTANT", content: "", model, reasoningEffort: reasoning.toUpperCase() },
     ]);
     const startedAt = Date.now();
@@ -1809,7 +1811,7 @@ export default function Home() {
     try {
       const { streamFailed } = await streamChatInto({ body, sessionKey: sessionId, sessionId, assistantMessageId, startedAt, controller });
       await loadSessions();
-      await refreshSessionMessages(sessionId);
+      await refreshSessionMessages(sessionId, rerunHandoffIds);
       if (streamFailed) {
         pendingRerunOutcome = "error";
       } else if (!stopRequestedRef.current.has(sessionId)) {
@@ -1817,7 +1819,7 @@ export default function Home() {
       }
     } catch (error) {
       if (controller.signal.aborted) {
-        const synced = await finishStoppedStream(sessionId, assistantMessageId, before);
+        const synced = await finishStoppedStream(sessionId, assistantMessageId, before, rerunHandoffIds);
         // 何も届く前に切った再生成は、サーバーでは元の回答が表示のまま残っている。画面も元に戻す。
         if (!synced && kind === "regenerate" && !(sessionMessagesRef.current[sessionId] ?? []).some((message) => message.id === assistantMessageId)) {
           replaceCachedMessages(sessionId, before);

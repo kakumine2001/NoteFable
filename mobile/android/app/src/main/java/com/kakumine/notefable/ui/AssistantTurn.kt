@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -182,6 +183,9 @@ internal fun AssistantTurn(
         val turnActions = LocalTurnActions.current
         if (!message.streaming && !failed && !message.generatingImage && message.content.isNotBlank()) {
             AnswerActions(message.key, message.id, message.content, message.versions)
+        } else if (message.streaming && !failed && !message.generatingImage && message.content.isNotBlank()) {
+            // 生成中先预留与操作行相同的高度（上距 6.4 + 按钮 36），避免完成瞬间正文往上跳（网页 answer-actions-placeholder）。
+            Spacer(Modifier.height(42.4.dp))
         } else if (!message.streaming && message.versions != null && turnActions != null && message.images.isEmpty()) {
             // 没有操作行的回答（没有正文）也要能切换版本（网页 chat-message.tsx 的同一分支）。
             Box(Modifier.padding(top = 6.4.dp).offset(x = (-10.4).dp)) {
