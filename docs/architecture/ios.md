@@ -9,7 +9,7 @@
 - 工作流：[`.github/workflows/ios-pr.yml`](../../.github/workflows/ios-pr.yml)
 - 改动 `mobile/ios/**`、`mobile/android/app/src/main/assets/**`、`.github/workflows/ios-*.yml` 或 `scripts/release/ios-version*.sh` 并向 `main` 提 PR 时运行；只改 PR 标题或描述时不触发。
 - 先在 `ubuntu-latest` 上运行版本号校验脚本测试（`scripts/release/ios-version.test.sh`）与本次 PR 的版本号检查（`scripts/release/ios-version.sh`），避免版本号出错时白耗高倍率的 macOS 分钟数。
-- 只有校验通过且仓库存在 `mobile/ios/project.yml` 时，才启动 `macos-26` 运行 Core 的单元测试（`mobile/ios/scripts/ci-core-tests.sh`：`swift test` 加一个时限，测试挂住时打印卡住的调用栈并提前结束，不把任务时限耗完）、XcodeGen 生成工程和模拟器无签名构建。PR 检查不接触任何发布凭据。
+- 只有校验通过且仓库存在 `mobile/ios/project.yml` 时，才启动 `xcode-27` 镜像（macOS + Xcode 27）运行 Core 的单元测试（`mobile/ios/scripts/ci-core-tests.sh`：`swift test` 加一个时限，测试挂住时打印卡住的调用栈并提前结束，不把任务时限耗完）、XcodeGen 生成工程和模拟器无签名构建。PR 检查不接触任何发布凭据。
 
 ## 自动打包与上传 App Store Connect（TestFlight）
 
@@ -28,7 +28,7 @@
 
 ### 无 Mac 云端签名与安全边界
 
-- **Runner 与 SDK**：使用 `macos-26`（默认带 Xcode 26 / iOS 26 SDK，满足 App Store Connect 的最低 SDK 要求）。
+- **Runner 与 SDK**：使用 GitHub 的 `xcode-27` 镜像（默认 Xcode 27 / iOS 27 SDK）。App Store Connect 从 2027 年 4 月起要求用 iOS 27 SDK 构建（ITMS-90725），旧的 `macos-26` 只带 Xcode 26。
 - **凭据前置检查**：在跑测试和安装工具前先校验 `appstore-publish` 的必需 Secrets 是否齐全且格式正确，缺失时直接列出缺项并快速失败。
 - **构建与云端签名**：
   1. 运行 Core 的单元测试（同一个 `ci-core-tests.sh`）和 `xcodegen generate`。
