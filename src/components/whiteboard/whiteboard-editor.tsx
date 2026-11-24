@@ -132,10 +132,11 @@ function contentHiddenIn(target: ExcalidrawImperativeAPI) {
   return x2 < view.x || x1 > view.x + view.width || y2 < view.y || y1 > view.y + view.height;
 }
 
-// 開いたときの表示位置。検索の結果から開いたときはその要素へ動かし、それ以外で fit なら内容がすべて見えるように縮める（100% より大きくしない）。
-function placeOnOpen(target: ExcalidrawImperativeAPI, reveal: string | null, fit: boolean) {
+// 開いたときの表示位置。検索の結果から開いたときはその要素へ動かし（見つからなければ依頼を残す）、それ以外で fit なら内容がすべて見えるように縮める（100% より大きくしない）。
+function placeOnOpen(target: ExcalidrawImperativeAPI, pageId: string, fit: boolean) {
+  const revealed = Boolean(consumeWhiteboardReveal(pageId, Date.now(), (elementId) => revealIn(target, elementId, false)));
   const elements = target.getSceneElements();
-  if (!(reveal && revealIn(target, reveal, false)) && fit && elements.length) target.setViewport({ target: elements, fit: "scale-down" });
+  if (!revealed && fit && elements.length) target.setViewport({ target: elements, fit: "scale-down" });
 }
 
 // その要素まで動かして選ぶ。見つからなければ false。
@@ -221,8 +222,8 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   const mounted = useRef(true);
   // Excalidraw が最初の内容を読み終えたか（onInitialize）。それまでの onChange は読み込みそのもので、保存しない。
   const initialized = useRef(false);
-  // 枠の大きさが 0 のまま開いたので、大きさが決まるまで待っている表示位置（placeOnOpen の引数）。
-  const deferredPlacement = useRef<{ reveal: string | null; fit: boolean } | null>(null);
+  // 枠の大きさが 0 のまま開いたので、大きさが決まるまで待っている表示位置（検索ターゲットはサイズ確定まで消費しない）。
+  const deferredPlacement = useRef<{ fit: boolean } | null>(null);
   // 最後に見た Excalidraw の大きさ（appState.width × height）。変わったら表示位置と「内容に戻る」を見直す。
   const lastSize = useRef("");
   // 取り込み中の PDF（閉じたらやめる）。
@@ -466,7 +467,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
         const { width, height } = api.getAppState();
         if (deferred && width && height) {
           deferredPlacement.current = null;
-          placeOnOpen(api, deferred.reveal, deferred.fit);
+          placeOnOpen(api, pageId, deferred.fit);
         }
         updateContentHidden();
       });
@@ -477,7 +478,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
       if (editable) { ownEdit.current = true; touched.current = true; }
       scheduleSave();
     }
-  }, [api, editable, readUi, scheduleSave, signatureOf, startUploads, updateContentHidden]);
+  }, [api, editable, pageId, readUi, scheduleSave, signatureOf, startUploads, updateContentHidden]);
 
   // 開発中だけ、ブラウザーのコンソールから確かめられるよう editor の API を置く（本番のビルドには入らない）。
   useEffect(() => {
@@ -603,9 +604,13 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     target.updateScene({ elements: scene.elements as unknown as ExcalidrawElement[], appState: scene.appState as Partial<AppState> as never, captureUpdate: CaptureUpdateAction.NEVER });
     const signature = signatureOf(target.getSceneElementsIncludingDeleted(), { ...target.getAppState(), ...scene.appState } as AppState);
     lastSignature.current = signature;
-    if (initialized.current) setSceneVersion(signature);
+    if (initialized.current) {
+      setSceneVersion(signature);
+      const { width, height } = target.getAppState();
+      if (width && height) consumeWhiteboardReveal(pageId, Date.now(), (elementId) => revealIn(target, elementId, false));
+    }
     return signature;
-  }, [signatureOf]);
+  }, [pageId, signatureOf]);
   useEffect(() => {
     if (api && initialized.current && mounted.current) applyNewerData(api);
   }, [api, data, applyNewerData]);
@@ -625,15 +630,9 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     // （100% より大きくはしない）。前回の表示位置があればそれを使う。
     const { width, height } = ready.getAppState();
     // 枠の大きさがまだ 0（見えていない枠・後から広がる App の WebView）のときに合わせると、10% まで縮んで左上に寄る。
-    // 大きさが決まってから合わせる（handleChange が Excalidraw の大きさの変化を見て行う）。
-    if (width && height) {
-      const revealed = Boolean(consumeWhiteboardReveal(pageId, Date.now(), (elementId) => revealIn(ready, elementId, false)));
-      const elements = ready.getSceneElements();
-      if (!revealed && fitOnOpen && elements.length) ready.setViewport({ target: elements, fit: "scale-down" });
-    } else {
-      const pending = consumeWhiteboardReveal(pageId);
-      if (pending || fitOnOpen) deferredPlacement.current = { reveal: pending, fit: fitOnOpen };
-    }
+    // 大きさが決まってから合わせる（handleChange が Excalidraw の大きさの変化を見て行う）。検索ターゲットもサイズ確定後に確認する。
+    if (width && height) placeOnOpen(ready, pageId, fitOnOpen);
+    else deferredPlacement.current = { fit: fitOnOpen };
     queueMicrotask(() => { if (mounted.current) setContentHidden(contentHiddenIn(ready)); });
   }, [applyNewerData, fitOnOpen, pageId, readUi, signatureOf]);
 

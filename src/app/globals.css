@@ -1004,8 +1004,17 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 .notes-home-list {
   margin: 0; padding: 0; list-style: none;
   border: 1px solid var(--notion-border); border-radius: 0.875rem;
-  background: var(--notion-surface); overflow: hidden;
+  background: var(--notion-surface);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+.notes-home-list > .notes-home-node:first-child > .notes-home-item {
+  border-top-left-radius: calc(0.875rem - 1px);
+  border-top-right-radius: calc(0.875rem - 1px);
+}
+.notes-home-list > .notes-home-node:last-child > .notes-home-item:last-child,
+.notes-home-list > .notes-home-node:last-child > .notes-home-sub:last-child > .notes-home-node:last-child > .notes-home-item:last-child {
+  border-bottom-left-radius: calc(0.875rem - 1px);
+  border-bottom-right-radius: calc(0.875rem - 1px);
 }
 .notes-home-node + .notes-home-node > .notes-home-item { border-top: 1px solid var(--notion-border); }
 .notes-home-item { display: flex; align-items: center; transition: background 120ms ease; }

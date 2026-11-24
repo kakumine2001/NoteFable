@@ -71,7 +71,7 @@ export function useNotePages(
   const [, refresh] = useState(0);
   const queues = useRef(new Map<string, NoteSaveQueue>());
   // ホバー・フォーカスで先読みしたページ本体（副作用を出さないよう、開くまで NoteSaveQueue は作らない）。
-  const prefetched = useRef(new Map<string, { page: NotePage; fetchedAt: number }>());
+  const prefetched = useRef(new Map<string, { page: NotePage; fetchedAt: number; startedMeta: number }>());
   const inflightPages = useRef(new Map<string, Promise<{ page: NotePage; startedMeta: number }>>());
   const inflightPrefetches = useRef(new Set<string>());
   const invalidationSeq = useRef(new Map<string, number>());
@@ -95,11 +95,11 @@ export function useNotePages(
     invalidationSeq.current.set(id, (invalidationSeq.current.get(id) ?? 0) + 1);
   }, []);
 
-  const cachePrefetched = useCallback((id: string, page: NotePage, seq: number) => {
+  const cachePrefetched = useCallback((id: string, page: NotePage, seq: number, startedMeta: number) => {
     if ((invalidationSeq.current.get(id) ?? 0) !== seq || queues.current.has(id)) return;
     // LRU 風に新しい順へ並べ直し、上限を超えた古い先読みから捨てる。
     prefetched.current.delete(id);
-    prefetched.current.set(id, { page, fetchedAt: Date.now() });
+    prefetched.current.set(id, { page, fetchedAt: Date.now(), startedMeta });
     if (prefetched.current.size > MAX_PREFETCHED) {
       const oldest = prefetched.current.keys().next().value;
       if (oldest !== undefined) prefetched.current.delete(oldest);
@@ -137,7 +137,7 @@ export function useNotePages(
     const seq = invalidationSeq.current.get(id) ?? 0;
     inflightPrefetches.current.add(id);
     void fetchPage(id)
-      .then(({ page }) => { cachePrefetched(id, page, seq); })
+      .then(({ page, startedMeta }) => { cachePrefetched(id, page, seq, startedMeta); })
       .catch(() => { /* 先読みの失敗は無視し、実際に開いたときに通常どおり扱う。 */ })
       .finally(() => { inflightPrefetches.current.delete(id); });
   }, [cachePrefetched, fetchPage]);
@@ -224,10 +224,10 @@ export function useNotePages(
     });
   }, []);
 
-  const install = useCallback((page: NotePage) => {
+  const install = useCallback((page: NotePage, recoveredDraft?: NoteDraft) => {
     const kind = pageKindOf(page);
-    let draft: NoteDraft | undefined;
-    try {
+    let draft: NoteDraft | undefined = recoveredDraft;
+    if (!draft) try {
       if (isCanvasKind(kind)) {
         // ホワイトボード・スライドにノートの下書きは無い（古い画面が残したものは、ノートの本文として送ると断られ続けるので捨てる）。
         // 本体の下書きは別の名前（CANVAS_DRAFT_PREFIX）に置く。
@@ -317,21 +317,26 @@ export function useNotePages(
     cancelPrefetch(id);
     setError("");
     const existing = queues.current.get(id);
+    // 404（gone）で残っていたキューは、ゴミ箱から復元された可能性があるため即表示せずサーバーで再確認する。
+    const usableExisting = existing && !existing.gone ? existing : undefined;
     const prefetchedEntry = !existing ? prefetched.current.get(id) : undefined;
-    if (existing || prefetchedEntry) {
+    if (usableExisting || prefetchedEntry) {
       if (prefetchedEntry) prefetched.current.delete(id);
-      const queue = existing ?? install(prefetchedEntry!.page);
-      if (existing) touchQueue(id, existing);
+      const queue = usableExisting ?? install(prefetchedEntry!.page);
+      if (usableExisting) touchQueue(id, usableExisting);
       pendingId.current = null;
       setOpeningId(null);
       setActiveId(id);
       displayedId.current = id;
       setActive(queue);
-      // 先読みや前回開いた時点の古い設定（ロック・お気に入り等）で一覧の最新値を巻き戻さないよう local: true で反映する。
-      upsertSummary({ ...queue.page, title: queue.content.title.trim() || "Untitled", icon: queue.content.icon }, { local: true });
+      // 先読みしたページは先読み開始時点以降のローカル変更がなければ新しい設定（ロック等）を反映し、既存キューは裏の再照合で合わせる。
+      upsertSummary(
+        { ...queue.page, title: queue.content.title.trim() || "Untitled", icon: queue.content.icon },
+        prefetchedEntry ? { since: prefetchedEntry.startedMeta } : { local: true },
+      );
       syncPageUrl(id, historyMode);
       // 先読み直後で十分に新しい場合以外は、裏で最新版を照合して別タブの更新・削除を拾う。
-      const shouldRevalidate = Boolean(existing) || !prefetchedEntry || Date.now() - prefetchedEntry.fetchedAt >= PREFETCH_FRESH_MS;
+      const shouldRevalidate = Boolean(usableExisting) || !prefetchedEntry || Date.now() - prefetchedEntry.fetchedAt >= PREFETCH_FRESH_MS;
       if (shouldRevalidate) {
         const seq = invalidationSeq.current.get(id) ?? 0;
         void fetchPage(id).then(({ page: latestPage, startedMeta }) => {
@@ -378,14 +383,17 @@ export function useNotePages(
             displayedId.current = null;
             setActiveId(null);
             setActive(undefined);
-            setError(caught instanceof Error ? caught.message : msg("Failed to open note."));
-            const url = new URL(window.location.href);
-            if (url.searchParams.get("page") === id) {
-              url.searchParams.delete("page");
-              window.history.replaceState(window.history.state, "", url);
-              window.dispatchEvent(new Event("popstate"));
+            // 別の未キャッシュページへ移動中（pendingId）なら、URL 変更や popstate でその遷移をキャンセルしない。
+            if (!pendingId.current || pendingId.current === id) {
+              setError(caught instanceof Error ? caught.message : msg("Failed to open note."));
+              const url = new URL(window.location.href);
+              if (url.searchParams.get("page") === id) {
+                url.searchParams.delete("page");
+                window.history.replaceState(window.history.state, "", url);
+                window.dispatchEvent(new Event("popstate"));
+              }
+              onMissingRef.current?.(id);
             }
-            onMissingRef.current?.(id);
           }
         });
       }
@@ -406,7 +414,7 @@ export function useNotePages(
         const seq = invalidationSeq.current.get(id) ?? 0;
         const fetched = await fetchPage(id);
         if (intent !== navigation.current) {
-          cachePrefetched(id, fetched.page, seq);
+          cachePrefetched(id, fetched.page, seq, fetched.startedMeta);
           return true;
         }
         // ホバー先読みに相乗りしている間に AI 編集・アイコン変更等で無効化された場合は、取り直して最新版を開く。
@@ -416,16 +424,24 @@ export function useNotePages(
         break;
       }
       const existingAfter = queues.current.get(id);
-      const queue = existingAfter ?? install(latestPage);
-      if (existingAfter && latestPage.version > existingAfter.version) {
-        const hasPendingEditorWork = displayedId.current === id && flushCanvasEditorsSync();
-        if (!hasPendingEditorWork && !existingAfter.dirty && existingAfter.status !== "saving") {
-          existingAfter.loadLatest(latestPage);
-          setEditorEpoch((value) => value + 1);
-        } else if (existingAfter.status !== "saving") {
-          existingAfter.status = "conflict";
-          existingAfter.latest = latestPage;
-          existingAfter.error = msg("This note was changed in another tab. Save a copy or load the latest version.");
+      let queue: NoteSaveQueue;
+      if (existingAfter?.gone) {
+        // 復元されたページを再度開いたとき：古い gone 状態を消し、未保存下書きは通常の版照合で引き継ぐ。
+        const recovered = existingAfter.dirty ? existingAfter.draft : undefined;
+        existingAfter.dispose();
+        queue = install(latestPage, recovered);
+      } else {
+        queue = existingAfter ?? install(latestPage);
+        if (existingAfter && latestPage.version > existingAfter.version) {
+          const hasPendingEditorWork = displayedId.current === id && flushCanvasEditorsSync();
+          if (!hasPendingEditorWork && !existingAfter.dirty && existingAfter.status !== "saving") {
+            existingAfter.loadLatest(latestPage);
+            setEditorEpoch((value) => value + 1);
+          } else if (existingAfter.status !== "saving") {
+            existingAfter.status = "conflict";
+            existingAfter.latest = latestPage;
+            existingAfter.error = msg("This note was changed in another tab. Save a copy or load the latest version.");
+          }
         }
       }
       setActiveId(id);
@@ -564,18 +580,23 @@ export function useNotePages(
     }
     // AI の提案で作ったページを「元に戻す」でゴミ箱へ移した（サブページも一緒）。一覧と保存キューから外し、開いていたら閉じる。
     function onPagesTrashed(event: Event) {
-      const ids = (event as CustomEvent<{ ids?: unknown } | undefined>).detail?.ids;
+      const detail = (event as CustomEvent<{ ids?: unknown; preserveDrafts?: unknown } | undefined>).detail;
+      const ids = detail?.ids;
       if (!Array.isArray(ids) || !ids.length) return;
+      const preserveDrafts = detail?.preserveDrafts === true;
       const removed = new Set(ids.filter((id): id is string => typeof id === "string"));
       for (const id of removed) {
         invalidatePageCache(id);
         // 待っている保存も止める（送ると 404 になり、一覧に戻してしまう）。
         queues.current.get(id)?.dispose();
         queues.current.delete(id);
-        try {
-          localStorage.removeItem(DRAFT_PREFIX + id);
-          localStorage.removeItem(CANVAS_DRAFT_PREFIX + id);
-        } catch { /* 古い下書きを、復元後の本文に重ねない。 */ }
+        // ネイティブの常駐キャッシュ通知（preserveDrafts）では未保存の下書きを消さない（ゴミ箱から復元したときに戻せるようにする）。
+        if (!preserveDrafts) {
+          try {
+            localStorage.removeItem(DRAFT_PREFIX + id);
+            localStorage.removeItem(CANVAS_DRAFT_PREFIX + id);
+          } catch { /* 古い下書きを、復元後の本文に重ねない。 */ }
+        }
       }
       // 一覧を読む前に作られたページとして覚えていたものからも外す（読んだときに一覧へ戻さない）。
       createdWhileLoading.current = createdWhileLoading.current.filter((page) => !removed.has(page.id));

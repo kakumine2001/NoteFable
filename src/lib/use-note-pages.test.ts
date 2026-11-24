@@ -886,4 +886,153 @@ describe("useNotePages instant switching & prefetch", () => {
     expect(hook.current.active?.status).toBe("saved");
     expect(hook.current.active?.version).toBe(2);
   });
+
+  it("preserves unsaved drafts on native pageTrashed and recovers them when restored", async () => {
+    createFakeBrowser();
+    const pageA = makePage("a", "Alpha", 1);
+    let patchCount = 0;
+
+    vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+      if (url === "/api/pages/a" && init?.method === "PATCH") {
+        patchCount += 1;
+        return patchCount === 1
+          ? Promise.resolve(jsonResponse({ error: "Temporary outage" }, 503))
+          : Promise.resolve(jsonResponse({ page: makePage("a", "Unsaved draft", 2) }));
+      }
+      if (url === "/api/pages/a") return Promise.resolve(jsonResponse({ page: pageA }));
+      return Promise.reject(new Error(`unexpected ${url}`));
+    }));
+
+    const hook = hookRuntime.mount(() => useNotePages(false, { embedded: true }));
+    await flushMicrotasks();
+
+    await hook.current.select("a", "none", { keepCurrent: false });
+    await flushMicrotasks();
+    hook.current.active!.edit({ ...hook.current.active!.content, title: "Unsaved draft" });
+    await hook.current.active!.flush();
+    await flushMicrotasks();
+    expect(localStorage.getItem("notefable:page-draft:v1:a")).toContain("Unsaved draft");
+
+    // Native trashes the page from the list: evicts warm queue, preserves localStorage draft.
+    window.dispatchEvent(new CustomEvent("notefable:pages-trashed", { detail: { ids: ["a"], preserveDrafts: true } }));
+    await flushMicrotasks();
+    expect(hook.current.hasCached("a")).toBe(false);
+    expect(localStorage.getItem("notefable:page-draft:v1:a")).toContain("Unsaved draft");
+
+    // Page is restored and reopened: draft is recovered on top of v1.
+    await hook.current.select("a", "none", { keepCurrent: false });
+    await flushMicrotasks();
+    expect(hook.current.active?.content.title).toBe("Unsaved draft");
+    expect(hook.current.active?.dirty).toBe(true);
+  });
+
+  it("revalidates a gone cached queue after restore instead of immediately reporting missing", async () => {
+    createFakeBrowser();
+    const pageA = makePage("a", "Alpha", 1);
+    let getCount = 0;
+    let patchCount = 0;
+
+    vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+      if (url === "/api/pages/a" && init?.method === "PATCH") {
+        patchCount += 1;
+        return Promise.resolve(jsonResponse({ page: makePage("a", "Dirty after restore", 2) }));
+      }
+      if (url === "/api/pages/a") {
+        getCount += 1;
+        if (getCount === 2) return Promise.resolve(jsonResponse({ error: "Not found" }, 404));
+        return Promise.resolve(jsonResponse({ page: pageA }));
+      }
+      return Promise.reject(new Error(`unexpected ${url}`));
+    }));
+
+    const hook = hookRuntime.mount(() => useNotePages(false, { embedded: true }));
+    await flushMicrotasks();
+
+    // Open A, edit it locally (dirty), then revalidate while trashed -> marks queue.gone = true.
+    await hook.current.select("a", "none", { keepCurrent: false });
+    await flushMicrotasks();
+    hook.current.active!.edit({ ...hook.current.active!.content, title: "Dirty after restore" });
+    hook.current.deactivate();
+    await flushMicrotasks();
+    await hook.current.select("a", "none", { keepCurrent: false });
+    await flushMicrotasks();
+    expect(hook.current.active?.gone).toBe(true);
+
+    // Restore A on the server, leave, and reopen -> must revalidate from server, clear gone, and keep draft.
+    hook.current.deactivate();
+    await flushMicrotasks();
+    const opened = await hook.current.select("a", "none", { keepCurrent: false });
+    await flushMicrotasks();
+    expect(opened).toBe(true);
+    expect(hook.current.active?.gone).toBe(false);
+    expect(hook.current.active?.content.title).toBe("Dirty after restore");
+    expect(patchCount).toBe(0);
+  });
+
+  it("keeps a newer pending navigation alive when the previously displayed cached page returns 404", async () => {
+    createFakeBrowser("https://app.notefable.com/app?view=pages");
+    const pageA = makePage("a", "Alpha", 1);
+    const pageB = makePage("b", "Beta", 1);
+    let aFetchCount = 0;
+    const revalA = deferred<Response>();
+    const fetchB = deferred<Response>();
+
+    vi.stubGlobal("fetch", vi.fn((url: string) => {
+      if (url === "/api/pages") return Promise.resolve(jsonResponse({ pages: [pageA, pageB], groups: [] }));
+      if (url === "/api/pages/a") {
+        aFetchCount += 1;
+        return aFetchCount === 1 ? Promise.resolve(jsonResponse({ page: pageA })) : revalA.promise;
+      }
+      if (url === "/api/pages/b") return fetchB.promise;
+      return Promise.reject(new Error(`unexpected ${url}`));
+    }));
+
+    const hook = hookRuntime.mount(() => useNotePages(true));
+    await flushMicrotasks();
+
+    // Cache A first, then reopen A so background revalidation is in flight.
+    await hook.current.select("a", "push");
+    await flushMicrotasks();
+    await hook.current.select("a", "replace");
+    await flushMicrotasks();
+
+    // Start navigating to uncached B while A is still displayed.
+    const openingB = hook.current.select("b", "push");
+    await flushMicrotasks();
+
+    // A's background revalidation returns 404 before B resolves.
+    revalA.resolve(jsonResponse({ error: "Not found" }, 404));
+    await flushMicrotasks();
+
+    // B resolves and must still become active (not cancelled by A's 404 cleanup).
+    fetchB.resolve(jsonResponse({ page: pageB }));
+    await openingB;
+    await flushMicrotasks();
+    expect(hook.current.activeId).toBe("b");
+    expect(hook.current.active?.content.title).toBe("Beta");
+  });
+
+  it("applies fresh settings from a prefetched page when no newer local metadata change happened", async () => {
+    createFakeBrowser("https://app.notefable.com/app?view=pages");
+    const listSummary = { ...makePage("a", "Alpha", 1), locked: false };
+    const prefetchedLocked = { ...makePage("a", "Alpha", 1), locked: true };
+
+    vi.stubGlobal("fetch", vi.fn((url: string) => {
+      if (url === "/api/pages") return Promise.resolve(jsonResponse({ pages: [listSummary], groups: [] }));
+      if (url === "/api/pages/a") return Promise.resolve(jsonResponse({ page: prefetchedLocked }));
+      return Promise.reject(new Error(`unexpected ${url}`));
+    }));
+
+    const hook = hookRuntime.mount(() => useNotePages(true));
+    await flushMicrotasks();
+    expect(hook.current.pages[0]?.locked).toBe(false);
+
+    // Prefetch gets locked=true from another device, then user clicks immediately within 5s.
+    hook.current.prefetch("a", true);
+    await flushMicrotasks();
+    await hook.current.select("a", "push");
+    await flushMicrotasks();
+
+    expect(hook.current.pages[0]?.locked).toBe(true);
+  });
 });

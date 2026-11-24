@@ -211,10 +211,21 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
                 case .ready(let id, _, _, _):
                     if id != expected { return }
                     self.awaitingPageId = nil
-                case .missing:
+                    self.currentPageId = id
+                case .missing(let id):
+                    if let id, id != expected { return }
                     self.awaitingPageId = nil
                 default:
                     return
+                }
+            } else {
+                switch message {
+                case .ready(let id, _, _, _):
+                    self.currentPageId = id
+                case .missing(let id):
+                    if let id, let current = self.currentPageId, id != current { return }
+                default:
+                    break
                 }
             }
             self.app.notes.onEditorMessage(editor, message)

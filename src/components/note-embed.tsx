@@ -31,7 +31,7 @@ export function NoteEmbed() {
   const notes = useNotePages(false, {
     embedded: true,
     onMissing: (id) => {
-      if (expectedPageRef.current === id) postToNative({ type: "missing" });
+      if (expectedPageRef.current === id) postToNative({ type: "missing", id });
     },
   });
   const { active, activeId, loading, select, deactivate } = notes;
@@ -83,7 +83,7 @@ export function NoteEmbed() {
     // 読み込みの前に預けておく（読み込み後の描画で下の effect が受け取る）。
     if (reveal && REVEAL_TARGET.test(reveal)) revealRef.current = { pageId: id, target: reveal };
     void select(id, "none", { keepCurrent: false }).then((opened) => {
-      if (!opened && expectedPageRef.current === id) postToNative({ type: "missing" });
+      if (!opened && expectedPageRef.current === id) postToNative({ type: "missing", id });
     });
   }, [select, options]);
 
@@ -151,7 +151,7 @@ export function NoteEmbed() {
         } catch { /* URL 更新できなくても表示切り替えは続ける。 */ }
       }));
       void select(id, "none", { keepCurrent: false }).then((opened) => {
-        if (!opened && expectedPageRef.current === id) postToNative({ type: "missing" });
+        if (!opened && expectedPageRef.current === id) postToNative({ type: "missing", id });
       });
     },
     // 一覧・チャットへ戻るとき：エディター DOM を外してキャッシュだけ残す。
@@ -195,7 +195,7 @@ export function NoteEmbed() {
     // アプリに missing を送って編集画面を閉じてもらう（閉じないと flush が失敗し続けて、どこへも移れなくなる）。
     if (gone && sent.current.goneId !== activeId) {
       sent.current.goneId = activeId;
-      postToNative({ type: "missing" });
+      postToNative({ type: "missing", id: activeId });
     }
   }, [idle, active, activeId, loading, title, icon, status, gone, kind]);
 

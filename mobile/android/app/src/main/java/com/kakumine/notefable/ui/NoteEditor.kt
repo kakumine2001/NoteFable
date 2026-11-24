@@ -465,6 +465,8 @@ class NoteEmbedHost(
 
     private var loadedForIdentity = false
     private var crashedEditor: String? = null
+    /** 当前活跃笔记的页面 id（用于过滤已切走旧页面的晚到 missing 消息）。 */
+    private var currentPageId: String? = null
     /** 正在切往的目标页面 id：在该页的 Ready 到达前，丢弃旧页残留的晚到消息，避免串到新页上。 */
     private var awaitingPageId: String? = null
     private var idleJob: Job? = null
@@ -483,9 +485,22 @@ class NoteEmbedHost(
                 is EmbedMessage.Ready -> {
                     if (message.id != expected) return@NoteEmbedBridge
                     awaitingPageId = null
+                    currentPageId = message.id
                 }
-                EmbedMessage.Missing -> awaitingPageId = null
+                is EmbedMessage.Missing -> {
+                    if (message.id != null && message.id != expected) return@NoteEmbedBridge
+                    awaitingPageId = null
+                }
                 else -> return@NoteEmbedBridge
+            }
+        } else {
+            when (message) {
+                is EmbedMessage.Ready -> currentPageId = message.id
+                is EmbedMessage.Missing -> {
+                    val current = currentPageId
+                    if (message.id != null && current != null && message.id != current) return@NoteEmbedBridge
+                }
+                else -> Unit
             }
         }
         if (message is EmbedMessage.Presentation) presenting = message.state != "end"
@@ -603,6 +618,7 @@ class NoteEmbedHost(
         val useReveal = if (crashedEditor == open.editor) null else open.reveal
         presenting = false
         bridge.discardExports()
+        currentPageId = open.id
         awaitingPageId = open.id
         bridge.activeEditor = open.editor
         bridge.currentTheme = theme
@@ -619,6 +635,7 @@ class NoteEmbedHost(
                     // 用全新 WebView 整页加载，避免上一篇笔记留在 WebView 的后退栈里（canGoBack）。
                     destroy()
                     bridge.activeEditor = open.editor
+                    currentPageId = open.id
                     awaitingPageId = open.id
                     generation++
                 }
@@ -656,6 +673,7 @@ class NoteEmbedHost(
         idleJob = null
         showEpoch++
         presenting = false
+        currentPageId = null
         awaitingPageId = null
         bridge.activeEditor = null
         bridge.discardExports()
@@ -681,6 +699,7 @@ class NoteEmbedHost(
         showEpoch++
         presenting = false
         loadedForIdentity = false
+        currentPageId = null
         awaitingPageId = null
         excludeEdges = false
         bridge.activeEditor = null

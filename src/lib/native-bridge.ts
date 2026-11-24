@@ -15,7 +15,7 @@ export type NativeMessage =
   | { type: "ready"; page: { id: string; title: string; icon: string | null; kind?: PageKind } }
   | { type: "meta"; title: string; icon: string | null }
   | { type: "saveState"; state: EmbedSaveState }
-  | { type: "missing" }
+  | { type: "missing"; id?: string }
   | { type: "trashed" }
   // ノートの中のページのメンションを押した。アプリはそのページを開く（自分のページか、無いかはアプリ側で確かめる）。
   | { type: "openPage"; id: string }
@@ -67,7 +67,7 @@ export type EmbedApi = {
   openPage: (request: unknown) => boolean;
   // 一覧・チャットへ戻るときに現在のエディター DOM を閉じてメモリを解放し、WebView とキャッシュだけ残す。
   close: () => boolean;
-  // アプリ側でゴミ箱へ移したページ（およびサブページ）の ID を知らせ、常駐 WebView 内のキャッシュと下書きを消す。
+  // アプリ側でゴミ箱へ移したページ（およびサブページ）の ID を知らせ、常駐 WebView 内のキャッシュを消す（未保存の下書きは復元時のため残す）。
   pageTrashed: (ids: unknown) => boolean;
 };
 
@@ -293,7 +293,7 @@ export function parseTrashedPageIds(value: unknown): string[] | null {
 }
 
 export function dispatchPagesTrashed(ids: string[]) {
-  window.dispatchEvent(new CustomEvent<{ ids: string[] }>(PAGES_TRASHED_EVENT, { detail: { ids } }));
+  window.dispatchEvent(new CustomEvent<{ ids: string[]; preserveDrafts?: boolean }>(PAGES_TRASHED_EVENT, { detail: { ids, preserveDrafts: true } }));
 }
 
 export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, theme = saveThemePreference, slides = dispatchSlidesCommand, openPage, close, pageTrashed = dispatchPagesTrashed, language, reveal = () => {}, post }: {
