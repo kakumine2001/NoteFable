@@ -376,14 +376,15 @@ fun NotesDrawerBody(
             // "Projects" 分区标题（徽章 + 高对比标题 + 数量胶囊 + 右侧 40 的"新项目"按钮）。
             Column(Modifier.fillMaxWidth().sidebarSectionTopDivider(favorites.isNotEmpty())) {
                 Row(Modifier.fillMaxWidth().padding(start = 6.dp, end = 2.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    SidebarSectionBadge(Lucide.Folder, Sm.CountBg, Sm.SectionTitle)
-                    Spacer(Modifier.width(7.dp))
-                    Text(stringResource(R.string.projects), color = Sm.SectionTitle, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight(650), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                    if (state.groups.isNotEmpty()) {
-                        Spacer(Modifier.width(6.dp))
-                        CountPill(state.groups.size)
+                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                        SidebarSectionBadge(Lucide.Folder, Sm.CountBg, Sm.SectionTitle)
+                        Spacer(Modifier.width(7.dp))
+                        Text(stringResource(R.string.projects), color = Sm.SectionTitle, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight(650), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                        if (state.groups.isNotEmpty()) {
+                            Spacer(Modifier.width(6.dp))
+                            CountPill(state.groups.size)
+                        }
                     }
-                    Spacer(Modifier.weight(1f))
                     IconSquare(Lucide.Plus, 15.dp, 40.dp, stringResource(R.string.new_project), Sm.TabMuted, onClick = onNewGroup)
                 }
             }

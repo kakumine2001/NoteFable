@@ -280,14 +280,15 @@ private fun SectionLabel(
 private fun ProjectsHeading(count: Int, showDivider: Boolean, onCreate: () -> Unit) {
     Column(Modifier.fillMaxWidth().sidebarSectionTopDivider(showDivider)) {
         Row(Modifier.fillMaxWidth().padding(start = 6.dp, end = 2.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            SidebarSectionBadge(Lucide.Folder, Sm.CountBg, Sm.SectionTitle)
-            Spacer(Modifier.width(7.dp))
-            Text(stringResource(R.string.projects), Modifier.weight(1f, fill = false), color = Sm.SectionTitle, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight(650), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (count > 0) {
-                Spacer(Modifier.width(6.dp))
-                CountPill(count)
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                SidebarSectionBadge(Lucide.Folder, Sm.CountBg, Sm.SectionTitle)
+                Spacer(Modifier.width(7.dp))
+                Text(stringResource(R.string.projects), Modifier.weight(1f, fill = false), color = Sm.SectionTitle, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight(650), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (count > 0) {
+                    Spacer(Modifier.width(6.dp))
+                    CountPill(count)
+                }
             }
-            Spacer(Modifier.weight(1f))
             val newProject = stringResource(R.string.new_project)
             Box(Modifier.size(40.dp, 30.4.dp), Alignment.Center) {
                 Box(
