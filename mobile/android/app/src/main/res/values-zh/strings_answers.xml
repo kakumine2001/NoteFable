@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 批次 1（回答体验）的文案：网页 chat-activity.tsx、page-edit-proposal.tsx、assistant-markdown.tsx、answer-actions.tsx、chat-message.tsx 的原句，译文取自 src/lib/i18n/messages/{zh,ja}.ts。values / values-zh / values-ja 三份的键一一对应。 -->
+<!-- 批次 1（回答体验）的文案：网页 chat-activity.tsx、page-proposal.tsx、assistant-markdown.tsx、answer-actions.tsx、chat-message.tsx 的原句，译文取自 src/lib/i18n/messages/{zh,ja}.ts。values / values-zh / values-ja 三份的键一一对应。 -->
 <resources>
     <string name="activity_thinking">正在思考</string>
     <string name="activity_using_project">正在使用项目“%1$s”</string>
@@ -64,4 +64,29 @@
     <string name="image_download">下载图片</string>
     <string name="generated_image">生成的图片</string>
     <string name="ai_reply">AI 回复</string>
+    <string name="proposal_report">报告 AI 内容</string>
+    <string name="proposal_undo">撤销</string>
+    <string name="proposal_undone">已撤销</string>
+    <string name="proposal_undo_failed">无法撤销这项修改。</string>
+    <string name="proposal_applied_auto">已自动应用</string>
+    <string name="proposal_created_auto">已自动创建</string>
+    <string name="proposal_moved_to_trash">这个页面已移到回收站。</string>
+    <string name="proposal_open_page">打开页面</string>
+    <string name="proposal_new_page_label">新页面建议</string>
+    <string name="proposal_edit_page_label">页面修改建议</string>
+    <string name="proposal_new_whiteboard_title">新白板“%1$s”</string>
+    <string name="proposal_new_slides_title">新幻灯片“%1$s”</string>
+    <string name="proposal_create_whiteboard">创建白板</string>
+    <string name="proposal_create_slides">创建幻灯片</string>
+    <string name="proposal_empty_page">空白页面</string>
+    <string name="proposal_inside">位于“%1$s”中</string>
+    <string name="proposal_op_add">添加</string>
+    <string name="proposal_op_update">更新</string>
+    <string name="proposal_op_move">移动</string>
+    <string name="proposal_op_reorder">调整顺序</string>
+    <string name="proposal_op_slide">%1$s · 第 %2$s 张幻灯片</string>
+    <string name="proposal_op_named">%1$s · “%2$s”</string>
+    <string name="proposal_op_elements">%1$s · %2$s 个元素</string>
+    <string name="proposal_before">修改前</string>
+    <string name="proposal_after">修改后</string>
 </resources>

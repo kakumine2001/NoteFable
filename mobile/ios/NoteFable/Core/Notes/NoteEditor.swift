@@ -2,7 +2,7 @@ import Foundation
 
 // 原生和网页编辑器（/note-embed）之间的 JS 桥（Android ui/NoteEditor.kt 的 NoteEmbedBridge）。约定见 src/lib/native-bridge.ts：
 // 网页 → 原生：`window.NoteFableNative.postMessage(json)`；原生 → 网页：`window.notefableEmbed.flush(id)` / `openHistory()` /
-// `pageUpdated(pageJson)` / `pageSettings(pageJson)` / `appIcon(value)` / `language(code)` / `theme(value)`。
+// `pageUpdated(pageJson)` / `pageSettings(pageJson)` / `appIcon(value)` / `language(code)` / `theme(value)` / `reveal(id)`。
 // WKWebView 本身在界面层，经 [NoteEditorBridge] 和这里说话；这里管消息的分发和"保存后再离开"的等待。
 
 /// 界面层的编辑器（WKWebView 的包装）要实现的几个调用，都是对网页执行一段脚本（[NoteEmbedScripts]）。
@@ -17,6 +17,8 @@ protocol NoteEditorBridge: AnyObject {
     func appIcon(_ value: String?)
     func language(_ code: String)
     func theme(_ value: String)
+    /// 执行 [NoteEmbedScripts.reveal]：在开着的页面里定位到检索命中的块 / 元素，不重新加载。
+    func reveal(_ id: String)
     /// 幻灯片的操作（"…"菜单的放映 / 导出、放映中的返回）：交给网页（`window.notefableEmbed.slides`）。
     func slides(_ command: String)
 }
@@ -82,6 +84,12 @@ enum NoteEmbedScripts {
         "(function(){var e=window.notefableEmbed;if(e&&typeof e.theme==='function')e.theme(\(quote(value)))})()"
     }
 
+    /// 在开着的页面里滚到检索命中的块（笔记）、移到命中的元素（白板），和地址的 `reveal=` 一样（src/lib/native-bridge.ts 的 reveal）。
+    /// 已经开着的页面又从检索结果打开时用，不重新加载。id 不是 `[A-Za-z0-9_-]{1,120}` 的样子时网页什么也不做。
+    static func reveal(_ id: String) -> String {
+        "window.notefableEmbed&&window.notefableEmbed.reveal&&window.notefableEmbed.reveal(\(quote(id)))"
+    }
+
     /// 幻灯片的操作（JSON：{ action: "present" | "end" | "export", format? }）。
     static func slides(_ command: String) -> String {
         "(function(){var e=window.notefableEmbed;if(e&&typeof e.slides==='function')e.slides(\(quote(command)))})()"
@@ -98,7 +106,8 @@ enum NoteEmbedScripts {
     /// 开着的时候换了图标 / 语言 / 外观走 [appIcon] / [language] / [theme] 推过去。默认标志是空字符串。
     /// [theme] 是 App 现在显示的外观（light / dark）；nil 时不定义 `theme()`，网页按地址里的 theme= 或自己存的值。
     /// `canOpenPage()` 告诉网页这个 App 会处理 `openPage`（旧版没有，网页照旧用新窗口打开链接）；
-    /// `canShowStorageLimit()` 告诉网页这个 App 会显示"存储空间不够"（`storageLimit`；旧版没有，网页在编辑器里只说明原因）。
+    /// `canShowStorageLimit()` 告诉网页这个 App 会显示"存储空间不够"（`storageLimit`；旧版没有，网页在编辑器里只说明原因）；
+    /// `canSaveFile()` 告诉网页这个 App 会收导出的文件（`fileStart` … `fileEnd`；旧版没有，网页提示先更新 App）。
     static func bootstrap(handler: String, appIcon: String?, language: String, theme: String? = nil) -> String {
         "(function(){var icon=\(quote(appIcon ?? "")),lang=\(quote(language));window.NoteFableNative={" +
             "postMessage:function(json){window.webkit.messageHandlers[\(quote(handler))].postMessage(String(json))}," +
@@ -120,12 +129,6 @@ final class NoteEmbedBridge {
     /// App 现在显示的外观（light / dark），由界面用 [pushTheme] 给；还没给过是 nil。
     private(set) var theme: String?
     private var pending: [String: NoteDeferred<FlushResult>] = [:]
-    /// 网页做好的导出文件（幻灯片的 PDF / PNG / PPTX）：块写进临时文件，收齐了交给 [onFileReady]。
-    private let exports = ExportFileAssembler()
-    /// 导出文件收齐了：界面打开系统的“存储到文件”。没设定时丢掉文件。
-    var onFileReady: (@MainActor (ExportFileAssembler.Ready) -> Void)?
-    /// 导出文件在 App 这边没能收齐（写不进临时文件、分块乱序、太大）：界面提示“无法保存文件”。
-    var onFileFailed: (@MainActor () -> Void)?
 
     private let currentLanguage: @MainActor () -> String
     private let sleep: @Sendable (Duration) async throws -> Void
@@ -155,7 +158,6 @@ final class NoteEmbedBridge {
         guard self.editor === editor else { return }
         self.editor = nil
         for answer in pending.values { answer.complete(FlushResult(false)) }
-        exports.abortAll()
     }
 
     /// 网页发来的 JSON（`window.NoteFableNative.postMessage`）。不认识的消息忽略。
@@ -164,27 +166,6 @@ final class NoteEmbedBridge {
         if case .flushed(let requestId, let ok, let kept) = message {
             pending.removeValue(forKey: requestId)?.complete(FlushResult(ok, draftKept: kept))
             return
-        }
-        // 导出文件的分块：桥自己写进临时文件（不交给 ViewModel）。
-        switch message {
-        case .fileStart(let id, let name, let mime, _):
-            exports.start(id: id, name: name, mime: mime)
-            return
-        case .fileChunk(let id, let index, let data):
-            exports.append(id: id, index: index, base64: data)
-            return
-        case .fileEnd(let id):
-            if let ready = exports.finish(id: id) {
-                if let onFileReady { onFileReady(ready) } else { try? FileManager.default.removeItem(at: ready.url.deletingLastPathComponent()) }
-            } else {
-                onFileFailed?()
-            }
-            return
-        case .fileAbort(let id):
-            exports.abort(id: id)
-            return
-        default:
-            break
         }
         // 页面读好时再对一次语言：网页读初始 HTML 期间 App 的语言可能换过。
         if case .ready = message {
@@ -256,6 +237,11 @@ final class NoteEmbedBridge {
         editor?.language(code)
     }
 
+    /// 检索结果在开着的这一页里：就地定位到命中的块 / 元素（网页还没挂上编辑器时什么也不做）。
+    func reveal(_ id: String) {
+        editor?.reveal(id)
+    }
+
     /// App 显示的外观变了（设置里换了，或跟随系统时系统切了深浅）：记下来并推给网页，就地换色。
     /// 传的是已经算好的 light / dark，不传 system：网页编辑器和 App 的界面总是同一个外观。
     func pushTheme(_ value: String) {
@@ -266,17 +252,19 @@ final class NoteEmbedBridge {
 
 extension NotesViewModel {
     /// 编辑器打开 / 关掉时由界面调用（Android NoteEditorScreen 的 registerFlush）：离开笔记前经这个桥保存，
-    /// 显示设置、收藏的改动也经它交给网页。传 nil 是编辑器关掉了。
+    /// 显示设置、收藏的改动和开着的这一页里的检索定位也经它交给网页。传 nil 是编辑器关掉了。
     func registerEditor(_ bridge: NoteEmbedBridge?) {
         guard let bridge else {
             flushEditor = nil
             pushPageSettings = nil
+            revealInEditor = nil
             sendSlidesCommand = nil
             presentationEnded()
             return
         }
         flushEditor = { await bridge.flush() }
         pushPageSettings = { bridge.pageSettings($0) }
+        revealInEditor = { bridge.reveal($0) }
         sendSlidesCommand = { bridge.slides($0) }
     }
 }

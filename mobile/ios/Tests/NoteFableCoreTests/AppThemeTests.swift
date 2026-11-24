@@ -90,6 +90,27 @@ final class AppThemeTests: XCTestCase {
         XCTAssertEqual(api.noteEmbedUrl(pageId: "abc", lang: nil, model: nil, reasoning: nil, theme: nil), "https://example.test/note-embed?page=abc")
     }
 
+    func testTheEmbedUrlCarriesTheSearchHitToRevealLast() {
+        // 检索结果命中的块 / 元素（网页 note-embed.tsx 的 reveal）放在最后；空字符串和没给一样。
+        let api = makeApi(FakeTransport(), baseUrl: "https://example.test")
+        XCTAssertEqual(
+            api.noteEmbedUrl(pageId: "abc", lang: "ja", model: "gpt-5.5", reasoning: "high", theme: "dark", reveal: "el_3-x"),
+            "https://example.test/note-embed?page=abc&lang=ja&model=gpt-5.5&reasoning=high&theme=dark&reveal=el_3-x"
+        )
+        XCTAssertEqual(
+            api.noteEmbedUrl(pageId: "abc", lang: nil, model: nil, reasoning: nil, theme: nil, reveal: "a&b c"),
+            "https://example.test/note-embed?page=abc&reveal=a%26b%20c"
+        )
+        XCTAssertEqual(
+            api.noteEmbedUrl(pageId: "abc", lang: nil, model: nil, reasoning: nil, theme: "light", reveal: ""),
+            "https://example.test/note-embed?page=abc&theme=light"
+        )
+        XCTAssertEqual(
+            api.noteEmbedUrl(pageId: "abc", lang: nil, model: nil, reasoning: nil, theme: nil, reveal: nil),
+            "https://example.test/note-embed?page=abc"
+        )
+    }
+
     func testTheBootstrapDefinesTheSynchronousThemeGetterOnlyWhenGiven() {
         let dark = NoteEmbedScripts.bootstrap(handler: "h", appIcon: nil, language: "en", theme: "dark")
         XCTAssertTrue(dark.contains(#"language:function(){return lang},canOpenPage:function(){return true},canShowStorageLimit:function(){return true},canPresent:function(){return true},canSaveFile:function(){return true},theme:function(){return "dark"}}})()"#))

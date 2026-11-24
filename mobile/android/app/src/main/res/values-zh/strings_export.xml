@@ -12,4 +12,6 @@
     <string name="answer_download_failed">无法下载聊天，请重试。</string>
     <string name="answer_save_failed">无法保存为笔记，请重试。</string>
     <string name="answer_save_too_large">这条回答太长，无法保存为笔记。</string>
+    <string name="export_file_saved">文件已保存。</string>
+    <string name="export_file_failed">无法保存文件。</string>
 </resources>

@@ -266,6 +266,31 @@
 "image_download" = "Descargar imagen";
 "generated_image" = "Imagen generada";
 "ai_reply" = "Respuesta de la IA";
+"proposal_report" = "Informar sobre contenido de IA";
+"proposal_undo" = "Deshacer";
+"proposal_undone" = "Deshecho";
+"proposal_undo_failed" = "No se pudo deshacer el cambio.";
+"proposal_applied_auto" = "Aplicado automáticamente";
+"proposal_created_auto" = "Creado automáticamente";
+"proposal_moved_to_trash" = "La página se movió a la papelera.";
+"proposal_open_page" = "Abrir la página";
+"proposal_new_page_label" = "Nueva página propuesta";
+"proposal_edit_page_label" = "Edición de página propuesta";
+"proposal_new_whiteboard_title" = "Nueva pizarra “%1$s”";
+"proposal_new_slides_title" = "Nuevas diapositivas “%1$s”";
+"proposal_create_whiteboard" = "Crear pizarra";
+"proposal_create_slides" = "Crear diapositivas";
+"proposal_empty_page" = "Página vacía";
+"proposal_inside" = "Dentro de “%1$s”";
+"proposal_op_add" = "Añadir";
+"proposal_op_update" = "Actualizar";
+"proposal_op_move" = "Mover";
+"proposal_op_reorder" = "Reordenar";
+"proposal_op_slide" = "%1$s · diapositiva %2$s";
+"proposal_op_named" = "%1$s · “%2$s”";
+"proposal_op_elements" = "%1$s · %2$s elementos";
+"proposal_before" = "Antes";
+"proposal_after" = "Después";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "Adjuntar páginas";
@@ -341,6 +366,8 @@
 "answer_download_failed" = "No se pudo descargar la conversación. Inténtalo de nuevo.";
 "answer_save_failed" = "No se pudo guardar como nota. Inténtalo de nuevo.";
 "answer_save_too_large" = "Esta respuesta es demasiado extensa para guardarla como nota.";
+"export_file_saved" = "Archivo guardado.";
+"export_file_failed" = "No se pudo guardar el archivo.";
 
 /* strings_i18n.xml */
 "ui_locale" = "es";
@@ -451,6 +478,8 @@
 "report_sending" = "Enviando…";
 "report_sent" = "Informe enviado. Gracias.";
 "report_failed" = "No se pudo enviar el informe.";
+"report_ai_content" = "Informar sobre contenido de IA";
+"report_ai_help" = "Cuéntanos qué tiene de malo este contenido de IA. Se enviará al equipo de NoteFable junto con el contenido.";
 
 /* strings_search.xml */
 "search" = "Buscar";
@@ -559,8 +588,6 @@
 "slides_export_pdf_notes" = "Exportar PDF con notas del orador";
 "slides_export_png" = "Exportar imágenes PNG";
 "slides_export_pptx" = "Exportar a PowerPoint (PPTX)";
-"slides_file_saved" = "Archivo guardado.";
-"slides_file_save_failed" = "No se pudo guardar el archivo.";
 
 /* strings_turns.xml */
 "regenerate" = "Regenerar";

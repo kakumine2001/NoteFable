@@ -3,7 +3,7 @@ import { closeQuietly, consumeSseData } from "@/lib/sse";
 import { buildUpstreamErrorMessage } from "@/lib/upstream-errors";
 import { ANTHROPIC_HAIKU_LIMITS, type ReasoningEffort } from "@/lib/models";
 import type { WebSearchMode } from "@/lib/web-search";
-import { MAX_TOOL_ROUNDS, parseToolArguments, runToolCalls, type ToolDefinition, type ToolRunner } from "@/lib/chat-tools";
+import { MAX_TOOL_ROUNDS, parseToolArguments, runToolCalls, storedToolText, toAnthropicToolContent, type ToolDefinition, type ToolRunner } from "@/lib/chat-tools";
 import { msg, fmt } from "@/lib/i18n/translate";
 
 type Block = {
@@ -265,10 +265,12 @@ export async function createAnthropicStream(
             const runs = await runToolCalls(calls, runTool, send);
             if (abort.signal.aborted) return closeQuietly(controller);
             const toolMessage: Message = { role: "user", content: runs.map((run, index) => ({
-              type: "tool_result", tool_use_id: calls[index].id, content: run.content, ...(run.isError ? { is_error: true } : {}),
+              type: "tool_result", tool_use_id: calls[index].id, content: toAnthropicToolContent(run), ...(run.isError ? { is_error: true } : {}),
             })) };
-            // A replayed tool_use must be followed by its tool_result, so keep the pair in the checkpoint.
-            compactedContext?.push(toolMessage);
+            // A replayed tool_use must be followed by its tool_result, so keep the pair in the checkpoint (text only: preview images are not stored).
+            compactedContext?.push({ role: "user", content: runs.map((run, index) => ({
+              type: "tool_result", tool_use_id: calls[index].id, content: storedToolText(run), ...(run.isError ? { is_error: true } : {}),
+            })) });
             if (attempt === MAX_TOOL_ROUNDS - 1) throw new Error(msg("Claude tool round limit reached. Please retry."));
             separateNextText = Boolean(answerText.trim());
             body = { ...body, tool_choice: { type: "auto" }, messages: [...body.messages, { role: "assistant", content }, toolMessage] };

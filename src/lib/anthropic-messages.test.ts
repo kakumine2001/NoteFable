@@ -175,6 +175,21 @@ describe("Claude Messages boundary", () => {
     ]);
   });
 
+  it("sends preview images to Claude in the tool_result but keeps only text in the compaction checkpoint", async () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "test-only");
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(toolTurn([{ type: "content_block_start", index: 0, content_block: { type: "compaction", content: "summary" } }]))
+      .mockResolvedValueOnce(sse([{ type: "content_block_start", index: 0, content_block: { type: "text", text: "Done." } }, ...ending()]));
+    vi.stubGlobal("fetch", fetchMock);
+    const onContext = vi.fn();
+    const runTool = async () => ({ content: "Preview", label: "Previewed", images: [{ mimeType: "image/png" as const, base64: "AAAA" }] });
+    await new Response(await createAnthropicStream(request(), onContext, runTool)).text();
+    const sent = JSON.parse(fetchMock.mock.calls[1][1].body).messages.at(-1).content[0];
+    expect(sent.content).toEqual([{ type: "text", text: "Preview" }, { type: "image", source: { type: "base64", media_type: "image/png", data: "AAAA" } }]);
+    const stored = onContext.mock.calls[0][0][1].content[0];
+    expect(stored).toEqual({ type: "tool_result", tool_use_id: "call1", content: "Preview\n\n[The preview image is not kept in the conversation history.]" });
+  });
+
   it("replays a saved tool checkpoint as a valid follow-up request", () => {
     const items = [
       { role: "assistant", content: [{ type: "compaction", content: "summary" }, { type: "tool_use", id: "call1", name: "read_note", input: { noteId: "p1" } }] },

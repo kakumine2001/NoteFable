@@ -26,6 +26,20 @@ export function panelPlacement(position: FabPosition, size: number, panelWidth: 
     : { right, top: top + size + gap, bottom: "auto" as const, maxHeight: Math.max(0, position.bottom - gap - edge) };
 }
 
+// エディターが用意した置き場所（目印の要素の画面上の四角）に、ボタンを重ねる位置。目印が描かれていない（大きさ 0）なら null。
+export function anchorFabPosition(rect: { right: number; bottom: number; width: number; height: number }, viewportWidth: number, viewportHeight: number): FabPosition | null {
+  if (!rect.width && !rect.height) return null;
+  return { right: viewportWidth - rect.right, bottom: viewportHeight - rect.bottom };
+}
+
+// 置き場所の位置が変わるときに大きさが変わる要素：目印から stop（body）の手前までの親すべて。
+// offsetParent と違い、ワークスペースが隠れている（display: none）間に作られても辿れる。
+export function anchorAncestors<T extends { parentElement: T | null }>(anchor: T, stop: T | null): T[] {
+  const out: T[] = [];
+  for (let element: T | null = anchor; element && element !== stop; element = element.parentElement) out.push(element);
+  return out;
+}
+
 export function loadFabPosition(): FabPosition | null {
   try {
     const value: unknown = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "null");

@@ -72,7 +72,7 @@
 | App → 网页（能力） | `NoteFableNative.canPresent()` | 为 true 时，放映交给 App：网页发 `presentation`，不用浏览器全屏 |
 | App → 网页（能力） | `NoteFableNative.canSaveFile()` | 为 true 时，导出的文件分块交给 App 保存 |
 | 网页 → App | `{ type: "presentation", state: "start" \| "slide" \| "end", index, count }` | start：横屏、全屏（隐藏系统栏）、屏幕常亮、收起原生顶栏；end：恢复 |
-| 网页 → App | `fileStart { id, name, mime, size }` → `fileChunk { id, index, data }`（base64，每块原始 512 KiB）→ `fileEnd { id }` / `fileAbort { id }` | App 写入临时文件，结束后让用户选位置保存（Android：系统“保存到”（SAF CreateDocument）；iOS：文档导出面板） |
+| 网页 → App | `fileStart { id, name, mime, size }` → `fileChunk { id, index, data }`（base64，每块原始 512 KiB）→ `fileEnd { id }` / `fileAbort { id }` | App 写入临时文件，结束后让用户选位置保存（和白板共用一条路：Android `ExportFileAssembler` + `ExportFileSaver`，系统“保存到”（SAF CreateDocument）；iOS `ExportFileAssembler`（`ExportFile.swift`）+ `NotesViewModel`，`.fileExporter` 的“存储到文件”）。收 PNG / SVG / PDF / PPTX / ZIP（多页的 PNG），最多 64 MiB，见 [whiteboard.md](whiteboard.md)、[android-native.md](android-native.md)、[ios-native.md](ios-native.md) |
 | App → 网页 | `notefableEmbed.slides({ action, index?, format? })` | `present` / `end` / `next` / `previous` / `goto` / `export`（`pdf` / `pdf-notes` / `png` / `pptx`）；App 的“…”菜单（放映、导出）和返回键（放映中先结束放映）用它 |
 
 旧版 App（没有 `canPresent` / `canSaveFile`）：放映只在 WebView 里进行（不横屏、不常亮），导出提示更新 App。
@@ -80,7 +80,7 @@
 ## 与其他功能的接口
 
 - **白板（#152）**：`src/lib/slides/whiteboard-embed.tsx`。白板端调用 `registerWhiteboardFrameProvider({ renderPicker })` 注册“选框并转成图片”的组件后，幻灯片工具栏才出现“白板框”按钮；选中的框由白板端上传成 note-files 后通过 `onPick({ pageId, frameId, frameName, src, width, height })` 交回，幻灯片里放的是那一刻的静态图（`whiteboard` 元素）。没注册时不显示按钮。
-- **AI（#150 / #158）**：编辑器在选择变化时发 `notefable:slides-selection`（`{ pageId, slideIds, elementIds }`），`slidesContextText(deck, selection)` 把所选页 / 元素变成给 AI 看的文字（页码、章、文字、备注）。编辑器的 `aiSlot` 属性（`ReactNode`）放在单页编辑画面的右下（`.slides-ai-slot`），给 AI 面板用。AI 编辑幻灯片的工具在 #150 做。
+- **AI（#150 / #158）**：编辑器在选择变化时发 `notefable:slides-selection`（`{ pageId, slideIds, elementIds }`），`slidesContextText(deck, selection)` 把所选页 / 元素变成给 AI 看的文字（页码、章、文字、备注）。编辑器的 `aiSlot` 属性（`ReactNode`，`CanvasEditorProps.aiSlot`）放在单页编辑画面的右下（`.slides-ai-slot`）：#158 的 AI 按钮没被拖动过时就放在这里（`NotesWorkspace` 放一个看不见的目印，`PageAssistant` 的 `anchor`），重叠顺序和这个位置一样（z-index 5），所以手机的设置面板和菜单会盖住它。AI 编辑幻灯片的工具在 #150 做。
 
 ## 已知限制
 

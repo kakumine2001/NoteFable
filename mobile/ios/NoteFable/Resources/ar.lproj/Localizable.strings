@@ -266,6 +266,31 @@
 "image_download" = "تنزيل الصورة";
 "generated_image" = "صورة مُنشأة";
 "ai_reply" = "رد الذكاء الاصطناعي";
+"proposal_report" = "الإبلاغ عن محتوى الذكاء الاصطناعي";
+"proposal_undo" = "تراجع";
+"proposal_undone" = "تم التراجع";
+"proposal_undo_failed" = "تعذر التراجع عن التغيير.";
+"proposal_applied_auto" = "طُبّق تلقائيًا";
+"proposal_created_auto" = "أُنشئت تلقائيًا";
+"proposal_moved_to_trash" = "نُقلت الصفحة إلى سلة المهملات.";
+"proposal_open_page" = "فتح الصفحة";
+"proposal_new_page_label" = "صفحة جديدة مقترحة";
+"proposal_edit_page_label" = "تعديل مقترح للصفحة";
+"proposal_new_whiteboard_title" = "سبورة جديدة «%1$s»";
+"proposal_new_slides_title" = "شرائح جديدة «%1$s»";
+"proposal_create_whiteboard" = "إنشاء سبورة";
+"proposal_create_slides" = "إنشاء شرائح";
+"proposal_empty_page" = "صفحة فارغة";
+"proposal_inside" = "داخل «%1$s»";
+"proposal_op_add" = "إضافة";
+"proposal_op_update" = "تحديث";
+"proposal_op_move" = "نقل";
+"proposal_op_reorder" = "إعادة الترتيب";
+"proposal_op_slide" = "%1$s · الشريحة %2$s";
+"proposal_op_named" = "%1$s · «%2$s»";
+"proposal_op_elements" = "%1$s · %2$s من العناصر";
+"proposal_before" = "قبل";
+"proposal_after" = "بعد";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "إرفاق صفحات";
@@ -341,6 +366,8 @@
 "answer_download_failed" = "تعذّر تنزيل المحادثة. حاول مرة أخرى.";
 "answer_save_failed" = "تعذّر الحفظ كملاحظة. حاول مرة أخرى.";
 "answer_save_too_large" = "هذه الإجابة طويلة جداً ولا يمكن حفظها كملاحظة.";
+"export_file_saved" = "تم حفظ الملف.";
+"export_file_failed" = "تعذّر حفظ الملف.";
 
 /* strings_i18n.xml */
 "ui_locale" = "ar";
@@ -451,6 +478,8 @@
 "report_sending" = "جارٍ الإرسال…";
 "report_sent" = "تم إرسال البلاغ. شكراً لك.";
 "report_failed" = "تعذّر إرسال البلاغ.";
+"report_ai_content" = "الإبلاغ عن محتوى الذكاء الاصطناعي";
+"report_ai_help" = "أخبرنا بما هو خطأ في محتوى الذكاء الاصطناعي هذا. يُرسَل البلاغ إلى فريق NoteFable مع المحتوى.";
 
 /* strings_search.xml */
 "search" = "بحث";
@@ -559,8 +588,6 @@
 "slides_export_pdf_notes" = "تصدير PDF مع ملاحظات المتحدث";
 "slides_export_png" = "تصدير صور PNG";
 "slides_export_pptx" = "تصدير إلى PowerPoint (PPTX)";
-"slides_file_saved" = "تم حفظ الملف.";
-"slides_file_save_failed" = "تعذّر حفظ الملف.";
 
 /* strings_turns.xml */
 "regenerate" = "إعادة التوليد";

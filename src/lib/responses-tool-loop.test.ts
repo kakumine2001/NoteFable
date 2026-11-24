@@ -92,6 +92,18 @@ describe("Responses tool loop", () => {
     expect(onContext.mock.calls[0][0].map((item: { type: string }) => item.type)).toEqual(["compaction", "reasoning", "function_call", "function_call_output", "message"]);
   });
 
+  it("sends preview images to the model but keeps only text in the compaction checkpoint", async () => {
+    const compaction = { type: "compaction", id: "cmp", encrypted_content: "summary" };
+    const request = vi.fn().mockResolvedValueOnce(toolRound([call("c1")], [compaction])).mockResolvedValueOnce(finalRound([{ type: "message", id: "msg" }]));
+    const onContext = vi.fn();
+    const image = { mimeType: "image/png" as const, base64: "AAAA" };
+    await events(await createResponsesToolStream({ body: body(), request, runTool: async () => ({ content: "Preview", label: "Previewed", images: [image] }), onContext }));
+    const sent = request.mock.calls[1][0].input.find((item: { type?: string }) => item.type === "function_call_output");
+    expect(sent.output).toEqual([{ type: "input_text", text: "Preview" }, { type: "input_image", image_url: "data:image/png;base64,AAAA" }]);
+    const stored = onContext.mock.calls[0][0].find((item: { type: string }) => item.type === "function_call_output");
+    expect(stored.output).toBe("Preview\n\n[The preview image is not kept in the conversation history.]");
+  });
+
   it("stops the loop when the client disconnects", async () => {
     const abort = new AbortController();
     const request = vi.fn().mockResolvedValueOnce(toolRound()).mockResolvedValueOnce(finalRound());

@@ -39,6 +39,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.raw.mockResolvedValue(0);
   mocks.revisionFindMany.mockResolvedValue([]);
+  mocks.revisionCreate.mockResolvedValue({ id: "rev1" });
   mocks.create.mockImplementation(async ({ data }) => ({ id: "w1", version: 0, ...data }));
 });
 
@@ -61,7 +62,7 @@ describe("creating whiteboards and slide decks", () => {
     expect((await create(json({ kind: "slides", title: "Deck", icon: "📊", parentId: "n1", data }))).status).toBe(201);
     expect(mocks.resolveParent).toHaveBeenCalledWith(expect.anything(), "mine", null, "n1");
     expect(mocks.create.mock.calls[0][0].data).toMatchObject({ kind: "slides", parentId: "n1", groupId: "g1", icon: "📊" });
-    expect(mocks.canvasUpsert.mock.calls[0][0].create.segments).toEqual([{ id: "s1", text: "Title Speaker" }]);
+    expect(mocks.canvasUpsert.mock.calls[0][0].create.segments).toEqual([{ id: "s1", text: "Title Speaker", index: 0 }]);
   });
 
   it("rejects unknown kinds, embedded images and other users' files without creating anything", async () => {
@@ -271,12 +272,18 @@ describe("changing the icon of a whiteboard", () => {
 });
 
 describe("publishing", () => {
-  it("refuses to publish a whiteboard (no public view yet) in the requester's language", async () => {
-    mocks.findFirst.mockResolvedValue({ id: "w1", kind: "whiteboard", shareToken: null, shareEnabled: false, shareExpiresAt: null });
-    const response = await share(new Request("http://localhost/x", { method: "PUT", body: JSON.stringify({ enabled: true }), headers: { "accept-language": "ja" } }), context);
-    expect(response.status).toBe(400);
-    const body = await response.json();
-    expect(body).toMatchObject({ code: "wrong_page_kind", kind: "whiteboard" });
-    expect(body.error).toBe("ホワイトボードとスライドはまだ公開できません。");
+  it("does not refuse to publish a whiteboard or a slide deck (both have public views): it turns the share on", async () => {
+    for (const kind of ["whiteboard", "slides"]) {
+      mocks.raw.mockClear();
+      mocks.findFirst.mockResolvedValue({ id: "p1", kind, shareToken: null, shareEnabled: false, shareExpiresAt: null });
+      const response = await share(new Request("http://localhost/x", { method: "PUT", body: JSON.stringify({ enabled: true }), headers: { "accept-language": "ja" } }), context);
+      const body = await response.json().catch(() => ({}));
+      expect(body.code).not.toBe("wrong_page_kind");
+      expect(response.status).not.toBe(400);
+      // 種類で断らずに、公開の設定（shareEnabled = true とトークン）を書くところまで進む。
+      const update = mocks.raw.mock.calls.map((call) => call[0] as { sql: string; values: unknown[] }).find((query) => query.sql.includes('"shareEnabled"'));
+      expect(update?.values).toContain(true);
+      expect(update?.sql).toContain('"shareToken"');
+    }
   });
 });

@@ -268,6 +268,26 @@ final class SVGPathDataTests: XCTestCase {
         XCTAssertEqual(gear.y, 4.136, accuracy: 0.01)
     }
 
+    func testReportAndUndoIconPathsParseCompletely() {
+        // Lucide.swift 的 flag / undo2（报告 AI 内容、提案卡片的撤销），lucide-react 1.16.0。
+        let paths = [
+            "M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528",
+            "M9 14 4 9l5-5",
+            "M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11",
+        ]
+        for path in paths {
+            XCTAssertTrue(SVGPathData.isValid(path), path)
+            XCTAssertFalse(SVGPathData.parse(path).isEmpty, path)
+        }
+        // 相对的 q、a 和绝对的 A、H 都走到头：旗子回到 (4, 15.528)，撤销的箭杆停在 (11, 20)。
+        let flag = lastPoint(SVGPathData.parse(paths[0]))
+        XCTAssertEqual(flag.x, 4, accuracy: 0.01)
+        XCTAssertEqual(flag.y, 15.528, accuracy: 0.01)
+        let shaft = lastPoint(SVGPathData.parse(paths[2]))
+        XCTAssertEqual(shaft.x, 11, accuracy: 0.01)
+        XCTAssertEqual(shaft.y, 20, accuracy: 0.01)
+    }
+
     func testPageKindIconPathsKeepLucidesRectAndCircle() {
         // Lucide.swift 的 shapes / presentation（页面类型的图标，和 Android Lucide.kt 同一份数据；Android PageKindIconTest 的移植）。
         let shapes = [

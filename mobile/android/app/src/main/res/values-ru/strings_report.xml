@@ -9,4 +9,6 @@
     <string name="report_sending">Отправка…</string>
     <string name="report_sent">Отчёт отправлен. Спасибо.</string>
     <string name="report_failed">Не удалось отправить отчёт.</string>
+    <string name="report_ai_content">Пожаловаться на контент ИИ</string>
+    <string name="report_ai_help">Расскажите, что не так с этим контентом ИИ. Жалоба будет отправлена команде NoteFable вместе с контентом.</string>
 </resources>

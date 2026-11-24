@@ -15,7 +15,7 @@ export { parseSearchTerms };
 // JS には上位 15 件ぶんだけを持ち込む。Notes は全部の語がタイトルか本文にあるもの。Chats は全部の語がタイトル、またはメッセージ
 // （と添付ファイルの本文）のどこかにあるもの（同じメッセージに揃っている必要はない）。
 
-// 本文中の文字列（inline の text）と数式（mathBlock / mathInline の props.latex）を集める JSONPath。page-tools.ts の searchPages と同じ。
+// 本文中の文字列（inline の text）と数式（mathBlock / mathInline の props.latex）を集める JSONPath。page-ai/tools.ts の searchPages と同じ。
 export const TEXT_PATH = 'strict $.** ? (@.type() == "object" && exists(@.text)).text';
 export const LATEX_PATH = 'strict $.** ? (@.type() == "object" && exists(@.latex)).latex';
 // 「@」メンションの表示文字（ページのタイトル、日付）。本文の文字と同じく検索の対象にする（note-text.ts の inlineText と対）。

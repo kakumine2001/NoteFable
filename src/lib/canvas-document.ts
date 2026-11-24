@@ -3,6 +3,7 @@ import { MAX_NOTE_TITLE, NoteValidationError, uploadedCoverPath } from "@/lib/no
 import { parseNoteFileUrl } from "@/lib/note-file-keys";
 import { fmt, msg } from "@/lib/i18n/translate";
 import { isCanvasKind, type CanvasKind, type PageKind } from "@/lib/page-kinds";
+import { WHITEBOARD_ELEMENT_TYPES } from "@/lib/whiteboard/scene";
 
 // ホワイトボードとスライドの本体（NoteCanvas.data）の形、検証、検索用の文字の取り出し（docs/architecture/notes-flow.md の「白板和幻灯片的数据」）。
 // エディター（#152・#149）がまだ無いので、形は外枠だけを決める：
@@ -37,7 +38,8 @@ const FILE_URL_PREFIX = "/api/pages/files?";
 
 export type CanvasData = Record<string, unknown>;
 // 本体から取り出した文字。id はホワイトボードの要素（文字が図形に付いているときは図形）、またはスライドのページ。
-export type CanvasSegment = { id: string; text: string };
+// index はスライドの並び順（0 から）。文字の無いスライドは segments に入らないので、何枚目かはこれで数える（古い保存には無い）。
+export type CanvasSegment = { id: string; text: string; index?: number };
 // filePaths は参照しているファイル（note-files）の保存先。保存のたびに使用中へ戻す（stored-files.ts の claimStoredFiles）。
 export type ValidatedCanvas = { data: CanvasData; size: number; fileOwners: string[]; filePaths: string[] };
 
@@ -99,6 +101,8 @@ function validWhiteboard(data: Record<string, unknown>) {
   // もう一方の種類の外枠（slides）は持たない（種類を本体の形からも取り違えないように）。
   if (data.slides !== undefined) return false;
   if (!validItems(data.elements, MAX_WHITEBOARD_ELEMENTS, new Set(), { needsType: true })) return false;
+  // 置ける種類だけ（埋め込み・iframe などは保存させない。src/lib/whiteboard/scene.ts の WHITEBOARD_ELEMENT_TYPES）。
+  if (!(data.elements as Record<string, unknown>[]).every((element) => WHITEBOARD_ELEMENT_TYPES.has(element.type as string))) return false;
   if (data.appState !== undefined && !object(data.appState)) return false;
   if (data.files === undefined) return true;
   if (!object(data.files)) return false;
@@ -177,12 +181,12 @@ function collectText(value: unknown, out: string[]) {
 export function extractCanvasSegments(kind: CanvasKind, data: unknown): CanvasSegment[] {
   if (!object(data)) return [];
   // 同じ ID に何万もの文字が付いても線形で済むよう、配列はその場で伸ばし、1 つの ID の上限を超えたら足さない。
-  const byId = new Map<string, { texts: string[]; length: number }>();
-  const add = (id: string, text: unknown) => {
+  const byId = new Map<string, { texts: string[]; length: number; index?: number }>();
+  const add = (id: string, text: unknown, index?: number) => {
     if (typeof text !== "string") return;
     const value = clean(text);
     if (!value) return;
-    const entry = byId.get(id) ?? { texts: [], length: 0 };
+    const entry = byId.get(id) ?? { texts: [], length: 0, ...(index === undefined ? {} : { index }) };
     if (!byId.has(id)) byId.set(id, entry);
     if (entry.length >= MAX_SEGMENT_TEXT) return;
     entry.texts.push(value);
@@ -198,20 +202,20 @@ export function extractCanvasSegments(kind: CanvasKind, data: unknown): CanvasSe
     }
   } else {
     const slides = Array.isArray(data.slides) ? data.slides.filter((slide) => object(slide) && validId(slide.id)) as Record<string, unknown>[] : [];
-    for (const slide of slides) {
+    slides.forEach((slide, index) => {
       const texts: string[] = [];
       collectText(slide.elements, texts);
-      for (const text of texts) add(slide.id as string, text);
-      add(slide.id as string, slide.notes);
-    }
+      for (const text of texts) add(slide.id as string, text, index);
+      add(slide.id as string, slide.notes, index);
+    });
   }
   const segments: CanvasSegment[] = [];
   let total = 0;
-  for (const [id, { texts }] of byId) {
+  for (const [id, { texts, index }] of byId) {
     const text = cut(texts.join(" "), MAX_SEGMENT_TEXT);
     if (total + text.length > MAX_CANVAS_TEXT) break;
     total += text.length;
-    segments.push({ id, text });
+    segments.push({ id, text, ...(index === undefined ? {} : { index }) });
   }
   return segments;
 }
@@ -219,7 +223,8 @@ export function extractCanvasSegments(kind: CanvasKind, data: unknown): CanvasSe
 // DB から読んだ segments を確かめる（壊れた要素は捨てる）。
 export function parseCanvasSegments(value: unknown): CanvasSegment[] {
   if (!Array.isArray(value)) return [];
-  return value.filter((entry): entry is CanvasSegment => object(entry) && typeof entry.id === "string" && typeof entry.text === "string");
+  return value.filter((entry): entry is CanvasSegment => object(entry) && typeof entry.id === "string" && typeof entry.text === "string")
+    .map((entry) => (Number.isSafeInteger(entry.index) && (entry.index as number) >= 0 ? { id: entry.id, text: entry.text, index: entry.index } : { id: entry.id, text: entry.text }));
 }
 
 // 検索のブロック用の関数（search.ts・note-embeddings.ts の walkBlocks / blockText / extractNoteChunks）にそのまま渡せる形。
@@ -237,7 +242,8 @@ export function searchableBlocks(kind: PageKind, blocks: unknown, segments: unkn
 // AI ツール（read_note）とチャットの文脈（添付・プロジェクトの参照）に渡す、読むための文字。
 export function canvasReadableText(kind: CanvasKind, segments: CanvasSegment[]) {
   if (kind === "whiteboard") return segments.map((segment) => `- ${segment.text}`).join("\n");
-  return segments.map((segment, index) => `Slide ${index + 1}: ${segment.text}`).join("\n");
+  // 何枚目かは保存した並び順で数える（文字の無いスライドを飛ばして数えない）。古い保存は並べた順。
+  return segments.map((segment, index) => `Slide ${(segment.index ?? index) + 1}: ${segment.text}`).join("\n");
 }
 
 // ---- ページの入力（作成・保存） ----

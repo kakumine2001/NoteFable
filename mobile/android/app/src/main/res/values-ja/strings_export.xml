@@ -12,4 +12,6 @@
     <string name="answer_download_failed">会話をダウンロードできませんでした。もう一度お試しください。</string>
     <string name="answer_save_failed">ノートとして保存できませんでした。もう一度お試しください。</string>
     <string name="answer_save_too_large">回答が長すぎるため、ノートとして保存できません。</string>
+    <string name="export_file_saved">ファイルを保存しました。</string>
+    <string name="export_file_failed">ファイルを保存できませんでした。</string>
 </resources>

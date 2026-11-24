@@ -6,6 +6,4 @@
     <string name="slides_export_pdf_notes">Als PDF mit Sprechernotizen exportieren</string>
     <string name="slides_export_png">Als PNG-Bilder exportieren</string>
     <string name="slides_export_pptx">Als PowerPoint (PPTX) exportieren</string>
-    <string name="slides_file_saved">Datei gespeichert.</string>
-    <string name="slides_file_save_failed">Die Datei konnte nicht gespeichert werden.</string>
 </resources>

@@ -1,4 +1,5 @@
 import type { ActivityEvent } from "@/lib/chat-activity";
+import { syncAutoAppliedProposal } from "@/lib/proposal-sync";
 
 // チャット API の SSE を 1 行ずつ読む。data は本文差分なら JSON 文字列、途中経過なら { activity } になる。
 // 本文差分なら文字列、途中経過ならイベント、読み取れない行なら null を返す。
@@ -35,6 +36,8 @@ export async function readChatEventStream(
           if (typeof item === "string") chunk += item;
           else if (item) {
             if (item.type === "failure") streamFailed = true;
+            // 「自動適用」で適用済みの提案は、開いているページと一覧を読み直す（カードの「適用」と同じ）。
+            if (typeof window !== "undefined") syncAutoAppliedProposal(item);
             activity.push(item);
           }
         } catch {

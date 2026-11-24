@@ -266,6 +266,31 @@
 "image_download" = "下载图片";
 "generated_image" = "生成的图片";
 "ai_reply" = "AI 回复";
+"proposal_report" = "报告 AI 内容";
+"proposal_undo" = "撤销";
+"proposal_undone" = "已撤销";
+"proposal_undo_failed" = "无法撤销这项修改。";
+"proposal_applied_auto" = "已自动应用";
+"proposal_created_auto" = "已自动创建";
+"proposal_moved_to_trash" = "这个页面已移到回收站。";
+"proposal_open_page" = "打开页面";
+"proposal_new_page_label" = "新页面建议";
+"proposal_edit_page_label" = "页面修改建议";
+"proposal_new_whiteboard_title" = "新白板“%1$s”";
+"proposal_new_slides_title" = "新幻灯片“%1$s”";
+"proposal_create_whiteboard" = "创建白板";
+"proposal_create_slides" = "创建幻灯片";
+"proposal_empty_page" = "空白页面";
+"proposal_inside" = "位于“%1$s”中";
+"proposal_op_add" = "添加";
+"proposal_op_update" = "更新";
+"proposal_op_move" = "移动";
+"proposal_op_reorder" = "调整顺序";
+"proposal_op_slide" = "%1$s · 第 %2$s 张幻灯片";
+"proposal_op_named" = "%1$s · “%2$s”";
+"proposal_op_elements" = "%1$s · %2$s 个元素";
+"proposal_before" = "修改前";
+"proposal_after" = "修改后";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "添加页面";
@@ -341,6 +366,8 @@
 "answer_download_failed" = "无法下载聊天，请重试。";
 "answer_save_failed" = "无法保存为笔记，请重试。";
 "answer_save_too_large" = "这条回答太长，无法保存为笔记。";
+"export_file_saved" = "文件已保存。";
+"export_file_failed" = "无法保存文件。";
 
 /* strings_i18n.xml */
 "ui_locale" = "zh";
@@ -451,6 +478,8 @@
 "report_sending" = "正在发送…";
 "report_sent" = "报告已发送，谢谢。";
 "report_failed" = "无法发送报告。";
+"report_ai_content" = "报告 AI 内容";
+"report_ai_help" = "告诉我们这段 AI 内容有什么问题。它会和这段内容一起发送给 NoteFable 团队。";
 
 /* strings_search.xml */
 "search" = "搜索";
@@ -559,8 +588,6 @@
 "slides_export_pdf_notes" = "导出带演讲备注的 PDF";
 "slides_export_png" = "导出 PNG 图片";
 "slides_export_pptx" = "导出 PowerPoint（PPTX）";
-"slides_file_saved" = "文件已保存。";
-"slides_file_save_failed" = "无法保存文件。";
 
 /* strings_turns.xml */
 "regenerate" = "重新生成";

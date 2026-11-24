@@ -1,8 +1,8 @@
 "use client";
 
-import { Copy, Download, Ellipsis, FilePlus2, FolderInput, Lock, Star, StarOff, Trash2 } from "lucide-react";
+import { Copy, Download, Ellipsis, FilePlus2, Flag, FolderInput, Lock, Star, StarOff, Trash2 } from "lucide-react";
 import { useId, useState, type ReactNode } from "react";
-import { AnswerMenu } from "@/components/answer-actions";
+import { AnswerMenu, ReportDialog } from "@/components/answer-actions";
 import { useT } from "@/components/i18n-provider";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
 import { pageKindFeatures, pageKindOf } from "@/lib/page-kinds";
@@ -21,6 +21,7 @@ function ToggleItem({ icon, label, checked, onToggle }: { icon?: ReactNode; labe
 
 // ノートの上部バーの「…」（Notion のページメニュー）。表示設定・ロック・お気に入り・複製・サブページ・移動・書き出し・ゴミ箱。
 // ページの種類で出す項目を変える：書体・小さい文字・全幅・Markdown の書き出しはノートだけ（PAGE_KIND_FEATURES）。
+// AI が内容を書いたページ（aiUpdatedAt あり）には「AI の内容を報告」を出す（Google Play の AI 生成コンテンツのポリシー）。
 export function NotePageMenu({ page, busy, error, onSettings, onFavorite, onDuplicate, onAddSubpage, onMove, onExport, onTrash }: {
   page: NotePageSummary;
   busy: boolean;
@@ -36,6 +37,7 @@ export function NotePageMenu({ page, busy, error, onSettings, onFavorite, onDupl
   const t = useT();
   const id = useId();
   const [menu, setMenu] = useState<{ anchor: DOMRect; trigger: HTMLButtonElement; focusLast: boolean } | null>(null);
+  const [reporting, setReporting] = useState(false);
   const settings = pageSettingsOf(page);
   const features = pageKindFeatures(pageKindOf(page));
   const close = () => setMenu(null);
@@ -75,9 +77,11 @@ export function NotePageMenu({ page, busy, error, onSettings, onFavorite, onDupl
       <button type="button" role="menuitem" className="chat-menu-item" onClick={run(onAddSubpage)}><FilePlus2 size={16} aria-hidden="true" />{t("Add a page inside")}</button>
       <button type="button" role="menuitem" className="chat-menu-item" onClick={run(onMove)}><FolderInput size={16} aria-hidden="true" />{t("Move to")}</button>
       {onExport && features.markdownExport && <button type="button" role="menuitem" className="chat-menu-item" onClick={run(onExport)}><Download size={16} aria-hidden="true" />{t("Export Markdown")}</button>}
+      {page.aiUpdatedAt && <button type="button" role="menuitem" className="chat-menu-item" onClick={run(() => setReporting(true))}><Flag size={16} aria-hidden="true" />{t("Report AI content")}</button>}
       <hr className="chat-menu-divider" />
       <button type="button" role="menuitem" className="chat-menu-item is-danger" onClick={run(onTrash)}><Trash2 size={16} aria-hidden="true" />{t("Move to Trash")}</button>
       {error && <p role="alert" className="answer-menu-error">{localizeSystemText(error, t)}</p>}
     </AnswerMenu>}
+    {reporting && <ReportDialog target={{ pageId: page.id }} onClose={() => setReporting(false)} />}
   </>;
 }

@@ -50,8 +50,10 @@ export default function PrivacyPage() {
             purchase to your account, the app passes your internal account ID to Google Play when you buy.
           </li>
           <li>
-            <strong>Reports.</strong> If you report an AI answer, the reason you give, that answer, the message before it and your internal account ID are
-            emailed to us so we can review it. We keep the email only as long as we need it for the review.
+            <strong>Reports.</strong> If you report AI content, the reason you give, the reported content and your internal account ID are emailed to us so
+            we can review it: for an answer, the answer and the message before it; for a proposed page change, the page title and the text before and after
+            the change; for a page the AI wrote, its title, its current text and the AI changes applied to it; for an AI-made slide image, the description it
+            was made from and where it is stored. We keep the email only as long as we need it for the review.
           </li>
           <li>
             <strong>The Android app.</strong> The app stores the same cookies on your phone and sends the same data as the website. It reads only the photos
@@ -115,7 +117,8 @@ export default function PrivacyPage() {
             purchases (under <a href="https://policies.google.com/privacy">Google’s Privacy Policy</a>). They keep their own payment records as the law requires.
           </li>
           <li>
-            <a href="https://resend.com/legal/privacy-policy">Resend</a>, which delivers the sign-in code email (your email address and the code), if you sign in with email.
+            <a href="https://resend.com/legal/privacy-policy">Resend</a>, which delivers the sign-in code email (your email address and the code), if you sign in
+            with email, and the report emails described under Reports, if you report AI content.
           </li>
           <li>
             Authorities, if we are legally required to disclose data.

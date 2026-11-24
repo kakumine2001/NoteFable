@@ -20,23 +20,7 @@ final class SlidesBridgeTests: XCTestCase {
         XCTAssertEqual(NoteEmbedScripts.slides(#"{"action":"end"}"#), #"(function(){var e=window.notefableEmbed;if(e&&typeof e.slides==='function')e.slides("{\"action\":\"end\"}")})()"#)
     }
 
-    func testAssemblesChunksInOrderAndDropsBrokenFiles() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("slides-test-\(UUID().uuidString)")
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let assembler = ExportFileAssembler(directory: directory)
-        assembler.start(id: "a", name: "Q3/review.pdf", mime: "application/pdf")
-        assembler.append(id: "a", index: 0, base64: Data([1, 2, 3]).base64EncodedString())
-        assembler.append(id: "a", index: 1, base64: Data([4]).base64EncodedString())
-        let ready = try XCTUnwrap(assembler.finish(id: "a"))
-        XCTAssertEqual(ready.name, "Q3 review.pdf")
-        XCTAssertEqual(ready.mime, "application/pdf")
-        XCTAssertEqual(try Data(contentsOf: ready.url), Data([1, 2, 3, 4]))
-
-        // 顺序不对就放弃（不交出一半的文件）。
-        assembler.start(id: "b", name: "x.png", mime: "image/png")
-        assembler.append(id: "b", index: 1, base64: "AA==")
-        XCTAssertNil(assembler.finish(id: "b"))
-    }
+    // 导出文件的拼接、文件名和保存的流程见 ExportFileTests（白板和幻灯片共用一套）。
 
     @MainActor
     func testTheViewModelTracksThePresentationOfTheOpenEditor() async {

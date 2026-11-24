@@ -131,6 +131,8 @@ npm run build
 
 Vercel 的 `vercel.json` build command 会先运行 `npm run prisma:migrate`，再运行 `npm run build`；本地单独执行 `npm run build` 不会自动迁移数据库。
 
+`npm run build` 和 `npm run dev` 之前会先跑 `scripts/copy-whiteboard-assets.mjs`（`prebuild` / `predev`）：把白板用的 Excalidraw 字体和 pdf.js 的 worker 从 `node_modules` 写到 `public/whiteboard/`（不进仓库，随静态文件部署），白板不从 CDN 读字体（[whiteboard.md](whiteboard.md)）。没有新的环境变量。
+
 ### Migration
 
 代码库有 migration retry wrapper，用来处理 Neon 短暂连接问题。
@@ -284,7 +286,7 @@ NOTEFABLE_MODELS=[{"id":"gpt-6-luna"},{"id":"claude-haiku-5-5","label":"Claude",
 
 ### File & Image Storage
 
-生产环境使用私有 Vercel Blob（`notefable-images`），存放聊天图片（`images/YYYY/MM/DD/...`）、临时上传（`chat-uploads/<userId>/`）、笔记封面和图片图标（`page-covers/<userId>/`）、笔记附件（`note-files/<userId>/`）、用户头像（`avatars/<userId>/`）和设置里的图标（`app-icons/<userId>/`）：
+生产环境使用私有 Vercel Blob（`notefable-images`），存放聊天图片（`images/YYYY/MM/DD/...`）、临时上传（`chat-uploads/<userId>/`）、笔记封面和图片图标（`page-covers/<userId>/`）、笔记附件（`note-files/<userId>/`）、用户头像（`avatars/<userId>/`）、设置里的图标（`app-icons/<userId>/`）和 AI 提案卡片的缩略图（`proposal-images/<userId>/`）：
 
 ```text
 Client -> POST /api/uploads -> @vercel/blob/client 直传临时附件（chat-uploads/）

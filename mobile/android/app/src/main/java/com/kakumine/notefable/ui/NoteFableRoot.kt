@@ -59,6 +59,7 @@ import com.kakumine.notefable.auth.requestGoogleIdToken
 import com.kakumine.notefable.data.EmbedMessage
 import com.kakumine.notefable.data.NoteGroupSummary
 import com.kakumine.notefable.data.NotePageSummary
+import com.kakumine.notefable.data.PageKind
 import com.kakumine.notefable.data.TRASH_RETENTION_DAYS
 import kotlinx.coroutines.launch
 
@@ -93,8 +94,19 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     // 笔记编辑器里上传因存储空间不够被拒绝（网页经桥发来的 storageLimit）：编辑器上方显示提示，关掉为止。
     // 记下是哪个编辑器的提示：只在那个编辑器上显示，换笔记、关掉编辑器时清掉（晚到的旧编辑器的消息不收）。
     var noteStorageLimit by remember { mutableStateOf<Pair<String, StorageLimitInfo>?>(null) }
+    // 白板正在用画图工具的编辑器（网页经桥发来的 drawing 为 true）：只在那个编辑器上让开两侧的返回手势。
+    // 同样只认打开着的编辑器发来的，换笔记、关掉编辑器时清掉。
+    var drawingEditor by remember { mutableStateOf<String?>(null) }
     val openEditor = notes.open?.editor
-    LaunchedEffect(openEditor) { if (noteStorageLimit?.first != openEditor) noteStorageLimit = null }
+    LaunchedEffect(openEditor) {
+        if (noteStorageLimit?.first != openEditor) noteStorageLimit = null
+        if (drawingEditor != openEditor) drawingEditor = null
+    }
+    // 白板开着（类型和编辑页顶栏一样：列表里有这一篇就用列表的，否则用打开时知道的）：横向拖动是在画布上画 / 平移，
+    // 不从边上拉出抽屉（菜单按钮照常打开）；抽屉开着时照常能拖回去、点遮罩关上。
+    val whiteboardOpen = notes.workspace == Workspace.Notes && notes.open?.let { open ->
+        (notes.pages.firstOrNull { it.id == open.id }?.kind ?: open.kind) == PageKind.Whiteboard
+    } == true
     // 全屏检索（Batch 4）：抽屉的 Search 行和顶栏的搜索按钮打开。
     var searchOpen by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     // 还没读过笔记列表时（从聊天直接打开检索）顺便读一次：页面类型的表（检索的类型筛选）跟着 GET /api/pages 的 kinds。
@@ -109,6 +121,8 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     val conversationDownloader = rememberConversationDownloader()
     // 笔记的 Markdown 导出（页面菜单）和导入（侧栏、笔记首页）用的系统文件选择器，同样注册在根上。
     val exportNote = rememberNoteExporter(notesViewModel)
+    // 编辑器里导出的文件（白板的 PNG / SVG / PDF 等）的保存位置选择器，同样注册在根上。
+    val saveExportFile = rememberExportFileSaver()
     val pickMarkdownImport = rememberMarkdownImportPicker({ notesViewModel.identityGeneration }) { files ->
         // 网页 importMarkdownFiles：先关侧栏；有项目时先问导入到哪里（下面的 ImportTargetDialog），导入后打开第一篇。
         scope.launch { drawerState.close() }
@@ -225,8 +239,8 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
 
     ModalNavigationDrawer(
         drawerState = drawerState,
-        // 幻灯片放映中不让侧栏跟着边缘滑动打开（和翻回上一页、呼出系统栏的手势冲突）。
-        gesturesEnabled = !slidesPresenting,
+        // 白板开着时横向拖动留给画布，幻灯片放映中和翻页、呼出系统栏的手势冲突：这两种时候不让侧栏跟着边缘滑动打开（开着时照常能拖回）。
+        gesturesEnabled = drawerState.isOpen || (!whiteboardOpen && !slidesPresenting),
         drawerContent = {
             AppDrawer(
                 workspace = notes.workspace,
@@ -296,14 +310,16 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
         },
     ) {
         val open = notes.open
-        // 回答里的"打开笔记"（项目参考笔记、提案卡片）去笔记页；应用了提案后刷新笔记列表（网页 notefable:page-updated / page-created），
+        // 回答里的"打开笔记"（项目参考笔记、提案卡片）去笔记页；应用、撤销了提案后刷新笔记列表（网页 notefable:page-updated / page-created），
         // 改动的笔记正开在编辑器里时把新版本交给网页编辑器（不然它还拿着旧版本，下次保存会 409）。
+        // 撤销了新建的页面：移进回收站的页面先从列表里去掉，开着的关掉（网页 notefable:pages-trashed）。
         // 回答"存到笔记"建好了笔记（可能已离开那段对话）：同样刷新笔记列表（网页 notefable:page-created）。
         LaunchedEffect(app) {
             app.answerExports().created.collect { notesViewModel.refresh() }
         }
         LaunchedEffect(app) {
             app.proposals.changes.collect { change ->
+                notesViewModel.onPagesTrashed(change.trashed)
                 notesViewModel.refresh()
                 val page = change.page
                 if (!change.created && page != null && change.pageId != null && notesViewModel.state.value.open?.id == change.pageId) {
@@ -381,7 +397,9 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                     saveState = notes.saveState,
                     notice = (notes.notice ?: notes.error)?.let { notesErrorText(it) },
                     // 编辑器里的 AI 助手用 App 里选的模型和推理强度（网页按服务端的模型列表核对）。
-                    embedUrl = { lang, theme -> app.api.noteEmbedUrl(open.id, lang, state.selectedModel?.id, state.selectedReasoning, theme) },
+                    embedUrl = { lang, theme, reveal ->
+                        app.api.noteEmbedUrl(open.id, lang, state.selectedModel?.id, state.selectedReasoning, theme, reveal)
+                    },
                     onDownload = downloadNoteFile,
                     baseUrl = BuildConfig.BASE_URL,
                     cookieJar = app.cookieJar,
@@ -401,9 +419,13 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                             is EmbedMessage.StorageLimit -> if (notesViewModel.state.value.open?.editor == editor) {
                                 noteStorageLimit = editor to StorageLimitInfo(message.tier, message.used, message.limit)
                             }
-                            is EmbedMessage.Flushed -> Unit
-                            // 放映（横屏、全屏、常亮）和导出文件的保存由编辑页自己处理（NoteEditorScreen）。
-                            is EmbedMessage.Presentation, is EmbedMessage.FileStart, is EmbedMessage.FileChunk, is EmbedMessage.FileEnd, is EmbedMessage.FileAbort -> Unit
+                            is EmbedMessage.Drawing -> if (notesViewModel.state.value.open?.editor == editor) {
+                                drawingEditor = editor.takeIf { message.active }
+                            }
+                            // 桥自己处理：flushed 交给等着的 flush；导出文件的块在 JS 线程上拼好，经 onExportFile 交出来；
+                            // 放映（横屏、全屏、常亮）由编辑页自己处理（NoteEditorScreen）。
+                            is EmbedMessage.Flushed, is EmbedMessage.Presentation, is EmbedMessage.FileStart, is EmbedMessage.FileChunk,
+                            is EmbedMessage.FileEnd, is EmbedMessage.FileAbort -> Unit
                         }
                     },
                     registerFlush = { bridge ->
@@ -412,7 +434,11 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         notesViewModel.pushPageSettings = bridge?.let { b ->
                             { page -> b.pageSettings(com.kakumine.notefable.data.NoteFableJson.encodeToString(com.kakumine.notefable.data.NotePageSummary.serializer(), page)) }
                         }
+                        notesViewModel.revealInEditor = bridge?.let { b -> { target -> b.reveal(target) } }
                     },
+                    onExportFile = saveExportFile,
+                    // 抽屉或检索盖在白板上时不在画图，两侧照常能返回（关掉它们）。
+                    drawing = drawingEditor == open.editor && !drawerState.isOpen && !searchOpen,
                     onSearch = openSearch,
                     onChatLink = { link -> openChatLink(link, viewModel, notesViewModel) },
                     page = notes.pages.firstOrNull { it.id == open.id },
@@ -491,9 +517,9 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                 closeDrawer()
                 openChatLink(com.kakumine.notefable.data.ChatLink.Open(id, messageId), viewModel, notesViewModel)
             },
-            onOpenNote = { id, title, icon, kind ->
+            onOpenNote = { id, title, icon, kind, reveal ->
                 closeDrawer()
-                notesViewModel.openNote(id, title, icon, kind)
+                notesViewModel.openNote(id, title, icon, kind, reveal)
             },
         )
     }

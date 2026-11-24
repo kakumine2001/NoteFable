@@ -2,7 +2,7 @@
 
 NoteFable 是一个把 AI 对话、笔记和资料整理放在一起的产品，正在持续打磨 Web、原生 Android 和原生 iOS 体验。
 
-用户可以从聊天开始，把回答和资料整理成 Notes，再让 AI 读取笔记、提出修改建议，确认后应用。当前支持匿名试用、Google / 邮箱验证码登录、流式聊天、文件上下文、图片输入与生成、Web 搜索、发言附加笔记、引用回答追问、回答保存 / 整段整理成笔记与整段对话导出、回答举报、跨 Chats 与 Notes 的关键词搜索、自定义指令、项目共通指示与参考笔记、AI 角色形象、笔记子页面 / 收藏 / 页面设置 / 回收站 / 编辑历史与可选的单向公开只读分享链接、笔记里选中文字问 AI、笔记的 Markdown 导出 / 导入、桌面端聊天与笔记分屏、浅色 / 深色外观，以及可选的 Pro 月额订阅与账号删除。以下记录当前实现；当前没有团队协作功能，私人聊天与未公开的笔记仅作者可见。
+用户可以从聊天开始，把回答和资料整理成 Notes，再让 AI 读取笔记、提出修改建议，确认后应用（页面里的 AI 面板可以打开“自动应用”，改动可撤销）。当前支持匿名试用、Google / 邮箱验证码登录、流式聊天、文件上下文、图片输入与生成、Web 搜索、发言附加笔记、引用回答追问、回答保存 / 整段整理成笔记与整段对话导出、回答举报、跨 Chats 与 Notes 的关键词搜索、自定义指令、项目共通指示与参考笔记、AI 角色形象、笔记子页面 / 收藏 / 页面设置 / 回收站 / 编辑历史与可选的单向公开只读分享链接、笔记里选中文字问 AI、笔记的 Markdown 导出 / 导入、桌面端聊天与笔记分屏、浅色 / 深色外观，以及可选的 Pro 月额订阅与账号删除。以下记录当前实现；当前没有团队协作功能，私人聊天与未公开的笔记仅作者可见。
 
 产品介绍主页在 `notefable.com`，聊天与 Notes 工作区在 `app.notefable.com`（参照 Notion 的分域；同一份代码按主机分流，见 [deployment.md](docs/architecture/deployment.md)）。旧地址 `notefable.com/app` 和带 `chat`、`message`、`view` 或 `page` 参数的旧链接保留全部查询参数转到工作区。没有设置分域变量的环境（Preview、本地）仍是 `/` 介绍页、`/app` 工作区。
 
@@ -81,7 +81,7 @@ flowchart LR
 
 ## 当前边界
 
-- 面向 AI 对话与个人知识整理，持续打磨聊天、Notes 和移动端的一体体验；支持将单篇笔记（及可选子页面）手动发布为公开只读链接、把幻灯片发布为公开的放映链接，当前没有团队协作或评论功能；Pro 订阅按 Stripe / Google Play 环境变量启用（见 [billing.md](docs/architecture/billing.md)）
+- 面向 AI 对话与个人知识整理，持续打磨聊天、Notes 和移动端的一体体验；支持将单篇笔记（及可选子页面）手动发布为公开只读链接、把白板发布为公开的只读链接、把幻灯片发布为公开的放映链接，当前没有团队协作或评论功能；Pro 订阅按 Stripe / Google Play 环境变量启用（见 [billing.md](docs/architecture/billing.md)）
 - 模型及第三方服务凭据由服务端环境变量统一配置，不暴露给浏览器
 - 当前签名设备 Cookie 用于隔离不同浏览器的会话和附件，不等同于登录或访问控制
 - 可配置 Google / 邮箱验证码登录（Auth.js JWT 会话）以跨设备找回数据。首次登录绑定当前设备的匿名数据；已有账号登录不会自动合并另一设备的匿名数据。登出后回到新的匿名身份，账号数据仍可再次登录找回。两种方式分别按环境变量启用；邮箱与 Google 账号的关联规则见 [database.md](docs/architecture/database.md#user)
@@ -258,7 +258,7 @@ npm run prisma:migrate
 - DeepSeek-V4.1-Flash：支持图片输入、内置 Web 搜索（`deepseek_web_search`）和 Notes 工具；推理强度为 `low / high / max`，默认 `high`
 - 图片生成不依赖所选聊天模型：任何模型下都可以打开 Create an image，`/api/images` 固定调用 OpenAI 的图片接口，所选模型只记录在保存的消息上
 
-三个模型都可以用 `search_notes` / `read_note` 读取当前用户自己的 Notes（Trash 里的除外），用 `list_chat_attachments` 查找当前聊天的附件，并用 `propose_note_edit` / `propose_note_create` 提议修改或新建页面，包括把符合条件的聊天图片放进笔记：提案只会在聊天里显示成待确认的卡片，用户点 Apply / Create note 后才会保存。提案存进 `NoteProposal` 表，刷新页面后仍在，适用只会生效一次，详见 [chat-flow.md](docs/architecture/chat-flow.md#notes-工具三家模型共用)。
+三个模型都可以用 `search_notes` / `list_pages` / `read_note` 读取当前用户自己的页面（笔记、白板、幻灯片；Trash 里的除外，白板 / 幻灯片目前只读），用 `list_chat_attachments` 查找当前聊天的附件，并用 `propose_note_edit` / `propose_note_create` 提议修改或新建页面，包括把符合条件的聊天图片放进笔记：提案默认在聊天里显示成待确认的卡片，用户点 Apply / Create note 后才会保存；页面里的 AI 面板打开“自动应用”时，对这个面板所在页面（没有锁定时）的修改和新建的页面会立即保存，对别的页面的修改仍要确认。已应用的提案可以在卡片上撤销（编辑回到应用前，新建的页面移进 Trash），卡片和 AI 写过的页面都可以举报（Report AI content）。提案存进 `NoteProposal` 表，刷新页面后仍在，适用只会生效一次，详见 [chat-flow.md](docs/architecture/chat-flow.md#ai-操控底座框架--各类型适配器158)。
 
 Claude 普通聊天默认使用官方最大输出 `max_tokens: 128000`，包含思考与回答；模型默认提供 1,000,000 token 上下文，无需额外开启参数。GPT-6 Luna 与 Claude 使用厂商原生自动压缩：Luna 请求 `context_management: [{type: "compaction"}]`，不覆盖厂商默认触发值；Claude 使用 `compact-2026-01-12` Beta 与 `compact_20260112`，沿用官方默认的 150,000 输入 token 触发值及摘要规则。摘要生成会产生额外模型用量；短会话不触发时没有这次摘要生成用量。
 
@@ -304,17 +304,19 @@ Vercel 的 Serverless 文件系统没有持久磁盘：除 `/tmp` 外只读，`/
 
 未登录时页面与同一浏览器、同一域名绑定：清除网站 Cookie、切换浏览器/设备/域名后，数据库中的页面仍在，但无法重新认领。使用 Google 或邮箱验证码登录后，同一账号在其他设备登录即可找回；已登录账号下的页面不会自动合并来自另一台设备的匿名数据。删除页面前会确认，删除只是移入 Trash，30 天内可以复原（见下节），超过后才永久删除。标题最多 200 字符，单页请求最大 1 MiB、最多 2,000 个块及 8 层块嵌套。正文列表可以缩进，页面支持子页面层级（`parentId`）和单层项目分组（`NoteGroup`）。
 
-Notes 编辑和自动保存本身不调用 AI；笔记内的 AI 助手只在用户发送请求后调用所选模型。在编辑器里选中文字，格式工具栏最前面有 “Ask AI”：点了打开助手，选中的文字作为引用显示在输入框上方，并有针对这段文字的快捷操作（改进写作、修正拼写和语法、缩短、解释、翻译）。一篇笔记的助手对话保存在服务器上，第一次打开面板时恢复最近的那一段，面板标题栏的 “New chat” 另开一段新的。助手面板的输入栏有“＋”菜单（添加文件或照片、添加页面；桌面端聊天输入栏的“＋”菜单提供添加文件或照片、创建图片和整理成笔记，手机端“＋”抽屉合并了这四项）和模型 / 推理强度选择（与聊天共用同一个选择）；不提供生成图片和联网搜索。Android 和 iOS 的 `/note-embed` 里模型由 App 传入，不显示模型选择。无需新增环境变量。新增表通过正常的 `npm run prisma:migrate` 部署。详细数据流见 [notes-flow.md](docs/architecture/notes-flow.md)。
+Notes 编辑和自动保存本身不调用 AI；页面里的 AI 助手（笔记、白板、幻灯片共用一个面板，白板 / 幻灯片目前只能问、不能改）只在用户发送请求后调用所选模型。在编辑器里选中文字，格式工具栏最前面有 “Ask AI”：点了打开助手，选中的文字作为引用显示在输入框上方，并有针对这段文字的快捷操作（改进写作、修正拼写和语法、缩短、解释、翻译）。一篇笔记的助手对话保存在服务器上，第一次打开面板时恢复最近的那一段，面板标题栏的 “New chat” 另开一段新的。助手面板的输入栏有“＋”菜单（添加文件或照片、添加页面；桌面端聊天输入栏的“＋”菜单提供添加文件或照片、创建图片和整理成笔记，手机端“＋”抽屉合并了这四项）和模型 / 推理强度选择（与聊天共用同一个选择）；不提供生成图片和联网搜索。Android 和 iOS 的 `/note-embed` 里模型由 App 传入，不显示模型选择。无需新增环境变量。新增表通过正常的 `npm run prisma:migrate` 部署。详细数据流见 [notes-flow.md](docs/architecture/notes-flow.md)。
 
 笔记可以按篇导出和导入 Markdown。页面菜单的 “Export Markdown” 下载一个 `.md` 文件（`# 标题` 加正文；`GET /api/pages/:id/export`）；Notes 侧栏、笔记主页和空状态里的 “Import Markdown” 一次选最多 20 个 `.md` / `.markdown` / `.txt` 文件（每个最多 1 MiB，一次请求合计最多 4 MiB），每个文件新建一篇笔记（`POST /api/pages/import`），开头的标题行作为笔记标题，没有就用文件名。用户建过项目时，选完文件会先问“导入到”哪个项目（或“无项目”）；没有项目就直接导入。任何一个文件不合格（包括长到放不进一篇笔记）时整批都不创建。导出不打包图片和文件：上传的图片块、文件块在 Markdown 里只是一行 `[Image: 名称]` / `[File: 名称]`。没有整个工作区的 ZIP 导出。规则见 [notes-flow.md](docs/architecture/notes-flow.md#markdown-导出与导入)。
 
 工作区还能建幻灯片（页面类型 `slides`，仿 Figma Slides）：总览（一行一章）和单页编辑，8 种版式和 8 套主题（浅色 / 深色），文字框（格式、列表、链接、代码、KaTeX 公式，支持中日韩输入法）、图片（上传、粘贴、聊天里的图片、AI 生成）、形状、线、表格，自由摆放（拖动、缩放、旋转、吸附、对齐、分布、层级、组合），演讲者备注，撤销 / 重做和快捷键。可以全屏放映（桌面有演讲者视图，支持黑屏 / 白屏和按数字跳页），导出 PDF（可带备注）、PNG 和可编辑的 PPTX，也能用页面的“分享”发布成公开的放映链接（只公开这套幻灯片，不含隐藏页和备注）。Android 和 iOS 在 `/note-embed` 里用同一个编辑器，放映时横屏、全屏、常亮，导出的文件交给系统保存。规则见 [slides.md](docs/architecture/slides.md)。
 
+工作区还能建白板（页面类型 `whiteboard`，用 MIT 授权的 Excalidraw，界面是 NoteFable 自己的工具栏和面板）：画笔（压感）、荧光笔、橡皮、激光笔、形状、线和箭头、文字、便签、图片、框，样式面板、小地图、网格和吸附、锁定，链接到笔记 / 白板 / 幻灯片的页面卡片，检索能定位到白板里的元素。可以导入 PDF（每页放进一个框，直接批注），导出 PNG、SVG 和 PDF（有内容的框各一页，框外的内容放最后一页），也能用“分享”发布成公开的只读链接。Android 和 iOS 在 `/note-embed` 里用同一个编辑器，导出的文件交给系统保存。规则见 [whiteboard.md](docs/architecture/whiteboard.md)。
+
 切到 Workspace 时先显示笔记主页（URL 没有 `page=`），不会自动打开某篇笔记：640px 以上显示问候语、“最近编辑”卡片（按 `updatedAt` 取最近 8 篇）和全部笔记列表，侧栏的“主页”一行回到这里；手机宽度只显示列表。打开笔记会压一条带 `page=` 的历史，浏览器“返回”回到主页；删除正打开的笔记后也回到主页。Chat / Workspace 切换、手机笔记列表进入和返回，以及列表增删移动使用浏览器 View Transition；不支持该 API 时直接切换。手机抽屉支持左滑关闭，模型、附件和笔记 AI 底部面板可拖动持手下滑关闭，距离不足时回弹。按钮提供轻微按压反馈；系统启用“减少动态效果”时关闭过场和回弹动画。
 
 ## 回答的复制、保存与导出
 
-每条完成的 AI 回答下面保留复制和三个点（More options）图标（存在多个版本时前面带有 `‹ 2/3 ›` 切换）；三个点菜单里提供 Regenerate、Branch in new chat、Save to page、保存后的 Open saved page、Download conversation（下载整段对话）以及 Report answer（`POST /api/reports`，用于向开发者举报回答）。此外输入栏“＋”菜单还提供 Create page（`POST /api/sessions/:id/page`，用当前模型把整段对话整理成一篇新笔记，计入 1 次聊天额度）。Copy 复制保存的 Markdown 原文；Save to page 一键新建一篇笔记（网页走 `POST /api/pages`，原生端走 `POST /api/pages/from-answer`）：标题取回答的第一个标题或第一行，正文保留列表、代码块、引用、GFM 表格（存为原生表格块）和 Web 搜索的出处链接，末尾附分隔线和指回原会话的链接；Download conversation 会读取这个聊天从头到尾的全部已保存消息，按顺序包含你的提问和 AI 回答，以会话标题命名 `.md` 文件，并保留代码、引用链接和附件名称（图片保留需登录查看的链接，不打包附件原文件），末尾附原会话链接。复制和 Save to page 仍只处理点选的那条回答。回到原会话的链接形如 `/c/<会话 ID>?message=<消息 ID>`（以前的 `/?chat=<会话 ID>&message=<消息 ID>` 也能开），打开后进入该会话并滚到那条消息；它不是分享链接，仍按设备 Cookie 或登录账号（Google / 邮箱）归属。过长的回答存成笔记时会在块的边界截断并注明（上限 2,000 个块、1 MiB）。“已保存”只在当前页面内记得，刷新后再点会新建第二篇。没有新增环境变量和数据库迁移。详见 [chat-flow.md](docs/architecture/chat-flow.md#回答的复制保存到-notes-与-markdown-导出)。
+每条完成的 AI 回答下面保留复制和三个点（More options）图标（存在多个版本时前面带有 `‹ 2/3 ›` 切换）；三个点菜单里提供 Regenerate、Branch in new chat、Save to page、保存后的 Open saved page、Download conversation（下载整段对话）以及 Report answer（`POST /api/reports`，用于向开发者举报回答；AI 的提案卡片、AI 写过的页面和幻灯片里 AI 生成的图片也可以举报）。此外输入栏“＋”菜单还提供 Create page（`POST /api/sessions/:id/page`，用当前模型把整段对话整理成一篇新笔记，计入 1 次聊天额度）。Copy 复制保存的 Markdown 原文；Save to page 一键新建一篇笔记（网页走 `POST /api/pages`，原生端走 `POST /api/pages/from-answer`）：标题取回答的第一个标题或第一行，正文保留列表、代码块、引用、GFM 表格（存为原生表格块）和 Web 搜索的出处链接，末尾附分隔线和指回原会话的链接；Download conversation 会读取这个聊天从头到尾的全部已保存消息，按顺序包含你的提问和 AI 回答，以会话标题命名 `.md` 文件，并保留代码、引用链接和附件名称（图片保留需登录查看的链接，不打包附件原文件），末尾附原会话链接。复制和 Save to page 仍只处理点选的那条回答。回到原会话的链接形如 `/c/<会话 ID>?message=<消息 ID>`（以前的 `/?chat=<会话 ID>&message=<消息 ID>` 也能开），打开后进入该会话并滚到那条消息；它不是分享链接，仍按设备 Cookie 或登录账号（Google / 邮箱）归属。过长的回答存成笔记时会在块的边界截断并注明（上限 2,000 个块、1 MiB）。“已保存”只在当前页面内记得，刷新后再点会新建第二篇。没有新增环境变量和数据库迁移。详见 [chat-flow.md](docs/architecture/chat-flow.md#回答的复制保存到-notes-与-markdown-导出)。
 
 ## 搜索、项目上下文与 Trash
 

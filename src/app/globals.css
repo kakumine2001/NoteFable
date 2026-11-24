@@ -3138,6 +3138,54 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
   font-size: 0.75rem;
 }
 
+/* 元に戻して新しいページをゴミ箱へ移したときの一言。 */
+.page-edit-footnote {
+  margin: 0;
+  padding: 0 0.75rem 0.5rem;
+}
+
+/* 標題の行の右端の「AI の内容を報告」。 */
+.page-edit-report {
+  display: grid;
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  place-items: center;
+  border-radius: 4px;
+  color: var(--notion-faint);
+  cursor: pointer;
+}
+
+.page-edit-report:hover {
+  background: var(--notion-hover);
+  color: var(--notion-muted);
+}
+
+/* ホワイトボード・スライドの改前・改後の縮小画像（アダプターが作る）。 */
+.page-edit-images {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.4rem;
+  margin-bottom: 0.2rem;
+}
+
+.page-edit-image {
+  width: 100%;
+  max-height: 11rem;
+  border: 1px solid var(--notion-border);
+  border-radius: 4px;
+  background: var(--notion-sidebar);
+  object-fit: contain;
+}
+
+.page-edit-image.is-before {
+  border-color: rgba(224, 62, 62, 0.45);
+}
+
+.page-edit-image.is-after {
+  border-color: rgba(68, 131, 97, 0.55);
+}
+
 /* 画像・ファイルの追加パネル: タブは 1 つだけなので隠し、選択ボタンをアプリの見た目にそろえる。 */
 .bn-panel .bn-ak-tab-list { display: none; }
 .note-upload { max-width: 100%; }
@@ -3885,6 +3933,8 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 .canvas-editor-warnings:empty { display: none; }
 .canvas-editor-warnings { flex: none; padding: 12px 16px 0; }
 .canvas-editor-warnings .notion-warning { margin-bottom: 0; }
+/* 種類ごとのエディターを読み込んでいる間（src/components/canvas-editors.tsx）。 */
+.canvas-editor-loading { flex: 1; min-height: 0; background: var(--notion-bg); }
 /* ブロック・文字の色は、エディターがダークで出す色（BlockNote のダークの色）と同じにする。
    淡い地のままだと、ダークの明るい文字が読めなくなる。 */
 :root[data-theme="dark"] .public-note-shell {
@@ -3899,3 +3949,15 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
   --public-note-pink-text: #da208f; --public-note-pink-bg: #ad1a72;
   --public-note-callout-bg: rgba(255, 255, 255, 0.05);
 }
+
+/* 公開リンクのホワイトボード（src/components/public-note-view.tsx の PublicWhiteboardView）。キャンバスは上のバーの下いっぱい。 */
+.public-whiteboard-shell { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
+.public-whiteboard-main { position: relative; display: flex; flex: 1; min-height: 0; flex-direction: column; }
+.public-whiteboard-frame { position: relative; display: flex; flex: 1; min-height: 0; }
+.public-whiteboard-status { margin: auto; color: var(--notion-muted); font-size: 14px; }
+.public-whiteboard-subpages { flex: none; max-height: 30vh; overflow-y: auto; padding: 8px 16px 16px; border-top: 1px solid var(--notion-border); }
+
+/* 編集履歴のホワイトボードの版の絵（src/components/whiteboard/whiteboard-thumbnail.tsx）。 */
+.whiteboard-thumbnail { border-radius: 10px; background: var(--notion-hover); padding: 12px; }
+.whiteboard-thumbnail-image svg { display: block; width: 100%; height: auto; max-height: 52vh; }
+.whiteboard-thumbnail:not([data-state="ready"]) .whiteboard-thumbnail-image { display: none; }

@@ -25,7 +25,8 @@ describe("page kinds", () => {
 
   it("keeps note-only features for notes and turns on each canvas kind as its editor ships", () => {
     expect(PAGE_KIND_FEATURES.note).toEqual({ editor: true, markdownExport: true, typography: true, publicShare: true, aiEdit: true });
-    expect(PAGE_KIND_FEATURES.whiteboard).toEqual({ editor: false, markdownExport: false, typography: false, publicShare: false, aiEdit: false });
+    // ホワイトボードのエディターと読み取り専用の公開ビュー（#152）。AI の操作は #153。
+    expect(PAGE_KIND_FEATURES.whiteboard).toEqual({ editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false });
     // スライドのエディターと公開の放映ページ（#149）。AI の編集は #150。
     expect(PAGE_KIND_FEATURES.slides).toEqual({ editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false });
   });
@@ -54,6 +55,10 @@ describe("whiteboard and slide data", () => {
       ["whiteboard", { elements: [{ id: "a", type: "text" }, { id: "a", type: "text" }] }],
       ["whiteboard", { elements: [{ type: "text" }] }], ["whiteboard", { elements: [{ id: "a" }] }],
       ["whiteboard", { elements: [{ id: "a", type: "text", isDeleted: "yes" }] }],
+      // 埋め込み（外部のページ・任意の HTML）と AI の枠は置けない。
+      ["whiteboard", { elements: [{ id: "a", type: "iframe", customData: { generationData: { status: "done", html: "<script>alert(1)</script>" } } }] }],
+      ["whiteboard", { elements: [{ id: "a", type: "embeddable", link: "https://val.town/x" }] }],
+      ["whiteboard", { elements: [{ id: "a", type: "magicframe" }] }],
       ["whiteboard", { elements: [], files: { f: { dataURL: "https://example.com/x.png" } } }],
       // もう一方の種類の外枠は持てない（種類を取り違えない）。
       ["whiteboard", { elements: [], slides: [] }], ["slides", { slides: [], elements: [] }],
@@ -131,7 +136,7 @@ describe("text for search, semantic search and chat", () => {
         { id: "c", elements: [{ id: "e3", type: "text", text: "Plain" }] },
       ],
     };
-    expect(extractCanvasSegments("slides", data)).toEqual([{ id: "a", text: "Title here remember" }, { id: "c", text: "Plain" }]);
+    expect(extractCanvasSegments("slides", data)).toEqual([{ id: "a", text: "Title here remember", index: 0 }, { id: "c", text: "Plain", index: 2 }]);
   });
 
   it("never cuts an emoji in half when a long text is shortened", () => {
@@ -168,5 +173,7 @@ describe("text for search, semantic search and chat", () => {
   it("reads as a bullet list (whiteboard) or numbered slides for the AI and chat context", () => {
     expect(canvasReadableText("whiteboard", [{ id: "a", text: "One" }, { id: "b", text: "Two" }])).toBe("- One\n- Two");
     expect(canvasReadableText("slides", [{ id: "a", text: "Intro" }, { id: "b", text: "End" }])).toBe("Slide 1: Intro\nSlide 2: End");
+    // 文字の無いスライドがあっても、番号は実際の何枚目か。
+    expect(canvasReadableText("slides", [{ id: "a", text: "Intro", index: 0 }, { id: "c", text: "End", index: 2 }])).toBe("Slide 1: Intro\nSlide 3: End");
   });
 });

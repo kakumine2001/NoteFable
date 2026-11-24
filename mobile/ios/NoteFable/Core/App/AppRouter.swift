@@ -51,12 +51,12 @@ final class AppRouter {
         app.notes.openNoteFromLink(id)
     }
 
-    /// 检索结果里的笔记：结果自带标题、图标和页面类型，列表还没读过也能开。
+    /// 检索结果里的笔记：结果自带标题、图标和页面类型，列表还没读过也能开；[reveal] 是命中的块 / 元素，编辑器打开后定位过去。
     /// 直接交给 openNote（Android NoteFableRoot 的 onOpenNote 也是）：它自己先存当前笔记、再切到笔记工作区。
     /// 不能包在 setWorkspace(.notes) { … } 里：那个回调在导航进行中执行，openNote 会被当成重复导航丢掉。
-    func openNote(_ id: String, title: String?, icon: String?, kind: PageKind = .note) {
+    func openNote(_ id: String, title: String?, icon: String?, kind: PageKind = .note, reveal: String? = nil) {
         dismissOverlays()
-        app.notes.openNote(id, title: title, icon: icon, kind: kind)
+        app.notes.openNote(id, title: title, icon: icon, kind: kind, reveal: reveal)
     }
 
     /// 打开一段聊天并定位到某条消息（检索结果、聊天链接）。在笔记里时先保存笔记，存不上就留在笔记里、不动聊天。

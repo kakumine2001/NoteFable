@@ -266,6 +266,31 @@
 "image_download" = "Görseli indir";
 "generated_image" = "Oluşturulan görsel";
 "ai_reply" = "Yapay zekâ yanıtı";
+"proposal_report" = "Yapay zekâ içeriğini bildir";
+"proposal_undo" = "Geri al";
+"proposal_undone" = "Geri alındı";
+"proposal_undo_failed" = "Değişiklik geri alınamadı.";
+"proposal_applied_auto" = "Otomatik uygulandı";
+"proposal_created_auto" = "Otomatik oluşturuldu";
+"proposal_moved_to_trash" = "Sayfa Çöp Kutusu'na taşındı.";
+"proposal_open_page" = "Sayfayı aç";
+"proposal_new_page_label" = "Yeni sayfa önerisi";
+"proposal_edit_page_label" = "Sayfa düzenleme önerisi";
+"proposal_new_whiteboard_title" = "Yeni beyaz tahta “%1$s”";
+"proposal_new_slides_title" = "Yeni slaytlar “%1$s”";
+"proposal_create_whiteboard" = "Beyaz tahta oluştur";
+"proposal_create_slides" = "Slayt oluştur";
+"proposal_empty_page" = "Boş sayfa";
+"proposal_inside" = "“%1$s” içinde";
+"proposal_op_add" = "Ekle";
+"proposal_op_update" = "Güncelle";
+"proposal_op_move" = "Taşı";
+"proposal_op_reorder" = "Yeniden sırala";
+"proposal_op_slide" = "%1$s · slayt %2$s";
+"proposal_op_named" = "%1$s · “%2$s”";
+"proposal_op_elements" = "%1$s · %2$s öğe";
+"proposal_before" = "Önce";
+"proposal_after" = "Sonra";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "Sayfa ekle";
@@ -341,6 +366,8 @@
 "answer_download_failed" = "Konuşma indirilemedi. Tekrar deneyin.";
 "answer_save_failed" = "Not olarak kaydedilemedi. Tekrar deneyin.";
 "answer_save_too_large" = "Bu yanıt not olarak kaydedilemeyecek kadar uzun.";
+"export_file_saved" = "Dosya kaydedildi.";
+"export_file_failed" = "Dosya kaydedilemedi.";
 
 /* strings_i18n.xml */
 "ui_locale" = "tr";
@@ -451,6 +478,8 @@
 "report_sending" = "Gönderiliyor…";
 "report_sent" = "Bildiriminiz gönderildi. Teşekkürler.";
 "report_failed" = "Bildirim gönderilemedi.";
+"report_ai_content" = "Yapay zekâ içeriğini bildir";
+"report_ai_help" = "Bu yapay zekâ içeriğinde neyin yanlış olduğunu bize söyleyin. İçerikle birlikte NoteFable ekibine gönderilir.";
 
 /* strings_search.xml */
 "search" = "Ara";
@@ -559,8 +588,6 @@
 "slides_export_pdf_notes" = "Konuşmacı notlarıyla PDF olarak dışa aktar";
 "slides_export_png" = "PNG görseller olarak dışa aktar";
 "slides_export_pptx" = "PowerPoint (PPTX) olarak dışa aktar";
-"slides_file_saved" = "Dosya kaydedildi.";
-"slides_file_save_failed" = "Dosya kaydedilemedi.";
 
 /* strings_turns.xml */
 "regenerate" = "Yeniden oluştur";

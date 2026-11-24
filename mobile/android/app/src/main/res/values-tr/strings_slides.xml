@@ -6,6 +6,4 @@
     <string name="slides_export_pdf_notes">Konuşmacı notlarıyla PDF olarak dışa aktar</string>
     <string name="slides_export_png">PNG görseller olarak dışa aktar</string>
     <string name="slides_export_pptx">PowerPoint (PPTX) olarak dışa aktar</string>
-    <string name="slides_file_saved">Dosya kaydedildi.</string>
-    <string name="slides_file_save_failed">Dosya kaydedilemedi.</string>
 </resources>

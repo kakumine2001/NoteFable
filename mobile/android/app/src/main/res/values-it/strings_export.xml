@@ -12,4 +12,6 @@
     <string name="answer_download_failed">Impossibile scaricare la conversazione. Riprova.</string>
     <string name="answer_save_failed">Impossibile salvare come nota. Riprova.</string>
     <string name="answer_save_too_large">Questa risposta è troppo grande per essere salvata come nota.</string>
+    <string name="export_file_saved">File salvato.</string>
+    <string name="export_file_failed">Impossibile salvare il file.</string>
 </resources>

@@ -266,6 +266,31 @@
 "image_download" = "Download image";
 "generated_image" = "Generated image";
 "ai_reply" = "AI reply";
+"proposal_report" = "Report AI content";
+"proposal_undo" = "Undo";
+"proposal_undone" = "Undone";
+"proposal_undo_failed" = "Could not undo the change.";
+"proposal_applied_auto" = "Applied automatically";
+"proposal_created_auto" = "Created automatically";
+"proposal_moved_to_trash" = "The page was moved to Trash.";
+"proposal_open_page" = "Open the page";
+"proposal_new_page_label" = "Proposed new page";
+"proposal_edit_page_label" = "Proposed page edit";
+"proposal_new_whiteboard_title" = "New whiteboard “%1$s”";
+"proposal_new_slides_title" = "New slide deck “%1$s”";
+"proposal_create_whiteboard" = "Create whiteboard";
+"proposal_create_slides" = "Create slide deck";
+"proposal_empty_page" = "Empty page";
+"proposal_inside" = "Inside “%1$s”";
+"proposal_op_add" = "Add";
+"proposal_op_update" = "Update";
+"proposal_op_move" = "Move";
+"proposal_op_reorder" = "Reorder";
+"proposal_op_slide" = "%1$s · slide %2$s";
+"proposal_op_named" = "%1$s · “%2$s”";
+"proposal_op_elements" = "%1$s · %2$s elements";
+"proposal_before" = "Before";
+"proposal_after" = "After";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "Attach pages";
@@ -341,6 +366,8 @@
 "answer_download_failed" = "Could not download the conversation. Try again.";
 "answer_save_failed" = "Could not save to page. Try again.";
 "answer_save_too_large" = "This answer is too large to save as a note.";
+"export_file_saved" = "File saved.";
+"export_file_failed" = "Could not save the file.";
 
 /* strings_i18n.xml */
 "ui_locale" = "en";
@@ -451,6 +478,8 @@
 "report_sending" = "Sending…";
 "report_sent" = "Report sent. Thank you.";
 "report_failed" = "Could not send the report.";
+"report_ai_content" = "Report AI content";
+"report_ai_help" = "Tell us what’s wrong with this AI content. It is sent to the NoteFable team together with the content.";
 
 /* strings_search.xml */
 "search" = "Search";
@@ -559,8 +588,6 @@
 "slides_export_pdf_notes" = "Export PDF with speaker notes";
 "slides_export_png" = "Export PNG images";
 "slides_export_pptx" = "Export PowerPoint (PPTX)";
-"slides_file_saved" = "File saved.";
-"slides_file_save_failed" = "Could not save the file.";
 
 /* strings_turns.xml */
 "regenerate" = "Regenerate";

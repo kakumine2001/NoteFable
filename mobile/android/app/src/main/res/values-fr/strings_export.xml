@@ -12,4 +12,6 @@
     <string name="answer_download_failed">Impossible de télécharger la discussion. Réessayez.</string>
     <string name="answer_save_failed">Impossible d’enregistrer comme note. Réessayez.</string>
     <string name="answer_save_too_large">Cette réponse est trop volumineuse pour être enregistrée en note.</string>
+    <string name="export_file_saved">Fichier enregistré.</string>
+    <string name="export_file_failed">Impossible d’enregistrer le fichier.</string>
 </resources>

@@ -266,6 +266,31 @@
 "image_download" = "下載圖片";
 "generated_image" = "生成的圖片";
 "ai_reply" = "AI 回覆";
+"proposal_report" = "報告 AI 內容";
+"proposal_undo" = "撤銷";
+"proposal_undone" = "已撤銷";
+"proposal_undo_failed" = "無法撤銷這項修改。";
+"proposal_applied_auto" = "已自動應用";
+"proposal_created_auto" = "已自動建立";
+"proposal_moved_to_trash" = "這個頁面已移到回收站。";
+"proposal_open_page" = "開啟頁面";
+"proposal_new_page_label" = "新頁面建議";
+"proposal_edit_page_label" = "頁面修改建議";
+"proposal_new_whiteboard_title" = "新白板“%1$s”";
+"proposal_new_slides_title" = "新投影片“%1$s”";
+"proposal_create_whiteboard" = "建立白板";
+"proposal_create_slides" = "建立投影片";
+"proposal_empty_page" = "空白頁面";
+"proposal_inside" = "位於“%1$s”中";
+"proposal_op_add" = "新增";
+"proposal_op_update" = "更新";
+"proposal_op_move" = "移動";
+"proposal_op_reorder" = "調整順序";
+"proposal_op_slide" = "%1$s · 第 %2$s 張投影片";
+"proposal_op_named" = "%1$s · “%2$s”";
+"proposal_op_elements" = "%1$s · %2$s 個元素";
+"proposal_before" = "修改前";
+"proposal_after" = "修改後";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "新增頁面";
@@ -341,6 +366,8 @@
 "answer_download_failed" = "無法下載聊天，請重試。";
 "answer_save_failed" = "無法儲存為筆記，請重試。";
 "answer_save_too_large" = "這條回答太長，無法儲存為筆記。";
+"export_file_saved" = "檔案已儲存。";
+"export_file_failed" = "無法儲存檔案。";
 
 /* strings_i18n.xml */
 "ui_locale" = "zh-Hant";
@@ -451,6 +478,8 @@
 "report_sending" = "正在傳送…";
 "report_sent" = "報告已傳送，謝謝。";
 "report_failed" = "無法傳送報告。";
+"report_ai_content" = "報告 AI 內容";
+"report_ai_help" = "告訴我們這段 AI 內容有什麼問題。它會和這段內容一起傳送給 NoteFable 團隊。";
 
 /* strings_search.xml */
 "search" = "搜尋";
@@ -559,8 +588,6 @@
 "slides_export_pdf_notes" = "匯出帶演講備註的 PDF";
 "slides_export_png" = "匯出 PNG 圖片";
 "slides_export_pptx" = "匯出 PowerPoint（PPTX）";
-"slides_file_saved" = "檔案已儲存。";
-"slides_file_save_failed" = "無法儲存檔案。";
 
 /* strings_turns.xml */
 "regenerate" = "重新生成";

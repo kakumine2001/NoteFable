@@ -12,4 +12,6 @@
     <string name="answer_download_failed">ไม่สามารถดาวน์โหลดการสนทนาได้ กรุณาลองอีกครั้ง</string>
     <string name="answer_save_failed">ไม่สามารถบันทึกเป็นโน้ตได้ กรุณาลองอีกครั้ง</string>
     <string name="answer_save_too_large">คำตอบนี้ยาวเกินกว่าจะบันทึกเป็นโน้ตได้</string>
+    <string name="export_file_saved">บันทึกไฟล์แล้ว</string>
+    <string name="export_file_failed">บันทึกไฟล์ไม่ได้</string>
 </resources>

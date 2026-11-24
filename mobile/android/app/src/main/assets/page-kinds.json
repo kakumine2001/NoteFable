@@ -7,10 +7,10 @@
     "aiEdit": true
   },
   "whiteboard": {
-    "editor": false,
+    "editor": true,
     "markdownExport": false,
     "typography": false,
-    "publicShare": false,
+    "publicShare": true,
     "aiEdit": false
   },
   "slides": {

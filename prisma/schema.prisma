@@ -23,10 +23,12 @@ enum NoteProposalKind {
   CREATE
 }
 
+// UNDONE は適用したあとで元に戻した提案（編集は適用前の状態へ戻し、新規は作ったページをゴミ箱へ移した）。
 enum NoteProposalStatus {
   PENDING
   APPLIED
   DISCARDED
+  UNDONE
 }
 
 // ノートの履歴を残した理由。AUTO は編集の合間に一定間隔で残す自動保存、AI_EDIT は AI の編集案を適用する直前、RESTORE は履歴から戻す直前。
@@ -165,6 +167,9 @@ model NotePage {
   shareExpiresAt         DateTime?
   // 親ページが公開中でも、このサブページ（とその配下）を公開対象から外す。
   shareExcludeFromParent Boolean   @default(false)
+  // AI が最後に内容を書いた時刻（AI の提案の適用・自動適用、Create page での作成）。null は AI が書いていない。
+  // 「AI の内容を報告」をページのメニューに出すかの目印（Google Play の AI 生成コンテンツのポリシー）。
+  aiUpdatedAt            DateTime?
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
@@ -398,6 +403,8 @@ enum StoredFileKind {
   AVATAR
   // app-icons/<利用者 ID>/: 設定の「アイコン」の画像（User.appIconImage）
   APP_ICON
+  // proposal-images/<利用者 ID>/: AI の提案カードの縮小画像（改前・改後。NoteProposal.payload の images[].path）
+  PROPOSAL_IMAGE
 }
 
 // ファイル置き場のファイル 1 つ。容量の上限はこの行の size を利用者ごとに足して数え、どこからも参照されなくなった
@@ -439,25 +446,34 @@ model MaintenanceJob {
 // AI が出したノートの編集・新規作成の提案。ユーザーが適用するまでノートは変わらない。
 // 提案はチャットの履歴に残り、再読み込みしても適用・破棄できる。
 model NoteProposal {
-  id            String             @id @default(cuid())
-  userId        String
-  sessionId     String
+  id             String             @id @default(cuid())
+  userId         String
+  sessionId      String
   // 提案を出した回答。回答の保存後に紐付ける（保存前の提案は null）。
-  messageId     String?
-  kind          NoteProposalKind
-  status        NoteProposalStatus @default(PENDING)
-  // 画面に出す内容。編集は対象ノートと基準版・差分・適用後のタイトルとブロック、新規は適用するタイトル・アイコン・ブロック。
-  payload       Json
-  // 新規作成を適用した後のノート ID。再送されても同じノートを返すために使う。
-  appliedPageId String?
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  messageId      String?
+  kind           NoteProposalKind
+  status         NoteProposalStatus @default(PENDING)
+  // 対象（編集）または作るページ（新規）の種類。内容の形と適用のしかたは種類ごとのアダプター（src/lib/page-ai/）が決める。
+  pageKind       PageKind           @default(note)
+  // 画面に出す内容。編集は対象ページと基準版・差分・適用後の内容、新規は作るページの内容。
+  payload        Json
+  // 適用で書いたページの ID（新規は作ったページ、編集は対象ページ）。再送されても同じ結果を返し、ページの AI の報告にも使う。
+  appliedPageId  String?
+  // 利用者が確認せずに適用した（AI パネルの「自動適用」）。
+  autoApplied    Boolean            @default(false)
+  // 適用した直後のページの版。元に戻すのは、ページがこの版のまま（その後に誰も書いていない）ときだけ。
+  appliedVersion Int?
+  // 適用の直前の状態を残した履歴（NoteRevision、AI_EDIT）。編集を元に戻すときにこの内容へ戻す。
+  revisionId     String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId, createdAt])
   @@index([messageId])
+  @@index([userId, appliedPageId])
 }
 
 // 日ごとの利用回数。key は "user:<利用者 ID>"、または未ログイン利用者のネットワーク単位の "ip:<HMAC>"。

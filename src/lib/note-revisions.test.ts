@@ -54,7 +54,8 @@ describe("auto-save snapshot SQL", () => {
 });
 
 describe("snapshotBeforeSave and createRevision", () => {
-  beforeEach(() => { vi.clearAllMocks(); mocks.findMany.mockResolvedValue([]); });
+  // createRevision は残した履歴の ID を返す（AI の編集を元に戻すときに使う）。
+  beforeEach(() => { vi.clearAllMocks(); mocks.findMany.mockResolvedValue([]); mocks.create.mockResolvedValue({ id: "rev1" }); });
 
   it("reports false and does not prune when nothing was inserted", async () => {
     mocks.raw.mockResolvedValue(0);
@@ -92,7 +93,7 @@ describe("snapshotBeforeSave and createRevision", () => {
     const data = { elements: [{ id: "e1", type: "text", text: "Hi" }] };
     mocks.findMany.mockResolvedValue([]);
     await createRevision(tx, { noteId: "n1", userId: "mine", reason: "RESTORE", title: "Board", icon: null, blocks: [], data, version: 2, kind: "whiteboard" });
-    expect(mocks.create).toHaveBeenCalledWith({ data: { noteId: "n1", userId: "mine", reason: "RESTORE", title: "Board", icon: null, blocks: [], data, version: 2 } });
+    expect(mocks.create).toHaveBeenCalledWith({ select: { id: true }, data: { noteId: "n1", userId: "mine", reason: "RESTORE", title: "Board", icon: null, blocks: [], data, version: 2 } });
     expect(mocks.findMany.mock.calls[0][0].skip).toBe(5);
   });
 
@@ -124,7 +125,7 @@ describe("snapshotBeforeSave and createRevision", () => {
     const blocks = [{ id: "b", type: "paragraph", props: {}, content: [], children: [] }];
     mocks.findMany.mockResolvedValueOnce([{ id: "old" }]).mockResolvedValueOnce([]);
     await createRevision(tx, { noteId: "n1", userId: "mine", reason: "AI_EDIT", title: "Before", icon: "📚", blocks, version: 4 });
-    expect(mocks.create).toHaveBeenCalledWith({ data: { noteId: "n1", userId: "mine", reason: "AI_EDIT", title: "Before", icon: "📚", blocks, version: 4 } });
+    expect(mocks.create).toHaveBeenCalledWith({ select: { id: true }, data: { noteId: "n1", userId: "mine", reason: "AI_EDIT", title: "Before", icon: "📚", blocks, version: 4 } });
     expect(mocks.create.mock.invocationCallOrder[0]).toBeLessThan(mocks.findMany.mock.invocationCallOrder[0]);
     expect(mocks.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ["old"] }, noteId: "n1", userId: "mine" } });
   });

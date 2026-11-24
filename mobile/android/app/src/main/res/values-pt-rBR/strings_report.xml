@@ -9,4 +9,6 @@
     <string name="report_sending">Enviando…</string>
     <string name="report_sent">Relato enviado. Obrigado.</string>
     <string name="report_failed">Não foi possível enviar o relato.</string>
+    <string name="report_ai_content">Reportar conteúdo de IA</string>
+    <string name="report_ai_help">Conte o que há de errado com este conteúdo de IA. Ele é enviado à equipe do NoteFable junto com o conteúdo.</string>
 </resources>

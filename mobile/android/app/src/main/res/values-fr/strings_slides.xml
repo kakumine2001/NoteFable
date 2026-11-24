@@ -6,6 +6,4 @@
     <string name="slides_export_pdf_notes">Exporter en PDF avec les notes du présentateur</string>
     <string name="slides_export_png">Exporter en images PNG</string>
     <string name="slides_export_pptx">Exporter vers PowerPoint (PPTX)</string>
-    <string name="slides_file_saved">Fichier enregistré.</string>
-    <string name="slides_file_save_failed">Impossible d’enregistrer le fichier.</string>
 </resources>

@@ -6,6 +6,4 @@
     <string name="slides_export_pdf_notes">発表者ノート付きの PDF に書き出す</string>
     <string name="slides_export_png">PNG 画像に書き出す</string>
     <string name="slides_export_pptx">PowerPoint（PPTX）に書き出す</string>
-    <string name="slides_file_saved">ファイルを保存しました。</string>
-    <string name="slides_file_save_failed">ファイルを保存できませんでした。</string>
 </resources>
