@@ -131,7 +131,15 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     }
     DisposableEffect(notesViewModel, noteEmbedHost) {
         notesViewModel.notifyPagesTrashed = noteEmbedHost::pageTrashed
-        onDispose { notesViewModel.notifyPagesTrashed = null }
+        notesViewModel.notifyPageUpdated = noteEmbedHost::pageUpdated
+        notesViewModel.notifyPageSettings = { page ->
+            noteEmbedHost.pageSettings(com.kakumine.notefable.data.NoteFableJson.encodeToString(com.kakumine.notefable.data.NotePageSummary.serializer(), page))
+        }
+        onDispose {
+            notesViewModel.notifyPagesTrashed = null
+            notesViewModel.notifyPageUpdated = null
+            notesViewModel.notifyPageSettings = null
+        }
     }
     DisposableEffect(app, activity, noteEmbedHost) {
         val callbacks = object : ComponentCallbacks2 {
@@ -459,7 +467,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                             is EmbedMessage.Ready -> notesViewModel.onEditorReady(editor, message.id, message.title, message.icon, message.kind)
                             is EmbedMessage.Meta -> notesViewModel.onEditorMeta(editor, message.title, message.icon)
                             is EmbedMessage.SaveState -> notesViewModel.onEditorSaveState(editor, message.state)
-                            EmbedMessage.Missing -> notesViewModel.onEditorMissing(editor)
+                            is EmbedMessage.Missing -> notesViewModel.onEditorMissing(editor)
                             EmbedMessage.Trashed -> notesViewModel.onEditorTrashed(editor)
                             is EmbedMessage.OpenPage -> notesViewModel.openNoteFromLink(message.id)
                             is EmbedMessage.StorageLimit -> if (notesViewModel.state.value.open?.editor == editor) {

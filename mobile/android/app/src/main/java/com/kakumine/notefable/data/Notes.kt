@@ -357,7 +357,8 @@ sealed interface EmbedMessage {
     data class Ready(val id: String, val title: String, val icon: String?, val kind: PageKind? = null) : EmbedMessage
     data class Meta(val title: String, val icon: String?) : EmbedMessage
     data class SaveState(val state: String) : EmbedMessage
-    data object Missing : EmbedMessage
+    /** [id]：找不到的那一篇（旧网页不发，是 null）。切页途中晚到的上一篇的 missing 靠它丢掉，不关掉新打开的那篇。 */
+    data class Missing(val id: String? = null) : EmbedMessage
     data object Trashed : EmbedMessage
     /** 笔记里的页面提及被点了：打开那一页（和回答里的笔记链接一样走 openNoteFromLink）。 */
     data class OpenPage(val id: String) : EmbedMessage
@@ -403,7 +404,7 @@ sealed interface EmbedMessage {
                 }
                 "meta" -> Meta(obj.str("title").orEmpty(), obj.str("icon"))
                 "saveState" -> SaveState(obj.str("state") ?: return@runCatching null)
-                "missing" -> Missing
+                "missing" -> Missing(obj.str("id")?.takeIf { it.isNotEmpty() })
                 "trashed" -> Trashed
                 "openPage" -> OpenPage(obj.str("id")?.takeIf { it.isNotBlank() } ?: return@runCatching null)
                 "storageLimit" -> StorageLimit(

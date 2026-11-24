@@ -35,6 +35,10 @@ final class NotesViewModel {
     @ObservationIgnored var sendSlidesCommand: (@MainActor (String) -> Void)?
     /// 有页面移进了回收站（本地删除、聊天提案撤销）：通知常驻 WebView 清理对应缓存（即使当前未停留在编辑页）。
     @ObservationIgnored var notifyPagesTrashed: (@MainActor ([String]) -> Void)?
+    /// 侧栏改了一篇的图标（服务端版本号加一）：把服务端返回的整篇页面 JSON 交给常驻 WebView 的缓存，下次从缓存打开时就是新版本。
+    @ObservationIgnored var notifyPageUpdated: (@MainActor (String) -> Void)?
+    /// 没打开着的一篇的收藏、显示设置、锁定变了：交给常驻 WebView 缓存里的一览（window.notefableEmbed.pageSettings）。
+    @ObservationIgnored var notifyPageSettings: (@MainActor (NotePageSummary) -> Void)?
 
     @ObservationIgnored private let backend: NotesBackend
     @ObservationIgnored private let prefs: NotesPrefs
@@ -706,7 +710,7 @@ final class NotesViewModel {
                 return next
             }
         }
-        if state.open?.id == page.id { pushPageSettings?(page) }
+        if state.open?.id == page.id { pushPageSettings?(page) } else { notifyPageSettings?(page) }
     }
 
     /// 每篇页面的收藏、设置一次只发一个请求：连点几个开关时，后发的请求后回来，旧的应答不会盖掉新的设置。
@@ -967,7 +971,8 @@ final class NotesViewModel {
         do {
             while write.dirty {
                 write.dirty = false
-                let page = try await noteIcons.setNoteIcon(id: pageId, icon: write.desired)
+                let written = try await noteIcons.setNoteIconWithPage(id: pageId, icon: write.desired)
+                let page = written.page
                 let applied = commit(owner) {
                     update { state in
                         state.pages = state.pages.map { current in
@@ -980,6 +985,7 @@ final class NotesViewModel {
                     }
                 }
                 if !applied { return false }
+                if let json = written.json { notifyPageUpdated?(json) }
             }
             ok = true
             return true

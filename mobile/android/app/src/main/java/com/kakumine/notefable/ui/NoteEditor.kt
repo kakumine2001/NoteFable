@@ -145,6 +145,13 @@ class NoteEmbedBridge(
     @Volatile
     private var hasActiveEditor = false
 
+    /**
+     * 现在这一篇的 ready 到了之后才收导出文件的块。切页时（[discardExports]）先关上：上一篇在 openPage 生效之前
+     * 发出的文件不会在新的一篇上弹出保存位置，也不会因为临时文件已被丢掉而提示保存失败。主线程写，JS 线程读。
+     */
+    @Volatile
+    var acceptingFiles = false
+
     /** App 现在实际的外观（`light` / `dark`）。界面在主线程写，[theme] 在 WebView 的 JS 线程读。 */
     @Volatile
     var currentTheme: String = THEME_LIGHT
@@ -212,11 +219,11 @@ class NoteEmbedBridge(
             // 导出文件的块（每块最多 512 KiB）直接在 JS 线程上写进临时文件，拼好了才到主线程上让用户选保存位置。
             // 编辑器已经拆掉（[release]）时不再开始新的文件（不留下没人关的临时文件）。
             is EmbedMessage.FileStart -> {
-                if (attached && hasActiveEditor) exports.start(message.id, message.name, message.mime, message.size)
+                if (attached && hasActiveEditor && acceptingFiles) exports.start(message.id, message.name, message.mime, message.size)
                 return
             }
             is EmbedMessage.FileChunk -> {
-                if (attached && hasActiveEditor) exports.chunk(message.id, message.index, message.data)
+                if (attached && hasActiveEditor && acceptingFiles) exports.chunk(message.id, message.index, message.data)
                 return
             }
             is EmbedMessage.FileAbort -> {
@@ -224,6 +231,11 @@ class NoteEmbedBridge(
                 return
             }
             is EmbedMessage.FileEnd -> {
+                // 切页后、新的一篇 ready 之前到的：是上一篇的文件（已经丢掉了），不保存也不提示失败。
+                if (!acceptingFiles) {
+                    exports.abort(message.id)
+                    return
+                }
                 val epoch = exportEpoch.get()
                 val file = exports.finish(message.id)
                 main.post {
@@ -281,6 +293,7 @@ class NoteEmbedBridge(
 
     /** 换页或离开笔记时丢弃未拼完的导出文件（保留常驻 WebView 不销毁）。 */
     fun discardExports() {
+        acceptingFiles = false
         exportEpoch.incrementAndGet()
         exports.discard()
     }
@@ -291,6 +304,8 @@ class NoteEmbedBridge(
         if (webView !== view) return
         webView = null
         activeEditor = null
+        acceptingFiles = false
+        exportEpoch.incrementAndGet()
         mounting.values.forEach { it.complete(false) }
         pending.values.forEach { it.complete(FlushResult(false)) }
         exports.close()
@@ -482,18 +497,29 @@ class NoteEmbedHost(
                     if (message.id != expected) return@NoteEmbedBridge
                     awaitingPageId = null
                 }
-                EmbedMessage.Missing -> awaitingPageId = null
+                // 带 id 的 missing 只认这次要打开的那一篇（上一篇晚到的 404 不关掉新的一篇）；旧网页不带 id，照旧接受。
+                is EmbedMessage.Missing -> {
+                    if (message.id != null && message.id != expected) return@NoteEmbedBridge
+                    awaitingPageId = null
+                }
                 else -> return@NoteEmbedBridge
             }
         }
+        if (message is EmbedMessage.Ready) bridge.acceptingFiles = true
         if (message is EmbedMessage.Presentation) presenting = message.state != "end"
         // 网页（重新）载入后不在放映：渲染进程崩溃后重载时收不到 end，这里清掉（否则一直横屏、没有顶栏，返回键也离不开）。
         if (message is EmbedMessage.Ready) presenting = false
         onMessage(editor, message)
     }
 
+    /**
+     * 编辑页已经把 WebView 挂上（[attachWebView]）还没离开（[park]）。挂上到 [show] 之间 activeEditor 还是 null，
+     * 这时不能当成"停着"被空闲计时、内存紧张或退到后台销毁（否则画面上挂的是已销毁的 WebView，一直空白）。
+     */
+    private var mounted = false
+
     /** 当前没有笔记显示（停在列表或聊天，WebView 只保留热缓存）。 */
-    val isParked: Boolean get() = bridge.activeEditor == null
+    val isParked: Boolean get() = bridge.activeEditor == null && !mounted
 
     fun endPresentationLocally() {
         presenting = false
@@ -573,6 +599,9 @@ class NoteEmbedHost(
 
     /** 给新挂上的 AndroidView 返回单实例 WebView（若还挂在旧容器上先摘除）。 */
     fun attachWebView(context: Context, baseUrl: String, webBackground: Int): WebView {
+        idleJob?.cancel()
+        idleJob = null
+        mounted = true
         val view = ensureWebView(context, baseUrl, webBackground)
         (view.parent as? ViewGroup)?.removeView(view)
         return view
@@ -596,9 +625,16 @@ class NoteEmbedHost(
         idleJob = null
         loadJob?.cancel()
         loadJob = null
+        // 挂上之后、这里之前 WebView 被销毁了（换身份等）：画面上的是旧的，换一个新的重新挂上再来（generation 变了会再调 show）。
+        if (webView == null && mounted) {
+            generation++
+            return
+        }
         val epoch = ++showEpoch
-        if (crashedEditor != open.editor) crashedEditor = null
-        val useReveal = if (crashedEditor == open.editor) null else open.reveal
+        // 渲染进程崩溃后的那一次重载不再跳到检索命中的位置；只用一次，之后再从检索结果打开同一篇照常跳过去。
+        val crashed = crashedEditor == open.editor
+        crashedEditor = null
+        val useReveal = if (crashed) null else open.reveal
         presenting = false
         bridge.discardExports()
         awaitingPageId = open.id
@@ -653,6 +689,8 @@ class NoteEmbedHost(
         idleJob?.cancel()
         idleJob = null
         showEpoch++
+        mounted = false
+        crashedEditor = null
         presenting = false
         awaitingPageId = null
         bridge.activeEditor = null
@@ -696,6 +734,11 @@ class NoteEmbedHost(
     /** 别处（聊天提案）改了笔记：即使 WebView 停在热缓存里也同步更新，下次点开直接显示新版。 */
     fun pageUpdated(pageJson: String) {
         if (loadedForIdentity && webView != null) bridge.pageUpdated(pageJson)
+    }
+
+    /** 没打开着的一篇的收藏、显示设置、锁定变了：更新热缓存里的一览，下次打开就是新的设置。 */
+    fun pageSettings(pageJson: String) {
+        if (loadedForIdentity && webView != null) bridge.pageSettings(pageJson)
     }
 
     /** 页面移进回收站：从热缓存里清掉。 */

@@ -41,6 +41,12 @@ final class NoteEditorPool {
         app.notes.notifyPagesTrashed = { [weak self] ids in
             self?.pageTrashed(ids)
         }
+        app.notes.notifyPageUpdated = { [weak self] pageJson in
+            self?.pageUpdated(pageJson)
+        }
+        app.notes.notifyPageSettings = { [weak self] page in
+            self?.pageSettings(NoteFableJson.encodeToString(page))
+        }
     }
 
     func obtainController(app: AppEnvironment, router: AppRouter) -> (controller: NoteEditorController, token: Int) {
@@ -63,11 +69,13 @@ final class NoteEditorPool {
     }
 
     /// 离开编辑页但保留热缓存：卸载编辑器 DOM，开始 120 秒空闲倒计时，到期未重开则销毁。
-    func park(ifTokenMatches token: Int) {
-        guard token == mountToken else { return }
+    /// 已经有更新的编辑页挂上了同一个 WebView（token 不对）时什么都不做，返回 false。
+    @discardableResult
+    func park(ifTokenMatches token: Int) -> Bool {
+        guard token == mountToken else { return false }
         idleTask?.cancel()
         idleTask = nil
-        guard let controller else { return }
+        guard let controller else { return true }
         controller.park()
         if controller.isLoaded {
             idleTask = Task { @MainActor [weak self] in
@@ -82,6 +90,7 @@ final class NoteEditorPool {
         } else {
             destroy()
         }
+        return true
     }
 
     /// 退到后台或收到内存警告时，如果当前没有打开笔记（只留着热缓存），立刻释放 WKWebView。
@@ -104,6 +113,10 @@ final class NoteEditorPool {
 
     func pageTrashed(_ ids: [String]) {
         if let controller, controller.isLoaded { controller.pageTrashed(ids) }
+    }
+
+    func pageSettings(_ pageJson: String) {
+        if let controller, controller.isLoaded { controller.pageSettings(pageJson) }
     }
 }
 
@@ -144,8 +157,8 @@ struct NoteEditorWebView: UIViewRepresentable {
     }
 
     static func dismantleUIView(_ webView: WKWebView, coordinator: Coordinator) {
-        coordinator.pool.park(ifTokenMatches: coordinator.mountToken)
-        webView.removeFromSuperview()
+        // 新的编辑页已经先挂上了同一个 WebView 时不摘：摘了新画面就是空白的。
+        if coordinator.pool.park(ifTokenMatches: coordinator.mountToken) { webView.removeFromSuperview() }
     }
 }
 
@@ -185,6 +198,9 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
     private var openTask: Task<Void, Never>?
     /// 渲染进程崩溃的那个编辑器：重开同一篇时不再重复触发 `reveal`。
     private var crashedEditor: String?
+    /// 现在这一篇之前的历史项数（旧版服务端回退整页加载时，上一篇留在 backForwardList 里）。边缘返回只在比它多时才 goBack，
+    /// 不会在这一篇里退回到上一篇。
+    private var historyFloor = 0
     private var pushedIcon: String?
     private var pushedLanguage = ""
     /// 交给网页的外观（light / dark）；重新加载时地址和 `NoteFableNative.theme()` 用它。
@@ -211,7 +227,9 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
                 case .ready(let id, _, _, _):
                     if id != expected { return }
                     self.awaitingPageId = nil
-                case .missing:
+                case .missing(let id):
+                    // 带 id 的 missing 只认这次要打开的那一篇（上一篇晚到的 404 不关掉新的一篇）；旧网页不带 id，照旧接受。
+                    if let id, id != expected { return }
                     self.awaitingPageId = nil
                 default:
                     return
@@ -307,8 +325,10 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         let epoch = showEpoch
         dismissOpenDialog()
 
-        if crashedEditor != open.editor { crashedEditor = nil }
-        let useReveal = crashedEditor == open.editor ? nil : open.reveal
+        // 崩溃后重载的那一次不再跳到检索命中的位置；只用一次，之后再从检索结果打开同一篇照常跳过去。
+        let crashed = crashedEditor == open.editor
+        crashedEditor = nil
+        let useReveal = crashed ? nil : open.reveal
 
         activeEditor = open.editor
         currentPageId = open.id
@@ -328,7 +348,8 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
             let model = chat.selectedModel?.id
             let reasoning = chat.selectedReasoning
             openTask = Task { @MainActor [weak self] in
-                guard let self else { return }
+                // 还没轮到执行就已经离开、换了另一篇或网页进程没了：不再发 openPage（否则会在 close 之后把编辑器重新挂上）。
+                guard let self, !Task.isCancelled, self.showEpoch == epoch, self.activeEditor == open.editor else { return }
                 let handled = await self.bridge.openPage(id: open.id, reveal: useReveal, model: model, reasoning: reasoning)
                 guard !Task.isCancelled, self.showEpoch == epoch, self.activeEditor == open.editor else { return }
                 if !handled {
@@ -351,6 +372,7 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         activeEditor = nil
         currentPageId = nil
         awaitingPageId = nil
+        crashedEditor = nil
         if app.editorBridge === bridge { app.registerEditor(nil) }
         if isLoaded, webView != nil {
             bridge.close()
@@ -438,11 +460,15 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
             guard self.loadRun == current, self.app.identityGeneration == identity, self.activeEditor != nil, let webView = self.webView else { return }
             self.isLoaded = true
             if replaceHistory, let currentUrl = webView.url, self.isSameSite(currentUrl) {
+                // replace 换掉的是现在这一项，前面的历史项（上一篇）还在：记下来，返回不退到那里。
+                self.historyFloor = webView.backForwardList.backList.count
                 webView.evaluateJavaScript("window.location.replace(\(NoteEmbedScripts.quote(url.absoluteString)))") { [weak self, weak webView] _, error in
                     guard error != nil, let self, self.loadRun == current, let webView else { return }
+                    self.historyFloor = webView.backForwardList.currentItem == nil ? 0 : webView.backForwardList.backList.count + 1
                     webView.load(URLRequest(url: url))
                 }
             } else {
+                self.historyFloor = webView.backForwardList.currentItem == nil ? 0 : webView.backForwardList.backList.count + 1
                 webView.load(URLRequest(url: url))
             }
         }
@@ -555,7 +581,7 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
             notes.closeNote()
             return
         }
-        if webView.canGoBack {
+        if webView.canGoBack, webView.backForwardList.backList.count > historyFloor {
             webView.goBack()
             return
         }
@@ -719,6 +745,7 @@ extension NoteEditorController: WKNavigationDelegate {
         app.notes.presentationEnded()
         crashedEditor = editor
         isLoaded = false
+        showEpoch += 1
         openTask?.cancel()
         openTask = nil
         bridge.release(self)

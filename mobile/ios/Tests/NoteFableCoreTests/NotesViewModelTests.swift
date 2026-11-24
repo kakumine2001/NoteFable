@@ -183,7 +183,7 @@ final class NotesViewModelTests: XCTestCase {
             return FlushResult(false)
         }
         backend.calls.removeAll()
-        vm.onEditorMessage("a", .missing)
+        vm.onEditorMessage("a", .missing())
         await notesSettle()
         XCTAssertNil(vm.state.open)
         XCTAssertEqual(backend.calls, ["notes"])

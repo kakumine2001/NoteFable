@@ -258,6 +258,15 @@ class NotesViewModel(
      */
     var notifyPagesTrashed: ((Collection<String>) -> Unit)? = null
 
+    /**
+     * 侧栏改了一篇的图标（服务端版本号加一）：把服务端返回的整篇页面 JSON 交给常驻 WebView 的缓存（window.notefableEmbed.pageUpdated），
+     * 下次从缓存打开时就是新版本，编辑也不会 409。由界面在根上设置。
+     */
+    var notifyPageUpdated: ((String) -> Unit)? = null
+
+    /** 没打开着的一篇的收藏、显示设置、锁定变了：交给常驻 WebView 缓存里的一览（window.notefableEmbed.pageSettings）。由界面在根上设置。 */
+    var notifyPageSettings: ((NotePageSummary) -> Unit)? = null
+
     private var loadJob: Job? = null
     private var navigationJob: Job? = null
     private var trashJob: Job? = null
@@ -678,7 +687,7 @@ class NotesViewModel(
                 if (it.id == page.id) it.copy(favoritedAt = page.favoritedAt, fullWidth = page.fullWidth, smallText = page.smallText, font = page.font, locked = page.locked) else it
             })
         }
-        if (_state.value.open?.id == page.id) pushPageSettings?.invoke(page)
+        if (_state.value.open?.id == page.id) pushPageSettings?.invoke(page) else notifyPageSettings?.invoke(page)
     }
 
     /** 每篇页面的收藏、设置一次只发一个请求：连点几个开关时，后发的请求后回来，旧的应答不会盖掉新的设置。 */
@@ -934,11 +943,13 @@ class NotesViewModel(
         try {
             while (write.dirty) {
                 write.dirty = false
-                val page = noteIcons.setNoteIcon(pageId, write.desired)
+                val written = noteIcons.setNoteIconWithPage(pageId, write.desired)
+                val page = written.page
                 val applied = commit(owner) {
                     _state.update { s -> s.copy(pages = s.pages.map { if (it.id == pageId) it.copy(icon = page.icon, version = page.version) else it }) }
                 }
                 if (!applied) return false
+                written.json?.let { json -> notifyPageUpdated?.invoke(json) }
             }
             ok = true
             return true

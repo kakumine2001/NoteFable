@@ -572,7 +572,8 @@ enum EmbedMessage: Equatable, Sendable {
     case ready(id: String, title: String, icon: String?, kind: PageKind? = nil)
     case meta(title: String, icon: String?)
     case saveState(state: String)
-    case missing
+    /// [id]：找不到的那一篇（旧网页不发，是 nil）。切页途中晚到的上一篇的 missing 靠它丢掉，不关掉新打开的那篇。
+    case missing(id: String? = nil)
     case trashed
     /// 笔记里的页面提及被点了：打开那一页（和回答里的笔记链接一样走 openNoteFromLink）。
     case openPage(id: String)
@@ -611,7 +612,8 @@ enum EmbedMessage: Equatable, Sendable {
                 guard let state = try text(fields["state"]) else { return nil }
                 return .saveState(state: state)
             case "missing":
-                return .missing
+                let id = try text(fields["id"])
+                return .missing(id: id?.isEmpty == false ? id : nil)
             case "trashed":
                 return .trashed
             case "openPage":
