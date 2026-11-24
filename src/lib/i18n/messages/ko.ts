@@ -1145,4 +1145,7 @@ export const ko: Record<string, string> = {
   "Slide transitions aren’t included in PPTX export.": "PPTX 내보내기에는 슬라이드 전환 효과가 포함되지 않습니다.",
   "Save as slide deck": "슬라이드로 저장",
   "Could not save as slide deck.": "슬라이드로 저장하지 못했습니다.",
+  "File": "파일",
+  "Only the first {max} slides are shown ({total} total).": "처음 {max}개 슬라이드만 표시됩니다(전체 {total}개).",
+  "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "이 노트는 슬라이드 제한({max}개)을 초과합니다. 처음 {max}개 슬라이드만 저장할까요?",
 };

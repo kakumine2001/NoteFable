@@ -17,12 +17,32 @@ import { MAX_MATH_LATEX, safeHref, type RichBlock, type RichDoc, type RichInline
 //   3. どちらも無ければ表紙 + 本文スライド。
 // 各セクションが 1920 × 1080 の安全領域に収まらないときは、見出しに (2), (3)… を付けて自動で続ページを作る。
 
+export type NoteToDeckLabels = {
+  untitled?: string;
+  file?: string;
+  image?: string;
+};
+
 export type NoteToDeckInput = {
   title: string;
   blocks: unknown;
   theme?: DeckTheme;
   /** 空・無題ノートで仮の表紙を作るときに使う表示名（既定 "Untitled"）。 */
   untitledLabel?: string;
+  /** 添付や無題のラベルを現在の UI 言語に合わせるための文言。 */
+  labels?: NoteToDeckLabels;
+};
+
+export type NoteToDeckResult = {
+  deck: Deck;
+  totalSlides: number;
+  truncatedSlides: number;
+};
+
+type ResolvedLabels = {
+  untitled: string;
+  file: string;
+  image: string;
 };
 
 type RawBlock = {
@@ -49,8 +69,6 @@ const TITLE_H = 136;
 const BODY_TOP_WITH_TITLE = 232;
 const BODY_TOP_NO_TITLE = 96;
 const BODY_BOTTOM = 1004;
-const AVAIL_WITH_TITLE = BODY_BOTTOM - BODY_TOP_WITH_TITLE; // 772
-const AVAIL_NO_TITLE = BODY_BOTTOM - BODY_TOP_NO_TITLE; // 908
 
 const BODY_FONT_SIZE = 36;
 const BODY_LINE_HEIGHT = 1.38;
@@ -78,10 +96,17 @@ const NOTE_TEXT_COLORS: Record<string, ColorRef> = {
 };
 
 const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+const MAX_CHUNK_CHARS = 12_000;
+const MAX_EXPANDED_TABLE_COLS = 200;
+const MAX_EXPANDED_TABLE_ROWS = 2_000;
+
+function cleanRawStr(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return value.replace(/\u0000/g, "").replace(LONE_SURROGATE, "\uFFFD");
+}
 
 function cleanStr(value: unknown, max = 20_000): string {
-  if (typeof value !== "string") return "";
-  const cleaned = value.replace(/\u0000/g, "").replace(LONE_SURROGATE, "\uFFFD");
+  const cleaned = cleanRawStr(value);
   if (cleaned.length <= max) return cleaned;
   const end = (cleaned.charCodeAt(max - 1) & 0xfc00) === 0xd800 ? max - 1 : max;
   return cleaned.slice(0, end);
@@ -145,7 +170,7 @@ function inlinePlain(content: unknown): string {
   for (const raw of content) {
     if (!isObject(raw)) continue;
     const node = raw as RawInline;
-    if (node.type === "text" && typeof node.text === "string") parts.push(cleanStr(node.text));
+    if (node.type === "text" && typeof node.text === "string") parts.push(cleanRawStr(node.text));
     else if (node.type === "link") parts.push(inlinePlain(node.content));
     else if (node.type === "mathInline") {
       const latex = cleanStr(isObject(node.props) ? node.props.latex : "", MAX_MATH_LATEX).trim();
@@ -166,7 +191,7 @@ function mergeMarks(base: RichMark[], added: RichMark[]): RichMark[] | undefined
 }
 
 function pushTextWithBreaks(out: RichInline[], rawText: string, marks: RichMark[] | undefined) {
-  const text = cleanStr(rawText);
+  const text = cleanRawStr(rawText);
   if (!text) return;
   const parts = text.split(/\r?\n/);
   parts.forEach((part, index) => {
@@ -312,42 +337,158 @@ function estimateListItemHeight(item: RichListItem, boxWidth: number, depth = 1)
   return h;
 }
 
-// 長すぎる段落（1 枚のスライドより高い）を自然な区切りで分ける。
-function splitLongPlainText(text: string, maxChars: number): string[] {
-  if (text.length <= maxChars) return [text];
-  const chunks: string[] = [];
-  let start = 0;
-  while (start < text.length) {
-    let end = Math.min(text.length, start + maxChars);
-    if (end < text.length) {
-      // サロゲートペアの途中を避け、できれば句読点・空白で切る。
-      if ((text.charCodeAt(end - 1) & 0xfc00) === 0xd800) end--;
-      const slice = text.slice(start, end);
-      const breakAt = Math.max(slice.lastIndexOf("\n"), slice.lastIndexOf("。"), slice.lastIndexOf(". "), slice.lastIndexOf(" "));
-      if (breakAt > maxChars * 0.45) end = start + breakAt + 1;
-    }
-    const piece = text.slice(start, end).trim();
-    if (piece) chunks.push(piece);
-    start = end;
+function charVisualUnits(ch: string): number {
+  const code = ch.codePointAt(0) ?? 0;
+  if (
+    (code >= 0x1100 && code <= 0x11ff)
+    || (code >= 0x2e80 && code <= 0x9fff)
+    || (code >= 0xac00 && code <= 0xd7af)
+    || (code >= 0xf900 && code <= 0xfaff)
+    || (code >= 0xfe10 && code <= 0xfe6f)
+    || (code >= 0xff00 && code <= 0xff60)
+    || (code >= 0xffe0 && code <= 0xffe6)
+    || code >= 0x1f000
+  ) {
+    return 1.02;
   }
-  return chunks.length ? chunks : [text];
+  return 0.56;
+}
+
+// 1 枚の安全高さを超える段落を、書式（太字・リンク・色等）と行内数式を保ったまま行数・文字幅の境界で分割する。
+function splitRichParagraphByHeight(
+  nodes: RichInline[],
+  align: string | null,
+  boxWidth: number,
+  maxHeight: number,
+  fontSize = BODY_FONT_SIZE,
+  lineHeight = BODY_LINE_HEIGHT,
+): RichParagraph[] {
+  const usablePx = Math.max(120, boxWidth - 32);
+  const maxLines = Math.max(1, Math.floor((maxHeight - 18) / (fontSize * lineHeight)));
+  const out: RichParagraph[] = [];
+
+  let chunk: RichInline[] = [];
+  let chunkLines = 1;
+  let chunkChars = 0;
+  let linePx = 0;
+
+  const flushChunk = () => {
+    while (chunk.length && chunk[chunk.length - 1].type === "hard_break") chunk.pop();
+    while (chunk.length && chunk[0].type === "hard_break") chunk.shift();
+    if (richInlineHasContent(chunk)) out.push(paragraphNode(chunk, align));
+    chunk = [];
+    chunkLines = 1;
+    chunkChars = 0;
+    linePx = 0;
+  };
+
+  for (const node of nodes) {
+    if (node.type === "hard_break") {
+      if (chunkLines >= maxLines) {
+        flushChunk();
+      } else {
+        chunk.push({ type: "hard_break" });
+        chunkLines += 1;
+        linePx = 0;
+      }
+      continue;
+    }
+
+    if (node.type === "math_inline") {
+      const mathPx = Math.max(2, visualWidthUnits(node.attrs.latex)) * fontSize;
+      if (linePx > 0 && linePx + mathPx > usablePx) {
+        if (chunkLines >= maxLines) {
+          flushChunk();
+        } else {
+          chunkLines += 1;
+          linePx = 0;
+        }
+      }
+      chunk.push(node);
+      linePx += mathPx;
+      chunkChars += node.attrs.latex.length + 2;
+      continue;
+    }
+
+    // テキストノード：コードポイント単位で進め（サロゲートペアを割らない）、marks を保持しながら分割する。
+    const marks = node.marks;
+    let buf = "";
+    const flushBuf = () => {
+      if (!buf) return;
+      chunk.push(marks?.length ? { type: "text", text: buf, marks } : { type: "text", text: buf });
+      buf = "";
+    };
+
+    for (const ch of node.text) {
+      const chPx = charVisualUnits(ch) * fontSize;
+      const wouldExceedChars = chunkChars + buf.length >= MAX_CHUNK_CHARS;
+      const wouldWrap = linePx > 0 && linePx + chPx > usablePx;
+
+      if (wouldExceedChars || (wouldWrap && chunkLines >= maxLines)) {
+        // できれば現在のバッファ末尾の空白・句読点で自然に切る。
+        let carry = "";
+        if (buf.length > 8) {
+          const splitIdx = Math.max(buf.lastIndexOf(" "), buf.lastIndexOf("。"), buf.lastIndexOf("、"), buf.lastIndexOf(". "), buf.lastIndexOf(", "));
+          if (splitIdx > buf.length * 0.45 && splitIdx < buf.length - 1) {
+            carry = buf.slice(splitIdx + 1);
+            buf = buf.slice(0, splitIdx + 1);
+          }
+        }
+        flushBuf();
+        flushChunk();
+        buf = carry + ch;
+        linePx = visualWidthUnits(buf) * fontSize;
+        chunkChars = buf.length;
+        continue;
+      }
+
+      if (wouldWrap) {
+        chunkLines += 1;
+        linePx = chPx;
+      } else {
+        linePx += chPx;
+      }
+      buf += ch;
+      chunkChars += 1;
+    }
+    flushBuf();
+  }
+
+  flushChunk();
+  return out.length ? out : [paragraphNode(nodes, align)];
+}
+
+// 非常に長い 1 行のコードを行幅・文字数上限で分割する（20,000 文字超でも末尾を落とさない）。
+function splitSingleCodeLine(line: string, maxCharsPerLine: number): string[] {
+  if (line.length <= maxCharsPerLine) return [line];
+  const parts: string[] = [];
+  let buf = "";
+  for (const ch of line) {
+    if (buf.length >= maxCharsPerLine) {
+      parts.push(buf);
+      buf = "";
+    }
+    buf += ch;
+  }
+  if (buf) parts.push(buf);
+  return parts;
 }
 
 // 入れ子の子ブロックを RichBlock[] へ変換する（リスト項目やトグル・コールアウトの中身用）。
-function childrenToRichBlocks(children: RawBlock[], depth: number): RichBlock[] {
+function childrenToRichBlocks(children: RawBlock[], depth: number, labels: ResolvedLabels): RichBlock[] {
   const out: RichBlock[] = [];
   let i = 0;
   while (i < children.length) {
     const child = children[i];
     if (child.type === COLUMN_LIST || child.type === COLUMN) {
-      out.push(...childrenToRichBlocks(childrenOf(child), depth));
+      out.push(...childrenToRichBlocks(childrenOf(child), depth, labels));
       i++;
       continue;
     }
     if (child.type === "bulletListItem" && depth < MAX_LIST_DEPTH) {
       const items: RichListItem[] = [];
       while (i < children.length && children[i].type === "bulletListItem") {
-        items.push(blockToListItem(children[i], depth + 1));
+        items.push(blockToListItem(children[i], depth + 1, labels));
         i++;
       }
       out.push({ type: "bullet_list", content: items });
@@ -361,7 +502,7 @@ function childrenToRichBlocks(children: RawBlock[], depth: number): RichBlock[] 
       while (i < children.length && children[i].type === "numberedListItem") {
         const nextStart = propsOf(children[i]).start;
         if (!first && typeof nextStart === "number" && Number.isInteger(nextStart) && nextStart > 0) break;
-        items.push(blockToListItem(children[i], depth + 1));
+        items.push(blockToListItem(children[i], depth + 1, labels));
         first = false;
         i++;
       }
@@ -373,24 +514,27 @@ function childrenToRichBlocks(children: RawBlock[], depth: number): RichBlock[] 
       const latex = cleanStr(props.latex, MAX_MATH_LATEX).trim();
       if (latex) out.push({ type: "math_block", attrs: { latex } });
     } else if (child.type === "codeBlock") {
-      const code = cleanStr(inlinePlain(child.content));
+      const code = cleanRawStr(inlinePlain(child.content));
       const lang = cleanStr(props.language, 40).trim();
       const hasLang = lang && !/^(text|plain|plaintext)$/i.test(lang);
       if (code.trim()) {
-        out.push({ type: "code_block", ...(hasLang ? { attrs: { language: lang } } : {}), content: [{ type: "text", text: code }] });
+        for (let offset = 0; offset < code.length; offset += MAX_CHUNK_CHARS) {
+          const piece = code.slice(offset, offset + MAX_CHUNK_CHARS);
+          out.push({ type: "code_block", ...(hasLang ? { attrs: { language: lang } } : {}), content: [{ type: "text", text: piece }] });
+        }
       }
     } else if (child.type === "file") {
-      const label = fileLabel(props);
+      const label = fileLabel(props, labels);
       if (label) out.push(paragraphNode([{ type: "text", text: label, marks: [{ type: "color", attrs: { color: "muted" } }] }]));
     } else if (child.type === "image") {
-      const alt = cleanStr(props.caption || props.name || "image", 200).trim();
-      if (safeImageSrc(props.url)) out.push(paragraphNode([{ type: "text", text: `[Image: ${alt}]`, marks: [{ type: "color", attrs: { color: "muted" } }] }]));
+      const alt = cleanStr(props.caption || props.name || labels.image, 200).trim() || labels.image;
+      if (safeImageSrc(props.url)) out.push(paragraphNode([{ type: "text", text: `[${labels.image}: ${alt}]`, marks: [{ type: "color", attrs: { color: "muted" } }] }]));
     } else if (child.type === "table") {
-      const extracted = extractTable(child);
-      if (extracted) {
-        for (const row of extracted.rows.slice(0, 12)) {
-          const line = row.cells.map((c) => c.text).join("  |  ").trim();
-          if (line) out.push(paragraphNode([{ type: "text", text: line }]));
+      const grid = extractTableGrid(child);
+      if (grid) {
+        for (const row of grid.rows) {
+          const line = row.join("  |  ").trim();
+          if (line) out.push(paragraphNode([{ type: "text", text: cleanStr(line) }]));
         }
       }
     } else if (child.type !== "divider") {
@@ -402,7 +546,7 @@ function childrenToRichBlocks(children: RawBlock[], depth: number): RichBlock[] 
       if (richInlineHasContent(inline)) out.push(paragraphNode(full, alignOf(props)));
     }
     const nested = childrenOf(child);
-    if (nested.length) out.push(...childrenToRichBlocks(nested, Math.min(depth + 1, MAX_LIST_DEPTH)));
+    if (nested.length) out.push(...childrenToRichBlocks(nested, Math.min(depth + 1, MAX_LIST_DEPTH), labels));
     i++;
   }
   return out;
@@ -419,57 +563,118 @@ function blockPrefix(block: RawBlock): string {
   return "";
 }
 
-function blockToListItem(block: RawBlock, depth: number): RichListItem {
+function blockToListItem(block: RawBlock, depth: number, labels: ResolvedLabels): RichListItem {
   const inline = inlineToRich(block.content);
   const content: RichBlock[] = [paragraphNode(inline, alignOf(propsOf(block)))];
   const nested = childrenOf(block);
-  if (nested.length) content.push(...childrenToRichBlocks(nested, depth));
+  if (nested.length) content.push(...childrenToRichBlocks(nested, depth, labels));
   return { type: "list_item", content };
 }
 
-function fileLabel(props: Record<string, unknown>): string {
-  const name = cleanStr(props.name, 200).trim() || "file";
+function fileLabel(props: Record<string, unknown>, labels: ResolvedLabels): string {
+  const name = cleanStr(props.name, 200).trim() || labels.file;
   const caption = cleanStr(props.caption, 500).trim();
   if (!name && !caption) return "";
-  return caption ? `[File: ${name} — ${caption}]` : `[File: ${name}]`;
+  return caption ? `[${labels.file}: ${name} — ${caption}]` : `[${labels.file}: ${name}]`;
 }
 
-function extractTable(block: RawBlock): { rows: { cells: { text: string }[] }[]; cols: number[]; header: boolean } | null {
+type TableBand = {
+  rows: { cells: { text: string }[] }[];
+  cols: number[];
+  header: boolean;
+};
+
+// colspan / rowspan を考慮して 2 次元格子へ展開する（結合セルの後の列ズレを防ぐ）。
+function extractTableGrid(block: RawBlock): { rows: string[][]; rawWidths: (number | null)[]; headerRows: number } | null {
   const content = isObject(block.content) ? block.content : null;
   if (!content || content.type !== "tableContent" || !Array.isArray(content.rows) || !content.rows.length) return null;
-  const rawRows = content.rows as unknown[];
-  const parsedRows: string[][] = [];
+
+  const grid: string[][] = [];
+  const occupied: boolean[][] = [];
   let maxCols = 0;
-  for (const rawRow of rawRows) {
+  let r = 0;
+
+  for (const rawRow of content.rows as unknown[]) {
+    if (r >= MAX_EXPANDED_TABLE_ROWS) break;
     if (!isObject(rawRow) || !Array.isArray(rawRow.cells)) continue;
-    const cells = rawRow.cells.slice(0, MAX_TABLE_COLS).map((cell) => {
-      if (Array.isArray(cell)) return cleanStr(inlinePlain(cell), 2000).trim();
-      if (isObject(cell)) return cleanStr(inlinePlain(cell.content), 2000).trim();
-      return "";
-    });
-    if (cells.length) {
-      maxCols = Math.max(maxCols, cells.length);
-      parsedRows.push(cells);
+    if (!grid[r]) grid[r] = [];
+    if (!occupied[r]) occupied[r] = [];
+    let c = 0;
+
+    for (const rawCell of rawRow.cells) {
+      while (occupied[r][c] && c < MAX_EXPANDED_TABLE_COLS) c++;
+      if (c >= MAX_EXPANDED_TABLE_COLS) break;
+
+      let cellText = "";
+      let colspan = 1;
+      let rowspan = 1;
+      if (Array.isArray(rawCell)) {
+        cellText = cleanStr(inlinePlain(rawCell), 2000).trim();
+      } else if (isObject(rawCell)) {
+        cellText = cleanStr(inlinePlain(rawCell.content), 2000).trim();
+        const cellProps = isObject(rawCell.props) ? rawCell.props : null;
+        if (cellProps) {
+          const cs = Number(cellProps.colspan);
+          const rs = Number(cellProps.rowspan);
+          if (Number.isInteger(cs) && cs >= 1) colspan = Math.min(cs, MAX_EXPANDED_TABLE_COLS - c);
+          if (Number.isInteger(rs) && rs >= 1) rowspan = Math.min(rs, MAX_EXPANDED_TABLE_ROWS - r);
+        }
+      }
+
+      for (let dr = 0; dr < rowspan; dr++) {
+        const rr = r + dr;
+        if (!grid[rr]) grid[rr] = [];
+        if (!occupied[rr]) occupied[rr] = [];
+        for (let dc = 0; dc < colspan; dc++) {
+          const cc = c + dc;
+          if (cc >= MAX_EXPANDED_TABLE_COLS) break;
+          occupied[rr][cc] = true;
+          if (dr === 0 && dc === 0) grid[rr][cc] = cellText;
+          else if (grid[rr][cc] === undefined) grid[rr][cc] = "";
+        }
+      }
+      maxCols = Math.max(maxCols, c + colspan);
+      c += colspan;
     }
+    r++;
   }
-  if (!parsedRows.length || maxCols === 0) return null;
-  const colCount = Math.min(MAX_TABLE_COLS, maxCols);
-  const rows = parsedRows.map((cells) => ({
-    cells: Array.from({ length: colCount }, (_, index) => ({ text: cells[index] ?? "" })),
-  }));
-  const rawWidths = Array.isArray(content.columnWidths) ? content.columnWidths : [];
-  const validWidths = rawWidths.slice(0, colCount).map((w) => (typeof w === "number" && Number.isFinite(w) && w > 0 ? w : null));
-  let cols: number[];
-  if (validWidths.length === colCount && validWidths.some((w) => w !== null)) {
-    const positive = validWidths.filter((w): w is number => w !== null);
-    const avg = positive.reduce((sum, w) => sum + w, 0) / positive.length;
-    const normalized = validWidths.map((w) => (w ?? avg) / avg);
-    cols = normalized.map((ratio) => Math.min(20, Math.max(0.25, Math.round(ratio * 100) / 100)));
-  } else {
-    cols = Array.from({ length: colCount }, () => 1);
-  }
+
+  if (!grid.length || maxCols === 0) return null;
+  const normalizedRows = grid.map((row) => Array.from({ length: maxCols }, (_, idx) => row[idx] ?? ""));
+  const rawWidthsSource = Array.isArray(content.columnWidths) ? content.columnWidths : [];
+  const rawWidths = Array.from({ length: maxCols }, (_, idx) => {
+    const w = rawWidthsSource[idx];
+    return typeof w === "number" && Number.isFinite(w) && w > 0 ? w : null;
+  });
   const headerRows = typeof content.headerRows === "number" ? content.headerRows : 0;
-  return { rows, cols, header: headerRows > 0 };
+  return { rows: normalizedRows, rawWidths, headerRows };
+}
+
+// 20 列を超える幅広の表は横方向の帯（最大 20 列ずつ）に分割し、どの列も欠落させない。
+function extractTableBands(block: RawBlock): TableBand[] {
+  const grid = extractTableGrid(block);
+  if (!grid) return [];
+  const totalCols = grid.rows[0].length;
+  const bands: TableBand[] = [];
+
+  for (let startCol = 0; startCol < totalCols; startCol += MAX_TABLE_COLS) {
+    const endCol = Math.min(totalCols, startCol + MAX_TABLE_COLS);
+    const colCount = endCol - startCol;
+    const bandWidths = grid.rawWidths.slice(startCol, endCol);
+    let cols: number[];
+    if (bandWidths.some((w) => w !== null)) {
+      const positive = bandWidths.filter((w): w is number => w !== null);
+      const avg = positive.reduce((sum, w) => sum + w, 0) / positive.length;
+      cols = bandWidths.map((w) => Math.min(20, Math.max(0.25, Math.round(((w ?? avg) / avg) * 100) / 100)));
+    } else {
+      cols = Array.from({ length: colCount }, () => 1);
+    }
+    const rows = grid.rows.map((row) => ({
+      cells: row.slice(startCol, endCol).map((text) => ({ text })),
+    }));
+    bands.push({ rows, cols, header: grid.headerRows > 0 });
+  }
+  return bands;
 }
 
 function estimateTableRowHeight(row: { cells: { text: string }[] }, cols: number[], boxWidth: number, fontSize: number): number {
@@ -484,7 +689,7 @@ function estimateTableRowHeight(row: { cells: { text: string }[] }, cols: number
 }
 
 // ブロック列をフロー項目列へ変換する。長すぎるコード・表・段落はこの段階で 1 枚に収まる塊へ分割する。
-function blocksToFlowItems(blocks: RawBlock[], boxWidth: number, maxItemHeight: number): FlowItem[] {
+function blocksToFlowItems(blocks: RawBlock[], boxWidth: number, maxItemHeight: number, labels: ResolvedLabels): FlowItem[] {
   const out: FlowItem[] = [];
   let runningOrder = 1;
 
@@ -503,9 +708,16 @@ function blocksToFlowItems(blocks: RawBlock[], boxWidth: number, maxItemHeight: 
         const inline = inlineToRich(block.content, marks);
         if (richInlineHasContent(inline)) {
           const node = paragraphNode(inline, alignOf(props));
-          out.push({ kind: "richBlock", block: node, height: estimateRichBlockHeight(node, boxWidth) + 14 });
+          const est = estimateRichBlockHeight(node, boxWidth);
+          if (est <= maxItemHeight && richInlinePlain(inline).length <= MAX_CHUNK_CHARS) {
+            out.push({ kind: "richBlock", block: node, height: est + 14 });
+          } else {
+            for (const p of splitRichParagraphByHeight(inline, alignOf(props), boxWidth, maxItemHeight, size, BODY_LINE_HEIGHT)) {
+              out.push({ kind: "richBlock", block: p, height: Math.min(maxItemHeight, estimateRichBlockHeight(p, boxWidth)) + 14 });
+            }
+          }
         }
-        if (children.length) out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight));
+        if (children.length) out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight, labels));
         break;
       }
 
@@ -514,34 +726,37 @@ function blocksToFlowItems(blocks: RawBlock[], boxWidth: number, maxItemHeight: 
         if (richInlineHasContent(inline)) {
           const node = paragraphNode(inline, alignOf(props));
           const est = estimateRichBlockHeight(node, boxWidth);
-          if (est <= maxItemHeight) {
+          if (est <= maxItemHeight && richInlinePlain(inline).length <= MAX_CHUNK_CHARS) {
             out.push({ kind: "richBlock", block: node, height: est });
           } else {
-            // 1 段落がスライド 1 枚より長い場合は分割してあふれを防ぐ。
-            const plain = inlinePlain(block.content);
-            const charsPerLine = Math.max(16, Math.floor((boxWidth - 32) / (BODY_FONT_SIZE * 0.72)));
-            const maxLines = Math.max(4, Math.floor((maxItemHeight - 24) / (BODY_FONT_SIZE * BODY_LINE_HEIGHT)));
-            const pieces = splitLongPlainText(plain, charsPerLine * maxLines);
-            for (const piece of pieces) {
-              const p = paragraphNode([{ type: "text", text: piece }], alignOf(props));
+            // 1 段落がスライド 1 枚より長い場合は書式・行内数式を保ったまま行数・文字幅の境界で分割する。
+            for (const p of splitRichParagraphByHeight(inline, alignOf(props), boxWidth, maxItemHeight)) {
               out.push({ kind: "richBlock", block: p, height: Math.min(maxItemHeight, estimateRichBlockHeight(p, boxWidth)) });
             }
           }
         }
-        if (children.length) out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight));
+        if (children.length) out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight, labels));
         break;
       }
 
       case "bulletListItem": {
-        const item = blockToListItem(block, 1);
+        const item = blockToListItem(block, 1, labels);
         const est = estimateListItemHeight(item, boxWidth);
-        if (est <= maxItemHeight || !children.length) {
-          out.push({ kind: "bulletItem", item, height: Math.min(maxItemHeight, est) });
+        const headInline = inlineToRich(block.content);
+        if (est <= maxItemHeight && richInlinePlain(headInline).length <= MAX_CHUNK_CHARS) {
+          out.push({ kind: "bulletItem", item, height: est });
         } else {
-          // 巨大な子ブロックを持つ箇条書きは親と子を分けて続ページに送れるようにする。
-          const headOnly: RichListItem = { type: "list_item", content: [paragraphNode(inlineToRich(block.content), alignOf(props))] };
-          out.push({ kind: "bulletItem", item: headOnly, height: estimateListItemHeight(headOnly, boxWidth) });
-          out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight));
+          // 巨大な箇条書きは先頭本文を書式・数式付きで行分割し、子ブロックも通常フローへ引き継ぐ。
+          const headParts = splitRichParagraphByHeight(headInline, alignOf(props), boxWidth - 44, maxItemHeight);
+          headParts.forEach((p, idx) => {
+            if (idx === 0) {
+              const headOnly: RichListItem = { type: "list_item", content: [p] };
+              out.push({ kind: "bulletItem", item: headOnly, height: Math.min(maxItemHeight, estimateListItemHeight(headOnly, boxWidth)) });
+            } else {
+              out.push({ kind: "richBlock", block: p, height: Math.min(maxItemHeight, estimateRichBlockHeight(p, boxWidth)) });
+            }
+          });
+          if (children.length) out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight, labels));
         }
         break;
       }
@@ -551,14 +766,22 @@ function blocksToFlowItems(blocks: RawBlock[], boxWidth: number, maxItemHeight: 
         const explicitStart = typeof startProp === "number" && Number.isInteger(startProp) && startProp > 0;
         const order = explicitStart ? (startProp as number) : runningOrder;
         runningOrder = order + 1;
-        const item = blockToListItem(block, 1);
+        const item = blockToListItem(block, 1, labels);
         const est = estimateListItemHeight(item, boxWidth);
-        if (est <= maxItemHeight || !children.length) {
-          out.push({ kind: "orderedItem", item, order, explicitStart, height: Math.min(maxItemHeight, est) });
+        const headInline = inlineToRich(block.content);
+        if (est <= maxItemHeight && richInlinePlain(headInline).length <= MAX_CHUNK_CHARS) {
+          out.push({ kind: "orderedItem", item, order, explicitStart, height: est });
         } else {
-          const headOnly: RichListItem = { type: "list_item", content: [paragraphNode(inlineToRich(block.content), alignOf(props))] };
-          out.push({ kind: "orderedItem", item: headOnly, order, explicitStart, height: estimateListItemHeight(headOnly, boxWidth) });
-          out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight));
+          const headParts = splitRichParagraphByHeight(headInline, alignOf(props), boxWidth - 44, maxItemHeight);
+          headParts.forEach((p, idx) => {
+            if (idx === 0) {
+              const headOnly: RichListItem = { type: "list_item", content: [p] };
+              out.push({ kind: "orderedItem", item: headOnly, order, explicitStart, height: Math.min(maxItemHeight, estimateListItemHeight(headOnly, boxWidth)) });
+            } else {
+              out.push({ kind: "richBlock", block: p, height: Math.min(maxItemHeight, estimateRichBlockHeight(p, boxWidth)) });
+            }
+          });
+          if (children.length) out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight, labels));
         }
         break;
       }
@@ -569,15 +792,22 @@ function blocksToFlowItems(blocks: RawBlock[], boxWidth: number, maxItemHeight: 
         const full: RichInline[] = [{ type: "text", text: prefix }, ...inline];
         if (richInlineHasContent(inline)) {
           const p = paragraphNode(full, alignOf(props));
-          out.push({ kind: "richBlock", block: p, height: estimateRichBlockHeight(p, boxWidth) });
+          const est = estimateRichBlockHeight(p, boxWidth);
+          if (est <= maxItemHeight && richInlinePlain(full).length <= MAX_CHUNK_CHARS) {
+            out.push({ kind: "richBlock", block: p, height: est });
+          } else {
+            for (const part of splitRichParagraphByHeight(full, alignOf(props), boxWidth, maxItemHeight)) {
+              out.push({ kind: "richBlock", block: part, height: Math.min(maxItemHeight, estimateRichBlockHeight(part, boxWidth)) });
+            }
+          }
         }
         if (children.length) {
-          const nested = childrenToRichBlocks(children, 1);
+          const nested = childrenToRichBlocks(children, 1, labels);
           if (nested.length) {
             const list: RichBlock = { type: "bullet_list", content: [{ type: "list_item", content: nested[0].type === "paragraph" ? nested : [paragraphNode([]), ...nested] }] };
             const est = estimateRichBlockHeight(list, boxWidth);
             if (est <= maxItemHeight) out.push({ kind: "richBlock", block: list, height: est });
-            else out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight));
+            else out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight, labels));
           }
         }
         break;
@@ -586,10 +816,18 @@ function blocksToFlowItems(blocks: RawBlock[], boxWidth: number, maxItemHeight: 
       case "toggleListItem": {
         const inline = inlineToRich(block.content, [{ type: "strong" }]);
         if (richInlineHasContent(inline)) {
-          const p = paragraphNode([{ type: "text", text: "▸ ", marks: [{ type: "color", attrs: { color: "accent" } }] }, ...inline], alignOf(props));
-          out.push({ kind: "richBlock", block: p, height: estimateRichBlockHeight(p, boxWidth) });
+          const full: RichInline[] = [{ type: "text", text: "▸ ", marks: [{ type: "color", attrs: { color: "accent" } }] }, ...inline];
+          const p = paragraphNode(full, alignOf(props));
+          const est = estimateRichBlockHeight(p, boxWidth);
+          if (est <= maxItemHeight && richInlinePlain(full).length <= MAX_CHUNK_CHARS) {
+            out.push({ kind: "richBlock", block: p, height: est });
+          } else {
+            for (const part of splitRichParagraphByHeight(full, alignOf(props), boxWidth, maxItemHeight)) {
+              out.push({ kind: "richBlock", block: part, height: Math.min(maxItemHeight, estimateRichBlockHeight(part, boxWidth)) });
+            }
+          }
         }
-        if (children.length) out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight));
+        if (children.length) out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight, labels));
         break;
       }
 
@@ -597,20 +835,23 @@ function blocksToFlowItems(blocks: RawBlock[], boxWidth: number, maxItemHeight: 
         const content: RichBlock[] = [];
         const inline = inlineToRich(block.content);
         if (richInlineHasContent(inline)) content.push(paragraphNode(inline, alignOf(props)));
-        if (children.length) content.push(...childrenToRichBlocks(children, 1));
+        if (children.length) content.push(...childrenToRichBlocks(children, 1, labels));
         if (content.length) {
           const doc: RichDoc = { type: "doc", content };
           const h = content.reduce((sum, b) => sum + estimateRichBlockHeight(b, boxWidth - 44, QUOTE_FONT_SIZE), 0) + 28;
-          if (h <= maxItemHeight) {
+          if (h <= maxItemHeight && richInlinePlain(inline).length <= MAX_CHUNK_CHARS) {
             out.push({ kind: "quote", doc, height: Math.max(76, h) });
           } else {
-            // 非常に長い引用は段落として分割する。
-            const plain = content.map((b) => (b.type === "paragraph" ? richInlinePlain(b.content ?? []) : "")).filter(Boolean).join("\n");
-            for (const piece of splitLongPlainText(plain, 520)) {
-              const pDoc: RichDoc = { type: "doc", content: [paragraphNode([{ type: "text", text: piece }])] };
-              const ph = estimateRichBlockHeight(pDoc.content[0], boxWidth - 44, QUOTE_FONT_SIZE) + 28;
-              out.push({ kind: "quote", doc: pDoc, height: Math.min(maxItemHeight, Math.max(76, ph)) });
+            // 長い引用は先頭本文を書式・数式付きで行分割し、子ブロック（数式・リスト・コード等）も通常のフローへそのまま引き継ぐ。
+            if (richInlineHasContent(inline)) {
+              const quoteBudget = Math.max(96, maxItemHeight - 28);
+              for (const part of splitRichParagraphByHeight(inline, alignOf(props), boxWidth - 44, quoteBudget, QUOTE_FONT_SIZE, BODY_LINE_HEIGHT)) {
+                const pDoc: RichDoc = { type: "doc", content: [part] };
+                const ph = estimateRichBlockHeight(part, boxWidth - 44, QUOTE_FONT_SIZE) + 28;
+                out.push({ kind: "quote", doc: pDoc, height: Math.min(maxItemHeight, Math.max(76, ph)) });
+              }
             }
+            if (children.length) out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight, labels));
           }
         }
         break;
@@ -622,19 +863,24 @@ function blocksToFlowItems(blocks: RawBlock[], boxWidth: number, maxItemHeight: 
         const content: RichBlock[] = [];
         const lead: RichInline[] = [{ type: "text", text: `${emoji} ` }, ...inline];
         if (richInlineHasContent(inline) || !children.length) content.push(paragraphNode(lead, alignOf(props)));
-        if (children.length) content.push(...childrenToRichBlocks(children, 1));
+        if (children.length) content.push(...childrenToRichBlocks(children, 1, labels));
         if (content.length) {
           const doc: RichDoc = { type: "doc", content };
           const textH = content.reduce((sum, b) => sum + estimateRichBlockHeight(b, boxWidth - 72, CALLOUT_FONT_SIZE), 0);
           const h = Math.max(96, textH + 44);
-          if (h <= maxItemHeight) {
+          if (h <= maxItemHeight && richInlinePlain(lead).length <= MAX_CHUNK_CHARS) {
             out.push({ kind: "callout", doc, height: h });
           } else {
-            // コールアウト自体が 1 枚を超える場合は先頭カード + 子要素のフローに分ける。
-            const headDoc: RichDoc = { type: "doc", content: [paragraphNode(lead, alignOf(props))] };
-            const headH = Math.min(maxItemHeight, Math.max(96, estimateRichBlockHeight(headDoc.content[0], boxWidth - 72, CALLOUT_FONT_SIZE) + 44));
-            out.push({ kind: "callout", doc: headDoc, height: headH });
-            if (children.length) out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight));
+            // コールアウト自体が 1 枚を超える場合は先頭テキストを分割し、子要素は通常フローへ引き継ぐ。
+            if (richInlineHasContent(inline) || !children.length) {
+              const calloutBudget = Math.max(96, maxItemHeight - 44);
+              for (const part of splitRichParagraphByHeight(lead, alignOf(props), boxWidth - 72, calloutBudget, CALLOUT_FONT_SIZE, BODY_LINE_HEIGHT)) {
+                const headDoc: RichDoc = { type: "doc", content: [part] };
+                const headH = Math.min(maxItemHeight, Math.max(96, estimateRichBlockHeight(part, boxWidth - 72, CALLOUT_FONT_SIZE) + 44));
+                out.push({ kind: "callout", doc: headDoc, height: headH });
+              }
+            }
+            if (children.length) out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight, labels));
           }
         }
         break;
@@ -646,21 +892,25 @@ function blocksToFlowItems(blocks: RawBlock[], boxWidth: number, maxItemHeight: 
           const node: RichBlock = { type: "math_block", attrs: { latex } };
           out.push({ kind: "richBlock", block: node, height: Math.min(maxItemHeight, estimateRichBlockHeight(node, boxWidth)) });
         }
-        if (children.length) out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight));
+        if (children.length) out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight, labels));
         break;
       }
 
       case "codeBlock": {
-        const code = cleanStr(inlinePlain(block.content));
+        const code = cleanRawStr(inlinePlain(block.content));
         const rawLang = cleanStr(props.language, 40).trim();
         const language = rawLang && !/^(text|plain|plaintext)$/i.test(rawLang) ? rawLang : undefined;
         if (code.trim()) {
-          const lines = code.split("\n");
+          const rawLines = code.split(/\r?\n/);
           const lineH = CODE_FONT_SIZE * CODE_LINE_HEIGHT;
           const overhead = language ? 72 : 48;
           const maxVisualLines = Math.max(3, Math.floor((maxItemHeight - overhead) / lineH));
+          const charsPerVisualLine = Math.max(24, Math.floor((boxWidth - 56) / (CODE_FONT_SIZE * 0.64)));
+          const maxSingleLineChars = Math.min(MAX_CHUNK_CHARS, charsPerVisualLine * maxVisualLines);
+
           let chunk: string[] = [];
           let chunkVisualLines = 0;
+          let chunkChars = 0;
           const flushCode = () => {
             if (!chunk.length) return;
             const text = chunk.join("\n");
@@ -668,57 +918,65 @@ function blocksToFlowItems(blocks: RawBlock[], boxWidth: number, maxItemHeight: 
             out.push({ kind: "richBlock", block: node, height: Math.min(maxItemHeight, estimateRichBlockHeight(node, boxWidth)) });
             chunk = [];
             chunkVisualLines = 0;
+            chunkChars = 0;
           };
-          for (const line of lines) {
-            const wrapped = estimateWrappedLines(line || " ", CODE_FONT_SIZE, boxWidth - 56, true);
-            if (chunk.length && chunkVisualLines + wrapped > maxVisualLines) flushCode();
-            chunk.push(line);
-            chunkVisualLines += wrapped;
+          for (const rawLine of rawLines) {
+            const subLines = splitSingleCodeLine(rawLine, maxSingleLineChars);
+            for (const line of subLines) {
+              const wrapped = estimateWrappedLines(line || " ", CODE_FONT_SIZE, boxWidth - 56, true);
+              if (chunk.length && (chunkVisualLines + wrapped > maxVisualLines || chunkChars + line.length + 1 > MAX_CHUNK_CHARS)) {
+                flushCode();
+              }
+              chunk.push(line);
+              chunkVisualLines += wrapped;
+              chunkChars += line.length + 1;
+            }
           }
           flushCode();
         }
-        if (children.length) out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight));
+        if (children.length) out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight, labels));
         break;
       }
 
       case "table": {
-        const extracted = extractTable(block);
-        if (!extracted) break;
-        const colCount = extracted.cols.length;
-        const fontSize = colCount >= 7 ? 20 : colCount >= 5 ? 24 : 28;
-        const headerRow = extracted.header ? extracted.rows[0] : null;
-        const bodyRows = extracted.header ? extracted.rows.slice(1) : extracted.rows;
-        const headerH = headerRow ? estimateTableRowHeight(headerRow, extracted.cols, boxWidth, fontSize) : 0;
+        const bands = extractTableBands(block);
+        for (const extracted of bands) {
+          const colCount = extracted.cols.length;
+          const fontSize = colCount >= 7 ? 20 : colCount >= 5 ? 24 : 28;
+          const headerRow = extracted.header ? extracted.rows[0] : null;
+          const bodyRows = extracted.header ? extracted.rows.slice(1) : extracted.rows;
+          const headerH = headerRow ? estimateTableRowHeight(headerRow, extracted.cols, boxWidth, fontSize) : 0;
 
-        if (!bodyRows.length && headerRow) {
-          out.push({ kind: "table", rows: [headerRow], cols: extracted.cols, header: extracted.header, fontSize, height: Math.min(maxItemHeight, Math.max(80, headerH)) });
-          break;
-        }
-        let batch: { cells: { text: string }[] }[] = headerRow ? [headerRow] : [];
-        let batchH = headerH;
-        const flushTable = () => {
-          if (!batch.length) return;
-          out.push({
-            kind: "table",
-            rows: batch,
-            cols: extracted.cols,
-            header: extracted.header,
-            fontSize,
-            height: Math.min(maxItemHeight, Math.max(84, batchH)),
-          });
-          batch = headerRow ? [headerRow] : [];
-          batchH = headerH;
-        };
-        for (const row of bodyRows) {
-          const rowH = estimateTableRowHeight(row, extracted.cols, boxWidth, fontSize);
-          const minRows = headerRow ? 1 : 0;
-          if (batch.length > minRows && (batchH + rowH > maxItemHeight || batch.length >= MAX_TABLE_ROWS)) {
-            flushTable();
+          if (!bodyRows.length && headerRow) {
+            out.push({ kind: "table", rows: [headerRow], cols: extracted.cols, header: extracted.header, fontSize, height: Math.min(maxItemHeight, Math.max(80, headerH)) });
+            continue;
           }
-          batch.push(row);
-          batchH += rowH;
+          let batch: { cells: { text: string }[] }[] = headerRow ? [headerRow] : [];
+          let batchH = headerH;
+          const flushTable = () => {
+            if (!batch.length) return;
+            out.push({
+              kind: "table",
+              rows: batch,
+              cols: extracted.cols,
+              header: extracted.header,
+              fontSize,
+              height: Math.min(maxItemHeight, Math.max(84, batchH)),
+            });
+            batch = headerRow ? [headerRow] : [];
+            batchH = headerH;
+          };
+          for (const row of bodyRows) {
+            const rowH = estimateTableRowHeight(row, extracted.cols, boxWidth, fontSize);
+            const minRows = headerRow ? 1 : 0;
+            if (batch.length > minRows && (batchH + rowH > maxItemHeight || batch.length >= MAX_TABLE_ROWS)) {
+              flushTable();
+            }
+            batch.push(row);
+            batchH += rowH;
+          }
+          if (batch.length > (headerRow ? 1 : 0) || !bodyRows.length) flushTable();
         }
-        if (batch.length > (headerRow ? 1 : 0) || !bodyRows.length) flushTable();
         break;
       }
 
@@ -730,17 +988,17 @@ function blocksToFlowItems(blocks: RawBlock[], boxWidth: number, maxItemHeight: 
           const imgH = Math.min(maxItemHeight, caption ? 500 : 460);
           out.push({ kind: "image", src, alt, caption, height: imgH });
         }
-        if (children.length) out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight));
+        if (children.length) out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight, labels));
         break;
       }
 
       case "file": {
-        const label = fileLabel(props);
+        const label = fileLabel(props, labels);
         if (label) {
           const p = paragraphNode([{ type: "text", text: label, marks: [{ type: "color", attrs: { color: "muted" } }] }]);
           out.push({ kind: "richBlock", block: p, height: estimateRichBlockHeight(p, boxWidth) });
         }
-        if (children.length) out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight));
+        if (children.length) out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight, labels));
         break;
       }
 
@@ -755,7 +1013,7 @@ function blocksToFlowItems(blocks: RawBlock[], boxWidth: number, maxItemHeight: 
           const totalGutter = COLUMN_GUTTER * (cols.length - 1);
           const converted = cols.map((col, idx) => {
             const colW = Math.max(260, ((boxWidth - totalGutter) * ratios[idx]) / totalRatio);
-            const items = blocksToFlowItems(childrenOf(col), colW, maxItemHeight);
+            const items = blocksToFlowItems(childrenOf(col), colW, maxItemHeight, labels);
             const h = items.reduce((sum, item) => sum + item.height, 0) + Math.max(0, items.length - 1) * 16;
             return { widthRatio: ratios[idx], items, height: h };
           });
@@ -766,12 +1024,12 @@ function blocksToFlowItems(blocks: RawBlock[], boxWidth: number, maxItemHeight: 
           }
         }
         // 4 段以上または 1 枚を超える段組みは左から順に平らに流して続ページで収める。
-        for (const col of cols) out.push(...blocksToFlowItems(childrenOf(col), boxWidth, maxItemHeight));
+        for (const col of cols) out.push(...blocksToFlowItems(childrenOf(col), boxWidth, maxItemHeight, labels));
         break;
       }
 
       case COLUMN: {
-        out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight));
+        out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight, labels));
         break;
       }
 
@@ -786,7 +1044,7 @@ function blocksToFlowItems(blocks: RawBlock[], boxWidth: number, maxItemHeight: 
           const p = paragraphNode(inline, alignOf(props));
           out.push({ kind: "richBlock", block: p, height: estimateRichBlockHeight(p, boxWidth) });
         }
-        if (children.length) out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight));
+        if (children.length) out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight, labels));
         break;
       }
     }
@@ -994,36 +1252,73 @@ type SectionSpec = {
   sectionLabel?: string;
 };
 
-function makeHeadingElement(title: string, inline: RichInline[] | null, pageNum: number): TextElement {
+type HeadingLayout = {
+  fontSize: number;
+  titleH: number;
+  bodyTop: number;
+  valign: "top" | "bottom";
+};
+
+// 長い見出し（例：90 文字の CJK）が固定 136px 枠から上にはみ出して切れないよう、
+// フォントサイズとタイトル枠の高さを動的に調整し、本文開始位置も連動させる。
+function computeHeadingLayout(text: string, boxWidth = CONTENT_W): HeadingLayout {
+  const sample = `${text} (99)`;
+  const sizes = [72, 58, 48, 40, 34];
+  for (const size of sizes) {
+    const lines = estimateWrappedLines(sample, size, boxWidth);
+    const neededH = Math.ceil(lines * size * 1.16) + 12;
+    if (neededH <= TITLE_H) {
+      return { fontSize: size, titleH: TITLE_H, bodyTop: BODY_TOP_WITH_TITLE, valign: lines <= 1 ? "bottom" : "top" };
+    }
+  }
+  const fallbackSize = 34;
+  const lines = estimateWrappedLines(sample, fallbackSize, boxWidth);
+  const titleH = Math.min(340, Math.max(TITLE_H, Math.ceil(lines * fallbackSize * 1.16) + 16));
+  const bodyTop = TITLE_Y + titleH + 20;
+  return { fontSize: fallbackSize, titleH, bodyTop, valign: "top" };
+}
+
+function makeHeadingElement(title: string, inline: RichInline[] | null, pageNum: number, layout: HeadingLayout, boxWidth = CONTENT_W): TextElement {
   const suffix = pageNum > 1 ? ` (${pageNum})` : "";
   const nodes: RichInline[] = inline
     ? (suffix ? [...inline, { type: "text", text: suffix }] : inline)
     : [{ type: "text", text: `${title}${suffix}` }];
   return makeTextElement(
-    MARGIN_X, TITLE_Y, CONTENT_W, TITLE_H,
+    MARGIN_X, TITLE_Y, boxWidth, layout.titleH,
     { type: "doc", content: [paragraphNode(nodes)] },
-    { font: "heading", size: 72, color: "heading", bold: true, lineHeight: 1.12, valign: "bottom" },
+    { font: "heading", size: layout.fontSize, color: "heading", bold: true, lineHeight: 1.12, valign: layout.valign },
     "title",
   );
 }
 
-// 短い段落だけ（表紙のサブタイトルに使えるか）。
-function extractShortSubtitle(blocks: RawBlock[]): string | null {
+// 短い段落だけ（表紙のサブタイトルに使えるか）。リンク・太字・行内数式などの書式を落とさずそのまま保持する。
+function extractShortSubtitle(blocks: RawBlock[]): RichBlock[] | null {
   const visible = blocks.filter(blockHasVisibleContent);
   if (!visible.length || visible.length > 2) return null;
   if (!visible.every((b) => b.type === "paragraph" && !childrenOf(b).length)) return null;
-  const text = visible.map((b) => inlinePlain(b.content).trim()).filter(Boolean).join("\n");
-  return text.length > 0 && text.length <= 180 ? text : null;
+  const plain = visible.map((b) => inlinePlain(b.content).trim()).filter(Boolean).join("\n");
+  if (!plain.length || plain.length > 180) return null;
+  const richBlocks: RichBlock[] = [];
+  for (const b of visible) {
+    const inline = inlineToRich(b.content);
+    if (richInlineHasContent(inline)) richBlocks.push(paragraphNode(inline, alignOf(propsOf(b)) ?? "center"));
+  }
+  return richBlocks.length ? richBlocks : null;
 }
 
-function makeTitleSlide(title: string, subtitle?: string): Slide {
-  const slide = createSlide("title", { title, ...(subtitle ? { subtitle } : {}) });
-  // サブタイトルが空のときは空の置き場所を残さずすっきり見せる（編集で後から足せる）。
-  if (!subtitle) slide.elements = slide.elements.filter((el) => el.role !== "subtitle");
+function makeTitleSlide(title: string, subtitle?: RichBlock[]): Slide {
+  const slide = createSlide("title", { title });
+  if (subtitle?.length) {
+    const subEl = slide.elements.find((el): el is TextElement => el.type === "text" && el.role === "subtitle");
+    if (subEl) subEl.doc = { type: "doc", content: subtitle };
+  } else {
+    // サブタイトルが空のときは空の置き場所を残さずすっきり見せる（編集で後から足せる）。
+    slide.elements = slide.elements.filter((el) => el.role !== "subtitle");
+  }
   return slide;
 }
 
-function sectionToSlides(section: SectionSpec): Slide[] {
+function sectionToSlides(section: SectionSpec, labels: ResolvedLabels): Slide[] {
   const visibleBody = section.body.filter(blockHasVisibleContent);
 
   // 本文なし + 見出しあり → 章（section）スライド。
@@ -1050,6 +1345,8 @@ function sectionToSlides(section: SectionSpec): Slide[] {
     }
   }
 
+  const headingLayout = section.heading ? computeHeadingLayout(section.heading, CONTENT_W) : null;
+
   // 画像 1 枚 + テキスト少量 → 図と文（または中央に大きな画像）。
   const validImages = visibleBody.filter((b) => b.type === "image" && Boolean(safeImageSrc(propsOf(b).url)));
   if (validImages.length === 1 && !visibleBody.some((b) => b.type === "table" || b.type === COLUMN_LIST || b.type === "codeBlock")) {
@@ -1061,10 +1358,10 @@ function sectionToSlides(section: SectionSpec): Slide[] {
     const others = visibleBody.filter((b) => b !== imgBlock);
     if (!others.length && !childrenOf(imgBlock).length) {
       const elements: SlideElement[] = [];
-      if (section.heading) elements.push(makeHeadingElement(section.heading, section.headingInline, 1));
-      const topY = section.heading ? BODY_TOP_WITH_TITLE : 84;
+      if (section.heading && headingLayout) elements.push(makeHeadingElement(section.heading, section.headingInline, 1, headingLayout));
+      const topY = headingLayout ? headingLayout.bodyTop : 84;
       const capH = caption ? 56 : 0;
-      const imgH = BODY_BOTTOM - topY - capH;
+      const imgH = Math.max(240, BODY_BOTTOM - topY - capH);
       elements.push({
         id: newId(), type: "image", x: MARGIN_X, y: topY, w: CONTENT_W, h: imgH, rotation: 0, role: "image",
         src, alt, fit: "contain", radius: 12,
@@ -1080,16 +1377,15 @@ function sectionToSlides(section: SectionSpec): Slide[] {
     }
     if (!childrenOf(imgBlock).length) {
       const leftW = 820;
-      const leftTop = section.heading ? BODY_TOP_WITH_TITLE : 112;
-      const leftAvail = BODY_BOTTOM - leftTop;
-      const leftItems = blocksToFlowItems(others, leftW, leftAvail);
+      const leftHeadingLayout = section.heading ? computeHeadingLayout(section.heading, leftW) : null;
+      const leftTop = leftHeadingLayout ? leftHeadingLayout.bodyTop : 112;
+      const leftAvail = Math.max(360, BODY_BOTTOM - leftTop);
+      const leftItems = blocksToFlowItems(others, leftW, leftAvail, labels);
       const leftH = leftItems.reduce((sum, item) => sum + item.height, 0) + Math.max(0, leftItems.length - 1) * 18;
       if (leftItems.length && leftH <= leftAvail) {
         const elements: SlideElement[] = [];
-        if (section.heading) {
-          elements.push(makeTextElement(MARGIN_X, TITLE_Y, leftW, TITLE_H,
-            { type: "doc", content: [paragraphNode(section.headingInline ?? [{ type: "text", text: section.heading }])] },
-            { font: "heading", size: 64, color: "heading", bold: true, lineHeight: 1.12, valign: "bottom" }, "title"));
+        if (section.heading && leftHeadingLayout) {
+          elements.push(makeHeadingElement(section.heading, section.headingInline, 1, leftHeadingLayout, leftW));
         }
         elements.push(...layoutFlowItems(leftItems, MARGIN_X, leftTop, leftW, BODY_BOTTOM, "body"));
         const imgX = MARGIN_X + leftW + 60;
@@ -1113,10 +1409,9 @@ function sectionToSlides(section: SectionSpec): Slide[] {
     }
   }
 
-  const hasHeading = Boolean(section.heading);
-  const availH = hasHeading ? AVAIL_WITH_TITLE : AVAIL_NO_TITLE;
-  const bodyTop = hasHeading ? BODY_TOP_WITH_TITLE : BODY_TOP_NO_TITLE;
-  const items = blocksToFlowItems(visibleBody, CONTENT_W, availH);
+  const bodyTop = headingLayout ? headingLayout.bodyTop : BODY_TOP_NO_TITLE;
+  const availH = Math.max(360, BODY_BOTTOM - bodyTop);
+  const items = blocksToFlowItems(visibleBody, CONTENT_W, availH, labels);
   if (!items.length) {
     if (!section.heading) return [];
     const slide = createSlide("section", { title: section.heading });
@@ -1144,7 +1439,7 @@ function sectionToSlides(section: SectionSpec): Slide[] {
 
   return pages.map((pageItems, pageIndex) => {
     const elements: SlideElement[] = [];
-    if (section.heading) elements.push(makeHeadingElement(section.heading, section.headingInline, pageIndex + 1));
+    if (section.heading && headingLayout) elements.push(makeHeadingElement(section.heading, section.headingInline, pageIndex + 1, headingLayout));
     const singleTwoCol = pageItems.length === 1 && pageItems[0].kind === "columns" && pageItems[0].columns.length === 2;
     const allRich = pageItems.every(isRichFlowItem);
     const bodyElements = layoutFlowItems(pageItems, MARGIN_X, bodyTop, CONTENT_W, BODY_BOTTOM, allRich ? "body" : undefined);
@@ -1175,10 +1470,15 @@ function sameTitle(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
-export function noteToDeck({ title, blocks, theme, untitledLabel }: NoteToDeckInput): Deck {
+export function noteToDeckResult({ title, blocks, theme, untitledLabel, labels }: NoteToDeckInput): NoteToDeckResult {
+  const resolvedLabels: ResolvedLabels = {
+    untitled: cleanStr(labels?.untitled ?? untitledLabel, 200).trim() || "Untitled",
+    file: cleanStr(labels?.file, 60).trim() || "File",
+    image: cleanStr(labels?.image, 60).trim() || "Image",
+  };
   const cleanTitle = cleanStr(title, 200).trim();
   const hasTitle = cleanTitle.length > 0 && cleanTitle !== "Untitled";
-  const fallbackTitle = hasTitle ? cleanTitle : (cleanStr(untitledLabel, 200).trim() || "Untitled");
+  const fallbackTitle = hasTitle ? cleanTitle : resolvedLabels.untitled;
   const topBlocks = asBlocks(blocks);
   const deckTheme: DeckTheme = theme ?? DEFAULT_THEME;
 
@@ -1211,12 +1511,12 @@ export function noteToDeck({ title, blocks, theme, untitledLabel }: NoteToDeckIn
               slides.push(makeTitleSlide(heading, sub ?? undefined));
               return;
             }
-            slides.push(...sectionToSlides({ heading, headingInline, body: rest }));
+            slides.push(...sectionToSlides({ heading, headingInline, body: rest }, resolvedLabels));
             return;
           }
           if (heading) {
             slides.push(makeTitleSlide(cleanTitle));
-            slides.push(...sectionToSlides({ heading, headingInline, body: rest, sectionLabel: heading }));
+            slides.push(...sectionToSlides({ heading, headingInline, body: rest, sectionLabel: heading }, resolvedLabels));
             return;
           }
           const sub = extractShortSubtitle(rest);
@@ -1224,10 +1524,10 @@ export function noteToDeck({ title, blocks, theme, untitledLabel }: NoteToDeckIn
             slides.push(makeTitleSlide(cleanTitle, sub));
             return;
           }
-          slides.push(...sectionToSlides({ heading: cleanTitle, headingInline: null, body: rest }));
+          slides.push(...sectionToSlides({ heading: cleanTitle, headingInline: null, body: rest }, resolvedLabels));
           return;
         }
-        slides.push(...sectionToSlides({ heading, headingInline, body: rest, sectionLabel: index > 0 && heading ? heading : undefined }));
+        slides.push(...sectionToSlides({ heading, headingInline, body: rest, sectionLabel: index > 0 && heading ? heading : undefined }, resolvedLabels));
       });
     }
   } else {
@@ -1256,13 +1556,13 @@ export function noteToDeck({ title, blocks, theme, untitledLabel }: NoteToDeckIn
         if (hasTitle) {
           const sub = extractShortSubtitle(intro);
           if (sub) slides.push(makeTitleSlide(cleanTitle, sub));
-          else slides.push(...sectionToSlides({ heading: cleanTitle, headingInline: null, body: intro }));
+          else slides.push(...sectionToSlides({ heading: cleanTitle, headingInline: null, body: intro }, resolvedLabels));
         } else {
           const { heading, headingInline, rest } = splitLeadingHeading(intro);
-          slides.push(...sectionToSlides({ heading, headingInline, body: rest }));
+          slides.push(...sectionToSlides({ heading, headingInline, body: rest }, resolvedLabels));
         }
         h1Sections.forEach((sec) => {
-          slides.push(...sectionToSlides({ heading: sec.heading, headingInline: sec.headingInline, body: sec.body, sectionLabel: sec.heading }));
+          slides.push(...sectionToSlides({ heading: sec.heading, headingInline: sec.headingInline, body: sec.body, sectionLabel: sec.heading }, resolvedLabels));
         });
       } else {
         // 先頭がすでに H1 のとき：空のスライドを挟まない。
@@ -1270,17 +1570,17 @@ export function noteToDeck({ title, blocks, theme, untitledLabel }: NoteToDeckIn
         if (hasTitle && !sameTitle(first.heading, cleanTitle)) {
           slides.push(makeTitleSlide(cleanTitle));
           h1Sections.forEach((sec) => {
-            slides.push(...sectionToSlides({ heading: sec.heading, headingInline: sec.headingInline, body: sec.body, sectionLabel: sec.heading }));
+            slides.push(...sectionToSlides({ heading: sec.heading, headingInline: sec.headingInline, body: sec.body, sectionLabel: sec.heading }, resolvedLabels));
           });
         } else {
           const firstSub = extractShortSubtitle(first.body);
           if (!blocksHaveVisibleContent(first.body) || firstSub) {
             slides.push(makeTitleSlide(first.heading, firstSub ?? undefined));
           } else {
-            slides.push(...sectionToSlides({ heading: first.heading, headingInline: first.headingInline, body: first.body }));
+            slides.push(...sectionToSlides({ heading: first.heading, headingInline: first.headingInline, body: first.body }, resolvedLabels));
           }
           h1Sections.slice(1).forEach((sec) => {
-            slides.push(...sectionToSlides({ heading: sec.heading, headingInline: sec.headingInline, body: sec.body, sectionLabel: sec.heading }));
+            slides.push(...sectionToSlides({ heading: sec.heading, headingInline: sec.headingInline, body: sec.body, sectionLabel: sec.heading }, resolvedLabels));
           });
         }
       }
@@ -1295,15 +1595,22 @@ export function noteToDeck({ title, blocks, theme, untitledLabel }: NoteToDeckIn
         } else {
           slides.push(makeTitleSlide(cleanTitle));
           const { heading, headingInline, rest } = splitLeadingHeading(topBlocks);
-          slides.push(...sectionToSlides({ heading, headingInline, body: rest }));
+          slides.push(...sectionToSlides({ heading, headingInline, body: rest }, resolvedLabels));
         }
       } else {
         const { heading, headingInline, rest } = splitLeadingHeading(topBlocks);
-        slides.push(...sectionToSlides({ heading, headingInline, body: rest }));
+        slides.push(...sectionToSlides({ heading, headingInline, body: rest }, resolvedLabels));
       }
     }
   }
 
-  const bounded = slides.length ? slides.slice(0, MAX_SLIDES) : [makeTitleSlide(fallbackTitle)];
-  return normalizeDeck({ format: 1, theme: deckTheme, slides: bounded });
+  const allSlides = slides.length ? slides : [makeTitleSlide(fallbackTitle)];
+  const totalSlides = allSlides.length;
+  const bounded = allSlides.slice(0, MAX_SLIDES);
+  const deck = normalizeDeck({ format: 1, theme: deckTheme, slides: bounded });
+  return { deck, totalSlides, truncatedSlides: Math.max(0, totalSlides - deck.slides.length) };
+}
+
+export function noteToDeck(input: NoteToDeckInput): Deck {
+  return noteToDeckResult(input).deck;
 }

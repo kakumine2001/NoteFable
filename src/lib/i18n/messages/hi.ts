@@ -1145,4 +1145,7 @@ export const hi: Record<string, string> = {
   "Slide transitions aren’t included in PPTX export.": "PPTX एक्सपोर्ट में स्लाइड ट्रांज़िशन शामिल नहीं होते हैं।",
   "Save as slide deck": "स्लाइड डेक के रूप में सहेजें",
   "Could not save as slide deck.": "स्लाइड डेक के रूप में सहेजा नहीं जा सका।",
+  "File": "फ़ाइल",
+  "Only the first {max} slides are shown ({total} total).": "केवल पहली {max} स्लाइड दिखाई गई हैं (कुल {total})।",
+  "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "यह नोट {max} स्लाइड की सीमा से अधिक है। क्या केवल पहली {max} स्लाइड सहेजें?",
 };

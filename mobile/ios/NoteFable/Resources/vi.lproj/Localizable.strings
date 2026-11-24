@@ -588,6 +588,7 @@
 "slides_export_pdf_notes" = "Xuất PDF kèm ghi chú";
 "slides_export_png" = "Xuất ảnh PNG";
 "slides_export_pptx" = "Xuất PowerPoint (PPTX)";
+"slides_export_pptx_transition_note" = "Hiệu ứng chuyển tiếp trang chiếu không được bao gồm khi xuất PPTX.";
 
 /* strings_turns.xml */
 "regenerate" = "Tạo lại";

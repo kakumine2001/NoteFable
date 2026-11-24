@@ -1154,4 +1154,7 @@ export const zh: Record<string, string> = {
   "Slide transitions aren’t included in PPTX export.": "导出为 PPTX 时不包含幻灯片转场效果。",
   "Save as slide deck": "另存为幻灯片",
   "Could not save as slide deck.": "无法另存为幻灯片。",
+  "File": "文件",
+  "Only the first {max} slides are shown ({total} total).": "仅显示前 {max} 页幻灯片（共 {total} 页）。",
+  "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "此笔记超过 {max} 页幻灯片上限。仅保存前 {max} 页吗？",
 };

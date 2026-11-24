@@ -1145,4 +1145,7 @@ export const ru: Record<string, string> = {
   "Slide transitions aren’t included in PPTX export.": "Переходы между слайдами не сохраняются при экспорте в PPTX.",
   "Save as slide deck": "Сохранить как презентацию",
   "Could not save as slide deck.": "Не удалось сохранить как презентацию.",
+  "File": "Файл",
+  "Only the first {max} slides are shown ({total} total).": "Показаны только первые {max} слайдов (всего {total}).",
+  "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "Эта заметка превышает лимит в {max} слайдов. Сохранить только первые {max} слайдов?",
 };

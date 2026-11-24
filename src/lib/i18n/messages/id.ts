@@ -1145,4 +1145,7 @@ export const id: Record<string, string> = {
   "Slide transitions aren’t included in PPTX export.": "Transisi slide tidak disertakan saat mengekspor ke PPTX.",
   "Save as slide deck": "Simpan sebagai slide",
   "Could not save as slide deck.": "Tidak dapat menyimpan sebagai slide.",
+  "File": "Berkas",
+  "Only the first {max} slides are shown ({total} total).": "Hanya {max} slide pertama yang ditampilkan ({total} total).",
+  "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "Catatan ini melebihi batas {max} slide. Simpan hanya {max} slide pertama?",
 };

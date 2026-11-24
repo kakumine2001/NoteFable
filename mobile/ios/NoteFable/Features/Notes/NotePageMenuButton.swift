@@ -133,6 +133,14 @@ private struct NotePageMenuContent: View {
         ActionsMenuItem(L("slides_export_pdf_notes"), icon: Lucide.download, action: run { onSlides(#"{"action":"export","format":"pdf-notes"}"#) })
         ActionsMenuItem(L("slides_export_png"), icon: Lucide.download, action: run { onSlides(#"{"action":"export","format":"png"}"#) })
         ActionsMenuItem(L("slides_export_pptx"), icon: Lucide.download, action: run { onSlides(#"{"action":"export","format":"pptx"}"#) })
+        Text(L("slides_export_pptx_transition_note"))
+            .font(.nf(11.5))
+            .nfLineHeight(16, fontSize: 11.5)
+            .foregroundStyle(Sm.muted)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.top, 2)
+            .padding(.bottom, 6)
     }
 
     @ViewBuilder

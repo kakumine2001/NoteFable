@@ -53,15 +53,29 @@ const invalid = () => new NoteValidationError(msg("This page contains invalid wh
 export const CANVAS_TOO_LARGE = msg("This page is larger than 2 MB and cannot be saved.");
 
 // 本体全体をたどり、壊れた値・埋め込み画像・他人のファイルの参照につながるものを見る。再帰を使わない（深い JSON でもスタックを使い切らない）。
-function scan(value: unknown, files: Map<string, string>) {
-  const stack: { value: unknown; depth: number }[] = [{ value, depth: 0 }];
+// スライドの本文・表セル・メモ・数式に書いた文字列（"data:image/png;base64,..." の引用など）は画像埋め込みとして誤拒否しない。
+// src / url / dataURL / href / link などの資源参照は引き続き厳格に拒否する。
+function isSlideLiteralTextField(parent: Record<string, unknown>, key: string): boolean {
+  // ProseMirror のテキストノード（スライド要素には必ず id があるが、テキスト葉には id が無い）。
+  if (key === "text" && parent.type === "text" && parent.id === undefined) return true;
+  // 表セル（{ text: "..." }）。
+  if (key === "text" && Object.keys(parent).length === 1) return true;
+  // スライドの演説者メモ。
+  if (key === "notes" && typeof parent.id === "string" && Array.isArray(parent.elements)) return true;
+  // 数式の TeX 文字列。
+  if (key === "latex" && Object.keys(parent).length === 1) return true;
+  return false;
+}
+
+function scan(kind: CanvasKind, value: unknown, files: Map<string, string>) {
+  const stack: { value: unknown; depth: number; literalText: boolean }[] = [{ value, depth: 0, literalText: false }];
   while (stack.length) {
-    const { value: current, depth } = stack.pop()!;
+    const { value: current, depth, literalText } = stack.pop()!;
     if (depth > MAX_DEPTH) throw invalid();
     if (typeof current === "string") {
       // PostgreSQL の jsonb は NUL を入れられない（保存で 500 にならないよう、先に断る）。
       if (current.includes("\u0000") || LONE_SURROGATE.test(current)) throw invalid();
-      if (INLINE_DATA_URL.test(current)) throw new NoteValidationError(msg("Images must be uploaded, not embedded in the page."));
+      if (!literalText && INLINE_DATA_URL.test(current)) throw new NoteValidationError(msg("Images must be uploaded, not embedded in the page."));
       // 先頭の空白も URL としては同じに読まれるので、空白を飛ばして見分ける（その形は parseNoteFileUrl が断る）。
       if (current.trimStart().startsWith(FILE_URL_PREFIX)) {
         const parsed = parseNoteFileUrl(current);
@@ -73,13 +87,13 @@ function scan(value: unknown, files: Map<string, string>) {
     if (typeof current === "number") { if (!Number.isFinite(current)) throw invalid(); continue; }
     if (current === null || typeof current === "boolean") continue;
     if (Array.isArray(current)) {
-      for (const item of current) stack.push({ value: item, depth: depth + 1 });
+      for (const item of current) stack.push({ value: item, depth: depth + 1, literalText: false });
       continue;
     }
     if (!object(current)) throw invalid();
     for (const [key, item] of Object.entries(current)) {
       if (key.includes("\u0000") || LONE_SURROGATE.test(key)) throw invalid();
-      stack.push({ value: item, depth: depth + 1 });
+      stack.push({ value: item, depth: depth + 1, literalText: kind === "slides" && isSlideLiteralTextField(current, key) });
     }
   }
 }
@@ -133,7 +147,7 @@ export function validateCanvasData(kind: CanvasKind, value: unknown): ValidatedC
   if (!object(value)) throw invalid();
   // 深さを先に（再帰しない scan で）確かめる。深すぎる JSON は JSON.stringify がスタックを使い切って 503 になる。
   const files = new Map<string, string>();
-  scan(value, files);
+  scan(kind, value, files);
   const size = new TextEncoder().encode(JSON.stringify(value)).byteLength;
   if (size > MAX_CANVAS_BYTES[kind]) throw new NoteValidationError(CANVAS_TOO_LARGE, 413);
   if (!(kind === "whiteboard" ? validWhiteboard(value) : validSlides(value))) throw invalid();

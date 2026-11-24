@@ -1145,4 +1145,7 @@ export const tr: Record<string, string> = {
   "Slide transitions aren’t included in PPTX export.": "Slayt geçişleri PPTX dışa aktarımına dahil edilmez.",
   "Save as slide deck": "Slayt olarak kaydet",
   "Could not save as slide deck.": "Slayt olarak kaydedilemedi.",
+  "File": "Dosya",
+  "Only the first {max} slides are shown ({total} total).": "Yalnızca ilk {max} slayt gösteriliyor (toplam {total}).",
+  "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "Bu not {max} slayt sınırını aşıyor. Yalnızca ilk {max} slayt kaydedilsin mi?",
 };

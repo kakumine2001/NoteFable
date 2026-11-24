@@ -135,6 +135,13 @@ fun NotePageMenuButton(page: NotePageSummary, actions: NotePageMenuActions) {
                     MenuItem(stringResource(R.string.slides_export_pdf_notes), Lucide.Download, onClick = run { slides("""{"action":"export","format":"pdf-notes"}""") })
                     MenuItem(stringResource(R.string.slides_export_png), Lucide.Download, onClick = run { slides("""{"action":"export","format":"png"}""") })
                     MenuItem(stringResource(R.string.slides_export_pptx), Lucide.Download, onClick = run { slides("""{"action":"export","format":"pptx"}""") })
+                    Text(
+                        stringResource(R.string.slides_export_pptx_transition_note),
+                        color = Sm.Muted,
+                        fontSize = 11.5.sp,
+                        lineHeight = 16.sp,
+                        modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 2.dp, bottom = 6.dp),
+                    )
                     Divider()
                 }
             }

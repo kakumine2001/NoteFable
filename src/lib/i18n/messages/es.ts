@@ -1145,4 +1145,7 @@ export const es: Record<string, string> = {
   "Slide transitions aren’t included in PPTX export.": "Las transiciones entre diapositivas no se incluyen al exportar a PPTX.",
   "Save as slide deck": "Guardar como presentación",
   "Could not save as slide deck.": "No se pudo guardar como presentación.",
+  "File": "Archivo",
+  "Only the first {max} slides are shown ({total} total).": "Solo se muestran las primeras {max} diapositivas ({total} en total).",
+  "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "Esta nota supera el límite de {max} diapositivas. ¿Guardar solo las primeras {max} diapositivas?",
 };

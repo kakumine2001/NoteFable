@@ -1146,4 +1146,7 @@ export const ja: Record<string, string> = {
   "Slide transitions aren’t included in PPTX export.": "PPTX 書き出しにはスライドの切り替え効果は含まれません。",
   "Save as slide deck": "スライドとして保存",
   "Could not save as slide deck.": "スライドとして保存できませんでした。",
+  "File": "ファイル",
+  "Only the first {max} slides are shown ({total} total).": "先頭の {max} 枚のみ表示しています（全 {total} 枚）。",
+  "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "このノートはスライドの上限（{max} 枚）を超えています。先頭の {max} 枚だけを保存しますか？",
 };

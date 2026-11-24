@@ -6,4 +6,5 @@
     <string name="slides_export_pdf_notes">Exporter en PDF avec les notes du présentateur</string>
     <string name="slides_export_png">Exporter en images PNG</string>
     <string name="slides_export_pptx">Exporter vers PowerPoint (PPTX)</string>
+    <string name="slides_export_pptx_transition_note">Les transitions entre diapositives ne sont pas incluses dans l’exportation PPTX.</string>
 </resources>

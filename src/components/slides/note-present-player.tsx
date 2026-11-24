@@ -6,13 +6,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "@/components/i18n-provider";
 import { SlidePlayer, type PlayerControl } from "@/components/slides/slide-player";
 import { SlideRenderRoot } from "@/components/slides/slide-render";
-import type { CanvasData } from "@/lib/canvas-document";
+import { MAX_SLIDES, type CanvasData } from "@/lib/canvas-document";
 import { newPageBody } from "@/lib/canvas-save";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
 import { nativeCanOpenPage, nativeCanPresent, postToNative } from "@/lib/native-bridge";
 import { MAX_NOTE_TITLE } from "@/lib/note-document";
 import { SLIDES_EVENTS } from "@/lib/slides/ai-context";
-import { noteToDeck } from "@/lib/slides/note-to-deck";
+import { noteToDeckResult } from "@/lib/slides/note-to-deck";
 import { resolveTheme } from "@/lib/slides/themes";
 import type { NotePage } from "@/types/notes";
 
@@ -37,11 +37,11 @@ export default function NotePresentPlayer({
 }: NotePresentPlayerProps) {
   const t = useT();
   // 放映中の裏同期や編集通知でページ構成が急に変わらないよう、開始時のスナップショットを固定する。
-  const [deck] = useState(() => noteToDeck({
+  const [{ deck, totalSlides, truncatedSlides }] = useState(() => noteToDeckResult({
     title,
     blocks,
     theme: { id: "simple", mode: documentThemeMode() },
-    untitledLabel: t("Untitled"),
+    labels: { untitled: t("Untitled"), file: t("File"), image: t("Image") },
   }));
   const theme = useMemo(() => resolveTheme(deck.theme), [deck.theme]);
   const playerControl = useRef<PlayerControl | null>(null);
@@ -92,6 +92,13 @@ export default function NotePresentPlayer({
 
   const handleSaveAsDeck = useCallback(async () => {
     if (savingRef.current) return;
+    if (
+      truncatedSlides > 0
+      && typeof window !== "undefined"
+      && !window.confirm(t("This note exceeds the {max}-slide limit. Save only the first {max} slides?", { max: MAX_SLIDES }))
+    ) {
+      return;
+    }
     savingRef.current = true;
     setSaving(true);
     setSaveError("");
@@ -140,10 +147,15 @@ export default function NotePresentPlayer({
       savingRef.current = false;
       if (mountedRef.current) setSaving(false);
     }
-  }, [deck, embedded, endNativePresentation, groupId, icon, onExit, onSaved, parentId, t, title]);
+  }, [deck, embedded, endNativePresentation, groupId, icon, onExit, onSaved, parentId, t, title, truncatedSlides]);
 
   const header = (
-    <div className={`slides-player-header${saving || saveError ? " is-pinned" : ""}`}>
+    <div className={`slides-player-header${saving || saveError || truncatedSlides > 0 ? " is-pinned" : ""}`}>
+      {truncatedSlides > 0 && !saveError && (
+        <span className="slides-player-notice" role="status">
+          {t("Only the first {max} slides are shown ({total} total).", { max: MAX_SLIDES, total: totalSlides })}
+        </span>
+      )}
       {saveError && <span className="slides-player-error" role="alert">{saveError}</span>}
       <button
         type="button"

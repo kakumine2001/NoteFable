@@ -292,8 +292,8 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
         title={active.content.title}
         icon={active.content.icon}
         blocks={active.content.blocks}
-        parentId={activeSummary?.parentId ?? active.page.parentId ?? null}
-        groupId={activeSummary?.groupId ?? active.page.groupId ?? null}
+        parentId={activeSummary && activeSummary.parentId !== undefined ? activeSummary.parentId : (active.page.parentId ?? null)}
+        groupId={activeSummary ? activeSummary.groupId : (active.page.groupId ?? null)}
         embedded={embedded}
         onOpenSaved={(id) => { if (!embedded) onOpen(id); else void notes.select(id, "none"); }}
       />

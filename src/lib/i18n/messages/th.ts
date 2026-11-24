@@ -1145,4 +1145,7 @@ export const th: Record<string, string> = {
   "Slide transitions aren’t included in PPTX export.": "การเปลี่ยนสไลด์จะไม่รวมอยู่ในการส่งออก PPTX",
   "Save as slide deck": "บันทึกเป็นสไลด์",
   "Could not save as slide deck.": "ไม่สามารถบันทึกเป็นสไลด์ได้",
+  "File": "ไฟล์",
+  "Only the first {max} slides are shown ({total} total).": "แสดงเฉพาะ {max} สไลด์แรก (ทั้งหมด {total} สไลด์)",
+  "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "โน้ตนี้เกินขีดจำกัด {max} สไลด์ ต้องการบันทึกเฉพาะ {max} สไลด์แรกหรือไม่?",
 };

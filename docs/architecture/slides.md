@@ -46,7 +46,7 @@
 
 - 全屏一页一页放（`slide-player.tsx`），键位与 PowerPoint / Google 幻灯片相同（`player-keys.ts`）：下一页 → ↓ 空格 PageDown Enter N，上一页 ← ↑ PageUp Backspace P，Home / End，数字 + Enter 跳页，B / . 黑屏，W / , 白屏，Esc 结束（正在输入数字时先清数字）。点击、滑动也能翻页。隐藏的页跳过（从隐藏页开始或按数字跳转时仍显示）。
 - **转场动画**：全屏放映（`SlidePlayer`）与公开放映页（`PublicSlidesPlayer`）按目标页的 `transition` 播放淡入或方向感知的滑入动画（首次挂载不播放；`[dir="rtl"]` 下自动镜像滑入方向；系统开启 `prefers-reduced-motion: reduce` 时完全禁用）。
-- **笔记一键放映**：普通笔记的“…”菜单提供 **Present**（锁定页面也可放映），不写库、按需动态加载 `src/components/slides/note-present-player.tsx`（常规浏览笔记不拉入幻灯片代码与 CSS）。纯函数 `src/lib/slides/note-to-deck.ts` 把 BlockNote 块就地转为临时 `Deck`：优先按 `divider` 分页，其次按顶层 H1 分页，否则封面 + 正文；支持标题、列表、引用、Callout、公式（KaTeX）、代码块、表格、站内图片、分栏与文件，单页内容超出安全高度时自动拆出续页（标题带 `(2)` 等序号）。放映顶栏提供 **Save as slide deck**（`POST /api/pages` 建同级 `kind: "slides"` 页面，派发 `notefable:page-created` 后打开新建幻灯片；原生端经 `openPage` 打开）。
+- **笔记一键放映**：普通笔记的“…”菜单提供 **Present**（锁定页面也可放映），不写库、按需动态加载 `src/components/slides/note-present-player.tsx`（常规浏览笔记不拉入幻灯片代码与 CSS）。纯函数 `src/lib/slides/note-to-deck.ts`（`noteToDeck` / `noteToDeckResult`）把 BlockNote 块就地转为临时 `Deck`：优先按 `divider` 分页，其次按顶层 H1 分页，否则封面 + 正文；支持标题（按宽度自适应字号与高度）、列表、引用、Callout、公式（KaTeX）、代码块、表格（展开 `colspan`/`rowspan` 并对 >20 列横向分页）、站内图片、分栏与文件，单页内容超出安全高度时自动拆出续页（标题带 `(2)` 等序号）；超过 500 页上限时在放映顶栏提示并在另存前二次确认。放映顶栏提供 **Save as slide deck**（`POST /api/pages` 建同级 `kind: "slides"` 页面，派发 `notefable:page-created` 后打开新建幻灯片；原生端经 `openPage` 打开）。
 - 放映时请求 Wake Lock（屏幕常亮）；触摸设备全屏后尝试锁定横屏（浏览器不支持就算了）。
 - **演讲者视图**（桌面）：另开一个窗口，显示当前页、下一页、备注（可调字号）、已用时间和时钟，两个窗口都能用键盘翻页。
 - **手机**：竖屏时编辑器是浏览模式（缩略图带在下、设置在底部抽屉）；放映在 App 里交给原生（见下），在手机浏览器里用全屏 + 横屏锁定。
@@ -57,7 +57,7 @@
 
 - **PDF**：一页一张图（16:9）；“带演讲者备注”是 A4 竖版，上面是页图、下面是备注。隐藏页不导出。
 - **PNG**：一页一张，两页以上打成 ZIP。隐藏页不导出。
-- **PPTX**：文字、形状、线、表格是 PowerPoint / Google 幻灯片里可编辑的对象（主题字体写字体名，没装时 PowerPoint 用替代字体）；图片按框裁切（cover）或缩放（contain）后放入；隐藏页标为隐藏；备注写进备注页。公式写成 TeX 文字（`$…$`），不转成 PowerPoint 公式；幻灯片转场不包含在 PPTX 导出中（导出菜单注明）。
+- **PPTX**：文字、形状、线、表格是 PowerPoint / Google 幻灯片里可编辑的对象（主题字体写字体名，没装时 PowerPoint 用替代字体）；图片按框裁切（cover）或缩放（contain）后放入；隐藏页标为隐藏；备注写进备注页。公式写成 TeX 文字（`$…$`），不转成 PowerPoint 公式；幻灯片转场不包含在 PPTX 导出中（网页导出菜单与 Android / iOS “…”菜单均注明）。
 - 文件交给 `saveExportFile(blob, name)`（`src/lib/export-file.ts`，白板的导出也用它）：浏览器里是下载（`download`）；App 里分块交给原生保存（`app`，见下）；不能收文件的旧版 App 返回 `unsupported`，编辑器提示 “Update the app to save exported files.”（WebView 处理不了 `blob:` 下载）；超过 64 MiB（`MAX_APP_FILE_BYTES`）不交给 App，返回 `tooLarge`（“This file is too large to save in the app.”）；发送途中失败是 `failed`（“Could not save the file.”）。
 
 ## 公开放映链接

@@ -1145,4 +1145,7 @@ export const ar: Record<string, string> = {
   "Slide transitions aren’t included in PPTX export.": "لا تُضمَّن انتقالات الشرائح عند التصدير إلى PPTX.",
   "Save as slide deck": "حفظ كعرض شرائح",
   "Could not save as slide deck.": "تعذّر الحفظ كعرض شرائح.",
+  "File": "ملف",
+  "Only the first {max} slides are shown ({total} total).": "تُعرض أول {max} شريحة فقط (من إجمالي {total}).",
+  "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "تتجاوز هذه الملاحظة حد {max} شريحة. هل تريد حفظ أول {max} شريحة فقط؟",
 };

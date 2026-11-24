@@ -257,6 +257,7 @@
 
 /* ---- 放映 ---- */
 .slides-player { --slide-dir: 1; position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column; background: #000; color: #fff; }
+.slides-player:focus { outline: none; }
 .slides-player-stage { position: relative; display: flex; min-height: 0; flex: 1; align-items: center; justify-content: center; overflow: hidden; touch-action: pan-y; cursor: pointer; user-select: none; }
 .slides-player-frame { border-radius: 0; }
 .slides-player-header { position: absolute; top: max(16px, env(safe-area-inset-top)); inset-inline-end: max(16px, env(safe-area-inset-right)); z-index: 4; display: flex; align-items: center; gap: 8px; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
@@ -265,6 +266,7 @@
 .slides-player-action:hover:not(:disabled) { background: rgba(39, 39, 42, 0.94); }
 .slides-player-action:focus-visible { outline: 2px solid var(--nf-accent-line); outline-offset: 2px; }
 .slides-player-action:disabled { opacity: 0.6; }
+.slides-player-notice { max-width: min(380px, 60vw); padding: 6px 10px; border-radius: 8px; background: rgba(180, 83, 9, 0.92); color: #fffbeb; font-size: 12.5px; line-height: 1.35; }
 .slides-player-error { max-width: min(360px, 60vw); padding: 6px 10px; border-radius: 8px; background: rgba(153, 27, 27, 0.92); color: #fef2f2; font-size: 12.5px; line-height: 1.35; }
 .slides-player-blank { position: absolute; inset: 0; z-index: 2; }
 .slides-player-blank.is-black { background: #000; }

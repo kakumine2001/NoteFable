@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MAX_SLIDES, validateCanvasData } from "@/lib/canvas-document";
 import { normalizeDeck, SLIDE_HEIGHT, SLIDE_WIDTH, type ImageElement, type ShapeElement, type Slide, type TableElement, type TextElement } from "./model";
-import { noteToDeck } from "./note-to-deck";
+import { noteToDeck, noteToDeckResult } from "./note-to-deck";
 import { richDocLatex, richDocText, type RichBlock } from "./rich-text";
 
 const VALID_IMG = "/api/pages/files?key=note-files%2Fuser1%2F0e4b3f7c-1111-4c3a-9b1d-2f6f1f2a3b4c.png&name=diagram.png";
@@ -349,5 +349,157 @@ describe("noteToDeck", () => {
     expect(images).toHaveLength(1);
     expect(images[0].src).toBe(VALID_IMG);
     expect(slideTexts(deck.slides[3]).join("\n")).toContain("Full-bleed diagram");
+  });
+
+  it("paginates multi-line short paragraphs by line count while preserving marks and inline math", () => {
+    const manyLines = Array.from({ length: 80 }, (_, i) => `L${i + 1}`).join("\n");
+    const deck = noteToDeck({
+      title: "Lines",
+      blocks: [
+        textBlock("heading", "Short Lines", { level: 1 }),
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: `${manyLines}\n`, styles: { bold: true } },
+            { type: "mathInline", props: { latex: "a^2 + b^2 = c^2" } },
+          ],
+          children: [],
+        },
+      ],
+    });
+    expectValidDeck(deck);
+    const bodySlides = deck.slides.filter((s) => slideTexts(s).some((txt) => txt.startsWith("Short Lines")));
+    expect(bodySlides.length).toBeGreaterThan(2);
+    const allText = bodySlides.flatMap(slideTexts).join("\n");
+    expect(allText).toContain("L1");
+    expect(allText).toContain("L80");
+    const latexes = bodySlides.flatMap((s) => s.elements).flatMap((el) => ((el.type === "text" || el.type === "shape") && el.doc ? [...richDocLatex(el.doc)] : []));
+    expect(latexes).toContain("i:a^2 + b^2 = c^2");
+    const hasBold = bodySlides.flatMap(slideBlocks).filter((b) => b.type === "paragraph").flatMap((p) => p.content ?? [])
+      .some((n) => n.type === "text" && n.marks?.some((m) => m.type === "strong"));
+    expect(hasBold).toBe(true);
+  });
+
+  it("preserves text longer than 20,000 characters across continuation slides and reports slide-limit truncation", () => {
+    const longCode = `${"x = 1;\n".repeat(3800)}const TAIL_MARKER = 999;`;
+    expect(longCode.length).toBeGreaterThan(25_000);
+    const deck = noteToDeck({
+      title: "Huge Code",
+      blocks: [textBlock("heading", "Code", { level: 1 }), textBlock("codeBlock", longCode, { language: "ts" })],
+    });
+    expectValidDeck(deck);
+    expect(deck.slides.flatMap(slideTexts).join("\n")).toContain("TAIL_MARKER");
+
+    const overLimit = Array.from({ length: MAX_SLIDES + 5 }, (_, i) => textBlock("heading", `S${i + 1}`, { level: 1 }));
+    const result = noteToDeckResult({ title: "Over Limit", blocks: overLimit });
+    expectValidDeck(result.deck);
+    expect(result.deck.slides.length).toBe(MAX_SLIDES);
+    expect(result.totalSlides).toBeGreaterThan(MAX_SLIDES);
+    expect(result.truncatedSlides).toBe(result.totalSlides - MAX_SLIDES);
+  });
+
+  it("expands merged table cells (colspan/rowspan) and horizontally paginates tables wider than 20 columns", () => {
+    const cell = (t: string) => [{ type: "text", text: t, styles: {} }];
+    const mergedTable = {
+      type: "table",
+      content: {
+        type: "tableContent",
+        headerRows: 1,
+        rows: [
+          { cells: [cell("C1"), cell("C2"), cell("C3")] },
+          { cells: [{ type: "tableCell", props: { colspan: 2 }, content: cell("Merged") }, cell("Third")] },
+          { cells: [{ type: "tableCell", props: { rowspan: 2 }, content: cell("Tall") }, cell("R3C2"), cell("R3C3")] },
+          { cells: [cell("R4C2"), cell("R4C3")] },
+        ],
+      },
+      children: [],
+    };
+    const mergedDeck = noteToDeck({ title: "Merged", blocks: [mergedTable] });
+    expectValidDeck(mergedDeck);
+    const tbl = mergedDeck.slides.flatMap((s) => s.elements).find((el): el is TableElement => el.type === "table")!;
+    expect(tbl.rows[1].cells.map((c) => c.text)).toEqual(["Merged", "", "Third"]);
+    expect(tbl.rows[2].cells.map((c) => c.text)).toEqual(["Tall", "R3C2", "R3C3"]);
+    expect(tbl.rows[3].cells.map((c) => c.text)).toEqual(["", "R4C2", "R4C3"]);
+
+    const wideTable = {
+      type: "table",
+      content: {
+        type: "tableContent",
+        headerRows: 1,
+        rows: [
+          { cells: Array.from({ length: 24 }, (_, idx) => cell(`H${idx + 1}`)) },
+          { cells: Array.from({ length: 24 }, (_, idx) => cell(`V${idx + 1}`)) },
+        ],
+      },
+      children: [],
+    };
+    const wideDeck = noteToDeck({ title: "Wide", blocks: [wideTable] });
+    expectValidDeck(wideDeck);
+    const wideTables = wideDeck.slides.flatMap((s) => s.elements).filter((el): el is TableElement => el.type === "table");
+    expect(wideTables.length).toBe(2);
+    expect(wideTables[0].rows[0].cells).toHaveLength(20);
+    expect(wideTables[1].rows[0].cells.map((c) => c.text)).toEqual(["H21", "H22", "H23", "H24"]);
+    expect(wideTables[1].rows[1].cells.map((c) => c.text)).toEqual(["V21", "V22", "V23", "V24"]);
+  });
+
+  it("preserves non-paragraph children in long overflowing quotes, fits long CJK headings, preserves rich cover subtitles, and localizes labels", () => {
+    const longQuoteDeck = noteToDeck({
+      title: "Quote",
+      blocks: [
+        textBlock("quote", "Line of quote text.\n".repeat(30), {}, [
+          { type: "mathBlock", props: { latex: "E = h\\nu" }, children: [] },
+          textBlock("bulletListItem", "Nested bullet inside long quote"),
+        ]),
+      ],
+    });
+    expectValidDeck(longQuoteDeck);
+    expect(longQuoteDeck.slides.flatMap(slideTexts).join("\n")).toContain("Nested bullet inside long quote");
+    const qLatex = longQuoteDeck.slides.flatMap((s) => s.elements).flatMap((el) => ((el.type === "text" || el.type === "shape") && el.doc ? [...richDocLatex(el.doc)] : []));
+    expect(qLatex).toContain("d:E = h\\nu");
+
+    const cjkHeading = "一二三四五六七八九十".repeat(9);
+    const longHeadingDeck = noteToDeck({
+      title: "CJK",
+      blocks: [textBlock("heading", cjkHeading, { level: 1 }), textBlock("paragraph", "Body below long heading")],
+    });
+    expectValidDeck(longHeadingDeck);
+    const sectionSlide = longHeadingDeck.slides[1];
+    const titleEl = sectionSlide.elements.find((el): el is TextElement => el.type === "text" && el.role === "title")!;
+    const bodyEl = sectionSlide.elements.find((el): el is TextElement => el.type === "text" && el.role === "body")!;
+    expect(titleEl.style.size).toBeLessThan(72);
+    expect(titleEl.style.valign).toBe("top");
+    expect(bodyEl.y).toBeGreaterThanOrEqual(titleEl.y + titleEl.h);
+
+    const richSubDeck = noteToDeck({
+      title: "Cover",
+      blocks: [{
+        type: "paragraph",
+        content: [
+          { type: "link", href: "https://example.com/spec", content: [{ type: "text", text: "Spec", styles: {} }] },
+          { type: "text", text: " ", styles: {} },
+          { type: "mathInline", props: { latex: "\\alpha + \\beta" } },
+        ],
+        children: [],
+      }],
+    });
+    expectValidDeck(richSubDeck);
+    expect(richSubDeck.slides).toHaveLength(1);
+    const subEl = richSubDeck.slides[0].elements.find((el): el is TextElement => el.type === "text" && el.role === "subtitle")!;
+    expect([...richDocLatex(subEl.doc)]).toContain("i:\\alpha + \\beta");
+    const subMarks = subEl.doc.content.flatMap((b) => (b.type === "paragraph" ? b.content ?? [] : [])).flatMap((n) => (n.type === "text" ? n.marks ?? [] : []));
+    expect(subMarks.some((m) => m.type === "link" && m.attrs.href === "https://example.com/spec")).toBe(true);
+
+    const localized = noteToDeck({
+      title: "Localized",
+      labels: { untitled: "无标题", file: "文件", image: "图片" },
+      blocks: [
+        { type: "file", props: { name: "plan.pdf" }, children: [] },
+        textBlock("bulletListItem", "Parent", {}, [{ type: "image", props: { url: VALID_IMG, caption: "图1" }, children: [] }]),
+      ],
+    });
+    expectValidDeck(localized);
+    const locText = localized.slides.flatMap(slideTexts).join("\n");
+    expect(locText).toContain("[文件: plan.pdf]");
+    expect(locText).toContain("[图片: 图1]");
   });
 });

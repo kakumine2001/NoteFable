@@ -1145,4 +1145,7 @@ export const vi: Record<string, string> = {
   "Slide transitions aren’t included in PPTX export.": "Hiệu ứng chuyển tiếp trang chiếu không được bao gồm khi xuất PPTX.",
   "Save as slide deck": "Lưu thành bản trình bày",
   "Could not save as slide deck.": "Không thể lưu thành bản trình bày.",
+  "File": "Tệp",
+  "Only the first {max} slides are shown ({total} total).": "Chỉ hiển thị {max} trang chiếu đầu tiên (tổng {total} trang).",
+  "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "Ghi chú này vượt quá giới hạn {max} trang chiếu. Chỉ lưu {max} trang chiếu đầu tiên?",
 };

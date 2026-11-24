@@ -145,8 +145,11 @@ export function SlidePlayer({ deck, startId, onExit, onChange, allowPresenter = 
   useEffect(() => {
     const target = presenter ? [window, presenter] : [window];
     const onKey = (event: KeyboardEvent) => {
-      // ボタン等にフォーカスがあるときのスペース・Enter はその操作に任せる。
-      const onControl = event.target instanceof Element && !!event.target.closest("button, a, input, textarea, select, [role='button']");
+      // 放映オーバーレイ（または発表者ビュー）の内側にあるボタン等にフォーカスがあるときだけ、スペース・Enter をその操作に任せる。
+      // 背後のメニューボタン等にフォーカスが残っていても、放映を邪魔しない。
+      const insidePlayer = event.target instanceof Element
+        && Boolean(root.current?.contains(event.target) || presenter?.document.body?.contains(event.target));
+      const onControl = insidePlayer && !!event.target.closest("button, a, input, textarea, select, [role='button']");
       if (onControl && !digits.length && (event.key === " " || event.key === "Spacebar" || event.key === "Enter")) return;
       const action = playerAction(event, digits.length > 0);
       if (!action) return;
@@ -156,6 +159,15 @@ export function SlidePlayer({ deck, startId, onExit, onChange, allowPresenter = 
     target.forEach((win) => win.addEventListener("keydown", onKey));
     return () => target.forEach((win) => win.removeEventListener("keydown", onKey));
   }, [act, digits, presenter]);
+
+  // 放映開始時にフォーカスをオーバーレイ内へ移し、終了時に元の要素へ戻す（背後のボタン誤作動を防ぐ）。
+  useEffect(() => {
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    root.current?.focus({ preventScroll: true });
+    return () => {
+      if (previous?.isConnected) previous.focus({ preventScroll: true });
+    };
+  }, []);
 
   useEffect(() => {
     if (controlRef) controlRef.current = { next: () => go(1), previous: () => go(-1), goTo: (number) => goToNumber(number), end: exit };
@@ -224,7 +236,7 @@ export function SlidePlayer({ deck, startId, onExit, onChange, allowPresenter = 
   useEffect(() => () => { presenter?.close(); }, [presenter]);
 
   const next = order[index + 1] ?? null;
-  return <div ref={root} className={`slides-player${controlsVisible ? " show-controls" : ""}`} role="dialog" aria-modal="true" aria-label={t("Presentation")}
+  return <div ref={root} tabIndex={-1} className={`slides-player${controlsVisible ? " show-controls" : ""}`} role="dialog" aria-modal="true" aria-label={t("Presentation")}
     onPointerMove={(event) => { if (event.pointerType === "mouse") setControlsVisible(true); }}>
     {header}
     <div ref={stage} className="slides-player-stage"
