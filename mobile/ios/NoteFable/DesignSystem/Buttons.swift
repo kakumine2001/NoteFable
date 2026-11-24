@@ -275,11 +275,13 @@ struct NotionButton: View {
 struct SidebarPrimaryButton: View {
     private let title: String
     private let icon: [String]
+    private let trailingIcon: [String]?
     private let action: () -> Void
 
-    init(_ title: String, icon: [String] = Lucide.plus, action: @escaping () -> Void) {
+    init(_ title: String, icon: [String] = Lucide.plus, trailingIcon: [String]? = nil, action: @escaping () -> Void) {
         self.title = title
         self.icon = icon
+        self.trailingIcon = trailingIcon
         self.action = action
     }
 
@@ -288,16 +290,19 @@ struct SidebarPrimaryButton: View {
             HStack(spacing: 8) {
                 LucideIcon(icon, size: 16, color: Sm.onInk)
                 Text(title)
-                    .font(.nf(16, weight: 550))
+                    .font(.nf(15, weight: 560))
                     .foregroundStyle(Sm.onInk)
                     .lineLimit(1)
                 Spacer(minLength: 0)
+                if let trailingIcon {
+                    LucideIcon(trailingIcon, size: 14, color: Sm.onInk.opacity(0.65))
+                }
             }
             .padding(.horizontal, 11.2)
             .frame(maxWidth: .infinity)
-            .frame(height: 44)
+            .frame(height: 42)
         }
-        .buttonStyle(.pressable(background: Sm.ink, pressedBackground: Sm.inkHover, cornerRadius: 8, scale: 0.97, disabledOpacity: 0.6))
+        .buttonStyle(.pressable(background: Sm.ink, pressedBackground: Sm.inkHover, cornerRadius: 9, scale: 0.97, disabledOpacity: 0.6))
         .shadow(color: Sm.primaryShadow, radius: 1, x: 0, y: 1)
     }
 }

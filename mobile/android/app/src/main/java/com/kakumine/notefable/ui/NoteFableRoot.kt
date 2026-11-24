@@ -1,5 +1,7 @@
 package com.kakumine.notefable.ui
 
+import android.content.ComponentCallbacks2
+import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
@@ -27,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -50,6 +53,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kakumine.notefable.BuildConfig
 import com.kakumine.notefable.R
@@ -114,8 +120,44 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
         searchOpen = true
         if (!notes.loaded && !notes.loading) notesViewModel.refresh()
     }
-    // 当前打开着的网页编辑器的 JS 桥（没有打开笔记时为 null）。
-    var editorBridge by remember { mutableStateOf<NoteEmbedBridge?>(null) }
+    // 整个工作区共用的常驻 /note-embed WebView 宿主：首次打开笔记时创建，切页与短暂返回列表/聊天时保留热缓存，
+    // 在换身份、系统内存紧张、退到后台、空闲超过 120 秒或界面销毁时释放。
+    val iconStore = appIconStore()
+    val noteEmbedHost = remember(app, activity) {
+        NoteEmbedHost(cacheDir = activity.cacheDir, hostScope = scope, currentIcon = { iconStore?.icon?.value })
+    }
+    DisposableEffect(noteEmbedHost) {
+        onDispose { noteEmbedHost.destroy() }
+    }
+    DisposableEffect(notesViewModel, noteEmbedHost) {
+        notesViewModel.notifyPagesTrashed = noteEmbedHost::pageTrashed
+        onDispose { notesViewModel.notifyPagesTrashed = null }
+    }
+    DisposableEffect(app, activity, noteEmbedHost) {
+        val callbacks = object : ComponentCallbacks2 {
+            @Suppress("DEPRECATION")
+            override fun onTrimMemory(level: Int) {
+                if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
+                    activity.runOnUiThread { if (noteEmbedHost.isParked) noteEmbedHost.destroy() }
+                }
+            }
+            override fun onConfigurationChanged(newConfig: Configuration) = Unit
+            @Deprecated("Deprecated in Java")
+            override fun onLowMemory() {
+                activity.runOnUiThread { if (noteEmbedHost.isParked) noteEmbedHost.destroy() }
+            }
+        }
+        app.registerComponentCallbacks(callbacks)
+        onDispose { app.unregisterComponentCallbacks(callbacks) }
+    }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, noteEmbedHost) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP && noteEmbedHost.isParked) noteEmbedHost.destroy()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     val downloadNoteFile = rememberNoteFileDownloader(app.api)
     // 回答"…"的"下载对话"的保存位置选择器：在根上注册，选择器开着时进程被杀后结果也有人接。
     val conversationDownloader = rememberConversationDownloader()
@@ -132,6 +174,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     // 「整理成笔记」窗口开着的聊天（网页 createPageSessionId）。
     var createPageSessionId by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
     val onIdentityChanged = {
+        noteEmbedHost.destroy()
         viewModel.onIdentityChanged()
         notesViewModel.onIdentityChanged()
         sidebarViewModel.onIdentityChanged()
@@ -317,13 +360,13 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
         LaunchedEffect(app) {
             app.answerExports().created.collect { notesViewModel.refresh() }
         }
-        LaunchedEffect(app) {
+        LaunchedEffect(app, noteEmbedHost) {
             app.proposals.changes.collect { change ->
                 notesViewModel.onPagesTrashed(change.trashed)
                 notesViewModel.refresh()
                 val page = change.page
-                if (!change.created && page != null && change.pageId != null && notesViewModel.state.value.open?.id == change.pageId) {
-                    editorBridge?.pageUpdated(page)
+                if (!change.created && page != null) {
+                    noteEmbedHost.pageUpdated(page)
                 }
             }
         }
@@ -390,9 +433,10 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                 onCreatePage = { id -> createPageSessionId = id },
                 turnActions = turnActions,
             ) }
-            // 按编辑器分，不按页面 id：冲突后"另存为新笔记"换到副本时，WebView 留着不重新加载。
-            open != null -> androidx.compose.runtime.key(open.editor) {
-                NoteEditorScreen(
+            // 复用同一个 NoteEditorScreen 和常驻 WebView：切页走 window.notefableEmbed.openPage，不再整页重建；
+            // 冲突后"另存为新笔记"只改 open.id 不改 open.editor，也不会触发重新切页。
+            open != null -> NoteEditorScreen(
+                    host = noteEmbedHost,
                     open = open,
                     saveState = notes.saveState,
                     notice = (notes.notice ?: notes.error)?.let { notesErrorText(it) },
@@ -400,6 +444,8 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                     embedUrl = { lang, theme, reveal ->
                         app.api.noteEmbedUrl(open.id, lang, state.selectedModel?.id, state.selectedReasoning, theme, reveal)
                     },
+                    model = state.selectedModel?.id,
+                    reasoning = state.selectedReasoning,
                     onDownload = downloadNoteFile,
                     baseUrl = BuildConfig.BASE_URL,
                     cookieJar = app.cookieJar,
@@ -413,7 +459,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                             is EmbedMessage.Ready -> notesViewModel.onEditorReady(editor, message.id, message.title, message.icon, message.kind)
                             is EmbedMessage.Meta -> notesViewModel.onEditorMeta(editor, message.title, message.icon)
                             is EmbedMessage.SaveState -> notesViewModel.onEditorSaveState(editor, message.state)
-                            EmbedMessage.Missing -> notesViewModel.onEditorMissing(editor)
+                            is EmbedMessage.Missing -> notesViewModel.onEditorMissing(editor)
                             EmbedMessage.Trashed -> notesViewModel.onEditorTrashed(editor)
                             is EmbedMessage.OpenPage -> notesViewModel.openNoteFromLink(message.id)
                             is EmbedMessage.StorageLimit -> if (notesViewModel.state.value.open?.editor == editor) {
@@ -429,7 +475,6 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         }
                     },
                     registerFlush = { bridge ->
-                        editorBridge = bridge
                         notesViewModel.flushEditor = bridge?.let { b -> { b.flush() } }
                         notesViewModel.pushPageSettings = bridge?.let { b ->
                             { page -> b.pageSettings(com.kakumine.notefable.data.NoteFableJson.encodeToString(com.kakumine.notefable.data.NotePageSummary.serializer(), page)) }
@@ -464,7 +509,6 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         }
                     },
                 )
-            }
             else -> Column(Modifier.fillMaxSize().background(Sm.Background)) {
                 // 笔记列表的顶栏：网页手机版是左边菜单、右边搜索。
                 Row(Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(horizontal = 10.4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -579,8 +623,8 @@ private fun NotesDialogs(dialog: NotesDialogState?, notes: NotesUiState, vm: Not
     }
 }
 
-// 侧边栏（网页 .notion-sidebar，手机抽屉）：宽 240、底色 #F7F7F5；头部高 48（品牌）；
-// 下面是 Chat / Note 切换（左右 8、上距 4），再下面是当前模式的内容，最底部是账号区。
+// 侧边栏（网页 .notion-sidebar，手机抽屉）：宽 280（最多 85% 屏宽）、底色 #F5F6F8 / 深色 #111215；头部高 48（品牌）；
+// 下面是 Chat / Workspace 切换（左右 10、上距 4），再下面是当前模式的内容，最底部是账号区。
 @Composable
 private fun AppDrawer(
     workspace: Workspace,
@@ -590,22 +634,22 @@ private fun AppDrawer(
     body: @Composable ColumnScope.() -> Unit,
 ) {
     ModalDrawerSheet(
-        modifier = Modifier.width(240.dp),
+        modifier = Modifier.width(280.dp),
         drawerShape = RectangleShape,
         drawerContainerColor = Sm.Sidebar,
         drawerTonalElevation = 0.dp,
     ) {
         Column(Modifier.fillMaxSize()) {
-            Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                 // 网页 NoteFableLogo：设置里换过图标就画那个表情 / 图片。
                 AppIcon(20.dp, Sm.Ink)
-                Spacer(Modifier.width(7.2.dp))
-                Text(stringResource(R.string.app_title), color = Sm.Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.app_title), color = Sm.Ink, fontSize = 15.sp, fontWeight = FontWeight(680))
                 Spacer(Modifier.weight(1f))
                 // 头部右侧的"关闭侧栏"（.notion-icon-button 40，PanelLeftClose 17 灰）；聊天和笔记两边的网页侧栏都有。
                 TopIconButton(Lucide.PanelLeftClose, stringResource(R.string.sb_close_sidebar), onClose, iconSize = 17.dp)
             }
-            WorkspaceSwitch(workspace, onSwitch, Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp), inDrawer = true)
+            WorkspaceSwitch(workspace, onSwitch, Modifier.padding(start = 10.dp, end = 10.dp, top = 4.dp), inDrawer = true)
             body()
             footer()
         }

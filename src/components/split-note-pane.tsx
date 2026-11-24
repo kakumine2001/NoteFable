@@ -132,6 +132,10 @@ export function SplitNotePane({
                     role="option"
                     aria-selected={page.id === notes.activeId}
                     className={`chat-menu-item${page.id === notes.activeId ? " is-selected" : ""}`}
+                    onPointerEnter={(event) => { if (event.pointerType !== "touch") notes.prefetch(page.id, false); }}
+                    onPointerLeave={() => notes.cancelPrefetch(page.id)}
+                    onPointerDown={(event) => { if (event.pointerType !== "touch" && event.button === 0) notes.prefetch(page.id, true); }}
+                    onFocus={() => notes.prefetch(page.id, true)}
                     onClick={() => { setPickerOpen(false); onSelectNote(page.id); }}
                   >
                     <span className="shrink-0 text-[14px] leading-none" aria-hidden="true">
@@ -176,9 +180,11 @@ export function SplitNotePane({
           {notes.active && (
             <span
               role="status"
+              data-status={notes.active.status}
               className={`notes-save-status ${notes.active.status === "error" || notes.active.status === "conflict" ? "has-error" : ""}`}
             >
-              {({ saved: t("Saved"), pending: t("Saving…"), saving: t("Saving…"), error: t("Not saved"), conflict: t("Conflict") })[notes.active.status]}
+              <span className="notes-save-dot" aria-hidden="true" />
+              <span>{({ saved: t("Saved"), pending: t("Saving…"), saving: t("Saving…"), error: t("Not saved"), conflict: t("Conflict") })[notes.active.status]}</span>
             </span>
           )}
           {activeSummary && (
@@ -254,7 +260,12 @@ export function SplitNotePane({
               <ul className="space-y-1">
                 {recent.map((page) => (
                   <li key={page.id}>
-                    <button type="button" className="chat-menu-item" onClick={() => onSelectNote(page.id)}>
+                    <button type="button" className="chat-menu-item"
+                      onPointerEnter={(event) => { if (event.pointerType !== "touch") notes.prefetch(page.id, false); }}
+                      onPointerLeave={() => notes.cancelPrefetch(page.id)}
+                      onPointerDown={(event) => { if (event.pointerType !== "touch" && event.button === 0) notes.prefetch(page.id, true); }}
+                      onFocus={() => notes.prefetch(page.id, true)}
+                      onClick={() => onSelectNote(page.id)}>
                       <span className="shrink-0 text-[14px] leading-none" aria-hidden="true"><NoteIcon icon={page.icon} fallback={<PageKindIcon kind={page.kind} size={14} />} /></span>
                       <span className="truncate">{page.title}</span>
                     </button>

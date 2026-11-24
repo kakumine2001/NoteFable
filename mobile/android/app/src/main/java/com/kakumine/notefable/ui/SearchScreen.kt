@@ -602,19 +602,22 @@ internal fun Modifier.revealFlash(flash: RevealFlash?): Modifier {
 }
 
 /**
- * 侧栏的 Search 行（网页 .notion-sidebar-action，手机）：紧接在"新建"按钮下面，左右 8（容器 px-2）、高 44、圆角 4.8、
- * 左右内边距 8、搜索图标 16 + 间距 8.8 + 16sp/500 正文色。右侧的 Ctrl K 提示在触屏上不显示。
+ * 侧栏的 Search 行（网页 .notion-sidebar-action.sidebar-search-trigger，手机）：紧接在"新建"按钮下面，
+ * 左右 10、高 42、圆角 8、微沉底色 + 1dp 细框、搜索图标 16 + 间距 8.8 + 15sp/500 灰字。右侧的 Ctrl K 提示在触屏上不显示。
  */
 @Composable
 internal fun SidebarSearchRow(onClick: () -> Unit) {
+    val shape = RoundedCornerShape(8.dp)
+    val bg = Sm.pick(Color(0x081C202A), Color(0x0AFFFFFF))
     Row(
-        Modifier.padding(horizontal = 8.dp).fillMaxWidth().height(44.dp).clip(RoundedCornerShape(4.8.dp))
-            .clickable(onClick = onClick).semantics { role = Role.Button }.padding(horizontal = 8.dp),
+        Modifier.padding(horizontal = 10.dp).fillMaxWidth().height(42.dp).clip(shape)
+            .background(bg).border(1.dp, Sm.Border, shape)
+            .clickable(onClick = onClick).semantics { role = Role.Button }.padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.8.dp),
     ) {
-        LucideIcon(Lucide.Search, 16.dp, Sm.Text)
-        Text(stringResource(R.string.search), color = Sm.Text, fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Medium)
+        LucideIcon(Lucide.Search, 15.dp, Sm.Muted)
+        Text(stringResource(R.string.search), color = Sm.Muted, fontSize = 15.sp, lineHeight = 22.sp, fontWeight = FontWeight.Medium)
     }
 }
 

@@ -23,22 +23,26 @@ struct NotesDrawerBody: View {
         let router = self.router
         let kinds = state.kinds
         VStack(spacing: 0) {
-            // “新建”（.sidebar-primary-action）：上距 12、左右 8、下距 4。只能建笔记时是“新笔记”（一点就建），能建几种类型时先选类型。
+            // “新建”（.sidebar-primary-action）：上距 10、左右 10、下距 6。能建几种类型时右侧显示下拉箭头并先选类型。
             NewPageMenuAnchor(kinds: kinds, label: L("ws_new_page"), onCreate: { kind in
                 router.closeDrawer()
                 notes.createNote(kind: kind)
             }) { open in
-                SidebarPrimaryButton(L(kinds.count > 1 ? "ws_new" : "new_note"), action: open)
+                SidebarPrimaryButton(
+                    L(kinds.count > 1 ? "ws_new" : "new_note"),
+                    trailingIcon: kinds.count > 1 ? Lucide.chevronDown : nil,
+                    action: open
+                )
             }
             .disabled(busy)
-            .padding(.horizontal, 8)
-            .padding(.top, 12)
-            .padding(.bottom, 4)
-            // Search 行：网页侧栏里在“新建”按钮正下方（聊天和笔记两边共用，左右 8 已经带在里面）。
+            .padding(.horizontal, 10)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
+            // Search 行：网页侧栏里在“新建”按钮正下方（左右 10 已经带在里面）。
             SidebarSearchRow { router.openSearch() }
             ScrollView(.vertical) {
                 NotesDrawerList(busy: busy, reorder: reorder, dialog: $dialog)
-                    .padding(.horizontal, 8)
+                    .padding(.horizontal, 10)
                     .padding(.bottom, 16)
                     .reorderContainer(reorder, onStart: { [reorder] _ in
                         NoteReorderOrigin.shared.surface = .drawer
@@ -49,13 +53,15 @@ struct NotesDrawerBody: View {
                     }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // 导入 Markdown、回收站（.notion-sidebar-action）。
-            NotesSidebarActionRow(icon: Lucide.upload, title: L("import_markdown")) { importing = true }
-                .disabled(busy)
-                .padding(.horizontal, 8)
-            NotesSidebarActionRow(icon: Lucide.trash2, title: L("trash")) { notes.openTrash() }
-                .padding(.horizontal, 8)
-                .padding(.bottom, 4)
+            // 工具区（.sidebar-utility-footer）：上方 1pt 细线，导入 Markdown、回收站。
+            VStack(spacing: 1) {
+                NotesSidebarActionRow(icon: Lucide.upload, title: L("import_markdown")) { importing = true }
+                    .disabled(busy)
+                NotesSidebarActionRow(icon: Lucide.trash2, title: L("trash")) { notes.openTrash() }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .overlay(alignment: .top) { NFDivider() }
         }
         // 选好文件就收起抽屉（网页 importMarkdownFiles 的 setSidebarOpen(false)），导入完打开第一篇。
         .noteMarkdownImporter(isPresented: $importing) { router.closeDrawer() }
@@ -80,24 +86,25 @@ private struct NotesDrawerList: View {
         let state = app.notes.state
         let favorites = state.favorites
         VStack(alignment: .leading, spacing: 0) {
-            // FAVORITES（在 Projects 上面）：收藏的页面，平铺、不能拖，右侧“从收藏中移除”。
+            // Favorites（在 Projects 上面，带琥珀星标）：收藏的页面，平铺、不能拖，右侧“从收藏中移除”。
             if !favorites.isEmpty {
-                NotesSectionLabel(L("pg_favorites"))
+                NotesSectionLabel(L("pg_favorites"), icon: Lucide.star, iconColor: Sm.kindFav)
                     .padding(.horizontal, 8)
-                    .padding(.top, 14.4)
-                    .padding(.bottom, 4.8)
+                    .padding(.top, 14)
+                    .padding(.bottom, 5)
                 ForEach(favorites) { page in
                     NotesDrawerFavoriteRow(page: page, busy: busy)
                 }
             }
-            // “PROJECTS”小标题 + 右侧 40 的“新项目”按钮。
+            // “Projects”小标题 + 右侧 40 的“新项目”按钮。
             HStack(spacing: 0) {
                 NotesSectionLabel(L("projects"))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 NFIconButton(Lucide.plus, label: L("new_project"), iconSize: 15) { dialog = .newGroup }
             }
-            .padding(.horizontal, 8)
-            .padding(.top, 9.6)
+            .padding(.leading, 8)
+            .padding(.trailing, 4)
+            .padding(.top, 10)
             ForEach(state.groups) { group in
                 groupSection(group, state)
             }
@@ -122,7 +129,7 @@ private struct NotesDrawerList: View {
     private func sectionView(_ section: WorkspaceSection, _ state: NotesUiState) -> some View {
         let notes = app.notes
         let isOpen = !state.collapsedSections.contains(section.kind)
-        NotesSectionHeading(kind: section.kind, isOpen: isOpen, busy: busy, onToggle: { notes.toggleSection(section.kind) }) {
+        NotesSectionHeading(kind: section.kind, count: section.count, isOpen: isOpen, busy: busy, onToggle: { notes.toggleSection(section.kind) }) {
             router.closeDrawer()
             notes.createNote(kind: section.kind)
         }
@@ -175,26 +182,22 @@ private struct NotesDrawerList: View {
             Button {
                 notes.toggleGroup(group.id)
             } label: {
-                HStack(spacing: 6.4) {
-                    LucideIcon(isOpen ? Lucide.chevronDown : Lucide.chevronRight, size: 14, color: Sm.text)
-                    LucideIcon(Lucide.folder, size: 15, color: Sm.text)
+                HStack(spacing: 6) {
+                    LucideIcon(isOpen ? Lucide.chevronDown : Lucide.chevronRight, size: 13.5, color: Sm.faint)
+                    LucideIcon(Lucide.folder, size: 14.5, color: Sm.text)
                     Text(group.name)
                         .font(.nf(14, weight: 500))
                         .nfLineHeight(20, fontSize: 14)
                         .foregroundStyle(Sm.text)
                         .lineLimit(1)
-                    Text(String(count))
-                        .font(.nf(12))
-                        .foregroundStyle(Sm.faint)
-                        .lineLimit(1)
-                        .layoutPriority(1)
+                    NotesCountPill(count: count)
                     Spacer(minLength: 0)
                 }
-                .padding(.horizontal, 3.2)
-                .padding(.vertical, 6.4)
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 6)
+                .frame(maxWidth: .infinity, minHeight: 42, alignment: .leading)
             }
-            .buttonStyle(.pressable(cornerRadius: 6.4))
+            .buttonStyle(.pressable(cornerRadius: 8))
             // 项目的“+”（网页项目行的 NewPageButton）：在这个项目的最上层新建，能建几种类型时先选类型。
             let newLabel = L("ws_new_page_in", group.name)
             NewPageMenuAnchor(kinds: notes.state.kinds, label: newLabel, onCreate: { kind in
@@ -272,6 +275,8 @@ private struct NotesDrawerRow: View {
         let state = notes.state
         let active = state.open?.id == page.id
         let line = reorder.dropLine(page.id)
+        let shape = RoundedRectangle(cornerRadius: 8)
+        let iconTint = pageKindColor(page.kind)
         HStack(spacing: 0) {
             toggle
             if active || page.locked {
@@ -279,7 +284,7 @@ private struct NotesDrawerRow: View {
                 Button {
                     openNote()
                 } label: {
-                    NFIconTile(emoji: page.icon, fallback: pageKindIcon(page.kind), box: 40, glyph: 15)
+                    NFIconTile(emoji: page.icon, fallback: pageKindIcon(page.kind), box: 30, glyph: 15, color: iconTint)
                 }
                 .buttonStyle(.pressable(pressedBackground: nil))
                 .disabled(busy)
@@ -304,8 +309,13 @@ private struct NotesDrawerRow: View {
             }
             .disabled(busy)
         }
-        .frame(minHeight: 44)
-        .background(active ? Sm.accentSoft : Color.clear)
+        .frame(minHeight: 42)
+        .background(active ? Sm.activeRow : Color.clear, in: shape)
+        .overlay {
+            if active {
+                shape.strokeBorder(Sm.border, lineWidth: 1).allowsHitTesting(false)
+            }
+        }
         // 插入线自己画在圆角里面（和聊天行一样）。
         .overlay(alignment: .top) {
             if line.before { ReorderDropLine() }
@@ -313,17 +323,7 @@ private struct NotesDrawerRow: View {
         .overlay(alignment: .bottom) {
             if line.after { ReorderDropLine() }
         }
-        .overlay(alignment: .leading) {
-            if active && !line.before && !line.after {
-                // 行首的蓝条：宽 3、上下各缩 7.2、圆角 1.5。
-                RoundedRectangle(cornerRadius: 1.5)
-                    .fill(Sm.blue)
-                    .frame(width: 3)
-                    .padding(.vertical, 7.2)
-                    .allowsHitTesting(false)
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 6.4))
+        .clipShape(shape)
         .reorderRow(page.id, in: reorder, showsDropLine: false)
         .reorderError(errorText(state)) { notes.dismissReorderError() }
     }
@@ -339,15 +339,15 @@ private struct NotesDrawerRow: View {
         return Button {
             notes.toggleExpanded(page.id)
         } label: {
-            LucideIcon(expanded ? Lucide.chevronDown : Lucide.chevronRight, size: 14, color: Sm.faint)
-                .frame(width: 20, height: 28)
+            LucideIcon(expanded ? Lucide.chevronDown : Lucide.chevronRight, size: 13.5, color: Sm.faint)
+                .frame(width: 18, height: 28)
         }
         .buttonStyle(.pressable(cornerRadius: 4))
-        .padding(.leading, 2)
+        .padding(.leading, 1)
         .accessibilityLabel(expanded ? L("pg_collapse_title", page.title) : L("pg_expand_title", page.title))
     }
 
-    /// 图标按钮 40×40（圆角 4），点开表情选择器（aria-label "Change icon of {title}"）；忙时禁用。
+    /// 图标按钮 30×36（圆角 4），点开表情选择器（aria-label "Change icon of {title}"）；忙时禁用。
     /// 只用于没打开的笔记（`NotesViewModel.changeIcon`，PUT /api/pages/:id/icon）。
     private var iconButton: some View {
         let notes = app.notes
@@ -355,7 +355,7 @@ private struct NotesDrawerRow: View {
         return Button {
             picking.toggle()
         } label: {
-            NFIconTile(emoji: page.icon, fallback: pageKindIcon(page.kind), box: 40, glyph: 15)
+            NFIconTile(emoji: page.icon, fallback: pageKindIcon(page.kind), box: 30, glyph: 15, color: pageKindColor(page.kind))
         }
         .buttonStyle(.pressable(background: picking ? Sm.hover : Color.clear, cornerRadius: 4))
         .disabled(busy)
@@ -371,14 +371,14 @@ private struct NotesDrawerRow: View {
             if !reorder.swallowsTap() { openNote() }
         } label: {
             Text(page.title)
-                .font(.nf(14, weight: active ? 550 : 400))
+                .font(.nf(14, weight: active ? 560 : 400))
                 .nfLineHeight(20, fontSize: 14)
                 .foregroundStyle(active ? Sm.ink : Sm.text)
                 .lineLimit(1)
                 .padding(.leading, 4)
-                .padding(.trailing, 8)
+                .padding(.trailing, 6)
                 .padding(.vertical, 6)
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .frame(maxWidth: .infinity, minHeight: 42, alignment: .leading)
         }
         .buttonStyle(.pressable(cornerRadius: 0))
         .disabled(busy)
@@ -396,8 +396,8 @@ private struct NotesDrawerRow: View {
 
 // MARK: - 收藏的行
 
-/// Favorites 的行：高 44；图标区 28（左距 4，表情 / 页面类型图标 15 灰，不能点）；标题 14；
-/// 右侧“从收藏中移除”25.6 的小按钮（StarOff 14）。当前打开的行浅蓝底。
+/// Favorites 的行：高 42；图标区 28（左距 4，语义色页面类型图标 15）；标题 14；
+/// 右侧“从收藏中移除”小按钮（StarOff 14）。当前打开的行浮起圆角卡。
 @MainActor
 private struct NotesDrawerFavoriteRow: View {
     let page: NotePageSummary
@@ -409,16 +409,17 @@ private struct NotesDrawerFavoriteRow: View {
         let notes = app.notes
         let active = notes.state.open?.id == page.id
         let pageId = page.id
+        let shape = RoundedRectangle(cornerRadius: 8)
         HStack(spacing: 0) {
             Button {
                 router.closeDrawer()
                 notes.openNote(pageId)
             } label: {
                 HStack(spacing: 0) {
-                    NFIconTile(emoji: page.icon, fallback: pageKindIcon(page.kind), box: 28, glyph: 15)
+                    NFIconTile(emoji: page.icon, fallback: pageKindIcon(page.kind), box: 28, glyph: 15, color: pageKindColor(page.kind))
                         .padding(.leading, 4)
                     Text(page.title)
-                        .font(.nf(14, weight: active ? 550 : 400))
+                        .font(.nf(14, weight: active ? 560 : 400))
                         .nfLineHeight(20, fontSize: 14)
                         .foregroundStyle(active ? Sm.ink : Sm.text)
                         .lineLimit(1)
@@ -426,7 +427,7 @@ private struct NotesDrawerFavoriteRow: View {
                         .padding(.trailing, 8)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .frame(maxWidth: .infinity, minHeight: 42, alignment: .leading)
             }
             .buttonStyle(.pressable(cornerRadius: 0))
             .disabled(busy)
@@ -435,8 +436,13 @@ private struct NotesDrawerFavoriteRow: View {
             }
             .disabled(busy)
         }
-        .frame(minHeight: 44)
-        .background(active ? Sm.accentSoft : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 6.4))
+        .frame(minHeight: 42)
+        .background(active ? Sm.activeRow : Color.clear, in: shape)
+        .overlay {
+            if active {
+                shape.strokeBorder(Sm.border, lineWidth: 1).allowsHitTesting(false)
+            }
+        }
+        .clipShape(shape)
     }
 }

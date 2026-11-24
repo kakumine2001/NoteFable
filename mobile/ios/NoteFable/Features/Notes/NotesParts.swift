@@ -21,28 +21,47 @@ final class NoteReorderOrigin {
     init() {}
 }
 
-/// 侧栏的小标题（网页 .chat-section-label，Android roleLabelStyle）：12 等宽 / 500、大写、字距 .06em、灰色、行高 18。
-/// 等宽字体没有非拉丁字形，这些字用普通界面字体；阿拉伯字母有字距会断开连写，字距归零。
+/// 侧栏的小标题（网页 .chat-section-label，Android NotesUi.kt）：句首大小写 UI 字体 12 / 560 灰色。
 struct NotesSectionLabel: View {
     private let text: String
+    private let icon: [String]?
+    private let iconColor: Color
 
-    init(_ text: String) {
-        self.text = text.uppercased()
+    init(_ text: String, icon: [String]? = nil, iconColor: Color = Sm.muted) {
+        self.text = text
+        self.icon = icon
+        self.iconColor = iconColor
     }
 
     var body: some View {
-        let scalars = text.unicodeScalars
-        let nonMonospace = scalars.contains { $0.value >= 0x0590 }
-        let arabic = scalars.contains { scalar in
-            (0x0600...0x08FF).contains(scalar.value) || (0xFB50...0xFDFF).contains(scalar.value)
-                || (0xFE70...0xFEFF).contains(scalar.value)
+        HStack(spacing: 5.6) {
+            if let icon {
+                LucideIcon(icon, size: 12.5, color: iconColor)
+            }
+            Text(text)
+                .font(.nf(12, weight: 560))
+                .nfLineHeight(16, fontSize: 12)
+                .foregroundStyle(Sm.muted)
+                .lineLimit(1)
         }
-        Text(text)
-            .font(nonMonospace ? Font.nf(12, weight: 500) : Font.nfMono(12, weight: 500))
-            .tracking(arabic ? 0 : 0.72)
-            .nfLineHeight(18, fontSize: 12)
+        .accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// 数量胶囊（侧栏项目行和首页分组标题共用）。
+struct NotesCountPill: View {
+    let count: Int
+
+    var body: some View {
+        Text(String(count))
+            .font(.nf(11, weight: 550))
+            .nfLineHeight(14, fontSize: 11)
             .foregroundStyle(Sm.muted)
-            .accessibilityAddTraits(.isHeader)
+            .lineLimit(1)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1.5)
+            .background(Sm.hover, in: Capsule())
+            .layoutPriority(1)
     }
 }
 
@@ -84,11 +103,11 @@ struct NewPageMenuAnchor<Content: View>: View {
     }
 }
 
-/// 侧栏的分区标题（网页 .notes-section-heading，Android `SectionHeading`）：与 PROJECTS 同一行（左右 8、上距 9.6、"+" 40），
-/// 名字后面是折叠箭头 13 浅灰，点名字折叠；"+" 建这个类型。
+/// 侧栏的分区标题（网页 .notes-section-heading，Android `SectionHeading`）：语义色点 + 句首大小写标题 + 数量 + 折叠箭头 + "+"。
 @MainActor
 struct NotesSectionHeading: View {
     let kind: PageKind
+    let count: Int
     let isOpen: Bool
     let busy: Bool
     let onToggle: () -> Void
@@ -98,21 +117,32 @@ struct NotesSectionHeading: View {
         let name = L(pageKindSectionLabel(kind))
         HStack(spacing: 0) {
             Button(action: onToggle) {
-                HStack(spacing: 4.8) {
+                HStack(spacing: 5.5) {
+                    Circle()
+                        .fill(pageKindColor(kind))
+                        .frame(width: 6, height: 6)
+                        .accessibilityHidden(true)
                     NotesSectionLabel(name)
-                    LucideIcon(isOpen ? Lucide.chevronDown : Lucide.chevronRight, size: 13, color: Sm.faint)
+                    if count > 0 {
+                        Text(String(count))
+                            .font(.nf(11, weight: 500))
+                            .foregroundStyle(Sm.faint)
+                            .lineLimit(1)
+                    }
+                    LucideIcon(isOpen ? Lucide.chevronDown : Lucide.chevronRight, size: 12.5, color: Sm.faint)
                     Spacer(minLength: 0)
                 }
-                .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
+                .frame(maxWidth: .infinity, minHeight: 38, alignment: .leading)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.pressable(cornerRadius: 4))
+            .buttonStyle(.pressable(cornerRadius: 6))
             .accessibilityLabel(isOpen ? L("pg_collapse_title", name) : L("pg_expand_title", name))
             NFIconButton(Lucide.plus, label: L(pageKindNewLabel(kind)), iconSize: 15, action: onCreate)
                 .disabled(busy)
         }
-        .padding(.horizontal, 8)
-        .padding(.top, 9.6)
+        .padding(.leading, 8)
+        .padding(.trailing, 4)
+        .padding(.top, 10)
     }
 }
 
@@ -135,8 +165,8 @@ struct NoteRowAction: View {
     }
 }
 
-/// `.notion-sidebar-action`（手机）：侧栏最下面的回收站行（Search 行是共用的 `SidebarSearchRow`，同一个样式）。
-/// 高 44、圆角 4.8、左右内边距 8、图标 16 + 间距 8.8 + 16 / 500 正文色；按下灰底并缩到 .97。
+/// `.notion-sidebar-action.is-subtle`（手机）：侧栏最下面工具区的导入 Markdown / 回收站行。
+/// 高 40、圆角 8、左右内边距 10、图标 15 + 间距 8.8 + 14 / 500 灰字。
 struct NotesSidebarActionRow: View {
     private let icon: [String]
     private let title: String
@@ -151,18 +181,18 @@ struct NotesSidebarActionRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 8.8) {
-                LucideIcon(icon, size: 16, color: Sm.text)
+                LucideIcon(icon, size: 15, color: Sm.muted)
                 Text(title)
-                    .font(.nf(16, weight: 500))
-                    .foregroundStyle(Sm.text)
+                    .font(.nf(14, weight: 500))
+                    .foregroundStyle(Sm.muted)
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 8)
+            .padding(.horizontal, 10)
             .frame(maxWidth: .infinity)
-            .frame(height: 44)
+            .frame(height: 40)
         }
-        .buttonStyle(.pressable(cornerRadius: 4.8, scale: 0.97))
+        .buttonStyle(.pressable(cornerRadius: 8, scale: 0.98))
     }
 }
 
@@ -260,10 +290,10 @@ struct NoteIconGlyph: View {
 }
 
 extension View {
-    /// `.notes-group-members` / `.notes-subpages`：项目里的笔记、展开的子页面。左距 12、1px 竖线、内左距 4。
+    /// `.notes-group-members` / `.notes-subpages`：项目里的笔记、展开的子页面。左距 10、1px 竖线、内左距 4。
     func notesIndentedMembers() -> some View {
         self
-            .padding(.leading, 5)
+            .padding(.leading, 4)
             .frame(maxWidth: .infinity, alignment: .leading)
             .overlay(alignment: .leading) {
                 Rectangle()
@@ -271,6 +301,6 @@ extension View {
                     .frame(width: 1)
                     .accessibilityHidden(true)
             }
-            .padding(.leading, 12)
+            .padding(.leading, 10)
     }
 }

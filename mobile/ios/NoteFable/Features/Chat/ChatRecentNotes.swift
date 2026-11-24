@@ -71,10 +71,10 @@ private struct ChatRecentNoteCard: View {
         Button(action: onToggle) {
             VStack(alignment: .leading, spacing: 4) {
                 Group {
-                    NoteIconGlyph(page.icon, emojiSize: 16, iconSize: 18, kind: page.kind)
+                    NoteIconGlyph(page.icon, emojiSize: 16, iconSize: 17, color: pageKindColor(page.kind), kind: page.kind)
                 }
                 .frame(width: 32, height: 32)
-                .background(Sm.sidebar, in: RoundedRectangle(cornerRadius: 8))
+                .background(page.icon != nil ? Sm.hover : pageKindSoft(page.kind), in: RoundedRectangle(cornerRadius: 8))
                 Text(title)
                     .font(.nf(14, weight: 600))
                     .nfLineHeight(21, fontSize: 14)

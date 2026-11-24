@@ -4,10 +4,12 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronLeft,
+  ChevronRight,
   FileText,
   Globe,
   History,
   ImagePlus,
+  LayoutGrid,
   Lock,
   Menu,
   Paperclip,
@@ -208,8 +210,10 @@ export default function Home() {
         setWorkspaceView(view);
         setNotesList(list);
       };
-      // 端末の「戻る」でノートから一覧へ戻るときなど、画面が変わるときだけ動かす（シートを閉じるだけの戻るでは何もしない）。
-      if (animate && (view !== shownRef.current.view || list !== shownRef.current.list)) runTransition(apply, "back");
+      // 端末の「戻る」で画面が変わるときだけ動かす（シートを閉じるだけの戻るや、パソコン幅でのページ切り替えでは動かさない）。
+      const isPhone = window.matchMedia("(max-width: 639px)").matches;
+      if (animate && view !== shownRef.current.view) runTransition(apply, "fade");
+      else if (animate && isPhone && list !== shownRef.current.list) runTransition(apply, "back");
       else runTransition(apply, "back", false);
     }
     const onPopState = () => syncWorkspace(true);
@@ -222,6 +226,7 @@ export default function Home() {
     const url = new URL(window.location.href);
     if (view === (url.searchParams.get("view") === "pages" ? "pages" : "chat")) return;
     cancelReveal();
+    notes.cancelPending();
     if (view === "pages") {
       // Notes はいつもホームから始める（前に開いていたノートへ勝手に飛ばない）。
       url.searchParams.set("view", "pages");
@@ -245,15 +250,23 @@ export default function Home() {
 
   function openNote(id: string) {
     cancelReveal();
-    // パソコン幅：読み込めてから URL（page= の履歴を 1 件積む）と表示を切り替える。読み込めなかったら、いまの画面と URL のまま。
-    if (!window.matchMedia("(max-width: 639px)").matches && notes.activeId !== id) {
-      void notes.select(id).then((opened) => {
-        if (opened) runTransition(syncNotesList, "forward");
+    const isPhone = window.matchMedia("(max-width: 639px)").matches;
+    if (!isPhone) {
+      // パソコン・タブレット幅：サイドバーごと揺れる全面スライドは使わず、Notion と同じく右側の内容だけをその場で切り替える。
+      // キャッシュ済み（一度開いた・先読み済み）なら即座に切り替え、未キャッシュでも今の画面を保ったまま裏で読んでから差し替える。
+      // 表示中のページを選び直したときも select() に通すことで、検索結果の先読み中に変わっていた URL を元のページへ戻す。
+      if (notes.hasCached(id)) {
+        void notes.select(id, "push").then((opened) => { if (!opened) forgetMissingNote(id); });
+        setNotesList(false);
+        return;
+      }
+      void notes.select(id, "push").then((opened) => {
+        if (opened) syncNotesList();
         else forgetMissingNote(id);
       });
       return;
     }
-    // スマホ、または前に開いていたノートへ戻るとき：戻るでホームへ戻れるよう page= 付きの履歴を 1 件積んでから表示する。
+    // スマホ幅：戻るでホームへ戻れるよう page= 付きの履歴を 1 件積んでから表示する。
     // ドロワーや底部シートが積んだ履歴の上なら、新しく積まずその履歴を置き換える（空の戻り先を残さない）。
     const url = new URL(window.location.href);
     if (url.searchParams.get("page") !== id) {
@@ -262,9 +275,9 @@ export default function Home() {
       else window.history.pushState(null, "", url);
       restoreSheetMarker();
     }
+    void notes.select(id, "none", { keepCurrent: !notesList }).then((opened) => { if (!opened) forgetMissingNote(id); });
     // 一覧からノートへは、右から入ってくる動き。
-    runTransition(() => setNotesList(false), "forward");
-    if (notes.activeId !== id) void notes.select(id, "none").then((opened) => { if (!opened) forgetMissingNote(id); });
+    if (notesList) runTransition(() => setNotesList(false), "forward");
   }
 
   // 開けなかった（別のタブでゴミ箱に入った・削除された）ノートの指定は URL に残さず、ホームに戻す。
@@ -284,14 +297,15 @@ export default function Home() {
     // 参照ノートに選ばれていたノートがゴミ箱へ入ると、プロジェクトの参照ノート数が変わる。
     refreshChatProjects();
     // 開いていたノートを消したら、URL から page= が外れているのでホームに戻る。
-    runTransition(syncNotesList, "back");
+    if (window.matchMedia("(max-width: 639px)").matches) runTransition(syncNotesList, "back");
+    else syncNotesList();
     return true;
   }
 
   // 新しいページを作って開く。kind は種類（省略はノート）、parentId はそのページの中（サブページ）、groupId はそのプロジェクトの最上位。
   function createNote(request?: NewPageRequest) {
     cancelReveal();
-    runTransition(() => setNotesList(false), "forward");
+    if (window.matchMedia("(max-width: 639px)").matches) runTransition(() => setNotesList(false), "forward");
     // ボタンの onClick に直接渡された場合のクリックイベントなど、形の違う値は作り先にしない。
     // 作れなかったとき（URL に page= が付かない）は、ホームに戻す。
     const kind = isPageKind(request?.kind) ? request.kind : "note";
@@ -377,12 +391,13 @@ export default function Home() {
       setWorkspaceView("pages");
       setNotesList(false);
     };
+    const isPhone = window.matchMedia("(max-width: 639px)").matches;
     if (workspaceView !== "pages") runTransition(show, "fade");
-    else if (notesList) runTransition(show, "forward");
+    else if (notesList && isPhone) runTransition(show, "forward");
     else show();
     // 初回の Notes は、画面が切り替わったあとの一覧取得が URL の page= を見て開く。すでに開いているノートは取り直さない。
-    if (notes.activeId !== id) {
-      void notes.select(id, "none").then((opened) => { if (!opened) forgetMissingNote(id); });
+    if (notes.activeId !== id || notes.openingId) {
+      void notes.select(id, "none", { keepCurrent: workspaceView === "pages" && !notesList }).then((opened) => { if (!opened) forgetMissingNote(id); });
     }
     if (blockId) queueReveal({ kind: "note", noteId: id, blockId });
   }
@@ -461,6 +476,7 @@ export default function Home() {
   }
 
   function openNotesList() {
+    notes.cancelPending();
     const url = new URL(window.location.href);
     // すでに URL がホームを指しているなら、履歴は積まずに表示だけ合わせる。
     if (!url.searchParams.get("page")) { setNotesList(true); return; }
@@ -469,8 +485,9 @@ export default function Home() {
     if (window.history.state?.notefableSheet) window.history.replaceState(null, "", url);
     else window.history.pushState(null, "", url);
     restoreSheetMarker();
-    // ノートから一覧へは、左へ戻る動き。
-    runTransition(() => setNotesList(true), "back");
+    // スマホではノートから一覧へ左へ戻る動き。パソコン幅ではサイドバーを揺らさずその場で切り替える。
+    if (window.matchMedia("(max-width: 639px)").matches) runTransition(() => setNotesList(true), "back");
+    else setNotesList(true);
   }
 
   // 左サイドバーに表示するチャットセッション一覧。
@@ -2272,9 +2289,10 @@ export default function Home() {
     else setSidebarOpen(false);
   };
   const sidebar = workspaceView === "pages" ? (
-    <NotesSidebar pages={notes.pages} activeId={notesList ? null : notes.activeId} busy={notes.busy || notes.loading}
-      home={notesList} onHome={() => { setSidebarOpen(false); openNotesList(); }}
+    <NotesSidebar pages={notes.pages} activeId={notes.openingId ?? (notesList ? null : notes.activeId)} busy={notes.busy}
+      home={notesList && !notes.openingId} onHome={() => { setSidebarOpen(false); openNotesList(); }}
       onCreate={(request) => { setSidebarOpen(false); createNote(request); }} onImport={(files) => void importMarkdownFiles(files)} onSearch={() => setSearchOpen(true)} onSelect={(id) => { setSidebarOpen(false); openNote(id); }}
+      onPrefetch={notes.prefetch} onCancelPrefetch={notes.cancelPrefetch}
       onDelete={deleteNote} onClose={closeSidebar} onWorkspaceChange={changeWorkspace}
       groups={notes.groups} groupError={notes.groupError} onReorder={notes.reorder} onMoveNote={notes.moveNote} onChangeIcon={notes.changeIcon} onCreateGroup={notes.createGroup}
       onRenameGroup={notes.renameGroup} onDeleteGroup={notes.deleteGroup} onMoveToPage={notes.moveToPage} onFavorite={notes.setFavorite} />
@@ -2363,15 +2381,15 @@ export default function Home() {
       {sidebarOpen && (
         <div ref={drawerRootRef} className="fixed inset-0 z-40 lg:hidden">
           <button
-            className="motion-fade-in absolute inset-0 bg-black/15"
+            className="motion-fade-in absolute inset-0 bg-black/25 backdrop-blur-[2px]"
             onClick={() => setSidebarOpen(false)}
             aria-label={t("Close sidebar overlay")}
           />
-          <div ref={attachDrawer} {...drawerBind} className="motion-sidebar-panel swipe-x relative h-full w-60 max-w-[88vw]">{sidebar}</div>
+          <div ref={attachDrawer} {...drawerBind} className="motion-sidebar-panel swipe-x relative h-full w-[17.5rem] max-w-[85vw]">{sidebar}</div>
         </div>
       )}
 
-      <div ref={splitShellRef} className="workspace-split-shell" style={splitActive ? ({ "--split-ratio": String(splitRatio) } as React.CSSProperties) : undefined}>
+      <div ref={splitShellRef} className={`workspace-split-shell${sidebarVisible ? " has-sidebar" : ""}`} style={splitActive ? ({ "--split-ratio": String(splitRatio) } as React.CSSProperties) : undefined}>
       <section className="notion-page workspace-split-chat" inert={sidebarOpen} {...(workspaceView === "chat" ? fileDropHandlers : {})}>
         {fileDragActive && workspaceView === "chat" && (
           <div className="chat-drop-overlay" aria-hidden="true">
@@ -2379,7 +2397,7 @@ export default function Home() {
           </div>
         )}
         <header className="notion-topbar">
-          <div className="flex min-w-0 items-center gap-3">
+          <div className="flex min-w-0 items-center gap-2.5">
             <button
               ref={menuToggleRef}
               className="notion-icon-button mobile-sidebar-toggle"
@@ -2402,49 +2420,57 @@ export default function Home() {
                 aria-label={t("Open sidebar")}
                 title={t("Toggle sidebar (Ctrl+B)")}
               >
-                <PanelLeft size={22} strokeWidth={1.8} />
+                <PanelLeft size={19} strokeWidth={1.8} />
               </button>
             )}
             <div className={`min-w-0 sm:block ${showPhoneTitle ? "" : "hidden"}`}>
-              <div className="flex items-center gap-1.5 text-sm text-[var(--notion-muted)]">
+              <div className="topbar-crumbs flex items-center gap-1.5 text-[13.5px] text-[var(--notion-muted)]">
                 {/* パンくず（Notion と同じく祖先のページを左から）。スマホは幅がないので今のページだけ。 */}
-                {workspaceView === "pages" && !notesList && activeAncestors.map((page) => <span key={page.id} className="notes-breadcrumb hidden min-w-0 items-center gap-1.5 sm:flex">
-                  <button type="button" className="notes-breadcrumb-link" onClick={() => openNote(page.id)} title={page.title}>
-                    {page.icon && <span className="shrink-0 text-[15px] leading-none"><NoteIcon icon={page.icon} /></span>}<span className="truncate">{page.title}</span>
+                {workspaceView === "pages" && !notesList && activeAncestors.map((page) => <span key={page.id} className="notes-breadcrumb hidden min-w-0 items-center gap-1 sm:flex">
+                  <button type="button" className="notes-breadcrumb-link" onClick={() => openNote(page.id)}
+                    onPointerEnter={(event) => { if (event.pointerType !== "touch") notes.prefetch(page.id, false); }}
+                    onPointerLeave={() => notes.cancelPrefetch(page.id)}
+                    onPointerDown={(event) => { if (event.pointerType !== "touch" && event.button === 0) notes.prefetch(page.id, true); }}
+                    onFocus={() => notes.prefetch(page.id, true)} title={page.title}>
+                    {page.icon && <span className="shrink-0 text-[14px] leading-none"><NoteIcon icon={page.icon} /></span>}<span className="truncate">{page.title}</span>
                   </button>
-                  <span aria-hidden="true" className="text-[var(--notion-faint)]">/</span>
+                  <ChevronRight size={13} aria-hidden="true" className="rtl-mirror shrink-0 text-[var(--notion-faint)]" />
                 </span>)}
-                {workspaceView === "pages" && (!notesList && notes.active?.content.icon ? <span className="shrink-0 text-[15px] leading-none"><NoteIcon icon={notes.active.content.icon} /></span> : <PageKindIcon kind={notesList ? undefined : activeSummary?.kind} size={15} className="shrink-0" />)}
+                {workspaceView === "pages" && (notesList
+                  ? <LayoutGrid size={15} className="shrink-0 text-[var(--notion-muted)]" aria-hidden="true" />
+                  : notes.active?.content.icon
+                    ? <span className="shrink-0 text-[15px] leading-none"><NoteIcon icon={notes.active.content.icon} /></span>
+                    : <PageKindIcon kind={activeSummary?.kind} size={15} className="shrink-0 topbar-kind-icon" />)}
                 {workspaceView === "chat" && activeSession && (
                   <ChatTopbarIcon key={activeSession.id} icon={activeSession.icon} onChange={(icon) => changeSessionIcon(activeSession.id, icon)} />
                 )}
-                <span className="truncate">{workspaceView === "pages" ? (!notesList && notes.active?.content.title) || t("Workspace") : activeTitle}</span>
+                <span className="topbar-current-title truncate">{workspaceView === "pages" ? (!notesList && notes.active?.content.title) || t("Workspace") : activeTitle}</span>
               </div>
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5">
             {/* サイドバーの Search 行が見えているパソコン幅では出さない（サイドバーを畳んだとき・タブレット・スマホ用）。 */}
             <button type="button" className={`notion-icon-button grid${sidebarVisible ? " lg:hidden" : ""}`} onClick={() => setSearchOpen(true)}
               aria-label={t("Search chats and notes")} title={t("Search (Ctrl+K)")} aria-haspopup="dialog">
-              <Search size={20} />
+              <Search size={18} />
             </button>
             {workspaceView === "chat" && isSplitViewport && (
               <button type="button" className={`notion-icon-button grid${splitOpen ? " is-active" : ""}`} onClick={toggleSplitView}
                 aria-pressed={splitOpen} aria-label={splitOpen ? t("Close split view") : t("Split view")} title={splitOpen ? t("Close split view") : t("Split view")}>
-                {splitOpen ? <PanelRightClose size={20} className="rtl-mirror" /> : <PanelRight size={20} className="rtl-mirror" />}
+                {splitOpen ? <PanelRightClose size={18} className="rtl-mirror" /> : <PanelRight size={18} className="rtl-mirror" />}
               </button>
             )}
             {workspaceView === "chat" && !emptyState && (
               <button type="button" className="notion-icon-button grid lg:hidden" onClick={() => void createSession()}
                 aria-label={t("New chat")} title={t("New chat")}>
-                <Plus size={20} />
+                <Plus size={19} />
               </button>
             )}
             {workspaceView === "pages" && !notesList && activeSummary && pageSettingsOf(activeSummary).locked && (
               <button type="button" className="notes-locked-button" disabled={notes.busy} onClick={() => void notes.updateSettings(activeSummary.id, { locked: false })}
                 aria-label={t("Unlock page")} title={t("Unlock page")}>
-                <Lock size={14} /><span className="hidden sm:inline">{t("Locked")}</span>
+                <Lock size={13.5} /><span className="hidden sm:inline">{t("Locked")}</span>
               </button>
             )}
             {/* 公開できるのは公開用のビューがある種類だけ（いまはノート。ホワイトボード・スライドは #152・#149）。 */}
@@ -2452,18 +2478,19 @@ export default function Home() {
               <button type="button" className={`notes-share-button${isPageShared(activeSummary) ? " is-shared" : ""}`} disabled={notes.busy}
                 onClick={() => setShareNoteId(activeSummary.id)}
                 aria-label={t("Share")} title={t("Share")} aria-haspopup="dialog">
-                <Globe size={15} aria-hidden="true" /><span className="hidden sm:inline">{t("Share")}</span>
+                <Globe size={14} aria-hidden="true" /><span className="hidden sm:inline">{t("Share")}</span>
               </button>
             )}
             {workspaceView === "pages" && !notesList && notes.active && notes.activeId && (
               <button type="button" className="notion-icon-button grid" disabled={notes.busy} onClick={() => setHistoryNoteId(notes.activeId)}
                 aria-label={t("Version history")} title={t("Version history")} aria-haspopup="dialog">
-                <History size={20} />
+                <History size={18} />
               </button>
             )}
-            {workspaceView === "pages" && !notesList ? (
-              <span role="status" className={`notes-save-status ${notes.active?.status === "error" || notes.active?.status === "conflict" ? "has-error" : ""}`}>
-                {notes.active ? ({ saved: t("Saved"), pending: t("Saving…"), saving: t("Saving…"), error: t("Not saved"), conflict: t("Conflict") })[notes.active.status] : ""}
+            {workspaceView === "pages" && !notesList && notes.active ? (
+              <span role="status" data-status={notes.active.status} className={`notes-save-status ${notes.active.status === "error" || notes.active.status === "conflict" ? "has-error" : ""}`}>
+                <span className="notes-save-dot" aria-hidden="true" />
+                <span>{({ saved: t("Saved"), pending: t("Saving…"), saving: t("Saving…"), error: t("Not saved"), conflict: t("Conflict") })[notes.active.status]}</span>
               </span>
             ) : null}
             {workspaceView === "pages" && !notesList && activeSummary && (

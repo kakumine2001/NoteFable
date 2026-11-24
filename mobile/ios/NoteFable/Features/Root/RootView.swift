@@ -6,6 +6,9 @@ import UIKit
 struct RootView: View {
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router
+    @Environment(\.scenePhase) private var scenePhase
+    /// 整个工作区共用的常驻 /note-embed WKWebView 池：按需创建，按身份变化 / 后台 / 内存警告 / 空闲超时释放。
+    @State private var noteEditorPool = NoteEditorPool()
 
     init() {}
 
@@ -17,6 +20,13 @@ struct RootView: View {
         } content: {
             workspace
         }
+        .environment(noteEditorPool)
+        .onAppear {
+            noteEditorPool.bind(app: app)
+        }
+        .onDisappear {
+            noteEditorPool.destroy()
+        }
         // 每次打开抽屉都刷新列表，拿到其它设备或网页上的新内容。
         .onChange(of: router.drawerOpen) { _, open in
             if open { refreshDrawerLists() }
@@ -25,9 +35,18 @@ struct RootView: View {
         .onChange(of: app.notes.state.workspace) { old, new in
             if new == .chat && old != .chat { app.chat.refreshActiveQuietly() }
         }
-        // 登录 / 退出后：旧身份的窗口关掉。
+        // 登录 / 退出后：旧身份的窗口关掉，常驻 WebView 与其缓存一并销毁。
         .onChange(of: app.identityGeneration) { _, _ in
+            noteEditorPool.destroy()
             router.onIdentityChanged()
+        }
+        // App 退到后台且当前停留在列表 / 聊天时，立刻释放热缓存 WebView。
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background { noteEditorPool.destroyIfParked() }
+        }
+        // 系统内存紧张且当前停留在列表 / 聊天时，立刻释放热缓存 WebView。
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
+            noteEditorPool.destroyIfParked()
         }
         // 从笔记切回聊天时：如果之前笔记保存失败没能立即接收分享，这里自动取走。
         .onChange(of: app.notes.state.workspace) { _, workspace in
@@ -77,7 +96,7 @@ private struct DrawerPanel: View {
         VStack(spacing: 0) {
             header
             WorkspaceSwitch(inDrawer: true)
-                .padding(.horizontal, 8)
+                .padding(.horizontal, 10)
                 .padding(.top, 4)
             Group {
                 switch app.notes.state.workspace {
@@ -92,23 +111,23 @@ private struct DrawerPanel: View {
         }
     }
 
-    /// 头部：网页 NoteFableLogo（设置里换过图标就画那个角色 / 图片）+ 名字 15 / 650、字距 -.02em，间距 7.2；
+    /// 头部：网页 NoteFableLogo（设置里换过图标就画那个角色 / 图片）+ 名字 15 / 680、字距 -.025em，间距 8；
     /// 右边“关闭侧栏”（.notion-icon-button 40，PanelLeftClose 17 灰）。
     private var header: some View {
         HStack(spacing: 0) {
             AppIconView(icon: app.appIcon.icon, size: 20)
             Text(L("app_title"))
-                .font(.nf(15, weight: 650))
-                .tracking(-0.3)
+                .font(.nf(15, weight: 680))
+                .tracking(-0.35)
                 .foregroundStyle(Sm.ink)
                 .lineLimit(1)
-                .padding(.leading, 7.2)
+                .padding(.leading, 8)
             Spacer(minLength: 0)
             NFIconButton(Lucide.panelLeftClose, label: L("sb_close_sidebar"), iconSize: 17) {
                 router.closeDrawer()
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 14)
         .frame(height: 48)
     }
 }
@@ -174,10 +193,10 @@ private struct AppDrawer<Panel: View, Content: View>: View {
         case ignored
     }
 
-    private static var maxWidth: CGFloat { 240 }
+    private static var maxWidth: CGFloat { 280 }
     /// 从屏幕边缘多宽以内开始的拖动算“拉出抽屉”。
     private static var edgeWidth: CGFloat { 24 }
-    private static var scrim: Color { Color.black.opacity(0.15) }
+    private static var scrim: Color { Color.black.opacity(0.25) }
 
     init(isOpen: Binding<Bool>, edgeOpens: Bool = true, @ViewBuilder panel: () -> Panel, @ViewBuilder content: () -> Content) {
         self._isOpen = isOpen
@@ -188,7 +207,7 @@ private struct AppDrawer<Panel: View, Content: View>: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let width = min(Self.maxWidth, proxy.size.width * 0.88)
+            let width = min(Self.maxWidth, proxy.size.width * 0.85)
             let rtl = layoutDirection == .rightToLeft
             // 收起时要移出屏幕的距离：底色铺到了安全区外面（横屏的刘海一侧），所以把那一段也算上。
             let travel = width + proxy.safeAreaInsets.leading

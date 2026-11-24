@@ -67,8 +67,9 @@ internal fun ChatRecentNotes(
                             }.padding(horizontal = 13.dp, vertical = 11.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        Box(Modifier.size(32.dp).background(Sm.Sidebar, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
-                            NoteIcon(page.icon, 16.sp, 18.dp, Sm.Muted, page.kind)
+                        val iconBg = if (page.icon != null) Sm.Hover else pageKindSoft(page.kind)
+                        Box(Modifier.size(32.dp).background(iconBg, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
+                            NoteIcon(page.icon, 16.sp, 17.dp, pageKindColor(page.kind), page.kind)
                         }
                         Text(title, color = Sm.Text, fontSize = 14.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)

@@ -183,7 +183,7 @@ final class NotesViewModelTests: XCTestCase {
             return FlushResult(false)
         }
         backend.calls.removeAll()
-        vm.onEditorMessage("a", .missing)
+        vm.onEditorMessage("a", .missing())
         await notesSettle()
         XCTAssertNil(vm.state.open)
         XCTAssertEqual(backend.calls, ["notes"])
@@ -1047,5 +1047,19 @@ final class NotesViewModelTests: XCTestCase {
         _ = await b.value
         XCTAssertEqual(page(vm, "a")?.font, "mono")
         XCTAssertEqual(backend.count("settings:a"), 2)
+    }
+
+    @MainActor
+    func testTrashingNotesNotifiesTheWarmWebViewCacheEvenWhenClosed() async {
+        let backend = NotesTestBackend()
+        let vm = await notesVm(backend)
+        var notified: [Set<String>] = []
+        vm.notifyPagesTrashed = { notified.append(Set($0)) }
+
+        let trashed = await vm.trashNote("a")
+        XCTAssertTrue(trashed)
+        vm.onPagesTrashed(["b"])
+
+        XCTAssertEqual(notified, [Set(["a"]), Set(["b"])])
     }
 }

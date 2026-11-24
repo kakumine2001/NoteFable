@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronRight, Folder, FolderInput, House, PanelLeftClose, Pencil, Plus, Search, StarOff, Trash2, Upload } from "lucide-react";
+import { ChevronDown, ChevronRight, Folder, FolderInput, House, PanelLeftClose, Pencil, Plus, Search, Star, StarOff, Trash2, Upload } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { FloatingEmojiPopover, floatingPositionFor, usePickerBackToClose, type FloatingPosition } from "@/components/emoji-picker";
 import { ReorderRowButton } from "@/components/reorder-row-button";
@@ -46,12 +46,12 @@ type GroupActions = {
   onFavorite: (pageId: string, favorite: boolean) => Promise<unknown>;
 };
 
-export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, onImport, onSearch, onSelect, onDelete, onClose, onWorkspaceChange, groups, groupError, onMoveNote, onChangeIcon, onCreateGroup, onRenameGroup, onDeleteGroup, onReorder, onMoveToPage, onFavorite }: {
+export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, onImport, onSearch, onSelect, onPrefetch, onCancelPrefetch, onDelete, onClose, onWorkspaceChange, groups, groupError, onMoveNote, onChangeIcon, onCreateGroup, onRenameGroup, onDeleteGroup, onReorder, onMoveToPage, onFavorite }: {
   pages: NotePageSummary[]; activeId: string | null; busy: boolean;
   // Notes のホーム（最近のノートと一覧）を出しているか、とホームへ戻る操作。
   home: boolean; onHome: () => void;
   // 作り先（種類・親ページ・プロジェクト）を渡して新しいページを作る。省略はプロジェクトなしのノート。
-  onWorkspaceChange: (view: WorkspaceView) => void; onCreate: (request?: NewPageRequest) => void; onImport: (files: File[]) => void; onSearch: () => void; onSelect: (id: string) => void; onDelete: (id: string) => Promise<unknown>; onClose: () => void;
+  onWorkspaceChange: (view: WorkspaceView) => void; onCreate: (request?: NewPageRequest) => void; onImport: (files: File[]) => void; onSearch: () => void; onSelect: (id: string) => void; onPrefetch?: (id: string, immediate?: boolean) => void; onCancelPrefetch?: (id?: string) => void; onDelete: (id: string) => Promise<unknown>; onClose: () => void;
 } & GroupActions) {
   const t = useT();
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -139,7 +139,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
       data-page-kind={sectionKindOf(page, kinds)} data-drop-kind={sectionOf.get(page.id)?.kind}>
       <button type="button" className="notes-row-toggle" aria-expanded={open} onClick={() => toggleExpanded(page.id, !open)}
         aria-label={open ? t("Collapse {title}", { title: page.title }) : t("Expand {title}", { title: page.title })}>
-        {open ? <ChevronDown size={14} /> : <ChevronRight size={14} className="rtl-mirror" />}
+        <ChevronRight size={13} className={`sidebar-chevron rtl-mirror${open ? " is-open" : ""}`} />
       </button>
       <button type="button" disabled={busy || page.locked === true} className="chat-row-icon-button" aria-label={t("Change icon of {title}", { title: page.title })} title={t("Change icon")}
         aria-haspopup="dialog" aria-expanded={picker?.id === page.id}
@@ -150,112 +150,131 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
         }}>
         <span className="notes-row-icon" aria-hidden="true"><NoteIcon icon={page.icon} fallback={<PageKindIcon kind={page.kind} size={15} />} /></span>
       </button>
-      <ReorderRowButton id={page.id} title={page.title} scope="note" ids={siblingIds(page)} disabled={busy} onMove={onReorder} onOpen={() => onSelect(page.id)} className="flex min-w-0 flex-1 items-center py-1.5 ps-1 pe-2 text-start" onMoveGroup={async groupId=>{
+      <ReorderRowButton id={page.id} title={page.title} scope="note" ids={siblingIds(page)} disabled={busy} onMove={onReorder} onOpen={() => onSelect(page.id)}
+        onPrefetch={onPrefetch ? (immediate) => onPrefetch(page.id, immediate) : undefined}
+        onCancelPrefetch={onCancelPrefetch ? () => onCancelPrefetch(page.id) : undefined}
+        className="flex min-w-0 flex-1 items-center py-1.5 ps-1 pe-2 text-start" onMoveGroup={async groupId=>{
         const ok=await onMoveNote(page.id,groupId);
         if(ok && groupId)openGroup(groupId);
         else if(ok)setSectionOpen(sectionKindOf(page,kinds),true);
         return ok;
       }}>
-        <span className="truncate text-sm">{page.title}</span>
+        <span className="truncate text-[13.5px] leading-5">{page.title}</span>
       </ReorderRowButton>
-      <NewPageButton kinds={kinds} busy={busy} onCreate={(kind) => create({ kind, parentId: page.id })} className="notion-row-action"
-        label={t("Add a page inside {title}", { title: page.title })} title={t("Add a page inside")} menuLabel={t("Add a page inside {title}", { title: page.title })}><Plus size={14} /></NewPageButton>
-      <button type="button" disabled={busy} onClick={() => setMoving(page)} className="notion-row-action notes-move-action" aria-label={t("Move {title} to a project", { title: page.title })} title={t("Move to project")}><FolderInput size={14} /></button>
-      <button type="button" disabled={busy} onClick={() => setDeleting(page)} className="notion-row-action" aria-label={t("Move {title} to Trash", { title: page.title })} title={t("Move to Trash")}><Trash2 size={14} /></button>
+      <span className="sidebar-row-actions">
+        <NewPageButton kinds={kinds} busy={busy} onCreate={(kind) => create({ kind, parentId: page.id })} className="notion-row-action"
+          label={t("Add a page inside {title}", { title: page.title })} title={t("Add a page inside")} menuLabel={t("Add a page inside {title}", { title: page.title })}><Plus size={14} /></NewPageButton>
+        <button type="button" disabled={busy} onClick={() => setMoving(page)} className="notion-row-action notes-move-action" aria-label={t("Move {title} to a project", { title: page.title })} title={t("Move to project")}><FolderInput size={13.5} /></button>
+        <button type="button" disabled={busy} onClick={() => setDeleting(page)} className="notion-row-action is-danger" aria-label={t("Move {title} to Trash", { title: page.title })} title={t("Move to Trash")}><Trash2 size={13.5} /></button>
+      </span>
     </div>
   );
 
   return (
     <aside className="notion-sidebar" data-reorder-list>
-      <div className="flex h-12 items-center justify-between px-3">
+      <div className="sidebar-header flex h-12 items-center justify-between px-3.5">
         <NoteFableLogo />
-        <button type="button" className="notion-icon-button grid" onClick={onClose} aria-label={t("Close sidebar")}><PanelLeftClose size={17} className="rtl-mirror" /></button>
+        <button type="button" className="notion-icon-button grid" onClick={onClose} aria-label={t("Close sidebar")} title={t("Toggle sidebar (Ctrl+B)")}><PanelLeftClose size={17} className="rtl-mirror" /></button>
       </div>
       <WorkspaceNav view="pages" onChange={onWorkspaceChange} />
-      <div className="mt-3 px-2">
+      <div className="sidebar-top-actions mt-2.5 flex flex-col gap-1 px-2.5">
         {/* 作れる種類がノートだけなら「New note」（押すとすぐノート）、2 つ以上なら「New」で種類を選ぶ。 */}
         <NewPageButton kinds={kinds} busy={busy} onCreate={(kind) => create({ kind })} className="sidebar-primary-action" menuLabel={t("New page")}>
-          <Plus size={16} /><span>{kinds.length > 1 ? t("New") : t("New note")}</span>
+          <Plus size={15} strokeWidth={2.2} /><span>{kinds.length > 1 ? t("New") : t("New note")}</span>
+          {kinds.length > 1 && <ChevronDown size={14} className="sidebar-primary-chevron" aria-hidden="true" />}
         </NewPageButton>
         <button type="button" className={`notion-sidebar-action notes-sidebar-home ${home ? "is-active" : ""}`} aria-current={home ? "page" : undefined} onClick={onHome}>
-          <House size={16} /><span>{t("Home")}</span>
+          <House size={15} /><span>{t("Home")}</span>
         </button>
-        <button type="button" className="notion-sidebar-action" onClick={onSearch} aria-keyshortcuts="Control+K Meta+K">
-          <Search size={16} /><span>{t("Search")}</span><kbd className="sidebar-search-hint" aria-hidden="true">{t("Ctrl K")}</kbd>
+        <button type="button" className="notion-sidebar-action sidebar-search-trigger" onClick={onSearch} aria-keyshortcuts="Control+K Meta+K">
+          <Search size={15} /><span>{t("Search")}</span><kbd className="sidebar-search-hint" aria-hidden="true">{t("Ctrl K")}</kbd>
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
-        {favorites.length > 0 && <>
-          <div className="chat-section-label">{t("Favorites")}</div>
+      <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto px-2.5 pb-4">
+        {favorites.length > 0 && <div className="sidebar-group">
+          <div className="chat-section-label sidebar-section-inline"><Star size={12} className="sidebar-fav-star" aria-hidden="true" /><span>{t("Favorites")}</span></div>
           {favorites.map((page) => <div key={page.id} className={`notion-session-row group ${activeId === page.id ? "is-active" : ""}`}>
             <span className="chat-row-icon-button" aria-hidden="true"><span className="notes-row-icon"><NoteIcon icon={page.icon} fallback={<PageKindIcon kind={page.kind} size={15} />} /></span></span>
-            <button type="button" disabled={busy} onClick={() => onSelect(page.id)} className="flex min-w-0 flex-1 items-center py-1.5 ps-1 pe-2 text-start" title={page.title}>
-              <span className="truncate text-sm">{page.title}</span>
+            <button type="button" disabled={busy} onClick={() => onSelect(page.id)}
+              onPointerEnter={(event) => { if (event.pointerType !== "touch") onPrefetch?.(page.id, false); }}
+              onPointerLeave={() => onCancelPrefetch?.(page.id)}
+              onPointerDown={(event) => { if (event.pointerType !== "touch" && event.button === 0) onPrefetch?.(page.id, true); }}
+              onFocus={() => onPrefetch?.(page.id, true)}
+              className="flex min-w-0 flex-1 items-center py-1.5 ps-1 pe-2 text-start" title={page.title}>
+              <span className="truncate text-[13.5px] leading-5">{page.title}</span>
             </button>
-            <button type="button" disabled={busy} onClick={() => void onFavorite(page.id, false)} className="notion-row-action" aria-label={t("Remove {title} from Favorites", { title: page.title })} title={t("Remove from Favorites")}><StarOff size={14} /></button>
+            <span className="sidebar-row-actions">
+              <button type="button" disabled={busy} onClick={() => void onFavorite(page.id, false)} className="notion-row-action" aria-label={t("Remove {title} from Favorites", { title: page.title })} title={t("Remove from Favorites")}><StarOff size={13.5} /></button>
+            </span>
           </div>)}
-        </>}
-        <div className="chat-project-heading">
-          <span>{t("Projects")}</span>
-          <button type="button" className="notion-icon-button" onClick={() => setNaming({ mode: "create" })} aria-label={t("New project")} title={t("New project")}><Plus size={15} /></button>
-        </div>
-        {groups.map((group) => {
-          const members = roots.filter((page) => page.groupId === group.id);
-          // 数はサブページも含めた、この項目のページ数。
-          const total = pages.filter((page) => page.groupId === group.id).length;
-          const open = !collapsed[group.id];
-          return (
-            <div key={group.id}>
-              <div className="notion-session-row group" data-note-group-drop={group.id}>
-                <button type="button" onClick={() => toggle(group.id)} aria-expanded={open} className="chat-project-toggle" title={group.name}>
-                  {open ? <ChevronDown size={14} /> : <ChevronRight size={14} className="rtl-mirror" />}
-                  <Folder size={15}/>
-                  <span className="truncate text-sm font-medium">{group.name}</span>
-                  <span className="text-xs text-[var(--notion-faint)]">{total}</span>
-                </button>
-                <NewPageButton kinds={kinds} busy={busy} onCreate={(kind) => create({ kind, groupId: group.id })} className="notion-row-action"
-                  label={t("New page in {name}", { name: group.name })} menuLabel={t("New page in {name}", { name: group.name })}><Plus size={14} /></NewPageButton>
-                <button type="button" onClick={() => setNaming({ mode: "rename", group })} className="notion-row-action" aria-label={t("Rename {name}", { name: group.name })}><Pencil size={13} /></button>
-                <button type="button" onClick={() => setDeletingGroup(group)} className="notion-row-action" aria-label={t("Delete project {name}", { name: group.name })}><Trash2 size={14} /></button>
+        </div>}
+        <div className="sidebar-group">
+          <div className="chat-project-heading">
+            <span>{t("Projects")}</span>
+            <button type="button" className="notion-icon-button sidebar-heading-add" onClick={() => setNaming({ mode: "create" })} aria-label={t("New project")} title={t("New project")}><Plus size={14} /></button>
+          </div>
+          {groups.map((group) => {
+            const members = roots.filter((page) => page.groupId === group.id);
+            // 数はサブページも含めた、この項目のページ数。
+            const total = pages.filter((page) => page.groupId === group.id).length;
+            const open = !collapsed[group.id];
+            return (
+              <div key={group.id}>
+                <div className="notion-session-row sidebar-project-row group" data-note-group-drop={group.id}>
+                  <button type="button" onClick={() => toggle(group.id)} aria-expanded={open} className="chat-project-toggle" title={group.name}>
+                    <ChevronRight size={13} className={`sidebar-chevron rtl-mirror${open ? " is-open" : ""}`} />
+                    <Folder size={14.5} className="shrink-0 text-[var(--notion-muted)]" />
+                    <span className="truncate text-[13.5px] font-medium">{group.name}</span>
+                    <span className="sidebar-count-pill">{total}</span>
+                  </button>
+                  <span className="sidebar-row-actions">
+                    <NewPageButton kinds={kinds} busy={busy} onCreate={(kind) => create({ kind, groupId: group.id })} className="notion-row-action"
+                      label={t("New page in {name}", { name: group.name })} menuLabel={t("New page in {name}", { name: group.name })}><Plus size={14} /></NewPageButton>
+                    <button type="button" onClick={() => setNaming({ mode: "rename", group })} className="notion-row-action" aria-label={t("Rename {name}", { name: group.name })}><Pencil size={13} /></button>
+                    <button type="button" onClick={() => setDeletingGroup(group)} className="notion-row-action is-danger" aria-label={t("Delete project {name}", { name: group.name })}><Trash2 size={13.5} /></button>
+                  </span>
+                </div>
+                {open && <div className="notes-group-members">
+                  {members.length ? members.map(tree) : <p className="px-2 py-1.5 text-xs text-[var(--notion-faint)]">{t("No notes in this project.")}</p>}
+                </div>}
               </div>
-              {open && <div className="notes-group-members">
-                {members.length ? members.map(tree) : <p className="px-2 py-1.5 text-xs text-[var(--notion-faint)]">{t("No notes in this project.")}</p>}
-              </div>}
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
         {iconError && <p role="alert" className="px-2 text-xs text-[#b91c1c]">{t(iconError)}</p>}
         {/* 分区（ノート・スライド・ホワイトボード）：プロジェクトに入っていない最上位のページを種類ごとに。見出しは押すと折りたたみ、
             「+」はその種類を作る。見出しはプロジェクトから外す放し先で、同じ分区に並ぶページだけを受ける。 */}
         {sections.map((section) => {
           const label = t(PAGE_KIND_SECTION_LABELS[section.kind]);
           const open = !sectionsCollapsed[section.kind];
-          return <div key={section.kind} className="notes-section">
+          return <div key={section.kind} className="notes-section sidebar-group">
             <div className="chat-project-heading notes-section-heading" data-note-group-drop="" data-drop-kind={section.kind}>
               <button type="button" className="notes-section-toggle" aria-expanded={open} onClick={() => setSectionOpen(section.kind, !open)}
                 aria-label={open ? t("Collapse {title}", { title: label }) : t("Expand {title}", { title: label })}>
+                {kinds.length > 1 && <span className={`sidebar-kind-dot is-${section.kind}`} aria-hidden="true" />}
                 <span className="truncate">{label}</span>
-                {open ? <ChevronDown size={13} aria-hidden="true" /> : <ChevronRight size={13} className="rtl-mirror" aria-hidden="true" />}
+                {section.count > 0 && <span className="sidebar-section-count">{section.count}</span>}
+                <ChevronRight size={12} className={`sidebar-chevron rtl-mirror${open ? " is-open" : ""}`} aria-hidden="true" />
               </button>
-              <button type="button" className="notion-icon-button" disabled={busy} onClick={() => create({ kind: section.kind })}
-                aria-label={t(PAGE_KIND_NEW_LABELS[section.kind])} title={t(PAGE_KIND_NEW_LABELS[section.kind])}><Plus size={15} /></button>
+              <button type="button" className="notion-icon-button sidebar-heading-add" disabled={busy} onClick={() => create({ kind: section.kind })}
+                aria-label={t(PAGE_KIND_NEW_LABELS[section.kind])} title={t(PAGE_KIND_NEW_LABELS[section.kind])}><Plus size={14} /></button>
             </div>
             {open && section.roots.map(tree)}
-            {open && section.kind === "note" && !pages.length && <p className="px-2 py-3 text-xs leading-5 text-[var(--notion-muted)]">{t("Your notes will appear here.")}</p>}
+            {open && section.kind === "note" && !pages.length && <p className="px-2 py-2.5 text-xs leading-5 text-[var(--notion-faint)]">{t("Your notes will appear here.")}</p>}
           </div>;
         })}
       </div>
-      <div className="shrink-0 px-2 pb-1">
+      <div className="sidebar-utility-footer shrink-0 px-2.5 py-1.5">
         <input ref={importInputRef} type="file" multiple accept=".md,.markdown,.txt,text/markdown,text/plain" className="sr-only"
           onChange={(event) => {
             const picked = Array.from(event.target.files ?? []);
             event.target.value = "";
             if (picked.length) onImport(picked);
           }} />
-        <button type="button" className="notion-sidebar-action" disabled={busy} onClick={() => importInputRef.current?.click()}>
-          <Upload size={16} /><span>{t("Import Markdown")}</span>
+        <button type="button" className="notion-sidebar-action is-subtle" disabled={busy} onClick={() => importInputRef.current?.click()}>
+          <Upload size={15} /><span>{t("Import Markdown")}</span>
         </button>
-        <button type="button" className="notion-sidebar-action" aria-haspopup="dialog" onClick={() => setTrashOpen(true)}><Trash2 size={16} /><span>{t("Trash")}</span></button>
+        <button type="button" className="notion-sidebar-action is-subtle" aria-haspopup="dialog" onClick={() => setTrashOpen(true)}><Trash2 size={15} /><span>{t("Trash")}</span></button>
       </div>
       {deleting && <dialog ref={dialog} onCancel={() => setDeleting(null)} aria-labelledby="delete-page-title" aria-describedby="delete-page-description" className="notes-dialog">
           <h2 id="delete-page-title" className="text-base font-semibold">{t("Move note to Trash?")}</h2>

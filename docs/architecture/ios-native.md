@@ -17,7 +17,7 @@ iOS 客户端是 Android 客户端（[android-native.md](android-native.md)）�
   - **检索定位**（笔记和白板都用）：笔记结果的 `blockId` 经 `AppRouter.openNote` → `NotesViewModel.openNote(reveal:)`。要打开别的页面时存进 `OpenNote.reveal`，新编辑器第一次加载时在地址后加 `&reveal=`（`noteEmbedUrl`），网页滚到命中的块、白板移到命中的元素；网页进程崩溃后的重新加载不再带。命中的就是开着的那一篇时不保存、不重新加载，经注册的编辑器桥（`revealInEditor` → `NoteEmbedBridge.reveal` → `NoteEmbedScripts.reveal`）调 `notefableEmbed.reveal(id)` 就地定位；网页还没挂上编辑器时这一下什么也不做。
   - 单元测试：`ExportFileTests`（桥消息、拼文件、文件名、ViewModel），`PageKindTests` 的功能表和边缘手势，`NotesViewModelTests` / `NoteIconTests` 的 `reveal`，`NoteEditorTests` 的 `reveal` 脚本和开着的那一篇就地定位，`AppThemeTests` 的地址和 bootstrap。
   - **待验证（只经过编译检查）**：选了画笔后单指画、两指捏合缩放和移动，手的工具下单指移动画布；从屏幕边缘开始画时不返回列表、不拉出抽屉；导出 PNG / SVG / PDF 时“存储到文件”窗口的默认文件名和扩展名、存好 / 取消 / 失败时的提示；编辑器的工具栏在 Home 指示条和键盘上方、不被遮住；深色外观下的画布、工具栏和导出窗口。
-- 分区与新建（#168）和 Android 相同（[android-native.md](android-native.md) 的“分区与新建”一条）：`NotesUiState.kinds` / `sections` / `sectionKind(of:)` / `collapsedSections`（`NotesPrefs.collapsedSections`，UserDefaults 的 `notes.collapsedSections`），`NotesViewModel.createNote(parentId:kind:groupId:)` / `toggleSection`，拖动规则 `noteDropRules`（`ReorderDragController.rules`，拖动开始时取一次）和 `dropTargetAt` 的 `zoneAccepts` / `rowAccepts`；界面是 `NewPageMenuAnchor`、`NotesSectionHeading`（`Features/Notes/NotesParts.swift`）、首页的 `NewPageButtons`，检索的类型筛选与项目筛选共用 `SearchFilter`。单元测试：`WorkspaceSectionsTests`。**待验证**（只经过语法检查和 CI 编译，没在模拟器或真机上看过）：新建按钮和项目 / 页面行“+”的类型菜单的位置，分区标题的样式和折叠，首页分区小标题和新建按钮的换行，分区之间的拖动（别的类型的分区不出高亮、放下没反应），检索的类型筛选。
+- 分区与新建（#168）和工作区 / 侧栏界面焕新与 Android / 网页相同（[android-native.md](android-native.md) 的对应条款）：`NotesUiState.kinds` / `sections` / `sectionKind(of:)` / `collapsedSections`（`NotesPrefs.collapsedSections`，UserDefaults 的 `notes.collapsedSections`），`NotesViewModel.createNote(parentId:kind:groupId:)` / `toggleSection`，拖动规则 `noteDropRules`（`ReorderDragController.rules`，拖动开始时取一次）和 `dropTargetAt` 的 `zoneAccepts` / `rowAccepts`；界面同步了深色黑曜石色板、页面类型语义色（蓝 / 琥珀 / 紫）、`Lucide.layoutGrid` 切换图标、280pt 抽屉与浮起圆角当前行、微沉命令搜索栏、句首大小写分区标题与色点、Studio 首页（头部工具胶囊、快速创建卡片、类型筛选栏、圆角卡片分组列表）和居中 Studio 空状态。单元测试：`WorkspaceSectionsTests`。**待验证**（只经过语法检查和 CI 编译，没在模拟器或真机上看过）：抽屉和首页的浅色 / 深色视觉效果、快速创建卡片与类型筛选栏交互、新建菜单位置、分区折叠与跨分区拖动。
 - 幻灯片和 Android 相同（[android-native.md](android-native.md) 的“幻灯片”一条，规则见 [slides.md](slides.md#原生应用android--ios)）：“…”菜单的放映和导出（`NotePageMenu` 的 `onSlides` → `NotesViewModel.sendSlidesCommand`，经 `notefableEmbed.slides(...)`），分享对话框不显示“包含子页面”（`NoteShareDialog.kind`），桥的 `canPresent()` / `canSaveFile()`。放映：`presentation` start 时 `NotesUiState.presenting`，编辑页收起顶栏、隐藏状态栏、`isIdleTimerDisabled`（常亮），`App/OrientationLock.swift`（`AppDelegate` 的 `supportedInterfaceOrientationsFor`）锁横屏；平时只允许竖屏（`Info.plist` 声明了横屏，供放映使用）。导出：和白板走同一条路（上面白板一节的“导出的文件”：`Core/Notes/ExportFile.swift` 的 `ExportFileAssembler` 拼临时文件，`NotesUiState.exportFile` 交给编辑页的 `.fileExporter`）。单元测试：`SlidesBridgeTests`、`PageKindTests`。**横屏放映、常亮、文件导出都只经过 Linux 容器的 `swift test` 和 CI 编译，没在模拟器或真机上验证。**
 - AI 的页面提案卡片（#158，网页 `page-proposal.tsx`）不分页面类型：笔记、白板、幻灯片的编辑 / 新建提案是同一张卡片，改动的文字和缩略图由服务端各类型的适配器做好（`src/lib/page-ai/types.ts`），卡片照着画。对应的代码：
   - 解析在 `Core/Chat/Activity.swift`：`pageKind`（缺了或不认识按笔记）、`autoApplied`、`undoable`、`status` 多了 `undone`；新建提案的 `parentId` / `parentTitle` / `changes`；改动的 `op` 是 `ProposalOp`（多了 add / update / move / reorder，不认识的按 update），`target`（`ProposalChangeTarget`：第几张幻灯片、白板的元素）、`beforeImage` / `afterImage`（只收本站的相对地址，别的当没有）。仍然要求 `proposed.blocks` 是数组（服务端总给空数组）。
@@ -35,7 +35,7 @@ iOS 客户端是 Android 客户端（[android-native.md](android-native.md)）�
 
 | 部分 | 验证方式 | 状态 |
 | --- | --- | --- |
-| `Core/`（网络、接口、解析、ViewModel） | Linux 容器里 `swift test`，以及 CI 的 macOS `swift test` | 700 多项单元测试通过（大部分移植自 Android 的单元测试） |
+| `Core/`（网络、接口、解析、ViewModel） | Linux 容器里 `swift test`，以及 CI 的 macOS `swift test` | 720 多项单元测试通过（大部分移植自 Android 的单元测试） |
 | `DesignSystem/`、`Features/`、`App/`（SwiftUI / UIKit） | CI 的模拟器无签名构建（`ios-pr.yml`） | 能编译；界面效果、手势、键盘、WebView 交互未经人工验证 |
 
 Google 登录：Google Cloud 里给 `com.kakumine.notefable` 登记的 iOS OAuth 客户端是 `NoteFable-iOS`，客户端 ID 写在 `Config/NoteFable.xcconfig` 的 `GOOGLE_IOS_CLIENT_ID` / `GOOGLE_IOS_REVERSED_CLIENT_ID`（不是密钥，会打进安装包；留空时登录窗口只有邮箱验证码）。服务端校验的 audience 仍是 Web 客户端 ID（`serverClientID`）。
@@ -131,6 +131,7 @@ mobile/ios/
 - **启动画面的底色**（`LaunchBackground`）跟随系统的深浅，不看 App 里选的外观：选的和系统不一样时，启动瞬间的底色与进入后的界面不同。
 - **导出笔记**：存好以后不另外提示；写入失败弹 “Could not export the page.” 的提示（Android 显示在笔记顶栏下面的提示条里）。导出、导入的其他错误和 Android 一样分别显示在编辑页顶栏下面和笔记的错误条里。
 - **白板页的边缘手势**：Android 只在网页报来正在用画画的工具（`drawing`）时让开屏幕边缘；iOS 在白板页一直关掉边缘返回和抽屉的边缘拉出（用手的工具时也一样），离开用顶栏的“<”。
+- **常驻复用 WebView 与就地切页（#176）**：与 Android 对齐，`RootView` 持有单个工作区级 `NoteEditorPool`（首次打开笔记时按需创建 `WKWebView`），直接切页与离开后短暂重开都复用同一个 `WKWebView` 并经 `window.notefableEmbed.openPage` 就地切换（命中网页端最多 8 篇的 LRU 缓存；旧版服务端或尚未挂好时回退到 Cookie 同步 + 整页加载）。离开编辑页停留在列表或聊天时调用 `close()` 卸载编辑器 DOM 仅保留轻量缓存，同时通过 `AppEnvironment.warmPageUpdated` 与 `NotesViewModel.notifyPagesTrashed` 同步聊天提案更新和回收站清理。换身份、退到后台（`scenePhase == .background` 且未打开笔记）、收到系统内存警告（`didReceiveMemoryWarningNotification` 且未打开笔记）、停靠空闲超过 120 秒、网页进程在停靠期间终止以及根视图销毁时彻底释放 `WKWebView`。
 
 ## 生成的文件
 

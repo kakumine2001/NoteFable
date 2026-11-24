@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { flushCanvasEditors, registerCanvasFlusher } from "@/lib/canvas-flush";
+import { flushCanvasEditors, flushCanvasEditorsSync, registerCanvasFlusher } from "@/lib/canvas-flush";
 
 describe("canvas flush", () => {
   it("waits for every open editor and forgets closed ones", async () => {
@@ -30,5 +30,17 @@ describe("canvas flush", () => {
     expect(calls).toEqual(["b"]);
     offA();
     offB();
+  });
+
+  it("runs synchronous flushers and reports whether async editor work remains", () => {
+    let flushed = false;
+    const offClean = registerCanvasFlusher(() => true, () => { flushed = true; return false; });
+    expect(flushCanvasEditorsSync()).toBe(false);
+    expect(flushed).toBe(true);
+    const offUploading = registerCanvasFlusher(() => false, () => true);
+    expect(flushCanvasEditorsSync()).toBe(true);
+    offUploading();
+    offClean();
+    expect(flushCanvasEditorsSync()).toBe(false);
   });
 });

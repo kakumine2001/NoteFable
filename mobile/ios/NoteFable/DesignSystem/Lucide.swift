@@ -55,6 +55,13 @@ enum Lucide {
         "M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3",
         "m7 21 5-5 5 5",
     ]
+    // Workspace 切换图标与空状态徽章（lucide-react 1.16.0 LayoutGrid；4 个圆角 rect 换成等价 path，与 Android Lucide.kt 相同）。
+    static let layoutGrid: [String] = [
+        "M4 3h5a1 1 0 0 1 1 1v5a1 1 0 0 1 -1 1h-5a1 1 0 0 1 -1 -1v-5a1 1 0 0 1 1 -1Z",
+        "M15 3h5a1 1 0 0 1 1 1v5a1 1 0 0 1 -1 1h-5a1 1 0 0 1 -1 -1v-5a1 1 0 0 1 1 -1Z",
+        "M15 14h5a1 1 0 0 1 1 1v5a1 1 0 0 1 -1 1h-5a1 1 0 0 1 -1 -1v-5a1 1 0 0 1 1 -1Z",
+        "M4 14h5a1 1 0 0 1 1 1v5a1 1 0 0 1 -1 1h-5a1 1 0 0 1 -1 -1v-5a1 1 0 0 1 1 -1Z",
+    ]
     // 「整理成笔记」（网页 page.tsx / create-page-dialog.tsx 的 FilePlus）。
     static let filePlus: [String] = [
         "M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z",

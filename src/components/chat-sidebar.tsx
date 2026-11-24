@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronRight, Folder, MessageSquareText, MoreHorizontal, PanelLeftClose, Plus, ScrollText, Search } from "lucide-react";
+import { ChevronRight, Folder, MessageSquareText, MoreHorizontal, PanelLeftClose, Pin, Plus, ScrollText, Search } from "lucide-react";
 import { useRef, useState } from "react";
 import { FloatingEmojiPopover, floatingPositionFor, usePickerBackToClose, type FloatingPosition } from "@/components/emoji-picker";
 import { ReorderRowButton } from "@/components/reorder-row-button";
@@ -81,12 +81,14 @@ export function ChatSidebar({
                       : <MessageSquareText size={15} className="shrink-0 text-[var(--notion-muted)]" />}
                   </button>
                   <ReorderRowButton id={session.id} title={session.title} scope="chat" ids={ordered.filter(item=>session.pinned ? item.pinned : !item.pinned && item.projectId===session.projectId).map(item=>item.id)} onMove={onReorder} onOpen={()=>onLoad(session.id)} className="flex min-w-0 flex-1 items-center py-1.5 pe-2 text-start" onMoveProject={async projectId=>{const ok=await onUpdate(session.id,{projectId,pinned:false});if(ok && projectId)setCollapsed(state=>({...state,[projectId]:false}));return ok;}}>
-                    <span className="truncate text-sm">{session.title}</span>
+                    <span className="truncate text-[13.5px] leading-5">{session.title}</span>
                   </ReorderRowButton>
-                  <button type="button" className="notion-row-action chat-more-button" aria-label={t("Actions for {title}", { title: session.title })} aria-haspopup="dialog"
-                    onClick={event=>{setPicker(null);setAction({kind:"menu",session,anchor:event.currentTarget.getBoundingClientRect()});}}>
-                    <MoreHorizontal size={16}/>
-                  </button>
+                  <span className="sidebar-row-actions">
+                    <button type="button" className="notion-row-action chat-more-button" aria-label={t("Actions for {title}", { title: session.title })} aria-haspopup="dialog"
+                      onClick={event=>{setPicker(null);setAction({kind:"menu",session,anchor:event.currentTarget.getBoundingClientRect()});}}>
+                      <MoreHorizontal size={15}/>
+                    </button>
+                  </span>
                 </div>
               );
   }
@@ -94,7 +96,7 @@ export function ChatSidebar({
   const known=new Set(projects.map(project=>project.id));
   return (
     <aside className="notion-sidebar" data-reorder-list>
-      <div className="flex h-12 items-center justify-between px-3">
+      <div className="sidebar-header flex h-12 items-center justify-between px-3.5">
         <NoteFableLogo />
         <button type="button" className="notion-icon-button grid" onClick={onClose} aria-label={t("Close sidebar")} title={t("Toggle sidebar (Ctrl+B)")}>
           <PanelLeftClose size={17} className="rtl-mirror" />
@@ -103,42 +105,50 @@ export function ChatSidebar({
 
       <WorkspaceNav view="chat" onChange={onWorkspaceChange} />
 
-      <div className="mt-3 px-2">
+      <div className="sidebar-top-actions mt-2.5 flex flex-col gap-1 px-2.5">
         <button type="button" onClick={onCreate} className="sidebar-primary-action">
-          <Plus size={16} />
+          <Plus size={15} strokeWidth={2.2} />
           <span>{t("New chat")}</span>
         </button>
-        <button type="button" onClick={onSearch} className="notion-sidebar-action" aria-keyshortcuts="Control+K Meta+K">
-          <Search size={16} />
+        <button type="button" onClick={onSearch} className="notion-sidebar-action sidebar-search-trigger" aria-keyshortcuts="Control+K Meta+K">
+          <Search size={15} />
           <span>{t("Search")}</span>
           <kbd className="sidebar-search-hint" aria-hidden="true">{t("Ctrl K")}</kbd>
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
-        {ordered.filter(session=>session.pinned).length>0 && <>
-          <div className="chat-section-label">{t("Pinned")}</div>
+      <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto px-2.5 pb-4">
+        {ordered.filter(session=>session.pinned).length>0 && <div className="sidebar-group">
+          <div className="chat-section-label sidebar-section-inline"><Pin size={11.5} aria-hidden="true" /><span>{t("Pinned")}</span></div>
           {ordered.filter(session=>session.pinned).map(renderRow)}
-        </>}
-        <div className="chat-project-heading"><span>{t("Projects")}</span><button type="button" aria-label={t("New project")} className="notion-icon-button" onClick={()=>setAction({kind:"createProject"})}><Plus size={15}/></button></div>
-        {projectError && <p role="alert" className="px-2 text-xs text-[#b91c1c]">{projectError}</p>}
-        {projects.map(project=><div key={project.id}>
-          <div className="notion-session-row chat-project-row" data-chat-project-drop={project.id}>
-            <button type="button" className="chat-project-toggle" aria-expanded={!collapsed[project.id]} title={projectHint(project, t) ? `${project.name} · ${projectHint(project, t)}` : project.name} onClick={()=>setCollapsed(state=>({...state,[project.id]:!state[project.id]}))}>
-              {collapsed[project.id] ? <ChevronRight size={13} className="rtl-mirror"/> : <ChevronDown size={13}/>}<Folder size={15}/><span className="truncate">{project.name}</span>
-              {projectHint(project, t) && <><ScrollText size={12} className="chat-project-hint" aria-hidden="true"/><span className="sr-only">({projectHint(project, t)})</span></>}
-            </button>
-            <button type="button" className="notion-row-action chat-more-button" aria-label={t("New chat in {name}", { name: project.name })} title={t("New chat in this project")}
-              onClick={()=>{setCollapsed(state=>({...state,[project.id]:false}));onCreateInProject(project.id);}}><Plus size={16}/></button>
-            <button type="button" className="notion-row-action chat-more-button" aria-label={t("Actions for project {name}", { name: project.name })} onClick={event=>setAction({kind:"projectMenu",project,anchor:event.currentTarget.getBoundingClientRect()})}><MoreHorizontal size={16}/></button>
-          </div>
-          {!collapsed[project.id] && <div className="ps-3">{ordered.filter(session=>session.projectId===project.id && !session.pinned).map(renderRow)}
-            {!ordered.some(session=>session.projectId===project.id && !session.pinned) && <p className="px-2 py-1 text-xs text-[var(--notion-muted)]">{ordered.some(session=>session.projectId===project.id) ? t("All chats pinned") : t("No chats")}</p>}
-          </div>}
-        </div>)}
-        <div className="chat-section-label" data-chat-project-drop="">{t("Chats")}</div>
-        {ordered.filter(session=>!session.pinned && (!session.projectId || !known.has(session.projectId))).map(renderRow)}
-        {sessions.length===0 && <div className="px-2 py-3 text-xs leading-5 text-[var(--notion-muted)]">{t("Your recent conversations will appear here.")}</div>}
+        </div>}
+        <div className="sidebar-group">
+          <div className="chat-project-heading"><span>{t("Projects")}</span><button type="button" aria-label={t("New project")} title={t("New project")} className="notion-icon-button sidebar-heading-add" onClick={()=>setAction({kind:"createProject"})}><Plus size={14}/></button></div>
+          {projectError && <p role="alert" className="px-2 text-xs text-[#b91c1c]">{projectError}</p>}
+          {projects.map(project=><div key={project.id}>
+            <div className="notion-session-row chat-project-row sidebar-project-row" data-chat-project-drop={project.id}>
+              <button type="button" className="chat-project-toggle" aria-expanded={!collapsed[project.id]} title={projectHint(project, t) ? `${project.name} · ${projectHint(project, t)}` : project.name} onClick={()=>setCollapsed(state=>({...state,[project.id]:!state[project.id]}))}>
+                <ChevronRight size={13} className={`sidebar-chevron rtl-mirror${!collapsed[project.id] ? " is-open" : ""}`} />
+                <Folder size={14.5} className="shrink-0 text-[var(--notion-muted)]" />
+                <span className="truncate text-[13.5px] font-medium">{project.name}</span>
+                {projectHint(project, t) && <><ScrollText size={12} className="chat-project-hint" aria-hidden="true"/><span className="sr-only">({projectHint(project, t)})</span></>}
+              </button>
+              <span className="sidebar-row-actions">
+                <button type="button" className="notion-row-action chat-more-button" aria-label={t("New chat in {name}", { name: project.name })} title={t("New chat in this project")}
+                  onClick={()=>{setCollapsed(state=>({...state,[project.id]:false}));onCreateInProject(project.id);}}><Plus size={14.5}/></button>
+                <button type="button" className="notion-row-action chat-more-button" aria-label={t("Actions for project {name}", { name: project.name })} onClick={event=>setAction({kind:"projectMenu",project,anchor:event.currentTarget.getBoundingClientRect()})}><MoreHorizontal size={15}/></button>
+              </span>
+            </div>
+            {!collapsed[project.id] && <div className="notes-group-members">{ordered.filter(session=>session.projectId===project.id && !session.pinned).map(renderRow)}
+              {!ordered.some(session=>session.projectId===project.id && !session.pinned) && <p className="px-2 py-1 text-xs text-[var(--notion-faint)]">{ordered.some(session=>session.projectId===project.id) ? t("All chats pinned") : t("No chats")}</p>}
+            </div>}
+          </div>)}
+        </div>
+        <div className="sidebar-group">
+          <div className="chat-section-label" data-chat-project-drop="">{t("Chats")}</div>
+          {ordered.filter(session=>!session.pinned && (!session.projectId || !known.has(session.projectId))).map(renderRow)}
+          {sessions.length===0 && <div className="px-2 py-2.5 text-xs leading-5 text-[var(--notion-faint)]">{t("Your recent conversations will appear here.")}</div>}
+        </div>
       </div>
       <SidebarFooter />
       {action && <ChatActions key={action.kind+("session" in action ? action.session.id : "project" in action ? action.project.id : "")} action={action} projects={projects} onClose={()=>setAction(null)} onAction={setAction} onUpdate={onUpdate} onDelete={onDelete} onProject={onProject} onProjectSaved={onProjectSaved}/>}

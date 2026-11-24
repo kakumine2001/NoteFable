@@ -15,7 +15,7 @@ import { StorageLimitError } from "@/lib/usage-plans";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { connectWhiteboardActions, type WhiteboardActions } from "@/lib/whiteboard/excalidraw-bridge";
 import { exportWhiteboard, type WhiteboardExportFormat } from "@/lib/whiteboard/export";
-import { saveExportFile } from "@/lib/export-file";
+import { getNativeExportEpoch, saveExportFile } from "@/lib/export-file";
 import { pageCardLabel, pageIdFromLink, pageLinkUrl } from "@/lib/whiteboard/links";
 import { importPdfPages, MAX_PDF_IMPORT_PAGES, type PdfImportResult } from "@/lib/whiteboard/pdf-import";
 import { consumeWhiteboardReveal, WHITEBOARD_REVEAL_EVENT, type WhiteboardRevealDetail } from "@/lib/whiteboard/reveal";
@@ -132,10 +132,11 @@ function contentHiddenIn(target: ExcalidrawImperativeAPI) {
   return x2 < view.x || x1 > view.x + view.width || y2 < view.y || y1 > view.y + view.height;
 }
 
-// 開いたときの表示位置。検索の結果から開いたときはその要素へ動かし、それ以外で fit なら内容がすべて見えるように縮める（100% より大きくしない）。
-function placeOnOpen(target: ExcalidrawImperativeAPI, reveal: string | null, fit: boolean) {
+// 開いたときの表示位置。検索の結果から開いたときはその要素へ動かし（見つからなければ依頼を残す）、それ以外で fit なら内容がすべて見えるように縮める（100% より大きくしない）。
+function placeOnOpen(target: ExcalidrawImperativeAPI, pageId: string, fit: boolean) {
+  const revealed = Boolean(consumeWhiteboardReveal(pageId, Date.now(), (elementId) => revealIn(target, elementId, false)));
   const elements = target.getSceneElements();
-  if (!(reveal && revealIn(target, reveal, false)) && fit && elements.length) target.setViewport({ target: elements, fit: "scale-down" });
+  if (!revealed && fit && elements.length) target.setViewport({ target: elements, fit: "scale-down" });
 }
 
 // その要素まで動かして選ぶ。見つからなければ false。
@@ -221,8 +222,8 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   const mounted = useRef(true);
   // Excalidraw が最初の内容を読み終えたか（onInitialize）。それまでの onChange は読み込みそのもので、保存しない。
   const initialized = useRef(false);
-  // 枠の大きさが 0 のまま開いたので、大きさが決まるまで待っている表示位置（placeOnOpen の引数）。
-  const deferredPlacement = useRef<{ reveal: string | null; fit: boolean } | null>(null);
+  // 枠の大きさが 0 のまま開いたので、大きさが決まるまで待っている表示位置（検索ターゲットはサイズ確定まで消費しない）。
+  const deferredPlacement = useRef<{ fit: boolean } | null>(null);
   // 最後に見た Excalidraw の大きさ（appState.width × height）。変わったら表示位置と「内容に戻る」を見直す。
   const lastSize = useRef("");
   // 取り込み中の PDF（閉じたらやめる）。
@@ -341,18 +342,25 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
 
   // アプリが編集画面を閉じる前の flush（/note-embed）：変更を渡し、アップロード中の画像は少し待ってから入れ直す。
   // 待っても終わらない画像があれば false（保存し切れていない。アプリは編集画面を閉じずに知らせる）。
-  useEffect(() => registerCanvasFlusher(async () => {
-    flushRef.current();
-    if (!uploadTasks.current.size) return true;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    await Promise.race([
-      Promise.allSettled([...uploadTasks.current]),
-      new Promise<void>((resolve) => { timer = setTimeout(resolve, UPLOAD_FLUSH_WAIT_MS); }),
-    ]);
-    clearTimeout(timer);
-    flushRef.current();
-    return uploadTasks.current.size === 0;
-  }), []);
+  // 第 2 引数の同期フラッシュは、裏の再検証が loadLatest() を呼ぶ前に 400ms 待ちの線やアップロード中画像を拾うために使う。
+  useEffect(() => registerCanvasFlusher(
+    async () => {
+      flushRef.current();
+      if (!uploadTasks.current.size) return true;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([
+        Promise.allSettled([...uploadTasks.current]),
+        new Promise<void>((resolve) => { timer = setTimeout(resolve, UPLOAD_FLUSH_WAIT_MS); }),
+      ]);
+      clearTimeout(timer);
+      flushRef.current();
+      return uploadTasks.current.size === 0;
+    },
+    () => {
+      flushRef.current();
+      return uploadTasks.current.size > 0;
+    },
+  ), []);
 
   // ---- 画像のアップロード（Excalidraw は貼り付け・ドロップ・画像ツールの画像を data: で持つ。保存には note-files の URL を使う） ----
   const removeImagesOf = useCallback((fileId: string) => {
@@ -459,7 +467,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
         const { width, height } = api.getAppState();
         if (deferred && width && height) {
           deferredPlacement.current = null;
-          placeOnOpen(api, deferred.reveal, deferred.fit);
+          placeOnOpen(api, pageId, deferred.fit);
         }
         updateContentHidden();
       });
@@ -470,7 +478,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
       if (editable) { ownEdit.current = true; touched.current = true; }
       scheduleSave();
     }
-  }, [api, editable, readUi, scheduleSave, signatureOf, startUploads, updateContentHidden]);
+  }, [api, editable, pageId, readUi, scheduleSave, signatureOf, startUploads, updateContentHidden]);
 
   // 開発中だけ、ブラウザーのコンソールから確かめられるよう editor の API を置く（本番のビルドには入らない）。
   useEffect(() => {
@@ -507,7 +515,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     // 開いた直後の依頼は、最初の内容を読み終えた時（onInitialize）に受け取る。ここは開いている間に来たもの。
     const onReveal = (event: Event) => {
       const detail = (event as CustomEvent<WhiteboardRevealDetail>).detail;
-      if (detail?.pageId === pageId && initialized.current && consumeWhiteboardReveal(pageId)) reveal(detail.elementId);
+      if (detail?.pageId === pageId && initialized.current) consumeWhiteboardReveal(pageId, Date.now(), (elementId) => reveal(elementId));
     };
     window.addEventListener(WHITEBOARD_REVEAL_EVENT, onReveal);
     return () => window.removeEventListener(WHITEBOARD_REVEAL_EVENT, onReveal);
@@ -596,9 +604,13 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     target.updateScene({ elements: scene.elements as unknown as ExcalidrawElement[], appState: scene.appState as Partial<AppState> as never, captureUpdate: CaptureUpdateAction.NEVER });
     const signature = signatureOf(target.getSceneElementsIncludingDeleted(), { ...target.getAppState(), ...scene.appState } as AppState);
     lastSignature.current = signature;
-    if (initialized.current) setSceneVersion(signature);
+    if (initialized.current) {
+      setSceneVersion(signature);
+      const { width, height } = target.getAppState();
+      if (width && height) consumeWhiteboardReveal(pageId, Date.now(), (elementId) => revealIn(target, elementId, false));
+    }
     return signature;
-  }, [signatureOf]);
+  }, [pageId, signatureOf]);
   useEffect(() => {
     if (api && initialized.current && mounted.current) applyNewerData(api);
   }, [api, data, applyNewerData]);
@@ -616,12 +628,11 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     if (startWithHandRef.current) ready.setActiveTool({ type: "hand" });
     // 検索の結果から開いたときは、その要素まで動かす。それ以外で、この端末で初めて開くときは内容がすべて見えるように縮める
     // （100% より大きくはしない）。前回の表示位置があればそれを使う。
-    const pending = consumeWhiteboardReveal(pageId);
     const { width, height } = ready.getAppState();
     // 枠の大きさがまだ 0（見えていない枠・後から広がる App の WebView）のときに合わせると、10% まで縮んで左上に寄る。
-    // 大きさが決まってから合わせる（handleChange が Excalidraw の大きさの変化を見て行う）。
-    if (width && height) placeOnOpen(ready, pending, fitOnOpen);
-    else if (pending || fitOnOpen) deferredPlacement.current = { reveal: pending, fit: fitOnOpen };
+    // 大きさが決まってから合わせる（handleChange が Excalidraw の大きさの変化を見て行う）。検索ターゲットもサイズ確定後に確認する。
+    if (width && height) placeOnOpen(ready, pageId, fitOnOpen);
+    else deferredPlacement.current = { fit: fitOnOpen };
     queueMicrotask(() => { if (mounted.current) setContentHidden(contentHiddenIn(ready)); });
   }, [applyNewerData, fitOnOpen, pageId, readUi, signatureOf]);
 
@@ -709,15 +720,19 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   // ---- 書き出し ----
   const runExport = useCallback(async (format: WhiteboardExportFormat) => {
     if (!api || busy) return;
+    const exportEpoch = getNativeExportEpoch();
     setNotice(null);
     setBusy(t("Exporting…"));
     try {
       const file = await exportWhiteboard(api, format, props.title);
-      const result = await saveExportFile(file.blob, file.fileName);
+      if (exportEpoch !== getNativeExportEpoch()) return;
+      const result = await saveExportFile(file.blob, file.fileName, exportEpoch);
+      if (result === "cancelled") return;
       if (result === "unsupported") setNotice({ text: msg("Update the app to save exported files.") });
       else if (result === "tooLarge") setNotice({ text: msg("This file is too large to save in the app.") });
       else if (result === "failed") setNotice({ text: msg("Could not export the whiteboard.") });
     } catch (error) {
+      if (exportEpoch !== getNativeExportEpoch()) return;
       setNotice({ text: error instanceof Error && error.message ? error.message : msg("Could not export the whiteboard.") });
     } finally { setBusy(null); }
   }, [api, busy, props.title, t]);

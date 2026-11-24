@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +24,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -51,7 +53,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -67,6 +68,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -110,21 +112,48 @@ private val PanelShadow = Color(0x1F0F0F0F)          // --notion-shadow 0 4px 14
 private val PanelRing: Color get() = Sm.Ring            // --notion-shadow 0 0 0 1px rgba(15,15,15,.05)
 
 // ---------------------------------------------------------------------------------------------
-// Chat / Workspace 切换（.notion-segmented）：高 48、底色 --notion-active、圆角 8、内边距 2、两键间距 2；
-// 每键高 44、圆角 6.4、16/500（抽屉里 14/500，与网页宽 240 的侧栏相同）、图标 16 + 间距 6.4、左右内距 4；
-// 选中白底、墨色字、蓝色图标、1px 细环 + 浅阴影。两键平时各占一半，名字比一半宽时那一侧按名字宽度变宽（segmentWidths，
-// 网页 minmax(max-content, 1fr)）：日文「ワークスペース」在宽 240 的抽屉里放不下一半。
+// 页面类型的语义色（与网页 globals.css 的 --kind-* 变量同步）：笔记=蓝、幻灯片=琥珀、白板=紫。
+
+internal fun pageKindColor(kind: PageKind): Color = when (kind) {
+    PageKind.Note -> Sm.KindNote
+    PageKind.Slides -> Sm.KindSlides
+    PageKind.Whiteboard -> Sm.KindWhiteboard
+}
+
+internal fun pageKindTextColor(kind: PageKind): Color = when (kind) {
+    PageKind.Note -> Sm.KindNote
+    PageKind.Slides -> Sm.KindSlidesText
+    PageKind.Whiteboard -> Sm.KindWhiteboard
+}
+
+internal fun pageKindSoft(kind: PageKind): Color = when (kind) {
+    PageKind.Note -> Sm.KindNoteSoft
+    PageKind.Slides -> Sm.KindSlidesSoft
+    PageKind.Whiteboard -> Sm.KindWhiteboardSoft
+}
+
+internal fun pageKindBorder(kind: PageKind): Color = when (kind) {
+    PageKind.Note -> Sm.KindNoteBorder
+    PageKind.Slides -> Sm.KindSlidesBorder
+    PageKind.Whiteboard -> Sm.KindWhiteboardBorder
+}
+
+// ---------------------------------------------------------------------------------------------
+// Chat / Workspace 切换（.notion-segmented）：高 48、微沉轨道（Sm.Hover + 1dp 细框）、圆角 10、内边距 3、两键间距 2；
+// 每键高 40、圆角 7.2、15/550（抽屉里 13.5/550）、图标 16 + 间距 6、左右内距 5；
+// 选中白底（深色 Sm.Surface）、墨色字、蓝色图标、1px 细环 + 浅阴影。两键平时各占一半，名字比一半宽时那一侧按名字宽度变宽。
 
 @Composable
 fun WorkspaceSwitch(workspace: Workspace, onChange: (Workspace) -> Unit, modifier: Modifier = Modifier, inDrawer: Boolean = false) {
     val label = stringResource(R.string.workspace_mode)
-    val fontSize = if (inDrawer) 14.sp else 16.sp
+    val fontSize = if (inDrawer) 13.5.sp else 15.sp
+    val trackShape = RoundedCornerShape(10.dp)
     Layout(
         content = {
             Segment(stringResource(R.string.chat_mode), Lucide.MessageSquareText, workspace == Workspace.Chat, fontSize) { onChange(Workspace.Chat) }
-            Segment(stringResource(R.string.note_mode), Lucide.FileText, workspace == Workspace.Notes, fontSize) { onChange(Workspace.Notes) }
+            Segment(stringResource(R.string.note_mode), Lucide.LayoutGrid, workspace == Workspace.Notes, fontSize) { onChange(Workspace.Notes) }
         },
-        modifier = modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(8.dp)).background(Sm.Active).padding(2.dp)
+        modifier = modifier.fillMaxWidth().height(46.dp).clip(trackShape).background(Sm.Hover).border(1.dp, Sm.Border, trackShape).padding(3.dp)
             .semantics { contentDescription = label },
     ) { measurables, constraints ->
         val gap = 2.dp.roundToPx()
@@ -145,22 +174,22 @@ fun WorkspaceSwitch(workspace: Workspace, onChange: (Workspace) -> Unit, modifie
 
 @Composable
 private fun Segment(text: String, icon: List<String>, active: Boolean, fontSize: TextUnit, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(6.4.dp)
+    val shape = RoundedCornerShape(7.2.dp)
     Row(
-        Modifier.height(44.dp)
-            .then(if (active) Modifier.shadow(1.dp, shape, ambientColor = Color(0x140F0F0F), spotColor = Color(0x140F0F0F)) else Modifier)
+        Modifier.height(40.dp)
+            .then(if (active) Modifier.shadow(1.dp, shape, ambientColor = Color(0x140F172A), spotColor = Color(0x140F172A)) else Modifier)
             .clip(shape)
-            .then(if (active) Modifier.background(Sm.Surface).border(1.dp, Sm.pick(Color(0x1A0F0F0F), Sm.Border), shape) else Modifier)
+            .then(if (active) Modifier.background(Sm.Surface).border(1.dp, Sm.pick(Color(0x0D0F172A), Color(0x17FFFFFF)), shape) else Modifier)
             .clickable(onClick = onClick)
             .semantics { role = Role.Button }
-            .padding(horizontal = 4.dp),
+            .padding(horizontal = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
-        LucideIcon(icon, 16.dp, if (active) Sm.Blue else Sm.Muted)
-        Spacer(Modifier.width(6.4.dp))
+        LucideIcon(icon, 15.dp, if (active) Sm.Blue else Sm.Muted)
+        Spacer(Modifier.width(6.dp))
         Text(
-            text, color = if (active) Sm.Ink else Sm.Muted, fontSize = fontSize, fontWeight = FontWeight.Medium,
+            text, color = if (active) Sm.Ink else Sm.Muted, fontSize = fontSize, fontWeight = FontWeight(550),
             maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
         )
     }
@@ -295,21 +324,21 @@ fun NotesDrawerBody(
         sections.forEach { section -> section.roots.forEach { drag.rowAccepts[it.id] = section.kind.wire } }
     }
     Column(modifier) {
-        // "新建"（.sidebar-primary-action，手机）：上距 12、高 44、圆角 8、深色底，左对齐图标 16 + 间距 8 + 16/550 白字。
-        // 只能建笔记时是"新笔记"（一点就建），能建几种类型时是"新建"，点了先选类型。
+        // "新建"（.sidebar-primary-action，手机）：上距 10、高 42、圆角 9、墨色底，左对齐图标 16 + 间距 8 + 15/560 字；多种类型时右侧下拉箭头。
         NewPageMenuAnchor(kinds, stringResource(R.string.ws_new_page), { kind -> onCreate(kind, null) },
-            Modifier.padding(start = 8.dp, end = 8.dp, top = 12.dp, bottom = 4.dp).fillMaxWidth()) { open ->
+            Modifier.padding(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 6.dp).fillMaxWidth()) { open ->
             Row(
-                Modifier.fillMaxWidth().height(44.dp)
-                    .shadow(1.dp, RoundedCornerShape(8.dp), ambientColor = Color(0x1F0C1730), spotColor = Color(0x1F0C1730))
-                    .clip(RoundedCornerShape(8.dp)).background(if (busy) Sm.Ink.copy(alpha = 0.6f) else Sm.Ink)
+                Modifier.fillMaxWidth().height(42.dp)
+                    .shadow(1.dp, RoundedCornerShape(9.dp), ambientColor = Color(0x1F0F172A), spotColor = Color(0x1F0F172A))
+                    .clip(RoundedCornerShape(9.dp)).background(if (busy) Sm.Ink.copy(alpha = 0.6f) else Sm.Ink)
                     .clickable(enabled = !busy, onClick = open)
                     .padding(horizontal = 11.2.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 LucideIcon(Lucide.Plus, 16.dp, Sm.OnInk)
                 Spacer(Modifier.width(8.dp))
-                Text(stringResource(if (kinds.size > 1) R.string.ws_new else R.string.new_note), color = Sm.OnInk, fontSize = 16.sp, fontWeight = FontWeight(550))
+                Text(stringResource(if (kinds.size > 1) R.string.ws_new else R.string.new_note), color = Sm.OnInk, fontSize = 15.sp, fontWeight = FontWeight(560), modifier = Modifier.weight(1f))
+                if (kinds.size > 1) LucideIcon(Lucide.ChevronDown, 14.dp, Sm.OnInk.copy(alpha = 0.65f))
             }
         }
         // Search 行（Batch 4）：网页侧栏里在"新建"按钮正下方。
@@ -318,19 +347,21 @@ fun NotesDrawerBody(
         Column(
             Modifier.weight(1f).fillMaxWidth()
                 .onGloballyPositioned { drag.listBounds = it.boundsInWindow() }
-                .verticalScroll(scroll).padding(start = 8.dp, end = 8.dp, bottom = 16.dp),
+                .verticalScroll(scroll).padding(start = 10.dp, end = 10.dp, bottom = 16.dp),
         ) {
-            // FAVORITES（网页 .chat-section-label，在 Projects 上面）：收藏的页面，平铺、不能拖，右侧"从收藏中移除"。
+            // Favorites（句首大小写 + 琥珀星标）：收藏的页面，平铺、不能拖，右侧"从收藏中移除"。
             val favorites = state.favorites
             if (favorites.isNotEmpty()) {
-                val label = stringResource(R.string.pg_favorites).uppercase()
-                Text(label, style = roleLabelStyle(label), modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 14.4.dp, bottom = 4.8.dp))
+                Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 14.dp, bottom = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                    LucideIcon(Lucide.Star, 12.5.dp, Sm.KindFav)
+                    Spacer(Modifier.width(5.6.dp))
+                    Text(stringResource(R.string.pg_favorites), color = Sm.Muted, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight(560))
+                }
                 favorites.forEach { page -> key("fav-" + page.id) { FavoriteRow(page, state.open?.id == page.id, busy, onOpen, onUnfavorite) } }
             }
-            // "PROJECTS" 小标题 + 右侧 40 的"新项目"按钮（上下 -4.8，整行高 49.6）。
-            Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 9.6.dp), verticalAlignment = Alignment.CenterVertically) {
-                val heading = stringResource(R.string.projects).uppercase()
-                Text(heading, style = roleLabelStyle(heading), modifier = Modifier.weight(1f))
+            // "Projects" 小标题 + 右侧 40 的"新项目"按钮。
+            Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 4.dp, top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.projects), color = Sm.Muted, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight(560), modifier = Modifier.weight(1f))
                 IconSquare(Lucide.Plus, 15.dp, 40.dp, stringResource(R.string.new_project), Sm.Muted, onClick = onNewGroup)
             }
             state.groups.forEach { group ->
@@ -344,15 +375,15 @@ fun NotesDrawerBody(
                     kinds = kinds, busy = busy, onCreate = { kind -> onCreate(kind, group.id) },
                 )
                 if (open) {
-                    // .notes-group-members：左距 12、1px 竖线、内左距 4。
+                    // .notes-group-members：左距 10、1px 竖线、内左距 4。
                     Column(
-                        Modifier.padding(start = 12.dp).fillMaxWidth()
+                        Modifier.padding(start = 10.dp).fillMaxWidth()
                             .drawBehind {
                                 val lineW = 1.dp.toPx()
                                 val lineX = if (layoutDirection == LayoutDirection.Rtl) size.width - lineW else 0f
                                 drawRect(Sm.Border, topLeft = Offset(lineX, 0f), size = Size(lineW, size.height))
                             }
-                            .padding(start = 5.dp),
+                            .padding(start = 4.dp),
                     ) {
                         if (members.isEmpty()) {
                             Text(stringResource(R.string.no_notes_in_project), color = Faint, fontSize = 12.sp, lineHeight = 16.sp,
@@ -362,13 +393,12 @@ fun NotesDrawerBody(
                     }
                 }
             }
-            // 网页：改图标失败的提示在 NOTES 标签上方，px-2、12 红字。
+            // 网页：改图标失败的提示在 Notes 标签上方，px-2、12 红字。
             if (state.iconError) {
                 Text(stringResource(R.string.em_note_icon_failed), color = Sm.Danger, fontSize = 12.sp, lineHeight = 16.sp,
                     modifier = Modifier.padding(horizontal = 8.dp).semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Assertive })
             }
-            // 分区（网页 notes-sidebar 的分区）：不在项目里的最上层页面按类型分开。标题同 PROJECTS（12 等宽大写灰字），后面是折叠箭头 13，
-            // 右侧 40 的"+"建这个类型。标题是"移出项目"的投放区，只接受同一分区的页面（别的类型不能放进来）。
+            // 分区（网页 notes-sidebar 的分区）：不在项目里的最上层页面按类型分开。语义色点 + 分区名 + 数量 + 折叠箭头 + "+"。
             sections.forEach { section ->
                 val zone = sectionZone(section.kind)
                 val open = section.kind !in state.collapsedSections
@@ -379,7 +409,7 @@ fun NotesDrawerBody(
                         onDispose { drag.zones.remove(zone); drag.zoneContainers.remove(zone); drag.zoneAccepts.remove(zone) }
                     }
                     SectionHeading(
-                        section.kind, open, busy, onToggle = { onToggleSection(section.kind) }, onCreate = { onCreate(section.kind, null) },
+                        section.kind, section.count, open, busy, onToggle = { onToggleSection(section.kind) }, onCreate = { onCreate(section.kind, null) },
                         modifier = Modifier.dropZone(drag.targetZone == zone).onGloballyPositioned { drag.zones[zone] = it.boundsInWindow() },
                     )
                 }
@@ -393,28 +423,33 @@ fun NotesDrawerBody(
             }
         }
 
-        // 导入 Markdown、回收站（.notion-sidebar-action，手机）：高 44、左右 8、图标 16 + 间距 8.8、16/500；两行紧挨着，最下面留 4。
-        // 导入在新建 / 读取期间不能点（网页 disabled={busy}）。
-        SidebarAction(Lucide.Upload, stringResource(R.string.import_markdown), enabled = !busy, onClick = onImport)
-        SidebarAction(Lucide.Trash2, stringResource(R.string.trash), onClick = onOpenTrash, modifier = Modifier.padding(bottom = 4.dp))
+        // 工具区（.sidebar-utility-footer）：上方 1dp 细线，静谧灰字（Import Markdown / Trash）。
+        Column(
+            Modifier.fillMaxWidth()
+                .drawBehind { drawRect(Sm.Border, size = Size(size.width, 1.dp.toPx())) }
+                .padding(vertical = 4.dp),
+        ) {
+            SidebarAction(Lucide.Upload, stringResource(R.string.import_markdown), enabled = !busy, onClick = onImport)
+            SidebarAction(Lucide.Trash2, stringResource(R.string.trash), onClick = onOpenTrash)
+        }
     }
 }
 
 @Composable
 private fun SidebarAction(icon: List<String>, text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     Row(
-        modifier.padding(horizontal = 8.dp).fillMaxWidth().height(44.dp).clip(RoundedCornerShape(4.8.dp))
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(horizontal = 8.dp),
+        modifier.padding(horizontal = 10.dp).fillMaxWidth().height(40.dp).clip(RoundedCornerShape(8.dp))
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        LucideIcon(icon, 16.dp, Sm.Text)
+        LucideIcon(icon, 15.dp, Sm.Muted)
         Spacer(Modifier.width(8.8.dp))
-        Text(text, color = Sm.Text, fontSize = 16.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(text, color = Sm.Muted, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
-// 项目行（.notion-session-row + .chat-project-toggle）：高 44；展开箭头 14、文件夹 15、名称 14/500、数量 12 浅灰；
-// 右侧重命名（铅笔 13）和删除（垃圾桶 14）两个 25.6 的小按钮，触屏上常显。
+// 项目行（.notion-session-row + .chat-project-toggle）：高 42；展开箭头 14、文件夹 15、名称 14/500、胶囊数量；
+// 右侧新建、重命名、删除三个小按钮。
 @Composable
 private fun GroupRow(
     group: NoteGroupSummary, count: Int, open: Boolean, onToggle: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit,
@@ -422,18 +457,18 @@ private fun GroupRow(
     /** 项目的"+"（网页项目行的 NewPageButton）：在这个项目的最上层新建，能建几种类型时先选类型。 */
     kinds: List<PageKind> = listOf(PageKind.Note), busy: Boolean = false, onCreate: (PageKind) -> Unit = {},
 ) {
-    Row(modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(6.4.dp)), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier.fillMaxWidth().heightIn(min = 42.dp).clip(RoundedCornerShape(8.dp)), verticalAlignment = Alignment.CenterVertically) {
         Row(
-            Modifier.weight(1f).clickable(onClick = onToggle).padding(horizontal = 3.2.dp, vertical = 6.4.dp)
+            Modifier.weight(1f).clickable(onClick = onToggle).padding(horizontal = 4.dp, vertical = 6.dp)
                 .semantics { role = Role.Button },
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            LucideIcon(if (open) Lucide.ChevronDown else Lucide.ChevronRight, 14.dp, Sm.Text)
-            LucideIcon(Lucide.Folder, 15.dp, Sm.Text)
+            LucideIcon(if (open) Lucide.ChevronDown else Lucide.ChevronRight, 13.5.dp, Sm.Faint)
+            LucideIcon(Lucide.Folder, 14.5.dp, Sm.Text)
             Text(group.name, color = Sm.Text, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-            Text(count.toString(), color = Faint, fontSize = 12.sp, lineHeight = 16.sp)
+            CountPill(count)
         }
         val newLabel = stringResource(R.string.ws_new_page_in, group.name)
         NewPageMenuAnchor(kinds, newLabel, onCreate) { open -> RowAction(Lucide.Plus, 14.dp, newLabel, enabled = !busy, onClick = open) }
@@ -442,21 +477,36 @@ private fun GroupRow(
     }
 }
 
-// 分区标题（网页 .notes-section-heading）：与 PROJECTS 同一行（左右 8、上距 9.6、"+" 40），名字后面是折叠箭头 13 浅灰，点名字折叠。
 @Composable
-private fun SectionHeading(kind: PageKind, open: Boolean, busy: Boolean, onToggle: () -> Unit, onCreate: () -> Unit, modifier: Modifier = Modifier) {
+private fun CountPill(count: Int) {
+    Box(
+        Modifier.clip(CircleShape).background(Sm.Hover).padding(horizontal = 6.dp, vertical = 1.5.dp),
+        Alignment.Center,
+    ) {
+        Text(count.toString(), color = Sm.Muted, fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight(550))
+    }
+}
+
+// 分区标题（网页 .notes-section-heading）：语义色点 + 句首大小写标题 + 数量 + 折叠箭头 + "+"。
+@Composable
+private fun SectionHeading(kind: PageKind, count: Int, open: Boolean, busy: Boolean, onToggle: () -> Unit, onCreate: () -> Unit, modifier: Modifier = Modifier) {
     val name = stringResource(sectionLabel(kind))
-    val label = name.uppercase()
     val toggleLabel = if (open) collapseLabel(name) else expandLabel(name)
-    Row(modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 9.6.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier.fillMaxWidth().padding(start = 8.dp, end = 4.dp, top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Row(
-            Modifier.weight(1f).heightIn(min = 40.dp).clip(RoundedCornerShape(4.dp)).clickable(onClick = onToggle)
+            Modifier.weight(1f).heightIn(min = 38.dp).clip(RoundedCornerShape(6.dp)).clickable(onClick = onToggle)
                 .semantics { contentDescription = toggleLabel; role = Role.Button },
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(label, style = roleLabelStyle(label), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-            Spacer(Modifier.width(4.8.dp))
-            LucideIcon(if (open) Lucide.ChevronDown else Lucide.ChevronRight, 13.dp, Faint)
+            Box(Modifier.size(6.dp).clip(CircleShape).background(pageKindColor(kind)))
+            Spacer(Modifier.width(6.dp))
+            Text(name, color = Sm.Muted, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight(560), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            if (count > 0) {
+                Spacer(Modifier.width(5.dp))
+                Text(count.toString(), color = Faint, fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium)
+            }
+            Spacer(Modifier.width(4.dp))
+            LucideIcon(if (open) Lucide.ChevronDown else Lucide.ChevronRight, 12.5.dp, Faint)
         }
         IconSquare(Lucide.Plus, 15.dp, 40.dp, stringResource(newPageLabel(kind)), Sm.Muted) { if (!busy) onCreate() }
     }
@@ -506,19 +556,20 @@ private fun NoteTree(page: NotePageSummary, busy: Boolean, rowDrag: NoteRowDrag,
     }
 }
 
-// Favorites 的行（网页 notes-sidebar 的收藏行）：高 44；图标区 28（左距 4，表情 / 文件图标 15 灰，不能点）；标题 14；
-// 右侧"从收藏中移除"25.6 的小按钮（StarOff 14）。当前打开的行浅蓝底。
+// Favorites 的行（网页 notes-sidebar 的收藏行）：高 42；图标区 28（左距 4，语义色页面类型图标 15）；标题 14；
+// 右侧"从收藏中移除"小按钮（StarOff 14）。当前打开的行浮起圆角卡。
 @Composable
 private fun FavoriteRow(page: NotePageSummary, active: Boolean, busy: Boolean, onOpen: (String) -> Unit, onUnfavorite: (NotePageSummary) -> Unit) {
+    val shape = RoundedCornerShape(8.dp)
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(6.4.dp))
-            .background(if (active) Sm.AccentSoft else Color.Transparent)
+        Modifier.fillMaxWidth().heightIn(min = 42.dp).clip(shape)
+            .then(if (active) Modifier.background(Sm.ActiveRow).border(1.dp, Sm.Border, shape) else Modifier)
             .clickable(enabled = !busy) { onOpen(page.id) },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.padding(start = 4.dp).size(28.dp), Alignment.Center) { NoteIcon(page.icon, 15.sp, 15.dp, Sm.Muted, page.kind) }
+        Box(Modifier.padding(start = 4.dp).size(28.dp), Alignment.Center) { NoteIcon(page.icon, 15.sp, 15.dp, pageKindColor(page.kind), page.kind) }
         Text(page.title, modifier = Modifier.weight(1f).padding(start = 4.dp, end = 8.dp), color = if (active) Sm.Ink else Sm.Text,
-            fontSize = 14.sp, lineHeight = 20.sp, fontWeight = if (active) FontWeight(550) else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            fontSize = 14.sp, lineHeight = 20.sp, fontWeight = if (active) FontWeight(560) else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
         RowAction(Lucide.StarOff, 14.dp, stringResource(R.string.pg_remove_title_from_favorites, page.title), enabled = !busy) { onUnfavorite(page) }
     }
 }
@@ -542,60 +593,50 @@ private fun NoteRow(
     val lineBefore = target?.id == page.id && !target.after
     val lineAfter = target?.id == page.id && target.after
     val reorderError = rowDrag.errorFor(page.id)
+    val rowShape = RoundedCornerShape(8.dp)
+    val iconTint = pageKindColor(page.kind)
     DisposableEffect(page.id) { onDispose { drag.rows.remove(page.id) } }
     Box {
         Row(
-            Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            Modifier.fillMaxWidth().heightIn(min = 42.dp)
                 .alpha(if (drag.dragging == page.id) 0.5f else 1f)
                 .onGloballyPositioned { drag.rows[page.id] = it.boundsInWindow() }
-                .clip(RoundedCornerShape(6.4.dp))
-                .background(if (active) Sm.AccentSoft else Color.Transparent)
-                .drawBehind {
-                    if (active && !lineBefore && !lineAfter) {
-                        val inset = 7.2.dp.toPx()
-                        val barW = 3.dp.toPx()
-                        val barX = if (layoutDirection == LayoutDirection.Rtl) size.width - barW else 0f
-                        drawRoundRect(Sm.Blue, topLeft = Offset(barX, inset), size = Size(barW, size.height - inset * 2),
-                            cornerRadius = CornerRadius(1.5.dp.toPx()))
-                    }
-                }
+                .clip(rowShape)
+                .then(if (active) Modifier.background(Sm.ActiveRow).border(1.dp, Sm.Border, rowShape) else Modifier)
                 .dropLine(lineBefore, lineAfter),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // 展开箭头（.notes-row-toggle）：20×28、左距 2、圆角 4，Chevron 14 浅灰。
+            // 展开箭头（.notes-row-toggle）：18×28、圆角 4，Chevron 13.5 浅灰。
             val toggleLabel = if (open) collapseLabel(page.title) else expandLabel(page.title)
             Box(
-                Modifier.padding(start = 2.dp).size(20.dp, 28.dp).clip(RoundedCornerShape(4.dp)).clickable(onClick = onToggle)
+                Modifier.padding(start = 1.dp).size(18.dp, 28.dp).clip(RoundedCornerShape(4.dp)).clickable(onClick = onToggle)
                     .semantics { contentDescription = toggleLabel; role = Role.Button },
                 Alignment.Center,
-            ) { LucideIcon(if (open) Lucide.ChevronDown else Lucide.ChevronRight, 14.dp, Faint) }
+            ) { LucideIcon(if (open) Lucide.ChevronDown else Lucide.ChevronRight, 13.5.dp, Faint) }
             Row(
-                Modifier.weight(1f).heightIn(min = 44.dp).clickable(enabled = !busy) { onOpen(page.id) },
+                Modifier.weight(1f).heightIn(min = 42.dp).clickable(enabled = !busy) { onOpen(page.id) },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (active || page.locked) {
-                    // 打开着的笔记：图标由编辑器保存（网页走自动保存），这里只显示，点它和点行一样。
-                    // 锁定的页面也不能在这里改图标（网页 disabled={page.locked}）。
-                    Box(Modifier.size(40.dp), Alignment.Center) { NoteIcon(page.icon, 15.sp, 15.dp, Sm.Muted, page.kind) }
+                    Box(Modifier.size(30.dp, 36.dp), Alignment.Center) { NoteIcon(page.icon, 15.sp, 15.dp, iconTint, page.kind) }
                 } else {
-                    // 图标按钮 40×40（左距 2、圆角 4），点开表情选择器（aria-label "Change icon of {title}"）；忙时禁用。
                     EmojiTriggerButton(
                         current = page.icon,
                         onChange = { icon -> onChangeIcon(page, icon) },
                         description = stringResource(R.string.em_change_icon_of, page.title),
-                        modifier = Modifier.size(40.dp),
+                        modifier = Modifier.size(30.dp, 36.dp),
                         enabled = !busy,
-                    ) { NoteIcon(page.icon, 15.sp, 15.dp, Sm.Muted, page.kind) }
+                    ) { NoteIcon(page.icon, 15.sp, 15.dp, iconTint, page.kind) }
                 }
                 Text(
                     page.title,
                     // 拖动处只是标题区（网页的拖动元是标题按钮，图标按钮在它外面），撑满行高；放在行的 clickable 里层，长按后原地松手不会打开。
-                    modifier = Modifier.weight(1f).heightIn(min = 44.dp).noteReorderDrag(page, rowDrag).wrapContentHeight()
-                        .padding(start = 4.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                    modifier = Modifier.weight(1f).heightIn(min = 42.dp).noteReorderDrag(page, rowDrag).wrapContentHeight()
+                        .padding(start = 4.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
                     color = if (active) Sm.Ink else Sm.Text,
                     fontSize = 14.sp,
                     lineHeight = 20.sp,
-                    fontWeight = if (active) FontWeight(550) else FontWeight.Normal,
+                    fontWeight = if (active) FontWeight(560) else FontWeight.Normal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -615,11 +656,11 @@ private fun collapseLabel(title: String) = stringResource(R.string.pg_collapse_t
 @Composable
 private fun expandLabel(title: String) = stringResource(R.string.pg_expand_title, title)
 
-/** 笔记行主体的长按拖动（网页 ReorderRowButton，disabled={busy}；正在移动的这一篇也不能拖）。 */
-private fun Modifier.noteReorderDrag(page: NotePageSummary, rowDrag: NoteRowDrag): Modifier = reorderDrag(
+/** 笔记行主体的长按拖动（网页 ReorderRowButton，disabled={busy}；正在移动的这一篇、以及类型筛选平铺态也不能拖）。 */
+private fun Modifier.noteReorderDrag(page: NotePageSummary, rowDrag: NoteRowDrag, extraLocked: Boolean = false): Modifier = reorderDrag(
     id = page.id,
     drag = rowDrag.drag,
-    locked = rowDrag.busy || page.id in rowDrag.state.moveBusy,
+    locked = extraLocked || rowDrag.busy || page.id in rowDrag.state.moveBusy,
     onStart = {
         rowDrag.reorder.surface = rowDrag.surface
         rowDrag.reorder.onDismissError()
@@ -688,10 +729,9 @@ fun pageKindLabel(kind: PageKind): Int = when (kind) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// 笔记首页（网页 NotesHome，手机）：没有打开笔记时显示。左右 24、下 96；顶部切换（上距 4）；
-// "Notes" 32/750、行高 48、字距 −0.04em，上 8 下 12；项目小标题 13/600 灰 + 数量 13 浅灰，外边距 20/4/4；
-// 每行最小高 56、下边 1px 线；图标区 28（表情 20 / 文件图标 20 浅灰）、间距 13.6、标题 17/500、日期 13 灰；
-// 右侧 44×48 的"移到项目"（图标 18 浅灰）。下面"新笔记"（高 40、圆角 8、深色）和"新项目"（高 40 文字按钮）。
+// 工作区首页（网页 NotesHome，手机）：左右 20、下 96；顶部切换（上距 4）；
+// Studio 头部（"Workspace" 30/750 + 胶囊操作键 New project / Import Markdown）→ Studio Quick-Create Deck 卡片 →
+// 类型筛选栏（All | Notes | Slides | Whiteboards）→ 圆角卡片分组列表（带语义色图标块、Favorites 类型标签）。
 
 @Composable
 fun NotesHome(
@@ -705,7 +745,7 @@ fun NotesHome(
     onRetry: () -> Unit,
     reorder: NoteReorder = NoteReorder.None,
     onToggleExpanded: (String) -> Unit = {},
-    /** "Import Markdown"（列表下面的按钮、空状态的按钮）：打开文件选择器。 */
+    /** "Import Markdown"（头部和空状态的按钮）：打开文件选择器。 */
     onImport: () -> Unit = {},
 ) {
     val busy = state.busy || state.loading
@@ -714,10 +754,10 @@ fun NotesHome(
     val rowDrag = NoteRowDrag(drag, state, busy, reorder, NoteListSurface.Home)
     Column(
         Modifier.fillMaxSize().onGloballyPositioned { drag.listBounds = it.boundsInWindow() }
-            .verticalScroll(scroll).padding(start = 24.dp, end = 24.dp, bottom = 96.dp),
+            .verticalScroll(scroll).padding(start = 20.dp, end = 20.dp, bottom = 96.dp),
     ) {
         WorkspaceSwitch(Workspace.Notes, onSwitch, Modifier.padding(top = 4.dp))
-        state.error?.let { ErrorBar(notesErrorText(it), onRetry, Modifier.padding(top = 24.dp)) }
+        state.error?.let { ErrorBar(notesErrorText(it), onRetry, Modifier.padding(top = 20.dp)) }
         when {
             state.loading && state.pages.isEmpty() && state.groups.isEmpty() ->
                 Text(stringResource(R.string.loading_notes), color = Sm.Muted, fontSize = 14.sp,
@@ -742,124 +782,316 @@ private fun NotesHomeList(
     onImport: () -> Unit,
 ) {
     val drag = rowDrag.drag
-    // 子页面的树（网页 notes-home）：最上层的页面按项目分组，子页面在展开的父页面下缩进 24。
+    val kinds = state.kinds
+    val multiKind = kinds.size > 1
+    var kindFilter by remember { mutableStateOf<PageKind?>(null) }
+    val activeFilter = if (multiKind) kindFilter else null
+    val groupIds = remember(state.groups) { state.groups.mapTo(HashSet()) { it.id } }
+    fun matchesFilter(page: NotePageSummary): Boolean = activeFilter == null || state.sectionKindOf(page) == activeFilter
+
+    // 子页面的树（网页 notes-home）：最上层的页面按项目分组，子页面在展开的父页面下缩进并带竖线；筛选时平铺显示。
     @Composable
-    fun Tree(page: NotePageSummary) {
+    fun Tree(page: NotePageSummary, flat: Boolean, showTopDivider: Boolean) {
         val kids = state.children(page.id)
-        val open = page.id in state.expanded
-        HomeItem(page, busy, rowDrag, onOpen, onMove, open = open, onToggle = { onToggleExpanded(page.id) })
+        val open = !flat && page.id in state.expanded
+        HomeItem(page, busy, rowDrag, onOpen, onMove, open = open, flat = flat, showTopDivider = showTopDivider, onToggle = { onToggleExpanded(page.id) })
         if (open) {
-            if (kids.isEmpty()) Text(stringResource(R.string.pg_no_pages_inside), color = Faint, fontSize = 14.sp, modifier = Modifier.padding(start = 28.dp, top = 4.dp, bottom = 4.dp, end = 4.dp))
-            else Column(Modifier.padding(start = 24.dp)) { kids.forEach { key(it.id) { Tree(it) } } }
+            Column(
+                Modifier.padding(start = 22.dp).fillMaxWidth()
+                    .drawBehind {
+                        val lineW = 1.dp.toPx()
+                        val lineX = if (layoutDirection == LayoutDirection.Rtl) size.width - lineW else 0f
+                        drawRect(Sm.Border, topLeft = Offset(lineX, 0f), size = Size(lineW, size.height))
+                    },
+            ) {
+                if (kids.isEmpty()) {
+                    Text(
+                        stringResource(R.string.pg_no_pages_inside),
+                        color = Faint, fontSize = 13.5.sp,
+                        modifier = Modifier.fillMaxWidth()
+                            .drawBehind { drawRect(Sm.Border, size = Size(size.width, 1.dp.toPx())) }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                    )
+                } else {
+                    kids.forEach { child -> key(child.id) { Tree(child, flat = false, showTopDivider = true) } }
+                }
+            }
         }
     }
+
     // 标题 "Workspace" 和分区的小标题是"移出项目"的投放区，项目小标题是"移进项目"的（网页 data-note-group-drop）。
-    // 分区的小标题只接受同一分区的页面（网页 data-drop-kind），分区里最上层的行也是（放在它们前后会移出项目）。
     fun Modifier.zone(key: String): Modifier =
         dropZone(drag.target is DropTarget.Into && drag.targetZone == key).onGloballyPositioned { drag.zones[key] = it.boundsInWindow() }
     DisposableEffect(Unit) { onDispose { drag.zones.clear(); drag.zoneContainers.clear(); drag.zoneAccepts.clear() } }
-    val kinds = state.kinds
     val sections = state.sections
     SideEffect {
         drag.rowAccepts.clear()
         sections.forEach { section -> section.roots.forEach { drag.rowAccepts[it.id] = section.kind.wire } }
     }
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
-    Text(
-        stringResource(R.string.workspace),
-        modifier = Modifier.padding(top = 8.dp, bottom = 12.dp).fillMaxWidth().zone(""),
-        color = Sm.Ink, fontSize = 32.sp, lineHeight = 48.sp, fontWeight = FontWeight(750), letterSpacing = if (rtl) 0.sp else (-1.28).sp,
-    )
-    // Favorites（网页 notes-home 的收藏）：小标题 + 平铺的行（不能拖，没有日期和移动键）。
-    val favorites = state.favorites
-    if (favorites.isNotEmpty()) {
-        GroupHeading(stringResource(R.string.pg_favorites), favorites.size)
-        Column(Modifier.padding(bottom = 16.dp)) { favorites.forEach { page -> key("fav-" + page.id) { FavoriteHomeItem(page, busy, onOpen) } } }
+
+    // Studio 头部：Workspace 标题 + New project / Import Markdown 胶囊按钮
+    Column(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            stringResource(R.string.workspace),
+            modifier = Modifier.fillMaxWidth().zone(""),
+            color = Sm.Ink, fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight(750), letterSpacing = if (rtl) 0.sp else (-1.2).sp,
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            HomeUtilPill(Lucide.FolderPlus, stringResource(R.string.new_project), enabled = !busy, onClick = onNewGroup)
+            HomeUtilPill(Lucide.Upload, stringResource(R.string.import_markdown), enabled = !busy, onClick = onImport)
+        }
     }
-    state.groups.forEach { group ->
-        val members = state.members(group.id)
+
+    // Studio Quick-Create Deck（移动端纵向堆叠卡片，每种页面类型一张）
+    CreateDeckCards(kinds, busy, onCreate, Modifier.padding(bottom = 18.dp))
+
+    // 类型筛选栏（All | Notes | Slides | Whiteboards）
+    if (multiKind) {
+        KindFilterBar(kinds, activeFilter, onSelect = { kindFilter = it }, modifier = Modifier.padding(bottom = 14.dp))
+    }
+
+    // Favorites（圆角卡片 + 类型胶囊标签）
+    val visibleFavorites = state.favorites.filter(::matchesFilter)
+    if (visibleFavorites.isNotEmpty()) {
+        GroupHeading(stringResource(R.string.pg_favorites), visibleFavorites.size, icon = Lucide.Star, iconTint = Sm.KindFav)
+        HomeCard {
+            visibleFavorites.forEachIndexed { index, page ->
+                key("fav-" + page.id) { FavoriteHomeItem(page, busy, multiKind, showTopDivider = index > 0, onOpen) }
+            }
+        }
+    }
+
+    // Projects
+    val visibleGroups = if (activeFilter != null) {
+        state.groups.mapNotNull { group ->
+            val members = state.pages.filter { it.groupId == group.id && matchesFilter(it) }
+            if (members.isEmpty()) null else Triple(group, members, members.size)
+        }
+    } else {
+        state.groups.map { group -> Triple(group, state.members(group.id), state.memberCount(group.id)) }
+    }
+    visibleGroups.forEach { (group, members, total) ->
         key(group.id) {
             DisposableEffect(group.id) { onDispose { drag.zones.remove(group.id) } }
-            GroupHeading(group.name, state.memberCount(group.id), Modifier.zone(group.id))
+            GroupHeading(group.name, total, icon = Lucide.Folder, iconTint = Sm.Muted, modifier = Modifier.zone(group.id))
         }
         if (members.isEmpty()) {
-            Text(stringResource(R.string.no_notes_in_project), color = Faint, fontSize = 14.sp, modifier = Modifier.padding(4.dp))
+            HomeEmptyCard(stringResource(R.string.no_notes_in_project))
         } else {
-            Column(Modifier.padding(bottom = 16.dp)) { members.forEach { key(it.id) { Tree(it) } } }
+            HomeCard {
+                members.forEachIndexed { index, page ->
+                    key(page.id) { Tree(page, flat = activeFilter != null, showTopDivider = index > 0) }
+                }
+            }
         }
     }
-    // 不在项目里的页面（网页 notes-home 的分区）：只能建笔记时和以前一样，有项目才出 "No project" 小标题；
-    // 能建几种类型时每个有页面的分区一个小标题（笔记 / 幻灯片 / 白板 + 数量）。
-    sections.forEach { section ->
-        if (section.roots.isEmpty()) return@forEach
-        val zone = sectionZone(section.kind)
-        val heading = if (kinds.size > 1) stringResource(sectionLabel(section.kind)) else if (state.groups.isNotEmpty()) stringResource(R.string.no_project) else null
+
+    // 不在项目里的页面分区（Notes / Slides / Whiteboards）
+    val ungroupedFiltered = if (activeFilter != null) {
+        state.pages.filter { (it.groupId == null || it.groupId !in groupIds) && matchesFilter(it) }
+    } else emptyList()
+    val visibleSections = if (activeFilter != null) {
+        if (ungroupedFiltered.isNotEmpty()) listOf(Triple(activeFilter, ungroupedFiltered, ungroupedFiltered.size)) else emptyList()
+    } else {
+        sections.filter { it.roots.isNotEmpty() }.map { Triple(it.kind, it.roots, it.count) }
+    }
+    visibleSections.forEach { (kind, roots, count) ->
+        val zone = sectionZone(kind)
+        val heading = if (multiKind) stringResource(sectionLabel(kind)) else if (state.groups.isNotEmpty()) stringResource(R.string.no_project) else null
         key(zone) {
-            // 小标题不显示时（项目都删了等）投放区也去掉：不然放在原来的位置上，子页面会被移出父页面。
             DisposableEffect(zone, heading != null) {
                 drag.zoneContainers[zone] = null
-                drag.zoneAccepts[zone] = section.kind.wire
+                drag.zoneAccepts[zone] = kind.wire
                 onDispose { drag.zones.remove(zone); drag.zoneContainers.remove(zone); drag.zoneAccepts.remove(zone) }
             }
-            if (heading != null) GroupHeading(heading, section.count, Modifier.zone(zone))
+            if (heading != null) {
+                GroupHeading(
+                    heading, count,
+                    icon = if (multiKind) pageKindIcon(kind) else null,
+                    iconTint = if (multiKind) pageKindColor(kind) else Sm.Muted,
+                    modifier = Modifier.zone(zone),
+                )
+            }
         }
-        Column(Modifier.padding(bottom = 16.dp)) { section.roots.forEach { key(it.id) { Tree(it) } } }
+        HomeCard {
+            roots.forEachIndexed { index, page ->
+                key(page.id) { Tree(page, flat = activeFilter != null, showTopDivider = index > 0) }
+            }
+        }
     }
-    // .notes-home-actions：上距 8、间距 8、放不下就换行（几个按钮在窄屏或长文案时会换）。
-    FlowRow(
-        Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
-        itemVerticalAlignment = Alignment.CenterVertically,
-    ) {
-        NewPageButtons(kinds, busy, 40.dp, onCreate)
-        HomeTextButton(Lucide.FolderPlus, stringResource(R.string.new_project), enabled = !busy, onClick = onNewGroup)
-        HomeTextButton(Lucide.Upload, stringResource(R.string.import_markdown), enabled = !busy, onClick = onImport)
+
+    if (activeFilter != null && visibleFavorites.isEmpty() && visibleGroups.isEmpty() && visibleSections.isEmpty()) {
+        HomeEmptyCard(stringResource(R.string.sb_no_notes_match))
     }
 }
 
-// .notion-button.notes-home-new-group：高 40、圆角 4.8、左右 12、图标 16 + 间距 6.4、12.8/500。"新项目"和"导入 Markdown"用。
 @Composable
-private fun HomeTextButton(icon: List<String>, text: String, enabled: Boolean, onClick: () -> Unit) {
+private fun HomeUtilPill(icon: List<String>, text: String, enabled: Boolean, onClick: () -> Unit) {
+    val shape = CircleShape
     Row(
-        Modifier.height(40.dp).clip(RoundedCornerShape(4.8.dp)).clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(horizontal = 12.dp),
+        Modifier.height(34.4.dp).clip(shape).background(Sm.Surface).border(1.dp, Sm.Border, shape)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .alpha(if (enabled) 1f else 0.5f)
+            .padding(horizontal = 11.2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        LucideIcon(icon, 16.dp, Sm.Text)
-        Spacer(Modifier.width(6.4.dp))
-        Text(text, color = Sm.Text, fontSize = 12.8.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+        LucideIcon(icon, 14.dp, Sm.Faint)
+        Spacer(Modifier.width(6.dp))
+        Text(text, color = Sm.Muted, fontSize = 13.sp, fontWeight = FontWeight(520), maxLines = 1)
     }
 }
 
 @Composable
-private fun GroupHeading(name: String, count: Int, modifier: Modifier = Modifier) {
-    // 外边距 20/4/4 放在投放区外面：高亮框只包住这一行（网页 h2 的 margin 不在背景里）。
-    Row(Modifier.padding(start = 4.dp, end = 4.dp, top = 20.dp, bottom = 4.dp).then(modifier), verticalAlignment = Alignment.CenterVertically) {
-        Text(name, color = Sm.Muted, fontSize = 13.sp, lineHeight = 19.5.sp, fontWeight = FontWeight.SemiBold,
+private fun CreateDeckCards(kinds: List<PageKind>, busy: Boolean, onCreate: (PageKind) -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        kinds.forEach { kind ->
+            val cardShape = RoundedCornerShape(14.dp)
+            val iconShape = RoundedCornerShape(9.dp)
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 52.dp)
+                    .shadow(1.dp, cardShape, ambientColor = Color(0x0A0F172A), spotColor = Color(0x0A0F172A))
+                    .clip(cardShape).background(Sm.Surface).border(1.dp, Sm.Border, cardShape)
+                    .clickable(enabled = !busy, role = Role.Button) { onCreate(kind) }
+                    .alpha(if (busy) 0.55f else 1f)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Box(
+                    Modifier.size(32.dp).clip(iconShape).background(pageKindSoft(kind)).border(1.dp, pageKindBorder(kind), iconShape),
+                    Alignment.Center,
+                ) {
+                    LucideIcon(pageKindIcon(kind), 17.dp, pageKindColor(kind))
+                }
+                Text(
+                    stringResource(newPageLabel(kind)),
+                    color = Sm.Ink, fontSize = 14.sp, lineHeight = 19.sp, fontWeight = FontWeight(580),
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                )
+                Box(Modifier.size(26.dp).clip(CircleShape).background(Sm.Hover), Alignment.Center) {
+                    LucideIcon(Lucide.Plus, 14.dp, Sm.Muted)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun KindFilterBar(kinds: List<PageKind>, active: PageKind?, onSelect: (PageKind?) -> Unit, modifier: Modifier = Modifier) {
+    val trackShape = RoundedCornerShape(10.dp)
+    val label = stringResource(R.string.ws_page_type)
+    Row(
+        modifier.fillMaxWidth().clip(trackShape).background(Sm.Hover).border(1.dp, Sm.Border, trackShape)
+            .horizontalScroll(rememberScrollState()).padding(3.dp)
+            .semantics { contentDescription = label },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        FilterPill(stringResource(R.string.search_tab_all), icon = null, iconTint = Sm.Muted, selected = active == null) { onSelect(null) }
+        kinds.forEach { kind ->
+            FilterPill(
+                stringResource(sectionLabel(kind)),
+                icon = pageKindIcon(kind),
+                iconTint = if (active == kind) pageKindColor(kind) else Sm.Muted,
+                selected = active == kind,
+            ) { onSelect(kind) }
+        }
+    }
+}
+
+@Composable
+private fun FilterPill(text: String, icon: List<String>?, iconTint: Color, selected: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(7.2.dp)
+    Row(
+        Modifier.height(32.dp).clip(shape)
+            .then(if (selected) Modifier.background(Sm.Surface).border(1.dp, Sm.Border, shape) else Modifier)
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { this.selected = selected }
+            .padding(horizontal = 10.4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        if (icon != null) LucideIcon(icon, 13.dp, iconTint)
+        Text(text, color = if (selected) Sm.Ink else Sm.Muted, fontSize = 13.sp, fontWeight = FontWeight(540), maxLines = 1)
+    }
+}
+
+@Composable
+private fun HomeCard(content: @Composable () -> Unit) {
+    val shape = RoundedCornerShape(14.dp)
+    Column(
+        Modifier.fillMaxWidth().padding(bottom = 18.dp)
+            .shadow(1.dp, shape, ambientColor = Color(0x0A0F172A), spotColor = Color(0x0A0F172A))
+            .clip(shape).background(Sm.Surface).border(1.dp, Sm.Border, shape),
+    ) { content() }
+}
+
+@Composable
+private fun HomeEmptyCard(text: String) {
+    val shape = RoundedCornerShape(14.dp)
+    Box(
+        Modifier.fillMaxWidth().padding(bottom = 18.dp).clip(shape)
+            .background(Sm.Sidebar.copy(alpha = 0.55f)).border(1.dp, Sm.BorderStrong, shape)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+    ) {
+        Text(text, color = Sm.Muted, fontSize = 13.5.sp)
+    }
+}
+
+@Composable
+private fun HomeKindBadge(kind: PageKind) {
+    Box(
+        Modifier.clip(CircleShape).background(pageKindSoft(kind)).padding(horizontal = 7.dp, vertical = 2.dp),
+        Alignment.Center,
+    ) {
+        Text(stringResource(pageKindLabel(kind)), color = pageKindTextColor(kind), fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight(550), maxLines = 1)
+    }
+}
+
+@Composable
+private fun GroupHeading(name: String, count: Int, modifier: Modifier = Modifier, icon: List<String>? = null, iconTint: Color = Sm.Muted) {
+    Row(
+        Modifier.padding(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 8.dp).then(modifier),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        if (icon != null) LucideIcon(icon, 13.5.dp, iconTint)
+        Text(name, color = Sm.Muted, fontSize = 13.sp, lineHeight = 19.sp, fontWeight = FontWeight.SemiBold,
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-        Spacer(Modifier.width(8.dp))
-        Text(count.toString(), color = Faint, fontSize = 13.sp, lineHeight = 19.5.sp)
+        CountPill(count)
     }
 }
 
-// 收藏的行（网页 .notes-home-item > .notes-home-row）：最小高 56、下边 1px 线；图标区 28、间距 13.6、标题 17/500。
 @Composable
-private fun FavoriteHomeItem(page: NotePageSummary, busy: Boolean, onOpen: (String) -> Unit) {
+private fun HomeIconTile(icon: String?, kind: PageKind) {
+    val tileBg = if (icon != null) Sm.Hover else pageKindSoft(kind)
+    Box(Modifier.size(30.dp).clip(RoundedCornerShape(8.dp)).background(tileBg), Alignment.Center) {
+        NoteIcon(icon, 16.5.sp, 16.dp, pageKindColor(kind), kind)
+    }
+}
+
+// 收藏的行（圆角卡片内）：最小高 52、图标块 30、间距 10、标题 15.5/530、多类型时右侧类型胶囊。
+@Composable
+private fun FavoriteHomeItem(page: NotePageSummary, busy: Boolean, multiKind: Boolean, showTopDivider: Boolean, onOpen: (String) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 57.dp)
-            .drawBehind { drawRect(Sm.Border, topLeft = Offset(0f, size.height - 1.dp.toPx()), size = Size(size.width, 1.dp.toPx())) }
-            .clickable(enabled = !busy) { onOpen(page.id) }.padding(horizontal = 4.dp, vertical = 6.4.dp),
+        Modifier.fillMaxWidth().heightIn(min = 52.dp)
+            .then(if (showTopDivider) Modifier.drawBehind { drawRect(Sm.Border, size = Size(size.width, 1.dp.toPx())) } else Modifier)
+            .clickable(enabled = !busy) { onOpen(page.id) }.padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Box(Modifier.width(28.dp), Alignment.Center) { NoteIcon(page.icon, 20.sp, 20.dp, Faint, page.kind) }
-        Spacer(Modifier.width(13.6.dp))
-        Text(page.title, modifier = Modifier.weight(1f), color = Sm.Text, fontSize = 17.sp, lineHeight = 25.5.sp,
-            fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        HomeIconTile(page.icon, page.kind)
+        Text(page.title, modifier = Modifier.weight(1f), color = Sm.Text, fontSize = 15.5.sp, lineHeight = 22.sp,
+            fontWeight = FontWeight(530), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (multiKind) HomeKindBadge(page.kind)
     }
 }
 
 @Composable
 private fun HomeItem(
     page: NotePageSummary, busy: Boolean, rowDrag: NoteRowDrag, onOpen: (String) -> Unit, onMove: (NotePageSummary) -> Unit,
-    open: Boolean = false, onToggle: () -> Unit = {},
+    open: Boolean = false, flat: Boolean = false, showTopDivider: Boolean = false, onToggle: () -> Unit = {},
 ) {
     val moveLabel = stringResource(R.string.move_title_to_project, page.title)
     val drag = rowDrag.drag
@@ -871,36 +1103,36 @@ private fun HomeItem(
         Modifier.fillMaxWidth()
             .alpha(if (drag.dragging == page.id) 0.5f else 1f)
             .onGloballyPositioned { drag.rows[page.id] = it.boundsInWindow() }
-            .drawBehind { drawRect(Sm.Border, topLeft = Offset(0f, size.height - 1.dp.toPx()), size = Size(size.width, 1.dp.toPx())) }
-            .dropLine(target?.id == page.id && !target.after, target?.id == page.id && target.after)
-            .padding(bottom = 1.dp),
+            .then(if (showTopDivider) Modifier.drawBehind { drawRect(Sm.Border, size = Size(size.width, 1.dp.toPx())) } else Modifier)
+            .dropLine(target?.id == page.id && !target.after, target?.id == page.id && target.after),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 展开箭头（.notes-home-toggle）：28×48，Chevron 18 浅灰。
-        val toggleLabel = if (open) collapseLabel(page.title) else expandLabel(page.title)
-        Box(
-            Modifier.size(28.dp, 48.dp).clickable(onClick = onToggle)
-                .semantics { contentDescription = toggleLabel; role = Role.Button },
-            Alignment.Center,
-        ) { LucideIcon(if (open) Lucide.ChevronDown else Lucide.ChevronRight, 18.dp, Faint) }
+        if (!flat) {
+            val toggleLabel = if (open) collapseLabel(page.title) else expandLabel(page.title)
+            Box(
+                Modifier.padding(start = 4.dp).size(26.dp, 40.dp).clip(RoundedCornerShape(6.dp)).clickable(onClick = onToggle)
+                    .semantics { contentDescription = toggleLabel; role = Role.Button },
+                Alignment.Center,
+            ) { LucideIcon(if (open) Lucide.ChevronDown else Lucide.ChevronRight, 15.dp, Faint) }
+        }
         Row(
-            Modifier.weight(1f).heightIn(min = 56.dp).clickable(enabled = !busy) { onOpen(page.id) }.noteReorderDrag(page, rowDrag).padding(horizontal = 4.dp, vertical = 6.4.dp),
+            Modifier.weight(1f).heightIn(min = 52.dp).clickable(enabled = !busy) { onOpen(page.id) }.noteReorderDrag(page, rowDrag, extraLocked = flat)
+                .padding(start = if (flat) 12.dp else 4.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Box(Modifier.width(28.dp), Alignment.Center) { NoteIcon(page.icon, 20.sp, 20.dp, Faint, page.kind) }
-            Spacer(Modifier.width(13.6.dp))
-            Text(page.title, modifier = Modifier.weight(1f), color = Sm.Text, fontSize = 17.sp, lineHeight = 25.5.sp,
-                fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.width(13.6.dp))
-            Text(shortDate(page.updatedAt), color = Sm.Muted, fontSize = 13.sp, lineHeight = 19.5.sp)
+            HomeIconTile(page.icon, page.kind)
+            Text(page.title, modifier = Modifier.weight(1f), color = Sm.Text, fontSize = 15.5.sp, lineHeight = 22.sp,
+                fontWeight = FontWeight(530), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(shortDate(page.updatedAt), color = Faint, fontSize = 12.5.sp, lineHeight = 18.sp)
         }
         Box(
-            Modifier.size(width = 44.dp, height = 48.dp).clickable(enabled = !busy) { onMove(page) }
+            Modifier.padding(end = 4.dp).size(36.dp, 40.dp).clip(RoundedCornerShape(7.dp)).clickable(enabled = !busy) { onMove(page) }
                 .semantics { contentDescription = moveLabel; role = Role.Button },
             Alignment.Center,
-        ) { LucideIcon(Lucide.FolderInput, 18.dp, Faint) }
+        ) { LucideIcon(Lucide.FolderInput, 16.dp, Faint) }
     }
-    if (reorderError != null) ReorderErrorPopup(reorderFailureText(reorderError), rowDrag.reorder.onDismissError, rowHeight = 57.dp)
+    if (reorderError != null) ReorderErrorPopup(reorderFailureText(reorderError), rowDrag.reorder.onDismissError, rowHeight = 52.dp)
     }
 }
 
@@ -919,18 +1151,20 @@ private fun shortDate(iso: String): String {
     }
 }
 
-// 一篇笔记都没有（网页 NotesWorkspace 的空状态，手机）：上距 120；文件图标 28（线宽 1.4，浅灰）；
-// "Workspace" 40/750、行高 1.25、字距 −0.04em，上距 16；说明 15/24 灰（"/"是等宽小键帽），上距 8；
-// 按钮行上距 24、间距 10、放不下换行、整行水平居中（网页 mt-6 flex flex-wrap items-center justify-center gap-2.5）：
-// "新笔记"高 32、圆角 8，旁边"导入 Markdown"（高 40 的文字按钮）；最下面 12/20 浅灰的存储说明，上距 40、最宽 384。
-@OptIn(ExperimentalLayoutApi::class)
+// 一篇笔记都没有（网页 NotesWorkspace 的空状态，手机）：居中 Studio 徽章（LayoutGrid）、标题、说明、Quick-Create Deck 卡片、Import 胶囊。
 @Composable
 private fun NotesEmpty(kinds: List<PageKind>, busy: Boolean, onCreate: (PageKind) -> Unit, onImport: () -> Unit) {
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
-    Column(Modifier.padding(top = 120.dp)) {
-        LucideIcon(Lucide.FileText, 28.dp, Faint, strokeWidth = 1.4f)
-        Text(stringResource(R.string.workspace), modifier = Modifier.padding(top = 16.dp), color = Sm.Ink, fontSize = 40.sp,
-            lineHeight = 50.sp, fontWeight = FontWeight(750), letterSpacing = if (rtl) 0.sp else (-1.6).sp)
+    val emblemShape = RoundedCornerShape(16.dp)
+    Column(Modifier.fillMaxWidth().padding(top = 56.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier.size(56.dp).clip(emblemShape).background(Sm.AccentSoft).border(1.dp, Sm.Border, emblemShape),
+            Alignment.Center,
+        ) {
+            LucideIcon(Lucide.LayoutGrid, 26.dp, Sm.Ink, strokeWidth = 1.6f)
+        }
+        Text(stringResource(R.string.workspace), modifier = Modifier.padding(top = 18.dp), color = Sm.Ink, fontSize = 32.sp,
+            lineHeight = 38.sp, fontWeight = FontWeight(750), letterSpacing = if (rtl) 0.sp else (-1.2).sp)
         val intro = stringResource(R.string.notes_intro).split("%1\$s")
         Text(
             buildAnnotatedString {
@@ -939,50 +1173,14 @@ private fun NotesEmpty(kinds: List<PageKind>, busy: Boolean, onCreate: (PageKind
                     append(part)
                 }
             },
-            modifier = Modifier.padding(top = 8.dp), color = Sm.Muted, fontSize = 15.sp, lineHeight = 24.sp,
+            modifier = Modifier.padding(top = 8.dp), color = Sm.Muted, fontSize = 14.5.sp, lineHeight = 22.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
-        FlowRow(
-            Modifier.padding(top = 24.dp).fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            itemVerticalAlignment = Alignment.CenterVertically,
-        ) {
-            NewPageButtons(kinds, busy, 32.dp, onCreate)
-            HomeTextButton(Lucide.Upload, stringResource(R.string.import_markdown), enabled = !busy, onClick = onImport)
-        }
-        Text(stringResource(R.string.notes_storage_hint), modifier = Modifier.padding(top = 40.dp).widthIn(max = 384.dp),
-            color = Faint, fontSize = 12.sp, lineHeight = 20.sp)
-    }
-}
-
-/**
- * 首页和空状态的新建按钮（网页 NewPageButtons）：只能建笔记时是原来的"新笔记"（+）；能建几种类型时每种一个，带类型图标，
- * 第一个（笔记）是深色按钮，其余是文字按钮。直接放进外面的 FlowRow。
- */
-@Composable
-private fun NewPageButtons(kinds: List<PageKind>, busy: Boolean, height: Dp, onCreate: (PageKind) -> Unit) {
-    if (kinds.size < 2) {
-        InkButton(stringResource(R.string.new_note), height, enabled = !busy, onClick = { onCreate(PageKind.Note) })
-        return
-    }
-    kinds.forEachIndexed { index, kind ->
-        val label = stringResource(newPageLabel(kind))
-        if (index == 0) InkButton(label, height, enabled = !busy, onClick = { onCreate(kind) }, icon = pageKindIcon(kind))
-        else HomeTextButton(pageKindIcon(kind), label, enabled = !busy) { onCreate(kind) }
-    }
-}
-
-// .notes-empty-new：圆角 8、深色底、左右 12、图标 16 + 间距 6、14/550 白字。
-@Composable
-private fun InkButton(text: String, height: Dp, enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, icon: List<String> = Lucide.Plus) {
-    Row(
-        modifier.height(height).clip(RoundedCornerShape(8.dp)).background(Sm.Ink).clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        LucideIcon(icon, 16.dp, Sm.OnInk)
-        Spacer(Modifier.width(6.dp))
-        Text(text, color = Sm.OnInk, fontSize = 14.sp, fontWeight = FontWeight(550))
+        CreateDeckCards(kinds, busy, onCreate, Modifier.padding(top = 24.dp))
+        Spacer(Modifier.height(14.dp))
+        HomeUtilPill(Lucide.Upload, stringResource(R.string.import_markdown), enabled = !busy, onClick = onImport)
+        Text(stringResource(R.string.notes_storage_hint), modifier = Modifier.padding(top = 36.dp).widthIn(max = 384.dp),
+            color = Faint, fontSize = 12.sp, lineHeight = 19.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     }
 }
 

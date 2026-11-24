@@ -1,10 +1,9 @@
 import SwiftUI
 
-// 笔记首页（网页 NotesHome，手机；Android ui/NotesUi.kt 的 NotesHome）：没有打开笔记时显示。左右 24、下 96；顶部 Chat / Note 切换（上距 4）；
-// “Notes”32 / 750、行高 48、字距 −0.04em，上 8 下 12；项目小标题 13 / 600 灰 + 数量 13 浅灰，外边距 20 / 4 / 4；
-// 每行最小高 56、下边 1px 线；图标区 28（表情 20 / 页面类型图标 20 浅灰）、间距 13.6、标题 17 / 500、日期 13 灰；
-// 右侧 44×48 的“移到项目”（图标 18 浅灰）。下面“新笔记”（高 40、圆角 8、墨色）、“新项目”和“导入 Markdown”（高 40 文字按钮），放不下就换行。
-// 笔记行长按后可以拖动排序；标题“Notes”和“No project”小标题是“移出项目”的投放区，项目小标题是“移进项目”的。
+// 工作区首页（网页 NotesHome，手机；Android ui/NotesUi.kt 的 NotesHome）：左右 20、下 96；顶部 Chat / Workspace 切换（上距 4）；
+// Studio 头部（"Workspace" 30 / 750 + 胶囊按钮 New project / Import Markdown）→ Studio Quick-Create Deck 卡片 →
+// 类型筛选栏（All | Notes | Slides | Whiteboards）→ 圆角卡片分组列表（带语义色图标块、Favorites 类型标签）。
+// 笔记行长按后可以拖动排序；标题"Workspace"和分区小标题是"移出项目"的投放区，项目小标题是"移进项目"的。
 
 @MainActor
 struct NotesHomeView: View {
@@ -28,7 +27,7 @@ struct NotesHomeView: View {
                     .padding(.top, 4)
                 if let error = state.error {
                     NotesErrorBar(notesErrorText(error, app.systemText), onRetry: { notes.refresh() })
-                        .padding(.top, 24)
+                        .padding(.top, 20)
                 }
                 if state.loading && nothing {
                     Text(L("loading_notes"))
@@ -45,7 +44,7 @@ struct NotesHomeView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 24)
+            .padding(.horizontal, 20)
             .padding(.bottom, 96)
             .reorderContainer(reorder, onStart: { [reorder] _ in
                 NoteReorderOrigin.shared.surface = .home
@@ -62,140 +61,372 @@ struct NotesHomeView: View {
 
 // MARK: - 列表
 
+private struct HomeGroupEntry: Identifiable {
+    let group: NoteGroupSummary
+    let members: [NotePageSummary]
+    let total: Int
+    var id: String { group.id }
+}
+
+private struct HomeSectionEntry: Identifiable {
+    let kind: PageKind
+    let roots: [NotePageSummary]
+    let count: Int
+    var id: PageKind { kind }
+}
+
 @MainActor
 private struct NotesHomeList: View {
     let busy: Bool
     let reorder: ReorderDragController
     let onImport: () -> Void
     @Binding var dialog: NotesDialogState?
+    @State private var kindFilter: PageKind? = nil
     @Environment(AppEnvironment.self) private var app
     @Environment(\.layoutDirection) private var layoutDirection
 
     var body: some View {
         let notes = app.notes
         let state = notes.state
-        let favorites = state.favorites
-        // 标题“Workspace”：也是“移出项目”的投放区（什么类型都接受，移出后回到自己类型的分区）。字距 −0.04em（从右到左的文字不加字距）。
-        Text(L("workspace"))
-            .font(.nf(32, weight: 750))
-            .tracking(layoutDirection == .rightToLeft ? 0 : -1.28)
-            .nfLineHeight(48, fontSize: 32)
-            .foregroundStyle(Sm.ink)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .reorderDropZone("", in: reorder)
-            .padding(.top, 8)
-            .padding(.bottom, 12)
-            .accessibilityAddTraits(.isHeader)
-        // Favorites：小标题 + 平铺的行（不能拖，没有日期和移动键）。
-        if !favorites.isEmpty {
-            NotesHomeHeading(name: L("pg_favorites"), count: favorites.count)
+        let kinds = state.kinds
+        let multiKind = kinds.count > 1
+        let activeFilter: PageKind? = multiKind ? kindFilter : nil
+        let groupIds = Set(state.groups.map(\.id))
+        let matches: (NotePageSummary) -> Bool = { page in
+            activeFilter == nil || state.sectionKind(of: page) == activeFilter
+        }
+        let visibleFavorites = state.favorites.filter(matches)
+        let visibleGroups: [HomeGroupEntry] = {
+            if activeFilter != nil {
+                return state.groups.compactMap { group in
+                    let members = state.pages.filter { $0.groupId == group.id && matches($0) }
+                    return members.isEmpty ? nil : HomeGroupEntry(group: group, members: members, total: members.count)
+                }
+            }
+            return state.groups.map { group in
+                HomeGroupEntry(group: group, members: state.members(group.id), total: state.memberCount(group.id))
+            }
+        }()
+        let visibleSections: [HomeSectionEntry] = {
+            if let filter = activeFilter {
+                let items = state.pages.filter { page in
+                    let loose = page.groupId.map { !groupIds.contains($0) } ?? true
+                    return loose && matches(page)
+                }
+                return items.isEmpty ? [] : [HomeSectionEntry(kind: filter, roots: items, count: items.count)]
+            }
+            return state.sections.filter { !$0.roots.isEmpty }.map {
+                HomeSectionEntry(kind: $0.kind, roots: $0.roots, count: $0.count)
+            }
+        }()
+        let filterEmpty = activeFilter != nil && visibleFavorites.isEmpty && visibleGroups.isEmpty && visibleSections.isEmpty
+
+        // Studio 头部：Workspace 标题（移出项目投放区）+ 胶囊按钮 New project / Import Markdown
+        VStack(alignment: .leading, spacing: 10) {
+            Text(L("workspace"))
+                .font(.nf(30, weight: 750))
+                .tracking(layoutDirection == .rightToLeft ? 0 : -1.2)
+                .nfLineHeight(36, fontSize: 30)
+                .foregroundStyle(Sm.ink)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .reorderDropZone("", in: reorder)
+                .accessibilityAddTraits(.isHeader)
+            ChatFlowLayout(spacing: 8, lineSpacing: 8) {
+                NotesHomeUtilPill(icon: Lucide.folderPlus, title: L("new_project"), busy: busy) {
+                    dialog = .newGroup
+                }
+                NotesHomeUtilPill(icon: Lucide.upload, title: L("import_markdown"), busy: busy, action: onImport)
+            }
+        }
+        .padding(.top, 12)
+        .padding(.bottom, 14)
+
+        // Studio Quick-Create Deck 卡片
+        CreateDeckCards(kinds: kinds, busy: busy) { notes.createNote(kind: $0) }
+            .padding(.bottom, 18)
+
+        // 类型筛选栏（All | Notes | Slides | Whiteboards）
+        if multiKind {
+            KindFilterBar(kinds: kinds, active: activeFilter) { kindFilter = $0 }
+                .padding(.bottom, 14)
+        }
+
+        // Favorites（圆角卡片 + 类型胶囊标签）
+        if !visibleFavorites.isEmpty {
+            let firstFavId = visibleFavorites.first?.id
+            NotesHomeHeading(name: L("pg_favorites"), count: visibleFavorites.count, icon: Lucide.star, iconColor: Sm.kindFav)
                 .notesHomeHeadingMargins()
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(favorites) { page in
-                    NotesHomeFavoriteItem(page: page, busy: busy)
+            NotesHomeCard {
+                ForEach(visibleFavorites) { page in
+                    NotesHomeFavoriteItem(page: page, busy: busy, multiKind: multiKind, showTopDivider: page.id != firstFavId)
                 }
             }
-            .padding(.bottom, 16)
         }
-        ForEach(state.groups) { group in
-            groupSection(group, state)
-        }
-        // 不在项目里的页面（网页 notes-home 的分区）：只能建笔记时和以前一样，有项目才出“No project”小标题；
-        // 能建几种类型时每个有页面的分区一个小标题（笔记 / 幻灯片 / 白板 + 数量）。小标题只接受同一分区的页面（Core 的 noteDropRules）。
-        ForEach(state.sections.filter { !$0.roots.isEmpty }, id: \.kind) { section in
-            if state.kinds.count > 1 || !state.groups.isEmpty {
-                NotesHomeHeading(name: state.kinds.count > 1 ? L(pageKindSectionLabel(section.kind)) : L("no_project"), count: section.count)
-                    .reorderDropZone(noteSectionZone(section.kind), in: reorder)
-                    .notesHomeHeadingMargins()
+
+        // Projects
+        ForEach(visibleGroups) { entry in
+            NotesHomeHeading(name: entry.group.name, count: entry.total, icon: Lucide.folder, iconColor: Sm.muted)
+                .reorderDropZone(entry.group.id, in: reorder)
+                .notesHomeHeadingMargins()
+            if entry.members.isEmpty {
+                NotesHomeEmptyCard(L("no_notes_in_project"))
+            } else {
+                let firstMemberId = entry.members.first?.id
+                NotesHomeCard {
+                    ForEach(entry.members) { page in
+                        NotesHomeTree(page: page, busy: busy, flat: activeFilter != nil, showTopDivider: page.id != firstMemberId, reorder: reorder, dialog: $dialog)
+                    }
+                }
             }
-            VStack(alignment: .leading, spacing: 0) {
+        }
+
+        // 不在项目里的页面分区（Notes / Slides / Whiteboards）
+        ForEach(visibleSections) { section in
+            if multiKind || !state.groups.isEmpty {
+                NotesHomeHeading(
+                    name: multiKind ? L(pageKindSectionLabel(section.kind)) : L("no_project"),
+                    count: section.count,
+                    icon: multiKind ? pageKindIcon(section.kind) : nil,
+                    iconColor: multiKind ? pageKindColor(section.kind) : Sm.muted
+                )
+                .reorderDropZone(noteSectionZone(section.kind), in: reorder)
+                .notesHomeHeadingMargins()
+            }
+            let firstRootId = section.roots.first?.id
+            NotesHomeCard {
                 ForEach(section.roots) { page in
-                    NotesHomeTree(page: page, busy: busy, reorder: reorder, dialog: $dialog)
+                    NotesHomeTree(page: page, busy: busy, flat: activeFilter != nil, showTopDivider: page.id != firstRootId, reorder: reorder, dialog: $dialog)
                 }
             }
-            .padding(.bottom, 16)
         }
-        buttons
-    }
 
-    /// 一个项目：小标题（“移进项目”的投放区）和它最上层的笔记。
-    @ViewBuilder
-    private func groupSection(_ group: NoteGroupSummary, _ state: NotesUiState) -> some View {
-        let members = state.members(group.id)
-        NotesHomeHeading(name: group.name, count: state.memberCount(group.id))
-            .reorderDropZone(group.id, in: reorder)
-            .notesHomeHeadingMargins()
-        if members.isEmpty {
-            Text(L("no_notes_in_project"))
-                .font(.nf(14))
-                .foregroundStyle(Sm.faint)
-                .padding(4)
-        } else {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(members) { page in
-                    NotesHomeTree(page: page, busy: busy, reorder: reorder, dialog: $dialog)
-                }
-            }
-            .padding(.bottom, 16)
+        if filterEmpty {
+            NotesHomeEmptyCard(L("sb_no_notes_match"))
         }
-    }
-
-    /// 新建按钮（能建的类型各一个）、“新项目”“导入 Markdown”（.notes-home-actions）：上距 8、间距 8，一行放不下就换行（flex-wrap）。
-    private var buttons: some View {
-        let notes = app.notes
-        return ChatFlowLayout(spacing: 8, lineSpacing: 8) {
-            NewPageButtons(kinds: notes.state.kinds, height: 40) { notes.createNote(kind: $0) }
-                .disabled(busy)
-            NotesHomeTextButton(icon: Lucide.folderPlus, title: L("new_project")) { dialog = .newGroup }
-                .disabled(busy)
-            NotesHomeTextButton(icon: Lucide.upload, title: L("import_markdown"), action: onImport)
-                .disabled(busy)
-        }
-        .padding(.top, 8)
     }
 }
 
-/// 首页和空状态的新建按钮（网页 NewPageButtons，Android `NewPageButtons`）：只能建笔记时是原来的“新笔记”（+）；能建几种类型时
-/// 每种一个，带类型图标，第一个（笔记）是深色按钮，其余是文字按钮。放进外面的排版（流式换行 / 横排）里。
-@MainActor
-private struct NewPageButtons: View {
+// MARK: - Studio 组件（工具胶囊、快速创建卡、筛选栏、卡片容器）
+
+private struct NotesHomeUtilPill: View {
+    let icon: [String]
+    let title: String
+    let busy: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                LucideIcon(icon, size: 14, color: Sm.faint)
+                Text(title)
+                    .font(.nf(13, weight: 520))
+                    .foregroundStyle(Sm.muted)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 11.2)
+            .frame(height: 34.4)
+        }
+        .buttonStyle(.pressable(background: Sm.surface, cornerRadius: 17.2, scale: 0.98, disabledOpacity: 0.5))
+        .overlay { Capsule().strokeBorder(Sm.border, lineWidth: 1).allowsHitTesting(false) }
+        .disabled(busy)
+    }
+}
+
+private struct CreateDeckCards: View {
     let kinds: [PageKind]
-    let height: CGFloat
+    let busy: Bool
     let onCreate: (PageKind) -> Void
 
     var body: some View {
-        if kinds.count < 2 {
-            NotesInkButton(L("new_note"), height: height) { onCreate(.note) }
-        } else {
-            ForEach(Array(kinds.enumerated()), id: \.element) { index, kind in
-                if index == 0 {
-                    NotesInkButton(L(pageKindNewLabel(kind)), height: height, icon: pageKindIcon(kind)) { onCreate(kind) }
-                } else {
-                    NotesHomeTextButton(icon: pageKindIcon(kind), title: L(pageKindNewLabel(kind))) { onCreate(kind) }
+        VStack(spacing: 8) {
+            ForEach(kinds, id: \.self) { kind in
+                let cardShape = RoundedRectangle(cornerRadius: 14)
+                let iconShape = RoundedRectangle(cornerRadius: 9)
+                Button {
+                    onCreate(kind)
+                } label: {
+                    HStack(spacing: 10) {
+                        LucideIcon(pageKindIcon(kind), size: 17, color: pageKindColor(kind))
+                            .frame(width: 32, height: 32)
+                            .background(pageKindSoft(kind), in: iconShape)
+                            .overlay { iconShape.strokeBorder(pageKindBorder(kind), lineWidth: 1) }
+                        Text(L(pageKindNewLabel(kind)))
+                            .font(.nf(14, weight: 580))
+                            .nfLineHeight(19, fontSize: 14)
+                            .foregroundStyle(Sm.ink)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        LucideIcon(Lucide.plus, size: 14, color: Sm.muted)
+                            .frame(width: 26, height: 26)
+                            .background(Sm.hover, in: Circle())
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
                 }
+                .buttonStyle(.pressable(background: Sm.surface, cornerRadius: 14, scale: 0.99, disabledOpacity: 0.55))
+                .overlay { cardShape.strokeBorder(Sm.border, lineWidth: 1).allowsHitTesting(false) }
+                .shadow(color: Color(argb: 0x0A0F172A), radius: 1, x: 0, y: 1)
+                .disabled(busy)
             }
         }
     }
 }
 
-/// 项目小标题：名称 13 / 600 灰 + 间距 8 + 数量 13 浅灰。只有文字那么宽（拖到上面时高亮框只包住这一行）。
+private struct KindFilterBar: View {
+    let kinds: [PageKind]
+    let active: PageKind?
+    let onSelect: (PageKind?) -> Void
+
+    var body: some View {
+        let trackShape = RoundedRectangle(cornerRadius: 10)
+        ScrollView(.horizontal) {
+            HStack(spacing: 2) {
+                FilterPill(title: L("search_tab_all"), icon: nil, iconColor: Sm.muted, selected: active == nil) {
+                    onSelect(nil)
+                }
+                ForEach(kinds, id: \.self) { kind in
+                    FilterPill(
+                        title: L(pageKindSectionLabel(kind)),
+                        icon: pageKindIcon(kind),
+                        iconColor: active == kind ? pageKindColor(kind) : Sm.muted,
+                        selected: active == kind
+                    ) {
+                        onSelect(kind)
+                    }
+                }
+            }
+            .padding(3)
+        }
+        .scrollIndicators(.hidden)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Sm.hover, in: trackShape)
+        .overlay { trackShape.strokeBorder(Sm.border, lineWidth: 1).allowsHitTesting(false) }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(L("ws_page_type"))
+    }
+}
+
+private struct FilterPill: View {
+    let title: String
+    let icon: [String]?
+    let iconColor: Color
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 7.2)
+        Button(action: action) {
+            HStack(spacing: 5) {
+                if let icon {
+                    LucideIcon(icon, size: 13, color: iconColor)
+                }
+                Text(title)
+                    .font(.nf(13, weight: 540))
+                    .foregroundStyle(selected ? Sm.ink : Sm.muted)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 10.4)
+            .frame(height: 32)
+            .background {
+                if selected {
+                    shape.fill(Sm.surface)
+                        .overlay { shape.strokeBorder(Sm.border, lineWidth: 1) }
+                }
+            }
+        }
+        .buttonStyle(.pressable(pressedBackground: nil, cornerRadius: 7.2, scale: 0.98))
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+private struct NotesHomeCard<Content: View>: View {
+    private let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 14)
+        VStack(alignment: .leading, spacing: 0) {
+            content
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Sm.surface, in: shape)
+        .overlay { shape.strokeBorder(Sm.border, lineWidth: 1).allowsHitTesting(false) }
+        .clipShape(shape)
+        .shadow(color: Color(argb: 0x0A0F172A), radius: 1, x: 0, y: 1)
+        .padding(.bottom, 18)
+    }
+}
+
+private struct NotesHomeEmptyCard: View {
+    private let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 14)
+        Text(text)
+            .font(.nf(13.5))
+            .foregroundStyle(Sm.muted)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(Sm.sidebar.opacity(0.55), in: shape)
+            .overlay { shape.strokeBorder(Sm.borderStrong, lineWidth: 1) }
+            .padding(.bottom, 18)
+    }
+}
+
+private struct NotesHomeKindBadge: View {
+    let kind: PageKind
+
+    var body: some View {
+        Text(L(pageKindLabel(kind)))
+            .font(.nf(11, weight: 550))
+            .nfLineHeight(14, fontSize: 11)
+            .foregroundStyle(pageKindTextColor(kind))
+            .lineLimit(1)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 2)
+            .background(pageKindSoft(kind), in: Capsule())
+            .layoutPriority(1)
+    }
+}
+
+private struct NotesHomeIconTile: View {
+    let icon: String?
+    let kind: PageKind
+
+    var body: some View {
+        let bg = (icon != nil && !(icon?.isEmpty ?? true)) ? Sm.hover : pageKindSoft(kind)
+        NFIconTile(emoji: icon, fallback: pageKindIcon(kind), box: 30, glyph: 16, color: pageKindColor(kind))
+            .background(bg, in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+/// 分组小标题：图标 + 名称 13 / 600 灰 + 数量胶囊。只有文字那么宽（拖到上面时高亮框只包住这一行）。
 private struct NotesHomeHeading: View {
     let name: String
     let count: Int
+    var icon: [String]? = nil
+    var iconColor: Color = Sm.muted
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
+            if let icon {
+                LucideIcon(icon, size: 13.5, color: iconColor)
+            }
             Text(name)
                 .font(.nf(13, weight: 600))
-                .nfLineHeight(19.5, fontSize: 13)
+                .nfLineHeight(19, fontSize: 13)
                 .foregroundStyle(Sm.muted)
                 .lineLimit(1)
-            Text(String(count))
-                .font(.nf(13))
-                .nfLineHeight(19.5, fontSize: 13)
-                .foregroundStyle(Sm.faint)
-                .lineLimit(1)
-                .layoutPriority(1)
+            NotesCountPill(count: count)
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
@@ -203,23 +434,25 @@ private struct NotesHomeHeading: View {
 }
 
 private extension View {
-    /// 小标题的外边距 20 / 4 / 4，放在投放区外面：高亮框不包住它（网页 h2 的 margin 不在背景里）。
+    /// 小标题的外边距放在投放区外面：高亮框不包住它。
     func notesHomeHeadingMargins() -> some View {
         self
             .padding(.horizontal, 4)
-            .padding(.top, 20)
-            .padding(.bottom, 4)
+            .padding(.top, 4)
+            .padding(.bottom, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
 // MARK: - 子页面的树
 
-/// 一篇笔记和它展开的子页面（网页 notes-home）：子页面在展开的父页面下缩进 24；没有子页面时是“No pages inside”。
+/// 一篇笔记和它展开的子页面（网页 notes-home）：子页面在展开的父页面下缩进并带竖线；筛选时平铺显示。
 @MainActor
 private struct NotesHomeTree: View {
     let page: NotePageSummary
     let busy: Bool
+    let flat: Bool
+    let showTopDivider: Bool
     let reorder: ReorderDragController
     @Binding var dialog: NotesDialogState?
     @Environment(AppEnvironment.self) private var app
@@ -227,37 +460,45 @@ private struct NotesHomeTree: View {
     var body: some View {
         let state = app.notes.state
         let kids = state.children(page.id)
-        let isOpen = state.expanded.contains(page.id)
-        NotesHomeItem(page: page, busy: busy, expanded: isOpen, reorder: reorder, dialog: $dialog)
+        let isOpen = !flat && state.expanded.contains(page.id)
+        NotesHomeItem(page: page, busy: busy, expanded: isOpen, flat: flat, showTopDivider: showTopDivider, reorder: reorder, dialog: $dialog)
         if isOpen {
-            if kids.isEmpty {
-                Text(L("pg_no_pages_inside"))
-                    .font(.nf(14))
-                    .foregroundStyle(Sm.faint)
-                    .padding(.leading, 28)
-                    .padding(.trailing, 4)
-                    .padding(.vertical, 4)
-            } else {
-                VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
+                if kids.isEmpty {
+                    Text(L("pg_no_pages_inside"))
+                        .font(.nf(13.5))
+                        .foregroundStyle(Sm.faint)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .overlay(alignment: .top) { NFDivider() }
+                } else {
                     ForEach(kids) { child in
-                        NotesHomeTree(page: child, busy: busy, reorder: reorder, dialog: $dialog)
+                        NotesHomeTree(page: child, busy: busy, flat: false, showTopDivider: true, reorder: reorder, dialog: $dialog)
                     }
                 }
-                .padding(.leading, 24)
             }
+            .overlay(alignment: .leading) {
+                Rectangle()
+                    .fill(Sm.border)
+                    .frame(width: 1)
+                    .accessibilityHidden(true)
+            }
+            .padding(.leading, 22)
         }
     }
 }
 
 // MARK: - 行
 
-/// 首页的一行（网页 .notes-home-item > .notes-home-row）：展开箭头 28×48（Chevron 18 浅灰）；主体最小高 56（点一下打开、长按拖动）；
-/// 右侧 44×48 的“移到项目”；下边 1px 线。
+/// 首页卡片内的一行：展开箭头 26×40（筛选时隐藏）；主体最小高 52（30 语义色图标块、15.5/530 标题、12.5 浅灰日期）；右侧 36×40 移到项目。
 @MainActor
 private struct NotesHomeItem: View {
     let page: NotePageSummary
     let busy: Bool
     let expanded: Bool
+    let flat: Bool
+    let showTopDivider: Bool
     let reorder: ReorderDragController
     @Binding var dialog: NotesDialogState?
     @Environment(AppEnvironment.self) private var app
@@ -267,54 +508,59 @@ private struct NotesHomeItem: View {
         let state = notes.state
         let pageId = page.id
         HStack(spacing: 0) {
-            Button {
-                notes.toggleExpanded(pageId)
-            } label: {
-                LucideIcon(expanded ? Lucide.chevronDown : Lucide.chevronRight, size: 18, color: Sm.faint)
-                    .frame(width: 28, height: 48)
+            if !flat {
+                Button {
+                    notes.toggleExpanded(pageId)
+                } label: {
+                    LucideIcon(expanded ? Lucide.chevronDown : Lucide.chevronRight, size: 15, color: Sm.faint)
+                        .frame(width: 26, height: 40)
+                }
+                .buttonStyle(.pressable(cornerRadius: 6))
+                .padding(.leading, 4)
+                .accessibilityLabel(expanded ? L("pg_collapse_title", page.title) : L("pg_expand_title", page.title))
             }
-            .buttonStyle(.pressable())
-            .accessibilityLabel(expanded ? L("pg_collapse_title", page.title) : L("pg_expand_title", page.title))
             Button {
                 if !reorder.swallowsTap() { notes.openNote(pageId) }
             } label: {
-                HStack(spacing: 13.6) {
-                    NFIconTile(emoji: page.icon, fallback: pageKindIcon(page.kind), box: 28, glyph: 20, color: Sm.faint)
+                HStack(spacing: 10) {
+                    NotesHomeIconTile(icon: page.icon, kind: page.kind)
                     Text(page.title)
-                        .font(.nf(17, weight: 500))
-                        .nfLineHeight(25.5, fontSize: 17)
+                        .font(.nf(15.5, weight: 530))
+                        .nfLineHeight(22, fontSize: 15.5)
                         .foregroundStyle(Sm.text)
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Text(noteShortDate(page.updatedAt))
-                        .font(.nf(13))
-                        .nfLineHeight(19.5, fontSize: 13)
-                        .foregroundStyle(Sm.muted)
+                        .font(.nf(12.5))
+                        .nfLineHeight(18, fontSize: 12.5)
+                        .foregroundStyle(Sm.faint)
                         .lineLimit(1)
                         .layoutPriority(1)
                 }
-                .padding(.horizontal, 4)
-                .padding(.vertical, 6.4)
-                .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+                .padding(.leading, flat ? 12 : 4)
+                .padding(.trailing, 6)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
             }
             .buttonStyle(.pressable(cornerRadius: 0))
             .disabled(busy)
-            .reorderHandle(pageId, in: reorder, locked: busy || state.moveBusy.contains(pageId))
+            .reorderHandle(pageId, in: reorder, locked: busy || flat || state.moveBusy.contains(pageId))
             Button {
                 dialog = .move(pageId: pageId)
             } label: {
-                LucideIcon(Lucide.folderInput, size: 18, color: Sm.faint)
-                    .frame(width: 44, height: 48)
+                LucideIcon(Lucide.folderInput, size: 16, color: Sm.faint)
+                    .frame(width: 36, height: 40)
             }
-            .buttonStyle(.pressable())
+            .buttonStyle(.pressable(cornerRadius: 7))
+            .padding(.trailing, 4)
             .disabled(busy)
             .accessibilityLabel(L("move_title_to_project", page.title))
         }
-        // 行高 57 = 56 + 下边的 1px 线。
-        .padding(.bottom, 1)
-        .overlay(alignment: .bottom) { NFDivider() }
+        .overlay(alignment: .top) {
+            if showTopDivider { NFDivider() }
+        }
         .reorderRow(pageId, in: reorder)
-        .reorderError(errorText(state), rowHeight: 57) { notes.dismissReorderError() }
+        .reorderError(errorText(state), rowHeight: 52) { notes.dismissReorderError() }
     }
 
     /// 这一篇的拖动失败提示（只在发起拖动的列表里显示）。
@@ -325,11 +571,13 @@ private struct NotesHomeItem: View {
     }
 }
 
-/// 收藏的行：最小高 56、下边 1px 线；图标区 28、间距 13.6、标题 17 / 500。
+/// 收藏的行（圆角卡片内）：最小高 52、图标块 30、间距 10、标题 15.5 / 530、多类型时右侧类型胶囊。
 @MainActor
 private struct NotesHomeFavoriteItem: View {
     let page: NotePageSummary
     let busy: Bool
+    let multiKind: Bool
+    let showTopDivider: Bool
     @Environment(AppEnvironment.self) private var app
 
     var body: some View {
@@ -338,32 +586,33 @@ private struct NotesHomeFavoriteItem: View {
         Button {
             notes.openNote(pageId)
         } label: {
-            HStack(spacing: 13.6) {
-                NFIconTile(emoji: page.icon, fallback: pageKindIcon(page.kind), box: 28, glyph: 20, color: Sm.faint)
+            HStack(spacing: 10) {
+                NotesHomeIconTile(icon: page.icon, kind: page.kind)
                 Text(page.title)
-                    .font(.nf(17, weight: 500))
-                    .nfLineHeight(25.5, fontSize: 17)
+                    .font(.nf(15.5, weight: 530))
+                    .nfLineHeight(22, fontSize: 15.5)
                     .foregroundStyle(Sm.text)
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                if multiKind {
+                    NotesHomeKindBadge(kind: page.kind)
+                }
             }
-            .padding(.horizontal, 4)
-            .padding(.vertical, 6.4)
-            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
         }
         .buttonStyle(.pressable(cornerRadius: 0))
         .disabled(busy)
-        .padding(.bottom, 1)
-        .overlay(alignment: .bottom) { NFDivider() }
+        .overlay(alignment: .top) {
+            if showTopDivider { NFDivider() }
+        }
     }
 }
 
 // MARK: - 空状态
 
-/// 一篇笔记都没有（网页 NotesWorkspace 的空状态，手机）：上距 120；文件图标 28（线宽 1.4，浅灰）；
-/// “Notes”40 / 750、行高 50、字距 −0.04em，上距 16；说明 15 / 24 灰（“/”是等宽小键帽），上距 8；
-/// “新笔记”（高 32、圆角 8）和“导入 Markdown”（高 40 文字按钮）并排居中、间距 10、上距 24，一行放不下就上下排；
-/// 最下面 12 / 20 浅灰的存储说明，上距 40、最宽 384。
+/// 一篇笔记都没有（网页 NotesWorkspace 的空状态，手机）：居中 Studio 徽章（LayoutGrid）、标题、说明、Quick-Create Deck 卡片、Import 胶囊。
 @MainActor
 private struct NotesEmptyView: View {
     let kinds: [PageKind]
@@ -373,49 +622,41 @@ private struct NotesEmptyView: View {
     @Environment(\.layoutDirection) private var layoutDirection
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            LucideIcon(Lucide.fileText, size: 28, strokeWidth: 1.4, color: Sm.faint)
+        let emblemShape = RoundedRectangle(cornerRadius: 16)
+        VStack(alignment: .center, spacing: 0) {
+            LucideIcon(Lucide.layoutGrid, size: 26, strokeWidth: 1.6, color: Sm.ink)
+                .frame(width: 56, height: 56)
+                .background(Sm.accentSoft, in: emblemShape)
+                .overlay { emblemShape.strokeBorder(Sm.border, lineWidth: 1) }
             Text(L("workspace"))
-                .font(.nf(40, weight: 750))
-                .tracking(layoutDirection == .rightToLeft ? 0 : -1.6)
-                .nfLineHeight(50, fontSize: 40)
+                .font(.nf(32, weight: 750))
+                .tracking(layoutDirection == .rightToLeft ? 0 : -1.2)
+                .nfLineHeight(38, fontSize: 32)
                 .foregroundStyle(Sm.ink)
-                .padding(.top, 16)
+                .padding(.top, 18)
                 .accessibilityAddTraits(.isHeader)
             Text(intro)
-                .font(.nf(15))
-                .nfLineHeight(24, fontSize: 15)
+                .font(.nf(14.5))
+                .nfLineHeight(22, fontSize: 14.5)
                 .foregroundStyle(Sm.muted)
+                .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 8)
-            // 网页：flex flex-wrap items-center justify-center gap-2.5。
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 10) {
-                    actions
-                }
-                VStack(spacing: 10) {
-                    actions
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.top, 24)
+            CreateDeckCards(kinds: kinds, busy: busy, onCreate: onCreate)
+                .padding(.top, 24)
+            NotesHomeUtilPill(icon: Lucide.upload, title: L("import_markdown"), busy: busy, action: onImport)
+                .padding(.top, 14)
             Text(L("notes_storage_hint"))
                 .font(.nf(12))
-                .nfLineHeight(20, fontSize: 12)
+                .nfLineHeight(19, fontSize: 12)
                 .foregroundStyle(Sm.faint)
+                .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: 384, alignment: .leading)
-                .padding(.top, 40)
+                .frame(maxWidth: 384)
+                .padding(.top, 36)
         }
-        .padding(.top, 120)
-    }
-
-    @ViewBuilder
-    private var actions: some View {
-        NewPageButtons(kinds: kinds, height: 32, onCreate: onCreate)
-            .disabled(busy)
-        NotesHomeTextButton(icon: Lucide.upload, title: L("import_markdown"), action: onImport)
-            .disabled(busy)
+        .frame(maxWidth: .infinity)
+        .padding(.top, 56)
     }
 
     /// 说明文里的占位符换成“/”键帽：等宽 13、浅灰底（--notes-code-bg）。
