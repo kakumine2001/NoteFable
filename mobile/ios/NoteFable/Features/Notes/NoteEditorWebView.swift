@@ -41,8 +41,8 @@ final class NoteEditorPool {
         app.notes.notifyPagesTrashed = { [weak self] ids in
             self?.pageTrashed(ids)
         }
-        app.notes.notifyPageUpdated = { [weak self] pageJson in
-            self?.pageUpdated(pageJson)
+        app.notes.notifyPageUpdated = { [weak self] pageId, pageJson in
+            self?.pageUpdated(pageJson, pageId: pageId)
         }
         app.notes.notifyPageSettings = { [weak self] page in
             self?.pageSettings(NoteFableJson.encodeToString(page))
@@ -107,8 +107,11 @@ final class NoteEditorPool {
         controller = nil
     }
 
-    func pageUpdated(_ pageJson: String) {
-        if let controller, controller.isLoaded { controller.pageUpdated(pageJson) }
+    /// 知道页面 id 时，这次加载以来没在这个 WebView 里打开过的页面不推（不在网页的缓存里；白板、幻灯片的整页数据很大）。
+    func pageUpdated(_ pageJson: String, pageId: String? = nil) {
+        guard let controller, controller.isLoaded else { return }
+        if let pageId, !controller.hasOpened(pageId) { return }
+        controller.pageUpdated(pageJson)
     }
 
     func pageTrashed(_ ids: [String]) {
@@ -196,8 +199,10 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
     /// 每次切换或停靠加一：过滤掉异步 `openPage` 返回前的旧回调。
     private var showEpoch = 0
     private var openTask: Task<Void, Never>?
-    /// 渲染进程崩溃的那个编辑器：重开同一篇时不再重复触发 `reveal`。
+    /// 网页进程崩溃时打开着的编辑器：之后这一篇再经 `show` 打开时不跳到检索命中的位置。只用一次，离开编辑页时清掉。
     private var crashedEditor: String?
+    /// 这次加载以来在这个 WebView 里打开过的页面：只有它们可能在网页的缓存里。
+    private var openedPageIds: Set<String> = []
     /// 现在这一篇之前的历史项数（旧版服务端回退整页加载时，上一篇留在 backForwardList 里）。边缘返回只在比它多时才 goBack，
     /// 不会在这一篇里退回到上一篇。
     private var historyFloor = 0
@@ -228,6 +233,7 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
                     if id != expected { return }
                     self.awaitingPageId = nil
                     self.currentPageId = id
+                    self.openedPageIds.insert(id)
                 case .missing(let id):
                     if let id, id != expected { return }
                     self.awaitingPageId = nil
@@ -237,7 +243,9 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
             } else {
                 switch message {
                 case .ready(let id, _, _, _):
+                    // 冲突后“另存为新笔记”：开着的换成了副本，它也在网页的缓存里。
                     self.currentPageId = id
+                    self.openedPageIds.insert(id)
                 case .missing(let id):
                     if let id, let current = self.currentPageId, id != current { return }
                 default:
@@ -309,6 +317,7 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
             return
         }
         currentPageId = open.id
+        openedPageIds.insert(open.id)
         if let edgePan, edgePan.isEnabled != edgeBack { edgePan.isEnabled = edgeBack }
         if theme != pushedTheme {
             pushedTheme = theme
@@ -341,6 +350,7 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
 
         activeEditor = open.editor
         currentPageId = open.id
+        openedPageIds.insert(open.id)
         awaitingPageId = open.id
         pushedIcon = appIcon
         pushedLanguage = language
@@ -362,7 +372,8 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
                 let handled = await self.bridge.openPage(id: open.id, reveal: useReveal, model: model, reasoning: reasoning)
                 guard !Task.isCancelled, self.showEpoch == epoch, self.activeEditor == open.editor else { return }
                 if !handled {
-                    // 旧版服务端不支持 openPage：用 replace 替换当前历史项，避免上一篇笔记留在 backForwardList 里。
+                    // 旧版服务端不支持 openPage：整页加载。同站时用 location.replace 换掉当前历史项（不多压一项），
+                    // 更早的历史项（上一篇）仍在 backForwardList 里，边缘返回由 historyFloor 挡住。
                     self.loadPage(pageId: open.id, reveal: useReveal, replaceHistory: true)
                 }
             }
@@ -398,6 +409,7 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         activeEditor = nil
         currentPageId = nil
         awaitingPageId = nil
+        openedPageIds = []
         dismissOpenDialog()
         bridge.release(self)
         if app.editorBridge === bridge { app.registerEditor(nil) }
@@ -438,7 +450,8 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
     }
 
     /// 换 Cookie、装好 `window.NoteFableNative`，再打开网页。
-    /// `replaceHistory` 为 true（旧版服务端回退整页加载）且当前已在同站页时，用 `location.replace` 替换当前历史项，不污染 `canGoBack`。
+    /// `replaceHistory` 为 true（旧版服务端回退整页加载）且当前已在同站页时，用 `location.replace` 替换当前历史项（不多压一项）。
+    /// 之前的历史项仍在 backForwardList 里，所以记下 `historyFloor`，边缘返回不会退到上一篇。
     private func loadPage(pageId: String, reveal: String?, replaceHistory: Bool = false) {
         guard let webView, let url = embedURL(pageId: pageId, reveal: reveal) else { return }
         loadRun += 1
@@ -535,6 +548,11 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
 
     func openHistory() {
         run(NoteEmbedScripts.openHistory)
+    }
+
+    /// 这次加载以来在这个 WebView 里打开过这一篇（可能在网页的缓存里）。
+    func hasOpened(_ pageId: String) -> Bool {
+        openedPageIds.contains(pageId)
     }
 
     func pageUpdated(_ pageJson: String) {
@@ -761,6 +779,8 @@ extension NoteEditorController: WKNavigationDelegate {
         bridge.attach(self)
         let pageId = (app.notes.state.open?.editor == editor ? app.notes.state.open?.id : nil) ?? currentPageId ?? editor
         awaitingPageId = pageId
+        // 新的网页进程从头加载：之前缓存的页面都没了，只剩这一篇。
+        openedPageIds = [pageId]
         loadPage(pageId: pageId, reveal: nil)
     }
 }

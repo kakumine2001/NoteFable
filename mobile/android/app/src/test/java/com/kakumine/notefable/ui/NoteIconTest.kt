@@ -87,12 +87,12 @@ class NoteIconTest {
         }
         val vm = NotesViewModel(Notes(), Prefs(), backend)
         val pushed = mutableListOf<String>()
-        vm.notifyPageUpdated = { pushed += it }
+        vm.notifyPageUpdated = { pageId, json -> pushed += "$pageId:$json" }
         vm.setWorkspace(Workspace.Notes)
         advanceUntilIdle()
 
         assertTrue(vm.changeIcon("a", "🧬"))
-        assertEquals(listOf("""{"id":"a","version":4}"""), pushed)
+        assertEquals(listOf("""a:{"id":"a","version":4}"""), pushed)
     }
 
     @Test

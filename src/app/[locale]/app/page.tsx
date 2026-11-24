@@ -317,7 +317,8 @@ export default function Home() {
     const kind = isPageKind(request?.kind) ? request.kind : "note";
     const parentId = typeof request?.parentId === "string" ? request.parentId : null;
     const groupId = !parentId && typeof request?.groupId === "string" ? request.groupId : null;
-    void notes.create(false, parentId, kind, groupId).then(syncNotesList);
+    // ドロワーを閉じた後始末を待って URL を書く場合があるので、書き終わってから合わせる。
+    void notes.create(false, parentId, kind, groupId).then(() => afterSheetHistory(syncNotesList));
   }
 
   // プロジェクトがある人には、取り込み先を尋ねてから取り込む（尋ねる前にファイルを確かめ、合わないものは先に断る）。
@@ -369,10 +370,14 @@ export default function Home() {
   // 分割表示を開いた直後、まだノートが選ばれていなければ前回開いていたノート（無ければ最近編集したノート）を開く。
   // 同じノートを開こうとするのは 1 回だけ。読み込みに失敗しても loading が戻るたびに取り直し続けない（分割表示を開き直すとまた試す）。
   const splitAutoOpenedRef = useRef<string | null>(null);
+  // 分割表示で明示的に開いたページが無かった（ゴミ箱に入った・削除された）：別のページを勝手に開いて「見つからない」を消さない。
+  // 分割表示を閉じるか、別のページが開くまで続く。
+  const splitOpenFailedRef = useRef(false);
   const selectNote = notes.select;
   useEffect(() => {
-    if (!splitActive) { splitAutoOpenedRef.current = null; return; }
-    if (notes.activeId || notes.loading || !notes.pages.length) return;
+    if (!splitActive) { splitAutoOpenedRef.current = null; splitOpenFailedRef.current = false; return; }
+    if (notes.activeId) { splitOpenFailedRef.current = false; return; }
+    if (splitOpenFailedRef.current || notes.loading || !notes.pages.length) return;
     const preferred = splitPageIdRef.current && notes.pages.some((page) => page.id === splitPageIdRef.current)
       ? splitPageIdRef.current
       : recentPages(notes.pages, 1)[0]?.id;
@@ -416,7 +421,11 @@ export default function Home() {
     setSplitOpen(true);
     // 別のページを読み込み中に元のページを選び直したときも select に通し、後から来る応答で切り替わらないようにする。
     if (notes.activeId !== id || notes.openingId || !splitActive) {
-      void notes.select(id, "none", { keepCurrent: splitActive });
+      void notes.select(id, "none", { keepCurrent: splitActive }).then((opened) => {
+        if (opened) return;
+        splitOpenFailedRef.current = true;
+        forgetMissingNote(id);
+      });
     }
     if (blockId) queueReveal({ kind: "note", noteId: id, blockId });
   }
@@ -428,6 +437,8 @@ export default function Home() {
       return;
     }
     setSplitOpen(true);
+    // チャットにいる間に別のタブ・端末で変わっているかもしれない。開いていたページを出すときも裏で最新版を照合する。
+    if (notes.activeId && !notes.openingId) void notes.select(notes.activeId, "none");
   }
 
   function createNoteInSplit(parentId?: string) {

@@ -481,6 +481,8 @@ class NoteEmbedHost(
     private var crashedEditor: String? = null
     /** 当前活跃笔记的页面 id（用于过滤已切走旧页面的晚到 missing 消息）。 */
     private var currentPageId: String? = null
+    /** 这次加载以来在这个 WebView 里打开过的页面：只有它们可能在网页的缓存里，别的页面的更新不用推过去（白板、幻灯片的整页数据很大）。 */
+    private val openedPageIds = HashSet<String>()
     /** 正在切往的目标页面 id：在该页的 Ready 到达前，丢弃旧页残留的晚到消息，避免串到新页上。 */
     private var awaitingPageId: String? = null
     private var idleJob: Job? = null
@@ -509,7 +511,11 @@ class NoteEmbedHost(
             }
         } else {
             when (message) {
-                is EmbedMessage.Ready -> currentPageId = message.id
+                // 冲突后"另存为新笔记"：开着的换成了副本，它也在网页的缓存里。
+                is EmbedMessage.Ready -> {
+                    currentPageId = message.id
+                    openedPageIds += message.id
+                }
                 is EmbedMessage.Missing -> {
                     val current = currentPageId
                     if (message.id != null && current != null && message.id != current) return@NoteEmbedBridge
@@ -651,6 +657,7 @@ class NoteEmbedHost(
         bridge.discardExports()
         currentPageId = open.id
         awaitingPageId = open.id
+        openedPageIds += open.id
         bridge.activeEditor = open.editor
         bridge.currentTheme = theme
         val view = ensureWebView(context, baseUrl, webBackground)
@@ -734,6 +741,7 @@ class NoteEmbedHost(
         loadedForIdentity = false
         currentPageId = null
         awaitingPageId = null
+        openedPageIds.clear()
         excludeEdges = false
         bridge.activeEditor = null
         val view = webView
@@ -747,8 +755,12 @@ class NoteEmbedHost(
         }
     }
 
-    /** 别处（聊天提案）改了笔记：即使 WebView 停在热缓存里也同步更新，下次点开直接显示新版。 */
-    fun pageUpdated(pageJson: String) {
+    /**
+     * 别处（聊天提案、侧栏改图标）改了笔记：即使 WebView 停在热缓存里也同步更新，下次点开直接显示新版。
+     * 知道页面 id 时，这次加载以来没在这个 WebView 里打开过的页面不推（不在网页的缓存里）。
+     */
+    fun pageUpdated(pageJson: String, pageId: String? = null) {
+        if (pageId != null && pageId !in openedPageIds) return
         if (loadedForIdentity && webView != null) bridge.pageUpdated(pageJson)
     }
 

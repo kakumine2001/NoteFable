@@ -717,15 +717,15 @@ export function useNotePages(
       setActiveId(page.id);
       displayedId.current = page.id;
       setActive(queue);
-      const url = new URL(window.location.href);
       // アプリに埋め込んだ 1 ページだけの画面（/note-embed）は戻る履歴を持たないので、積まずに置き換える。
-      // チャットの分割表示から作成した場合はチャットの URL に ?page= を足さない。
+      // チャットの分割表示から作成した場合はチャットの URL に ?page= を足さない（syncPageUrl が view=pages のときだけ書く）。
+      // ドロワーを閉じた後始末（history.back）がまだ終わっていなければ、それを待ってから書く（syncPageUrl）。
       if (embedded) {
+        const url = new URL(window.location.href);
         url.searchParams.set("page", page.id);
         window.history.replaceState(null, "", url);
-      } else if (url.searchParams.get("view") === "pages") {
-        url.searchParams.set("page", page.id);
-        window.history.pushState(null, "", url);
+      } else {
+        syncPageUrl(page.id, "push");
       }
     } catch (caught) { setError(caught instanceof Error ? caught.message : msg("Failed to create note.")); }
     finally { actionBusy.current = false; setBusy(false); }

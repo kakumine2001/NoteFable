@@ -36,7 +36,7 @@ final class NotesViewModel {
     /// 有页面移进了回收站（本地删除、聊天提案撤销）：通知常驻 WebView 清理对应缓存（即使当前未停留在编辑页）。
     @ObservationIgnored var notifyPagesTrashed: (@MainActor ([String]) -> Void)?
     /// 侧栏改了一篇的图标（服务端版本号加一）：把服务端返回的整篇页面 JSON 交给常驻 WebView 的缓存，下次从缓存打开时就是新版本。
-    @ObservationIgnored var notifyPageUpdated: (@MainActor (String) -> Void)?
+    @ObservationIgnored var notifyPageUpdated: (@MainActor (_ pageId: String, _ pageJson: String) -> Void)?
     /// 没打开着的一篇的收藏、显示设置、锁定变了：交给常驻 WebView 缓存里的一览（window.notefableEmbed.pageSettings）。
     @ObservationIgnored var notifyPageSettings: (@MainActor (NotePageSummary) -> Void)?
 
@@ -985,7 +985,7 @@ final class NotesViewModel {
                     }
                 }
                 if !applied { return false }
-                if let json = written.json { notifyPageUpdated?(json) }
+                if let json = written.json { notifyPageUpdated?(pageId, json) }
             }
             ok = true
             return true

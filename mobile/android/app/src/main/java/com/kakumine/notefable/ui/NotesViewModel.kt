@@ -262,7 +262,7 @@ class NotesViewModel(
      * 侧栏改了一篇的图标（服务端版本号加一）：把服务端返回的整篇页面 JSON 交给常驻 WebView 的缓存（window.notefableEmbed.pageUpdated），
      * 下次从缓存打开时就是新版本，编辑也不会 409。由界面在根上设置。
      */
-    var notifyPageUpdated: ((String) -> Unit)? = null
+    var notifyPageUpdated: ((pageId: String, pageJson: String) -> Unit)? = null
 
     /** 没打开着的一篇的收藏、显示设置、锁定变了：交给常驻 WebView 缓存里的一览（window.notefableEmbed.pageSettings）。由界面在根上设置。 */
     var notifyPageSettings: ((NotePageSummary) -> Unit)? = null
@@ -949,7 +949,7 @@ class NotesViewModel(
                     _state.update { s -> s.copy(pages = s.pages.map { if (it.id == pageId) it.copy(icon = page.icon, version = page.version) else it }) }
                 }
                 if (!applied) return false
-                written.json?.let { json -> notifyPageUpdated?.invoke(json) }
+                written.json?.let { json -> notifyPageUpdated?.invoke(pageId, json) }
             }
             ok = true
             return true
