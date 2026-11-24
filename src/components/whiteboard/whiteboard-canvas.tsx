@@ -10,5 +10,6 @@ const noop = () => {};
 export default function WhiteboardCanvas(props: CanvasEditorProps) {
   return <WhiteboardEditor pageId={props.pageId} data={props.data} editable={props.editable} embedded={props.embedded}
     onChange={(data) => props.onChange(data as unknown as CanvasData)} onOpenPage={props.onOpenPage} pages={props.pages}
-    title={props.title} icon={props.icon} onTitleChange={props.onTitleChange} onIconChange={props.onIconChange ?? noop} />;
+    title={props.title} icon={props.icon} onTitleChange={props.onTitleChange} onIconChange={props.onIconChange ?? noop}
+    aiSlot={props.aiSlot} />;
 }

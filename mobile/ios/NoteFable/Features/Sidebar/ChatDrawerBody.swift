@@ -22,9 +22,9 @@ struct ChatDrawerBody: View {
                 app.chat.newChat()
                 router.closeDrawer()
             }
-            .padding(.horizontal, 8)
-            .padding(.top, 12)
-            .padding(.bottom, 4)
+            .padding(.horizontal, 10)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
 
             // 网页侧栏里在“新建”按钮正下方。检索面板盖在抽屉上面，选了结果才关抽屉。
             SidebarSearchRow { router.openSearch() }
@@ -65,7 +65,7 @@ private struct ChatDrawerList: View, Equatable {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 0) {
                 if !groups.pinned.isEmpty {
-                    ChatSectionLabel(L("sb_pinned"))
+                    ChatSectionLabel(L("sb_pinned"), icon: Lucide.pin)
                     ForEach(groups.pinned) { session in
                         row(session, side)
                     }
@@ -118,7 +118,7 @@ private struct ChatDrawerList: View, Equatable {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 8)
+            .padding(.horizontal, 10)
             .padding(.bottom, 16)
             .reorderContainer(reorder, onStart: { _ in app.sidebar.dismissReorderError() }) { id, target in
                 // 行 → 排序；项目行 / CHATS 标签 → 移进去并取消置顶。
@@ -189,7 +189,7 @@ private struct ChatDrawerList: View, Equatable {
                     SidebarSmallNote(L(emptyProjectNoteKey(project.id, groups)), color: Sm.muted, vertical: 4)
                 }
             }
-            .padding(.leading, 12)
+            .notesIndentedMembers()
         }
     }
 

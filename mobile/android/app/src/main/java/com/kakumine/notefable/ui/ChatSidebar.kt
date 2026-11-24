@@ -2,6 +2,7 @@ package com.kakumine.notefable.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,9 +31,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -98,15 +99,15 @@ internal fun ChatDrawerBody(
 
     Column(modifier) {
         Row(
-            Modifier.padding(start = 8.dp, end = 8.dp, top = 12.dp, bottom = 4.dp).fillMaxWidth().height(44.dp)
-                .shadow(1.dp, RoundedCornerShape(8.dp), ambientColor = Color(0x1F0C1730), spotColor = Color(0x1F0C1730))
-                .clip(RoundedCornerShape(8.dp)).background(Sm.Ink).clickable(onClick = onNewChat)
+            Modifier.padding(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 6.dp).fillMaxWidth().height(42.dp)
+                .shadow(1.dp, RoundedCornerShape(9.dp), ambientColor = Color(0x1F0F172A), spotColor = Color(0x1F0F172A))
+                .clip(RoundedCornerShape(9.dp)).background(Sm.Ink).clickable(onClick = onNewChat)
                 .padding(horizontal = 11.2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             LucideIcon(Lucide.Plus, 16.dp, Sm.OnInk)
             Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.new_chat), color = Sm.OnInk, fontSize = 16.sp, fontWeight = FontWeight(550))
+            Text(stringResource(R.string.new_chat), color = Sm.OnInk, fontSize = 15.sp, fontWeight = FontWeight(560))
         }
         // Search 行（Batch 4）：网页侧栏里在"新建"按钮正下方。
         SidebarSearchRow(onSearch)
@@ -115,7 +116,7 @@ internal fun ChatDrawerBody(
             Modifier.weight(1f).fillMaxWidth()
                 .onGloballyPositioned { drag.listBounds = it.boundsInWindow() }
                 .verticalScroll(scroll)
-                .padding(start = 8.dp, end = 8.dp, bottom = 16.dp),
+                .padding(start = 10.dp, end = 10.dp, bottom = 16.dp),
         ) {
             val groups = SidebarGroups.of(state.sessions, side.projects)
             val rowProps = RowProps(
@@ -135,7 +136,7 @@ internal fun ChatDrawerBody(
             )
 
             if (groups.pinned.isNotEmpty()) {
-                SectionLabel(stringResource(R.string.sb_pinned))
+                SectionLabel(stringResource(R.string.sb_pinned), icon = Lucide.Pin)
                 groups.pinned.forEach { key(it.id) { SessionRow(it, rowProps) } }
             }
 
@@ -156,7 +157,15 @@ internal fun ChatDrawerBody(
                     },
                     onMenu = { anchor -> action = ChatAction.ProjectMenu(project, anchor) },
                 )
-                if (!collapsed) Column(Modifier.padding(start = 12.dp)) {
+                if (!collapsed) Column(
+                    Modifier.padding(start = 10.dp).fillMaxWidth()
+                        .drawBehind {
+                            val lineW = 1.dp.toPx()
+                            val lineX = if (layoutDirection == LayoutDirection.Rtl) size.width - lineW else 0f
+                            drawRect(Sm.Border, topLeft = Offset(lineX, 0f), size = Size(lineW, size.height))
+                        }
+                        .padding(start = 4.dp),
+                ) {
                     val rows = groups.byProject[project.id].orEmpty()
                     rows.forEach { key(it.id) { SessionRow(it, rowProps) } }
                     if (rows.isEmpty()) {
@@ -217,23 +226,30 @@ private class RowProps(
     val onDismissError: () -> Unit,
 )
 
-// 投放进项目时的样子：浅蓝底 + 1px 蓝框，圆角 4。
+// 投放进项目时的样子：浅蓝底 + 1px 蓝框，圆角 8。句首大小写 UI 字体（与网页 .chat-section-label 同步）。
 @Composable
-private fun SectionLabel(text: String, modifier: Modifier = Modifier) {
-    val label = text.uppercase()
-    Text(label, modifier = modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 14.4.dp, bottom = 4.8.dp), style = roleLabelStyle(label))
+private fun SectionLabel(text: String, modifier: Modifier = Modifier, icon: List<String>? = null) {
+    Row(
+        modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 14.dp, bottom = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (icon != null) {
+            LucideIcon(icon, 12.5.dp, Sm.Muted)
+            Spacer(Modifier.width(5.6.dp))
+        }
+        Text(text, color = Sm.Muted, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight(560))
+    }
 }
 
-// .chat-project-heading：与小标题同款，右侧 ＋（40，上下各收 4.8，图标 15）。整体高 49.6。
+// .chat-project-heading：与小标题同款，右侧 ＋（40，上下各收 4.8，图标 15）。
 @Composable
 private fun ProjectsHeading(onCreate: () -> Unit) {
-    val label = stringResource(R.string.projects).uppercase()
-    Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 14.4.dp, bottom = 4.8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, Modifier.weight(1f), style = roleLabelStyle(label))
+    Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 4.dp, top = 14.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(stringResource(R.string.projects), Modifier.weight(1f), color = Sm.Muted, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight(560))
         val newProject = stringResource(R.string.new_project)
         Box(Modifier.size(40.dp, 30.4.dp), Alignment.Center) {
             Box(
-                Modifier.requiredSize(40.dp).clip(RoundedCornerShape(4.8.dp)).clickable(onClick = onCreate)
+                Modifier.requiredSize(40.dp).clip(RoundedCornerShape(6.dp)).clickable(onClick = onCreate)
                     .semantics { contentDescription = newProject; role = Role.Button },
                 Alignment.Center,
             ) { LucideIcon(Lucide.Plus, 15.dp, Sm.Muted) }
@@ -331,26 +347,19 @@ private fun SessionRow(session: SessionSummary, props: RowProps) {
     val reorderError = props.side.reorderError?.takeIf { it.first == session.id }?.second
     DisposableEffect(session.id) { onDispose { drag.rows.remove(session.id) } }
 
+    val rowShape = RoundedCornerShape(8.dp)
     Box {
         Row(
-            Modifier.fillMaxWidth().height(44.dp)
+            Modifier.fillMaxWidth().height(42.dp)
                 .alpha(if (drag.dragging == session.id) 0.5f else 1f)
                 .onGloballyPositioned { drag.rows[session.id] = it.boundsInWindow() }
-                .clip(RoundedCornerShape(6.4.dp))
-                .background(if (active) Sm.AccentSoft else Color.Transparent)
+                .clip(rowShape)
+                .then(if (active) Modifier.background(Sm.ActiveRow).border(1.dp, Sm.Border, rowShape) else Modifier)
                 .drawWithContent {
                     drawContent()
                     val line = 2.dp.toPx()
                     if (lineBefore) drawRect(DropBlue, size = Size(size.width, line))
                     if (lineAfter) drawRect(DropBlue, topLeft = Offset(0f, size.height - line), size = Size(size.width, line))
-                    // 当前行左侧 3px 蓝条（上下各缩 7.2，全圆角）；拖动目标是它时不画，免得和插入线混在一起。
-                    if (active && !lineBefore && !lineAfter) {
-                        val inset = 7.2.dp.toPx()
-                        val barW = 3.dp.toPx()
-                        val barX = if (layoutDirection == LayoutDirection.Rtl) size.width - barW else 0f
-                        drawRoundRect(Sm.Blue, topLeft = Offset(barX, inset), size = Size(barW, size.height - inset * 2),
-                            cornerRadius = CornerRadius(1.5.dp.toPx()))
-                    }
                 },
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -366,7 +375,7 @@ private fun SessionRow(session: SessionSummary, props: RowProps) {
             }
             Row(
                 // 标题区就是拖动处：长按后拖（网页整行拖动）。和网页一样只锁正在移动的这一行；别的行照常能拖（排序还没完时由 reorder() 提示等待）。
-                Modifier.weight(1f).height(44.dp)
+                Modifier.weight(1f).height(42.dp)
                     // reorderDrag 放在 clickable 里层：先收到抬起并吃掉它，长按后原地松手不会再打开这一行。
                     .clickable { props.onOpen(session.id) }
                     .reorderDrag(session.id, drag, locked = moveBusy, onStart = props.onDismissError, onDrop = { props.onDrop(session.id) }),
@@ -378,7 +387,7 @@ private fun SessionRow(session: SessionSummary, props: RowProps) {
                     color = if (active) Sm.Ink else Sm.Text,
                     fontSize = 14.sp,
                     lineHeight = 20.sp,
-                    fontWeight = if (active) FontWeight(550) else FontWeight.Normal,
+                    fontWeight = if (active) FontWeight(560) else FontWeight.Normal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

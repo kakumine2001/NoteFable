@@ -96,7 +96,7 @@ private struct DrawerPanel: View {
         VStack(spacing: 0) {
             header
             WorkspaceSwitch(inDrawer: true)
-                .padding(.horizontal, 8)
+                .padding(.horizontal, 10)
                 .padding(.top, 4)
             Group {
                 switch app.notes.state.workspace {
@@ -111,23 +111,23 @@ private struct DrawerPanel: View {
         }
     }
 
-    /// 头部：网页 NoteFableLogo（设置里换过图标就画那个角色 / 图片）+ 名字 15 / 650、字距 -.02em，间距 7.2；
+    /// 头部：网页 NoteFableLogo（设置里换过图标就画那个角色 / 图片）+ 名字 15 / 680、字距 -.025em，间距 8；
     /// 右边“关闭侧栏”（.notion-icon-button 40，PanelLeftClose 17 灰）。
     private var header: some View {
         HStack(spacing: 0) {
             AppIconView(icon: app.appIcon.icon, size: 20)
             Text(L("app_title"))
-                .font(.nf(15, weight: 650))
-                .tracking(-0.3)
+                .font(.nf(15, weight: 680))
+                .tracking(-0.35)
                 .foregroundStyle(Sm.ink)
                 .lineLimit(1)
-                .padding(.leading, 7.2)
+                .padding(.leading, 8)
             Spacer(minLength: 0)
             NFIconButton(Lucide.panelLeftClose, label: L("sb_close_sidebar"), iconSize: 17) {
                 router.closeDrawer()
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 14)
         .frame(height: 48)
     }
 }
@@ -193,10 +193,10 @@ private struct AppDrawer<Panel: View, Content: View>: View {
         case ignored
     }
 
-    private static var maxWidth: CGFloat { 240 }
+    private static var maxWidth: CGFloat { 280 }
     /// 从屏幕边缘多宽以内开始的拖动算“拉出抽屉”。
     private static var edgeWidth: CGFloat { 24 }
-    private static var scrim: Color { Color.black.opacity(0.15) }
+    private static var scrim: Color { Color.black.opacity(0.25) }
 
     init(isOpen: Binding<Bool>, edgeOpens: Bool = true, @ViewBuilder panel: () -> Panel, @ViewBuilder content: () -> Content) {
         self._isOpen = isOpen
@@ -207,7 +207,7 @@ private struct AppDrawer<Panel: View, Content: View>: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let width = min(Self.maxWidth, proxy.size.width * 0.88)
+            let width = min(Self.maxWidth, proxy.size.width * 0.85)
             let rtl = layoutDirection == .rightToLeft
             // 收起时要移出屏幕的距离：底色铺到了安全区外面（横屏的刘海一侧），所以把那一段也算上。
             let travel = width + proxy.safeAreaInsets.leading

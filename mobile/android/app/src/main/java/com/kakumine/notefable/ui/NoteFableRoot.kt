@@ -623,8 +623,8 @@ private fun NotesDialogs(dialog: NotesDialogState?, notes: NotesUiState, vm: Not
     }
 }
 
-// 侧边栏（网页 .notion-sidebar，手机抽屉）：宽 240、底色 #F7F7F5；头部高 48（品牌）；
-// 下面是 Chat / Note 切换（左右 8、上距 4），再下面是当前模式的内容，最底部是账号区。
+// 侧边栏（网页 .notion-sidebar，手机抽屉）：宽 280（最多 85% 屏宽）、底色 #F5F6F8 / 深色 #111215；头部高 48（品牌）；
+// 下面是 Chat / Workspace 切换（左右 10、上距 4），再下面是当前模式的内容，最底部是账号区。
 @Composable
 private fun AppDrawer(
     workspace: Workspace,
@@ -634,22 +634,22 @@ private fun AppDrawer(
     body: @Composable ColumnScope.() -> Unit,
 ) {
     ModalDrawerSheet(
-        modifier = Modifier.width(240.dp),
+        modifier = Modifier.width(280.dp),
         drawerShape = RectangleShape,
         drawerContainerColor = Sm.Sidebar,
         drawerTonalElevation = 0.dp,
     ) {
         Column(Modifier.fillMaxSize()) {
-            Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                 // 网页 NoteFableLogo：设置里换过图标就画那个表情 / 图片。
                 AppIcon(20.dp, Sm.Ink)
-                Spacer(Modifier.width(7.2.dp))
-                Text(stringResource(R.string.app_title), color = Sm.Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.app_title), color = Sm.Ink, fontSize = 15.sp, fontWeight = FontWeight(680))
                 Spacer(Modifier.weight(1f))
                 // 头部右侧的"关闭侧栏"（.notion-icon-button 40，PanelLeftClose 17 灰）；聊天和笔记两边的网页侧栏都有。
                 TopIconButton(Lucide.PanelLeftClose, stringResource(R.string.sb_close_sidebar), onClose, iconSize = 17.dp)
             }
-            WorkspaceSwitch(workspace, onSwitch, Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp), inDrawer = true)
+            WorkspaceSwitch(workspace, onSwitch, Modifier.padding(start = 10.dp, end = 10.dp, top = 4.dp), inDrawer = true)
             body()
             footer()
         }

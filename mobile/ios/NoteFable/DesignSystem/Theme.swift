@@ -8,49 +8,88 @@ import UIKit
 /// 改这里之前先改网页；对照表见 docs/architecture/android-native.md。1pt = 网页 1 CSS px。
 enum Sm {
     static let ink = Color(uiColor: SmUI.ink)                              // --nf-ink：标题、主按钮
-    static let inkHover = Color(light: 0xFF1D2A47, dark: 0xFFD8DFEA)       // --nf-ink-hover
-    static let onInk = Color(light: 0xFFFFFFFF, dark: 0xFF121620)          // --nf-on-ink：墨色底上的字和图标
+    static let inkHover = Color(light: 0xFF1E293B, dark: 0xFFDBE4F0)       // --nf-ink-hover
+    static let onInk = Color(light: 0xFFFFFFFF, dark: 0xFF0F172A)          // --nf-on-ink：墨色底上的字和图标
     static let text = Color(uiColor: SmUI.text)                            // --notion-text：正文
-    static let muted = Color(uiColor: SmUI.muted)                          // --notion-muted .62 / 深色 .65
-    static let faint = Color(light: 0x5C37352F, dark: 0x6BE6E5E3)          // --notion-faint .36 / .42：占位符、禁用
-    static let hover = Color(light: 0x1437352F, dark: 0x0FFFFFFF)          // --notion-hover .08 / 白 .06
-    static let active = Color(light: 0x1F37352F, dark: 0x1CFFFFFF)         // --notion-active .12 / 白 .11
-    static let border = Color(light: 0x1737352F, dark: 0x1AFFFFFF)         // --notion-border .09 / 白 .10
-    static let borderStrong = Color(light: 0x2E37352F, dark: 0x2EFFFFFF)   // --notion-border-strong .18 / 白 .18
-    static let sidebar = Color(light: 0xFFF7F7F5, dark: 0xFF202020)        // --notion-sidebar
+    static let muted = Color(uiColor: SmUI.muted)                          // --notion-muted .60 / 深色 .62
+    static let faint = Color(light: 0x5C1C202A, dark: 0x61ECEDF0)          // --notion-faint .36 / .38：占位符、禁用
+    static let hover = Color(light: 0x0E1C202A, dark: 0x0EFFFFFF)          // --notion-hover .055 / 白 .055
+    static let active = Color(light: 0x181C202A, dark: 0x1AFFFFFF)         // --notion-active .095 / 白 .10
+    static let border = Color(light: 0x141C202A, dark: 0x14FFFFFF)         // --notion-border .08 / 白 .08
+    static let borderStrong = Color(light: 0x241C202A, dark: 0x26FFFFFF)   // --notion-border-strong .14 / 白 .15
+    static let sidebar = Color(light: 0xFFF5F6F8, dark: 0xFF111215)        // --notion-sidebar
     static let blue = Color(uiColor: SmUI.blue)                            // --notion-blue / --nf-accent
-    static let accentSoft = Color(light: 0x1A2383E2, dark: 0x29529CCA)     // --nf-accent-soft .10 / .16
-    static let accentLine = Color(light: 0x732383E2, dark: 0x8C529CCA)     // --nf-accent-line .45 / .55
-    static let userBubble = Color(light: 0xFFF3F5F9, dark: 0xFF26282E)     // --nf-user-bubble
-    static let modelPill = Color(light: 0xFFF1F1EF, dark: 0xFF2A2A28)      // --nf-model-pill：.codex-model-trigger 背景
-    static let modelPillPressed = Color(light: 0xFFE8E8E5, dark: 0xFF2A2A28) // .codex-model-trigger:hover #e8e8e5；深色下网页悬停也是 --nf-model-pill
-    static let sheetGrab = Color(light: 0x3337352F, dark: 0x3DFFFFFF)      // .model-sheet-grab .2 / 白 .24
-    static let codeBackground = Color(light: 0xFFF7F6F3, dark: 0xFF232322) // --notes-code-bg
-    static let danger = Color(light: 0xFFB91C1C, dark: 0xFFF87171)         // --nf-danger：.is-danger
-    static let composerShadow = Color(light: 0x120C1730, dark: 0x6B000000) // --nf-composer-shadow 的主阴影 .07 / 黑 .42
+    static let accentSoft = Color(light: 0x172563EB, dark: 0x2460A5FA)     // --nf-accent-soft .09 / .14
+    static let accentLine = Color(light: 0x6B2563EB, dark: 0x8560A5FA)     // --nf-accent-line .42 / .52
+    static let userBubble = Color(light: 0xFFF3F5F9, dark: 0xFF23262E)     // --nf-user-bubble
+    static let modelPill = Color(light: 0xFFEFF1F5, dark: 0xFF25272F)      // --nf-model-pill：.codex-model-trigger 背景
+    static let modelPillPressed = Color(light: 0xFFE6E9F0, dark: 0xFF25272F)
+    static let sheetGrab = Color(light: 0x331C202A, dark: 0x3DFFFFFF)      // .model-sheet-grab .2 / 白 .24
+    static let codeBackground = Color(light: 0xFFF7F6F3, dark: 0xFF1D1F25) // --notes-code-bg
+    static let danger = Color(light: 0xFFDC2626, dark: 0xFFF87171)         // --nf-danger：.is-danger
+    static let composerShadow = Color(light: 0x120F172A, dark: 0x70000000) // --nf-composer-shadow 的主阴影 .07 / 黑 .44
+
+    // 侧栏选中行的卡片底色 + 页面类型语义色（与网页 globals.css / Android Theme.kt 同名同值）。
+    static let activeRow = Color(light: 0xFFFFFFFF, dark: 0xFF22242C)
+    static let kindNote = Color(light: 0xFF2563EB, dark: 0xFF60A5FA)
+    static let kindNoteSoft = Color(light: 0x172563EB, dark: 0x2460A5FA)
+    static let kindNoteBorder = Color(light: 0x332563EB, dark: 0x4760A5FA)
+    static let kindSlides = Color(light: 0xFFD97706, dark: 0xFFFBBF24)
+    static let kindSlidesSoft = Color(light: 0x1AD97706, dark: 0x24FBBF24)
+    static let kindSlidesBorder = Color(light: 0x38D97706, dark: 0x47FBBF24)
+    static let kindWhiteboard = Color(light: 0xFF7C3AED, dark: 0xFFA78BFA)
+    static let kindWhiteboardSoft = Color(light: 0x177C3AED, dark: 0x24A78BFA)
+    static let kindWhiteboardBorder = Color(light: 0x337C3AED, dark: 0x47A78BFA)
+    static let kindFav = Color(light: 0xFFEAB308, dark: 0xFFFACC15)
+    static let kindFavSoft = Color(light: 0x1FEAB308, dark: 0x29FACC15)
 
     // 通用控件（DesignSystem）用到的面、遮罩和阴影。
     static let background = Color(uiColor: SmUI.background)                // --notion-bg：聊天、笔记页面的底
-    static let surface = Color(light: 0xFFFFFFFF, dark: 0xFF242424)        // --notion-surface：对话框、菜单、抽屉、卡片、输入框的底
+    static let surface = Color(light: 0xFFFFFFFF, dark: 0xFF202228)        // --notion-surface：对话框、菜单、抽屉、卡片、输入框的底
     static let dialogScrim = Color(light: 0x330F0F0F, dark: 0x8F000000)    // .notes-dialog::backdrop rgba(15,15,15,.2) / 黑 .56
     static let sheetScrim = Color(light: 0x590F0F0F, dark: 0x8F000000)     // .model-sheet-backdrop rgba(15,15,15,.35) / 黑 .56
-    static let panelShadow = Color(light: 0x1F0F0F0F, dark: 0x7A000000)    // --notion-shadow 的 0 4px 14px rgba(15,15,15,.12) / 黑 .48
-    static let panelRing = Color(light: 0x0D0F0F0F, dark: 0x14FFFFFF)      // --notion-shadow 的 0 0 0 1px rgba(15,15,15,.05) / 白 .08
+    static let panelShadow = Color(light: 0x1A0F172A, dark: 0x80000000)    // --notion-shadow
+    static let panelRing = Color(light: 0x0F0F172A, dark: 0x14FFFFFF)      // --notion-shadow 的 0 0 0 1px
     static let menuShadow = Color(argb: 0x22000000)      // .chat-actions-menu 0 8px 32px #0002
     static let sheetShadow = Color(argb: 0x330F0F0F)     // .model-sheet 0 -8px 24px rgba(15,15,15,.2)
-    static let primaryShadow = Color(argb: 0x1F0C1730)   // .sidebar-primary-action 0 1px 2px rgba(12,23,48,.12)
+    static let primaryShadow = Color(argb: 0x1F0F172A)   // .sidebar-primary-action
     static let errorText = Color(light: 0xFF933B34, dark: 0xFFFCA5A5)       // --nf-error-text：.notion-error / .answer-menu-error 的字
     static let errorBackground = Color(light: 0xA6FFE2DD, dark: 0x29EF4444) // --nf-error-bg rgba(255,226,221,.65) / rgba(239,68,68,.16)
-    static let focusRing = Color(argb: 0x292383E2)       // 设置里聚焦时外侧 3px 光圈 rgba(35,131,226,.16)
+    static let focusRing = Color(argb: 0x292563EB)       // 设置里聚焦时外侧 3px 光圈
 }
 
 /// UIKit 的视图（输入框、可选中的回答文字、公式、WKWebView 的底）直接用的几个颜色：和 `Sm` 里同名的是同一个动态颜色。
 enum SmUI {
-    static let ink = UIColor(light: 0xFF0C1730, dark: 0xFFEEF1F6)
-    static let text = UIColor(light: 0xFF37352F, dark: 0xFFE6E5E3)
-    static let muted = UIColor(light: 0x9E37352F, dark: 0xA6E6E5E3)
-    static let blue = UIColor(light: 0xFF2383E2, dark: 0xFF529CCA)
-    static let background = UIColor(light: 0xFFFFFFFF, dark: 0xFF191919)
+    static let ink = UIColor(light: 0xFF0F172A, dark: 0xFFF1F5F9)
+    static let text = UIColor(light: 0xFF1C202A, dark: 0xFFECEDF0)
+    static let muted = UIColor(light: 0x991C202A, dark: 0x9EECEDF0)
+    static let blue = UIColor(light: 0xFF2563EB, dark: 0xFF60A5FA)
+    static let background = UIColor(light: 0xFFFFFFFF, dark: 0xFF17181C)
+}
+
+/// 页面类型的语义色（与网页 --kind-* 和 Android pageKindColor/Soft/Border 同步）。
+func pageKindColor(_ kind: PageKind) -> Color {
+    switch kind {
+    case .note: Sm.kindNote
+    case .slides: Sm.kindSlides
+    case .whiteboard: Sm.kindWhiteboard
+    }
+}
+
+func pageKindSoft(_ kind: PageKind) -> Color {
+    switch kind {
+    case .note: Sm.kindNoteSoft
+    case .slides: Sm.kindSlidesSoft
+    case .whiteboard: Sm.kindWhiteboardSoft
+    }
+}
+
+func pageKindBorder(_ kind: PageKind) -> Color {
+    switch kind {
+    case .note: Sm.kindNoteBorder
+    case .slides: Sm.kindSlidesBorder
+    case .whiteboard: Sm.kindWhiteboardBorder
+    }
 }
 
 extension Color {

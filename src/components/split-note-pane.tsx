@@ -180,9 +180,11 @@ export function SplitNotePane({
           {notes.active && (
             <span
               role="status"
+              data-status={notes.active.status}
               className={`notes-save-status ${notes.active.status === "error" || notes.active.status === "conflict" ? "has-error" : ""}`}
             >
-              {({ saved: t("Saved"), pending: t("Saving…"), saving: t("Saving…"), error: t("Not saved"), conflict: t("Conflict") })[notes.active.status]}
+              <span className="notes-save-dot" aria-hidden="true" />
+              <span>{({ saved: t("Saved"), pending: t("Saving…"), saving: t("Saving…"), error: t("Not saved"), conflict: t("Conflict") })[notes.active.status]}</span>
             </span>
           )}
           {activeSummary && (

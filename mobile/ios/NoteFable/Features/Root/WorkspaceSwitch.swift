@@ -17,19 +17,21 @@ struct WorkspaceSwitch: View {
 
     var body: some View {
         let workspace = app.notes.state.workspace
-        let fontSize: CGFloat = inDrawer ? 14 : 16
+        let fontSize: CGFloat = inDrawer ? 13.5 : 15
+        let trackShape = RoundedRectangle(cornerRadius: 10)
         WorkspaceSegmentsLayout(spacing: 2) {
             WorkspaceSegment(title: L("chat_mode"), icon: Lucide.messageSquareText, fontSize: fontSize, active: workspace == .chat) {
                 select(.chat)
             }
-            WorkspaceSegment(title: L("note_mode"), icon: Lucide.fileText, fontSize: fontSize, active: workspace == .notes) {
+            WorkspaceSegment(title: L("note_mode"), icon: Lucide.layoutGrid, fontSize: fontSize, active: workspace == .notes) {
                 select(.notes)
             }
         }
-        .padding(2)
+        .padding(3)
         .frame(maxWidth: .infinity)
-        .frame(height: 48)
-        .background(Sm.active, in: RoundedRectangle(cornerRadius: 8))
+        .frame(height: 46)
+        .background(Sm.hover, in: trackShape)
+        .overlay { trackShape.strokeBorder(Sm.border, lineWidth: 1) }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(L("workspace_mode"))
     }
@@ -72,29 +74,25 @@ private struct WorkspaceSegment: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 6.4)
+        let shape = RoundedRectangle(cornerRadius: 7.2)
         Button(action: action) {
-            HStack(spacing: 6.4) {
-                LucideIcon(icon, size: 16, color: active ? Sm.blue : Sm.muted)
+            HStack(spacing: 6) {
+                LucideIcon(icon, size: 15, color: active ? Sm.blue : Sm.muted)
                 Text(title)
-                    .font(.nf(fontSize, weight: 500))
+                    .font(.nf(fontSize, weight: 550))
                     .foregroundStyle(active ? Sm.ink : Sm.muted)
                     .lineLimit(1)
             }
-            .padding(.horizontal, 4)
+            .padding(.horizontal, 5)
             .frame(maxWidth: .infinity)
-            .frame(height: 44)
+            .frame(height: 40)
             .background {
                 if active {
-                    // box-shadow: rgba(15,15,15,.1) 0 0 0 1px, rgba(15,15,15,.08) 0 1px 2px；深色下细环是 --notion-border（Android NotesUi.kt）。
                     shape
-                        // .notion-segment.is-active：白底；深色是 --notion-surface。
                         .fill(Sm.surface)
-                        .shadow(color: Color(argb: 0x140F0F0F), radius: 1, x: 0, y: 1)
+                        .shadow(color: Color(argb: 0x140F172A), radius: 1, x: 0, y: 1)
                         .overlay {
-                            RoundedRectangle(cornerRadius: 6.9)
-                                .stroke(Color(light: 0x1A0F0F0F, dark: 0x1AFFFFFF), lineWidth: 1)
-                                .padding(-0.5)
+                            shape.strokeBorder(Color(light: 0x0D0F172A, dark: 0x17FFFFFF), lineWidth: 1)
                         }
                 }
             }

@@ -52,66 +52,102 @@ data class SmPalette(
     val composerShadow: Color, // --nf-composer-shadow 的主阴影
     val ring: Color,           // --notion-shadow 里那一圈 0 0 0 1px
     val scrim: Color?,         // 深色时对话框 / 底部面板的遮罩（.notes-dialog::backdrop、.model-sheet-backdrop）；浅色各处用自己的值
+    val activeRow: Color,      // 侧栏选中行的卡片底色（浅色白面，深色 #22242c）
+    val kindNote: Color,       // --kind-note
+    val kindNoteSoft: Color,   // --kind-note-soft
+    val kindNoteBorder: Color, // --kind-note-border
+    val kindSlides: Color,     // --kind-slides
+    val kindSlidesSoft: Color, // --kind-slides-soft
+    val kindSlidesBorder: Color, // --kind-slides-border
+    val kindWhiteboard: Color,       // --kind-whiteboard
+    val kindWhiteboardSoft: Color,   // --kind-whiteboard-soft
+    val kindWhiteboardBorder: Color, // --kind-whiteboard-border
+    val kindFav: Color,        // --kind-fav
+    val kindFavSoft: Color,    // --kind-fav-soft
 )
 
 val LightSmPalette = SmPalette(
     isDark = false,
     background = Color.White,
     surface = Color.White,
-    ink = Color(0xFF0C1730),
-    inkHover = Color(0xFF1D2A47),
+    ink = Color(0xFF0F172A),
+    inkHover = Color(0xFF1E293B),
     onInk = Color.White,
-    text = Color(0xFF37352F),
-    muted = Color(0x9E37352F),          // rgba(55,53,47,.62)
-    faint = Color(0x5C37352F),          // .36
-    hover = Color(0x1437352F),          // .08
-    active = Color(0x1F37352F),         // .12
-    border = Color(0x1737352F),         // .09
-    borderStrong = Color(0x2E37352F),   // .18
-    sidebar = Color(0xFFF7F7F5),
-    blue = Color(0xFF2383E2),
-    accentSoft = Color(0x1A2383E2),     // .10
-    accentLine = Color(0x732383E2),     // .45
+    text = Color(0xFF1C202A),
+    muted = Color(0x991C202A),          // rgba(28,32,42,.60)
+    faint = Color(0x5C1C202A),          // .36
+    hover = Color(0x0E1C202A),          // .055
+    active = Color(0x181C202A),         // .095
+    border = Color(0x141C202A),         // .08
+    borderStrong = Color(0x241C202A),   // .14
+    sidebar = Color(0xFFF5F6F8),
+    blue = Color(0xFF2563EB),
+    accentSoft = Color(0x172563EB),     // .09
+    accentLine = Color(0x6B2563EB),     // .42
     userBubble = Color(0xFFF3F5F9),
-    modelPill = Color(0xFFF1F1EF),
-    sheetGrab = Color(0x3337352F),
+    modelPill = Color(0xFFEFF1F5),
+    sheetGrab = Color(0x331C202A),
     codeBackground = Color(0xFFF7F6F3),
-    danger = Color(0xFFB91C1C),
+    danger = Color(0xFFDC2626),
     errorBg = Color(0xA6FFE2DD),        // rgba(255,226,221,.65)
     errorText = Color(0xFF933B34),
-    composerShadow = Color(0x120C1730), // rgba(12,23,48,.07)
-    ring = Color(0x0D0F0F0F),           // rgba(15,15,15,.05)
+    composerShadow = Color(0x120F172A), // rgba(15,23,42,.07)
+    ring = Color(0x0F0F172A),           // rgba(15,23,42,.06)
     scrim = null,
+    activeRow = Color.White,
+    kindNote = Color(0xFF2563EB),
+    kindNoteSoft = Color(0x172563EB),
+    kindNoteBorder = Color(0x332563EB),
+    kindSlides = Color(0xFFD97706),
+    kindSlidesSoft = Color(0x1AD97706),
+    kindSlidesBorder = Color(0x38D97706),
+    kindWhiteboard = Color(0xFF7C3AED),
+    kindWhiteboardSoft = Color(0x177C3AED),
+    kindWhiteboardBorder = Color(0x337C3AED),
+    kindFav = Color(0xFFEAB308),
+    kindFavSoft = Color(0x1FEAB308),
 )
 
 val DarkSmPalette = SmPalette(
     isDark = true,
-    background = Color(0xFF191919),
-    surface = Color(0xFF242424),
-    ink = Color(0xFFEEF1F6),
-    inkHover = Color(0xFFD8DFEA),
-    onInk = Color(0xFF121620),
-    text = Color(0xFFE6E5E3),
-    muted = Color(0xA6E6E5E3),          // rgba(230,229,227,.65)
-    faint = Color(0x6BE6E5E3),          // .42
-    hover = Color(0x0FFFFFFF),          // rgba(255,255,255,.06)
-    active = Color(0x1CFFFFFF),         // .11
-    border = Color(0x1AFFFFFF),         // .10
-    borderStrong = Color(0x2EFFFFFF),   // .18
-    sidebar = Color(0xFF202020),
-    blue = Color(0xFF529CCA),
-    accentSoft = Color(0x29529CCA),     // .16
-    accentLine = Color(0x8C529CCA),     // .55
-    userBubble = Color(0xFF26282E),
-    modelPill = Color(0xFF2A2A28),
+    background = Color(0xFF17181C),
+    surface = Color(0xFF202228),
+    ink = Color(0xFFF1F5F9),
+    inkHover = Color(0xFFDBE4F0),
+    onInk = Color(0xFF0F172A),
+    text = Color(0xFFECEDF0),
+    muted = Color(0x9EECEDF0),          // rgba(236,237,240,.62)
+    faint = Color(0x61ECEDF0),          // .38
+    hover = Color(0x0EFFFFFF),          // rgba(255,255,255,.055)
+    active = Color(0x1AFFFFFF),         // .10
+    border = Color(0x14FFFFFF),         // .08
+    borderStrong = Color(0x26FFFFFF),   // .15
+    sidebar = Color(0xFF111215),
+    blue = Color(0xFF60A5FA),
+    accentSoft = Color(0x2460A5FA),     // .14
+    accentLine = Color(0x8560A5FA),     // .52
+    userBubble = Color(0xFF23262E),
+    modelPill = Color(0xFF25272F),
     sheetGrab = Color(0x3DFFFFFF),      // rgba(255,255,255,.24)
-    codeBackground = Color(0xFF232322),
+    codeBackground = Color(0xFF1D1F25),
     danger = Color(0xFFF87171),
     errorBg = Color(0x29EF4444),        // rgba(239,68,68,.16)
     errorText = Color(0xFFFCA5A5),
-    composerShadow = Color(0x6B000000), // rgba(0,0,0,.42)
+    composerShadow = Color(0x70000000), // rgba(0,0,0,.44)
     ring = Color(0x14FFFFFF),           // rgba(255,255,255,.08)
     scrim = Color(0x8F000000),          // rgba(0,0,0,.56)
+    activeRow = Color(0xFF22242C),
+    kindNote = Color(0xFF60A5FA),
+    kindNoteSoft = Color(0x2460A5FA),
+    kindNoteBorder = Color(0x4760A5FA),
+    kindSlides = Color(0xFFFBBF24),
+    kindSlidesSoft = Color(0x24FBBF24),
+    kindSlidesBorder = Color(0x47FBBF24),
+    kindWhiteboard = Color(0xFFA78BFA),
+    kindWhiteboardSoft = Color(0x24A78BFA),
+    kindWhiteboardBorder = Color(0x47A78BFA),
+    kindFav = Color(0xFFFACC15),
+    kindFavSoft = Color(0x29FACC15),
 )
 
 /**
@@ -148,6 +184,18 @@ object Sm {
     val ErrorText: Color get() = palette.errorText
     val ComposerShadow: Color get() = palette.composerShadow
     val Ring: Color get() = palette.ring
+    val ActiveRow: Color get() = palette.activeRow
+    val KindNote: Color get() = palette.kindNote
+    val KindNoteSoft: Color get() = palette.kindNoteSoft
+    val KindNoteBorder: Color get() = palette.kindNoteBorder
+    val KindSlides: Color get() = palette.kindSlides
+    val KindSlidesSoft: Color get() = palette.kindSlidesSoft
+    val KindSlidesBorder: Color get() = palette.kindSlidesBorder
+    val KindWhiteboard: Color get() = palette.kindWhiteboard
+    val KindWhiteboardSoft: Color get() = palette.kindWhiteboardSoft
+    val KindWhiteboardBorder: Color get() = palette.kindWhiteboardBorder
+    val KindFav: Color get() = palette.kindFav
+    val KindFavSoft: Color get() = palette.kindFavSoft
 
     /** 遮罩：浅色用各处网页原来的值 [light]，深色统一是 rgba(0,0,0,.56)。 */
     fun scrim(light: Color): Color = palette.scrim ?: light

@@ -4,52 +4,45 @@ import SwiftUI
 
 // MARK: - 小标题和说明
 
-/// 分区小标题的字（网页 `.chat-section-label`：12 等宽、500、大写、字距 .06em、灰色）。
-/// 网页的等宽字体没有非拉丁字形，那些字回落到普通界面字体：这里非拉丁文字直接用默认字体；
-/// 阿拉伯字母有字距会断开连写，字距归零（Android `roleLabelStyle`）。
-private func sectionLabelStyle(_ text: String) -> (font: Font, tracking: CGFloat) {
-    let scalars = text.unicodeScalars
-    let nonMonospace = scalars.contains { $0.value >= 0x0590 }
-    let arabic = scalars.contains { scalar in
-        (0x0600...0x08FF).contains(scalar.value) || (0xFB50...0xFDFF).contains(scalar.value) || (0xFE70...0xFEFF).contains(scalar.value)
-    }
-    return (nonMonospace ? Font.nf(12, weight: 500) : Font.nfMono(12, weight: 500), arabic ? 0 : 0.72)
-}
-
+/// 分区小标题的字（网页 `.chat-section-label`：句首大小写 UI 字体 12 / 560 灰色）。
 private struct SectionLabelText: View {
     let text: String
 
     var body: some View {
-        let label = text.uppercased()
-        let style = sectionLabelStyle(label)
-        Text(label)
-            .font(style.font)
-            .tracking(style.tracking)
+        Text(text)
+            .font(.nf(12, weight: 560))
+            .nfLineHeight(16, fontSize: 12)
             .foregroundStyle(Sm.muted)
             .lineLimit(1)
-            .frame(height: 18)
     }
 }
 
-/// `.chat-section-label`：内边距 14.4（上）/ 8（左右）/ 4.8（下），整行宽。"PINNED"、"CHATS"。
+/// `.chat-section-label`：内边距 14（上）/ 8（左右）/ 5（下），整行宽。"Pinned"、"Chats"。
 struct ChatSectionLabel: View {
     private let text: String
+    private let icon: [String]?
 
-    init(_ text: String) {
+    init(_ text: String, icon: [String]? = nil) {
         self.text = text
+        self.icon = icon
     }
 
     var body: some View {
-        SectionLabelText(text: text)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 8)
-            .padding(.top, 14.4)
-            .padding(.bottom, 4.8)
-            .accessibilityAddTraits(.isHeader)
+        HStack(spacing: 5.6) {
+            if let icon {
+                LucideIcon(icon, size: 12.5, color: Sm.muted)
+            }
+            SectionLabelText(text: text)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 8)
+        .padding(.top, 14)
+        .padding(.bottom, 5)
+        .accessibilityAddTraits(.isHeader)
     }
 }
 
-/// `.chat-project-heading`：与小标题同款，右侧“新项目”＋（40 的按钮，上下各收 4.8，图标 15）。
+/// `.chat-project-heading`：与小标题同款，右侧“新项目”＋（40 的按钮，图标 15）。
 struct ChatProjectsHeading: View {
     private let onCreate: () -> Void
 
@@ -65,9 +58,10 @@ struct ChatProjectsHeading: View {
             NFIconButton(Lucide.plus, label: L("new_project"), iconSize: 15, action: onCreate)
                 .padding(.vertical, -4.8)
         }
-        .padding(.horizontal, 8)
-        .padding(.top, 14.4)
-        .padding(.bottom, 4.8)
+        .padding(.leading, 8)
+        .padding(.trailing, 4)
+        .padding(.top, 14)
+        .padding(.bottom, 4)
     }
 }
 
@@ -119,30 +113,26 @@ struct ChatSessionRow: View {
 
     var body: some View {
         let line = reorder.dropLine(session.id)
+        let shape = RoundedRectangle(cornerRadius: 8)
         HStack(spacing: 0) {
             iconButton
             titleButton
             moreButton
         }
-        .frame(height: 44)
-        .background(active ? Sm.accentSoft : Color.clear)
+        .frame(height: 42)
+        .background(active ? Sm.activeRow : Color.clear, in: shape)
+        .overlay {
+            if active {
+                shape.strokeBorder(Sm.border, lineWidth: 1).allowsHitTesting(false)
+            }
+        }
         .overlay(alignment: .top) {
             if line.before { ReorderDropLine() }
         }
         .overlay(alignment: .bottom) {
             if line.after { ReorderDropLine() }
         }
-        .overlay(alignment: .leading) {
-            // 当前行左侧的蓝条；拖动目标是它时不画，免得和插入线混在一起。
-            if active && !line.before && !line.after {
-                RoundedRectangle(cornerRadius: 1.5)
-                    .fill(Sm.blue)
-                    .frame(width: 3)
-                    .padding(.vertical, 7.2)
-                    .allowsHitTesting(false)
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 6.4))
+        .clipShape(shape)
         .reorderRow(session.id, in: reorder, showsDropLine: false)
         .reorderError(errorText) { app.sidebar.dismissReorderError() }
     }
@@ -168,12 +158,12 @@ struct ChatSessionRow: View {
             if !reorder.swallowsTap() { onOpen() }
         } label: {
             Text(session.title)
-                .font(.nf(14, weight: active ? 550 : 400))
+                .font(.nf(14, weight: active ? 560 : 400))
                 .foregroundStyle(active ? Sm.ink : Sm.text)
                 .lineLimit(1)
                 .padding(.trailing, 8)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(height: 44)
+                .frame(height: 42)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.pressable(cornerRadius: 0))

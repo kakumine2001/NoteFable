@@ -1,8 +1,7 @@
 import SwiftUI
 
-/// 侧栏的 Search 行（网页 `.notion-sidebar-action`，手机；Android `SidebarSearchRow`）：紧接在“新建”按钮下面，左右 8、高 44、圆角 4.8、
-/// 左右内边距 8、搜索图标 16 + 间距 8.8 + 16 / 500 正文色；按下灰底并缩到 .97。右侧的 Ctrl K 提示在触屏上不显示。
-/// 聊天和笔记两边的抽屉都用它：`SidebarSearchRow { router.openSearch() }`。
+/// 侧栏的 Search 行（网页 `.notion-sidebar-action.sidebar-search-trigger`，手机；Android `SidebarSearchRow`）：
+/// 紧接在“新建”按钮下面，左右 10、高 42、圆角 8、微沉底色 + 1pt 细框、搜索图标 15 + 间距 8.8 + 15 / 500 灰字。右侧的 Ctrl K 提示在触屏上不显示。
 struct SidebarSearchRow: View {
     private let action: () -> Void
 
@@ -11,20 +10,23 @@ struct SidebarSearchRow: View {
     }
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 8)
+        let bg = Color(light: 0x081C202A, dark: 0x0AFFFFFF)
         Button(action: action) {
             HStack(spacing: 8.8) {
-                LucideIcon(Lucide.search, size: 16, color: Sm.text)
+                LucideIcon(Lucide.search, size: 15, color: Sm.muted)
                 Text(L("search"))
-                    .font(.nf(16, weight: 500))
-                    .foregroundStyle(Sm.text)
+                    .font(.nf(15, weight: 500))
+                    .foregroundStyle(Sm.muted)
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 8)
+            .padding(.horizontal, 10)
             .frame(maxWidth: .infinity)
-            .frame(height: 44)
+            .frame(height: 42)
         }
-        .buttonStyle(.pressable(cornerRadius: 4.8, scale: 0.97))
-        .padding(.horizontal, 8)
+        .buttonStyle(.pressable(background: bg, cornerRadius: 8, scale: 0.98))
+        .overlay { shape.strokeBorder(Sm.border, lineWidth: 1).allowsHitTesting(false) }
+        .padding(.horizontal, 10)
     }
 }

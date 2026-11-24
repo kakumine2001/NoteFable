@@ -91,7 +91,9 @@ html[data-vt-kind="list"] .vt-row { view-transition-name: var(--vt-name); }
 .note-ai-chip,
 .note-ai-fab,
 .notes-empty-new,
-.notes-home-row {
+.notes-home-row,
+.ws-util-pill,
+.ws-filter-pill {
   transition: transform var(--dur-quick) var(--ease-out), background-color var(--dur-quick) ease, color var(--dur-quick) ease, border-color var(--dur-quick) ease, opacity var(--dur-quick) ease;
 }
 .notion-button:active:not(:disabled),
@@ -102,7 +104,10 @@ html[data-vt-kind="list"] .vt-row { view-transition-name: var(--vt-name); }
 .attach-row:active:not(:disabled),
 .model-sheet-row:active:not(:disabled),
 .note-ai-chip:active:not(:disabled),
-.notes-empty-new:active:not(:disabled) { transform: scale(0.97); }
+.notes-empty-new:active:not(:disabled),
+.ws-util-pill:active:not(:disabled),
+.ws-filter-pill:active:not(:disabled) { transform: scale(0.97); }
+.ws-create-card:active:not(:disabled) { transform: scale(0.985); }
 .notes-home-row:active:not(:disabled) { transform: scale(0.99); }
 .note-ai-fab:active { transform: scale(0.92); }
 

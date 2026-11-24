@@ -4,10 +4,12 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronLeft,
+  ChevronRight,
   FileText,
   Globe,
   History,
   ImagePlus,
+  LayoutGrid,
   Lock,
   Menu,
   Paperclip,
@@ -2374,15 +2376,15 @@ export default function Home() {
       {sidebarOpen && (
         <div ref={drawerRootRef} className="fixed inset-0 z-40 lg:hidden">
           <button
-            className="motion-fade-in absolute inset-0 bg-black/15"
+            className="motion-fade-in absolute inset-0 bg-black/25 backdrop-blur-[2px]"
             onClick={() => setSidebarOpen(false)}
             aria-label={t("Close sidebar overlay")}
           />
-          <div ref={attachDrawer} {...drawerBind} className="motion-sidebar-panel swipe-x relative h-full w-60 max-w-[88vw]">{sidebar}</div>
+          <div ref={attachDrawer} {...drawerBind} className="motion-sidebar-panel swipe-x relative h-full w-[17.5rem] max-w-[85vw]">{sidebar}</div>
         </div>
       )}
 
-      <div ref={splitShellRef} className="workspace-split-shell" style={splitActive ? ({ "--split-ratio": String(splitRatio) } as React.CSSProperties) : undefined}>
+      <div ref={splitShellRef} className={`workspace-split-shell${sidebarVisible ? " has-sidebar" : ""}`} style={splitActive ? ({ "--split-ratio": String(splitRatio) } as React.CSSProperties) : undefined}>
       <section className="notion-page workspace-split-chat" inert={sidebarOpen} {...(workspaceView === "chat" ? fileDropHandlers : {})}>
         {fileDragActive && workspaceView === "chat" && (
           <div className="chat-drop-overlay" aria-hidden="true">
@@ -2390,7 +2392,7 @@ export default function Home() {
           </div>
         )}
         <header className="notion-topbar">
-          <div className="flex min-w-0 items-center gap-3">
+          <div className="flex min-w-0 items-center gap-2.5">
             <button
               ref={menuToggleRef}
               className="notion-icon-button mobile-sidebar-toggle"
@@ -2413,53 +2415,57 @@ export default function Home() {
                 aria-label={t("Open sidebar")}
                 title={t("Toggle sidebar (Ctrl+B)")}
               >
-                <PanelLeft size={22} strokeWidth={1.8} />
+                <PanelLeft size={19} strokeWidth={1.8} />
               </button>
             )}
             <div className={`min-w-0 sm:block ${showPhoneTitle ? "" : "hidden"}`}>
-              <div className="flex items-center gap-1.5 text-sm text-[var(--notion-muted)]">
+              <div className="topbar-crumbs flex items-center gap-1.5 text-[13.5px] text-[var(--notion-muted)]">
                 {/* パンくず（Notion と同じく祖先のページを左から）。スマホは幅がないので今のページだけ。 */}
-                {workspaceView === "pages" && !notesList && activeAncestors.map((page) => <span key={page.id} className="notes-breadcrumb hidden min-w-0 items-center gap-1.5 sm:flex">
+                {workspaceView === "pages" && !notesList && activeAncestors.map((page) => <span key={page.id} className="notes-breadcrumb hidden min-w-0 items-center gap-1 sm:flex">
                   <button type="button" className="notes-breadcrumb-link" onClick={() => openNote(page.id)}
                     onPointerEnter={(event) => { if (event.pointerType !== "touch") notes.prefetch(page.id, false); }}
                     onPointerLeave={() => notes.cancelPrefetch(page.id)}
                     onPointerDown={(event) => { if (event.pointerType !== "touch" && event.button === 0) notes.prefetch(page.id, true); }}
                     onFocus={() => notes.prefetch(page.id, true)} title={page.title}>
-                    {page.icon && <span className="shrink-0 text-[15px] leading-none"><NoteIcon icon={page.icon} /></span>}<span className="truncate">{page.title}</span>
+                    {page.icon && <span className="shrink-0 text-[14px] leading-none"><NoteIcon icon={page.icon} /></span>}<span className="truncate">{page.title}</span>
                   </button>
-                  <span aria-hidden="true" className="text-[var(--notion-faint)]">/</span>
+                  <ChevronRight size={13} aria-hidden="true" className="rtl-mirror shrink-0 text-[var(--notion-faint)]" />
                 </span>)}
-                {workspaceView === "pages" && (!notesList && notes.active?.content.icon ? <span className="shrink-0 text-[15px] leading-none"><NoteIcon icon={notes.active.content.icon} /></span> : <PageKindIcon kind={notesList ? undefined : activeSummary?.kind} size={15} className="shrink-0" />)}
+                {workspaceView === "pages" && (notesList
+                  ? <LayoutGrid size={15} className="shrink-0 text-[var(--notion-muted)]" aria-hidden="true" />
+                  : notes.active?.content.icon
+                    ? <span className="shrink-0 text-[15px] leading-none"><NoteIcon icon={notes.active.content.icon} /></span>
+                    : <PageKindIcon kind={activeSummary?.kind} size={15} className="shrink-0 topbar-kind-icon" />)}
                 {workspaceView === "chat" && activeSession && (
                   <ChatTopbarIcon key={activeSession.id} icon={activeSession.icon} onChange={(icon) => changeSessionIcon(activeSession.id, icon)} />
                 )}
-                <span className="truncate">{workspaceView === "pages" ? (!notesList && notes.active?.content.title) || t("Workspace") : activeTitle}</span>
+                <span className="topbar-current-title truncate">{workspaceView === "pages" ? (!notesList && notes.active?.content.title) || t("Workspace") : activeTitle}</span>
               </div>
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5">
             {/* サイドバーの Search 行が見えているパソコン幅では出さない（サイドバーを畳んだとき・タブレット・スマホ用）。 */}
             <button type="button" className={`notion-icon-button grid${sidebarVisible ? " lg:hidden" : ""}`} onClick={() => setSearchOpen(true)}
               aria-label={t("Search chats and notes")} title={t("Search (Ctrl+K)")} aria-haspopup="dialog">
-              <Search size={20} />
+              <Search size={18} />
             </button>
             {workspaceView === "chat" && isSplitViewport && (
               <button type="button" className={`notion-icon-button grid${splitOpen ? " is-active" : ""}`} onClick={toggleSplitView}
                 aria-pressed={splitOpen} aria-label={splitOpen ? t("Close split view") : t("Split view")} title={splitOpen ? t("Close split view") : t("Split view")}>
-                {splitOpen ? <PanelRightClose size={20} className="rtl-mirror" /> : <PanelRight size={20} className="rtl-mirror" />}
+                {splitOpen ? <PanelRightClose size={18} className="rtl-mirror" /> : <PanelRight size={18} className="rtl-mirror" />}
               </button>
             )}
             {workspaceView === "chat" && !emptyState && (
               <button type="button" className="notion-icon-button grid lg:hidden" onClick={() => void createSession()}
                 aria-label={t("New chat")} title={t("New chat")}>
-                <Plus size={20} />
+                <Plus size={19} />
               </button>
             )}
             {workspaceView === "pages" && !notesList && activeSummary && pageSettingsOf(activeSummary).locked && (
               <button type="button" className="notes-locked-button" disabled={notes.busy} onClick={() => void notes.updateSettings(activeSummary.id, { locked: false })}
                 aria-label={t("Unlock page")} title={t("Unlock page")}>
-                <Lock size={14} /><span className="hidden sm:inline">{t("Locked")}</span>
+                <Lock size={13.5} /><span className="hidden sm:inline">{t("Locked")}</span>
               </button>
             )}
             {/* 公開できるのは公開用のビューがある種類だけ（いまはノート。ホワイトボード・スライドは #152・#149）。 */}
@@ -2467,18 +2473,19 @@ export default function Home() {
               <button type="button" className={`notes-share-button${isPageShared(activeSummary) ? " is-shared" : ""}`} disabled={notes.busy}
                 onClick={() => setShareNoteId(activeSummary.id)}
                 aria-label={t("Share")} title={t("Share")} aria-haspopup="dialog">
-                <Globe size={15} aria-hidden="true" /><span className="hidden sm:inline">{t("Share")}</span>
+                <Globe size={14} aria-hidden="true" /><span className="hidden sm:inline">{t("Share")}</span>
               </button>
             )}
             {workspaceView === "pages" && !notesList && notes.active && notes.activeId && (
               <button type="button" className="notion-icon-button grid" disabled={notes.busy} onClick={() => setHistoryNoteId(notes.activeId)}
                 aria-label={t("Version history")} title={t("Version history")} aria-haspopup="dialog">
-                <History size={20} />
+                <History size={18} />
               </button>
             )}
-            {workspaceView === "pages" && !notesList ? (
-              <span role="status" className={`notes-save-status ${notes.active?.status === "error" || notes.active?.status === "conflict" ? "has-error" : ""}`}>
-                {notes.active ? ({ saved: t("Saved"), pending: t("Saving…"), saving: t("Saving…"), error: t("Not saved"), conflict: t("Conflict") })[notes.active.status] : ""}
+            {workspaceView === "pages" && !notesList && notes.active ? (
+              <span role="status" data-status={notes.active.status} className={`notes-save-status ${notes.active.status === "error" || notes.active.status === "conflict" ? "has-error" : ""}`}>
+                <span className="notes-save-dot" aria-hidden="true" />
+                <span>{({ saved: t("Saved"), pending: t("Saving…"), saving: t("Saving…"), error: t("Not saved"), conflict: t("Conflict") })[notes.active.status]}</span>
               </span>
             ) : null}
             {workspaceView === "pages" && !notesList && activeSummary && (
