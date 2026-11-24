@@ -1138,4 +1138,6 @@ export const ar: Record<string, string> = {
   "Empty page": "صفحة فارغة",
   "Proposed page edit": "تعديل مقترح للصفحة",
   "Applied automatically": "طُبّق تلقائيًا",
+  "Group & organize": "تجميع وتنظيم",
+  "Sent text only this time.": "تم إرسال النص فقط هذه المرة.",
 };

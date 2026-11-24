@@ -1138,4 +1138,6 @@ export const vi: Record<string, string> = {
   "Empty page": "Trang trống",
   "Proposed page edit": "Đề xuất chỉnh sửa trang",
   "Applied automatically": "Đã tự động áp dụng",
+  "Group & organize": "Phân nhóm & sắp xếp",
+  "Sent text only this time.": "Lần này chỉ gửi văn bản.",
 };

@@ -1138,4 +1138,6 @@ export const th: Record<string, string> = {
   "Empty page": "หน้าว่าง",
   "Proposed page edit": "ข้อเสนอการแก้ไขหน้า",
   "Applied automatically": "นำไปใช้อัตโนมัติแล้ว",
+  "Group & organize": "จัดกลุ่มและจัดระเบียบ",
+  "Sent text only this time.": "ครั้งนี้ส่งเฉพาะข้อความเท่านั้น",
 };

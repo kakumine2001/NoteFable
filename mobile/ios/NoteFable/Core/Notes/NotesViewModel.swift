@@ -89,6 +89,7 @@ final class NotesViewModel {
         // 放映也随之结束：新的编辑器没有在放映（否则一直横屏、没有顶栏）。
         if next.open?.editor != state.open?.editor {
             next.storageLimit = nil
+            next.usageLimit = nil
             discardExportFiles(next)
             next.exportFile = nil
             next.exportFileFailed = false
@@ -389,7 +390,17 @@ final class NotesViewModel {
         case .storageLimit(let tier, let used, let limit):
             // 已经关掉或换走的编辑器晚到的消息不收。
             guard state.open?.editor == editor else { break }
-            update { $0.storageLimit = StorageLimitInfo(tier: tier, used: used, limit: limit) }
+            update {
+                $0.usageLimit = nil
+                $0.storageLimit = StorageLimitInfo(tier: tier, used: used, limit: limit)
+            }
+        case .usageLimit(let tier, let kind):
+            // 已经关掉或换走的编辑器晚到的消息不收。
+            guard state.open?.editor == editor else { break }
+            update {
+                $0.storageLimit = nil
+                $0.usageLimit = UsageLimitInfo(tier: tier, kind: kind)
+            }
         case .drawing:
             // iOS 在白板页一直关着边缘返回和抽屉的边缘拖动（NotesUiState.editorCapturesEdgeSwipes），不用按画没画来切换。
             break
@@ -435,6 +446,10 @@ final class NotesViewModel {
 
     func dismissStorageLimit() {
         update { $0.storageLimit = nil }
+    }
+
+    func dismissUsageLimit() {
+        update { $0.usageLimit = nil }
     }
 
     // ---- 编辑器导出的文件（网页 src/lib/export-file.ts） ----

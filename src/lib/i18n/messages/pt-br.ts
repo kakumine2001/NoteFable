@@ -1138,4 +1138,6 @@ export const ptBR: Record<string, string> = {
   "Empty page": "Página vazia",
   "Proposed page edit": "Edição de página proposta",
   "Applied automatically": "Aplicado automaticamente",
+  "Group & organize": "Agrupar e organizar",
+  "Sent text only this time.": "Desta vez, apenas texto foi enviado.",
 };

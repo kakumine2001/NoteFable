@@ -90,6 +90,12 @@ struct ReorderFailure: Equatable, Sendable {
     }
 }
 
+/// 笔记编辑器里的 AI 面板或幻灯片生图撞到使用次数上限（429 usage_limit）时的档位和类别（chat / image）。
+struct UsageLimitInfo: Equatable, Sendable {
+    var tier: String
+    var kind: String
+}
+
 struct NotesUiState: Equatable, Sendable {
     var workspace: Workspace = .chat
     var pages: [NotePageSummary] = [] {
@@ -117,6 +123,8 @@ struct NotesUiState: Equatable, Sendable {
     var notice: NotesError? = nil
     /// 编辑器里的上传因为文件存储空间不够被拒绝（网页经桥发来的 storageLimit）：编辑器上方显示提示，关掉为止。
     var storageLimit: StorageLimitInfo? = nil
+    /// 编辑器里的 AI 面板或幻灯片生图撞到使用次数上限（网页经桥发来的 usageLimit）：编辑器上方显示提示，关掉为止。
+    var usageLimit: UsageLimitInfo? = nil
     /// 编辑器导出、已经收齐的文件（白板的 PNG / SVG / PDF；网页分块送来，[ExportFileAssembler] 拼成临时文件）：
     /// 界面交给系统的“存储到文件”，结束后调 [NotesViewModel.finishExportFile]。换了编辑器就作废。
     var exportFile: ExportedFile? = nil

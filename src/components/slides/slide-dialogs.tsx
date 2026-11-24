@@ -2,11 +2,15 @@
 
 import { LoaderCircle, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { GuestLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
 import { useT } from "@/components/i18n-provider";
+import { useAccount } from "@/lib/account-store";
 import { localizeSystemText } from "@/lib/i18n/translate";
+import { nativeCanShowUsageLimit, postToNative } from "@/lib/native-bridge";
+import { savePendingDraft, takePendingDraft, useKeepDraftOnLeave } from "@/lib/pending-draft";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import { copyChatImage, generateSlideImage, type GenerateSize, type SlideImage } from "@/lib/slides/images";
-import { StorageLimitError } from "@/lib/usage-plans";
+import { StorageLimitError, UsageLimitError } from "@/lib/usage-plans";
 
 // スライドのエディターのダイアログ：チャットの画像から選ぶ・AI で画像を作る・AI の画像を報告する。
 
@@ -72,19 +76,52 @@ const SIZES: { key: GenerateSize; label: string }[] = [
 ];
 
 // AI で画像を作る（生成の回数を 1 回使う。作った画像は note-files に保存され、スライドに置かれる）。
-export function GenerateImageDialog({ onGenerated, onClose }: { onGenerated: (image: SlideImage) => void; onClose: () => void }) {
+export function GenerateImageDialog({ pageId, embedded = false, onGenerated, onClose }: { pageId: string; embedded?: boolean; onGenerated: (image: SlideImage) => void; onClose: () => void }) {
   const t = useT();
-  const [prompt, setPrompt] = useState("");
+  const { account } = useAccount();
+  const draftScope = `slides-image:${pageId}`;
+  const [prompt, setPrompt] = useState(() => takePendingDraft(draftScope));
   const [size, setSize] = useState<GenerateSize>("1536x1024");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [usageLimit, setUsageLimit] = useState<UsageLimitError | null>(null);
+  const limitHitRef = useRef(false);
+  useKeepDraftOnLeave(draftScope, () => (limitHitRef.current ? prompt : null));
+
+  const showGuestPrompt = !embedded && usageLimit?.tier === "guest" && Boolean(account?.configured && !account.user);
+  const showUpgradePrompt = !embedded && usageLimit?.tier === "member" && Boolean(account?.billing && account.user);
+  const limitFallbackMessage = usageLimit && !showGuestPrompt && !showUpgradePrompt ? usageLimit.message : "";
+
   async function submit() {
     if (!prompt.trim() || busy) return;
     setBusy(true);
     setError("");
-    try { onGenerated(await generateSlideImage(prompt.trim(), size)); onClose(); }
-    catch (caught) { if (caught instanceof StorageLimitError) onClose(); else setError(caught instanceof Error ? caught.message : t("Could not create the image. Try again.")); }
-    finally { setBusy(false); }
+    setUsageLimit(null);
+    try {
+      onGenerated(await generateSlideImage(prompt.trim(), size));
+      limitHitRef.current = false;
+      savePendingDraft(draftScope, "");
+      onClose();
+    } catch (caught) {
+      if (caught instanceof StorageLimitError) {
+        onClose();
+      } else if (caught instanceof UsageLimitError) {
+        if (caught.tier !== "pro") limitHitRef.current = true;
+        if (embedded) {
+          if (nativeCanShowUsageLimit()) {
+            postToNative({ type: "usageLimit", tier: caught.tier, kind: "image" });
+          }
+          // 入力途中のプロンプトを残したまま、ダイアログ内にも理由を示す（新アプリはネイティブの案内も上部に出る）。
+          setError(caught.message);
+        } else {
+          setUsageLimit(caught);
+        }
+      } else {
+        setError(caught instanceof Error ? caught.message : t("Could not create the image. Try again."));
+      }
+    } finally {
+      setBusy(false);
+    }
   }
   return <Modal label={t("Generate an image")} onClose={() => { if (!busy) onClose(); }} busy={busy}>
     <form onSubmit={(event) => { event.preventDefault(); void submit(); }}>
@@ -98,7 +135,9 @@ export function GenerateImageDialog({ onGenerated, onClose }: { onGenerated: (im
           {option.key === "1536x1024" ? t("Landscape") : option.key === "1024x1024" ? t("Square") : t("Portrait")}
         </label>)}
       </div>
-      {error && <p role="alert" className="slides-dialog-error">{localizeSystemText(error, t)}</p>}
+      {showGuestPrompt && <GuestLimitPrompt kind="image" onClose={() => setUsageLimit(null)} onBeforeSignIn={() => savePendingDraft(draftScope, prompt)} />}
+      {showUpgradePrompt && <UpgradePrompt kind="image" onClose={() => setUsageLimit(null)} onBeforeUpgrade={() => savePendingDraft(draftScope, prompt)} />}
+      {(error || limitFallbackMessage) && <p role="alert" className="slides-dialog-error">{localizeSystemText(error || limitFallbackMessage, t)}</p>}
       <div className="mt-5 flex justify-end gap-2">
         <button type="button" className="notion-button" disabled={busy} onClick={onClose}>{t("Cancel")}</button>
         <button type="submit" className="notion-button notion-button-primary inline-flex items-center gap-2" disabled={busy || !prompt.trim()}>

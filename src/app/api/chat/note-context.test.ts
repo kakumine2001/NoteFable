@@ -181,4 +181,13 @@ describe("chat requests made from inside a note", () => {
       expect(mocks.fetch).not.toHaveBeenCalled();
     }
   });
+
+  it("tells the model which slides or elements were selected in a slide deck", async () => {
+    mocks.findNote.mockResolvedValue({ id: "deck1", title: "Pitch", kind: "slides" });
+    await send({ noteId: "deck1", noteSelection: "1", selectionIds: JSON.stringify(["el_1", "el_2"]) });
+    const instructions = JSON.parse(mocks.fetch.mock.calls[0][1].body).instructions as string;
+    expect(instructions).toContain("The user is asking from inside their slide deck");
+    expect(instructions).toContain(`selected these slides or elements in it (their IDs as shown by read_note): ${JSON.stringify(["el_1", "el_2"])}`);
+    expect(instructions).toContain("You cannot change it with the tools.");
+  });
 });

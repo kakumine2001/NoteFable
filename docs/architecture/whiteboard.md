@@ -61,9 +61,9 @@
 
 ## 给 AI（#153）留的口
 
-- `WhiteboardEditorHandle.selectionContext()`：当前选中元素的 ID 和其中的文字（绑定文字算到容器上）。
+- `WhiteboardEditorHandle.selectionContext()`：当前选中元素的 ID 和其中的文字（选中框时包含框名及框内元素文字，绑定文字算到容器上）。
 - `aiSlot`：右下角的挂载位置（`.whiteboard-ai-slot`），手机布局下工具栏已经给它让出位置。NotesWorkspace 把页面 AI 面板（#158 的 `PageAssistant`）按钮的位置标记放进来（分屏不放），按钮就停在这里。
-- 还没接上：“就选中的元素问 AI”（`CanvasEditorProps.onAskAi`）。`selectionContext()` 已经有，白板的 AI 操作（#153）时接上。
+- 选区问 AI（`CanvasEditorProps.onAskAi`）：`whiteboard-canvas.tsx` 转发 `handleRef` 与 `onAskAi`；选中元素后顶部浮动条（`.whiteboard-selection-bar`）出现 **Ask AI**，点击时快照选中元素（含框内子元素与绑定文字）并传出 `{ ids, text, captureImage }`。模型支持看图时，`PageAssistant` 通过 `exportWhiteboardSelectionPng`（浅色 PNG，长边 ≤ 1568 px）走常规 `/api/uploads` + `/api/chat` 附带选区图，非视觉模型只发文字，截图失败时降级为纯文字并轻提示「本次仅发送了文字」。锁定白板时仍可通过右下角 AI 按钮就整板提问。
 
 ## 测试
 

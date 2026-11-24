@@ -10,6 +10,9 @@ import type { ProposalChange } from "@/lib/page-ai/types";
 
 export type Tx = Prisma.TransactionClient;
 
+// read_note が 1 回に返す本文の上限（文字数）。超えた分は枠・スライド・末尾の区切りで切る。
+export const MAX_READ_CHARS = 20_000;
+
 // 枠組みがアダプターに渡すページ（持ち主を確かめ、ゴミ箱のものは除いたもの）。
 export type AdapterPage = {
   id: string;

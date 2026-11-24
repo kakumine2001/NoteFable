@@ -2,7 +2,7 @@
 
 import {
   Circle, Diamond, Ellipsis, Eraser, FileDown, FileUp, Frame, Grid3x3, Hand, Highlighter, ImagePlus, Lasso, LocateFixed, Magnet, Map as MapIcon,
-  Maximize, Minus, MousePointer2, MoveUpRight, Pen, Redo2, Square, StickyNote, Type, Undo2, Wand2, ZoomIn, ZoomOut, Link2, PenTool, Palette, LockOpen,
+  Maximize, Minus, MousePointer2, MoveUpRight, Pen, Redo2, Sparkles, Square, StickyNote, Type, Undo2, Wand2, ZoomIn, ZoomOut, Link2, PenTool, Palette, LockOpen,
 } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { AnswerMenu } from "@/components/answer-actions";
@@ -91,6 +91,7 @@ export type WhiteboardChromeProps = {
   onFitToContent: () => void;
   onCanvasBackground: (color: string) => void;
   onPenMode: (penMode: boolean) => void;
+  onAskAi?: () => void;
   minimapOpen: boolean;
   onToggleMinimap: () => void;
   // 表示中の範囲に図形が 1 つも無いとき「内容に戻る」を出す。
@@ -112,6 +113,14 @@ export function WhiteboardChrome(props: WhiteboardChromeProps) {
       actions={props.actions} onLink={props.onLink} onOpenLink={props.onOpenLink} />}
     {editable && ui.editingText && <WhiteboardStylePanel ui={ui} drawMode={props.drawMode} compact={compact} theme={props.theme} actions={props.actions} onLink={props.onLink} onOpenLink={props.onOpenLink} textOnly />}
     <WhiteboardZoomBar {...props} />
+    {ui.selectedCount > 0 && !ui.editingText && props.onAskAi && (
+      <div className="whiteboard-selection-bar" role="toolbar" aria-label={t("Selection")}>
+        <button type="button" className="whiteboard-ask-ai" onClick={props.onAskAi} title={t("Ask AI")}>
+          <Sparkles size={15} aria-hidden="true" />
+          <span>{t("Ask AI")}</span>
+        </button>
+      </div>
+    )}
     {props.minimapOpen && props.minimap}
     {editable && ui.lockedTarget && <button type="button" className="whiteboard-unlock" onClick={() => props.onUnlock(ui.lockedTarget!)}>
       <LockOpen size={15} aria-hidden="true" /><span>{t("Unlock")}</span>

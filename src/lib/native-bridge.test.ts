@@ -272,6 +272,18 @@ describe("file save capability", () => {
   });
 });
 
+describe("usage limit capability", () => {
+  it("reports canShowUsageLimit only when declared and posts usageLimit payload", async () => {
+    const { nativeCanShowUsageLimit } = await import("./native-bridge");
+    const postMessage = vi.fn();
+    expect(nativeCanShowUsageLimit({ NoteFableNative: { postMessage, canShowUsageLimit: () => true } })).toBe(true);
+    expect(nativeCanShowUsageLimit({ NoteFableNative: { postMessage } })).toBe(false);
+    expect(nativeCanShowUsageLimit({ NoteFableNative: { postMessage, canShowUsageLimit: () => { throw new Error("gone"); } } })).toBe(false);
+    expect(postToNative({ type: "usageLimit", tier: "guest", kind: "chat" }, { NoteFableNative: { postMessage } })).toBe(true);
+    expect(JSON.parse(postMessage.mock.calls[0][0])).toEqual({ type: "usageLimit", tier: "guest", kind: "chat" });
+  });
+});
+
 describe("embed persistent page switching bridge", () => {
   it("parses openPage requests, handles close, and forwards pageTrashed ids", () => {
     const openPage = vi.fn();

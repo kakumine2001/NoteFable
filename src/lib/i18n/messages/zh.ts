@@ -1147,4 +1147,6 @@ export const zh: Record<string, string> = {
   "Empty page": "空白页面",
   "Proposed page edit": "页面修改建议",
   "Applied automatically": "已自动应用",
+  "Group & organize": "归类整理",
+  "Sent text only this time.": "本次仅发送了文字。",
 };

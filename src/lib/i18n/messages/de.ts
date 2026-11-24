@@ -1138,4 +1138,6 @@ export const de: Record<string, string> = {
   "Empty page": "Leere Seite",
   "Proposed page edit": "Vorgeschlagene Seitenänderung",
   "Applied automatically": "Automatisch übernommen",
+  "Group & organize": "Gruppieren und ordnen",
+  "Sent text only this time.": "Dieses Mal wurde nur Text gesendet.",
 };

@@ -13,6 +13,9 @@ import com.kakumine.notefable.data.formatStorageSize
 /** 文件存储空间不够、新的上传被拒绝（413 storage_limit）时的档位和用量（字节）。 */
 data class StorageLimitInfo(val tier: String, val used: Long, val limit: Long)
 
+/** 笔记编辑器里的 AI 面板或幻灯片生图撞到使用次数上限（429 usage_limit）时的档位和类别（chat / image）。 */
+data class UsageLimitInfo(val tier: String, val kind: String)
+
 /** 413 storage_limit 时的提示信息；别的错误是 null。 */
 fun Throwable.storageLimitInfo(): StorageLimitInfo? =
     (this as? ApiException)?.takeIf { it.isStorageLimit }?.let { StorageLimitInfo(it.tier ?: "guest", it.used ?: 0, it.limit ?: 0) }

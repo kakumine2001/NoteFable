@@ -1138,4 +1138,6 @@ export const hi: Record<string, string> = {
   "Empty page": "खाली पेज",
   "Proposed page edit": "पेज संपादन का सुझाव",
   "Applied automatically": "अपने आप लागू किया गया",
+  "Group & organize": "समूह बनाएं और व्यवस्थित करें",
+  "Sent text only this time.": "इस बार केवल टेक्स्ट भेजा गया।",
 };

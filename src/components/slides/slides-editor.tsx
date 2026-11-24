@@ -39,7 +39,8 @@ import type { ExportFormat } from "@/lib/slides/export-files";
 import { useSlideCapture } from "@/components/slides/slide-capture";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { StorageLimitError } from "@/lib/usage-plans";
-import { SLIDES_EVENTS, type SlidesSelectionDetail } from "@/lib/slides/ai-context";
+import { SLIDES_EVENTS, slidesContextText, slidesSelectionIds, type SlidesSelectionDetail } from "@/lib/slides/ai-context";
+import { captureSlideSelectionPng } from "@/lib/slides/selection-capture";
 
 // スライドのエディター（Figma Slides 式）。総覧（行 = 章）と単ページ編集、版式・主題、自由配置、放映、書き出し。
 // 保存は NotesWorkspace の保存キューが受け持つ（変わった本体を onChange で渡す）。取り消し・やり直しはこの中で持つ。
@@ -57,7 +58,7 @@ function isTypingTarget(target: EventTarget | null) {
 const MOD = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
 
 // aiSlot: AI の面板（#150）を置く場所。単ページ編集の面の右下（スマホでは縮小図の帯の上）に重ねて出す。
-export default function SlidesEditor({ pageId, title, data, version, editable, embedded, onChange, onTitleChange, aiSlot }: CanvasEditorProps & { aiSlot?: ReactNode }) {
+export default function SlidesEditor({ pageId, title, data, version, editable, embedded, onChange, onTitleChange, onAskAi, aiSlot }: CanvasEditorProps & { aiSlot?: ReactNode }) {
   const t = useT();
   const phone = useMediaQuery("(max-width: 640px)");
   // 作ったばかりで中身の無いスライドは、最初の 1 枚（標題）を入れて始める（作成の続き。開いただけで書き換えるのはこの時だけ）。
@@ -107,6 +108,9 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   const [menu, setMenu] = useState<{ x: number; y: number; kind: "element" | "slide"; slideId?: string } | null>(null);
   const [notice, setNotice] = useState("");
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
+  const exportingRef = useRef(false);
+  useLayoutEffect(() => { exportingRef.current = Boolean(exporting); }, [exporting]);
+  const captureBusyRef = useRef(false);
   const [notesOpen, setNotesOpen] = useState(true);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const commandsRef = useRef<TextCommands | null>(null);
@@ -155,6 +159,44 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     const detail: SlidesSelectionDetail = { pageId, slideIds: view === "grid" ? [...selectedSlides] : current ? [current.id] : [], elementIds: [...liveSelection] };
     window.dispatchEvent(new CustomEvent<SlidesSelectionDetail>(SLIDES_EVENTS.selection, { detail }));
   }, [pageId, view, selectedSlides, current, liveSelection]);
+
+  // 選んだスライドや要素について AI に聞く（ロック中のスライドからも利用可能）。
+  const askAi = useCallback((override?: { slideIds?: string[]; elementIds?: string[] }) => {
+    if (!onAskAi) return;
+    const rawSlideIds = override?.slideIds
+      ?? (view === "grid"
+        ? deck.slides.filter((slide) => selectedSlides.has(slide.id)).map((slide) => slide.id)
+        : current ? [current.id] : []);
+    const slideIds = rawSlideIds.length ? rawSlideIds : current ? [current.id] : [];
+    if (!slideIds.length) return;
+    const elementIds = override?.elementIds !== undefined
+      ? override.elementIds
+      : view === "slide" ? [...liveSelection] : [];
+    const sel = { slideIds, elementIds };
+    const text = slidesContextText(deck, sel);
+    const ids = slidesSelectionIds(deck, sel);
+    // 複数枚選択時はアクティブな枚（なければ先頭）をスナップショットして画像キャプチャに使う。
+    const targetSlide = (current && slideIds.includes(current.id) ? current : deck.slides.find((slide) => slideIds.includes(slide.id))) ?? null;
+    const slideSnapshot = targetSlide ? { ...targetSlide, elements: targetSlide.elements.map((el) => ({ ...el })) } : null;
+    const themeSnapshot = theme;
+    const targetElementIds = slideSnapshot
+      ? elementIds.filter((id) => slideSnapshot.elements.some((el) => el.id === id))
+      : [];
+    const captureImage = slideSnapshot
+      ? async () => {
+        if (exportingRef.current || captureBusyRef.current) return null;
+        captureBusyRef.current = true;
+        try {
+          return await captureSlideSelectionPng(capture, slideSnapshot, themeSnapshot, targetElementIds);
+        } finally {
+          captureBusyRef.current = false;
+        }
+      }
+      : undefined;
+    // スマホでは設定シートが開いたままだと AI 引き出しと重なるため閉じる。
+    if (phone) { setInspectorOpen(false); setSelection(new Set()); }
+    onAskAi({ text, ids, captureImage });
+  }, [onAskAi, view, deck, selectedSlides, current, liveSelection, theme, capture, phone]);
 
   // ---- 枚の操作 ----
   const addSlide = useCallback((layout: LayoutId = "bullets", index?: number) => {
@@ -336,7 +378,7 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
 
   // ---- 書き出し・放映 ----
   const runExport = async (format: ExportFormat) => {
-    if (exporting) return;
+    if (exporting || captureBusyRef.current) return;
     // PDF・PNG は隠した枚を入れない。見せる枚が無ければ空のファイルを作らない。
     if (!deck.slides.length || (format !== "pptx" && !deck.slides.some((slide) => !slide.hidden))) { setNotice(t("This deck has no slides to show.")); return; }
     // 書き出しを始めた時点のページの番号。読み込みを待つ間にアプリが別のページへ切り替えたら、前のページのファイルを渡さない。
@@ -527,6 +569,13 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
       <button type="button" className="slides-tool" onClick={redo} disabled={!history.future.length} aria-label={t("Redo")} title={`${t("Redo")} (${MOD}Shift+Z)`}><Redo2 size={18} className="rtl-mirror" /></button>
     </div>}
     <span className="slides-toolbar-spacer" />
+    {onAskAi && deck.slides.length > 0 && (
+      <button type="button" className={`slides-tool slides-ask-ai${liveSelection.size > 0 || (view === "grid" && selectedSlides.size > 0) ? " is-highlighted" : ""}`}
+        onClick={() => askAi()} aria-label={t("Ask AI")} title={t("Ask AI")}>
+        <Sparkles size={15} aria-hidden="true" />
+        {!phone && <span>{t("Ask AI")}</span>}
+      </button>
+    )}
     <MenuButton label={t("Export")} icon={<Download size={18} />} disabled={!deck.slides.length || !!exporting} text={exporting ? <span className="slides-tool-busy" aria-hidden="true" /> : null}>
       {(close) => <>
         <MenuItem icon={<FileText size={16} />} label={t("Export PDF")} onClick={() => { close(); void runExport("pdf"); }} />
@@ -552,7 +601,8 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   const textCommands = editingId ? commandsRef.current : null;
   const inspector = current && view === "slide" ? <SlideInspector slide={current} selection={liveSelection} theme={theme} editable={editable}
     onChange={(next, merge) => commitSlide(next, merge)} onReplaceImage={(id) => requestImage(id)} onReportImage={(id) => setDialog({ kind: "report", target: id })}
-    onDelete={deleteSelection} onLayout={setLayout} onToggleHidden={() => commit(setHidden(deck, new Set([current.id]), !current.hidden))} /> : null;
+    onDelete={deleteSelection} onLayout={setLayout} onToggleHidden={() => commit(setHidden(deck, new Set([current.id]), !current.hidden))}
+    onAskAi={onAskAi ? () => askAi() : undefined} /> : null;
 
   return <SlideRenderRoot theme={theme} mode="view">
     <div ref={root} className={`slides-editor${phone ? " is-phone" : ""}${embedded ? " is-embedded" : ""}`} onKeyDown={onKeyDown} data-theme-mode={theme.mode}>
@@ -615,6 +665,7 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
       <input ref={fileInput} type="file" accept={SLIDE_IMAGE_TYPES.join(",")} multiple className="sr-only" tabIndex={-1} aria-hidden="true"
         onChange={(event) => { const files = Array.from(event.target.files ?? []); event.target.value = ""; if (files.length) void uploadFiles(files, imageTarget.current); }} />
       {menu?.kind === "element" && current && <PointMenu x={menu.x} y={menu.y} label={selectedElement ? t(ELEMENT_LABELS[selectedElement.type]) : t("Selection")} onClose={() => setMenu(null)}>
+        {onAskAi && <MenuItem icon={<Sparkles size={16} />} label={t("Ask AI")} onClick={() => { setMenu(null); askAi(); }} />}
         <MenuItem icon={<Scissors size={16} />} label={t("Cut")} shortcut={`${MOD}X`} disabled={!editable} onClick={() => { copyFromMenu(true); setMenu(null); }} />
         <MenuItem icon={<Copy size={16} />} label={t("Copy")} shortcut={`${MOD}C`} onClick={() => { copyFromMenu(false); setMenu(null); }} />
         <MenuItem icon={<Clipboard size={16} />} label={t("Paste")} shortcut={`${MOD}V`} disabled={!editable || !clipboard.current} onClick={() => { setMenu(null); const parsed = clipboard.current ? parseClipboard(clipboard.current) : null; if (parsed?.elements.length) insertElements(parsed.elements); }} />
@@ -625,6 +676,7 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
         <MenuItem icon={<Trash2 size={16} />} label={t("Delete")} danger disabled={!editable} onClick={() => { setMenu(null); deleteSelection(); }} />
       </PointMenu>}
       {menu?.kind === "slide" && <PointMenu x={menu.x} y={menu.y} label={t("Slide")} onClose={() => setMenu(null)}>
+        {onAskAi && <MenuItem icon={<Sparkles size={16} />} label={t("Ask AI")} onClick={() => { const targets = [...slideTargets()]; setMenu(null); askAi({ slideIds: targets, elementIds: [] }); }} />}
         <MenuItem icon={<Plus size={16} />} label={t("New slide")} shortcut={`${MOD}M`} disabled={!editable} onClick={() => { setMenu(null); addSlide(); }} />
         <MenuItem icon={<Copy size={16} />} label={t("Duplicate")} disabled={!editable} onClick={() => { setMenu(null); duplicateSelectedSlides(); }} />
         <MenuItem icon={deck.slides.some((slide) => slideTargets().has(slide.id) && !slide.hidden) ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -636,7 +688,7 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
         <MenuItem icon={<Trash2 size={16} />} label={t("Delete")} danger disabled={!editable} onClick={() => { setMenu(null); deleteSelectedSlides(); }} />
       </PointMenu>}
       {dialog?.kind === "chat" && <ChatImagesDialog onClose={() => setDialog(null)} onPicked={(image) => placeImage(image, dialog.target)} />}
-      {dialog?.kind === "generate" && <GenerateImageDialog onClose={() => setDialog(null)} onGenerated={(image) => placeImage(image, dialog.target)} />}
+      {dialog?.kind === "generate" && <GenerateImageDialog pageId={pageId} embedded={embedded} onClose={() => setDialog(null)} onGenerated={(image) => placeImage(image, dialog.target)} />}
       {dialog?.kind === "report" && <ReportImageDialog pageId={pageId} elementId={dialog.target} onClose={() => setDialog(null)} />}
       {presenting && <SlidePlayer deck={deck} startId={presenting.startId} onExit={() => setPresenting(null)} allowPresenter={!embedded && !phone} fullscreen={!embedded}
         controlRef={playerControl}

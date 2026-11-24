@@ -13,11 +13,11 @@ import { buildSearchSnippet, foldSearchText, likePattern } from "@/lib/search-fo
 import { discardStoredFiles } from "@/lib/stored-files";
 import { parseSearchTerms } from "@/types/search";
 import { fmt, msg } from "@/lib/i18n/translate";
-import { AdapterError, type AdapterContext, type AdapterPage, type PageAdapter } from "@/lib/page-ai/adapter";
+import { AdapterError, MAX_READ_CHARS, type AdapterContext, type AdapterPage, type PageAdapter } from "@/lib/page-ai/adapter";
 import { applyProposal, proposalView, saveProposal, type ProposalView } from "@/lib/page-ai/proposals";
 import { adapterFor, allAdapters } from "@/lib/page-ai/registry";
 
-export { blocksToMarkdown, likePattern };
+export { blocksToMarkdown, likePattern, MAX_READ_CHARS };
 
 // AI 操控底座のツール（docs/architecture/chat-flow.md の「AI 操控底座」）。定義はプロバイダー非依存の JSON Schema で 1 つだけ持ち、
 // 各プロバイダーの形式への変換は送信直前（anthropic-messages.ts / responses-tool-loop.ts）で行う。
@@ -51,7 +51,7 @@ const LIST_TOOL: ToolDefinition = {
 
 const READ_TOOL: ToolDefinition = {
   name: "read_note",
-  description: "Read one of the user's pages in their NoteFable Workspace. Use an ID returned by search_notes or list_pages. Shows the page kind and version. A note comes back as Markdown where every block starts with its number like [3]; propose_note_edit refers to blocks by these numbers and needs the version shown here. A whiteboard or slide deck comes back as its text, with the IDs of its elements or slides.",
+  description: "Read one of the user's pages in their NoteFable Workspace. Use an ID returned by search_notes or list_pages. Shows the page kind and version. A note comes back as Markdown where every block starts with its number like [3]; propose_note_edit refers to blocks by these numbers and needs the version shown here. A whiteboard comes back with its frames, elements (with IDs, types, text, groups, page links) and arrow/line connections; a slide deck comes back with its theme, sections, slides (with stable slide IDs, layouts, elements with IDs/roles, tables, image descriptions and speaker notes).",
   parameters: {
     type: "object",
     properties: { noteId: { type: "string", description: "The page ID from search_notes or list_pages." } },
@@ -100,7 +100,6 @@ export type ToolContext = AdapterContext & { autoApply?: boolean; panelPageId?: 
 
 const SEARCH_RESULT_LIMIT = 10;
 const LIST_LIMIT = 50;
-export const MAX_READ_CHARS = 20_000;
 
 type SearchRow = { id: string; kind: string; title: string; updatedAt: Date; body: string | null };
 

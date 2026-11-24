@@ -100,13 +100,20 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     // 笔记编辑器里上传因存储空间不够被拒绝（网页经桥发来的 storageLimit）：编辑器上方显示提示，关掉为止。
     // 记下是哪个编辑器的提示：只在那个编辑器上显示，换笔记、关掉编辑器时清掉（晚到的旧编辑器的消息不收）。
     var noteStorageLimit by remember { mutableStateOf<Pair<String, StorageLimitInfo>?>(null) }
+    // 笔记编辑器里 AI 面板或幻灯片生图撞到使用次数上限（网页经桥发来的 usageLimit）：和 storageLimit 共用编辑器上方提示槽，互斥显示。
+    var noteUsageLimit by remember { mutableStateOf<Pair<String, UsageLimitInfo>?>(null) }
     // 白板正在用画图工具的编辑器（网页经桥发来的 drawing 为 true）：只在那个编辑器上让开两侧的返回手势。
     // 同样只认打开着的编辑器发来的，换笔记、关掉编辑器时清掉。
     var drawingEditor by remember { mutableStateOf<String?>(null) }
     val openEditor = notes.open?.editor
     LaunchedEffect(openEditor) {
         if (noteStorageLimit?.first != openEditor) noteStorageLimit = null
+        if (noteUsageLimit?.first != openEditor) noteUsageLimit = null
         if (drawingEditor != openEditor) drawingEditor = null
+    }
+    LaunchedEffect(account.user) {
+        noteStorageLimit = null
+        noteUsageLimit = null
     }
     // 白板开着（类型和编辑页顶栏一样：列表里有这一篇就用列表的，否则用打开时知道的）：横向拖动是在画布上画 / 平移，
     // 不从边上拉出抽屉（菜单按钮照常打开）；抽屉开着时照常能拖回去、点遮罩关上。
@@ -471,7 +478,12 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                             EmbedMessage.Trashed -> notesViewModel.onEditorTrashed(editor)
                             is EmbedMessage.OpenPage -> notesViewModel.openNoteFromLink(message.id)
                             is EmbedMessage.StorageLimit -> if (notesViewModel.state.value.open?.editor == editor) {
+                                noteUsageLimit = null
                                 noteStorageLimit = editor to StorageLimitInfo(message.tier, message.used, message.limit)
+                            }
+                            is EmbedMessage.UsageLimit -> if (notesViewModel.state.value.open?.editor == editor) {
+                                noteStorageLimit = null
+                                noteUsageLimit = editor to UsageLimitInfo(message.tier, message.kind)
                             }
                             is EmbedMessage.Drawing -> if (notesViewModel.state.value.open?.editor == editor) {
                                 drawingEditor = editor.takeIf { message.active }
@@ -507,13 +519,35 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         onTrash = { notes.pages.firstOrNull { it.id == open.id }?.let { dialog = NotesDialogState.TrashNote(it) } },
                     ),
                     onShare = { dialog = NotesDialogState.Share(open.id, notes.pages.firstOrNull { it.id == open.id }?.kind ?: open.kind) },
-                    prompt = noteStorageLimit?.takeIf { it.first == open.editor }?.let { (_, limit) ->
+                    prompt = noteStorageLimit?.takeIf { it.first == open.editor }?.let<Pair<String, StorageLimitInfo>, @Composable () -> Unit> { (_, limit) ->
                         {
                             // 登录成功后编辑器会关掉（身份变了），提示随之消失；取消登录时提示留着。
                             StorageLimitPrompt(
                                 limit = limit, account = account, attachmentsLost = false,
                                 onSignIn = openSignIn, onClose = { noteStorageLimit = null },
                             )
+                        }
+                    } ?: noteUsageLimit?.takeIf { it.first == open.editor }?.let { (_, usage) ->
+                        when {
+                            usage.tier == "guest" && account.configured && account.user == null -> {
+                                {
+                                    GuestLimitPrompt(
+                                        kind = usage.kind,
+                                        attachmentsLost = false,
+                                        onSignIn = openSignIn,
+                                        onClose = { noteUsageLimit = null },
+                                    )
+                                }
+                            }
+                            usage.tier == "member" && account.user != null -> {
+                                {
+                                    UpgradeLimitPrompt(
+                                        kind = usage.kind,
+                                        onClose = { noteUsageLimit = null },
+                                    )
+                                }
+                            }
+                            else -> null
                         }
                     },
                 )

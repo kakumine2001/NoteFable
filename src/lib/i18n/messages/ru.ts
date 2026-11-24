@@ -1138,4 +1138,6 @@ export const ru: Record<string, string> = {
   "Empty page": "Пустая страница",
   "Proposed page edit": "Предложенная правка страницы",
   "Applied automatically": "Применено автоматически",
+  "Group & organize": "Сгруппировать и упорядочить",
+  "Sent text only this time.": "В этот раз отправлен только текст.",
 };

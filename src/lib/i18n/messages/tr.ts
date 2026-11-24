@@ -1138,4 +1138,6 @@ export const tr: Record<string, string> = {
   "Empty page": "Boş sayfa",
   "Proposed page edit": "Sayfa düzenleme önerisi",
   "Applied automatically": "Otomatik uygulandı",
+  "Group & organize": "Grupla ve düzenle",
+  "Sent text only this time.": "Bu sefer yalnızca metin gönderildi.",
 };

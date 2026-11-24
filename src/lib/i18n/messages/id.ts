@@ -1138,4 +1138,6 @@ export const id: Record<string, string> = {
   "Empty page": "Halaman kosong",
   "Proposed page edit": "Usulan edit halaman",
   "Applied automatically": "Diterapkan otomatis",
+  "Group & organize": "Kelompokkan & rapikan",
+  "Sent text only this time.": "Kali ini hanya teks yang dikirim.",
 };

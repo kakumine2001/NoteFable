@@ -24,6 +24,8 @@ struct GuestLimitPrompt: View {
     private let onClose: (() -> Void)?
     /// 存储空间不够的提示（网页 StorageLimitPrompt）：标题和说明换成存储空间的，图标是 HardDrive。
     private let storage: StorageLimitInfo?
+    /// 笔记编辑器 WebView 发来的使用次数上限（网页 usageLimit）：未登录给登录按钮，已登录免费会员只读说明（iOS 暂无内购）。
+    private let usage: UsageLimitInfo?
 
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router
@@ -45,6 +47,7 @@ struct GuestLimitPrompt: View {
         self.attachmentsLost = attachmentsLost
         self.onClose = onClose
         self.storage = nil
+        self.usage = nil
     }
 
     /// 上传（或生成图片）因为文件存储空间不够被拒绝时（网页 StorageLimitPrompt）：总是说明原因和用量；
@@ -55,28 +58,55 @@ struct GuestLimitPrompt: View {
         self.attachmentsLost = attachmentsLost
         self.onClose = onClose
         self.storage = storage
+        self.usage = nil
     }
 
-    /// 有"登录"按钮（次数上限的提示总是有；存储空间的只在未登录、服务端开了登录时）。
+    /// 笔记编辑器里的 AI 面板或幻灯片生图撞到使用次数上限（网页经桥发来的 usageLimit）：
+    /// 未登录且服务端开了登录时显示"登录"；已登录免费会员只读提示（iOS 暂无内购升级入口）。
+    init(usage: UsageLimitInfo, attachmentsLost: Bool, onClose: (() -> Void)? = nil) {
+        self.kind = usage.kind
+        self.attachmentsLost = attachmentsLost
+        self.onClose = onClose
+        self.storage = nil
+        self.usage = usage
+    }
+
+    /// 有"登录"按钮（聊天未登录次数上限总是有；存储空间或编辑器 usageLimit 只在未登录、服务端开了登录时）。
     private var offersSignIn: Bool {
-        guard let storage else { return true }
         let account = app.account.state
-        return storage.tier == "guest" && account.configured && account.user == nil
+        if let storage {
+            return storage.tier == "guest" && account.configured && account.user == nil
+        }
+        if let usage {
+            return usage.tier == "guest" && account.configured && account.user == nil
+        }
+        return true
     }
 
     private var titleText: String {
         storage != nil ? L("storage_limit_title") : L(kind == "image" ? "guest_limit_title_image" : "guest_limit_title_chat")
     }
 
-    private var bodyText: String {
+    private var bodyText: String? {
         let limits = app.usageLimits?.member ?? UsageLimit(chat: 0, image: 0)
-        guard let storage else { return L("guest_limit_body", limits.chat, limits.image) }
-        let locale = Locale(identifier: AppLanguage.acceptLanguage(AppLanguage.uiLocale))
-        var lines = [L("storage_limit_used", formatStorageSize(storage.used, locale: locale), formatStorageSize(storage.limit, locale: locale))]
-        if offersSignIn, let member = limits.storage, member > 0 {
-            lines.append(L("storage_limit_sign_in", formatStorageSize(member, locale: locale)))
+        if let storage {
+            let locale = Locale(identifier: AppLanguage.acceptLanguage(AppLanguage.uiLocale))
+            var lines = [L("storage_limit_used", formatStorageSize(storage.used, locale: locale), formatStorageSize(storage.limit, locale: locale))]
+            if offersSignIn, let member = limits.storage, member > 0 {
+                lines.append(L("storage_limit_sign_in", formatStorageSize(member, locale: locale)))
+            }
+            return lines.joined(separator: "\n")
         }
-        return lines.joined(separator: "\n")
+        if let usage {
+            if offersSignIn {
+                return L("guest_limit_body", limits.chat, limits.image)
+            }
+            if usage.tier == "member", usage.kind == "chat" {
+                return app.systemText.localize("You've used today's free messages. Try again tomorrow.")
+            }
+            return nil
+        }
+        return L("guest_limit_body", limits.chat, limits.image)
     }
 
     /// 说明下面的补充：存储空间的提示先说"删掉不要的文件"，登录会丢附件时再加一句。
@@ -106,12 +136,14 @@ struct GuestLimitPrompt: View {
                     .nfLineHeight(21, fontSize: 15)
                     .foregroundStyle(Sm.ink)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(bodyText)
-                    .font(.nf(13.5))
-                    .nfLineHeight(20.925, fontSize: 13.5)
-                    .foregroundStyle(Sm.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 2)
+                if let bodyText, !bodyText.isEmpty {
+                    Text(bodyText)
+                        .font(.nf(13.5))
+                        .nfLineHeight(20.925, fontSize: 13.5)
+                        .foregroundStyle(Sm.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 2)
+                }
                 ForEach(noteLines, id: \.self) { line in
                     Text(line)
                         .font(.nf(13.5))
@@ -193,6 +225,8 @@ struct GuestLimitPrompt: View {
             onClose()
         } else if storage != nil {
             app.chat.dismissStorageLimit()
+        } else if usage != nil {
+            app.notes.dismissUsageLimit()
         } else {
             app.chat.dismissGuestLimit()
         }

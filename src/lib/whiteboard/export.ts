@@ -4,6 +4,7 @@ import type { NonDeletedExcalidrawElement, ExcalidrawFrameLikeElement } from "@e
 import { msg } from "@/lib/i18n/translate";
 import { buildPdf, isBlankRgb, rgbaToRgb, type PdfImage, type PdfPage } from "@/lib/whiteboard/pdf-writer";
 import { boundsRelation, exportFileName, planPdfPages, type FrameRelation, type PdfPagePlan, type WhiteboardExportFormat } from "@/lib/whiteboard/export-utils";
+import { clampImageDimensions, MAX_SELECTION_IMAGE_SIDE, selectionImageScale } from "@/lib/whiteboard/selection-capture";
 
 export type { WhiteboardExportFormat };
 
@@ -165,4 +166,47 @@ export async function exportWhiteboard(api: ExcalidrawImperativeAPI, format: Whi
   if (!pages.length) pages.push((await renderPdfPage(api, { kind: "all" }, elements, files, background))!);
   const bytes = buildPdf(pages, { title: title === "Untitled" ? undefined : title });
   return { blob: new Blob([bytes as BlobPart], { type: mimeType }), fileName, mimeType };
+}
+
+export type WhiteboardSelectionSnapshot = {
+  elements: readonly NonDeletedExcalidrawElement[];
+  files: BinaryFiles;
+  viewBackgroundColor: string;
+};
+
+// 選んだ要素だけを浅色 PNG（長辺 <= 1568px）として書き出す（AI の選区視覚入力、D5）。
+export async function exportWhiteboardSelectionPng(snapshot: WhiteboardSelectionSnapshot): Promise<Blob | null> {
+  const elements = snapshot.elements.filter((element) => !isInvisiblySmallElement(element));
+  if (!elements.length) return null;
+  let canvas: HTMLCanvasElement | null = null;
+  let scaledCanvas: HTMLCanvasElement | null = null;
+  try {
+    canvas = await exportScene({
+      type: "canvas",
+      data: { elements, files: snapshot.files, appState: { viewBackgroundColor: snapshot.viewBackgroundColor } } as Parameters<typeof exportScene>[0]["data"],
+      config: { padding: 24, theme: "light", scale: (width: number, height: number) => selectionImageScale(width, height, MAX_SELECTION_IMAGE_SIDE, 2) },
+    });
+    if (!canvas.width || !canvas.height) return null;
+    const clamped = clampImageDimensions(canvas.width, canvas.height, MAX_SELECTION_IMAGE_SIDE);
+    let output = canvas;
+    if (clamped.scaled) {
+      scaledCanvas = document.createElement("canvas");
+      scaledCanvas.width = clamped.width;
+      scaledCanvas.height = clamped.height;
+      const ctx = scaledCanvas.getContext("2d");
+      if (!ctx) return null;
+      ctx.drawImage(canvas, 0, 0, clamped.width, clamped.height);
+      output = scaledCanvas;
+    }
+    return await new Promise<Blob | null>((resolve) => {
+      try {
+        output.toBlob((blob) => resolve(blob && blob.size > 0 ? blob : null), "image/png");
+      } catch {
+        resolve(null);
+      }
+    });
+  } finally {
+    if (canvas) { canvas.width = 0; canvas.height = 0; }
+    if (scaledCanvas) { scaledCanvas.width = 0; scaledCanvas.height = 0; }
+  }
 }

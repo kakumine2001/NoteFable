@@ -80,7 +80,7 @@
 ## 与其他功能的接口
 
 - **白板（#152）**：`src/lib/slides/whiteboard-embed.tsx`。白板端调用 `registerWhiteboardFrameProvider({ renderPicker })` 注册“选框并转成图片”的组件后，幻灯片工具栏才出现“白板框”按钮；选中的框由白板端上传成 note-files 后通过 `onPick({ pageId, frameId, frameName, src, width, height })` 交回，幻灯片里放的是那一刻的静态图（`whiteboard` 元素）。没注册时不显示按钮。
-- **AI（#150 / #158）**：编辑器在选择变化时发 `notefable:slides-selection`（`{ pageId, slideIds, elementIds }`），`slidesContextText(deck, selection)` 把所选页 / 元素变成给 AI 看的文字（页码、章、文字、备注）。编辑器的 `aiSlot` 属性（`ReactNode`，`CanvasEditorProps.aiSlot`）放在单页编辑画面的右下（`.slides-ai-slot`）：#158 的 AI 按钮没被拖动过时就放在这里（`NotesWorkspace` 放一个看不见的目印，`PageAssistant` 的 `anchor`），重叠顺序和这个位置一样（z-index 5），所以手机的设置面板和菜单会盖住它。AI 编辑幻灯片的工具在 #150 做。
+- **AI（#150 / #158）**：编辑器在选择变化时发 `notefable:slides-selection`（`{ pageId, slideIds, elementIds }`），并接入 `CanvasEditorProps.onAskAi`（工具栏、右侧检查器（置于锁页禁用的 `<fieldset>` 外以便锁页可问）及元素 / 幻灯片右键菜单均提供 **Ask AI**）。`slidesContextText(deck, selection, options?)` 把所选页 / 元素变成给 AI 看的文字（仅选中整页或显式 `includeNotes: true` 时附带演讲备注；仅选中个别元素时不自动带入整页备注），`slidesSelectionIds(deck, selection)` 生成与 `read_note` 对齐的稳定 ID。模型支持看图时，通过 `slide-capture.tsx` + `captureSlideSelectionPng` 导出当前选中页或选中元素外接区域的浅色/主题 PNG（长边 ≤ 1568 px）随对话上传，失败时降级发纯文字并轻提示。`GenerateImageDialog` 遇到 429 `usage_limit` 时保留已输入的描述词（并在登录 / 升级跳转间用 `pending-draft` 暂存）：网页端显示 `GuestLimitPrompt` / `UpgradePrompt`，`/note-embed` 优先发 `usageLimit` 交由原生处理。编辑器的 `aiSlot` 属性（`ReactNode`，`CanvasEditorProps.aiSlot`）放在单页编辑画面的右下（`.slides-ai-slot`）：#158 的 AI 按钮没被拖动过时就放在这里（`NotesWorkspace` 放一个看不见的目印，`PageAssistant` 的 `anchor`），重叠顺序和这个位置一样（z-index 5），所以手机的设置面板和菜单会盖住它。AI 编辑幻灯片的工具在后续 PR 做。
 
 ## 已知限制
 

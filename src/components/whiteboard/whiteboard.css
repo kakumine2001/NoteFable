@@ -35,6 +35,7 @@
 .whiteboard-panel,
 .whiteboard-back-to-content,
 .whiteboard-unlock,
+.whiteboard-selection-bar,
 .whiteboard-busy,
 .whiteboard-minimap {
   background: var(--wb-surface);
@@ -317,6 +318,43 @@ button.whiteboard-zoom-value:hover { background: var(--notion-hover); }
 }
 .whiteboard-back-to-content:hover,
 .whiteboard-unlock:hover { background: var(--notion-hover); }
+.whiteboard-selection-bar {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px;
+  transform: translateX(-50%);
+}
+.whiteboard-ask-ai {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding-inline: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--notion-blue);
+  white-space: nowrap;
+  transition: background-color .12s ease;
+}
+.whiteboard-ask-ai:hover { background: var(--nf-accent-soft); }
+.whiteboard-ask-ai:focus-visible { outline: 2px solid var(--nf-accent-line); outline-offset: 1px; }
+.whiteboard.is-narrow .whiteboard-selection-bar {
+  top: 60px;
+  left: auto;
+  inset-inline-end: 12px;
+  transform: none;
+}
+.whiteboard.is-compact .whiteboard-selection-bar {
+  top: 54px;
+  left: auto;
+  inset-inline-end: 8px;
+  transform: none;
+}
 .whiteboard-busy {
   position: absolute;
   top: 64px;

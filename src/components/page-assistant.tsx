@@ -31,7 +31,7 @@ import { relativeTime } from "@/lib/notes-home-text";
 import { chatsTurns, notePanelTurns } from "@/lib/session-turns";
 import { anchorAncestors, anchorFabPosition, clampFabPosition, FAB_DRAG_THRESHOLD, loadFabPosition, panelPlacement, saveFabPosition, type FabPosition } from "@/lib/fab-position";
 import { StorageLimitError, UsageLimitError, storageLimitErrorFrom, usageLimitErrorFrom } from "@/lib/usage-plans";
-import { nativeCanOpenPage, nativeCanShowStorageLimit, postToNative } from "@/lib/native-bridge";
+import { nativeCanOpenPage, nativeCanShowStorageLimit, nativeCanShowUsageLimit, postToNative } from "@/lib/native-bridge";
 import { NoteIcon } from "@/components/note-icon";
 import { PageKindIcon } from "@/components/page-kind-icon";
 import { ProposalHostContext, type ProposalHost } from "@/components/page-proposal";
@@ -69,20 +69,31 @@ const SLIDES_ACTIONS = [
   { label: msg("Summarize"), prompt: "Summarize this slide deck in a few bullet points, in its own language. Do not change it." },
   { label: msg("Suggest improvements"), prompt: "Suggest how to improve this slide deck (structure, clarity and wording), in its own language. Do not change it." },
 ] as const;
-// ホワイトボード・スライドで選んだ要素・スライドについての頼み事。
-const CANVAS_SELECTION_ACTIONS = [
+// ホワイトボード・スライドで選んだ要素・スライドについての頼み事（PR 6/7 で編集ツールが入るまでは読み取り専用の助言）。
+const WHITEBOARD_SELECTION_ACTIONS = [
+  { label: msg("Summarize"), prompt: "Summarize the selected items in their own language. Do not change the page unless asked." },
+  { label: msg("Explain"), prompt: "Explain the selected items clearly in their own language. Do not change the page unless asked." },
+  { label: msg("Group & organize"), prompt: "Suggest how to group and organize the selected items, in their own language. Do not change the page unless asked." },
+  { label: msg("Find gaps"), prompt: "Point out what is missing or unclear in the selected items, in their own language. Do not change the page unless asked." },
+  { label: msg("Suggest next steps"), prompt: "Suggest concrete next steps based on the selected items, in their own language. Do not change the page unless asked." },
+] as const;
+const SLIDES_SELECTION_ACTIONS = [
   { label: msg("Summarize"), prompt: "Summarize the selected items in their own language. Do not change the page unless asked." },
   { label: msg("Explain"), prompt: "Explain the selected items clearly in their own language. Do not change the page unless asked." },
   { label: msg("Find gaps"), prompt: "Point out what is missing or unclear in the selected items, in their own language. Do not change the page unless asked." },
+  { label: msg("Suggest next steps"), prompt: "Suggest concrete next steps based on the selected items, in their own language. Do not change the page unless asked." },
 ] as const;
 
-const ACTION_LABEL_BY_PROMPT = new Map<string, string>([...QUICK_ACTIONS, ...SELECTION_ACTIONS, ...WHITEBOARD_ACTIONS, ...SLIDES_ACTIONS, ...CANVAS_SELECTION_ACTIONS].map((action) => [action.prompt, action.label]));
+const ACTION_LABEL_BY_PROMPT = new Map<string, string>(
+  [...QUICK_ACTIONS, ...SELECTION_ACTIONS, ...WHITEBOARD_ACTIONS, ...SLIDES_ACTIONS, ...WHITEBOARD_SELECTION_ACTIONS, ...SLIDES_SELECTION_ACTIONS]
+    .map((action) => [action.prompt, action.label]),
+);
 
 // 種類ごとの既定の頼み事（エディターが quickActions を渡せば、そちらを使う）。
 const DEFAULT_ACTIONS: Record<PageKind, { quick: readonly QuickAction[]; selection: readonly QuickAction[] }> = {
   note: { quick: QUICK_ACTIONS, selection: SELECTION_ACTIONS },
-  whiteboard: { quick: WHITEBOARD_ACTIONS, selection: CANVAS_SELECTION_ACTIONS },
-  slides: { quick: SLIDES_ACTIONS, selection: CANVAS_SELECTION_ACTIONS },
+  whiteboard: { quick: WHITEBOARD_ACTIONS, selection: WHITEBOARD_SELECTION_ACTIONS },
+  slides: { quick: SLIDES_ACTIONS, selection: SLIDES_SELECTION_ACTIONS },
 };
 
 // 種類ごとの文言。
@@ -255,6 +266,8 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
   // 今回の送信に対応するアシスタント回答の ID（保存・アップロード待ちの間に前回の回答を出力済みと誤認しないため）。
   const [activeTurnAssistantId, setActiveTurnAssistantId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  // 選区画像のキャプチャに失敗して文字だけ送ったときなど、送信を止めない穏やかな知らせ。
+  const [notice, setNotice] = useState("");
   const [inputFocused, setInputFocused] = useState(false);
   const [outcome, setOutcome] = useState<"completed" | "error" | null>(null);
   const outcomeTimer = useRef(0);
@@ -306,6 +319,20 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
       return;
     }
     showLimitPrompt({ storage: error });
+  };
+  const showUsageLimit = (limitError: UsageLimitError) => {
+    if (limitError.tier !== "pro") guestLimitHitRef.current = true;
+    if (embedded) {
+      if (nativeCanShowUsageLimit()) {
+        postToNative({ type: "usageLimit", tier: limitError.tier, kind: limitError.kind });
+      }
+      // WebView 内ではウェブのログイン・Stripe 画面を開かず、新アプリはネイティブ案内、旧アプリは吹き出しの理由だけを出す。
+      showLimitPrompt({});
+      return;
+    }
+    if (limitError.tier === "guest") showLimitPrompt({ guest: true });
+    else if (limitError.tier === "member") showLimitPrompt({ upgrade: true });
+    else showLimitPrompt({});
   };
   const inputValueRef = useRef("");
   inputValueRef.current = input;
@@ -507,6 +534,7 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
     sessionId.current = "";
     setChatId("");
     setActiveTurnAssistantId(null);
+    setNotice("");
     setMessages([]);
   }
 
@@ -516,6 +544,7 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
     const seq = ++loadSeq.current;
     setLoading(true);
     setError("");
+    setNotice("");
     const loaded = await fetchChat(id);
     if (seq !== loadSeq.current || sending.current) return;
     setLoading(false);
@@ -618,6 +647,7 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
     // 選んだ範囲があれば、引用として発言の先頭に付けて送る。要素・スライドの ID は別の欄で送る。
     const activeSelection = selectionText;
     const activeIds = selectionIds;
+    const activeCapture = selection?.captureImage;
     const payloadText = activeSelection ? composeQuotedMessage(activeSelection, content) : content;
     const displayText = activeSelection ? composeQuotedMessage(activeSelection, display ?? content) : (display ?? content);
     const sentFiles = display === undefined ? files : [];
@@ -637,6 +667,7 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
     setActiveTurnAssistantId(assistantId);
     setBusy(true);
     setError("");
+    setNotice("");
     flashOutcome(null);
     if (!(await flush())) {
       setError(msg("Resolve the note's unsaved changes first, then ask again."));
@@ -648,13 +679,45 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
       return;
     }
 
+    // 選区画像（D5）：画像対応モデルのときだけ PNG を作って標準のアップロード経路に乗せる。
+    // 非画像モデルでは呼ばず、キャプチャやアップロードに失敗しても送信を止めず文字だけで続行する。
+    let selectionUpload: UploadFile | null = null;
+    const releaseSelectionPreview = () => {
+      if (!selectionUpload?.previewUrl) return;
+      previewUrlsRef.current.delete(selectionUpload.previewUrl);
+      URL.revokeObjectURL(selectionUpload.previewUrl);
+    };
+    if (activeCapture && modelOption.supportsImageInput) {
+      try {
+        const blob = await activeCapture();
+        if (blob && blob.size > 0) {
+          const imageFile = new File([blob], "selection.png", { type: "image/png" });
+          const candidateFiles = [...rawFiles, imageFile];
+          const selectionProblem = getUploadValidationError(candidateFiles, uploadOptions, t) || getUploadRequestError(candidateFiles, payloadText, t);
+          if (!selectionProblem) {
+            selectionUpload = createUploadFile(imageFile);
+            if (selectionUpload.previewUrl) previewUrlsRef.current.add(selectionUpload.previewUrl);
+          } else {
+            setNotice(msg("Sent text only this time."));
+          }
+        } else {
+          setNotice(msg("Sent text only this time."));
+        }
+      } catch {
+        setNotice(msg("Sent text only this time."));
+      }
+    }
+
     let tickets: string[] = [];
     try {
-      if (rawFiles.length) setUploadProgress({ key: msg("Preparing attachments…") });
-      tickets = await uploadChatFiles(rawFiles, (name, index, total, percentage) => {
-        setUploadProgress({ key: msg("Uploading {index}/{total} · {name} · {percentage}%"), vars: { index, total, name, percentage } });
-      });
+      if (rawFiles.length) {
+        setUploadProgress({ key: msg("Preparing attachments…") });
+        tickets = await uploadChatFiles(rawFiles, (name, index, total, percentage) => {
+          setUploadProgress({ key: msg("Uploading {index}/{total} · {name} · {percentage}%"), vars: { index, total, name, percentage } });
+        });
+      }
     } catch (caught) {
+      releaseSelectionPreview();
       if (caught instanceof StorageLimitError) showStorageLimit(caught, { inline: true });
       else setError(caught instanceof Error ? caught.message : msg("Attachment upload failed. Please try again."));
       setActiveTurnAssistantId(null);
@@ -666,14 +729,31 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
     } finally {
       setUploadProgress(null);
     }
+
+    if (selectionUpload) {
+      try {
+        setUploadProgress({ key: msg("Preparing attachments…") });
+        const selectionTickets = await uploadChatFiles([selectionUpload.file], (name, index, total, percentage) => {
+          setUploadProgress({ key: msg("Uploading {index}/{total} · {name} · {percentage}%"), vars: { index, total, name, percentage } });
+        });
+        tickets = [...tickets, ...selectionTickets];
+      } catch {
+        releaseSelectionPreview();
+        selectionUpload = null;
+        setNotice(msg("Sent text only this time."));
+      } finally {
+        setUploadProgress(null);
+      }
+    }
     stick.current = true;
 
+    const allSentFiles = selectionUpload ? [...sentFiles, selectionUpload] : sentFiles;
     const userMessageId = crypto.randomUUID();
     setMessages((current) => [
       ...current,
       {
         id: userMessageId, role: "USER", content: displayText,
-        attachments: sentFiles.map(({ id, file, previewUrl }) => ({ id, filename: file.name, mimeType: file.type || "application/octet-stream", size: file.size, previewUrl })),
+        attachments: allSentFiles.map(({ id, file, previewUrl }) => ({ id, filename: file.name, mimeType: file.type || "application/octet-stream", size: file.size, previewUrl })),
         ...(sentPages.length ? { pages: sentPages } : {}),
       },
       { id: assistantId, role: "ASSISTANT", content: "" },
@@ -726,21 +806,32 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
       const detail = caught instanceof Error ? caught.message : msg("Unknown error.");
       const storageRefused = caught instanceof StorageLimitError;
       const limited = caught instanceof UsageLimitError || storageRefused;
-      if (!accepted && tickets.length) void cleanupClientUploads(tickets);
+      if (!accepted) {
+        if (tickets.length) void cleanupClientUploads(tickets);
+        releaseSelectionPreview();
+      }
       if (storageRefused) showStorageLimit(caught);
-      if (caught instanceof UsageLimitError && caught.tier === "guest") { guestLimitHitRef.current = true; showLimitPrompt({ guest: true }); }
-      if (caught instanceof UsageLimitError && caught.tier === "member" && !embedded) { guestLimitHitRef.current = true; showLimitPrompt({ upgrade: true }); }
+      if (caught instanceof UsageLimitError) showUsageLimit(caught);
       // 上限で断られた本文は保存されていない。入力欄から送ったものなら戻す（待つ間に書き足した文は後ろに残す）。
       // 待つ間に別のノートへ移っていたら、入力欄の代わりにこのノートの分として預けておく。
       if (limited && display === undefined && !composerMountedRef.current) keepRejectedDraft(`note:${noteId}`, activeSelection ? payloadText : text);
       if (limited && display === undefined) setInput((current) => (current.trim() ? [text.trimEnd(), current].join("\n\n") : text));
       // すでに届いた本文は残し、上限・失敗の文だけを表示時に訳す。
       // 断られた添付は入力欄に戻り、プレビューの URL は入力欄が持つ（外すと解放される）。送った発言からは外す。
-      setMessages((current) => current.map((message) => limited && message.id === userMessageId
-        ? { ...message, attachments: message.attachments?.map(({ previewUrl: _previewUrl, ...attachment }) => {
-          void _previewUrl;
-          return attachment;
-        }) }
+      // 未受付で片付けた選区自動スクリーンショットも、解放済み blob URL が残らないよう発言から外す。
+      const droppedSelectionId = !accepted ? selectionUpload?.id : undefined;
+      setMessages((current) => current.map((message) => message.id === userMessageId && (limited || droppedSelectionId)
+        ? {
+          ...message,
+          attachments: message.attachments
+            ?.filter((attachment) => attachment.id !== droppedSelectionId)
+            .map((attachment) => {
+              if (!limited) return attachment;
+              const { previewUrl: _previewUrl, ...rest } = attachment;
+              void _previewUrl;
+              return rest;
+            }),
+        }
         : message.id === assistantId
         ? { ...message, content: limited ? detail : message.content ? `${message.content}\n\n${failureText(detail)}` : failureText(detail),
           failed: true, usageLimit: caught instanceof UsageLimitError ? caught.kind : undefined, storageLimit: storageRefused || undefined,
@@ -850,13 +941,14 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
       {guestLimit && <GuestLimitPrompt kind="chat" onClose={() => setGuestLimit(false)} attachmentsLost={files.length > 0 || attachedPages.length > 0}
         onBeforeSignIn={() => savePendingDraft(`note:${noteId}`, draftToKeep(input))} />}
       {(uploadError || error) && <p className="note-ai-error" role="alert">{uploadError || t(error)}</p>}
+      {notice && !uploadError && !error && <p className="note-ai-notice" role="status">{t(notice)}</p>}
       {/* チャットの入力欄と同じ理由で、ページ翻訳の対象から外す（書き換えられると React の更新が失敗する）。 */}
       <form className="note-ai-form" onSubmit={submit} translate="no">
         {hasSelection && (
           <div className="note-ai-selection">
             <div className="chat-quote note-ai-quote" role="group" aria-label={selectionText ? t("Selected text") : t("Selected items")}>
               <span className="chat-quote-text">{selectionText || t("{count} items selected", { count: selectionIds.length })}</span>
-              <button type="button" className="chat-quote-remove" disabled={busy} onClick={() => onClearSelection?.()}
+              <button type="button" className="chat-quote-remove" disabled={busy} onClick={() => { setNotice(""); onClearSelection?.(); }}
                 aria-label={t("Remove selection")} title={t("Remove selection")}>
                 <X size={14} aria-hidden="true" />
               </button>

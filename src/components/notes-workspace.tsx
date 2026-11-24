@@ -201,7 +201,13 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
           // 選んだ要素・スライドについて AI に聞く（AI パネルを開き、選んだものを文脈として渡す）。
           onAskAi={(selection) => {
             // 分割表示では AI パネルを出さないので、ノートと同じく選んだ文字を左のチャットへ渡す。
-            if (split && onAskSelectionInChat) { const text = normalizeQuote(selection.text); if (text) onAskSelectionInChat(text); return; }
+            // 文字の無い図形だけの選区では、ページ名と選択数の案内を引用して空振りを防ぐ。
+            if (split && onAskSelectionInChat) {
+              const text = normalizeQuote(selection.text)
+                || (selection.ids?.length ? `${active.content.title || t("Untitled")} (${t("{count} items selected", { count: selection.ids.length })})` : "");
+              if (text) onAskSelectionInChat(text);
+              return;
+            }
             setAiAsk((current) => ({ noteId: activeId, selection, signal: (current?.noteId === activeId ? current.signal : 0) + 1 }));
           }}
           // 分割表示では AI ボタンを出さないので、置き場所も作らない。

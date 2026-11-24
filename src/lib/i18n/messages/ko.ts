@@ -1138,4 +1138,6 @@ export const ko: Record<string, string> = {
   "Empty page": "빈 페이지",
   "Proposed page edit": "페이지 편집 제안",
   "Applied automatically": "자동으로 적용됨",
+  "Group & organize": "분류 및 정리",
+  "Sent text only this time.": "이번에는 텍스트만 보냈습니다.",
 };

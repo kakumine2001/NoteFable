@@ -14,7 +14,9 @@ import { MAX_NOTE_FILE_BYTES } from "@/lib/note-file-keys";
 import { StorageLimitError } from "@/lib/usage-plans";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { connectWhiteboardActions, type WhiteboardActions } from "@/lib/whiteboard/excalidraw-bridge";
-import { exportWhiteboard, type WhiteboardExportFormat } from "@/lib/whiteboard/export";
+import { exportWhiteboard, exportWhiteboardSelectionPng, type WhiteboardExportFormat } from "@/lib/whiteboard/export";
+import { expandWhiteboardSelection } from "@/lib/whiteboard/selection-capture";
+import type { PageSelection } from "@/lib/page-ai/types";
 import { getNativeExportEpoch, saveExportFile } from "@/lib/export-file";
 import { pageCardLabel, pageIdFromLink, pageLinkUrl } from "@/lib/whiteboard/links";
 import { importPdfPages, MAX_PDF_IMPORT_PAGES, type PdfImportResult } from "@/lib/whiteboard/pdf-import";
@@ -83,6 +85,8 @@ export type WhiteboardEditorProps = {
   icon: string | null;
   onTitleChange: (title: string) => void;
   onIconChange: (icon: string | null) => void;
+  // 選んだ要素について AI に聞く（AI パネルを開いて選区コンテキストと画像キャプチャを渡す）。
+  onAskAi?: (selection: PageSelection) => void;
   // 右下（AI ボタン、#153）用に空けておく場所の中身。
   aiSlot?: ReactNode;
   handleRef?: Ref<WhiteboardEditorHandle>;
@@ -522,21 +526,47 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     return () => window.removeEventListener(WHITEBOARD_REVEAL_EVENT, onReveal);
   }, [api, pageId, reveal]);
 
+  const buildSelection = useCallback((): PageSelection | null => {
+    if (!api) return null;
+    const appState = api.getAppState();
+    const elements = api.getSceneElements();
+    const selectedIds = new Set(Object.keys(appState.selectedElementIds ?? {}).filter((id) => appState.selectedElementIds[id]));
+    const expanded = expandWhiteboardSelection(elements, selectedIds);
+    if (!expanded.elements.length) return null;
+    // クリック時点で選区の要素・参照ファイル・背景色をスナップショットしておき、送信時にモデルが画像対応なら PNG を作る。
+    const allFiles = api.getFiles();
+    const files: BinaryFiles = {};
+    for (const element of expanded.elements) {
+      if (element.type === "image" && typeof element.fileId === "string" && allFiles[element.fileId]) {
+        files[element.fileId] = allFiles[element.fileId];
+      }
+    }
+    const snapshot = {
+      elements: expanded.elements.map((element) => ({ ...element })) as NonDeletedExcalidrawElement[],
+      files,
+      viewBackgroundColor: appState.viewBackgroundColor,
+    };
+    return {
+      ids: expanded.ids,
+      text: expanded.text,
+      captureImage: () => exportWhiteboardSelectionPng(snapshot),
+    };
+  }, [api]);
+
+  const onAskAiProp = props.onAskAi;
+  const askAiSelection = useCallback(() => {
+    if (!onAskAiProp) return;
+    const picked = buildSelection();
+    if (picked) onAskAiProp(picked);
+  }, [onAskAiProp, buildSelection]);
+
   useImperativeHandle(handleRef, () => ({
     reveal,
     selectionContext: () => {
-      if (!api) return { ids: [], text: "" };
-      const appState = api.getAppState();
-      const elements = api.getSceneElements();
-      const ids = elements.filter((element) => appState.selectedElementIds[element.id]).map((element) => element.id);
-      const chosen = new Set(ids);
-      const text = elements
-        .filter((element) => element.type === "text" && (chosen.has(element.id) || chosen.has((element as { containerId?: string | null }).containerId ?? "")))
-        .map((element) => (element as { originalText?: string; text?: string }).originalText ?? (element as { text?: string }).text ?? "")
-        .filter(Boolean).join("\n");
-      return { ids, text };
+      const picked = buildSelection();
+      return picked ? { ids: picked.ids ?? [], text: picked.text } : { ids: [], text: "" };
     },
-  }), [api, reveal]);
+  }), [reveal, buildSelection]);
 
   // ---- 要素のリンク：アプリ内のページはその場で開く ----
   const onLinkOpen = useCallback((element: NonDeletedExcalidrawElement, event: CustomEvent<{ nativeEvent: MouseEvent | React.PointerEvent<HTMLCanvasElement> }>) => {
@@ -833,6 +863,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
         onExport={(format) => void runExport(format)} onImportPdf={() => pdfInputRef.current?.click()}
         onFitToContent={fitToContent} onCanvasBackground={(color) => api.updateScene({ appState: { viewBackgroundColor: color }, captureUpdate: CaptureUpdateAction.IMMEDIATELY })}
         onPenMode={(penMode) => api.updateScene({ appState: { penMode }, captureUpdate: CaptureUpdateAction.NEVER })}
+        onAskAi={onAskAiProp ? askAiSelection : undefined}
         minimapOpen={minimapOpen} onToggleMinimap={toggleMinimap} contentHidden={contentHidden} busy={busy} pages={props.pages} aiSlot={props.aiSlot}
         minimap={<WhiteboardMinimap api={api} version={sceneVersion} theme={theme} />} />}
       <input ref={pdfInputRef} type="file" accept="application/pdf,.pdf" className="sr-only" tabIndex={-1} aria-hidden="true"

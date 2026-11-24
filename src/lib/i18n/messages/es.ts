@@ -1138,4 +1138,6 @@ export const es: Record<string, string> = {
   "Empty page": "Página vacía",
   "Proposed page edit": "Edición de página propuesta",
   "Applied automatically": "Aplicado automáticamente",
+  "Group & organize": "Agrupar y organizar",
+  "Sent text only this time.": "Esta vez solo se envió texto.",
 };
