@@ -30,7 +30,7 @@ iOS 客户端是 Android 客户端（[android-native.md](android-native.md)）�
 - **Apple Developer 账号**及 `appstore-publish` 环境的密钥（[ios.md](ios.md) 的启用清单）。没有它就不能签名，装不到真机，TestFlight 也不会上传。
 - **真机验证**。第一次装机后要按 [android-native.md](android-native.md) 的各节逐项对照网页检查，预计会有一批界面细节要修。
 - **Sign in with Apple**。App Store 审核规则 4.8 要求提供第三方登录（Google）的 App 同时提供一个等价的隐私登录方式；现在只有 Google 和邮箱验证码。上架前要么加 Sign in with Apple（后端要支持 Apple 账号关联，属于认证改动），要么确认邮箱验证码登录满足该条。
-- **Google 登录的 iOS 客户端**。要在 Google Cloud 给 `com.kakumine.notefable` 登记 iOS OAuth 客户端，把客户端 ID 填进 `GOOGLE_IOS_CLIENT_ID` / `GOOGLE_IOS_REVERSED_CLIENT_ID`；留空时登录窗口不显示 Google，只有邮箱验证码。服务端校验的 audience 仍是 Web 客户端 ID（`serverClientID`）。
+- **Google 登录的 iOS 客户端**。Google Cloud 里给 `com.kakumine.notefable` 登记的 iOS OAuth 客户端是 `NoteFable-iOS`，客户端 ID 写在 `Config/NoteFable.xcconfig` 的 `GOOGLE_IOS_CLIENT_ID` / `GOOGLE_IOS_REVERSED_CLIENT_ID`（不是密钥，会打进安装包）；留空时登录窗口不显示 Google，只有邮箱验证码。服务端校验的 audience 仍是 Web 客户端 ID（`serverClientID`）。
 - **购买**。iOS 没有接 App Store 内购，设置里的方案卡片只读（显示方案和用量，没有购买 / 管理按钮），已登录的免费用户撞到上限时也没有升级提示。
 - **通用链接**。`Support/NoteFable.entitlements` 声明了 `applinks:app.notefable.com`，但网站还没有提供 `/.well-known/apple-app-site-association`，所以点网页链接暂时不会打开 App。
 

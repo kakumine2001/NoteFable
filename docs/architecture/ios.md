@@ -54,7 +54,7 @@
    - `APPSTORE_API_KEY_ID`：API Key ID
    - `APPSTORE_API_ISSUER_ID`：Issuer ID（UUID）
    - `APPSTORE_API_KEY_P8_B64`：`.p8` 私钥文件的 Base64 编码内容
-   - 可选（后续启用 iOS Google 登录时再配，需成对设置）：`GOOGLE_IOS_CLIENT_ID`、`GOOGLE_IOS_REVERSED_CLIENT_ID`
+   - 可选（需成对设置）：`GOOGLE_IOS_CLIENT_ID`、`GOOGLE_IOS_REVERSED_CLIENT_ID`，只在要覆盖 `Config/NoteFable.xcconfig` 里已提交的 iOS Google 客户端时才配
 4. 在 App Store Connect 的 **TestFlight → 内部测试（Internal Testing）** 中：
    - 新建一个内部测试组并开启自动分发（Automatic Distribution），把自己加入内部测试人员，并在 iPhone 的 TestFlight App 中接受邀请（未配置内部测试组并分配构建时，即使上传处理完成也不会在 iPhone 上显示可安装）。
 5. 需要发 TestFlight 时，在合入 `main` 的 PR 中调高 `mobile/ios/project.yml` 的 `CURRENT_PROJECT_VERSION` 即可自动打包并上传；TestFlight 内部测试无需苹果审核，处理完成后即可直接在 iPhone 安装。
