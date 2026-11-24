@@ -40,7 +40,7 @@
 
 ## 注册 Apple Developer 账号后的启用清单
 
-当前工作流已就位，尚未注册 Apple Developer 账号也未配置 Environment / Secrets（平时合入不升版本号的 PR 不会触发发布）。账号就绪后按以下步骤启用：
+以下步骤已经做完（2026-11-24 首个 TestFlight 构建已装到真机），留作换账号或重建环境时的参考（平时合入不升版本号的 PR 不会触发发布）：
 
 1. 注册付费 **Apple Developer Program**，记下 10 位 **Team ID**。
 2. 在 Apple Developer / App Store Connect 中：

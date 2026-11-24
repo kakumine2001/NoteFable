@@ -58,9 +58,13 @@ jobs:
       - name: Xcode version
         # App Store Connect needs the iOS 27 SDK (ITMS-90725): stop early if the image default changes.
         run: |
-          xcodebuild -version
-          major=$(xcodebuild -version | awk 'NR==1 { split($2, v, "."); print v[1] }')
-          if (( major < 27 )); then echo "::error::Xcode $major found; Xcode 27 or later is required."; exit 1; fi
+          ver=$(xcodebuild -version)
+          printf '%s\n' "$ver"
+          major=$(awk '$1 == "Xcode" { split($2, v, "."); print v[1]; exit }' <<< "$ver")
+          if ! [[ "$major" =~ ^[0-9]+$ ]] || (( 10#$major < 27 )); then
+            echo "::error::Xcode ${major:-unknown} found; Xcode 27 or later is required."
+            exit 1
+          fi
       - name: Core unit tests
         working-directory: mobile/ios
         # A hung test would otherwise run until the job timeout: the script stops it and prints where it is stuck.
