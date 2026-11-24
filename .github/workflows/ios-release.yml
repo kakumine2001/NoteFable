@@ -142,7 +142,11 @@ jobs:
 
       - name: Xcode version
         if: steps.current.outputs.publish == 'true'
-        run: xcodebuild -version
+        # App Store Connect needs the iOS 27 SDK (ITMS-90725): stop before archiving if the image default changes.
+        run: |
+          xcodebuild -version
+          major=$(xcodebuild -version | awk 'NR==1 { split($2, v, "."); print v[1] }')
+          if (( major < 27 )); then echo "::error::Xcode $major found; Xcode 27 or later is required."; exit 1; fi
 
       - name: Core unit tests
         if: steps.current.outputs.publish == 'true'
