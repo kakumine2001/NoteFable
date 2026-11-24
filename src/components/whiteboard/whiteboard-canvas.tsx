@@ -10,5 +10,7 @@ const noop = () => {};
 export default function WhiteboardCanvas(props: CanvasEditorProps) {
   return <WhiteboardEditor pageId={props.pageId} data={props.data} generation={props.generation} editable={props.editable} embedded={props.embedded}
     onChange={(data) => props.onChange(data as unknown as CanvasData)} onOpenPage={props.onOpenPage} pages={props.pages}
-    title={props.title} icon={props.icon} onTitleChange={props.onTitleChange} onIconChange={props.onIconChange ?? noop} />;
+    title={props.title} icon={props.icon} onTitleChange={props.onTitleChange} onIconChange={props.onIconChange ?? noop}
+    // AI ボタン（#158 の PageAssistant）の置き場所。右下（スマホでは道具のツールバーが空けた所）に置く。
+    aiSlot={props.aiSlot} />;
 }

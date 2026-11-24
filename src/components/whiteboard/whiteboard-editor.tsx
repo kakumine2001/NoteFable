@@ -124,9 +124,11 @@ function visibleRect(appState: AppState) {
 // 見えている範囲に内容が 1 つも無いか（「内容に戻る」を出す）。
 function contentHiddenIn(target: ExcalidrawImperativeAPI) {
   const elements = target.getSceneElements();
-  if (!elements.length) return false;
+  const appState = target.getAppState();
+  // 大きさがまだ 0（見えていない枠・後から広がる App の WebView）のときは判断しない。大きさが決まったら見直す。
+  if (!elements.length || !appState.width || !appState.height) return false;
   const [x1, y1, x2, y2] = getCommonBounds(elements);
-  const view = visibleRect(target.getAppState());
+  const view = visibleRect(appState);
   return x2 < view.x || x1 > view.x + view.width || y2 < view.y || y1 > view.y + view.height;
 }
 
@@ -605,6 +607,17 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   }, []);
   const compact = width < 640;
   const narrow = width < 1010;
+
+  // 枠の大きさが変わったとき（App の WebView が後から広がる、分割表示の幅を変えるなど）も「内容に戻る」を見直す。
+  // Excalidraw が自分の大きさ（appState.width / height）を直してから測るよう、少し待つ。
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!api || !element) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const observer = new ResizeObserver(() => { clearTimeout(timer); timer = setTimeout(updateContentHidden, 250); });
+    observer.observe(element);
+    return () => { clearTimeout(timer); observer.disconnect(); };
+  }, [api, updateContentHidden]);
 
   const fitToContent = useCallback(() => {
     if (!api) return;
