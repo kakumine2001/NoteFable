@@ -8,12 +8,13 @@ type CanvasFlusher = () => Promise<boolean> | boolean;
 type CanvasSyncFlusher = () => boolean;
 
 const flushers = new Set<CanvasFlusher>();
-const syncFlushers = new Set<CanvasSyncFlusher>();
+// 同期のほうはページごとに持つ（ページを切り替えた直後、まだ外れていない前のページのエディターの作業を、新しいページのものと数えない）。
+const syncFlushers = new Map<CanvasSyncFlusher, string | undefined>();
 
-// エディターが開いている間だけ登録する。戻り値で登録を外す。
-export function registerCanvasFlusher(flusher: CanvasFlusher, syncFlush?: CanvasSyncFlusher): () => void {
+// エディターが開いている間だけ登録する。戻り値で登録を外す。pageId は同期のほうをページで絞るときに使う。
+export function registerCanvasFlusher(flusher: CanvasFlusher, syncFlush?: CanvasSyncFlusher, pageId?: string): () => void {
   flushers.add(flusher);
-  if (syncFlush) syncFlushers.add(syncFlush);
+  if (syncFlush) syncFlushers.set(syncFlush, pageId);
   return () => {
     flushers.delete(flusher);
     if (syncFlush) syncFlushers.delete(syncFlush);
@@ -21,10 +22,11 @@ export function registerCanvasFlusher(flusher: CanvasFlusher, syncFlush?: Canvas
 }
 
 // 開いているエディターの未提出の編集（400ms 待ちなど）を同期でキューへ渡す。
-// 画像アップロード中など同期では渡し切れない作業が残っていれば true を返す。
-export function flushCanvasEditorsSync(): boolean {
+// 画像アップロード中など同期では渡し切れない作業が残っていれば true を返す。pageId を渡すとそのページのエディターだけを見る。
+export function flushCanvasEditorsSync(pageId?: string): boolean {
   let pending = false;
-  for (const flush of syncFlushers) {
+  for (const [flush, owner] of syncFlushers) {
+    if (pageId !== undefined && owner !== undefined && owner !== pageId) continue;
     try { if (flush()) pending = true; } catch { pending = true; }
   }
   return pending;

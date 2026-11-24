@@ -360,7 +360,8 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
       flushRef.current();
       return uploadTasks.current.size > 0;
     },
-  ), []);
+    pageId,
+  ), [pageId]);
 
   // ---- 画像のアップロード（Excalidraw は貼り付け・ドロップ・画像ツールの画像を data: で持つ。保存には note-files の URL を使う） ----
   const removeImagesOf = useCallback((fileId: string) => {

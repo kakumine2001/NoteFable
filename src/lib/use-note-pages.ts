@@ -83,6 +83,9 @@ export function useNotePages(
   const actionBusy = useRef(false);
   const displayedId = useRef<string | null>(null);
   const pendingId = useRef<string | null>(null);
+  // ページの本文が画面に出ているか（/app がホーム・チャットの間は false）。端末の「戻る」でページへ戻るときに使う。
+  const pageShown = useRef(true);
+  const setPageShown = useCallback((shown: boolean) => { pageShown.current = shown; }, []);
 
   // この画面で表示設定・お気に入りを変えるたびに進める番号。ページごとに最後に変えた番号を覚える（取得・保存の応答が古い値で戻さないため）。
   const metaSequence = useRef(0);
@@ -300,7 +303,8 @@ export function useNotePages(
       }
     };
     // タブレット等のドロワー後始末（history.back）が予約・実行中なら、それが終わってから URL を書き換える。
-    if (window.history.state?.notefableSheet) apply();
+    // 目印の履歴にいても、すでに history.back を呼んだ後（戻りの popstate 待ち）なら、書いた URL ごと戻されるので待つ。
+    if (window.history.state?.notefableSheet && !isSheetCleanupPopState()) apply();
     else afterSheetHistory(apply);
   }, []);
 
@@ -345,7 +349,7 @@ export function useNotePages(
           if (!currentQueue) return;
           if (latestPage.version > currentQueue.version) {
             // ホワイトボード等に 400ms 待ちの未提出の線やアップロード中画像があれば、先に同期でキューへ渡してから判定する。
-            const hasPendingEditorWork = displayedId.current === id && flushCanvasEditorsSync();
+            const hasPendingEditorWork = displayedId.current === id && flushCanvasEditorsSync(id);
             if (!hasPendingEditorWork && !currentQueue.dirty && currentQueue.status !== "saving") {
               currentQueue.loadLatest(latestPage);
               if (displayedId.current === id) setEditorEpoch((value) => value + 1);
@@ -365,8 +369,11 @@ export function useNotePages(
         }).catch((caught) => {
           const gone = caught instanceof NoteSaveError && caught.status === 404;
           if (!gone) return;
+          // 照合の途中でゴミ箱・復元・開き直しがあった（キャッシュが無効化された、別のキューになった）なら、古い 404 で消さない。
+          if ((invalidationSeq.current.get(id) ?? 0) !== seq) return;
           const currentQueue = queues.current.get(id);
-          const hasPendingEditorWork = displayedId.current === id && flushCanvasEditorsSync();
+          if (currentQueue !== queue) return;
+          const hasPendingEditorWork = displayedId.current === id && flushCanvasEditorsSync(id);
           if (currentQueue?.dirty || hasPendingEditorWork) {
             if (currentQueue) {
               currentQueue.gone = true;
@@ -377,6 +384,7 @@ export function useNotePages(
             return;
           }
           invalidatePageCache(id);
+          currentQueue.dispose();
           queues.current.delete(id);
           setPages((current) => current.filter((page) => page.id !== id));
           if (displayedId.current === id) {
@@ -433,7 +441,7 @@ export function useNotePages(
       } else {
         queue = existingAfter ?? install(latestPage);
         if (existingAfter && latestPage.version > existingAfter.version) {
-          const hasPendingEditorWork = displayedId.current === id && flushCanvasEditorsSync();
+          const hasPendingEditorWork = displayedId.current === id && flushCanvasEditorsSync(id);
           if (!hasPendingEditorWork && !existingAfter.dirty && existingAfter.status !== "saving") {
             existingAfter.loadLatest(latestPage);
             setEditorEpoch((value) => value + 1);
@@ -465,9 +473,8 @@ export function useNotePages(
   }, [cachePrefetched, cancelPrefetch, fetchPage, install, invalidatePageCache, syncPageUrl, touchQueue, upsertSummary]);
 
   const load = useCallback(async () => {
+    // 読み込み中のページ選択（pendingId）はそのまま残す。消すと、その後の cancelPending が効かず、取り消した選択が後から開く。
     setListLoading(true);
-    pendingId.current = null;
-    setOpeningId(null);
     setError("");
     try {
       const orderMark=orderSync.current.mark();
@@ -637,7 +644,9 @@ export function useNotePages(
       const url = new URL(window.location.href);
       const id = url.searchParams.get("page");
       if (url.searchParams.get("view") === "pages" && id) {
-        if (id !== displayedId.current) void select(id, "none");
+        // ホーム・チャットから戻るときは、前に開いていたページを読み込み中の画面に見せない。同じページへ戻るときも最新版を照合する。
+        if (id !== displayedId.current) void select(id, "none", { keepCurrent: pageShown.current });
+        else if (!pageShown.current) void select(id, "none");
         else if (pendingId.current) cancelPending();
       } else if (pendingId.current) {
         cancelPending();
@@ -1011,5 +1020,5 @@ export function useNotePages(
     if (displayedId.current === queue.page.id) setEditorEpoch((value) => value + 1);
   }
 
-  return { pages, groups, groupError, reorder, createGroup, renameGroup, deleteGroup, moveNote, moveToPage, setFavorite, updateSettings, applyShareMeta: applyMeta, flushSubtree, duplicate, changeIcon, exportPage, importMarkdown, checkImportFiles, ensureListLoaded, activeId, active, loading, listLoading, openingId, busy, error, actionError, dismissActionError: () => setActionError(""), backupError, editorEpoch, select, prefetch, cancelPrefetch, hasCached, cancelPending, deactivate, create, remove, load, loadLatest };
+  return { pages, groups, groupError, reorder, createGroup, renameGroup, deleteGroup, moveNote, moveToPage, setFavorite, updateSettings, applyShareMeta: applyMeta, flushSubtree, duplicate, changeIcon, exportPage, importMarkdown, checkImportFiles, ensureListLoaded, activeId, active, loading, listLoading, openingId, busy, error, actionError, dismissActionError: () => setActionError(""), backupError, editorEpoch, select, prefetch, cancelPrefetch, hasCached, cancelPending, deactivate, setPageShown, create, remove, load, loadLatest };
 }

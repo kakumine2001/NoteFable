@@ -70,11 +70,11 @@ import { useDocumentHidden } from "@/lib/use-document-hidden";
 import { useSwipeDismiss } from "@/lib/use-swipe-dismiss";
 import { runTransition } from "@/lib/view-transition";
 import { useModels } from "@/components/models-provider";
-import { revealChatMessage, revealNoteBlock } from "@/lib/search-reveal";
+import { cancelCanvasReveal, revealChatMessage, revealNoteBlock } from "@/lib/search-reveal";
 import { cancelWhiteboardReveal, requestWhiteboardReveal } from "@/lib/whiteboard/reveal";
 import { flushCanvasEditors } from "@/lib/canvas-flush";
 import { getSubmissionValidationError } from "@/lib/submission-validation";
-import { restoreSheetMarker, useBackToClose } from "@/lib/use-back-to-close";
+import { afterSheetHistory, restoreSheetMarker, useBackToClose } from "@/lib/use-back-to-close";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { StorageLimitError, UsageLimitError, storageLimitErrorFrom, usageLimitErrorFrom, type UsageKind } from "@/lib/usage-plans";
 import { readModelPreference, resolveModelPreference, saveModelPreference } from "@/lib/model-preference";
@@ -176,6 +176,11 @@ export default function Home() {
   const notes = useNotePages(workspaceView === "pages" || splitActive);
   // Notes でノートを開いていない間は、ホーム（NotesHome：最近のノートと一覧）を出す。URL に page= が無いことと対応させる。
   const [notesList, setNotesList] = useState(false);
+  // ノートの本文が画面に出ているか（Notes のホームやチャットではない）。端末の「戻る」でページへ戻るとき、
+  // 出ていなかったなら前のページを読み込み中に見せず、同じページへ戻るときも最新版を照合させる（useNotePages の popstate）。
+  const pageShown = splitActive || (workspaceView === "pages" && !notesList);
+  const { setPageShown } = notes;
+  useEffect(() => { setPageShown(pageShown); }, [pageShown, setPageShown]);
 
   // ホームを出すのは「Notes・URL に page= が無い」とき。URL が変わる操作のあとにここで合わせ直す。
   function syncNotesList() {
@@ -261,7 +266,8 @@ export default function Home() {
         return;
       }
       void notes.select(id, "push").then((opened) => {
-        if (opened) syncNotesList();
+        // ドロワーを閉じた後始末（history.back）を待って URL を書く場合があるので、書き終わってから合わせる。
+        if (opened) afterSheetHistory(syncNotesList);
         else forgetMissingNote(id);
       });
       return;
@@ -333,8 +339,9 @@ export default function Home() {
     revealRef.current = null;
     revealAbortRef.current?.abort();
     revealAbortRef.current = null;
-    // ホワイトボードがまだ受け取っていない予約（エディターの読み込み待ち）も消す。
+    // ホワイトボード・スライドがまだ受け取っていない予約（エディターの読み込み待ち）も消す。
     cancelWhiteboardReveal();
+    cancelCanvasReveal();
   }
 
   function queueReveal(target: RevealTarget) {
@@ -396,7 +403,8 @@ export default function Home() {
     else if (notesList && isPhone) runTransition(show, "forward");
     else show();
     // 初回の Notes は、画面が切り替わったあとの一覧取得が URL の page= を見て開く。すでに開いているノートは取り直さない。
-    if (notes.activeId !== id || notes.openingId) {
+    // ホームやチャットから最後に開いていたページへ戻るときも、select に通して裏で最新版を照合する。
+    if (notes.activeId !== id || notes.openingId || workspaceView !== "pages" || notesList) {
       void notes.select(id, "none", { keepCurrent: workspaceView === "pages" && !notesList }).then((opened) => { if (!opened) forgetMissingNote(id); });
     }
     if (blockId) queueReveal({ kind: "note", noteId: id, blockId });
@@ -406,8 +414,9 @@ export default function Home() {
     cancelReveal();
     splitPageIdRef.current = id;
     setSplitOpen(true);
-    if (notes.activeId !== id) {
-      void notes.select(id, "none");
+    // 別のページを読み込み中に元のページを選び直したときも select に通し、後から来る応答で切り替わらないようにする。
+    if (notes.activeId !== id || notes.openingId || !splitActive) {
+      void notes.select(id, "none", { keepCurrent: splitActive });
     }
     if (blockId) queueReveal({ kind: "note", noteId: id, blockId });
   }
