@@ -4,63 +4,84 @@ import SwiftUI
 
 // MARK: - 小标题和说明
 
-/// 分区小标题的字（网页 `.chat-section-label`：句首大小写 UI 字体 12 / 560 灰色）。
+/// 分区小标题的字（网页 `.chat-section-label`：高对比 UI 字体 13 / 620）。
 private struct SectionLabelText: View {
     let text: String
 
     var body: some View {
         Text(text)
-            .font(.nf(12, weight: 560))
-            .nfLineHeight(16, fontSize: 12)
-            .foregroundStyle(Sm.muted)
+            .font(.nf(13, weight: 620))
+            .nfLineHeight(18, fontSize: 13)
+            .foregroundStyle(Sm.sectionTitle)
             .lineLimit(1)
     }
 }
 
-/// `.chat-section-label`：内边距 14（上）/ 8（左右）/ 5（下），整行宽。"Pinned"、"Chats"。
+/// `.chat-section-label`：徽章 + 高对比标题 + 数量胶囊，整行宽。"Pinned"、"Chats"。
 struct ChatSectionLabel: View {
     private let text: String
-    private let icon: [String]?
+    private let badgeIcon: [String]
+    private let badgeBackground: Color
+    private let badgeIconColor: Color
+    private let badgeBorder: Color?
+    private let count: Int
 
-    init(_ text: String, icon: [String]? = nil) {
+    init(
+        _ text: String,
+        badgeIcon: [String],
+        badgeBackground: Color,
+        badgeIconColor: Color,
+        badgeBorder: Color? = nil,
+        count: Int = 0
+    ) {
         self.text = text
-        self.icon = icon
+        self.badgeIcon = badgeIcon
+        self.badgeBackground = badgeBackground
+        self.badgeIconColor = badgeIconColor
+        self.badgeBorder = badgeBorder
+        self.count = count
     }
 
     var body: some View {
-        HStack(spacing: 5.6) {
-            if let icon {
-                LucideIcon(icon, size: 12.5, color: Sm.muted)
-            }
+        HStack(spacing: 6) {
+            SidebarSectionBadge(icon: badgeIcon, background: badgeBackground, iconColor: badgeIconColor, border: badgeBorder)
             SectionLabelText(text: text)
+            if count > 0 {
+                NotesCountPill(count: count)
+            }
+            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 8)
-        .padding(.top, 14)
-        .padding(.bottom, 5)
+        .padding(.horizontal, 6)
+        .padding(.bottom, 6)
         .accessibilityAddTraits(.isHeader)
     }
 }
 
-/// `.chat-project-heading`：与小标题同款，右侧“新项目”＋（40 的按钮，图标 15）。
+/// `.chat-project-heading`：与小标题同款，带文件夹徽章与数量胶囊，右侧“新项目”＋（40 的按钮，图标 15）。
 struct ChatProjectsHeading: View {
+    private let count: Int
     private let onCreate: () -> Void
 
-    init(onCreate: @escaping () -> Void) {
+    init(count: Int = 0, onCreate: @escaping () -> Void) {
+        self.count = count
         self.onCreate = onCreate
     }
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 6) {
+            SidebarSectionBadge(icon: Lucide.folder, background: Sm.countBg, iconColor: Sm.sectionTitle)
             SectionLabelText(text: L("projects"))
-                .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityAddTraits(.isHeader)
-            NFIconButton(Lucide.plus, label: L("new_project"), iconSize: 15, action: onCreate)
+            if count > 0 {
+                NotesCountPill(count: count)
+            }
+            Spacer(minLength: 0)
+            NFIconButton(Lucide.plus, label: L("new_project"), iconSize: 15, color: Sm.tabMuted, action: onCreate)
                 .padding(.vertical, -4.8)
         }
-        .padding(.leading, 8)
-        .padding(.trailing, 4)
-        .padding(.top, 14)
+        .padding(.leading, 6)
+        .padding(.trailing, 2)
         .padding(.bottom, 4)
     }
 }
@@ -119,13 +140,8 @@ struct ChatSessionRow: View {
             titleButton
             moreButton
         }
+        .padding(.leading, 4)
         .frame(height: 42)
-        .background(active ? Sm.activeRow : Color.clear, in: shape)
-        .overlay {
-            if active {
-                shape.strokeBorder(Sm.border, lineWidth: 1).allowsHitTesting(false)
-            }
-        }
         .overlay(alignment: .top) {
             if line.before { ReorderDropLine() }
         }
@@ -133,6 +149,7 @@ struct ChatSessionRow: View {
             if line.after { ReorderDropLine() }
         }
         .clipShape(shape)
+        .sidebarActiveRow(active: active, accent: Sm.blue, cornerRadius: 8)
         .reorderRow(session.id, in: reorder, showsDropLine: false)
         .reorderError(errorText) { app.sidebar.dismissReorderError() }
     }
@@ -158,7 +175,7 @@ struct ChatSessionRow: View {
             if !reorder.swallowsTap() { onOpen() }
         } label: {
             Text(session.title)
-                .font(.nf(14, weight: active ? 560 : 400))
+                .font(.nf(14, weight: active ? 600 : 400))
                 .foregroundStyle(active ? Sm.ink : Sm.text)
                 .lineLimit(1)
                 .padding(.trailing, 8)

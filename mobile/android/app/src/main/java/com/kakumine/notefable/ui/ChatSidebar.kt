@@ -98,19 +98,26 @@ internal fun ChatDrawerBody(
     BackHandler(enabled = action != null) { action = null }
 
     Column(modifier) {
-        Row(
-            Modifier.padding(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 6.dp).fillMaxWidth().height(42.dp)
-                .shadow(1.dp, RoundedCornerShape(9.dp), ambientColor = Color(0x1F0F172A), spotColor = Color(0x1F0F172A))
-                .clip(RoundedCornerShape(9.dp)).background(Sm.Ink).clickable(onClick = onNewChat)
-                .padding(horizontal = 11.2.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        // 顶部固定操作区（.sidebar-top-actions）：新聊天 + 搜索，下方 1dp 细线分隔列表。
+        Column(
+            Modifier.fillMaxWidth()
+                .drawBehind { drawRect(Sm.Border, topLeft = Offset(0f, size.height - 1.dp.toPx()), size = Size(size.width, 1.dp.toPx())) }
+                .padding(bottom = 10.dp),
         ) {
-            LucideIcon(Lucide.Plus, 16.dp, Sm.OnInk)
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.new_chat), color = Sm.OnInk, fontSize = 15.sp, fontWeight = FontWeight(560))
+            Row(
+                Modifier.padding(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 6.dp).fillMaxWidth().height(42.dp)
+                    .shadow(1.dp, RoundedCornerShape(9.dp), ambientColor = Color(0x1F0F172A), spotColor = Color(0x1F0F172A))
+                    .clip(RoundedCornerShape(9.dp)).background(Sm.Ink).clickable(onClick = onNewChat)
+                    .padding(horizontal = 11.2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                LucideIcon(Lucide.Plus, 16.dp, Sm.OnInk)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.new_chat), color = Sm.OnInk, fontSize = 15.sp, fontWeight = FontWeight(560))
+            }
+            // Search 行（Batch 4）：网页侧栏里在"新建"按钮正下方。
+            SidebarSearchRow(onSearch)
         }
-        // Search 行（Batch 4）：网页侧栏里在"新建"按钮正下方。
-        SidebarSearchRow(onSearch)
 
         Column(
             Modifier.weight(1f).fillMaxWidth()
@@ -136,11 +143,19 @@ internal fun ChatDrawerBody(
             )
 
             if (groups.pinned.isNotEmpty()) {
-                SectionLabel(stringResource(R.string.sb_pinned), icon = Lucide.Pin)
+                SectionLabel(
+                    text = stringResource(R.string.sb_pinned),
+                    badgeIcon = Lucide.Pin,
+                    badgeBg = Sm.AccentSoft,
+                    badgeTint = Sm.Blue,
+                    badgeBorder = Sm.KindNoteBorder,
+                    count = groups.pinned.size,
+                    showDivider = false,
+                )
                 groups.pinned.forEach { key(it.id) { SessionRow(it, rowProps) } }
             }
 
-            ProjectsHeading { action = ChatAction.CreateProject }
+            ProjectsHeading(count = side.projects.size, showDivider = groups.pinned.isNotEmpty()) { action = ChatAction.CreateProject }
             if (side.projectsFailed) SmallNote(stringResource(R.string.sb_err_load_projects), ErrorRed)
             side.createError?.let { SmallNote(sidebarErrorText(it), ErrorRed) }
             side.projects.forEach { project -> key(project.id) {
@@ -177,10 +192,16 @@ internal fun ChatDrawerBody(
                 }
             } }
 
-            // CHATS 标签同时是"移出项目"的投放区（网页 data-chat-project-drop=""）。
+            // Chats 标签同时是"移出项目"的投放区（网页 data-chat-project-drop=""）。
             SectionLabel(
-                stringResource(R.string.chats),
-                Modifier.dropZone(drag.target == DropTarget.Into(null)).onGloballyPositioned { drag.zones[""] = it.boundsInWindow() },
+                text = stringResource(R.string.chats),
+                badgeIcon = Lucide.MessageSquareText,
+                badgeBg = Sm.AccentSoft,
+                badgeTint = Sm.Blue,
+                badgeBorder = Sm.KindNoteBorder,
+                count = groups.loose.size,
+                showDivider = true,
+                modifier = Modifier.dropZone(drag.target == DropTarget.Into(null)).onGloballyPositioned { drag.zones[""] = it.boundsInWindow() },
             )
             when {
                 state.sessionsLoading && state.sessions.isEmpty() -> Box(Modifier.fillMaxWidth().padding(24.dp), Alignment.Center) {
@@ -226,33 +247,55 @@ private class RowProps(
     val onDismissError: () -> Unit,
 )
 
-// 投放进项目时的样子：浅蓝底 + 1px 蓝框，圆角 8。句首大小写 UI 字体（与网页 .chat-section-label 同步）。
+// 侧栏分区标题（与网页 .chat-section-label + .sidebar-section-badge 同步）。
 @Composable
-private fun SectionLabel(text: String, modifier: Modifier = Modifier, icon: List<String>? = null) {
-    Row(
-        modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 14.dp, bottom = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (icon != null) {
-            LucideIcon(icon, 12.5.dp, Sm.Muted)
-            Spacer(Modifier.width(5.6.dp))
+private fun SectionLabel(
+    text: String,
+    badgeIcon: List<String>,
+    badgeBg: Color,
+    badgeTint: Color,
+    badgeBorder: Color? = null,
+    count: Int = 0,
+    showDivider: Boolean = true,
+    modifier: Modifier = Modifier,
+) {
+    Column(Modifier.fillMaxWidth().sidebarSectionTopDivider(showDivider)) {
+        Row(
+            modifier.fillMaxWidth().padding(start = 6.dp, end = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SidebarSectionBadge(badgeIcon, badgeBg, badgeTint, badgeBorder)
+            Spacer(Modifier.width(7.dp))
+            Text(text, color = Sm.SectionTitle, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight(650), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            if (count > 0) {
+                Spacer(Modifier.width(6.dp))
+                CountPill(count)
+            }
         }
-        Text(text, color = Sm.Muted, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight(560))
     }
 }
 
-// .chat-project-heading：与小标题同款，右侧 ＋（40，上下各收 4.8，图标 15）。
+// .chat-project-heading：与小标题同款，带文件夹徽章与数量胶囊，右侧 ＋（40，上下各收 4.8，图标 15）。
 @Composable
-private fun ProjectsHeading(onCreate: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 4.dp, top = 14.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(stringResource(R.string.projects), Modifier.weight(1f), color = Sm.Muted, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight(560))
-        val newProject = stringResource(R.string.new_project)
-        Box(Modifier.size(40.dp, 30.4.dp), Alignment.Center) {
-            Box(
-                Modifier.requiredSize(40.dp).clip(RoundedCornerShape(6.dp)).clickable(onClick = onCreate)
-                    .semantics { contentDescription = newProject; role = Role.Button },
-                Alignment.Center,
-            ) { LucideIcon(Lucide.Plus, 15.dp, Sm.Muted) }
+private fun ProjectsHeading(count: Int, showDivider: Boolean, onCreate: () -> Unit) {
+    Column(Modifier.fillMaxWidth().sidebarSectionTopDivider(showDivider)) {
+        Row(Modifier.fillMaxWidth().padding(start = 6.dp, end = 2.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            SidebarSectionBadge(Lucide.Folder, Sm.CountBg, Sm.SectionTitle)
+            Spacer(Modifier.width(7.dp))
+            Text(stringResource(R.string.projects), Modifier.weight(1f, fill = false), color = Sm.SectionTitle, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight(650), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (count > 0) {
+                Spacer(Modifier.width(6.dp))
+                CountPill(count)
+            }
+            Spacer(Modifier.weight(1f))
+            val newProject = stringResource(R.string.new_project)
+            Box(Modifier.size(40.dp, 30.4.dp), Alignment.Center) {
+                Box(
+                    Modifier.requiredSize(40.dp).clip(RoundedCornerShape(6.dp)).clickable(onClick = onCreate)
+                        .semantics { contentDescription = newProject; role = Role.Button },
+                    Alignment.Center,
+                ) { LucideIcon(Lucide.Plus, 15.dp, Sm.TabMuted) }
+            }
         }
     }
 }
@@ -353,14 +396,14 @@ private fun SessionRow(session: SessionSummary, props: RowProps) {
             Modifier.fillMaxWidth().height(42.dp)
                 .alpha(if (drag.dragging == session.id) 0.5f else 1f)
                 .onGloballyPositioned { drag.rows[session.id] = it.boundsInWindow() }
-                .clip(rowShape)
-                .then(if (active) Modifier.background(Sm.ActiveRow).border(1.dp, Sm.Border, rowShape) else Modifier)
+                .sidebarActiveRow(active, Sm.Blue, rowShape)
                 .drawWithContent {
                     drawContent()
                     val line = 2.dp.toPx()
                     if (lineBefore) drawRect(DropBlue, size = Size(size.width, line))
                     if (lineAfter) drawRect(DropBlue, topLeft = Offset(0f, size.height - line), size = Size(size.width, line))
-                },
+                }
+                .padding(start = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             val moveBusy = session.id in props.side.moveBusy
@@ -387,7 +430,7 @@ private fun SessionRow(session: SessionSummary, props: RowProps) {
                     color = if (active) Sm.Ink else Sm.Text,
                     fontSize = 14.sp,
                     lineHeight = 20.sp,
-                    fontWeight = if (active) FontWeight(560) else FontWeight.Normal,
+                    fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

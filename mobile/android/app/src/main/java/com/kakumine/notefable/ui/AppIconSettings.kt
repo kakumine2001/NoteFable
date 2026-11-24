@@ -279,7 +279,7 @@ internal fun AppIconSettings(editor: AppIconEditor, onPickImage: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            SettingsChip(Lucide.Sparkles, stringResource(R.string.app_icon_choose_character)) { editor.picking = !editor.picking }
+            SettingsChip(Lucide.Smile, stringResource(R.string.app_icon_choose_character)) { editor.picking = !editor.picking }
             SettingsChip(Lucide.ImagePlus, stringResource(R.string.app_icon_upload_image), onClick = onPickImage)
         }
         editor.error?.let {

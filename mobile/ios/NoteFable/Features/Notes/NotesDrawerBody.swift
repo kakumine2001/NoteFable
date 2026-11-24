@@ -23,23 +23,28 @@ struct NotesDrawerBody: View {
         let router = self.router
         let kinds = state.kinds
         VStack(spacing: 0) {
-            // “新建”（.sidebar-primary-action）：上距 10、左右 10、下距 6。能建几种类型时右侧显示下拉箭头并先选类型。
-            NewPageMenuAnchor(kinds: kinds, label: L("ws_new_page"), onCreate: { kind in
-                router.closeDrawer()
-                notes.createNote(kind: kind)
-            }) { open in
-                SidebarPrimaryButton(
-                    L(kinds.count > 1 ? "ws_new" : "new_note"),
-                    trailingIcon: kinds.count > 1 ? Lucide.chevronDown : nil,
-                    action: open
-                )
+            // 顶部固定操作区（.sidebar-top-actions）：新建 + 搜索，下方 1pt 细线分隔可滚动列表。
+            VStack(spacing: 0) {
+                // “新建”（.sidebar-primary-action）：上距 10、左右 10、下距 6。能建几种类型时右侧显示下拉箭头并先选类型。
+                NewPageMenuAnchor(kinds: kinds, label: L("ws_new_page"), onCreate: { kind in
+                    router.closeDrawer()
+                    notes.createNote(kind: kind)
+                }) { open in
+                    SidebarPrimaryButton(
+                        L(kinds.count > 1 ? "ws_new" : "new_note"),
+                        trailingIcon: kinds.count > 1 ? Lucide.chevronDown : nil,
+                        action: open
+                    )
+                }
+                .disabled(busy)
+                .padding(.horizontal, 10)
+                .padding(.top, 10)
+                .padding(.bottom, 6)
+                // Search 行：网页侧栏里在“新建”按钮正下方（左右 10 已经带在里面）。
+                SidebarSearchRow { router.openSearch() }
             }
-            .disabled(busy)
-            .padding(.horizontal, 10)
-            .padding(.top, 10)
-            .padding(.bottom, 6)
-            // Search 行：网页侧栏里在“新建”按钮正下方（左右 10 已经带在里面）。
-            SidebarSearchRow { router.openSearch() }
+            .padding(.bottom, 10)
+            .overlay(alignment: .bottom) { NFDivider() }
             ScrollView(.vertical) {
                 NotesDrawerList(busy: busy, reorder: reorder, dialog: $dialog)
                     .padding(.horizontal, 10)
@@ -86,25 +91,38 @@ private struct NotesDrawerList: View {
         let state = app.notes.state
         let favorites = state.favorites
         VStack(alignment: .leading, spacing: 0) {
-            // Favorites（在 Projects 上面，带琥珀星标）：收藏的页面，平铺、不能拖，右侧“从收藏中移除”。
+            // Favorites（在 Projects 上面，带琥珀星标徽章 + 数量胶囊）：收藏的页面，平铺、不能拖，右侧“从收藏中移除”。
             if !favorites.isEmpty {
-                NotesSectionLabel(L("pg_favorites"), icon: Lucide.star, iconColor: Sm.kindFav)
-                    .padding(.horizontal, 8)
-                    .padding(.top, 14)
-                    .padding(.bottom, 5)
+                HStack(spacing: 6) {
+                    SidebarSectionBadge(icon: Lucide.star, background: Sm.kindFavSoft, iconColor: Sm.kindFav)
+                    NotesSectionLabel(L("pg_favorites"))
+                    NotesCountPill(count: favorites.count)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 6)
+                .padding(.top, 12)
+                .padding(.bottom, 6)
                 ForEach(favorites) { page in
                     NotesDrawerFavoriteRow(page: page, busy: busy)
                 }
             }
-            // “Projects”小标题 + 右侧 40 的“新项目”按钮。
-            HStack(spacing: 0) {
-                NotesSectionLabel(L("projects"))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                NFIconButton(Lucide.plus, label: L("new_project"), iconSize: 15) { dialog = .newGroup }
+            if !favorites.isEmpty {
+                SidebarSectionDivider()
             }
-            .padding(.leading, 8)
-            .padding(.trailing, 4)
-            .padding(.top, 10)
+            // “Projects”分区标题（文件夹徽章 + 高对比标题 + 数量胶囊 + 右侧 40 的“新项目”按钮）。
+            HStack(spacing: 6) {
+                SidebarSectionBadge(icon: Lucide.folder, background: Sm.countBg, iconColor: Sm.sectionTitle)
+                NotesSectionLabel(L("projects"))
+                if !state.groups.isEmpty {
+                    NotesCountPill(count: state.groups.count)
+                }
+                Spacer(minLength: 0)
+                NFIconButton(Lucide.plus, label: L("new_project"), iconSize: 15, color: Sm.tabMuted) { dialog = .newGroup }
+            }
+            .padding(.leading, 6)
+            .padding(.trailing, 2)
+            .padding(.top, favorites.isEmpty ? 12 : 0)
+            .padding(.bottom, 4)
             ForEach(state.groups) { group in
                 groupSection(group, state)
             }
@@ -129,6 +147,7 @@ private struct NotesDrawerList: View {
     private func sectionView(_ section: WorkspaceSection, _ state: NotesUiState) -> some View {
         let notes = app.notes
         let isOpen = !state.collapsedSections.contains(section.kind)
+        SidebarSectionDivider()
         NotesSectionHeading(kind: section.kind, count: section.count, isOpen: isOpen, busy: busy, onToggle: { notes.toggleSection(section.kind) }) {
             router.closeDrawer()
             notes.createNote(kind: section.kind)
@@ -309,13 +328,8 @@ private struct NotesDrawerRow: View {
             }
             .disabled(busy)
         }
+        .padding(.leading, 4)
         .frame(minHeight: 42)
-        .background(active ? Sm.activeRow : Color.clear, in: shape)
-        .overlay {
-            if active {
-                shape.strokeBorder(Sm.border, lineWidth: 1).allowsHitTesting(false)
-            }
-        }
         // 插入线自己画在圆角里面（和聊天行一样）。
         .overlay(alignment: .top) {
             if line.before { ReorderDropLine() }
@@ -324,6 +338,7 @@ private struct NotesDrawerRow: View {
             if line.after { ReorderDropLine() }
         }
         .clipShape(shape)
+        .sidebarActiveRow(active: active, accent: iconTint, cornerRadius: 8)
         .reorderRow(page.id, in: reorder, showsDropLine: false)
         .reorderError(errorText(state)) { notes.dismissReorderError() }
     }
@@ -371,7 +386,7 @@ private struct NotesDrawerRow: View {
             if !reorder.swallowsTap() { openNote() }
         } label: {
             Text(page.title)
-                .font(.nf(14, weight: active ? 560 : 400))
+                .font(.nf(14, weight: active ? 600 : 400))
                 .nfLineHeight(20, fontSize: 14)
                 .foregroundStyle(active ? Sm.ink : Sm.text)
                 .lineLimit(1)
@@ -419,7 +434,7 @@ private struct NotesDrawerFavoriteRow: View {
                     NFIconTile(emoji: page.icon, fallback: pageKindIcon(page.kind), box: 28, glyph: 15, color: pageKindColor(page.kind))
                         .padding(.leading, 4)
                     Text(page.title)
-                        .font(.nf(14, weight: active ? 560 : 400))
+                        .font(.nf(14, weight: active ? 600 : 400))
                         .nfLineHeight(20, fontSize: 14)
                         .foregroundStyle(active ? Sm.ink : Sm.text)
                         .lineLimit(1)
@@ -436,13 +451,9 @@ private struct NotesDrawerFavoriteRow: View {
             }
             .disabled(busy)
         }
+        .padding(.leading, 4)
         .frame(minHeight: 42)
-        .background(active ? Sm.activeRow : Color.clear, in: shape)
-        .overlay {
-            if active {
-                shape.strokeBorder(Sm.border, lineWidth: 1).allowsHitTesting(false)
-            }
-        }
         .clipShape(shape)
+        .sidebarActiveRow(active: active, accent: pageKindColor(page.kind), cornerRadius: 8)
     }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ImagePlus, Sparkles, X } from "lucide-react";
+import { Check, ImagePlus, Smile, X } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ChangeEvent, type MutableRefObject } from "react";
 import { AppIcon } from "@/components/app-icon";
 import { CharacterGraphic } from "@/components/character-avatar";
@@ -80,7 +80,7 @@ export function AppIconSettings({ closeGuardRef }: { closeGuardRef?: MutableRefO
           aria-expanded={picking}
           onClick={() => setPicking((current) => !current)}
         >
-          <Sparkles size={14} aria-hidden="true" />{t("Choose a character")}
+          <Smile size={14} aria-hidden="true" />{t("Choose a character")}
         </button>
         <button type="button" className="settings-chip" onClick={() => fileInput.current?.click()}>
           <ImagePlus size={14} aria-hidden="true" />{t("Upload an image")}

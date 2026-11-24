@@ -94,6 +94,8 @@ export function ChatSidebar({
   }
   const ordered=[...sessions].sort((a,b)=>Number(Boolean(b.pinned))-Number(Boolean(a.pinned)) || (a.position ?? 0)-(b.position ?? 0) || Date.parse(b.updatedAt)-Date.parse(a.updatedAt));
   const known=new Set(projects.map(project=>project.id));
+  const pinnedSessions = ordered.filter(session=>session.pinned);
+  const looseSessions = ordered.filter(session=>!session.pinned && (!session.projectId || !known.has(session.projectId)));
   return (
     <aside className="notion-sidebar" data-reorder-list>
       <div className="sidebar-header flex h-12 items-center justify-between px-3.5">
@@ -105,7 +107,7 @@ export function ChatSidebar({
 
       <WorkspaceNav view="chat" onChange={onWorkspaceChange} />
 
-      <div className="sidebar-top-actions mt-2.5 flex flex-col gap-1 px-2.5">
+      <div className="sidebar-top-actions mt-2.5 flex flex-col gap-1.5 px-2.5">
         <button type="button" onClick={onCreate} className="sidebar-primary-action">
           <Plus size={15} strokeWidth={2.2} />
           <span>{t("New chat")}</span>
@@ -118,12 +120,23 @@ export function ChatSidebar({
       </div>
 
       <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto px-2.5 pb-4">
-        {ordered.filter(session=>session.pinned).length>0 && <div className="sidebar-group">
-          <div className="chat-section-label sidebar-section-inline"><Pin size={11.5} aria-hidden="true" /><span>{t("Pinned")}</span></div>
-          {ordered.filter(session=>session.pinned).map(renderRow)}
+        {pinnedSessions.length>0 && <div className="sidebar-group">
+          <div className="chat-section-label sidebar-section-inline">
+            <span className="sidebar-section-badge is-pinned" aria-hidden="true"><Pin size={11.5} /></span>
+            <span className="truncate">{t("Pinned")}</span>
+            <span className="sidebar-section-count">{pinnedSessions.length}</span>
+          </div>
+          {pinnedSessions.map(renderRow)}
         </div>}
         <div className="sidebar-group">
-          <div className="chat-project-heading"><span>{t("Projects")}</span><button type="button" aria-label={t("New project")} title={t("New project")} className="notion-icon-button sidebar-heading-add" onClick={()=>setAction({kind:"createProject"})}><Plus size={14}/></button></div>
+          <div className="chat-project-heading">
+            <span className="sidebar-section-inline min-w-0">
+              <span className="sidebar-section-badge is-projects" aria-hidden="true"><Folder size={11.5} /></span>
+              <span className="truncate">{t("Projects")}</span>
+              {projects.length > 0 && <span className="sidebar-section-count">{projects.length}</span>}
+            </span>
+            <button type="button" aria-label={t("New project")} title={t("New project")} className="notion-icon-button sidebar-heading-add" onClick={()=>setAction({kind:"createProject"})}><Plus size={14}/></button>
+          </div>
           {projectError && <p role="alert" className="px-2 text-xs text-[#b91c1c]">{projectError}</p>}
           {projects.map(project=><div key={project.id}>
             <div className="notion-session-row chat-project-row sidebar-project-row" data-chat-project-drop={project.id}>
@@ -145,8 +158,12 @@ export function ChatSidebar({
           </div>)}
         </div>
         <div className="sidebar-group">
-          <div className="chat-section-label" data-chat-project-drop="">{t("Chats")}</div>
-          {ordered.filter(session=>!session.pinned && (!session.projectId || !known.has(session.projectId))).map(renderRow)}
+          <div className="chat-section-label sidebar-section-inline" data-chat-project-drop="">
+            <span className="sidebar-section-badge is-chat" aria-hidden="true"><MessageSquareText size={11.5} /></span>
+            <span className="truncate">{t("Chats")}</span>
+            {looseSessions.length > 0 && <span className="sidebar-section-count">{looseSessions.length}</span>}
+          </div>
+          {looseSessions.map(renderRow)}
           {sessions.length===0 && <div className="px-2 py-2.5 text-xs leading-5 text-[var(--notion-faint)]">{t("Your recent conversations will appear here.")}</div>}
         </div>
       </div>

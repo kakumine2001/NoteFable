@@ -94,8 +94,8 @@ fun SidebarFooter(
             Box(Modifier.weight(1f)) {
                 if (account.configured) {
                     val user = account.user
-                    // 网页 SignInButton：只放"登录"，点了打开登录窗口（SignInDialog）。
-                    if (user == null) SignInButton(onClick = onSignIn)
+                    // 网页 SignInButton：只放"登录"，点了打开登录窗口（SignInDialog）。侧栏底部使用柔和卡片样式。
+                    if (user == null) SignInButton(onClick = onSignIn, subtle = true)
                     else ProfileRow(user, account, profile, onSignOut, deleteAccount)
                 }
             }

@@ -177,7 +177,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
         <button type="button" className="notion-icon-button grid" onClick={onClose} aria-label={t("Close sidebar")} title={t("Toggle sidebar (Ctrl+B)")}><PanelLeftClose size={17} className="rtl-mirror" /></button>
       </div>
       <WorkspaceNav view="pages" onChange={onWorkspaceChange} />
-      <div className="sidebar-top-actions mt-2.5 flex flex-col gap-1 px-2.5">
+      <div className="sidebar-top-actions mt-2.5 flex flex-col gap-1.5 px-2.5">
         {/* 作れる種類がノートだけなら「New note」（押すとすぐノート）、2 つ以上なら「New」で種類を選ぶ。 */}
         <NewPageButton kinds={kinds} busy={busy} onCreate={(kind) => create({ kind })} className="sidebar-primary-action" menuLabel={t("New page")}>
           <Plus size={15} strokeWidth={2.2} /><span>{kinds.length > 1 ? t("New") : t("New note")}</span>
@@ -192,8 +192,12 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
       </div>
       <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto px-2.5 pb-4">
         {favorites.length > 0 && <div className="sidebar-group">
-          <div className="chat-section-label sidebar-section-inline"><Star size={12} className="sidebar-fav-star" aria-hidden="true" /><span>{t("Favorites")}</span></div>
-          {favorites.map((page) => <div key={page.id} className={`notion-session-row group ${activeId === page.id ? "is-active" : ""}`}>
+          <div className="chat-section-label sidebar-section-inline">
+            <span className="sidebar-section-badge is-fav" aria-hidden="true"><Star size={11.5} className="sidebar-fav-star" /></span>
+            <span className="truncate">{t("Favorites")}</span>
+            <span className="sidebar-section-count">{favorites.length}</span>
+          </div>
+          {favorites.map((page) => <div key={page.id} className={`notion-session-row group ${activeId === page.id ? "is-active" : ""}`} data-page-kind={page.kind}>
             <span className="chat-row-icon-button" aria-hidden="true"><span className="notes-row-icon"><NoteIcon icon={page.icon} fallback={<PageKindIcon kind={page.kind} size={15} />} /></span></span>
             <button type="button" disabled={busy} onClick={() => onSelect(page.id)}
               onPointerEnter={(event) => { if (event.pointerType !== "touch") onPrefetch?.(page.id, false); }}
@@ -210,7 +214,11 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
         </div>}
         <div className="sidebar-group">
           <div className="chat-project-heading">
-            <span>{t("Projects")}</span>
+            <span className="sidebar-section-inline min-w-0">
+              <span className="sidebar-section-badge is-projects" aria-hidden="true"><Folder size={11.5} /></span>
+              <span className="truncate">{t("Projects")}</span>
+              {groups.length > 0 && <span className="sidebar-section-count">{groups.length}</span>}
+            </span>
             <button type="button" className="notion-icon-button sidebar-heading-add" onClick={() => setNaming({ mode: "create" })} aria-label={t("New project")} title={t("New project")}><Plus size={14} /></button>
           </div>
           {groups.map((group) => {
@@ -251,10 +259,12 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
             <div className="chat-project-heading notes-section-heading" data-note-group-drop="" data-drop-kind={section.kind}>
               <button type="button" className="notes-section-toggle" aria-expanded={open} onClick={() => setSectionOpen(section.kind, !open)}
                 aria-label={open ? t("Collapse {title}", { title: label }) : t("Expand {title}", { title: label })}>
-                {kinds.length > 1 && <span className={`sidebar-kind-dot is-${section.kind}`} aria-hidden="true" />}
+                <span className={`sidebar-section-badge is-${section.kind}`} aria-hidden="true">
+                  <PageKindIcon kind={section.kind} size={12} />
+                </span>
                 <span className="truncate">{label}</span>
                 {section.count > 0 && <span className="sidebar-section-count">{section.count}</span>}
-                <ChevronRight size={12} className={`sidebar-chevron rtl-mirror${open ? " is-open" : ""}`} aria-hidden="true" />
+                <ChevronRight size={12.5} className={`sidebar-chevron rtl-mirror${open ? " is-open" : ""}`} aria-hidden="true" />
               </button>
               <button type="button" className="notion-icon-button sidebar-heading-add" disabled={busy} onClick={() => create({ kind: section.kind })}
                 aria-label={t(PAGE_KIND_NEW_LABELS[section.kind])} title={t(PAGE_KIND_NEW_LABELS[section.kind])}><Plus size={14} /></button>

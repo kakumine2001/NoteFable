@@ -15,7 +15,7 @@ import UIKit
 
 /// 未登录用户撞到当日上限时，输入栏上方的登录提示（网页 src/components/guest-limit-prompt.tsx，样式在 globals.css 的
 /// .guest-limit-*，412 宽手机下实测；Android GuestLimitPrompt.kt）：外框内边距 14/40/14/14、1px 蓝描边、圆角 12、
-/// 浅蓝到浅黄的 135° 渐变 + 输入栏阴影，下距 12；左边 34 的蓝色圆角 10 图标框（Sparkles 18、描边 2.1、白）、间距 12；
+/// 浅蓝到浅黄的 135° 渐变 + 输入栏阴影，下距 12；左边 34 的圆角 10 图标框（默认角色徽章 AppIconView 22，存储空间提示用蓝色框 + HardDrive 18）、间距 12；
 /// 标题 15/600 行高 21 墨色；说明 13.5 / 20.925 灰，上距 2；按钮区上距 12、竖排、间距 8："登录"按钮高 44 全圆角、左右 16，
 /// "以后再说"13.5 灰居中；右上 8 处 28 的关闭键（✕ 16，浅灰，圆角 6）。数值用 member 的上限。
 struct GuestLimitPrompt: View {
@@ -123,12 +123,22 @@ struct GuestLimitPrompt: View {
         let enterValue = reduced ? 1 : enter
 
         HStack(alignment: .top, spacing: 12) {
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Sm.blue)
-                .frame(width: 34, height: 34)
-                .overlay { LucideIcon(storage != nil ? Lucide.hardDrive : Lucide.sparkles, size: 18, strokeWidth: 2.1, color: .white) }
-                .modifier(GuestLimitPopEffect(progress: reduced ? 1 : pop))
-                .accessibilityHidden(true)
+            Group {
+                if storage != nil {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Sm.blue)
+                        .frame(width: 34, height: 34)
+                        .overlay { LucideIcon(Lucide.hardDrive, size: 18, strokeWidth: 2.1, color: .white) }
+                } else {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Sm.surface)
+                        .frame(width: 34, height: 34)
+                        .overlay { AppIconView(icon: app.appIcon.icon, size: 22) }
+                        .overlay { RoundedRectangle(cornerRadius: 10).strokeBorder(Sm.borderStrong, lineWidth: 1) }
+                }
+            }
+            .modifier(GuestLimitPopEffect(progress: reduced ? 1 : pop))
+            .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 0) {
                 Text(titleText)

@@ -18,16 +18,21 @@ struct ChatDrawerBody: View {
     var body: some View {
         let chat = app.chat.state
         VStack(spacing: 0) {
-            SidebarPrimaryButton(L("new_chat")) {
-                app.chat.newChat()
-                router.closeDrawer()
-            }
-            .padding(.horizontal, 10)
-            .padding(.top, 10)
-            .padding(.bottom, 6)
+            // 顶部固定操作区（.sidebar-top-actions）：新聊天 + 搜索，下方 1pt 细线分隔可滚动列表。
+            VStack(spacing: 0) {
+                SidebarPrimaryButton(L("new_chat")) {
+                    app.chat.newChat()
+                    router.closeDrawer()
+                }
+                .padding(.horizontal, 10)
+                .padding(.top, 10)
+                .padding(.bottom, 6)
 
-            // 网页侧栏里在“新建”按钮正下方。检索面板盖在抽屉上面，选了结果才关抽屉。
-            SidebarSearchRow { router.openSearch() }
+                // 网页侧栏里在“新建”按钮正下方。检索面板盖在抽屉上面，选了结果才关抽屉。
+                SidebarSearchRow { router.openSearch() }
+            }
+            .padding(.bottom, 10)
+            .overlay(alignment: .bottom) { NFDivider() }
 
             // 聊天状态在生成回答时每个字都变；列表只看这四项，没变就不重算。
             ChatDrawerList(
@@ -65,13 +70,25 @@ private struct ChatDrawerList: View, Equatable {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 0) {
                 if !groups.pinned.isEmpty {
-                    ChatSectionLabel(L("sb_pinned"), icon: Lucide.pin)
+                    ChatSectionLabel(
+                        L("sb_pinned"),
+                        badgeIcon: Lucide.pin,
+                        badgeBackground: Sm.accentSoft,
+                        badgeIconColor: Sm.blue,
+                        badgeBorder: Sm.kindNoteBorder,
+                        count: groups.pinned.count
+                    )
+                    .padding(.top, 12)
                     ForEach(groups.pinned) { session in
                         row(session, side)
                     }
                 }
 
-                ChatProjectsHeading { present(.createProject) }
+                if !groups.pinned.isEmpty {
+                    SidebarSectionDivider()
+                }
+                ChatProjectsHeading(count: side.projects.count) { present(.createProject) }
+                    .padding(.top, groups.pinned.isEmpty ? 12 : 0)
                 if side.projectsFailed {
                     SidebarSmallNote(L("sb_err_load_projects"), color: Sm.danger)
                 }
@@ -82,9 +99,17 @@ private struct ChatDrawerList: View, Equatable {
                     projectSection(project, side, groups)
                 }
 
-                // CHATS 标签同时是“移出项目”的投放区（网页 data-chat-project-drop=""）。
-                ChatSectionLabel(L("chats"))
-                    .reorderDropZone("", in: reorder)
+                // Chats 标签同时是“移出项目”的投放区（网页 data-chat-project-drop=""）。
+                SidebarSectionDivider()
+                ChatSectionLabel(
+                    L("chats"),
+                    badgeIcon: Lucide.messageSquareText,
+                    badgeBackground: Sm.accentSoft,
+                    badgeIconColor: Sm.blue,
+                    badgeBorder: Sm.kindNoteBorder,
+                    count: groups.loose.count
+                )
+                .reorderDropZone("", in: reorder)
                 if loading && sessions.isEmpty {
                     Spinner(size: 24)
                         .frame(maxWidth: .infinity)

@@ -262,7 +262,7 @@ private fun PlanMeterRow(label: String, count: String, ratio: Float, full: Boole
 }
 
 // .settings-plan-offer（手机）：上距 16、内边距 14/16、1px 蓝描边、圆角 12、和上限提示一样的浅蓝到浅黄渐变；
-// 标题 15/600 墨色、前面 15 的蓝色 Sparkles（间距 6）；说明 13 灰；按钮上距 12、高 44、全圆角、墨色底白字 15/600、占满一行。
+// 标题 15/600 墨色、前面 17 的产品角色图标（间距 7）；说明 13 灰；按钮上距 12、高 44、全圆角、墨色底白字 15/600、占满一行。
 @Composable
 private fun PlanOffer(product: PlayProduct, busy: Boolean, onUpgrade: () -> Unit) {
     val shape = RoundedCornerShape(12.dp)
@@ -278,8 +278,8 @@ private fun PlanOffer(product: PlayProduct, busy: Boolean, onUpgrade: () -> Unit
             .border(1.dp, Sm.AccentLine, shape).padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            LucideIcon(Lucide.Sparkles, 15.dp, Sm.Blue)
-            Spacer(Modifier.width(6.dp))
+            AppIcon(17.dp, Sm.Ink)
+            Spacer(Modifier.width(7.dp))
             Text(stringResource(R.string.plan_offer_title, product.formattedPrice), color = Sm.Ink, fontSize = 15.sp, lineHeight = 22.5.sp, fontWeight = FontWeight.SemiBold)
         }
         SettingsHelpText(stringResource(R.string.plan_offer_body, "%,d".format(limits.chat), limits.image, formatStorageSize(limits.storage, uiLocale())))
@@ -392,7 +392,7 @@ fun UpgradeLimitPrompt(
             if (storage != null) stringResource(R.string.storage_limit_delete) else null,
         ).joinToString("\n").ifEmpty { null },
         actionLabel = upgradeLabel(busy, product),
-        icon = if (storage != null) Lucide.HardDrive else Lucide.Sparkles,
+        icon = if (storage != null) Lucide.HardDrive else null,
     )
 }
 
