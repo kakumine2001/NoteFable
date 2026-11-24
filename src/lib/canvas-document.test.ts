@@ -25,7 +25,8 @@ describe("page kinds", () => {
 
   it("keeps note-only features for notes and turns on each canvas kind as its editor ships", () => {
     expect(PAGE_KIND_FEATURES.note).toEqual({ editor: true, markdownExport: true, typography: true, publicShare: true, aiEdit: true });
-    expect(PAGE_KIND_FEATURES.whiteboard).toEqual({ editor: false, markdownExport: false, typography: false, publicShare: false, aiEdit: false });
+    // ホワイトボードのエディターと読み取り専用の公開ビュー（#152）。AI の操作は #153。
+    expect(PAGE_KIND_FEATURES.whiteboard).toEqual({ editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false });
     // スライドのエディターと公開の放映ページ（#149）。AI の編集は #150。
     expect(PAGE_KIND_FEATURES.slides).toEqual({ editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false });
   });
@@ -54,6 +55,10 @@ describe("whiteboard and slide data", () => {
       ["whiteboard", { elements: [{ id: "a", type: "text" }, { id: "a", type: "text" }] }],
       ["whiteboard", { elements: [{ type: "text" }] }], ["whiteboard", { elements: [{ id: "a" }] }],
       ["whiteboard", { elements: [{ id: "a", type: "text", isDeleted: "yes" }] }],
+      // 埋め込み（外部のページ・任意の HTML）と AI の枠は置けない。
+      ["whiteboard", { elements: [{ id: "a", type: "iframe", customData: { generationData: { status: "done", html: "<script>alert(1)</script>" } } }] }],
+      ["whiteboard", { elements: [{ id: "a", type: "embeddable", link: "https://val.town/x" }] }],
+      ["whiteboard", { elements: [{ id: "a", type: "magicframe" }] }],
       ["whiteboard", { elements: [], files: { f: { dataURL: "https://example.com/x.png" } } }],
       // もう一方の種類の外枠は持てない（種類を取り違えない）。
       ["whiteboard", { elements: [], slides: [] }], ["slides", { slides: [], elements: [] }],

@@ -72,7 +72,7 @@
 | App → 网页（能力） | `NoteFableNative.canPresent()` | 为 true 时，放映交给 App：网页发 `presentation`，不用浏览器全屏 |
 | App → 网页（能力） | `NoteFableNative.canSaveFile()` | 为 true 时，导出的文件分块交给 App 保存 |
 | 网页 → App | `{ type: "presentation", state: "start" \| "slide" \| "end", index, count }` | start：横屏、全屏（隐藏系统栏）、屏幕常亮、收起原生顶栏；end：恢复 |
-| 网页 → App | `fileStart { id, name, mime, size }` → `fileChunk { id, index, data }`（base64，每块原始 512 KiB）→ `fileEnd { id }` / `fileAbort { id }` | App 写入临时文件，结束后让用户选位置保存（Android：系统“保存到”（SAF CreateDocument）；iOS：文档导出面板） |
+| 网页 → App | `fileStart { id, name, mime, size }` → `fileChunk { id, index, data }`（base64，每块原始 512 KiB）→ `fileEnd { id }` / `fileAbort { id }` | App 写入临时文件，结束后让用户选位置保存（和白板共用一条路：Android `ExportFileAssembler` + `ExportFileSaver`，系统“保存到”（SAF CreateDocument）；iOS `ExportFileAssembler`（`ExportFile.swift`）+ `NotesViewModel`，`.fileExporter` 的“存储到文件”）。收 PNG / SVG / PDF / PPTX / ZIP（多页的 PNG），最多 64 MiB，见 [whiteboard.md](whiteboard.md)、[android-native.md](android-native.md)、[ios-native.md](ios-native.md) |
 | App → 网页 | `notefableEmbed.slides({ action, index?, format? })` | `present` / `end` / `next` / `previous` / `goto` / `export`（`pdf` / `pdf-notes` / `png` / `pptx`）；App 的“…”菜单（放映、导出）和返回键（放映中先结束放映）用它 |
 
 旧版 App（没有 `canPresent` / `canSaveFile`）：放映只在 WebView 里进行（不横屏、不常亮），导出提示更新 App。

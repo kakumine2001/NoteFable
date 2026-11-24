@@ -366,6 +366,8 @@
 "answer_download_failed" = "无法下载聊天，请重试。";
 "answer_save_failed" = "无法保存为笔记，请重试。";
 "answer_save_too_large" = "这条回答太长，无法保存为笔记。";
+"export_file_saved" = "文件已保存。";
+"export_file_failed" = "无法保存文件。";
 
 /* strings_i18n.xml */
 "ui_locale" = "zh";
@@ -586,8 +588,6 @@
 "slides_export_pdf_notes" = "导出带演讲备注的 PDF";
 "slides_export_png" = "导出 PNG 图片";
 "slides_export_pptx" = "导出 PowerPoint（PPTX）";
-"slides_file_saved" = "文件已保存。";
-"slides_file_save_failed" = "无法保存文件。";
 
 /* strings_turns.xml */
 "regenerate" = "重新生成";

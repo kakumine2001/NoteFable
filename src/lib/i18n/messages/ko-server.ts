@@ -244,7 +244,7 @@ export const koServer: Record<string, string> = {
   "Unknown page kind.": "알 수 없는 페이지 유형이에요.",
   "Only notes can be exported as Markdown.": "Markdown으로 내보낼 수 있는 것은 노트뿐이에요.",
   "Font, text size and width can only be changed for notes.": "글꼴, 글자 크기, 너비는 노트에서만 바꿀 수 있어요.",
-  "Whiteboards and slide decks can't be published yet.": "화이트보드와 슬라이드는 아직 게시할 수 없어요.",
+  "This page type can't be published yet.": "이 유형의 페이지는 아직 게시할 수 없어요.",
   "This page can't be edited in this version of NoteFable.": "이 버전의 NoteFable에서는 이 페이지를 편집할 수 없어요.",
   "These pages are too large to duplicate at once.": "이 페이지들은 너무 커서 한 번에 복제할 수 없어요.",
   "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "남은 저장 공간이 부족해요. 로그인하면 공간이 늘어나고, 필요 없는 파일을 삭제할 수도 있어요.",

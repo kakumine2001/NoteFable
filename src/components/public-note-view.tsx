@@ -6,12 +6,14 @@ import { PublicMathStyles } from "@/components/public-note-math-styles";
 import { siteHref } from "@/lib/hosts";
 import { localeDir, type Locale } from "@/lib/i18n/locale";
 import { messagesFor } from "@/lib/i18n/messages";
-import { createTranslator } from "@/lib/i18n/translate";
+import { createTranslator, type Translate } from "@/lib/i18n/translate";
 import { renderKatex, type KatexApi } from "@/lib/katex-render";
 import { isPresetCover, NOTE_COVERS, uploadedCoverPath } from "@/lib/note-document";
 import { mentionText } from "@/lib/note-mention";
 import { rewriteBlocksForShare, shareCoverUrl, shareIconUrl, sharePagePath } from "@/lib/note-share";
 import { NoteIcon } from "@/components/note-icon";
+import { PageKindIcon } from "@/components/page-kind-icon";
+import { PublicWhiteboardViewer } from "@/components/whiteboard/public-whiteboard-viewer";
 import { isUploadedNoteIcon, noteIconText } from "@/lib/note-icon";
 import type { ResolvedPublicShare } from "@/lib/note-share-server";
 import { validColumnWidth } from "@/lib/note-columns";
@@ -457,7 +459,7 @@ async function loadKatex(): Promise<KatexApi | null> {
 export async function PublicNoteView({ data, locale }: { data: ResolvedPublicShare; locale: Locale }) {
   const t = createTranslator(messagesFor(locale));
   const dir = localeDir(locale);
-  const { page, breadcrumbs, children, token, root } = data;
+  const { page, children, token } = data;
   const preset = isPresetCover(page.cover) ? NOTE_COVERS[page.cover] : null;
   const uploadedCover = uploadedCoverPath(page.cover);
   const coverUrl = uploadedCover ? shareCoverUrl(token, page.id) : null;
@@ -480,40 +482,10 @@ export async function PublicNoteView({ data, locale }: { data: ResolvedPublicSha
     .filter(Boolean)
     .join(" ");
 
-  const homeHref = siteHref("/?intro");
-
   return (
     <div className={`public-note-shell ${pageClass}`} lang={locale} dir={dir}>
       {katex ? <PublicMathStyles /> : null}
-      <header className="public-note-topbar">
-        <nav className="public-note-breadcrumbs" aria-label={t("Breadcrumb")}>
-          {breadcrumbs.map((crumb, index) => {
-            const href = crumb.id === root.id ? sharePagePath(token) : sharePagePath(token, crumb.id);
-            const isCurrent = index === breadcrumbs.length - 1;
-            const title = crumb.title.trim() || t("Untitled");
-            return (
-              <span key={crumb.id} className="public-note-crumb-item">
-                {index > 0 ? <ChevronRight size={14} className="public-note-crumb-sep rtl-mirror" aria-hidden="true" /> : null}
-                {isCurrent ? (
-                  <span className="public-note-crumb is-current">
-                    {crumb.icon ? <span className="public-note-crumb-icon" aria-hidden="true"><NoteIcon icon={noteIconText(crumb.icon)} imageUrl={isUploadedNoteIcon(crumb.icon) ? shareIconUrl(token, crumb.id) : null} /></span> : <FileText size={14} className="public-note-crumb-icon" aria-hidden="true" />}
-                    <span className="truncate">{title}</span>
-                  </span>
-                ) : (
-                  <Link href={href} className="public-note-crumb">
-                    {crumb.icon ? <span className="public-note-crumb-icon" aria-hidden="true"><NoteIcon icon={noteIconText(crumb.icon)} imageUrl={isUploadedNoteIcon(crumb.icon) ? shareIconUrl(token, crumb.id) : null} /></span> : <FileText size={14} className="public-note-crumb-icon" aria-hidden="true" />}
-                    <span className="truncate">{title}</span>
-                  </Link>
-                )}
-              </span>
-            );
-          })}
-        </nav>
-        <a href={homeHref} className="public-note-brand">
-          <Globe size={14} aria-hidden="true" />
-          <span>{t("Made with NoteFable")}</span>
-        </a>
-      </header>
+      <PublicShareTopbar data={data} t={t} />
 
       <main className="public-note-main">
         <div className={`notes-page-header ${hasCover ? "has-cover" : ""} ${page.icon ? "has-icon" : ""}`}>
@@ -545,7 +517,78 @@ export async function PublicNoteView({ data, locale }: { data: ResolvedPublicSha
                 <li key={child.id}>
                   <Link href={sharePagePath(token, child.id)} className="public-note-subpage-link">
                     <span className="public-note-subpage-icon" aria-hidden="true">
-                      <NoteIcon icon={noteIconText(child.icon)} imageUrl={isUploadedNoteIcon(child.icon) ? shareIconUrl(token, child.id) : null} fallback={<FileText size={16} />} />
+                      <NoteIcon icon={noteIconText(child.icon)} imageUrl={isUploadedNoteIcon(child.icon) ? shareIconUrl(token, child.id) : null} fallback={<PageKindIcon kind={child.kind} size={16} />} />
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">{child.title.trim() || t("Untitled")}</span>
+                    <ChevronRight size={15} className="public-note-subpage-arrow rtl-mirror" aria-hidden="true" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+      </main>
+    </div>
+  );
+}
+
+// 公開ページの上のバー：パンくず（公開の木の中のページ）と、NoteFable への案内。ノートとホワイトボードで同じもの。
+export function PublicShareTopbar({ data, t }: { data: ResolvedPublicShare; t: Translate }) {
+  const { breadcrumbs, token, root } = data;
+  const homeHref = siteHref("/?intro");
+  const crumbIcon = (crumb: ResolvedPublicShare["breadcrumbs"][number]) => crumb.icon
+    ? <span className="public-note-crumb-icon" aria-hidden="true"><NoteIcon icon={noteIconText(crumb.icon)} imageUrl={isUploadedNoteIcon(crumb.icon) ? shareIconUrl(token, crumb.id) : null} /></span>
+    : <PageKindIcon kind={crumb.kind} size={14} className="public-note-crumb-icon" aria-hidden="true" />;
+  return (
+    <header className="public-note-topbar">
+      <nav className="public-note-breadcrumbs" aria-label={t("Breadcrumb")}>
+        {breadcrumbs.map((crumb, index) => {
+          const href = crumb.id === root.id ? sharePagePath(token) : sharePagePath(token, crumb.id);
+          const isCurrent = index === breadcrumbs.length - 1;
+          const title = crumb.title.trim() || t("Untitled");
+          return (
+            <span key={crumb.id} className="public-note-crumb-item">
+              {index > 0 ? <ChevronRight size={14} className="public-note-crumb-sep rtl-mirror" aria-hidden="true" /> : null}
+              {isCurrent ? (
+                <span className="public-note-crumb is-current">{crumbIcon(crumb)}<span className="truncate">{title}</span></span>
+              ) : (
+                <Link href={href} className="public-note-crumb">{crumbIcon(crumb)}<span className="truncate">{title}</span></Link>
+              )}
+            </span>
+          );
+        })}
+      </nav>
+      <a href={homeHref} className="public-note-brand">
+        <Globe size={14} aria-hidden="true" />
+        <span>{t("Made with NoteFable")}</span>
+      </a>
+    </header>
+  );
+}
+
+// 公開リンクのホワイトボード：上のバーと、拡大縮小・移動だけができる読み取り専用のキャンバス（本体は /s/:token/scene から読む）。
+// 下にサブページがあれば、ノートの公開ページと同じ一覧を出す。
+export function PublicWhiteboardView({ data, locale }: { data: ResolvedPublicShare; locale: Locale }) {
+  const t = createTranslator(messagesFor(locale));
+  const dir = localeDir(locale);
+  const { page, children, token } = data;
+  return (
+    <div className="public-note-shell public-whiteboard-shell" lang={locale} dir={dir}>
+      <PublicShareTopbar data={data} t={t} />
+      <main className="public-whiteboard-main">
+        <h1 className="sr-only">{page.title.trim() || t("Untitled")}</h1>
+        <PublicWhiteboardViewer token={token} pageId={page.id} locale={locale} dir={dir} labels={{
+          zoomIn: t("Zoom in"), zoomOut: t("Zoom out"), fit: t("Fit to screen"), loading: t("Loading whiteboard…"),
+          failed: t("This page is not available"), empty: t("This whiteboard is empty."),
+        }} />
+        {children.length > 0 ? (
+          <section className="public-whiteboard-subpages" aria-label={t("Sub-pages")}>
+            <ul className="public-note-subpages-list">
+              {children.map((child) => (
+                <li key={child.id}>
+                  <Link href={sharePagePath(token, child.id)} className="public-note-subpage-link">
+                    <span className="public-note-subpage-icon" aria-hidden="true">
+                      <NoteIcon icon={noteIconText(child.icon)} imageUrl={isUploadedNoteIcon(child.icon) ? shareIconUrl(token, child.id) : null} fallback={<PageKindIcon kind={child.kind} size={16} />} />
                     </span>
                     <span className="min-w-0 flex-1 truncate">{child.title.trim() || t("Untitled")}</span>
                     <ChevronRight size={15} className="public-note-subpage-arrow rtl-mirror" aria-hidden="true" />

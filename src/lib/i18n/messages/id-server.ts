@@ -244,7 +244,7 @@ export const idServer: Record<string, string> = {
   "Unknown page kind.": "Jenis halaman tidak dikenal.",
   "Only notes can be exported as Markdown.": "Hanya catatan yang dapat diekspor sebagai Markdown.",
   "Font, text size and width can only be changed for notes.": "Font, ukuran teks, dan lebar hanya dapat diubah untuk catatan.",
-  "Whiteboards and slide decks can't be published yet.": "Papan tulis dan presentasi belum dapat dipublikasikan.",
+  "This page type can't be published yet.": "Jenis halaman ini belum dapat dipublikasikan.",
   "This page can't be edited in this version of NoteFable.": "Halaman ini tidak dapat diedit di versi NoteFable ini.",
   "These pages are too large to duplicate at once.": "Halaman-halaman ini terlalu besar untuk diduplikasi sekaligus.",
   "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "Ruang penyimpanan yang tersisa tidak cukup. Masuk untuk mendapatkan lebih banyak ruang, atau hapus file yang tidak lagi Anda perlukan.",

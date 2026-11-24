@@ -12,4 +12,6 @@
     <string name="answer_download_failed">बातचीत डाउनलोड नहीं हो सकी। फिर से प्रयास करें।</string>
     <string name="answer_save_failed">नोट के रूप में सेव नहीं किया जा सका। फिर से प्रयास करें।</string>
     <string name="answer_save_too_large">यह जवाब इतना बड़ा है कि इसे नोट के रूप में सेव नहीं किया जा सकता।</string>
+    <string name="export_file_saved">फ़ाइल सहेजी गई।</string>
+    <string name="export_file_failed">फ़ाइल सहेजी नहीं जा सकी।</string>
 </resources>

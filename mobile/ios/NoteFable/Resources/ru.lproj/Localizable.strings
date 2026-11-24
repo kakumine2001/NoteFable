@@ -366,6 +366,8 @@
 "answer_download_failed" = "Не удалось скачать диалог. Попробуйте ещё раз.";
 "answer_save_failed" = "Не удалось сохранить как заметку. Попробуйте ещё раз.";
 "answer_save_too_large" = "Этот ответ слишком длинный, чтобы сохранить его как заметку.";
+"export_file_saved" = "Файл сохранён.";
+"export_file_failed" = "Не удалось сохранить файл.";
 
 /* strings_i18n.xml */
 "ui_locale" = "ru";
@@ -586,8 +588,6 @@
 "slides_export_pdf_notes" = "Экспорт в PDF с заметками докладчика";
 "slides_export_png" = "Экспорт в изображения PNG";
 "slides_export_pptx" = "Экспорт в PowerPoint (PPTX)";
-"slides_file_saved" = "Файл сохранён.";
-"slides_file_save_failed" = "Не удалось сохранить файл.";
 
 /* strings_turns.xml */
 "regenerate" = "Сгенерировать заново";

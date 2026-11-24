@@ -221,7 +221,7 @@ final class NotesTestBackend: NotesBackend {
         return created
     }
 
-    nonisolated func noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?, theme: String?) -> String {
+    nonisolated func noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?, theme: String?, reveal: String?) -> String {
         "https://example.test/note-embed?page=\(pageId)&lang=\(lang ?? "null")"
     }
 }
@@ -262,5 +262,6 @@ final class NotesTestEditor: NoteEditorBridge {
     func appIcon(_ value: String?) { calls.append("icon:\(value ?? "null")") }
     func language(_ code: String) { calls.append("lang:\(code)") }
     func theme(_ value: String) { calls.append("theme:\(value)") }
+    func reveal(_ id: String) { calls.append("reveal:\(id)") }
     func slides(_ command: String) { calls.append("slides:\(command)") }
 }

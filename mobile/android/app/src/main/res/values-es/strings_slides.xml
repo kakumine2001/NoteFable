@@ -6,6 +6,4 @@
     <string name="slides_export_pdf_notes">Exportar PDF con notas del orador</string>
     <string name="slides_export_png">Exportar imágenes PNG</string>
     <string name="slides_export_pptx">Exportar a PowerPoint (PPTX)</string>
-    <string name="slides_file_saved">Archivo guardado.</string>
-    <string name="slides_file_save_failed">No se pudo guardar el archivo.</string>
 </resources>

@@ -319,11 +319,14 @@ interface NotesBackend {
     suspend fun importMarkdown(files: List<ImportMarkdownFile>, groupId: String? = null): List<NotePageSummary>
 
     /**
-     * 网页"仅编辑器"页面的地址（`/note-embed?page=…&lang=…&model=…&reasoning=…&theme=…`）。
+     * 网页"仅编辑器"页面的地址（`/note-embed?page=…&lang=…&model=…&reasoning=…&theme=…&reveal=…`）。
      * [model] / [reasoning] 是 App 里选的模型和推理强度，编辑器里的 AI 助手用它们（网页按服务端的模型列表核对）。
      * [theme] 是 App 现在实际的外观（`light` / `dark`），网页第一帧就按它画（src/lib/theme.ts 的 THEME_INIT_SCRIPT）。
+     * [reveal] 是检索命中的块（笔记的块、白板的元素）：网页读好页面后滚动 / 缩放到它（src/components/note-embed.tsx）。
      */
-    fun noteEmbedUrl(pageId: String, lang: String?, model: String? = null, reasoning: String? = null, theme: String? = null): String
+    fun noteEmbedUrl(
+        pageId: String, lang: String?, model: String? = null, reasoning: String? = null, theme: String? = null, reveal: String? = null,
+    ): String
 }
 
 /**
@@ -370,10 +373,13 @@ sealed interface EmbedMessage {
      * 只有声明了 `canPresent()` 的 App 才会收到。
      */
     data class Presentation(val state: String, val index: Int, val count: Int) : EmbedMessage
-    /**
-     * 网页做好的导出文件（PDF、PNG、PPTX）分块交给 App 保存：FileStart → 若干 FileChunk（base64）→ FileEnd（出错时 FileAbort）。
-     * 只有声明了 `canSaveFile()` 的 App 才会收到。
-     */
+    /** 白板正在用画图的工具（手掌 / 平移以外的都算）：这期间 App 让开屏幕两侧的系统返回手势。 */
+    data class Drawing(val active: Boolean) : EmbedMessage
+
+    // 网页导出的文件（白板的 PNG / SVG / PDF，幻灯片的 PDF / PNG / PPTX）分块交给 App 保存（src/lib/export-file.ts）：
+    // fileStart → fileChunk（[FileChunk.data] 是 base64，原始字节最多 512 KiB，[FileChunk.index] 从 0 起按顺序）×n → fileEnd；
+    // 中途放弃是 fileAbort。只有声明了 `canSaveFile()` 的 App 才会收到；由 [ExportFileAssembler] 拼成临时文件。
+    /** [size] 是整个文件的字节数。 */
     data class FileStart(val id: String, val name: String, val mime: String, val size: Long) : EmbedMessage
     data class FileChunk(val id: String, val index: Int, val data: String) : EmbedMessage
     data class FileEnd(val id: String) : EmbedMessage
@@ -384,6 +390,11 @@ sealed interface EmbedMessage {
         fun parse(json: String): EmbedMessage? = runCatching {
             val obj = NoteFableJson.parseToJsonElement(json).jsonObject
             fun JsonObject.str(key: String) = this[key]?.takeIf { it !is kotlinx.serialization.json.JsonNull }?.jsonPrimitive?.contentOrNull
+            // 下面几个只认对应的 JSON 类型（字符串的 "true"、"3" 不算布尔值和数字）。
+            fun JsonObject.text(key: String) = (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
+            fun JsonObject.number(key: String) = (this[key] as? JsonPrimitive)?.takeIf { !it.isString }?.longOrNull
+            fun JsonObject.flag(key: String) = (this[key] as? JsonPrimitive)?.takeIf { !it.isString }?.booleanOrNull
+            fun JsonObject.fileId() = text("id")?.takeIf { it.isNotBlank() }
             when (obj.str("type")) {
                 "ready" -> {
                     val page = obj["page"]?.jsonObject ?: return@runCatching null
@@ -405,24 +416,25 @@ sealed interface EmbedMessage {
                     obj["index"]?.jsonPrimitive?.intOrNull ?: 0,
                     obj["count"]?.jsonPrimitive?.intOrNull ?: 0,
                 )
-                "fileStart" -> FileStart(
-                    obj.str("id")?.takeIf { it.isNotBlank() } ?: return@runCatching null,
-                    obj.str("name")?.takeIf { it.isNotBlank() } ?: return@runCatching null,
-                    obj.str("mime") ?: "application/octet-stream",
-                    obj["size"]?.jsonPrimitive?.longOrNull ?: 0L,
-                )
-                "fileChunk" -> FileChunk(
-                    obj.str("id") ?: return@runCatching null,
-                    obj["index"]?.jsonPrimitive?.intOrNull ?: return@runCatching null,
-                    obj.str("data") ?: return@runCatching null,
-                )
-                "fileEnd" -> FileEnd(obj.str("id") ?: return@runCatching null)
-                "fileAbort" -> FileAbort(obj.str("id") ?: return@runCatching null)
                 "flushed" -> Flushed(
                     obj.str("requestId").orEmpty(),
                     obj["ok"]?.jsonPrimitive?.booleanOrNull == true,
                     obj["kept"]?.jsonPrimitive?.booleanOrNull == true,
                 )
+                "drawing" -> Drawing(obj.flag("active") ?: return@runCatching null)
+                "fileStart" -> FileStart(
+                    obj.fileId() ?: return@runCatching null,
+                    obj.text("name") ?: return@runCatching null,
+                    obj.text("mime") ?: return@runCatching null,
+                    obj.number("size")?.takeIf { it >= 0 } ?: return@runCatching null,
+                )
+                "fileChunk" -> FileChunk(
+                    obj.fileId() ?: return@runCatching null,
+                    obj.number("index")?.takeIf { it >= 0 && it <= Int.MAX_VALUE }?.toInt() ?: return@runCatching null,
+                    obj.text("data") ?: return@runCatching null,
+                )
+                "fileEnd" -> FileEnd(obj.fileId() ?: return@runCatching null)
+                "fileAbort" -> FileAbort(obj.fileId() ?: return@runCatching null)
                 else -> null
             }
         }.getOrNull()

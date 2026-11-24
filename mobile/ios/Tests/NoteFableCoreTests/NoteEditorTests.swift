@@ -149,13 +149,59 @@ final class NoteEditorTests: XCTestCase {
         let bridge = makeBridge()
         // 还没有 WebView：什么都不做。
         bridge.openHistory()
+        bridge.reveal("block-1")
         bridge.attach(editor)
         bridge.openHistory()
         bridge.pageUpdated(#"{"id":"p1"}"#)
         bridge.pushAppIcon(nil)
         bridge.pushAppIcon("character:piko")
         bridge.pushLanguage("zh-Hant")
-        XCTAssertEqual(editor.calls, ["history", #"updated:{"id":"p1"}"#, "icon:null", "icon:character:piko", "lang:zh-Hant"])
+        bridge.reveal("element_2")
+        XCTAssertEqual(
+            editor.calls,
+            ["history", #"updated:{"id":"p1"}"#, "icon:null", "icon:character:piko", "lang:zh-Hant", "reveal:element_2"]
+        )
+    }
+
+    @MainActor
+    func testASearchHitInTheOpenPageRevealsInPlaceWhileAnotherPageCarriesItIntoItsFirstLoad() async {
+        let backend = NotesTestBackend()
+        let vm = NotesViewModel(backend: backend)
+        vm.setWorkspace(.notes)
+        await notesSettle()
+        vm.openNote("a")
+        await notesSettle()
+
+        let editor = NotesTestEditor()
+        let bridge = NoteEmbedBridge(sleep: { _ in try await Task.sleep(for: .seconds(3600)) }) { vm.onEditorMessage("a", $0) }
+        bridge.attach(editor)
+        vm.registerEditor(bridge)
+        editor.onFlush = { id in bridge.postMessage(#"{"type":"flushed","requestId":"\#(id)","ok":true}"#) }
+        func reveals() -> [String] { editor.calls.filter { $0.hasPrefix("reveal:") } }
+
+        // 已经开着这一篇：不保存、不重新加载（打开着的不变），交给开着的编辑器就地定位。
+        let opened = vm.state.open
+        vm.openNote("a", title: "Cell structure", icon: "🧬", kind: .note, reveal: "block-3")
+        await notesSettle()
+        XCTAssertEqual(reveals(), ["reveal:block-3"])
+        XCTAssertEqual(vm.state.open, opened)
+        XCTAssertFalse(editor.calls.contains { $0.hasPrefix("flush:") })
+        // 只命中了标题（没有块）：什么也不做。
+        vm.openNote("a", title: "Cell structure", icon: "🧬", kind: .note, reveal: nil)
+        vm.openNote("a", title: "Cell structure", icon: "🧬", kind: .note, reveal: "")
+        await notesSettle()
+        XCTAssertEqual(reveals(), ["reveal:block-3"])
+
+        // 别的页面：照旧先保存再打开，命中的块放进新编辑器第一次加载的地址（OpenNote.reveal），不经开着的编辑器。
+        vm.openNote("b", title: "Japanese verbs", icon: nil, kind: .note, reveal: "block-9")
+        await notesSettle()
+        XCTAssertEqual(vm.state.open, OpenNote("b", "Japanese verbs", nil, reveal: "block-9"))
+        XCTAssertEqual(reveals(), ["reveal:block-3"])
+        XCTAssertTrue(editor.calls.contains { $0.hasPrefix("flush:") })
+
+        // 编辑器关掉后不再经它定位。
+        vm.registerEditor(nil)
+        XCTAssertNil(vm.revealInEditor)
     }
 
     @MainActor
@@ -233,6 +279,18 @@ final class NoteEditorTests: XCTestCase {
         XCTAssertEqual(
             NoteEmbedScripts.language("zh-Hant"),
             #"(function(){var e=window.notefableEmbed;if(e&&typeof e.language==='function')e.language("zh-Hant")})()"#
+        )
+    }
+
+    func testTheRevealScriptPassesTheQuotedTargetToTheEmbedApi() {
+        XCTAssertEqual(
+            NoteEmbedScripts.reveal("block-3_x"),
+            #"window.notefableEmbed&&window.notefableEmbed.reveal&&window.notefableEmbed.reveal("block-3_x")"#
+        )
+        // 和别的脚本一样经 quote：引号、反斜杠、`</` 跑不出字符串。
+        XCTAssertEqual(
+            NoteEmbedScripts.reveal(#"a"b\c</x"#),
+            #"window.notefableEmbed&&window.notefableEmbed.reveal&&window.notefableEmbed.reveal("a\"b\\c<\/x")"#
         )
     }
 

@@ -7,10 +7,13 @@ import { NotesWorkspace } from "@/components/notes-workspace";
 import { useModels } from "@/components/models-provider";
 import { readEmbedModelPreference, readModelPreference, resolveModelPreference } from "@/lib/model-preference";
 import { saveAppIcon } from "@/lib/app-icon";
-import { createEmbedApi, installEmbedApi, pageMeta, postToNative, readNativeAppIcon, readNativeLanguage, readNativeTheme, toEmbedSaveState } from "@/lib/native-bridge";
+import { createEmbedApi, installEmbedApi, REVEAL_TARGET, pageMeta, postToNative, readNativeAppIcon, readNativeLanguage, readNativeTheme, toEmbedSaveState } from "@/lib/native-bridge";
 import { parseThemePreference, saveThemePreference } from "@/lib/theme";
 import { useNotePages } from "@/lib/use-note-pages";
 import { pageKindOf } from "@/lib/page-kinds";
+import { revealNoteBlock } from "@/lib/search-reveal";
+import { requestWhiteboardReveal } from "@/lib/whiteboard/reveal";
+import { flushCanvasEditors } from "@/lib/canvas-flush";
 
 const noop = () => {};
 
@@ -32,7 +35,11 @@ export function NoteEmbed() {
   const [model, setModel] = useState(defaultModel);
   const [reasoning, setReasoning] = useState<string>(() => getModelOption(defaultModel).defaultReasoning);
   const activeRef = useRef(active);
+  // 開いたページの読み込みが終わってから動かす（ページの種類で動かし方が違う）。
+  const revealRef = useRef<{ pageId: string; target: string } | null>(null);
   const backupErrorRef = useRef(notes.backupError);
+  // 最後の flush で、ホワイトボードなどのエディターが変更を渡し切れたか（アップロードが終わらない画像が残ると false）。
+  const canvasHanded = useRef(true);
   const sent = useRef({ readyId: "", meta: "", state: "", goneId: "" });
   const { select } = notes;
 
@@ -49,6 +56,10 @@ export function NoteEmbed() {
       setPageId(id);
     });
     if (!id) { postToNative({ type: "missing" }); return; }
+    // reveal：検索の結果から開いたとき、一致したブロック（ノート）・要素（ホワイトボード）まで動かす。
+    const reveal = params.get("reveal");
+    // 読み込みの前に預けておく（読み込み後の描画で下の effect が受け取る）。
+    if (reveal && REVEAL_TARGET.test(reveal)) revealRef.current = { pageId: id, target: reveal };
     void select(id, "none").then((opened) => { if (!opened) postToNative({ type: "missing" }); });
   }, [select, options]);
 
@@ -68,10 +79,25 @@ export function NoteEmbed() {
   // pageUpdated（アプリのチャットで編集案を適用した）は既定のまま notefable:page-updated を出し、useNotePages が /app と同じく扱う。
   useEffect(() => installEmbedApi(createEmbedApi({
     language: (next) => setPreference(next),
-    flush: () => activeRef.current?.flush() ?? Promise.resolve(true),
+    // ホワイトボードなどのエディターがまだ渡していない変更（描き終わり待ち・画像のアップロード中）を先に渡してもらってから送る。
+    // 待っても終わらないアップロードが残ったら false（アプリは編集画面を閉じずに知らせる）。
+    flush: async () => {
+      const handed = await flushCanvasEditors();
+      canvasHanded.current = handed;
+      const saved = await (activeRef.current?.flush() ?? true);
+      return handed && saved;
+    },
     // 衝突ではなく一時的な失敗（オフライン・サーバーエラー）で、下書きを localStorage に退避できているときだけ。/app と同じく離れても後で送り直せる。
-    draftKept: () => activeRef.current?.status === "error" && !backupErrorRef.current,
+    // ホワイトボードの画像がまだアップロード中（下書きにも入っていない）なら、離れると失うので「残っている」とは言わない。
+    draftKept: () => canvasHanded.current && activeRef.current?.status === "error" && !backupErrorRef.current,
     openHistory: () => { if (activeRef.current) setHistoryOpen(true); },
+    // すでに開いているページの検索結果：開き直さずに一致した場所まで動かす。
+    reveal: (target) => {
+      const queue = activeRef.current;
+      if (!queue) return;
+      if (pageKindOf(queue.page) === "whiteboard") requestWhiteboardReveal(queue.page.id, target);
+      else void revealNoteBlock(target);
+    },
     post: (message) => { postToNative(message); },
   })), [setPreference]);
 
@@ -104,6 +130,14 @@ export function NoteEmbed() {
     }
   }, [active, activeId, loading, title, icon, status, gone, kind]);
 
+  useEffect(() => {
+    const request = revealRef.current;
+    if (!request || !active || activeId !== request.pageId || loading) return;
+    revealRef.current = null;
+    if (kind === "whiteboard") requestWhiteboardReveal(request.pageId, request.target);
+    else void revealNoteBlock(request.target);
+  }, [active, activeId, loading, kind]);
+
   const retry = async () => { if (pageId) await select(pageId, "none"); };
 
   return (
@@ -118,7 +152,7 @@ export function NoteEmbed() {
         </div>
       </section>
       {historyOpen && active && activeId && (
-        <NoteHistoryDialog key={activeId} noteId={activeId} getVersion={() => active.version} flush={() => active.flush()}
+        <NoteHistoryDialog key={activeId} noteId={activeId} getVersion={() => active.version} flush={async () => { await flushCanvasEditors(); return active.flush(); }}
           onRestored={() => setHistoryOpen(false)} onClose={() => setHistoryOpen(false)} />
       )}
     </main>

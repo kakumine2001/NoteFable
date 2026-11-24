@@ -366,6 +366,8 @@
 "answer_download_failed" = "Impossible de télécharger la discussion. Réessayez.";
 "answer_save_failed" = "Impossible d’enregistrer comme note. Réessayez.";
 "answer_save_too_large" = "Cette réponse est trop volumineuse pour être enregistrée en note.";
+"export_file_saved" = "Fichier enregistré.";
+"export_file_failed" = "Impossible d’enregistrer le fichier.";
 
 /* strings_i18n.xml */
 "ui_locale" = "fr";
@@ -586,8 +588,6 @@
 "slides_export_pdf_notes" = "Exporter en PDF avec les notes du présentateur";
 "slides_export_png" = "Exporter en images PNG";
 "slides_export_pptx" = "Exporter vers PowerPoint (PPTX)";
-"slides_file_saved" = "Fichier enregistré.";
-"slides_file_save_failed" = "Impossible d’enregistrer le fichier.";
 
 /* strings_turns.xml */
 "regenerate" = "Régénérer";

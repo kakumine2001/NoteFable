@@ -2,7 +2,9 @@ import SwiftUI
 import UIKit
 import WebKit
 
-// 笔记编辑页里的网页编辑器（Android ui/NoteEditor.kt 的 WebView 部分）：WKWebView 打开 `<baseUrl>/note-embed?page=…&lang=…&model=…&reasoning=…&theme=…`，
+// 笔记编辑页里的网页编辑器（Android ui/NoteEditor.kt 的 WebView 部分）：WKWebView 打开 `<baseUrl>/note-embed?page=…&lang=…&model=…&reasoning=…&theme=…`
+// （从检索结果打开时第一次加载还带 `&reveal=<命中的块 / 元素>`；已经开着的页面改用 `notefableEmbed.reveal(id)` 就地定位），
+// 白板也是同一个页面（网页的白板编辑器）。
 // 和原生之间走 JS 桥（Core 的 NoteEmbedBridge / NoteEmbedScripts，约定见 src/lib/native-bridge.ts）。规则见 docs/architecture/android-native.md 的“笔记”：
 // - 加载前先清空 WebView 的 Cookie，再把 App 的 Cookie 拷进去：身份和 API 相同，退出登录后网页也不会沿用旧会话。
 // - 只有本站的 /note-embed 在 WebView 里打开；本站的聊天链接在 App 里打开；笔记文件由 App 带着 Cookie 下载；其它链接交给系统浏览器。
@@ -15,6 +17,7 @@ import WebKit
 
 /// 网页编辑器。按 `OpenNote.editor` 建一个（外面用 `.id(open.editor)`）：冲突后“另存为新笔记”换到副本时不重新加载。
 /// `appIcon` / `language` / `theme` 是设置里现在的图标、界面语言和 App 显示着的外观（light / dark），开着的时候变了就推给网页。
+/// `edgeBack`：从屏幕边缘往里滑返回。白板页关掉（`PageKind.capturesEdgeSwipes`：画笔从边缘开始画也不会离开），类型变了（ready）跟着变。
 @MainActor
 struct NoteEditorWebView: UIViewRepresentable {
     let editor: String
@@ -23,17 +26,18 @@ struct NoteEditorWebView: UIViewRepresentable {
     let appIcon: String?
     let language: String
     let theme: String
+    let edgeBack: Bool
 
     func makeCoordinator() -> NoteEditorController {
         NoteEditorController(editor: editor, app: app, router: router)
     }
 
     func makeUIView(context: Context) -> WKWebView {
-        context.coordinator.makeWebView(appIcon: appIcon, language: language, theme: theme)
+        context.coordinator.makeWebView(appIcon: appIcon, language: language, theme: theme, edgeBack: edgeBack)
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
-        context.coordinator.sync(appIcon: appIcon, language: language, theme: theme)
+        context.coordinator.sync(appIcon: appIcon, language: language, theme: theme, edgeBack: edgeBack)
     }
 
     static func dismantleUIView(_ webView: WKWebView, coordinator: NoteEditorController) {
@@ -67,6 +71,8 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
     /// 交给网页的外观（light / dark）；重新加载时地址和 `NoteFableNative.theme()` 用它。
     private var pushedTheme = ""
     private var edgePan: UIScreenEdgePanGestureRecognizer?
+    /// 检索结果的定位（`OpenNote.reveal`）还没用过：只在这个编辑器第一次加载时带上，网页进程崩溃后重新加载不再跳过去。
+    private var revealPending = true
     /// 正在显示的网页提示框（alert / confirm / prompt）和按“取消”回答它的办法：离开编辑页时关掉，网页不会一直等着。
     private var openDialog: (alert: UIAlertController, cancel: () -> Void)?
 
@@ -80,46 +86,11 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
             notes.onEditorMessage(editor, message)
         })
         super.init()
-        // 幻灯片导出的文件：收齐后用系统的“存储到文件”让用户选位置（Android 是 SAF 的 CreateDocument）。
-        bridge.onFileReady = { [weak self] ready in self?.saveExport(ready) }
-        bridge.onFileFailed = { Toast.show(L("slides_file_save_failed")) }
-    }
-
-    /// 导出的文件交给系统的“存储到文件”（拷贝过去，临时文件随后删掉）。
-    private func saveExport(_ ready: ExportFileAssembler.Ready, attempt: Int = 0) {
-        guard let presenter = webView?.window?.rootViewController.map(Self.topmost) else {
-            try? FileManager.default.removeItem(at: ready.url.deletingLastPathComponent())
-            Toast.show(L("slides_file_save_failed"))
-            return
-        }
-        // 别的画面正在出现或消失时 present 会被忽略（之后也收不到回调）：等一下再试，还不行就放弃并提示。
-        if presenter.isBeingPresented || presenter.isBeingDismissed {
-            guard attempt < 5 else {
-                try? FileManager.default.removeItem(at: ready.url.deletingLastPathComponent())
-                Toast.show(L("slides_file_save_failed"))
-                return
-            }
-            Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .milliseconds(400))
-                self?.saveExport(ready, attempt: attempt + 1)
-            }
-            return
-        }
-        let picker = UIDocumentPickerViewController(forExporting: [ready.url], asCopy: true)
-        picker.delegate = ExportPickerCleanup.shared
-        ExportPickerCleanup.shared.track(picker, folder: ready.url.deletingLastPathComponent())
-        presenter.present(picker, animated: true)
-    }
-
-    private static func topmost(_ controller: UIViewController) -> UIViewController {
-        var top = controller
-        while let presented = top.presentedViewController { top = presented }
-        return top
     }
 
     // MARK: - 建立和销毁
 
-    func makeWebView(appIcon: String?, language: String, theme: String) -> WKWebView {
+    func makeWebView(appIcon: String?, language: String, theme: String, edgeBack: Bool) -> WKWebView {
         pushedIcon = appIcon
         pushedLanguage = language
         pushedTheme = theme
@@ -150,9 +121,11 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
 
         // 从行首的屏幕边缘往里滑 = Android 的返回键（手势导航的边缘返回）：先交给网页关面板，再保存并回列表。
         // 在别的画面这个手势是拉出抽屉；编辑页里它是返回（见下面的 UIGestureRecognizerDelegate），抽屉用顶栏的菜单键开。
+        // 白板页关着（停用的手势不收触摸，网页的手势也不用等它失败）：单指画、拖从边缘开始也留在画布上，离开用顶栏的“<”。
         let edgePan = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(onEdgePan(_:)))
         edgePan.edges = app.language.isRightToLeft ? .right : .left
         edgePan.delegate = self
+        edgePan.isEnabled = edgeBack
         webView.addGestureRecognizer(edgePan)
         webView.scrollView.panGestureRecognizer.require(toFail: edgePan)
         self.edgePan = edgePan
@@ -165,7 +138,9 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
     }
 
     /// 设置里换了图标 / 界面语言 / 外观（或跟随系统时系统切了深浅）：推给网页（就地换，不重新加载笔记）。
-    func sync(appIcon: String?, language: String, theme: String) {
+    /// 页面类型变了（网页的 ready 改正了检索结果带来的类型）：边缘返回跟着开关。
+    func sync(appIcon: String?, language: String, theme: String, edgeBack: Bool) {
+        if let edgePan, edgePan.isEnabled != edgeBack { edgePan.isEnabled = edgeBack }
         if theme != pushedTheme {
             pushedTheme = theme
             bridge.pushTheme(theme)
@@ -211,13 +186,19 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
 
     /// 现在该打开的地址。换到副本后（`OpenNote.id` 变了、`editor` 没变）重新加载用副本的地址。
     /// model / reasoning 是聊天里选的模型和推理强度（模型列表读到之后才有），编辑器里的 AI 助手用它们。
+    /// 从检索结果打开的，第一次加载带上命中的块 / 元素（`reveal=`），网页读好后定位过去。
     private func embedURL() -> URL? {
         var pageId = editor
-        if let open = app.notes.state.open, open.editor == editor { pageId = open.id }
+        var reveal: String?
+        if let open = app.notes.state.open, open.editor == editor {
+            pageId = open.id
+            if revealPending { reveal = open.reveal }
+        }
+        revealPending = false
         let chat = app.chat.state
         let address = app.api.noteEmbedUrl(
             pageId: pageId, lang: app.language.uiLocale, model: chat.selectedModel?.id, reasoning: chat.selectedReasoning,
-            theme: pushedTheme.isEmpty ? nil : pushedTheme
+            theme: pushedTheme.isEmpty ? nil : pushedTheme, reveal: reveal
         )
         return URL(string: address)
     }
@@ -307,6 +288,10 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
 
     func theme(_ value: String) {
         run(NoteEmbedScripts.theme(value))
+    }
+
+    func reveal(_ id: String) {
+        run(NoteEmbedScripts.reveal(id))
     }
 
     func slides(_ command: String) {
@@ -492,6 +477,8 @@ extension NoteEditorController: WKNavigationDelegate {
 
     /// 网页进程被系统杀掉或崩溃：等着它回答的保存都算失败（Android bridge.release），再重新加载。
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        // 拼了一半的导出文件不会再来了（新网页不知道它）：作废，不留下打开着的临时文件。
+        app.notes.cancelExportTransfer(editor: editor)
         // 放映中的网页没了：先结束放映，重新加载失败也不会困在横屏全屏里。
         app.notes.presentationEnded()
         bridge.release(self)

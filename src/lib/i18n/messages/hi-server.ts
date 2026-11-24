@@ -244,7 +244,7 @@ export const hiServer: Record<string, string> = {
   "Unknown page kind.": "अज्ञात पेज प्रकार।",
   "Only notes can be exported as Markdown.": "केवल नोट को Markdown के रूप में एक्सपोर्ट किया जा सकता है।",
   "Font, text size and width can only be changed for notes.": "फ़ॉन्ट, टेक्स्ट का आकार और चौड़ाई केवल नोट के लिए बदली जा सकती है।",
-  "Whiteboards and slide decks can't be published yet.": "व्हाइटबोर्ड और स्लाइड डेक अभी प्रकाशित नहीं किए जा सकते।",
+  "This page type can't be published yet.": "इस प्रकार का पेज अभी प्रकाशित नहीं किया जा सकता।",
   "This page can't be edited in this version of NoteFable.": "NoteFable के इस संस्करण में यह पेज संपादित नहीं किया जा सकता।",
   "These pages are too large to duplicate at once.": "ये पेज एक साथ डुप्लिकेट करने के लिए बहुत बड़े हैं।",
   "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "स्टोरेज में पर्याप्त जगह नहीं बची है। ज़्यादा जगह पाने के लिए साइन इन करें, या वे फ़ाइलें हटाएँ जिनकी अब ज़रूरत नहीं है।",

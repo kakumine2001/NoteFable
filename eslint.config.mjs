@@ -15,6 +15,8 @@ const eslintConfig = defineConfig([
     ".codex-temp/**",
     // mobile/ はネイティブクライアント（Kotlin / Swift）なので、このアプリの lint 対象外。
     "mobile/**",
+    // ホワイトボードが読む node_modules からの写し（scripts/copy-whiteboard-assets.mjs、リポジトリに入れない）。
+    "public/whiteboard/**",
   ]),
 ]);
 

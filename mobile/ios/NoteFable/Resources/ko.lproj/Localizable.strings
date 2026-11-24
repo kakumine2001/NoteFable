@@ -366,6 +366,8 @@
 "answer_download_failed" = "대화를 다운로드하지 못했어요. 다시 시도해 주세요.";
 "answer_save_failed" = "노트로 저장하지 못했어요. 다시 시도해 주세요.";
 "answer_save_too_large" = "답변이 너무 길어 노트로 저장할 수 없어요.";
+"export_file_saved" = "파일을 저장했습니다.";
+"export_file_failed" = "파일을 저장할 수 없습니다.";
 
 /* strings_i18n.xml */
 "ui_locale" = "ko";
@@ -586,8 +588,6 @@
 "slides_export_pdf_notes" = "발표자 노트 포함 PDF로 내보내기";
 "slides_export_png" = "PNG 이미지로 내보내기";
 "slides_export_pptx" = "PowerPoint(PPTX)로 내보내기";
-"slides_file_saved" = "파일을 저장했습니다.";
-"slides_file_save_failed" = "파일을 저장할 수 없습니다.";
 
 /* strings_turns.xml */
 "regenerate" = "다시 생성";

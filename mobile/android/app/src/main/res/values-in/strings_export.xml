@@ -12,4 +12,6 @@
     <string name="answer_download_failed">Tidak dapat mengunduh percakapan. Coba lagi.</string>
     <string name="answer_save_failed">Tidak dapat menyimpan sebagai catatan. Coba lagi.</string>
     <string name="answer_save_too_large">Jawaban ini terlalu panjang untuk disimpan sebagai catatan.</string>
+    <string name="export_file_saved">File disimpan.</string>
+    <string name="export_file_failed">Tidak dapat menyimpan file.</string>
 </resources>

@@ -7,6 +7,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { NoteEditorHandle } from "@/components/note-editor";
 import { CanvasPagePlaceholder } from "@/components/canvas-page-placeholder";
 import { CANVAS_EDITORS } from "@/components/canvas-editors";
+import { flushCanvasEditors } from "@/lib/canvas-flush";
 import { PageAssistant } from "@/components/page-assistant";
 import { NotePageHeader } from "@/components/note-page-header";
 import { NewPageButtons, NotesHome } from "@/components/notes-home";
@@ -132,6 +133,8 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   // ホワイトボード・スライドのエディター（種類の表でエディターがあり、画面に登録があるときだけ）。
   // 本体を持たないキュー（本体なしの応答から作られたもの）には作らない（空の本体で編集を始めさせない）。
   const canvasData = active?.content.data ?? active?.page.data;
+  // この描画の時点で、キューの中身がサーバーの版で何回置き換えられたか（キャンバスのエディターが渡す変更の照合に使う）。
+  const canvasGeneration = active?.generation ?? 0;
   const CanvasEditor = isCanvasKind(activeKind) && pageKindFeatures(activeKind).editor && canvasData ? CANVAS_EDITORS[activeKind] : undefined;
   const canvasEditorOpen = Boolean(CanvasEditor && active && activeId && !listMode && !loading);
   const editable = !busy && !settings.locked;
@@ -180,10 +183,15 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
       {CanvasEditor ? <div className="canvas-editor-shell">
         <div className="canvas-editor-warnings"><NoteSaveWarnings notes={notes} /></div>
         <CanvasEditor key={`${activeId}:${notes.editorEpoch}`} pageId={activeId} kind={activeKind} title={active.content.title} icon={active.content.icon}
-          data={canvasData!} version={active.version} editable={editable} embedded={embedded} split={split} saveStatus={active.status}
+          data={canvasData!} version={active.version} generation={canvasGeneration} editable={editable} embedded={embedded} split={split} saveStatus={active.status}
           // 同じ内容の通知（作成・削除の途中で editable が替わったときなど）では、要らない保存を走らせない。
-          onChange={(data) => { if (data !== active.content.data) active.edit({ ...active.content, data }); }}
+          // 中身をサーバーの版で置き換えた後（最新の版を読む・版の復元）は、置き換える前のエディターが閉じる時に渡す古い変更を捨てる。
+          onChange={(data) => { if (active.generation === canvasGeneration && data !== active.content.data) active.edit({ ...active.content, data }); }}
           onTitleChange={(title) => { if (title !== active.content.title) active.edit({ ...active.content, title }); }}
+          onIconChange={(icon) => { if (icon !== active.content.icon) active.edit({ ...active.content, icon }); }}
+          // 埋め込み（/note-embed）は一覧を持たない。リンク先を選ぶ時にエディターが自分で読む。
+          pages={embedded || (loading && !notes.pages.length) ? undefined : notes.pages}
+          onOpenPage={(id) => { if (!embedded) { onOpen(id); return true; } return nativeCanOpenPage() && postToNative({ type: "openPage", id }); }}
           // 選んだ要素・スライドについて AI に聞く（AI パネルを開き、選んだものを文脈として渡す）。
           onAskAi={(selection) => {
             // 分割表示では AI パネルを出さないので、ノートと同じく選んだ文字を左のチャットへ渡す。
@@ -196,9 +204,10 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
         {(!!active.error || !!notes.backupError) && <div className="notes-column pt-6"><NoteSaveWarnings notes={notes} /></div>}
         <CanvasPagePlaceholder key={`${activeId}:${notes.editorEpoch}`} kind={activeKind} title={active.content.title} icon={active.content.icon} data={active.page.data} />
       </>}
-      {/* AI パネル（AI 操控底座）。エディターが選んだ要素・スライドを selection で渡す。AI が操作できない種類は読むだけ。 */}
+      {/* AI パネル（AI 操控底座）。エディターが選んだ要素・スライドを selection で渡す。AI が操作できない種類は読むだけ。
+          送る前の flush は、ホワイトボードなどがまだ保存キューへ渡していない変更（描き終わり・文字の確定の直後）も先に渡してもらう（版の履歴と同じ）。 */}
       <PageAssistant key={activeId} pageId={activeId} pageKind={activeKind} pageTitle={active.content.title} model={model} reasoning={reasoning}
-        onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={() => active.flush()} embedded={embedded}
+        onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={async () => { await flushCanvasEditors(); return active.flush(); }} embedded={embedded}
         selection={aiSelection} onClearSelection={() => setAiAsk((current) => (current?.noteId === activeId ? { ...current, selection: null } : current))}
         openSignal={aiOpenSignal} hidden={split} anchor={CanvasEditor && !split ? aiAnchor : null} />
     </>

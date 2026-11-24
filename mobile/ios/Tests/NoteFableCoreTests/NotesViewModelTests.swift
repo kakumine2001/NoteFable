@@ -456,11 +456,16 @@ final class NotesViewModelTests: XCTestCase {
         XCTAssertTrue(vm.state.pages.contains { $0.id == "copy" })
         XCTAssertEqual(vm.state.saveState, "saved")
 
-        // 打开原来那篇不再被当成"已经开着"。
+        // 打开原来那篇不再被当成"已经开着"，而且换一个 editor：编辑器重新加载，不再显示副本（和 Android 一样）。
         vm.flushEditor = { FlushResult(true) }
-        vm.openNote("a")
+        vm.openNote("a", reveal: "block-1")
         await notesSettle()
-        XCTAssertEqual(vm.state.open, OpenNote("a", originalTitle ?? "", vm.state.pages.first { $0.id == "a" }?.icon))
+        let reopened = vm.state.open
+        XCTAssertEqual(reopened?.id, "a")
+        XCTAssertEqual(reopened?.title, originalTitle ?? "")
+        XCTAssertEqual(reopened?.reveal, "block-1")
+        XCTAssertNotEqual(reopened?.editor, "a")
+        XCTAssertTrue(reopened?.editor.hasPrefix("a#") ?? false)
     }
 
     @MainActor
@@ -492,6 +497,27 @@ final class NotesViewModelTests: XCTestCase {
         vm.duplicate("w")
         await notesSettle()
         XCTAssertEqual(vm.state.open, OpenNote("copy", "Copy (1)", nil, kind: .whiteboard))
+    }
+
+    @MainActor
+    func testASearchHitOpensThePageWithTheBlockToRevealOnlyForThatOpen() async {
+        let vm = await notesVm()
+        vm.flushEditor = { FlushResult(true) }
+        // 列表里有：标题、图标、类型取列表的，命中的块带着。
+        vm.openNote("a", title: "Old title", icon: nil, kind: .note, reveal: "block-7")
+        await notesSettle()
+        XCTAssertEqual(vm.state.open, OpenNote("a", "Cell structure", "🧬", reveal: "block-7"))
+        // 列表里没有（检索结果，列表可能还没读过）。
+        vm.openNote("w", title: "Board", icon: nil, kind: .whiteboard, reveal: "element-1")
+        await notesSettle()
+        XCTAssertEqual(vm.state.open, OpenNote("w", "Board", nil, kind: .whiteboard, reveal: "element-1"))
+        // 冲突后换到副本（不重新加载）、普通的打开都不再定位。
+        vm.onEditorMessage("w", .ready(id: "w-copy", title: "Board (1)", icon: nil, kind: .whiteboard))
+        XCTAssertEqual(vm.state.open, OpenNote("w-copy", "Board (1)", nil, editor: "w", kind: .whiteboard))
+        await notesSettle()
+        vm.openNote("b")
+        await notesSettle()
+        XCTAssertEqual(vm.state.open, OpenNote("b", "Japanese verbs", nil))
     }
 
     @MainActor

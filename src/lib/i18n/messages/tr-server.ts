@@ -244,7 +244,7 @@ export const trServer: Record<string, string> = {
   "Unknown page kind.": "Bilinmeyen sayfa türü.",
   "Only notes can be exported as Markdown.": "Yalnızca notlar Markdown olarak dışa aktarılabilir.",
   "Font, text size and width can only be changed for notes.": "Yazı tipi, metin boyutu ve genişlik yalnızca notlarda değiştirilebilir.",
-  "Whiteboards and slide decks can't be published yet.": "Beyaz tahtalar ve slayt desteleri henüz yayımlanamıyor.",
+  "This page type can't be published yet.": "Bu sayfa türü henüz yayımlanamıyor.",
   "This page can't be edited in this version of NoteFable.": "Bu sayfa NoteFable’ın bu sürümünde düzenlenemiyor.",
   "These pages are too large to duplicate at once.": "Bu sayfalar bir kerede çoğaltılamayacak kadar büyük.",
   "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "Yeterli depolama alanı kalmadı. Daha fazla alan için oturum açın veya artık ihtiyacınız olmayan dosyaları silin.",

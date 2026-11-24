@@ -244,7 +244,7 @@ export const jaServer: Record<string, string> = {
   "Unknown page kind.": "不明なページの種類です。",
   "Only notes can be exported as Markdown.": "Markdown に書き出せるのはノートだけです。",
   "Font, text size and width can only be changed for notes.": "フォント・文字サイズ・幅を変えられるのはノートだけです。",
-  "Whiteboards and slide decks can't be published yet.": "ホワイトボードとスライドはまだ公開できません。",
+  "This page type can't be published yet.": "この種類のページはまだ公開できません。",
   "This page can't be edited in this version of NoteFable.": "このバージョンの NoteFable ではこのページを編集できません。",
   "These pages are too large to duplicate at once.": "これらのページは大きすぎるため、一度に複製できません。",
   "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "保存容量が足りません。ログインすると容量が増えます。不要なファイルを削除することもできます。",

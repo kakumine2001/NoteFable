@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { getOrCreateUser } from "@/lib/auth";
 import { noteApiError } from "@/lib/note-api";
-import { MAX_NOTE_FILE_BYTES, noteFileContentType, noteFileKeyParts, noteFileUrl, safeFileName } from "@/lib/note-file-keys";
+import { MAX_NOTE_FILE_BYTES, fitNoteFileName, noteFileContentType, noteFileKeyParts, noteFileUrl, safeFileName } from "@/lib/note-file-keys";
 import { classifyUpload } from "@/lib/note-files";
 import { readLimitedBody } from "@/lib/note-upload";
 import { readStoredImage } from "@/lib/storage";
@@ -31,11 +31,13 @@ export async function POST(request: Request) {
     if (!(file instanceof File)) return NextResponse.json({ error: msg("Choose one file to upload.") }, { status: 400 });
     if (file.size > MAX_NOTE_FILE_BYTES) return tooLarge();
     const buffer = Buffer.from(await file.arrayBuffer());
-    const name = safeFileName(file.name) || "file";
-    const kind = classifyUpload(buffer, name);
+    const original = safeFileName(file.name) || "file";
+    const kind = classifyUpload(buffer, original);
     if (!kind) return NextResponse.json({ error: msg("This file type is not supported. Use an image (JPEG, PNG, WebP, GIF), PDF, text, Office, CSV, JSON, ZIP, MP3, WAV or MP4.") }, { status: 400 });
     const user = await getOrCreateUser();
     const path = `note-files/${user.id}/${randomUUID()}.${kind.extension}`;
+    // 長い（CJK などの）名前は、URL が保存の検査の上限に収まるよう縮める（PDF の取り込みは「名前-ページ番号」で長くなる）。
+    const name = fitNoteFileName(path, file.name || original, `file.${kind.extension}`);
     // 容量の空きを確かめて記録してから書く。上限なら 413（code: "storage_limit"）。ノートに使われなければ後片付けが消す。
     await storeFile(user, { path, kind: "NOTE_FILE", buffer, mimeType: noteFileContentType(kind.extension) });
     scheduleStorageMaintenance();

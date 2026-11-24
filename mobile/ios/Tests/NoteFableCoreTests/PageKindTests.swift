@@ -18,7 +18,7 @@ final class PageKindTests: XCTestCase {
         XCTAssertEqual(PageKind.allCases.map(\.wire), ["note", "whiteboard", "slides"])
     }
 
-    func testFeaturesFollowTheWebFeatureTableAndSlidesHaveAnEditorAndAPublicPresentation() throws {
+    func testFeaturesFollowTheBundledWebTableWhiteboardsAndSlidesHaveAnEditorAndAPublicView() throws {
         // 表は服務端の kinds / 安装包の page-kinds.json（網頁 PAGE_KIND_FEATURES から生成）から読む。
         PageKindTable.shared.loadBundled(try TextTestSupport.androidAsset("page-kinds.json"))
         defer { PageKindTable.shared.reset() }
@@ -26,8 +26,48 @@ final class PageKindTests: XCTestCase {
             PageKind.note.features,
             PageKindFeatures(editor: true, markdownExport: true, typography: true, publicShare: true, aiEdit: true)
         )
-        XCTAssertEqual(PageKind.whiteboard.features, PageKindFeatures(editor: false, markdownExport: false, typography: false, publicShare: false, aiEdit: false))
-        XCTAssertEqual(PageKind.slides.features, PageKindFeatures(editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false))
+        // 网页 PAGE_KIND_FEATURES：白板（#152）有编辑器和公开的只读视图，Markdown 导出、排版、AI 编辑案仍只给笔记。
+        XCTAssertEqual(
+            PageKind.whiteboard.features,
+            PageKindFeatures(editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false)
+        )
+        // 幻灯片（#149）：有编辑器和公开的放映页。
+        XCTAssertEqual(
+            PageKind.slides.features,
+            PageKindFeatures(editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false)
+        )
+    }
+
+    func testOnlyWhiteboardsTakeTheScreenEdgeSwipesAwayFromBackAndTheDrawer() {
+        XCTAssertEqual(PageKind.allCases.filter(\.capturesEdgeSwipes), [.whiteboard])
+
+        // 打开着的页面的类型：列表里的优先，不在列表里时用打开时知道的（检索结果）。
+        var state = NotesUiState(workspace: .notes)
+        XCTAssertNil(state.openKind)
+        XCTAssertFalse(state.editorCapturesEdgeSwipes)
+        state.pages = [NotePageSummary(id: "w", title: "Board", kind: .whiteboard), NotePageSummary(id: "n", title: "Note")]
+        state.open = OpenNote("w", "Board", nil)
+        XCTAssertEqual(state.openKind, .whiteboard)
+        XCTAssertTrue(state.editorCapturesEdgeSwipes)
+        state.open = OpenNote("n", "Note", nil, kind: .whiteboard)
+        XCTAssertEqual(state.openKind, .note)
+        XCTAssertFalse(state.editorCapturesEdgeSwipes)
+        state.open = OpenNote("s", "Search hit", nil, kind: .whiteboard)
+        XCTAssertEqual(state.openKind, .whiteboard)
+        XCTAssertTrue(state.editorCapturesEdgeSwipes)
+        state.open = OpenNote("s", "Search hit", nil, kind: .slides)
+        XCTAssertFalse(state.editorCapturesEdgeSwipes)
+        // 在聊天工作区（不显示编辑器）时不拦。
+        state.open = OpenNote("w", "Board", nil)
+        state.workspace = .chat
+        XCTAssertFalse(state.editorCapturesEdgeSwipes)
+    }
+
+    func testTheWhiteboardSaysWhenADrawingToolIsActive() {
+        XCTAssertEqual(EmbedMessage.parse(#"{"type":"drawing","active":true}"#), .drawing(active: true))
+        XCTAssertEqual(EmbedMessage.parse(#"{"type":"drawing","active":false}"#), .drawing(active: false))
+        XCTAssertNil(EmbedMessage.parse(#"{"type":"drawing"}"#))
+        XCTAssertNil(EmbedMessage.parse(#"{"type":"drawing","active":"yes"}"#))
     }
 
     func testPageListsReadTheKindAndTreatMissingNullUnknownAndMalformedKindsAsNotes() async throws {

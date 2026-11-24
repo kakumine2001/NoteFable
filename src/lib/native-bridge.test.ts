@@ -245,3 +245,29 @@ describe("native theme bridge", () => {
     expect(theme).toHaveBeenCalledTimes(3);
   });
 });
+
+describe("embed reveal", () => {
+  it("moves to a search hit in the open page and refuses malformed ids", () => {
+    const reveal = vi.fn();
+    const api = createEmbedApi({ flush: async () => true, openHistory: () => {}, reveal, post: () => {} });
+    expect(api.reveal("block_1-A")).toBe(true);
+    expect(reveal).toHaveBeenCalledWith("block_1-A");
+    expect(api.reveal("")).toBe(false);
+    expect(api.reveal("a b")).toBe(false);
+    expect(api.reveal(42)).toBe(false);
+    expect(api.reveal("x".repeat(121))).toBe(false);
+    expect(reveal).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("file save capability", () => {
+  it("is reported only by apps that declare it", async () => {
+    const { inNativeApp, nativeCanSaveFile } = await import("./native-bridge");
+    const postMessage = () => {};
+    expect(nativeCanSaveFile({ NoteFableNative: { postMessage, canSaveFile: () => true } })).toBe(true);
+    expect(nativeCanSaveFile({ NoteFableNative: { postMessage } })).toBe(false);
+    expect(nativeCanSaveFile({ NoteFableNative: { postMessage, canSaveFile: () => { throw new Error("gone"); } } })).toBe(false);
+    expect(inNativeApp({ NoteFableNative: { postMessage } })).toBe(true);
+    expect(inNativeApp({})).toBe(false);
+  });
+});

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { validateNoteContent } from "@/lib/note-document";
 import { NoteSaveError, NoteSaveQueue, type NoteDraft } from "@/lib/note-save-queue";
+import { flushCanvasEditors } from "@/lib/canvas-flush";
 import { byPosition, OrderRefreshSync, type ReorderRequest } from "@/lib/list-order";
 import { runTransition } from "@/lib/view-transition";
 import { descendantIdsOf } from "@/lib/note-tree";
@@ -299,10 +300,15 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
         ids.add(id);
         for (const childId of descendantIdsOf(pagesRef.current, id)) ids.add(childId);
       }
-      for (const id of ids) {
-        const queue = queues.current.get(id);
-        if (queue) detail.waits.push(queue.flush());
-      }
+      // 開いているページ（ホワイトボードなど）が対象なら、エディターがまだ保存キューへ渡していない変更（アップロード中の画像も）を
+      // 先に渡してもらう（「ゴミ箱へ移す」と同じ）。渡し切れなければ元に戻すのを止める。
+      const openPage = displayedId.current !== null && ids.has(displayedId.current);
+      const pending = [...ids].flatMap((id) => { const queue = queues.current.get(id); return queue ? [queue] : []; });
+      if (!openPage && !pending.length) return;
+      detail.waits.push((async () => {
+        if (openPage && !(await flushCanvasEditors())) return false;
+        return (await Promise.all(pending.map((queue) => queue.flush()))).every(Boolean);
+      })());
     }
     // AI の提案で作ったページを「元に戻す」でゴミ箱へ移した（サブページも一緒）。一覧と保存キューから外し、開いていたら閉じる。
     function onPagesTrashed(event: Event) {
@@ -385,6 +391,9 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     setBusy(true);
     setError("");
     try {
+      // 競合の副本は開いているページの今の中身を写す。ホワイトボードなどがまだ渡していない変更も先に渡してもらう。
+      // 待っても終わらない画像のアップロードがあれば作らない（副本に画像が入らない）。
+      if (copy && !(await flushCanvasEditors())) throw new Error(msg("Wait for images to finish uploading, then try again."));
       const current = activeId ? queues.current.get(activeId) : undefined;
       const content: NoteContent = copy && current ? { ...current.content, title: `${current.content.title.slice(0, 185)} (copy)` } : { title: "Untitled", icon: null, cover: null, coverPosition: null, blocks: [] };
       // 競合の副本は元のページと同じ親の下に作る（サブページなら同じ親、グループも親に従う）。
@@ -437,6 +446,9 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     setBusy(true);
     setError("");
     try {
+      // ホワイトボードなどのエディターがまだ渡していない変更も先に渡してもらう（src/lib/canvas-flush.ts）。
+      // 待っても終わらない画像のアップロードがあれば、ゴミ箱へ移さない（移すと画像の入っていない版が残る）。
+      if (!(await flushCanvasEditors())) throw new Error(msg("Wait for images to finish uploading, then try again."));
       const queue = queues.current.get(id);
       if (queue && !(await queue.flush())) throw new Error(msg("Resolve the unsaved draft before moving this note to Trash."));
       // サブページも一緒にゴミ箱へ入る。開いている（未保存の）サブページも先に保存する。
@@ -552,6 +564,8 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     setBusy(true);
     setError("");
     try {
+      // 待っても終わらない画像のアップロードがあれば複製しない（複製に画像が入らない）。
+      if (!(await flushCanvasEditors())) throw new Error(msg("Wait for images to finish uploading, then try again."));
       for (const pageId of [id, ...descendantIdsOf(pages, id)]) {
         const queue = queues.current.get(pageId);
         if (queue && !(await queue.flush())) throw new Error(msg("Resolve the unsaved draft before duplicating this page."));
@@ -598,6 +612,7 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     actionBusy.current = true;
     setActionError("");
     try {
+      await flushCanvasEditors();
       const queue = queues.current.get(id);
       if (queue && queue.dirty && !(await queue.flush())) {
         throw new Error(msg("Resolve the unsaved draft before exporting this page."));
@@ -684,6 +699,7 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
   }
 
   async function flushSubtree(id: string, includeSubpages: boolean): Promise<boolean> {
+    await flushCanvasEditors();
     const ids = includeSubpages ? [id, ...descendantIdsOf(pages, id)] : [id];
     for (const pageId of ids) {
       const queue = queues.current.get(pageId);

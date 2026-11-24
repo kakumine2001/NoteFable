@@ -244,7 +244,7 @@ export const viServer: Record<string, string> = {
   "Unknown page kind.": "Loại trang không xác định.",
   "Only notes can be exported as Markdown.": "Chỉ ghi chú mới có thể xuất sang Markdown.",
   "Font, text size and width can only be changed for notes.": "Chỉ có thể đổi phông chữ, cỡ chữ và độ rộng cho ghi chú.",
-  "Whiteboards and slide decks can't be published yet.": "Chưa thể xuất bản bảng trắng và bản trình chiếu.",
+  "This page type can't be published yet.": "Chưa thể xuất bản loại trang này.",
   "This page can't be edited in this version of NoteFable.": "Không thể chỉnh sửa trang này trong phiên bản NoteFable này.",
   "These pages are too large to duplicate at once.": "Các trang này quá lớn để nhân bản cùng một lúc.",
   "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "Không còn đủ dung lượng lưu trữ. Hãy đăng nhập để có thêm dung lượng hoặc xóa các tệp bạn không cần nữa.",

@@ -366,6 +366,8 @@
 "answer_download_failed" = "Tidak dapat mengunduh percakapan. Coba lagi.";
 "answer_save_failed" = "Tidak dapat menyimpan sebagai catatan. Coba lagi.";
 "answer_save_too_large" = "Jawaban ini terlalu panjang untuk disimpan sebagai catatan.";
+"export_file_saved" = "File disimpan.";
+"export_file_failed" = "Tidak dapat menyimpan file.";
 
 /* strings_i18n.xml */
 "ui_locale" = "id";
@@ -586,8 +588,6 @@
 "slides_export_pdf_notes" = "Ekspor PDF dengan catatan pembicara";
 "slides_export_png" = "Ekspor gambar PNG";
 "slides_export_pptx" = "Ekspor ke PowerPoint (PPTX)";
-"slides_file_saved" = "File disimpan.";
-"slides_file_save_failed" = "Tidak dapat menyimpan file.";
 
 /* strings_turns.xml */
 "regenerate" = "Buat ulang";
