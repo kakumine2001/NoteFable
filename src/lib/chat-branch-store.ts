@@ -79,7 +79,7 @@ export async function forkSession(userId: string, sessionId: string, messageId: 
       select: {
         id: true, role: true, content: true, model: true, reasoningEffort: true, activity: true, thinkingMs: true, createdAt: true,
         attachments: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { filename: true, mimeType: true, size: true, extractedText: true, imageStoragePath: true, createdAt: true } },
-        notes: { select: { noteId: true, position: true } },
+        notes: { select: { noteId: true, position: true, selectionIds: true } },
       },
     });
     if (!rows.length) return null;

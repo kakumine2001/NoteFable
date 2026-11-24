@@ -69,6 +69,11 @@ function parseSelectionIds(value: FormDataEntryValue | null): string[] | null {
   return [...new Set(parsed as string[])];
 }
 
+// 保存済み MessageNote.selectionIds（JSON 文字列）を安全に読み戻す。壊れた値は無視する。
+function parseStoredSelectionIds(value: string | null | undefined): string[] {
+  return parseSelectionIds(value ?? null) ?? [];
+}
+
 function makeTitle(message: string) {
   // 改行や連続スペースを 1 つの空白にして、一覧表示で崩れないタイトルにする。
   // 回答から引用して聞いた発言は、引用ではなく質問の部分から作る。
@@ -604,6 +609,17 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
   // 再生成で置き換えられる回答と、その先に続いていた発言。新しい回答を保存するときに隠す（それまでは表示のまま残し、
   // 途中で処理が落ちても元の会話が消えたように見えないようにする）。履歴とノートの文脈からは、ここで外す。
   let replacedIds: string[] = [];
+  // 分割表示で送った選区 ID を、編集・再生成のときも元の発言の MessageNote から引き継ぐ。
+  let rerunSelection: { pageId: string; ids: string[] } | null = null;
+  const storedSelectionFrom = (notes: { noteId: string; selectionIds?: string | null }[], allowedIds: readonly string[]) => {
+    const allowed = new Set(allowedIds);
+    for (const item of notes) {
+      if (!allowed.has(item.noteId)) continue;
+      const ids = parseStoredSelectionIds(item.selectionIds);
+      if (ids.length) return { pageId: item.noteId, ids };
+    }
+    return null;
+  };
   if (rerun) {
     // 編集・再生成の対象を決めて書き換える間、会話の行を押さえる（版の切り替えや、同じ発言への別の作り直しと重ならないように）。
     const prepared = await prisma.$transaction(async (tx) => {
@@ -616,17 +632,24 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
         // 再生成：自分の発言はそのまま使い、回答だけを新しい版にする。
         const promptNode = tree.order.find((node) => node.id === tree.parent.get(target.id) && node.active && node.role === "USER");
         if (!promptNode) return { error: "missing" as const };
-        const prompt = await tx.message.findFirst({ where: { id: promptNode.id, sessionId: session.id }, select: { attachments: attachmentSelect } });
+        const prompt = await tx.message.findFirst({
+          where: { id: promptNode.id, sessionId: session.id },
+          select: { attachments: attachmentSelect, notes: { orderBy: { position: "asc" }, select: { noteId: true, selectionIds: true } } },
+        });
         if (cannotReadImages(prompt?.attachments ?? [])) return { error: "images" as const };
-        return { userMessageId: promptNode.id, replaced: below };
+        const promptNotes = prompt?.notes ?? [];
+        const livePromptNotes = promptNotes.length ? await liveOwnedNoteIds(user.id, promptNotes.map((item) => item.noteId)) : [];
+        return { userMessageId: promptNode.id, replaced: below, selection: storedSelectionFrom(promptNotes, livePromptNotes) };
       }
-      // 編集：元の発言の添付とノートを引き継いだ新しい版を同じ親の下に作り、元の版とその先を隠す（消さない）。
+      // 編集：元の発言の添付とノート（選区 ID を含む）を引き継いだ新しい版を同じ親の下に作り、元の版とその先を隠す（消さない）。
       const original = await tx.message.findFirst({
         where: { id: target.id, sessionId: session.id },
-        select: { attachments: attachmentSelect, notes: { orderBy: { position: "asc" }, select: { noteId: true } } },
+        select: { attachments: attachmentSelect, notes: { orderBy: { position: "asc" }, select: { noteId: true, selectionIds: true } } },
       });
       if (cannotReadImages(original?.attachments ?? [])) return { error: "images" as const };
-      const keptPages = await liveOwnedNoteIds(user.id, original?.notes.map((item) => item.noteId) ?? []);
+      const originalNotes = original?.notes ?? [];
+      const keptPages = await liveOwnedNoteIds(user.id, originalNotes.map((item) => item.noteId));
+      const selectionByNoteId = new Map(originalNotes.map((item) => [item.noteId, item.selectionIds ?? null]));
       await tx.message.updateMany({ where: { sessionId: session.id, id: { in: below }, active: true }, data: { active: false } });
       const created = await tx.message.create({
         data: {
@@ -637,10 +660,17 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
           reasoningEffort: toDbReasoning(reasoning),
           parentId: tree.parent.get(target.id),
           ...(original?.attachments.length ? { attachments: { create: original.attachments } } : {}),
-          ...(keptPages.length ? { notes: { create: keptPages.map((noteId, position) => ({ noteId, position })) } } : {}),
+          ...(keptPages.length ? {
+            notes: {
+              create: keptPages.map((attachedNoteId, position) => {
+                const stored = selectionByNoteId.get(attachedNoteId);
+                return { noteId: attachedNoteId, position, ...(stored ? { selectionIds: stored } : {}) };
+              }),
+            },
+          } : {}),
         },
       });
-      return { userMessageId: created.id, replaced: [] as string[] };
+      return { userMessageId: created.id, replaced: [] as string[], selection: storedSelectionFrom(originalNotes, keptPages) };
     });
     if ("error" in prepared) {
       await refundUsage(usageTicket);
@@ -650,6 +680,7 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
     }
     userMessage = { id: prepared.userMessageId };
     replacedIds = prepared.replaced;
+    rerunSelection = prepared.selection;
   } else {
     // 通常の送信：表示中の枝の末尾に続ける。この発言はこのあと currentUserContent として渡す。
     // 末尾を読んで発言を足す間、会話の行を押さえる（同時に送った 2 つの発言が同じ親の下に並んで「別の版」にならないように）。
@@ -672,7 +703,15 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
               imageStoragePath: attachment.imageStoragePath,
             })),
           },
-          ...(pageIds.length ? { notes: { create: pageIds.map((noteId, position) => ({ noteId, position })) } } : {}),
+          ...(pageIds.length ? {
+            notes: {
+              create: pageIds.map((attachedNoteId, position) => ({
+                noteId: attachedNoteId,
+                position,
+                ...(selectionPageId === attachedNoteId && selectionIds.length ? { selectionIds: JSON.stringify(selectionIds) } : {}),
+              })),
+            },
+          } : {}),
         },
       });
     });
@@ -901,11 +940,15 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
         // この API で差分を吸収し、フロントエンドには常にプレーンテキストの連続 chunk として返す。
         const pageTools = modelOption.supportsPageTools ? pageToolDefinitions({ vision: modelOption.supportsImageInput }) : [];
         // ツールは常にこのリクエストの所有者として実行する。モデルは userId を指定できない。
-        const attachedSelectionSource = !note && selectionPageId && selectionIds.length && pageIds.includes(selectionPageId)
-          ? (attachedNotes.find((item) => item.id === selectionPageId) ?? projectContext?.notes.find((item) => item.id === selectionPageId) ?? null)
+        const effectiveSelectionPageId = rerun
+          ? (rerunSelection?.pageId ?? "")
+          : (selectionPageId && pageIds.includes(selectionPageId) ? selectionPageId : "");
+        const effectiveSelectionIds = rerun ? (rerunSelection?.ids ?? []) : selectionIds;
+        const attachedSelectionSource = !note && effectiveSelectionPageId && effectiveSelectionIds.length
+          ? (attachedNotes.find((item) => item.id === effectiveSelectionPageId) ?? projectContext?.notes.find((item) => item.id === effectiveSelectionPageId) ?? null)
           : null;
         const attachedSelection = attachedSelectionSource && attachedSelectionSource.kind && isCanvasKind(attachedSelectionSource.kind)
-          ? { id: attachedSelectionSource.id, title: attachedSelectionSource.title, kind: attachedSelectionSource.kind, ids: selectionIds }
+          ? { id: attachedSelectionSource.id, title: attachedSelectionSource.title, kind: attachedSelectionSource.kind, ids: effectiveSelectionIds }
           : null;
         const focusSelection = note && selectionIds.length
           ? { pageId: note.id, ids: selectionIds }

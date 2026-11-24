@@ -60,8 +60,21 @@ export function applyLiveSelection(
 export function clearActiveSelection(
   current: CanvasAiSelectionState | null,
   noteId: string,
+  expected?: PageSelection | null,
 ): CanvasAiSelectionState | null {
   if (!current || current.noteId !== noteId) return current;
+  if (expected !== undefined) {
+    const expectedKey = selectionKey(expected);
+    if (!expectedKey) return current;
+    const nextExplicit = current.explicit && selectionKey(current.explicit) === expectedKey ? null : current.explicit;
+    const nextDismissed = current.live && current.live.key === expectedKey ? current.live.key : current.dismissedLiveKey;
+    if (nextExplicit === current.explicit && nextDismissed === current.dismissedLiveKey) return current;
+    return {
+      ...current,
+      explicit: nextExplicit,
+      dismissedLiveKey: nextDismissed,
+    };
+  }
   const liveKey = current.live?.key ?? null;
   if (current.explicit === null && current.dismissedLiveKey === liveKey) return current;
   return {

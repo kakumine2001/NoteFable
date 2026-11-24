@@ -160,6 +160,27 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     window.dispatchEvent(new CustomEvent<SlidesSelectionDetail>(SLIDES_EVENTS.selection, { detail }));
   }, [pageId, view, selectedSlides, current, liveSelection]);
 
+  const makeSlideCapture = useCallback((targetSlideId: string | null, elementIds: readonly string[], fallbackSlide: Slide | null, fallbackTheme: ReturnType<typeof resolveTheme>) => {
+    if (!targetSlideId) return undefined;
+    const fallbackSnapshot = fallbackSlide ? { ...fallbackSlide, elements: fallbackSlide.elements.map((el) => ({ ...el })) } : null;
+    const wantedIds = [...elementIds];
+    return async () => {
+      if (exportingRef.current || captureBusyRef.current) return null;
+      captureBusyRef.current = true;
+      try {
+        const latestDeck = deckRef.current;
+        const liveSlide = latestDeck.slides.find((slide) => slide.id === targetSlideId) ?? fallbackSnapshot;
+        if (!liveSlide) return null;
+        const liveTheme = resolveTheme(latestDeck.theme) ?? fallbackTheme;
+        const targetElementIds = wantedIds.filter((id) => liveSlide.elements.some((el) => el.id === id));
+        if (wantedIds.length > 0 && !targetElementIds.length) return null;
+        return await captureSlideSelectionPng(capture, { ...liveSlide, elements: liveSlide.elements.map((el) => ({ ...el })) }, liveTheme, targetElementIds);
+      } finally {
+        captureBusyRef.current = false;
+      }
+    };
+  }, [capture]);
+
   // 要素を選んだ状態・総覧で複数枚を選んだ状態をリアルタイムに AI パネルへ同期する（パネルが開いている時や、右下の AI ボタンを押した時にも自動で添付する）。
   useEffect(() => {
     if (!onSelectionChange) return;
@@ -183,27 +204,9 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     const ids = slidesSelectionIds(deck, sel);
     const targetSlideId = (current && slideIds.includes(current.id) ? current.id : slideIds[0]) ?? null;
     const fallbackSlide = targetSlideId ? deck.slides.find((slide) => slide.id === targetSlideId) ?? null : null;
-    const fallbackSnapshot = fallbackSlide ? { ...fallbackSlide, elements: fallbackSlide.elements.map((el) => ({ ...el })) } : null;
-    const fallbackTheme = theme;
-    const captureImage = targetSlideId
-      ? async () => {
-        if (exportingRef.current || captureBusyRef.current) return null;
-        captureBusyRef.current = true;
-        try {
-          const latestDeck = deckRef.current;
-          const liveSlide = latestDeck.slides.find((slide) => slide.id === targetSlideId) ?? fallbackSnapshot;
-          if (!liveSlide) return null;
-          const liveTheme = resolveTheme(latestDeck.theme) ?? fallbackTheme;
-          const targetElementIds = elementIds.filter((id) => liveSlide.elements.some((el) => el.id === id));
-          if (elementIds.length > 0 && !targetElementIds.length) return null;
-          return await captureSlideSelectionPng(capture, { ...liveSlide, elements: liveSlide.elements.map((el) => ({ ...el })) }, liveTheme, targetElementIds);
-        } finally {
-          captureBusyRef.current = false;
-        }
-      }
-      : undefined;
+    const captureImage = makeSlideCapture(targetSlideId, elementIds, fallbackSlide, theme);
     onSelectionChange({ text, ids, captureImage });
-  }, [onSelectionChange, view, deck, selectedSlides, current, liveSelection, theme, capture]);
+  }, [onSelectionChange, view, deck, selectedSlides, current, liveSelection, theme, makeSlideCapture]);
 
   // 選んだスライドや要素について AI に聞く（ロック中のスライドからも利用可能）。
   const askAi = useCallback((override?: { slideIds?: string[]; elementIds?: string[] }) => {
@@ -220,28 +223,14 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     const sel = { slideIds, elementIds };
     const text = slidesContextText(deck, sel);
     const ids = slidesSelectionIds(deck, sel);
-    // 複数枚選択時はアクティブな枚（なければ先頭）をスナップショットして画像キャプチャに使う。
-    const targetSlide = (current && slideIds.includes(current.id) ? current : deck.slides.find((slide) => slideIds.includes(slide.id))) ?? null;
-    const slideSnapshot = targetSlide ? { ...targetSlide, elements: targetSlide.elements.map((el) => ({ ...el })) } : null;
-    const themeSnapshot = theme;
-    const targetElementIds = slideSnapshot
-      ? elementIds.filter((id) => slideSnapshot.elements.some((el) => el.id === id))
-      : [];
-    const captureImage = slideSnapshot
-      ? async () => {
-        if (exportingRef.current || captureBusyRef.current) return null;
-        captureBusyRef.current = true;
-        try {
-          return await captureSlideSelectionPng(capture, slideSnapshot, themeSnapshot, targetElementIds);
-        } finally {
-          captureBusyRef.current = false;
-        }
-      }
-      : undefined;
+    // 複数枚選択時はアクティブな枚（なければ先頭）を対象にし、送信時点の最新スライド（保存後）を描画する。
+    const targetSlideId = (current && slideIds.includes(current.id) ? current.id : slideIds[0]) ?? null;
+    const fallbackSlide = targetSlideId ? deck.slides.find((slide) => slide.id === targetSlideId) ?? null : null;
+    const captureImage = makeSlideCapture(targetSlideId, elementIds, fallbackSlide, theme);
     // スマホでは設定シートが開いたままだと AI 引き出しと重なるため閉じる。
     if (phone) { setInspectorOpen(false); setSelection(new Set()); }
     onAskAi({ text, ids, captureImage });
-  }, [onAskAi, view, deck, selectedSlides, current, liveSelection, theme, capture, phone]);
+  }, [onAskAi, view, deck, selectedSlides, current, liveSelection, theme, makeSlideCapture, phone]);
 
   // ---- 枚の操作 ----
   const addSlide = useCallback((layout: LayoutId = "bullets", index?: number) => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { LoaderCircle, Sparkles } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { GuestLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
 import { useT } from "@/components/i18n-provider";
 import { useAccount } from "@/lib/account-store";
@@ -78,6 +78,7 @@ const SIZES: { key: GenerateSize; label: string }[] = [
 // AI で画像を作る（生成の回数を 1 回使う。作った画像は note-files に保存され、スライドに置かれる）。
 export function GenerateImageDialog({ pageId, embedded = false, onGenerated, onClose }: { pageId: string; embedded?: boolean; onGenerated: (image: SlideImage) => void; onClose: () => void }) {
   const t = useT();
+  const formId = useId();
   const { account } = useAccount();
   const draftScope = `slides-image:${pageId}`;
   const [prompt, setPrompt] = useState(() => takePendingDraft(draftScope));
@@ -108,22 +109,16 @@ export function GenerateImageDialog({ pageId, embedded = false, onGenerated, onC
       onClose();
     } catch (caught) {
       if (caught instanceof StorageLimitError) {
-        if (caught.tier !== "pro") {
-          limitHitRef.current = true;
-          savePendingDraft(draftScope, prompt, { persistent: embedded });
-        }
+        limitHitRef.current = true;
+        savePendingDraft(draftScope, prompt, { persistent: embedded });
         onClose();
       } else if (caught instanceof UsageLimitError) {
-        if (caught.tier !== "pro") {
-          limitHitRef.current = true;
-          if (!dialogMountedRef.current) {
-            keepRejectedDraft(draftScope, prompt.trim(), { persistent: embedded });
-            return;
-          }
-          if (embedded) savePendingDraft(draftScope, prompt, { persistent: true });
-        } else if (!dialogMountedRef.current) {
+        limitHitRef.current = true;
+        if (!dialogMountedRef.current) {
+          keepRejectedDraft(draftScope, prompt.trim(), { persistent: embedded });
           return;
         }
+        if (embedded) savePendingDraft(draftScope, prompt, { persistent: true });
         if (embedded) {
           if (nativeCanShowUsageLimit()) {
             postToNative({ type: "usageLimit", tier: caught.tier, kind: "image", pageId });
@@ -141,7 +136,7 @@ export function GenerateImageDialog({ pageId, embedded = false, onGenerated, onC
     }
   }
   return <Modal label={t("Generate an image")} onClose={() => { if (!busy) onClose(); }} busy={busy}>
-    <form onSubmit={(event) => { event.preventDefault(); void submit(); }}>
+    <form id={formId} onSubmit={(event) => { event.preventDefault(); void submit(); }}>
       <h2 className="text-base font-semibold">{t("Generate an image")}</h2>
       <p className="slides-dialog-muted">{t("Describe the image. Each image uses one image generation from your plan.")}</p>
       <textarea autoFocus className="notes-dialog-input slides-prompt" rows={4} maxLength={4000} value={prompt} disabled={busy}
@@ -152,16 +147,17 @@ export function GenerateImageDialog({ pageId, embedded = false, onGenerated, onC
           {option.key === "1536x1024" ? t("Landscape") : option.key === "1024x1024" ? t("Square") : t("Portrait")}
         </label>)}
       </div>
-      {showGuestPrompt && <GuestLimitPrompt kind="image" onClose={() => setUsageLimit(null)} onBeforeSignIn={() => savePendingDraft(draftScope, prompt)} />}
-      {showUpgradePrompt && <UpgradePrompt kind="image" onClose={() => setUsageLimit(null)} onBeforeUpgrade={() => savePendingDraft(draftScope, prompt)} />}
-      {(error || limitFallbackMessage) && <p role="alert" className="slides-dialog-error">{localizeSystemText(error || limitFallbackMessage, t)}</p>}
-      <div className="mt-5 flex justify-end gap-2">
-        <button type="button" className="notion-button" disabled={busy} onClick={onClose}>{t("Cancel")}</button>
-        <button type="submit" className="notion-button notion-button-primary inline-flex items-center gap-2" disabled={busy || !prompt.trim()}>
-          {busy ? <LoaderCircle size={15} className="animate-spin" aria-hidden="true" /> : <Sparkles size={15} aria-hidden="true" />}{busy ? t("Generating…") : t("Generate")}
-        </button>
-      </div>
     </form>
+    {/* メールログインの入力フォームを画像生成フォームに入れ子にしないよう、上限の案内は form の外に出す。 */}
+    {showGuestPrompt && <GuestLimitPrompt kind="image" onClose={() => setUsageLimit(null)} onBeforeSignIn={() => savePendingDraft(draftScope, prompt)} />}
+    {showUpgradePrompt && <UpgradePrompt kind="image" onClose={() => setUsageLimit(null)} onBeforeUpgrade={() => savePendingDraft(draftScope, prompt)} />}
+    {(error || limitFallbackMessage) && <p role="alert" className="slides-dialog-error">{localizeSystemText(error || limitFallbackMessage, t)}</p>}
+    <div className="mt-5 flex justify-end gap-2">
+      <button type="button" className="notion-button" disabled={busy} onClick={onClose}>{t("Cancel")}</button>
+      <button type="submit" form={formId} className="notion-button notion-button-primary inline-flex items-center gap-2" disabled={busy || !prompt.trim()}>
+        {busy ? <LoaderCircle size={15} className="animate-spin" aria-hidden="true" /> : <Sparkles size={15} aria-hidden="true" />}{busy ? t("Generating…") : t("Generate")}
+      </button>
+    </div>
   </Modal>;
 }
 

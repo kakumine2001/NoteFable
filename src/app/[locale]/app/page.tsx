@@ -1510,30 +1510,30 @@ export default function Home() {
       URL.revokeObjectURL(selectionUpload.previewUrl);
     };
     const rawSubmittedFiles = submittedFiles.map(({ file }) => file);
-    if (activeSplitSelection?.captureImage && selectedModel.supportsImageInput) {
-      try {
-        const blob = await activeSplitSelection.captureImage();
-        if (blob && blob.size > 0) {
-          const imageFile = new File([blob], "selection.png", { type: "image/png" });
-          const candidateFiles = [...rawSubmittedFiles, imageFile];
-          const selectionProblem = getUploadValidationError(candidateFiles, uploadOptions, t) || getUploadRequestError(candidateFiles, userContent, t);
-          if (!selectionProblem) {
-            selectionUpload = createUploadFile(imageFile);
-            if (selectionUpload.previewUrl) selectionPreviewsRef.current.add(selectionUpload.previewUrl);
+    const willCaptureSelection = Boolean(activeSplitSelection?.captureImage && selectedModel.supportsImageInput);
+    let uploadedTickets: string[] = [];
+    try {
+      if (willCaptureSelection || rawSubmittedFiles.length) setUploadProgress(msg("Preparing attachments…"));
+      if (willCaptureSelection && activeSplitSelection?.captureImage) {
+        try {
+          const blob = await activeSplitSelection.captureImage();
+          if (blob && blob.size > 0) {
+            const imageFile = new File([blob], "selection.png", { type: "image/png" });
+            const candidateFiles = [...rawSubmittedFiles, imageFile];
+            const selectionProblem = getUploadValidationError(candidateFiles, uploadOptions, t) || getUploadRequestError(candidateFiles, userContent, t);
+            if (!selectionProblem) {
+              selectionUpload = createUploadFile(imageFile);
+              if (selectionUpload.previewUrl) selectionPreviewsRef.current.add(selectionUpload.previewUrl);
+            } else {
+              setSendNotice(msg("Sent text only this time."));
+            }
           } else {
             setSendNotice(msg("Sent text only this time."));
           }
-        } else {
+        } catch {
           setSendNotice(msg("Sent text only this time."));
         }
-      } catch {
-        setSendNotice(msg("Sent text only this time."));
       }
-    }
-
-    let uploadedTickets: string[] = [];
-    try {
-      if (rawSubmittedFiles.length || selectionUpload) setUploadProgress(msg("Preparing attachments…"));
       const uploaded = await uploadChatFilesWithSelection(rawSubmittedFiles, selectionUpload?.file ?? null, (name, index, total, percentage) => {
         setUploadProgress({ key: msg("Uploading {index}/{total} · {name} · {percentage}%"), vars: { index, total, name, percentage } });
       });
@@ -1645,9 +1645,15 @@ export default function Home() {
       value: submittedInputValue,
       expiresAt: new Date().getTime() + INPUT_RESTORE_GUARD_MS,
     };
-    setInput("");
+    const liveInputValue = inputRef.current?.value ?? input;
+    const remainingInput = liveInputValue === submittedInputValue
+      ? ""
+      : liveInputValue.startsWith(submittedInputValue)
+        ? liveInputValue.slice(submittedInputValue.length).trimStart()
+        : liveInputValue;
+    setInput(remainingInput);
     if (inputRef.current) {
-      inputRef.current.value = "";
+      inputRef.current.value = remainingInput;
     }
     setFiles([]);
     setAttachedPages([]);

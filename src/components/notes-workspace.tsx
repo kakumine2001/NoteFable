@@ -228,7 +228,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
           送る前の flush は、ホワイトボードなどがまだ保存キューへ渡していない変更（描き終わり・文字の確定の直後）も先に渡してもらう（版の履歴と同じ）。 */}
       <PageAssistant key={activeId} pageId={activeId} pageKind={activeKind} pageTitle={active.content.title} model={model} reasoning={reasoning}
         onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={async () => { await flushCanvasEditors(); return active.flush(); }} embedded={embedded}
-        selection={aiSelection} onClearSelection={() => setAiAsk((current) => clearActiveSelection(current, activeId))}
+        selection={aiSelection} onClearSelection={(sent) => setAiAsk((current) => clearActiveSelection(current, activeId, sent))}
         openSignal={aiOpenSignal} hidden={split} anchor={CanvasEditor && !split ? aiAnchor : null} />
     </>
     : active && activeId && !listMode ? <>
@@ -262,7 +262,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
       </div>
       <PageAssistant key={activeId} pageId={activeId} pageTitle={active.content.title} model={model} reasoning={reasoning}
         onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={() => active.flush()} embedded={embedded}
-        selection={aiSelection} onClearSelection={() => setAiAsk((current) => clearActiveSelection(current, activeId))} openSignal={aiOpenSignal} hidden={split} />
+        selection={aiSelection} onClearSelection={(sent) => setAiAsk((current) => clearActiveSelection(current, activeId, sent))} openSignal={aiOpenSignal} hidden={split} />
     </> : embedded ? !error && <div className="notes-column pt-24"><p className="notes-loading">{t("Loading note…")}</p></div>
     : !error && <>{!listMode && <div className="notes-column"><div className="notion-home-switch lg:hidden"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div></div>}<div className="notes-column notes-empty">
       <div className="notes-empty-emblem" aria-hidden="true"><LayoutGrid size={26} strokeWidth={1.6} /></div>

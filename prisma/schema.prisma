@@ -361,10 +361,12 @@ model Message {
 }
 
 // チャットの発言に添付したノート。ノートの本文はコピーしない。ノートが完全に削除されると一緒に消える。
+// 分割表示の選区 Ask AI で送った要素・スライドの ID（JSON 配列）は、編集・再生成・会話複製でも引き継げるようここに残す。
 model MessageNote {
-  messageId String
-  noteId    String
-  position  Int    @default(0)
+  messageId    String
+  noteId       String
+  position     Int     @default(0)
+  selectionIds String?
 
   message Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
   note    NotePage @relation(fields: [noteId], references: [id], onDelete: Cascade)

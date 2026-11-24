@@ -224,6 +224,7 @@ erDiagram
         string messageId PK, FK
         string noteId PK, FK
         int position
+        string selectionIds "nullable JSON array of selected canvas IDs"
     }
 
     NoteGroup {

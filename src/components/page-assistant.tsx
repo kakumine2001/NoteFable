@@ -213,7 +213,7 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
   embedded?: boolean;
   // エディターで選んだ範囲（ノートの書式ツールバー「Ask AI」の文字、ホワイトボード・スライドの要素・スライド）。
   selection?: PageSelection | null;
-  onClearSelection?: () => void;
+  onClearSelection?: (sent?: PageSelection | null) => void;
   // 増えるたびにパネルを開いて入力欄へフォーカスする。
   openSignal?: number;
   // 分割表示（チャットと並べて表示）時は右下の丸いボタンを隠す。
@@ -659,6 +659,7 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
     const content = text.trim();
     if (!content || sending.current || loadingRef.current) return;
     // 選んだ範囲があれば、引用として発言の先頭に付けて送る。要素・スライドの ID は別の欄で送る。
+    const submittedSelection = selection;
     const activeSelection = selectionText;
     const activeIds = selectionIds;
     const activeCapture = selection?.captureImage;
@@ -695,37 +696,38 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
 
     // 選区画像（D5）：画像対応モデルのときだけ PNG を作って標準のアップロード経路に乗せる。
     // 非画像モデルでは呼ばず、キャプチャやアップロードに失敗しても送信を止めず文字だけで続行する。
+    // キャプチャ中も入力欄をロック（uploadProgress）し、送信待ちの間に入力した文字が消えないようにする。
     let selectionUpload: UploadFile | null = null;
     const releaseSelectionPreview = () => {
       if (!selectionUpload?.previewUrl) return;
       previewUrlsRef.current.delete(selectionUpload.previewUrl);
       URL.revokeObjectURL(selectionUpload.previewUrl);
     };
-    if (activeCapture && modelOption.supportsImageInput) {
-      try {
-        const blob = await activeCapture();
-        if (blob && blob.size > 0) {
-          const imageFile = new File([blob], "selection.png", { type: "image/png" });
-          const candidateFiles = [...rawFiles, imageFile];
-          const selectionProblem = getUploadValidationError(candidateFiles, uploadOptions, t) || getUploadRequestError(candidateFiles, payloadText, t);
-          if (!selectionProblem) {
-            selectionUpload = createUploadFile(imageFile);
-            if (selectionUpload.previewUrl) previewUrlsRef.current.add(selectionUpload.previewUrl);
+    const willCapture = Boolean(activeCapture && modelOption.supportsImageInput);
+    let tickets: string[] = [];
+    try {
+      if (willCapture || rawFiles.length) setUploadProgress({ key: msg("Preparing attachments…") });
+      if (willCapture && activeCapture) {
+        try {
+          const blob = await activeCapture();
+          if (blob && blob.size > 0) {
+            const imageFile = new File([blob], "selection.png", { type: "image/png" });
+            const candidateFiles = [...rawFiles, imageFile];
+            const selectionProblem = getUploadValidationError(candidateFiles, uploadOptions, t) || getUploadRequestError(candidateFiles, payloadText, t);
+            if (!selectionProblem) {
+              selectionUpload = createUploadFile(imageFile);
+              if (selectionUpload.previewUrl) previewUrlsRef.current.add(selectionUpload.previewUrl);
+            } else {
+              setNotice(msg("Sent text only this time."));
+            }
           } else {
             setNotice(msg("Sent text only this time."));
           }
-        } else {
+        } catch {
           setNotice(msg("Sent text only this time."));
         }
-      } catch {
-        setNotice(msg("Sent text only this time."));
       }
-    }
-
-    let tickets: string[] = [];
-    try {
       if (rawFiles.length || selectionUpload) {
-        setUploadProgress({ key: msg("Preparing attachments…") });
         const uploaded = await uploadChatFilesWithSelection(rawFiles, selectionUpload?.file ?? null, (name, index, total, percentage) => {
           setUploadProgress({ key: msg("Uploading {index}/{total} · {name} · {percentage}%"), vars: { index, total, name, percentage } });
         });
@@ -762,8 +764,10 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
       },
       { id: assistantId, role: "ASSISTANT", content: "" },
     ]);
-    // 定型ボタン（display あり）で送ったときは、入力欄に書きかけの本文を残す。
-    if (display === undefined) setInput("");
+    // 定型ボタン（display あり）で送ったときは、入力欄に書きかけの本文を残す。送信待ちの間に書き足した文字があれば残す。
+    if (display === undefined) {
+      setInput((current) => (current === text ? "" : current.startsWith(text) ? current.slice(text.length).trimStart() : current));
+    }
     setSeconds(0);
     setStreaming(true);
     const body = new FormData();
@@ -793,7 +797,7 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
           accepted = true;
           guestLimitHitRef.current = false;
           savePendingDraft(`note:${noteId}`, "", { persistent: embedded });
-          if (activeSelection || activeIds.length) onClearSelection?.();
+          if (activeSelection || activeIds.length) onClearSelection?.(submittedSelection);
           if (display === undefined) {
             setFiles((list) => list.filter((item) => !sentFiles.includes(item)));
             setAttachedPages((list) => list.filter((page) => !sentPages.includes(page)));

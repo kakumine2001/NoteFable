@@ -70,4 +70,20 @@ describe("canvas-selection-state", () => {
   it("normalizes duplicate and differently ordered IDs in selectionKey", () => {
     expect(selectionKey({ ids: ["b", "a", "a"], text: "hi" })).toBe(selectionKey({ ids: ["a", "b"], text: "hi" }));
   });
+
+  it("clears only the submitted selection so a newer selection made during capture/send stays active", () => {
+    const selA = { ids: ["el-a"], text: "A" };
+    const selB = { ids: ["el-b"], text: "B" };
+    let state = applyLiveSelection(null, "board-1", selA);
+    // User switches to B while A is still uploading/awaiting server acceptance.
+    state = applyLiveSelection(state, "board-1", selB);
+    // Acceptance callback clears A only — B must remain active.
+    const afterClearA = clearActiveSelection(state, "board-1", selA);
+    expect(afterClearA).toBe(state);
+    expect(resolveActiveSelection(afterClearA, "board-1")).toEqual(selB);
+
+    // Clearing B dismisses B cleanly.
+    const afterClearB = clearActiveSelection(afterClearA, "board-1", selB);
+    expect(resolveActiveSelection(afterClearB, "board-1")).toBeNull();
+  });
 });
