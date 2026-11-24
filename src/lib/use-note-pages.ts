@@ -300,10 +300,15 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
         ids.add(id);
         for (const childId of descendantIdsOf(pagesRef.current, id)) ids.add(childId);
       }
-      for (const id of ids) {
-        const queue = queues.current.get(id);
-        if (queue) detail.waits.push(queue.flush());
-      }
+      // 開いているページ（ホワイトボードなど）が対象なら、エディターがまだ保存キューへ渡していない変更（アップロード中の画像も）を
+      // 先に渡してもらう（「ゴミ箱へ移す」と同じ）。渡し切れなければ元に戻すのを止める。
+      const openPage = displayedId.current !== null && ids.has(displayedId.current);
+      const pending = [...ids].flatMap((id) => { const queue = queues.current.get(id); return queue ? [queue] : []; });
+      if (!openPage && !pending.length) return;
+      detail.waits.push((async () => {
+        if (openPage && !(await flushCanvasEditors())) return false;
+        return (await Promise.all(pending.map((queue) => queue.flush()))).every(Boolean);
+      })());
     }
     // AI の提案で作ったページを「元に戻す」でゴミ箱へ移した（サブページも一緒）。一覧と保存キューから外し、開いていたら閉じる。
     function onPagesTrashed(event: Event) {

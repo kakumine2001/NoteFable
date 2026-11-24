@@ -386,6 +386,9 @@ button.whiteboard-zoom-value:hover { background: var(--notion-hover); }
 
 /* ---- 少し狭いキャンバス：小地図は道具のツールバーの上へ ---- */
 .whiteboard.is-narrow .whiteboard-minimap { bottom: calc(var(--wb-bottom) + 56px); }
+/* 640〜719px で右下に AI ボタンがあるとき：まん中のツールバーがボタンに重なるので、ボタン（右端から 12 + 52px）の手前 12px まで寄せる */
+.whiteboard.is-tight .whiteboard-toolbar { left: auto; right: 76px; max-width: calc(100% - 88px); transform: none; }
+[dir="rtl"] .whiteboard.is-tight .whiteboard-toolbar { left: 76px; right: auto; }
 
 /* ---- スマホ（キャンバスの幅 640px 未満・アプリの WebView） ---- */
 .whiteboard.is-compact .whiteboard-title { top: 8px; inset-inline-start: 8px; max-width: calc(100% - 64px); min-width: 0; height: 38px; }

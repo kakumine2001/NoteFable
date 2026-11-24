@@ -1422,8 +1422,11 @@ export default function Home() {
     // 保存を待つ間に別の会話へ移ったことも下の確認で分かるよう、待つ前に控える。
     const navigationIntent = sessionNavigationIntentRef.current;
     // 分割表示の右側ノートに未保存の編集があれば、AI が最新の本文を読めるよう先に保存する（失敗しても送信は止めない）。
-    if (splitActive && notes.active?.dirty) {
-      await notes.active.flush().catch(() => {});
+    // ホワイトボードなどがまだ保存キューへ渡していない変更（描き終わり・文字の確定の直後）も先に渡してもらう。
+    const splitPage = splitActive ? notes.active : undefined;
+    if (splitPage) {
+      await flushCanvasEditors();
+      if (splitPage.dirty) await splitPage.flush().catch(() => {});
     }
 
     let uploadedTickets: string[] = [];

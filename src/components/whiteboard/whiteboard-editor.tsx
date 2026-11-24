@@ -132,6 +132,12 @@ function contentHiddenIn(target: ExcalidrawImperativeAPI) {
   return x2 < view.x || x1 > view.x + view.width || y2 < view.y || y1 > view.y + view.height;
 }
 
+// 開いたときの表示位置。検索の結果から開いたときはその要素へ動かし、それ以外で fit なら内容がすべて見えるように縮める（100% より大きくしない）。
+function placeOnOpen(target: ExcalidrawImperativeAPI, reveal: string | null, fit: boolean) {
+  const elements = target.getSceneElements();
+  if (!(reveal && revealIn(target, reveal, false)) && fit && elements.length) target.setViewport({ target: elements, fit: "scale-down" });
+}
+
 // その要素まで動かして選ぶ。見つからなければ false。
 function revealIn(target: ExcalidrawImperativeAPI, elementId: string, animation = true) {
   const element = target.getSceneElements().find((entry) => entry.id === elementId);
@@ -215,6 +221,10 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   const mounted = useRef(true);
   // Excalidraw が最初の内容を読み終えたか（onInitialize）。それまでの onChange は読み込みそのもので、保存しない。
   const initialized = useRef(false);
+  // 枠の大きさが 0 のまま開いたので、大きさが決まるまで待っている表示位置（placeOnOpen の引数）。
+  const deferredPlacement = useRef<{ reveal: string | null; fit: boolean } | null>(null);
+  // 最後に見た Excalidraw の大きさ（appState.width × height）。変わったら表示位置と「内容に戻る」を見直す。
+  const lastSize = useRef("");
   // 取り込み中の PDF（閉じたらやめる）。
   const pdfAbort = useRef<AbortController | null>(null);
 
@@ -438,13 +448,29 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     }
     // 最初の内容を読み込んでいる間の通知は保存しない（開いただけで版を進めない）。
     if (!initialized.current) return;
+    // 枠の大きさが変わった（見えていなかった枠が見えた・App の WebView が後から広がった・分割の幅を変えた）。
+    // 大きさが 0 の間に開いたときの表示位置をここで合わせ、「内容に戻る」を見直す。Excalidraw が大きさを直した後に来るこの通知で行う。
+    const size = `${appState.width}x${appState.height}`;
+    if (size !== lastSize.current) {
+      lastSize.current = size;
+      queueMicrotask(() => {
+        if (!api || !mounted.current) return;
+        const deferred = deferredPlacement.current;
+        const { width, height } = api.getAppState();
+        if (deferred && width && height) {
+          deferredPlacement.current = null;
+          placeOnOpen(api, deferred.reveal, deferred.fit);
+        }
+        updateContentHidden();
+      });
+    }
     if (editable) startUploads(elements, files);
     if (signatureOf(elements, appState) !== lastSignature.current) {
       dirty.current = true;
       if (editable) { ownEdit.current = true; touched.current = true; }
       scheduleSave();
     }
-  }, [api, editable, readUi, scheduleSave, signatureOf, startUploads]);
+  }, [api, editable, readUi, scheduleSave, signatureOf, startUploads, updateContentHidden]);
 
   // 開発中だけ、ブラウザーのコンソールから確かめられるよう editor の API を置く（本番のビルドには入らない）。
   useEffect(() => {
@@ -591,8 +617,11 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     // 検索の結果から開いたときは、その要素まで動かす。それ以外で、この端末で初めて開くときは内容がすべて見えるように縮める
     // （100% より大きくはしない）。前回の表示位置があればそれを使う。
     const pending = consumeWhiteboardReveal(pageId);
-    const elements = ready.getSceneElements();
-    if (!(pending && revealIn(ready, pending, false)) && fitOnOpen && elements.length) ready.setViewport({ target: elements, fit: "scale-down" });
+    const { width, height } = ready.getAppState();
+    // 枠の大きさがまだ 0（見えていない枠・後から広がる App の WebView）のときに合わせると、10% まで縮んで左上に寄る。
+    // 大きさが決まってから合わせる（下の ResizeObserver）。
+    if (width && height) placeOnOpen(ready, pending, fitOnOpen);
+    else if (pending || fitOnOpen) deferredPlacement.current = { reveal: pending, fit: fitOnOpen };
     queueMicrotask(() => { if (mounted.current) setContentHidden(contentHiddenIn(ready)); });
   }, [applyNewerData, fitOnOpen, pageId, readUi, signatureOf]);
 
@@ -607,17 +636,8 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   }, []);
   const compact = width < 640;
   const narrow = width < 1010;
-
-  // 枠の大きさが変わったとき（App の WebView が後から広がる、分割表示の幅を変えるなど）も「内容に戻る」を見直す。
-  // Excalidraw が自分の大きさ（appState.width / height）を直してから測るよう、少し待つ。
-  useEffect(() => {
-    const element = containerRef.current;
-    if (!api || !element) return;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const observer = new ResizeObserver(() => { clearTimeout(timer); timer = setTimeout(updateContentHidden, 250); });
-    observer.observe(element);
-    return () => { clearTimeout(timer); observer.disconnect(); };
-  }, [api, updateContentHidden]);
+  // 640〜719px で右下に AI ボタンがあると、まん中の道具のツールバーがボタンに重なる。ツールバーをボタンの手前まで寄せる。
+  const tight = !compact && width < 720 && !!props.aiSlot;
 
   const fitToContent = useCallback(() => {
     if (!api) return;
@@ -768,7 +788,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   return (
     // ツールバー・パネル・ズームのボタンを押してもフォーカスを画布から移さない。Excalidraw はキー（Delete・Ctrl+Z・矢印など）と貼り付けを
     // 自分の入れ物にフォーカスがある時だけ受けるので、ボタンがフォーカスを取ると、画布を押し直すまで効かなくなる。入力欄は除く。
-    <div ref={containerRef} className={`whiteboard${embedded ? " is-embedded" : ""}${editable ? "" : " is-readonly"}${compact ? " is-compact" : narrow ? " is-narrow" : ""}`} data-theme={theme}
+    <div ref={containerRef} className={`whiteboard${embedded ? " is-embedded" : ""}${editable ? "" : " is-readonly"}${compact ? " is-compact" : narrow ? " is-narrow" : ""}${tight ? " is-tight" : ""}`} data-theme={theme}
       onMouseDown={(event) => {
         const target = event.target as HTMLElement;
         if (!target.closest("button") || target.closest(".excalidraw, dialog, [role='menu'], [role='dialog'], input, textarea, select, [contenteditable='true']")) return;
