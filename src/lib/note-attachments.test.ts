@@ -13,7 +13,9 @@ vi.mock("@/lib/stored-files", () => ({
   discardStoredFiles: mocks.discard,
 }));
 import { noteFileUrl, parseNoteFileUrl } from "./note-file-keys";
-import { runPageTool } from "./page-tools";
+import { runPageTool } from "./page-ai/tools";
+
+const ctx = { userId: "mine", sessionId: "s1", excludeMessageIds: [] };
 
 const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0]);
 type Proposed = { proposed: { blocks: { type: string; props: Record<string, unknown> }[] } };
@@ -49,18 +51,18 @@ describe("chat attachments in the note tools", () => {
       { id: "att2", filename: "n.pdf", mimeType: "application/pdf", size: 5000, imageStoragePath: null },
       { id: "att3", filename: "big.png", mimeType: "image/png", size: 9 * 1024 * 1024, imageStoragePath: "images/y.png" },
     ]);
-    const result = await runPageTool("list_chat_attachments", {}, "mine", "s1");
+    const result = await runPageTool("list_chat_attachments", {}, ctx);
     expect(mocks.findMany.mock.calls[0][0].where).toEqual({ message: { active: true, session: { id: "s1", userId: "mine" } } });
     const { attachments } = JSON.parse(result.content);
     expect(attachments.map((a: { id: string; canInsertIntoNote: boolean }) => [a.id, a.canInsertIntoNote])).toEqual([["att1", true], ["att2", false], ["att3", false]]);
     expect(attachments[1].note).toContain("cannot be placed");
 
     mocks.findMany.mockResolvedValue([]);
-    expect(JSON.parse((await runPageTool("list_chat_attachments", {}, "mine", "s1")).content).note).toContain("not attached");
+    expect(JSON.parse((await runPageTool("list_chat_attachments", {}, ctx)).content).note).toContain("not attached");
   });
 
   it("copies an attached image into the user's note files when a new note proposal uses it", async () => {
-    const result = await runPageTool("propose_note_create", { title: "Diagram", markdown: "Look:\n![Cell diagram](attachment:att1)", icon: null }, "mine", "s1");
+    const result = await runPageTool("propose_note_create", { title: "Diagram", markdown: "Look:\n![Cell diagram](attachment:att1)", icon: null }, ctx);
     expect(result.isError).toBeUndefined();
     // 同じ会話・同じ所有者の添付だけを探す。
     expect(mocks.findFirst.mock.calls[0][0].where).toMatchObject({ id: "att1", message: { active: true, session: { id: "s1", userId: "mine" } } });
@@ -76,19 +78,19 @@ describe("chat attachments in the note tools", () => {
 
   it("deletes the copied images again when the proposal is not saved", async () => {
     mocks.createProposal.mockRejectedValueOnce(new Error("database unavailable"));
-    await expect(runPageTool("propose_note_create", { title: "Diagram", markdown: "![Cell diagram](attachment:att1)", icon: null }, "mine", "s1")).rejects.toThrow("database unavailable");
+    await expect(runPageTool("propose_note_create", { title: "Diagram", markdown: "![Cell diagram](attachment:att1)", icon: null }, ctx)).rejects.toThrow("database unavailable");
     const [path] = mocks.write.mock.calls[0];
     expect(mocks.discard).toHaveBeenCalledWith([path]);
     // 保存できた提案のコピーは消さない。
     mocks.discard.mockClear();
-    expect((await runPageTool("propose_note_create", { title: "Diagram", markdown: "![Cell diagram](attachment:att1)", icon: null }, "mine", "s1")).isError).toBeUndefined();
+    expect((await runPageTool("propose_note_create", { title: "Diagram", markdown: "![Cell diagram](attachment:att1)", icon: null }, ctx)).isError).toBeUndefined();
     expect(mocks.discard).not.toHaveBeenCalled();
   });
 
   it("can replace an uploaded image in an existing note with an attached one", async () => {
     const old = { id: "img", type: "image", props: { url: noteFileUrl("note-files/mine/00000000-0000-0000-0000-000000000000.png", "old.png"), name: "old.png" }, children: [] };
     mocks.pageFindFirst.mockResolvedValue({ id: "p1", title: "T", version: 2, blocks: [{ id: "a", type: "paragraph", props: {}, content: [{ type: "text", text: "hi", styles: {} }], children: [] }, old] });
-    const result = await runPageTool("propose_note_edit", { noteId: "p1", version: 2, title: null, edits: [{ op: "replace", block: 2, markdown: "![New](attachment:att1)" }] }, "mine", "s1");
+    const result = await runPageTool("propose_note_edit", { noteId: "p1", version: 2, title: null, edits: [{ op: "replace", block: 2, markdown: "![New](attachment:att1)" }] }, ctx);
     expect(result.isError).toBeUndefined();
     const [, image] = proposedBlocks();
     expect(image.props.name).toBe("diagram (v2).png");
@@ -96,7 +98,7 @@ describe("chat attachments in the note tools", () => {
   });
 
   it("rejects attachments that are not this user's images, and unreadable or oversized ones", async () => {
-    const create = (markdown: string) => runPageTool("propose_note_create", { title: "t", markdown, icon: null }, "mine", "s1");
+    const create = (markdown: string) => runPageTool("propose_note_create", { title: "t", markdown, icon: null }, ctx);
     expect(await create("![x](attachment:other)")).toMatchObject({ isError: true, content: expect.stringContaining("not an image the user sent") });
     mocks.read.mockRejectedValueOnce(new Error("gone"));
     expect(await create("![x](attachment:att1)")).toMatchObject({ isError: true, content: expect.stringContaining("could not be read") });
@@ -109,7 +111,7 @@ describe("chat attachments in the note tools", () => {
   });
 
   it("treats an attachment reference that is not alone on its line as plain text", async () => {
-    const result = await runPageTool("propose_note_create", { title: "t", markdown: "see ![x](attachment:att1) here", icon: null }, "mine", "s1");
+    const result = await runPageTool("propose_note_create", { title: "t", markdown: "see ![x](attachment:att1) here", icon: null }, ctx);
     expect(result.isError).toBeUndefined();
     expect(mocks.findFirst).not.toHaveBeenCalled();
     expect(proposedBlocks().every((b) => b.type === "paragraph")).toBe(true);
@@ -117,19 +119,19 @@ describe("chat attachments in the note tools", () => {
 
   it("copies one attachment once and limits how many images one proposal may add", async () => {
     mocks.findFirst.mockImplementation(async ({ where }: { where: { id: string } }) => ({ filename: `${where.id}.png`, imageStoragePath: `images/${where.id}.png` }));
-    await runPageTool("propose_note_create", { title: "t", markdown: "![a](attachment:x1)\n![b](attachment:x1)", icon: null }, "mine", "s1");
+    await runPageTool("propose_note_create", { title: "t", markdown: "![a](attachment:x1)\n![b](attachment:x1)", icon: null }, ctx);
     expect(proposedBlocks()).toHaveLength(2);
     expect(mocks.write).toHaveBeenCalledTimes(1);
 
     mocks.write.mockClear();
     const many = Array.from({ length: 6 }, (_, i) => `![](attachment:y${i})`).join("\n");
-    expect(await runPageTool("propose_note_create", { title: "t", markdown: many, icon: null }, "mine", "s1")).toMatchObject({ isError: true, content: expect.stringContaining("At most 5") });
+    expect(await runPageTool("propose_note_create", { title: "t", markdown: many, icon: null }, ctx)).toMatchObject({ isError: true, content: expect.stringContaining("At most 5") });
   });
 
   it("checks every edit together: the cap holds across edits and nothing is written when one reference fails", async () => {
     mocks.findFirst.mockImplementation(async ({ where }: { where: { id: string } }) => where.id === "bad" ? null : { filename: `${where.id}.png`, size: 100, imageStoragePath: `images/${where.id}.png` });
     mocks.pageFindFirst.mockResolvedValue({ id: "p1", title: "T", version: 1, blocks: [{ id: "a", type: "paragraph", props: {}, content: [{ type: "text", text: "hi", styles: {} }], children: [] }] });
-    const edit = (edits: { op: string; block: number; markdown: string | null }[]) => runPageTool("propose_note_edit", { noteId: "p1", version: 1, title: null, edits }, "mine", "s1");
+    const edit = (edits: { op: string; block: number; markdown: string | null }[]) => runPageTool("propose_note_edit", { noteId: "p1", version: 1, title: null, edits }, ctx);
     const six = Array.from({ length: 6 }, (_, i) => ({ op: "insert_after", block: 1, markdown: `![](attachment:z${i})` }));
     expect(await edit(six)).toMatchObject({ isError: true, content: expect.stringContaining("At most 5") });
     // 3 枚目の参照が不正なら、1・2 枚目も書かない。
@@ -146,23 +148,23 @@ describe("chat attachments in the note tools", () => {
   it("leaves code fences alone, understands CRLF, and rejects an oversized image before reading it", async () => {
     mocks.findFirst.mockImplementation(async ({ where }: { where: { id: string } }) => ({ filename: "p.png", size: where.id === "huge" ? 9 * 1024 * 1024 : 100, imageStoragePath: "images/p.png" }));
     const fenced = "```\n![x](attachment:att1)\n```";
-    const kept = await runPageTool("propose_note_create", { title: "t", markdown: fenced, icon: null }, "mine", "s1");
+    const kept = await runPageTool("propose_note_create", { title: "t", markdown: fenced, icon: null }, ctx);
     expect(kept.isError).toBeUndefined();
     expect(mocks.findFirst).not.toHaveBeenCalled();
     expect(proposedBlocks().map((b) => b.type)).toEqual(["codeBlock"]);
 
-    const crlf = await runPageTool("propose_note_create", { title: "t", markdown: "a\r\n![x](attachment:att1)\r\nb", icon: null }, "mine", "s1");
+    const crlf = await runPageTool("propose_note_create", { title: "t", markdown: "a\r\n![x](attachment:att1)\r\nb", icon: null }, ctx);
     expect(crlf.isError).toBeUndefined();
     expect(proposedBlocks().map((b) => b.type)).toEqual(["paragraph", "image", "paragraph"]);
 
     mocks.read.mockClear();
-    expect(await runPageTool("propose_note_create", { title: "t", markdown: "![x](attachment:huge)", icon: null }, "mine", "s1")).toMatchObject({ isError: true, content: expect.stringContaining("larger than") });
+    expect(await runPageTool("propose_note_create", { title: "t", markdown: "![x](attachment:huge)", icon: null }, ctx)).toMatchObject({ isError: true, content: expect.stringContaining("larger than") });
     expect(mocks.read).not.toHaveBeenCalled();
   });
 
   it("shortens a very long file name so the result is still an image block", async () => {
     mocks.findFirst.mockResolvedValue({ filename: `${"資料".repeat(28)}.png`, size: 100, imageStoragePath: "images/p.png" });
-    const result = await runPageTool("propose_note_create", { title: "t", markdown: "![x](attachment:att1)", icon: null }, "mine", "s1");
+    const result = await runPageTool("propose_note_create", { title: "t", markdown: "![x](attachment:att1)", icon: null }, ctx);
     expect(result.isError).toBeUndefined();
     const [image] = proposedBlocks();
     expect(image.type).toBe("image");
@@ -172,7 +174,7 @@ describe("chat attachments in the note tools", () => {
 
   it("refuses a model-written URL that points into another user's files", async () => {
     const foreign = noteFileUrl("note-files/someoneelse/00000000-0000-0000-0000-000000000000.png", "x.png");
-    const result = await runPageTool("propose_note_create", { title: "t", markdown: `![x](${foreign})`, icon: null }, "mine", "s1");
+    const result = await runPageTool("propose_note_create", { title: "t", markdown: `![x](${foreign})`, icon: null }, ctx);
     expect(result).toMatchObject({ isError: true, content: expect.stringContaining("not yours") });
     expect(mocks.createProposal).not.toHaveBeenCalled();
   });

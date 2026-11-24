@@ -266,6 +266,31 @@
 "image_download" = "ดาวน์โหลดรูปภาพ";
 "generated_image" = "รูปภาพที่สร้างขึ้น";
 "ai_reply" = "คำตอบของ AI";
+"proposal_report" = "รายงานเนื้อหาจาก AI";
+"proposal_undo" = "เลิกทำ";
+"proposal_undone" = "เลิกทำแล้ว";
+"proposal_undo_failed" = "เลิกทำการเปลี่ยนแปลงไม่ได้";
+"proposal_applied_auto" = "นำไปใช้อัตโนมัติแล้ว";
+"proposal_created_auto" = "สร้างอัตโนมัติแล้ว";
+"proposal_moved_to_trash" = "ย้ายหน้านี้ไปที่ถังขยะแล้ว";
+"proposal_open_page" = "เปิดหน้า";
+"proposal_new_page_label" = "ข้อเสนอหน้าใหม่";
+"proposal_edit_page_label" = "ข้อเสนอการแก้ไขหน้า";
+"proposal_new_whiteboard_title" = "ไวท์บอร์ดใหม่ “%1$s”";
+"proposal_new_slides_title" = "สไลด์ชุดใหม่ “%1$s”";
+"proposal_create_whiteboard" = "สร้างไวท์บอร์ด";
+"proposal_create_slides" = "สร้างสไลด์";
+"proposal_empty_page" = "หน้าว่าง";
+"proposal_inside" = "อยู่ใน “%1$s”";
+"proposal_op_add" = "เพิ่ม";
+"proposal_op_update" = "อัปเดต";
+"proposal_op_move" = "ย้าย";
+"proposal_op_reorder" = "จัดลำดับใหม่";
+"proposal_op_slide" = "%1$s · สไลด์ %2$s";
+"proposal_op_named" = "%1$s · “%2$s”";
+"proposal_op_elements" = "%1$s · %2$s องค์ประกอบ";
+"proposal_before" = "ก่อน";
+"proposal_after" = "หลัง";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "แนบหน้า";
@@ -453,6 +478,8 @@
 "report_sending" = "กำลังส่ง…";
 "report_sent" = "ส่งรายงานแล้ว ขอบคุณ";
 "report_failed" = "ไม่สามารถส่งรายงานได้";
+"report_ai_content" = "รายงานเนื้อหาจาก AI";
+"report_ai_help" = "บอกเราว่าเนื้อหาจาก AI นี้มีปัญหาอะไร รายงานจะถูกส่งถึงทีม NoteFable พร้อมกับเนื้อหานั้น";
 
 /* strings_search.xml */
 "search" = "ค้นหา";

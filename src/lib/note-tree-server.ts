@@ -11,7 +11,7 @@ type Tx = Prisma.TransactionClient;
 // 一覧（GET /api/pages）と、一覧へ 1 件足す応答が返す項目。
 export const PAGE_SUMMARY_SELECT = {
   id: true, kind: true, position: true, title: true, icon: true, version: true, groupId: true, parentId: true, favoritedAt: true,
-  fullWidth: true, smallText: true, font: true, locked: true, shareEnabled: true, shareExpiresAt: true, createdAt: true, updatedAt: true,
+  fullWidth: true, smallText: true, font: true, locked: true, shareEnabled: true, shareExpiresAt: true, aiUpdatedAt: true, createdAt: true, updatedAt: true,
 } satisfies Prisma.NotePageSelect;
 
 export const PAGE_FONTS = ["default", "serif", "mono"] as const;

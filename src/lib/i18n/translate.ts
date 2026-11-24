@@ -11,7 +11,9 @@ export function msg<T extends string>(text: T): T {
 // キーは 1 つの値だけを持ち、固定の先頭部分が互いに重ならないことをテストする。
 export const SYSTEM_TEXT_TEMPLATES = [
   "A project can have at most {max} reference notes.",
+  "Applied edits to “{title}”",
   "Claude response stopped: {reason}. Please retry.",
+  "Created page “{title}”",
   "Enter 1 to {max} characters to search for.",
   "File is too large: {name}",
   "File is too long for one note: {name}",
@@ -20,6 +22,7 @@ export const SYSTEM_TEXT_TEMPLATES = [
   "Model {model} does not support image uploads. Use GPT-6 Luna for images.",
   "Name must be 1–{max} characters with no control characters.",
   "Note title must be at most {max} characters.",
+  "Previewed “{title}”",
   "Project names can have at most {max} characters.",
   "Proposed edits to “{title}”",
   "Proposed new note “{title}”",

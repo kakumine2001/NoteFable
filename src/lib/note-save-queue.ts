@@ -23,6 +23,8 @@ export class NoteSaveQueue {
   private savedRevision = 0;
   private timer?: ReturnType<typeof setTimeout>;
   private flight?: Promise<boolean>;
+  // 別の操作でページがゴミ箱に入った（AI の提案を元に戻した）。残っている保存は送らない（404 になり、一覧に戻してしまう）。
+  private disposed = false;
 
   constructor(
     public page: NotePage,
@@ -46,7 +48,13 @@ export class NoteSaveQueue {
   get dirty() { return this.revision !== this.savedRevision; }
   get draft(): NoteDraft { return { ...this.content, version: this.version }; }
 
+  dispose() {
+    this.disposed = true;
+    clearTimeout(this.timer);
+  }
+
   edit(content: NoteContent) {
+    if (this.disposed) return;
     this.content = content;
     this.revision++;
     if (this.status !== "conflict") { this.status = "pending"; this.error = ""; this.schedule(); }
@@ -55,11 +63,13 @@ export class NoteSaveQueue {
 
   schedule() {
     clearTimeout(this.timer);
+    if (this.disposed) return;
     if (this.dirty && this.status !== "conflict") this.timer = setTimeout(() => { void this.flush(); }, 1000);
   }
 
   flush(): Promise<boolean> {
     clearTimeout(this.timer);
+    if (this.disposed) return Promise.resolve(true);
     if (this.flight) return this.flight;
     if (!this.dirty) return Promise.resolve(true);
     if (this.status === "conflict") return Promise.resolve(false);
@@ -68,8 +78,8 @@ export class NoteSaveQueue {
   }
 
   private async run() {
-    // 保存中に入力された次の版も、直前の応答を待ってから送る。
-    while (this.dirty) {
+    // 保存中に入力された次の版も、直前の応答を待ってから送る。ゴミ箱へ移って捨てたキューは、それ以上送らない。
+    while (this.dirty && !this.disposed) {
       const revision = this.revision;
       const content = this.content;
       this.status = "saving";
@@ -77,12 +87,15 @@ export class NoteSaveQueue {
       this.changed();
       try {
         const page = await this.save(content, this.version);
+        // 送っている間にページがゴミ箱へ移った（捨てられた）。結果で一覧や下書きを書き直さない。
+        if (this.disposed) return true;
         this.page = page;
         this.version = page.version;
         this.savedRevision = revision;
         this.gone = false;
         if (!this.dirty) this.content = noteContentOf(page);
       } catch (error) {
+        if (this.disposed) return false;
         this.status = error instanceof NoteSaveError && error.status === 409 ? "conflict" : "error";
         this.latest = error instanceof NoteSaveError ? error.latest : undefined;
         this.gone = error instanceof NoteSaveError && error.status === 404;
@@ -91,6 +104,7 @@ export class NoteSaveQueue {
         return false;
       }
     }
+    if (this.disposed) return true;
     this.status = "saved";
     this.changed();
     return true;

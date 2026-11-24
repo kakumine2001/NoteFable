@@ -528,11 +528,18 @@ final class NotesViewModel {
 
     /// 编辑器里把笔记移到了回收站。
     func onEditorTrashed(_ editor: String) {
-        let id = pageOf(editor)
+        onPagesTrashed([pageOf(editor)])
+    }
+
+    /// 别处把这些页面移进了回收站（聊天里撤销了 AI 新建页面的提案：建的那篇和它的子页面，网页 notefable:pages-trashed）：
+    /// 从列表里拿掉，开着的那篇直接关掉（不用再存，页面已经在回收站里了）。
+    func onPagesTrashed(_ ids: [String]) {
+        let removed = Set(ids)
+        if removed.isEmpty { return }
         mutations += 1
         update { state in
-            state.pages = state.pages.filter { $0.id != id }
-            if state.open?.id == id {
+            state.pages = state.pages.filter { !removed.contains($0.id) }
+            if let open = state.open, removed.contains(open.id) {
                 state.open = nil
                 state.saveState = nil
             }

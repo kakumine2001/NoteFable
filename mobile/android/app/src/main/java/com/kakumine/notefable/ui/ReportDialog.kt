@@ -38,24 +38,26 @@ import com.kakumine.notefable.data.ApiException
 import com.kakumine.notefable.data.MAX_REPORT_REASON
 import com.kakumine.notefable.data.ReportApi
 import com.kakumine.notefable.data.ReportBackend
+import com.kakumine.notefable.data.ReportTarget
 import com.kakumine.notefable.data.serverMessage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 private val ReportError: Color get() = Sm.Danger // text-[#b91c1c]
 
-/** 回答菜单"报告回答"的图标（lucide flag）。 */
+/** 回答菜单"报告回答"、提案卡片和页面菜单"报告 AI 内容"的图标（lucide flag）。 */
 internal val FlagIcon = listOf(
     "M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528",
 )
 
 /**
- * 报告这条回答（网页 answer-actions.tsx 的 ReportAnswerDialog，Google Play 的 AI 生成内容政策）：.notes-dialog 外观；
+ * 报告 AI 的内容（网页 answer-actions.tsx 的 ReportDialog，Google Play 的 AI 生成内容政策）：回答（"报告这条回答"）、
+ * 提案卡片和 AI 写过的页面（"报告 AI 内容"，说明换成和内容一起发送）。.notes-dialog 外观；
  * 标题 16/600，说明 14 灰、上距 8；理由框是多行的 .notes-dialog-input（上距 12、最小高 96、1px 深描边、圆角 6、16 字），
  * 选填、最多 1000 字；按钮行上距 20：取消 + 黑底"发送报告"。发送成功后在同一个框里显示"已发送，谢谢"和"完成"。
  */
 @Composable
-fun ReportAnswerDialog(messageId: String, onClose: () -> Unit, backend: ReportBackend? = null) {
+fun ReportDialog(target: ReportTarget, onClose: () -> Unit, backend: ReportBackend? = null) {
     val context = LocalContext.current
     val api = backend ?: remember(context) {
         val app = context.applicationContext as NoteFableApp
@@ -67,9 +69,13 @@ fun ReportAnswerDialog(messageId: String, onClose: () -> Unit, backend: ReportBa
     var error by remember { mutableStateOf<Throwable?>(null) }
     val scope = rememberCoroutineScope()
     val system = rememberSystemText()
+    val answer = target is ReportTarget.Answer
 
     NotesDialog(onDismiss = { if (!busy) onClose() }) {
-        Text(stringResource(R.string.report_title), color = Sm.Text, fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold)
+        Text(
+            stringResource(if (answer) R.string.report_title else R.string.report_ai_content),
+            color = Sm.Text, fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold,
+        )
         if (sent) {
             Text(stringResource(R.string.report_sent), color = Sm.Muted, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(top = 8.dp))
             Row(Modifier.fillMaxWidth().padding(top = 20.dp), horizontalArrangement = Arrangement.End) {
@@ -77,7 +83,10 @@ fun ReportAnswerDialog(messageId: String, onClose: () -> Unit, backend: ReportBa
             }
             return@NotesDialog
         }
-        Text(stringResource(R.string.report_help), color = Sm.Muted, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(top = 8.dp))
+        Text(
+            stringResource(if (answer) R.string.report_help else R.string.report_ai_help),
+            color = Sm.Muted, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(top = 8.dp),
+        )
         ReasonField(reason, { reason = it.take(MAX_REPORT_REASON) }, enabled = !busy, placeholder = stringResource(R.string.report_reason_placeholder))
         error?.let {
             Text(
@@ -90,12 +99,14 @@ fun ReportAnswerDialog(messageId: String, onClose: () -> Unit, backend: ReportBa
             NotionButton(
                 stringResource(if (busy) R.string.report_sending else R.string.report_send),
                 enabled = !busy, primary = true,
-                onClick = {
+                onClick = onClick@{
+                    // 连点时第二下可能在按钮变灰之前到：发送中、已发送都不再发。
+                    if (busy || sent) return@onClick
                     busy = true
                     error = null
                     scope.launch {
                         try {
-                            api.reportAnswer(messageId, reason)
+                            api.report(target, reason)
                             sent = true
                         } catch (e: CancellationException) {
                             throw e

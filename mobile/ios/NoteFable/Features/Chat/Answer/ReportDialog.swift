@@ -1,26 +1,20 @@
 import SwiftUI
 
-// 报告这条回答（网页 answer-actions.tsx 的 ReportAnswerDialog，Android `ReportAnswerDialog.kt`；应用商店对 AI 生成内容的要求）：
+// 报告 AI 的内容（网页 answer-actions.tsx 的 ReportDialog，Android `ReportDialog.kt`；应用商店对 AI 生成内容的要求）：
+// 回答（回答的"…"菜单、只有图片的回答的旗子）、提案卡片（标题行的旗子）、AI 写过的页面（页面的"…"菜单）。
 // .notes-dialog 外观；标题 16 / 600，说明 14 灰、上距 8；理由框是多行的 .notes-dialog-input（上距 12、最小高 96、1px 深描边、
 // 圆角 6、16 字），选填、最多 1000 字；按钮行上距 20：取消 + 黑底"发送报告"。发送成功后在同一个框里显示"已发送，谢谢"和"完成"。
-// 状态和发送在 `ReportAnswerModel`（Core）里。
+// 标题和说明：回答是"报告这条回答"，提案和页面是"报告 AI 内容"。状态和发送在 `ReportModel`（Core）里。
 
 extension View {
-    /// 报告回答的对话框。发送中点遮罩不关。
-    func reportAnswerDialog(messageId: String, isPresented: Binding<Bool>) -> some View {
-        modifier(ReportAnswerDialogModifier(messageId: messageId, isPresented: isPresented))
+    /// 报告 [target] 的对话框。发送中点遮罩不关。
+    func reportDialog(_ target: ReportTarget, isPresented: Binding<Bool>) -> some View {
+        modifier(ReportDialogModifier(target: target, isPresented: isPresented))
     }
 }
 
-/// 回答菜单"报告回答"的图标（lucide flag；`Lucide` 里没有这一个）。
-enum AnswerIcons {
-    static let flag: [String] = [
-        "M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528",
-    ]
-}
-
-private struct ReportAnswerDialogModifier: ViewModifier {
-    let messageId: String
+private struct ReportDialogModifier: ViewModifier {
+    let target: ReportTarget
     @Binding var isPresented: Bool
 
     @Environment(AppEnvironment.self) private var app
@@ -30,37 +24,37 @@ private struct ReportAnswerDialogModifier: ViewModifier {
     func body(content: Content) -> some View {
         let presented = $isPresented
         content.nfDialog(isPresented: $isPresented, dismissDisabled: busy) {
-            ReportAnswerDialogContent(messageId: messageId, backend: app.reportApi, busy: $busy) {
+            ReportDialogContent(target: target, backend: app.reportApi, busy: $busy) {
                 presented.wrappedValue = false
             }
         }
     }
 }
 
-private struct ReportAnswerDialogContent: View {
-    @State private var model: ReportAnswerModel
+private struct ReportDialogContent: View {
+    @State private var model: ReportModel
     @Binding private var busy: Bool
 
     @Environment(AppEnvironment.self) private var app
     @FocusState private var focused: Bool
 
     @MainActor
-    init(messageId: String, backend: ReportBackend, busy: Binding<Bool>, onClose: @escaping @MainActor () -> Void) {
-        _model = State(initialValue: ReportAnswerModel(messageId: messageId, backend: backend, onClose: onClose))
+    init(target: ReportTarget, backend: ReportBackend, busy: Binding<Bool>, onClose: @escaping @MainActor () -> Void) {
+        _model = State(initialValue: ReportModel(target: target, backend: backend, onClose: onClose))
         _busy = busy
     }
 
     var body: some View {
         let state = model.state
         VStack(alignment: .leading, spacing: 0) {
-            NFDialogTitle(L("report_title"))
+            NFDialogTitle(L(model.titleKey))
             if state.sent {
                 NFDialogDescription(L("report_sent"))
                 NFDialogButtons {
                     NotionButton(L("done"), kind: .primary) { model.close() }
                 }
             } else {
-                NFDialogDescription(L("report_help"))
+                NFDialogDescription(L(model.helpKey))
                 reasonField
                     .disabled(state.busy)
                 if let error = state.error {

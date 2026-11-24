@@ -50,7 +50,7 @@ final class AppEnvironment {
     let appTheme: AppThemeStore
     /// 登录时让图标跟着账号走（AppIconSync.swift）。
     let appIconSync: AppIconSync
-    /// AI 笔记提案的应用 / 放弃状态。
+    /// AI 页面提案的应用 / 放弃 / 撤销状态。
     let proposals: ProposalStore
     /// 回答的"存到笔记"、"整理成笔记"、下载对话。
     let answerExports: AnswerExportStore
@@ -325,7 +325,8 @@ final class AppEnvironment {
 
     /// App 启动后调一次（多调无妨）：
     /// - 回答"存到笔记" / 「整理成笔记」建好了笔记 → 刷新笔记列表（网页 notefable:page-created）；
-    /// - 应用了提案 → 刷新笔记列表；改动的笔记正开在编辑器里时把新版本交给网页编辑器（不然下次保存会 409）；
+    /// - 应用 / 撤销了提案 → 刷新笔记列表；改动的页面正开在编辑器里时把新版本交给网页编辑器（不然下次保存会 409）；
+    ///   撤销新建提案时，移进回收站的页面从列表里拿掉，开着的关掉；
     /// - 界面语言跟着账号上的语言走（AccountLocaleSync，整个 App 只这一处，界面不用再做）；
     /// - 设置里的图标跟着账号走（网页 AccountAppIconSync，只在登录时）。
     func start() {
@@ -356,6 +357,8 @@ final class AppEnvironment {
     }
 
     private func onProposalChange(_ change: ProposalChangeEvent) {
+        // 撤销新建提案移进回收站的页面先从列表里拿掉（开着的关掉），再按服务端的列表刷新。
+        notes.onPagesTrashed(change.trashedIds)
         notes.refresh()
         if !change.created, let page = change.page, let pageId = change.pageId, notes.state.open?.id == pageId {
             editorBridge?.pageUpdated(page)

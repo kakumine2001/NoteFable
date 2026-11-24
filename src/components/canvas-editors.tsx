@@ -1,11 +1,12 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 import type { MentionPage } from "@/components/note-mention";
 import { useT } from "@/components/i18n-provider";
 import type { CanvasData } from "@/lib/canvas-document";
 import type { CanvasKind } from "@/lib/page-kinds";
+import type { PageSelection } from "@/lib/page-ai/types";
 import type { NoteSaveStatus } from "@/types/notes";
 
 // ホワイトボード・スライドのエディターが受け取るもの（docs/architecture/notes-flow.md の「页面类型」）。
@@ -32,6 +33,12 @@ export type CanvasEditorProps = {
   saveStatus: NoteSaveStatus;
   onChange: (data: CanvasData) => void;
   onTitleChange: (title: string) => void;
+  // 選んだ要素・スライドについて AI に聞く（エディターの「Ask AI」）。AI パネルが開き、text は引用、ids は要素・スライドの ID として送られる。
+  onAskAi?: (selection: PageSelection) => void;
+  // AI ボタンの置き場所。エディターは自分の操作を避けた場所（スライドは単ページ編集の面の右下）にこれを置く。
+  // 中身は見えない目印で、ボタンを動かしていない間はそこにボタンが重なる（page-assistant.tsx の anchor）。
+  // 目印を包む枠は押せなくなる（note-assistant.css）。分割表示では渡さない。
+  aiSlot?: ReactNode;
   // アイコンを変える（ノートと同じく自動保存に乗る）。
   onIconChange?: (icon: string | null) => void;
   // 中のリンクがアプリ内のページを指すとき、その場で開く（/app は画面を切り替え、/note-embed はアプリに openPage を送る）。開けたら true。

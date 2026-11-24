@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 批次 1（回答体验）的文案：网页 chat-activity.tsx、page-edit-proposal.tsx、assistant-markdown.tsx、answer-actions.tsx、chat-message.tsx 的原句，译文取自 src/lib/i18n/messages/{zh,ja}.ts。values / values-zh / values-ja 三份的键一一对应。 -->
+<!-- 批次 1（回答体验）的文案：网页 chat-activity.tsx、page-proposal.tsx、assistant-markdown.tsx、answer-actions.tsx、chat-message.tsx 的原句，译文取自 src/lib/i18n/messages/{zh,ja}.ts。values / values-zh / values-ja 三份的键一一对应。 -->
 <resources>
     <string name="activity_thinking">Thinking</string>
     <string name="activity_using_project">Using project “%1$s”</string>
@@ -64,4 +64,29 @@
     <string name="image_download">Download image</string>
     <string name="generated_image">Generated image</string>
     <string name="ai_reply">AI reply</string>
+    <string name="proposal_report">Report AI content</string>
+    <string name="proposal_undo">Undo</string>
+    <string name="proposal_undone">Undone</string>
+    <string name="proposal_undo_failed">Could not undo the change.</string>
+    <string name="proposal_applied_auto">Applied automatically</string>
+    <string name="proposal_created_auto">Created automatically</string>
+    <string name="proposal_moved_to_trash">The page was moved to Trash.</string>
+    <string name="proposal_open_page">Open the page</string>
+    <string name="proposal_new_page_label">Proposed new page</string>
+    <string name="proposal_edit_page_label">Proposed page edit</string>
+    <string name="proposal_new_whiteboard_title">New whiteboard “%1$s”</string>
+    <string name="proposal_new_slides_title">New slide deck “%1$s”</string>
+    <string name="proposal_create_whiteboard">Create whiteboard</string>
+    <string name="proposal_create_slides">Create slide deck</string>
+    <string name="proposal_empty_page">Empty page</string>
+    <string name="proposal_inside">Inside “%1$s”</string>
+    <string name="proposal_op_add">Add</string>
+    <string name="proposal_op_update">Update</string>
+    <string name="proposal_op_move">Move</string>
+    <string name="proposal_op_reorder">Reorder</string>
+    <string name="proposal_op_slide">%1$s · slide %2$s</string>
+    <string name="proposal_op_named">%1$s · “%2$s”</string>
+    <string name="proposal_op_elements">%1$s · %2$s elements</string>
+    <string name="proposal_before">Before</string>
+    <string name="proposal_after">After</string>
 </resources>

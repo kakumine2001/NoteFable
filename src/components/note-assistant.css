@@ -18,6 +18,16 @@
   .note-ai-fab.is-open { z-index: 30; }
 }
 
+/* ホワイトボード・スライドのエディターが空けた置き場所の目印（CanvasEditorProps.aiSlot）。ボタンと同じ大きさで、見えず、押せない。 */
+.page-ai-anchor { display: block; width: 3.25rem; height: 3.25rem; pointer-events: none; }
+@media (max-width: 639px) { .page-ai-anchor { width: 3.5rem; height: 3.5rem; } }
+/* 目印を入れたエディターの枠（.slides-ai-slot など）も押せないようにする。ボタンを動かした後や分割表示で、
+   見えない枠がスライドの隅の操作を受け止めないように。 */
+:has(> .page-ai-anchor) { pointer-events: none; }
+/* 置き場所にいるボタンは、置き場所と同じ重なり順（.slides-ai-slot の 5）。スマホの設定シート（20）やメニューがボタンの上に出る。
+   上の .note-ai-fab.is-open（スマホ 30）より後に置いて、こちらを優先する。 */
+.note-ai-fab.is-anchored { z-index: 5; }
+
 /* ボタンの下端 1.25rem + ボタン 3.25rem + 隙間 0.75rem。 */
 .note-ai-panel {
   position: fixed; inset-inline-end: 1.25rem; bottom: 5.25rem; z-index: 40; display: flex; flex-direction: column; width: min(26rem, calc(100vw - 2.5rem));
@@ -98,8 +108,6 @@
   .note-ai-send { width: 2.6rem; height: 2.6rem; }
   .note-ai-chip { min-height: 2.6rem; font-size: 0.9375rem; }
 }
-/* 適用後の「Open」リンクは、いま開いているノートへの再読み込みになるので、このパネルの中では出さない。 */
-.note-ai-list .page-edit[aria-label="Proposed note edit"] .page-edit-link { display: none; }
 /* スマホでは、承認ボタンも他の操作と同じ大きさにそろえる。 */
 @media (max-width: 639px) {
   .note-ai-panel .page-edit-apply, .note-ai-panel .page-edit-discard { min-height: 2.5rem; padding: 0 1rem; font-size: 0.9375rem; }

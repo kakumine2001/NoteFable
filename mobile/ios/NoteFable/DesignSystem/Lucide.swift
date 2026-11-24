@@ -300,6 +300,14 @@ enum Lucide {
     static let moon: [String] = [
         "M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401",
     ]
+    // 报告 AI 的内容（回答的菜单、提案卡片、页面的"…"菜单）和提案卡片的"撤销"（page-proposal.tsx 的 Flag / Undo2），lucide-react 1.16.0。
+    static let flag: [String] = [
+        "M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528",
+    ]
+    static let undo2: [String] = [
+        "M9 14 4 9l5-5",
+        "M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11",
+    ]
     static let moreHorizontal: [String] = ellipsis
     static let loader2: [String] = loaderCircle
 

@@ -1,5 +1,6 @@
 import { blocksToMarkdown, flattenBlocks, markdownToBlocks, type NoteBlock } from "@/lib/note-markdown";
 import { normalizeColumns } from "@/lib/note-columns";
+import type { ProposalChange } from "@/lib/page-ai/types";
 
 // モデルが出す編集案を、ページのブロック列へ適用する。ページ自体は変更せず、結果を返すだけ。
 
@@ -64,45 +65,9 @@ function losesFormatting(target: NoteBlock, carried: boolean): boolean {
 function containsMedia(block: NoteBlock): boolean {
   return block.type === "image" || block.type === "file" || (Array.isArray(block.children) && (block.children as NoteBlock[]).some(containsMedia));
 }
-export type PageEditChange = {
-  op: (typeof OPS)[number];
-  // read_note で見えていた番号（0 は先頭への挿入）。
-  block: number;
-  // 変更前と変更後の Markdown。挿入では before、削除では after がない。
-  before?: string;
-  after?: string;
-  // 置き換えると Markdown で表せない書式（文字色・背景色・下線・配置）が失われる。画面で警告する。
-  dropsFormatting?: true;
-  // 置き換え・削除すると、アップロード済みの画像やファイルがノートから外れる。画面で警告する。
-  dropsMedia?: true;
-};
-
-// 画面に出す編集案。承認されたら proposed をそのまま PATCH /api/pages/[id] へ送る（baseVersion で競合を検出）。
-export type PageEditProposal = {
-  id: string;
-  pageId: string;
-  pageTitle: string;
-  baseVersion: number;
-  title?: { before: string; after: string };
-  changes: PageEditChange[];
-  proposed: { title: string; blocks: unknown[] };
-  // 保存済みの提案の状態。画面に届く提案だけが持つ。
-  status?: "pending" | "applied" | "discarded";
-  appliedPageId?: string | null;
-};
-
-// 新しいページの提案。承認されたら proposed をそのまま POST /api/pages へ送る。
-export type PageCreateProposal = {
-  id: string;
-  title: string;
-  icon: string | null;
-  // 画面に出す本文の Markdown（保存されるブロックを書き戻したもの）。
-  content: string;
-  proposed: { title: string; icon: string | null; blocks: unknown[] };
-  status?: "pending" | "applied" | "discarded";
-  // 適用後に作られたノートの ID。
-  appliedPageId?: string | null;
-};
+// read_note の番号で表したノートの変更（カードに出す形は page-ai/types.ts の ProposalChange）。
+// before / after は変更前と変更後の Markdown（挿入では before、削除では after がない）。
+export type PageEditChange = ProposalChange & { op: (typeof OPS)[number] };
 
 // 新規ページの本文（Markdown）をブロックにする。空なら空のページ。
 export function parseNewPageMarkdown(value: unknown): NoteBlock[] {

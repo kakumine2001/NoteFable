@@ -266,6 +266,31 @@
 "image_download" = "이미지 다운로드";
 "generated_image" = "생성된 이미지";
 "ai_reply" = "AI 답변";
+"proposal_report" = "AI 콘텐츠 신고";
+"proposal_undo" = "실행 취소";
+"proposal_undone" = "실행 취소됨";
+"proposal_undo_failed" = "변경 사항을 실행 취소하지 못했습니다.";
+"proposal_applied_auto" = "자동으로 적용됨";
+"proposal_created_auto" = "자동으로 만들어짐";
+"proposal_moved_to_trash" = "페이지를 휴지통으로 옮겼습니다.";
+"proposal_open_page" = "페이지 열기";
+"proposal_new_page_label" = "새 페이지 제안";
+"proposal_edit_page_label" = "페이지 편집 제안";
+"proposal_new_whiteboard_title" = "새 화이트보드 “%1$s”";
+"proposal_new_slides_title" = "새 슬라이드 “%1$s”";
+"proposal_create_whiteboard" = "화이트보드 만들기";
+"proposal_create_slides" = "슬라이드 만들기";
+"proposal_empty_page" = "빈 페이지";
+"proposal_inside" = "“%1$s” 안";
+"proposal_op_add" = "추가";
+"proposal_op_update" = "업데이트";
+"proposal_op_move" = "이동";
+"proposal_op_reorder" = "순서 바꾸기";
+"proposal_op_slide" = "%1$s · 슬라이드 %2$s";
+"proposal_op_named" = "%1$s · “%2$s”";
+"proposal_op_elements" = "%1$s · 요소 %2$s개";
+"proposal_before" = "변경 전";
+"proposal_after" = "변경 후";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "페이지 첨부";
@@ -453,6 +478,8 @@
 "report_sending" = "보내는 중…";
 "report_sent" = "신고가 접수되었어요. 감사합니다.";
 "report_failed" = "신고를 보내지 못했어요.";
+"report_ai_content" = "AI 콘텐츠 신고";
+"report_ai_help" = "이 AI 콘텐츠의 문제를 알려 주세요. 해당 콘텐츠와 함께 NoteFable 팀에 전송됩니다.";
 
 /* strings_search.xml */
 "search" = "검색";

@@ -9,4 +9,6 @@
     <string name="report_sending">Mengirim…</string>
     <string name="report_sent">Laporan terkirim. Terima kasih.</string>
     <string name="report_failed">Tidak dapat mengirim laporan.</string>
+    <string name="report_ai_content">Laporkan konten AI</string>
+    <string name="report_ai_help">Beri tahu kami apa yang salah dengan konten AI ini. Laporan dikirim ke tim NoteFable beserta kontennya.</string>
 </resources>
