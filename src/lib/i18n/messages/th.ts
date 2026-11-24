@@ -803,6 +803,7 @@ export const th: Record<string, string> = {
   "Even width": "หนาเท่ากัน",
   "Hatch": "เส้นเฉียง",
   "Cross-hatch": "เส้นไขว้",
+  "This image can't be copied here.": "คัดลอกรูปภาพนี้มาที่นี่ไม่ได้",
   "Small": "เล็ก",
   "Large": "ใหญ่",
   "Extra large": "ใหญ่มาก",

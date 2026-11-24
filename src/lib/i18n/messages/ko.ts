@@ -803,6 +803,7 @@ export const ko: Record<string, string> = {
   "Even width": "일정한 두께",
   "Hatch": "빗금",
   "Cross-hatch": "교차 빗금",
+  "This image can't be copied here.": "이 이미지는 여기에 복사할 수 없습니다.",
   "Small": "작게",
   "Large": "크게",
   "Extra large": "아주 크게",

@@ -812,6 +812,7 @@ export const zh: Record<string, string> = {
   "Even width": "粗细一致",
   "Hatch": "斜线",
   "Cross-hatch": "交叉线",
+  "This image can't be copied here.": "这张图片不能复制到这里。",
   "Small": "小",
   "Large": "大",
   "Extra large": "特大",

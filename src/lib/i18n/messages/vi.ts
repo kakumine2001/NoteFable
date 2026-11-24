@@ -803,6 +803,7 @@ export const vi: Record<string, string> = {
   "Even width": "Đều nét",
   "Hatch": "Gạch chéo",
   "Cross-hatch": "Gạch chéo đôi",
+  "This image can't be copied here.": "Không thể sao chép hình ảnh này vào đây.",
   "Small": "Nhỏ",
   "Large": "Lớn",
   "Extra large": "Rất lớn",

@@ -803,6 +803,7 @@ export const id: Record<string, string> = {
   "Even width": "Tebal rata",
   "Hatch": "Arsir",
   "Cross-hatch": "Arsir silang",
+  "This image can't be copied here.": "Gambar ini tidak dapat disalin ke sini.",
   "Small": "Kecil",
   "Large": "Besar",
   "Extra large": "Sangat besar",

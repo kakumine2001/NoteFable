@@ -1121,6 +1121,7 @@ export const zhHant: Record<string, string> = {
   "This file is too large to save in the app.": "檔案太大，無法在應用中儲存。",
   "This file type is not supported. Use an image (JPEG, PNG, WebP, GIF), PDF, text, Office, CSV, JSON, ZIP, MP3, WAV or MP4.": "不支援這種檔案類型。請使用圖片（JPEG、PNG、WebP、GIF）、PDF、文本、Office、CSV、JSON、ZIP、MP3、WAV 或 MP4。",
   "This icon image is no longer available. Choose another icon.": "此圖示圖片已不可用，請選擇其他圖示。",
+  "This image can't be copied here.": "這張圖片不能複製到這裡。",
   "This image is no longer available.": "這張圖片已不可用。",
   "This may take a moment": "可能需要一點時間",
   "This message is too large to send. Shorten the text or remove an attachment.": "這條訊息太大，無法傳送。請縮短文字或移除附件。",

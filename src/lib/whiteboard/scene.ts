@@ -85,10 +85,12 @@ export type SceneSnapshot = {
   appState: unknown;
   // アップロードが終わったファイルの URL（Excalidraw の中の dataURL は data: のまま。開き直すとこの URL で読む）。
   uploaded?: ReadonlyMap<string, { url: string; mimeType: string }>;
+  // まだ入れてはいけないファイル（貼り付けた note-files の URL で、自分のファイルか確かめている途中）。その画像要素は保存に入れない。
+  blocked?: ReadonlySet<string>;
 };
 
 // 開いている scene から、保存する本体を作る。pending は、ファイルのアップロードが終わっていないため保存に入れなかった画像要素の数。
-export function sceneToStored({ elements, files, appState, uploaded }: SceneSnapshot): { data: StoredWhiteboard; pending: number } {
+export function sceneToStored({ elements, files, appState, uploaded, blocked }: SceneSnapshot): { data: StoredWhiteboard; pending: number } {
   const storedFiles: WhiteboardFiles = {};
   const kept: WhiteboardElement[] = [];
   const live = elements.filter((element) => element.isDeleted !== true && WHITEBOARD_ELEMENT_TYPES.has(element.type));
@@ -101,6 +103,7 @@ export function sceneToStored({ elements, files, appState, uploaded }: SceneSnap
     if (!fileId) continue;
     const file = files[fileId];
     const upload = uploaded?.get(fileId);
+    if (!upload && blocked?.has(fileId)) { skipped.add(element.id); continue; }
     const url = upload?.url ?? (file && isStoredFileUrl(file.dataURL) ? file.dataURL : null);
     if (!url) { skipped.add(element.id); continue; }
     if (!storedFiles[fileId]) {

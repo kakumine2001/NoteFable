@@ -802,6 +802,7 @@ export const ja: Record<string, string> = {
   "Even width": "一定の太さ",
   "Hatch": "斜線",
   "Cross-hatch": "交差斜線",
+  "This image can't be copied here.": "この画像はここにコピーできません。",
   "Small": "小",
   "Large": "大",
   "Extra large": "特大",

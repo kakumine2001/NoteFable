@@ -180,6 +180,10 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   // ---- 保存 ----
   const uploads = useRef(new Map<string, UploadState>());
   const uploadedUrls = useRef(new Map<string, { url: string; mimeType: string }>());
+  // 開いた時からこの白板が持っている note-files のファイル（サーバーが持ち主を確かめ済み）。貼り付けで来た note-files の URL は、
+  // 自分のファイルか（読めるか）を確かめるまで保存に入れない（ほかのアカウントのファイルが入ると、保存がすべて断られる）。
+  const knownFiles = useRef(new Set(Object.keys(initial.files ?? {})));
+  const verifying = useRef(new Set<string>());
   const lastSignature = useRef<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const onChangeRef = useRef(onChange);
@@ -224,6 +228,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
       files: files as unknown as Parameters<typeof sceneToStored>[0]["files"],
       appState,
       uploaded: uploadedUrls.current,
+      blocked: verifying.current,
     });
     // 上限（2 MB）に近いときだけ、手書きの線の点を間引いて収める（ふだんは点をそのまま残す）。
     const { data: fitted } = fitStoredWhiteboard(stored, Math.floor(MAX_CANVAS_BYTES.whiteboard * 0.95));
@@ -348,7 +353,34 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     for (const [fileId, file] of Object.entries(files)) {
       // 自分の note-files の URL（保存済み・PDF の取り込み）でなければアップロードする。data: のほか、ほかの URL の画像
       // （公開リンクのビューからコピーしたものなど）も、読めればここへ写す（読めなければ取り除く）。
-      if (!used.has(fileId) || uploads.current.has(fileId) || uploadedUrls.current.has(fileId) || isStoredFileUrl(file.dataURL)) continue;
+      if (!used.has(fileId) || uploads.current.has(fileId) || uploadedUrls.current.has(fileId)) continue;
+      if (isStoredFileUrl(file.dataURL)) {
+        if (knownFiles.current.has(fileId)) continue;
+        // 貼り付けで来た note-files の URL：読めれば自分のファイル（そのまま使う）、読めなければほかのアカウントのもの（取り除く）。
+        const url = file.dataURL;
+        uploads.current.set(fileId, { status: "uploading" });
+        verifying.current.add(fileId);
+        const check: Promise<void> = fetch(url, { cache: "no-store", credentials: "same-origin" }).then((response) => {
+          void response.body?.cancel();
+          verifying.current.delete(fileId);
+          if (!response.ok) throw new Error(msg("This image can't be copied here."));
+          knownFiles.current.add(fileId);
+          uploads.current.set(fileId, { status: "done", url, mimeType: file.mimeType });
+          lastSignature.current = null;
+          dirty.current = true;
+          ownEdit.current = true;
+          if (!mounted.current) flushRef.current();
+          else scheduleSave();
+        }).catch((error: unknown) => {
+          verifying.current.delete(fileId);
+          uploads.current.delete(fileId);
+          if (!mounted.current) return;
+          setNotice({ text: error instanceof Error && error.message ? error.message : msg("This image can't be copied here.") });
+          removeImagesOf(fileId);
+        }).finally(() => { uploadTasks.current.delete(check); });
+        uploadTasks.current.add(check);
+        continue;
+      }
       uploads.current.set(fileId, { status: "uploading" });
       const task: Promise<void> = uploadWhiteboardImage(file.dataURL, file.mimeType, fileId).then((result) => {
         uploads.current.set(fileId, { status: "done", ...result });
@@ -523,6 +555,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     if (touched.current || latestData.current === appliedData.current) return;
     appliedData.current = latestData.current;
     const scene = storedToScene(latestData.current);
+    for (const id of Object.keys(scene.files)) knownFiles.current.add(id);
     target.addFiles(Object.values(scene.files) as unknown as BinaryFileData[]);
     target.updateScene({ elements: scene.elements as unknown as ExcalidrawElement[], appState: scene.appState as Partial<AppState> as never, captureUpdate: CaptureUpdateAction.NEVER });
     lastSignature.current = signatureOf(target.getSceneElementsIncludingDeleted(), target.getAppState());

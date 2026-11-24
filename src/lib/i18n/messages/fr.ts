@@ -803,6 +803,7 @@ export const fr: Record<string, string> = {
   "Even width": "Épaisseur constante",
   "Hatch": "Hachures",
   "Cross-hatch": "Hachures croisées",
+  "This image can't be copied here.": "Cette image ne peut pas être copiée ici.",
   "Small": "Petit",
   "Large": "Grand",
   "Extra large": "Très grand",

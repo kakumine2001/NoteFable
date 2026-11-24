@@ -803,6 +803,7 @@ export const ar: Record<string, string> = {
   "Even width": "سُمك ثابت",
   "Hatch": "تظليل",
   "Cross-hatch": "تظليل متقاطع",
+  "This image can't be copied here.": "لا يمكن نسخ هذه الصورة إلى هنا.",
   "Small": "صغير",
   "Large": "كبير",
   "Extra large": "كبير جدًا",

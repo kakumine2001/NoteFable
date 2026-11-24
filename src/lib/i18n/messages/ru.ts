@@ -803,6 +803,7 @@ export const ru: Record<string, string> = {
   "Even width": "Ровная",
   "Hatch": "Штриховка",
   "Cross-hatch": "Перекрёстная",
+  "This image can't be copied here.": "Это изображение нельзя скопировать сюда.",
   "Small": "Маленький",
   "Large": "Большой",
   "Extra large": "Очень большой",

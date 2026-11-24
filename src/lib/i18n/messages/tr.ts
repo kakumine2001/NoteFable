@@ -803,6 +803,7 @@ export const tr: Record<string, string> = {
   "Even width": "Sabit kalınlık",
   "Hatch": "Tarama",
   "Cross-hatch": "Çapraz tarama",
+  "This image can't be copied here.": "Bu görsel buraya kopyalanamaz.",
   "Small": "Küçük",
   "Large": "Büyük",
   "Extra large": "Çok büyük",

@@ -803,6 +803,7 @@ export const ptBR: Record<string, string> = {
   "Even width": "Espessura uniforme",
   "Hatch": "Hachura",
   "Cross-hatch": "Hachura cruzada",
+  "This image can't be copied here.": "Esta imagem não pode ser copiada para cá.",
   "Small": "Pequeno",
   "Large": "Grande",
   "Extra large": "Muito grande",

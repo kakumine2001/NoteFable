@@ -803,6 +803,7 @@ export const hi: Record<string, string> = {
   "Even width": "एक समान मोटाई",
   "Hatch": "तिरछी रेखाएँ",
   "Cross-hatch": "क्रॉस रेखाएँ",
+  "This image can't be copied here.": "इस चित्र को यहाँ कॉपी नहीं किया जा सकता।",
   "Small": "छोटा",
   "Large": "बड़ा",
   "Extra large": "बहुत बड़ा",
