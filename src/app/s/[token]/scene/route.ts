@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
+import { readCanvasDataForShare } from "@/lib/canvas-store";
 import { resolvePublicShare } from "@/lib/note-share-server";
-import { prisma } from "@/lib/prisma";
 import { publicWhiteboardScene } from "@/lib/whiteboard/public";
 
 export const runtime = "nodejs";
@@ -15,8 +15,9 @@ export async function GET(request: Request, { params }: Params) {
     const pageId = new URL(request.url).searchParams.get("page");
     const resolved = await resolvePublicShare(token, pageId);
     if (!resolved || resolved.page.kind !== "whiteboard") return NextResponse.json({ error: "Not found." }, { status: 404, headers: { "Cache-Control": "no-store" } });
-    const canvas = await prisma.noteCanvas.findUnique({ where: { noteId: resolved.page.id }, select: { data: true } });
-    const scene = publicWhiteboardScene(canvas?.data ?? { elements: [] }, token, resolved.page.id);
+    // ゴミ箱に入ったページの本体は出さない（readCanvasDataForShare は deletedAt: null で読む。読めなければ空の白板）。
+    const data = await readCanvasDataForShare(resolved.page.id);
+    const scene = publicWhiteboardScene(data ?? { elements: [] }, token, resolved.page.id);
     return NextResponse.json({ scene }, { headers: { "Cache-Control": "no-store", "X-Robots-Tag": "noindex" } });
   } catch {
     return NextResponse.json({ error: "Request failed." }, { status: 500, headers: { "Cache-Control": "no-store" } });

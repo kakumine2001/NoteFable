@@ -38,13 +38,15 @@ import java.io.IOException
 private object CreateExportDocument : ActivityResultContract<ExportFile, Uri?>() {
     private val create = ActivityResultContracts.CreateDocument("*/*")
 
-    override fun createIntent(context: Context, input: ExportFile): Intent = create.createIntent(context, input.name).setType(input.mime)
+    // 打开得了的位置才让选（以前的保存也加了 CATEGORY_OPENABLE：写不进去的位置会让保存失败）。
+    override fun createIntent(context: Context, input: ExportFile): Intent =
+        create.createIntent(context, input.name).setType(input.mime).addCategory(Intent.CATEGORY_OPENABLE)
 
     override fun parseResult(resultCode: Int, intent: Intent?): Uri? = create.parseResult(resultCode, intent)
 }
 
 /**
- * 网页编辑器导出的文件（白板的 PNG / SVG / PDF，以后幻灯片的 PPTX）：JS 桥把块拼成临时文件后
+ * 网页编辑器导出的文件（白板的 PNG / SVG / PDF，幻灯片的 PDF / PPTX / 多页 PNG 的 ZIP）：JS 桥把块拼成临时文件后
  * （[com.kakumine.notefable.data.ExportFileAssembler]）交到这里，用系统的"保存到…"让用户选位置（建议文件名和类型按这个文件），
  * 拷进去后提示 "File saved." / "Could not save the file."。临时文件不管存没存成、用户取消了，都删掉。网页是浏览器直接下载。
  * 和"下载对话"（[rememberConversationDownloader]）一样注册在 App 根上：临时文件的路径存在 rememberSaveable 里，

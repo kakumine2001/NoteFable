@@ -53,6 +53,21 @@ export function noteFileUrl(path: string, name: string) {
   return `${URL_PREFIX}key=${encodeParam(path)}&name=${encodeParam(safeFileName(name))}`;
 }
 
+// URL 全体が parseNoteFileUrl の上限（600 文字）に収まるよう、長い（CJK などの）ファイル名を縮める。code point 単位で切り、拡張子は残す。
+// 収まらなければ fallback（超えた URL は保存の検査で断られ、ページ全体が保存できなくなる）。
+export function fitNoteFileName(path: string, name: string, fallback: string) {
+  // 拡張子を先に分ける（名前の長さの上限 120 で拡張子が切れないように）。
+  const raw = name.split(/[\\/]/).pop() ?? "";
+  const dot = raw.lastIndexOf(".");
+  const suffix = dot > 0 ? safeFileName(raw.slice(dot)).slice(0, 12) : "";
+  const base = Array.from(safeFileName(dot > 0 ? raw.slice(0, dot) : raw));
+  for (let length = Math.min(base.length, 120 - suffix.length); length > 0; length = length > 10 ? length - 10 : length - 1) {
+    const candidate = base.slice(0, length).join("") + suffix;
+    if (candidate.length <= 120 && noteFileUrl(path, candidate).length <= 560) return candidate;
+  }
+  return fallback;
+}
+
 // URL の name パラメーター（表示用のファイル名）。
 export function noteFileUrlName(url: string) {
   return safeFileName(new URLSearchParams(url.slice(URL_PREFIX.length)).get("name"));

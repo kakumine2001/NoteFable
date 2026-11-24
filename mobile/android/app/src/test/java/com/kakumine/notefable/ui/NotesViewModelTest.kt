@@ -1245,6 +1245,25 @@ class NotesViewModelTest {
     }
 
     @Test
+    fun `the search hit is used once, so a rebuilt editor does not jump back to it`() = runTest(dispatcher) {
+        val backend = FakeNotes().apply {
+            pages.add(NotePageSummary("w", "Board", null, createdAt = "2026-11-13T00:00:00Z", kind = PageKind.Whiteboard))
+        }
+        val vm = notesVm(backend)
+        vm.flushEditor = { FlushResult(true) }
+        vm.openNote("w", "Board", null, PageKind.Whiteboard, reveal = "el-1")
+        advanceUntilIdle()
+        val editor = vm.state.value.open!!.editor
+        // 別の編集画面の知らせは無視する。
+        vm.consumeReveal("other")
+        assertEquals("el-1", vm.state.value.open?.reveal)
+        // 地址に入れた後：消える（聊天から戻って編集画面を作り直しても、もう跳ばない）。
+        vm.consumeReveal(editor)
+        assertNull(vm.state.value.open?.reveal)
+        assertEquals(editor, vm.state.value.open?.editor)
+    }
+
+    @Test
     fun `an import that finishes after the identity changed is dropped`() = runTest(dispatcher) {
         val backend = FakeNotes()
         val vm = notesVm(backend)

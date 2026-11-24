@@ -68,7 +68,7 @@ import { useSwipeDismiss } from "@/lib/use-swipe-dismiss";
 import { runTransition } from "@/lib/view-transition";
 import { useModels } from "@/components/models-provider";
 import { revealChatMessage, revealNoteBlock } from "@/lib/search-reveal";
-import { requestWhiteboardReveal } from "@/lib/whiteboard/reveal";
+import { cancelWhiteboardReveal, requestWhiteboardReveal } from "@/lib/whiteboard/reveal";
 import { flushCanvasEditors } from "@/lib/canvas-flush";
 import { getSubmissionValidationError } from "@/lib/submission-validation";
 import { restoreSheetMarker, useBackToClose } from "@/lib/use-back-to-close";
@@ -318,6 +318,8 @@ export default function Home() {
     revealRef.current = null;
     revealAbortRef.current?.abort();
     revealAbortRef.current = null;
+    // ホワイトボードがまだ受け取っていない予約（エディターの読み込み待ち）も消す。
+    cancelWhiteboardReveal();
   }
 
   function queueReveal(target: RevealTarget) {

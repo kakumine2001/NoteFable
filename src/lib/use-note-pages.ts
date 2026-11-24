@@ -321,6 +321,8 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     setBusy(true);
     setError("");
     try {
+      // 競合の副本は開いているページの今の中身を写す。ホワイトボードなどがまだ渡していない変更も先に渡してもらう。
+      if (copy) await flushCanvasEditors();
       const current = activeId ? queues.current.get(activeId) : undefined;
       const content: NoteContent = copy && current ? { ...current.content, title: `${current.content.title.slice(0, 185)} (copy)` } : { title: "Untitled", icon: null, cover: null, coverPosition: null, blocks: [] };
       // 競合の副本は元のページと同じ親の下に作る（サブページなら同じ親、グループも親に従う）。
@@ -374,7 +376,8 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     setError("");
     try {
       // ホワイトボードなどのエディターがまだ渡していない変更も先に渡してもらう（src/lib/canvas-flush.ts）。
-      await flushCanvasEditors();
+      // 待っても終わらない画像のアップロードがあれば、ゴミ箱へ移さない（移すと画像の入っていない版が残る）。
+      if (!(await flushCanvasEditors())) throw new Error(msg("Wait for images to finish uploading, then try again."));
       const queue = queues.current.get(id);
       if (queue && !(await queue.flush())) throw new Error(msg("Resolve the unsaved draft before moving this note to Trash."));
       // サブページも一緒にゴミ箱へ入る。開いている（未保存の）サブページも先に保存する。
@@ -490,7 +493,8 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     setBusy(true);
     setError("");
     try {
-      await flushCanvasEditors();
+      // 待っても終わらない画像のアップロードがあれば複製しない（複製に画像が入らない）。
+      if (!(await flushCanvasEditors())) throw new Error(msg("Wait for images to finish uploading, then try again."));
       for (const pageId of [id, ...descendantIdsOf(pages, id)]) {
         const queue = queues.current.get(pageId);
         if (queue && !(await queue.flush())) throw new Error(msg("Resolve the unsaved draft before duplicating this page."));

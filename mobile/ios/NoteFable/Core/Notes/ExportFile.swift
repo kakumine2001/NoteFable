@@ -1,6 +1,6 @@
 import Foundation
 
-// 编辑器导出的文件（白板的 PNG / SVG / PDF，以后幻灯片的 PPTX）。网页经 JS 桥分块送来（src/lib/native-bridge.ts 的
+// 编辑器导出的文件（白板的 PNG / SVG / PDF，幻灯片的 PDF / PPTX / 多页 PNG 的 ZIP）。网页经 JS 桥分块送来（src/lib/native-bridge.ts 的
 // fileStart / fileChunk / fileEnd / fileAbort，src/lib/export-file.ts：每块是原来 512 KiB 以内的字节的 base64，index 从 0 起按顺序），
 // 这里拼进临时文件；收齐后界面交给系统的“存储到文件”，结束后删掉（NotesViewModel 的 exportFile / finishExportFile）。
 

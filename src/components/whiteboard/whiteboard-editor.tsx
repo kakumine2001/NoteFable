@@ -89,6 +89,10 @@ export type WhiteboardEditorProps = {
 type UploadState = { status: "uploading" } | { status: "done"; url: string; mimeType: string } | { status: "failed" };
 // アプリが編集画面を閉じる前の flush で、アップロード中の画像を待つ時間（アプリの flush の待ち時間 15 秒より短く）。
 const UPLOAD_FLUSH_WAIT_MS = 10_000;
+// 同じページの白板が開き直された（分割表示と全画面の切り替え・開き直し）後に、閉じた方のエディターで画像のアップロードが終わったときは、
+// 閉じた方の古い scene を渡さず（開いている方の変更を上書きしてしまう）、開いている方のエディターへ画像を渡す。
+type AdoptUpload = (images: readonly ExcalidrawElement[], file: { id: string; url: string; mimeType: string }) => boolean;
+const liveEditors = new Map<string, Set<{ adopt: AdoptUpload }>>();
 type SceneRefs = { elements: readonly ExcalidrawElement[]; appState: AppState; files: BinaryFiles };
 
 // ペン・蛍光ペン・図形のそれぞれで覚えておく見た目。
@@ -180,12 +184,19 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const onChangeRef = useRef(onChange);
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
-  const editableRef = useRef(editable);
-  useEffect(() => { editableRef.current = editable; }, [editable]);
   // Excalidraw が最後に知らせた scene（onChange の引数をそのまま持つだけ。閉じた後にも保存の形を作れるように）。
   const latestScene = useRef<SceneRefs | null>(null);
   // onChange へまだ渡していない変更があるか（描き終わり待ち・400 ms の間・画像のアップロードが終わった直後）。
   const dirty = useRef(false);
+  // まだ渡していない変更が、編集できる間に入ったものか（描いた・画像のアップロードが終わった）。ページの操作（作成・複製・ゴミ箱）の間は
+  // editable が一時的に false になるが、その前に入った変更は捨てずに渡す。読み取り専用（ロック）になってから届いた変更は渡さない。
+  const ownEdit = useRef(false);
+  // 開いてから自分で何か変えたか。変えるまでは、同じページの前のエディター（閉じた方）が後から渡した新しい内容に入れ替える
+  // （開いた時の内容は、閉じた方が最後の変更を渡す前に読んだものなので）。
+  const touched = useRef(false);
+  const appliedData = useRef(data);
+  const latestData = useRef(data);
+  useEffect(() => { latestData.current = data; }, [data]);
   // アップロード中の画像（アプリの flush で終わるのを待つ）。
   const uploadTasks = useRef(new Set<Promise<void>>());
   // 閉じたか。Excalidraw は閉じると中身を空にするが、受け取った API の isDestroyed は false のまま：閉じた後は API を使わない
@@ -232,7 +243,8 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     if (!dirty.current || !scene) return;
     clearTimeout(saveTimer.current);
     dirty.current = false;
-    if (!editableRef.current) return;
+    if (!ownEdit.current) return;
+    ownEdit.current = false;
     lastSignature.current = signatureOf(scene.elements, scene.appState);
     emit(scene);
   }, [emit, signatureOf]);
@@ -248,12 +260,12 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
       lastSignature.current = signature;
       setSceneVersion(signature);
       updateContentHidden();
-      if (editable) serializeNow();
+      if (ownEdit.current) { ownEdit.current = false; serializeNow(); }
       else dirty.current = false;
     };
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(tick, 400);
-  }, [api, editable, serializeNow, signatureOf, updateContentHidden]);
+  }, [api, serializeNow, signatureOf, updateContentHidden]);
 
   // 閉じる時（ページの切り替えなど）と画面が隠れる時は、待たずに渡す。保存キューの flush（use-note-pages の visibilitychange）より
   // 先に渡すため、window の捕捉段階で受ける。
@@ -274,6 +286,36 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
       clearTimeout(saveTimer.current);
     };
   }, []);
+  const adoptRef = useRef<AdoptUpload>(() => false);
+  useEffect(() => {
+    adoptRef.current = (images, file) => {
+      if (!api || !mounted.current) return false;
+      const current = api.getSceneElementsIncludingDeleted();
+      const present = new Set(current.map((element) => element.id));
+      const added = images.filter((element) => !present.has(element.id));
+      uploadedUrls.current.set(file.id, { url: file.url, mimeType: file.mimeType });
+      uploads.current.set(file.id, { status: "done", url: file.url, mimeType: file.mimeType });
+      api.addFiles([{ id: file.id as BinaryFileData["id"], dataURL: file.url as BinaryFileData["dataURL"], mimeType: file.mimeType as BinaryFileData["mimeType"], created: Date.now() }]);
+      if (added.length) api.updateScene({ elements: [...current, ...added], captureUpdate: CaptureUpdateAction.IMMEDIATELY });
+      lastSignature.current = null;
+      dirty.current = true;
+      ownEdit.current = true;
+      touched.current = true;
+      scheduleSave();
+      return true;
+    };
+  });
+  useEffect(() => {
+    const entry = { adopt: ((images, file) => adoptRef.current(images, file)) as AdoptUpload };
+    let set = liveEditors.get(pageId);
+    if (!set) { set = new Set(); liveEditors.set(pageId, set); }
+    set.add(entry);
+    return () => {
+      set.delete(entry);
+      if (!set.size) liveEditors.delete(pageId);
+    };
+  }, [pageId]);
+
   // アプリが編集画面を閉じる前の flush（/note-embed）：変更を渡し、アップロード中の画像は少し待ってから入れ直す。
   // 待っても終わらない画像があれば false（保存し切れていない。アプリは編集画面を閉じずに知らせる）。
   useEffect(() => registerCanvasFlusher(async () => {
@@ -314,8 +356,15 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
         // 保存し直す（signature の uploaded の数が変わる）。閉じた後に終わったときは、最後の scene ですぐ渡す。
         lastSignature.current = null;
         dirty.current = true;
-        if (!mounted.current) flushRef.current();
-        else scheduleSave();
+        ownEdit.current = true;
+        touched.current = true;
+        if (!mounted.current) {
+          // 同じページを開き直したエディターがあれば、そちらへ画像を渡す（閉じた方の古い scene は渡さない）。
+          const live = [...(liveEditors.get(pageId) ?? [])].at(-1);
+          const images = (latestScene.current?.elements ?? []).filter((element) => !element.isDeleted && element.type === "image" && (element as { fileId?: string | null }).fileId === fileId);
+          if (live && live.adopt(images, { id: fileId, ...result })) return;
+          flushRef.current();
+        } else scheduleSave();
       }).catch((error: unknown) => {
         if (!mounted.current) { uploads.current.delete(fileId); return; }
         // 容量の上限は NotesWorkspace の案内（storage-limit-client）が出す。ここは画像を取り除くだけ。
@@ -326,7 +375,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
       }).finally(() => { uploadTasks.current.delete(task); });
       uploadTasks.current.add(task);
     }
-  }, [removeImagesOf, scheduleSave]);
+  }, [pageId, removeImagesOf, scheduleSave]);
 
   // ---- 画面の状態（自前のツールバー・パネルに出すもの）。変わった時だけ描き直す。 ----
   const uiKey = useRef("");
@@ -349,7 +398,11 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     // 最初の内容を読み込んでいる間の通知は保存しない（開いただけで版を進めない）。
     if (!initialized.current) return;
     if (editable) startUploads(elements, files);
-    if (signatureOf(elements, appState) !== lastSignature.current) { dirty.current = true; scheduleSave(); }
+    if (signatureOf(elements, appState) !== lastSignature.current) {
+      dirty.current = true;
+      if (editable) { ownEdit.current = true; touched.current = true; }
+      scheduleSave();
+    }
   }, [api, editable, readUi, scheduleSave, signatureOf, startUploads]);
 
   // 開発中だけ、ブラウザーのコンソールから確かめられるよう editor の API を置く（本番のビルドには入らない）。
@@ -464,7 +517,22 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   const startWithHandRef = useRef(startWithHand);
   useEffect(() => { startWithHandRef.current = startWithHand; }, [startWithHand]);
   const fitOnOpen = initial.scrollToContent;
+  // 自分でまだ何も変えていない間に、親から来る内容（data）が開いた時のものから変わったら（同じページの前のエディターが閉じる時に
+  // 最後の変更を渡した）、その内容に入れ替える。入れ替えは保存しない（もう保存キューにある内容なので）。
+  const applyNewerData = useCallback((target: ExcalidrawImperativeAPI) => {
+    if (touched.current || latestData.current === appliedData.current) return;
+    appliedData.current = latestData.current;
+    const scene = storedToScene(latestData.current);
+    target.addFiles(Object.values(scene.files) as unknown as BinaryFileData[]);
+    target.updateScene({ elements: scene.elements as unknown as ExcalidrawElement[], appState: scene.appState as Partial<AppState> as never, captureUpdate: CaptureUpdateAction.NEVER });
+    lastSignature.current = signatureOf(target.getSceneElementsIncludingDeleted(), target.getAppState());
+  }, [signatureOf]);
+  useEffect(() => {
+    if (api && initialized.current && mounted.current) applyNewerData(api);
+  }, [api, data, applyNewerData]);
+
   const onInitialize = useCallback((ready: ExcalidrawImperativeAPI) => {
+    applyNewerData(ready);
     // 読み終えた最初の内容を「保存済み」として覚える（開いただけでは保存しない。読み込みの途中の onChange も保存しない）。
     const all = ready.getSceneElementsIncludingDeleted();
     const signature = signatureOf(all, ready.getAppState());
@@ -480,7 +548,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     const elements = ready.getSceneElements();
     if (!(pending && revealIn(ready, pending, false)) && fitOnOpen && elements.length) ready.setViewport({ target: elements, fit: "scale-down" });
     queueMicrotask(() => { if (mounted.current) setContentHidden(contentHiddenIn(ready)); });
-  }, [fitOnOpen, pageId, readUi, signatureOf]);
+  }, [applyNewerData, fitOnOpen, pageId, readUi, signatureOf]);
 
   // 画面の幅ではなく、キャンバスの幅で並べ方を変える（サイドバー・分割表示で狭くなる）。
   const [width, setWidth] = useState(1024);
@@ -641,7 +709,13 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   }, []);
 
   return (
-    <div ref={containerRef} className={`whiteboard${embedded ? " is-embedded" : ""}${editable ? "" : " is-readonly"}${compact ? " is-compact" : narrow ? " is-narrow" : ""}`} data-theme={theme}>
+    // ツールバー・パネル・ズームのボタンを押してもフォーカスを画布から移さない。Excalidraw はキー（Delete・Ctrl+Z・矢印など）と貼り付けを
+    // 自分の入れ物にフォーカスがある時だけ受けるので、ボタンがフォーカスを取ると、画布を押し直すまで効かなくなる。入力欄は除く。
+    <div ref={containerRef} className={`whiteboard${embedded ? " is-embedded" : ""}${editable ? "" : " is-readonly"}${compact ? " is-compact" : narrow ? " is-narrow" : ""}`} data-theme={theme}
+      onMouseDown={(event) => {
+        const target = event.target as HTMLElement;
+        if (target.closest("button") && !target.closest(".excalidraw") && !target.closest("input, textarea, select, [contenteditable=\"true\"]")) event.preventDefault();
+      }}>
       <Excalidraw
         onExcalidrawAPI={setApi}
         onInitialize={onInitialize}

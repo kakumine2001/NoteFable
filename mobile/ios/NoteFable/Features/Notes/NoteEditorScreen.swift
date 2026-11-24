@@ -172,7 +172,7 @@ struct NoteEditorScreen: View {
                 lockButton(actions)
                     .padding(.leading, 8)
             }
-            // 只有有公开视图的类型能公开（笔记和白板；幻灯片 #149 以后再开），网页同样不显示分享按钮。
+            // 只有有公开视图的类型能公开（按服务端的 kinds 表；现在笔记、白板、幻灯片都能公开），网页同样按这张表显示分享按钮。
             if let page, kind.features.publicShare {
                 shareButton(page)
                     .padding(.leading, 8)
@@ -249,7 +249,7 @@ struct NoteEditorScreen: View {
     }
 }
 
-/// 网页编辑器导出、已经拼在临时文件里的文件（白板的 PNG / SVG / PDF，以后幻灯片的 PPTX），交给系统的“存储到文件”。
+/// 网页编辑器导出、已经拼在临时文件里的文件（白板的 PNG / SVG / PDF，幻灯片的 PDF / PPTX / 多页 PNG 的 ZIP），交给系统的“存储到文件”。
 /// 只写不读：内容从临时文件拷过去，不整个读进内存。临时文件在“存储到文件”结束后才删（`NotesViewModel.finishExportFile`）。
 struct ExportedFileDocument: FileDocument {
     private static let pptx = UTType(filenameExtension: "pptx", conformingTo: .data) ?? .data

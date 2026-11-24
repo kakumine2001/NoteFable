@@ -120,6 +120,7 @@ class NoteEmbedBridge(
         set(value) {
             field = value
             attached = value != null
+            if (value != null) exports.reopen()
         }
 
     @Volatile
@@ -259,7 +260,7 @@ class NoteEmbedBridge(
         webView = null
         mounting.values.forEach { it.complete(false) }
         pending.values.forEach { it.complete(FlushResult(false)) }
-        exports.discard()
+        exports.close()
     }
 
     fun openHistory() {
@@ -497,7 +498,7 @@ fun NoteEditorScreen(
                 ) { LucideIcon(Lucide.Lock, 14.dp, Sm.Muted) }
                 Spacer(Modifier.width(8.dp))
             }
-            // 只有有公开视图的类型能公开（笔记和白板；幻灯片 #149 以后再开），网页同样不显示分享按钮。
+            // 只有有公开视图的类型能公开（按服务端的 kinds 表；现在笔记、白板、幻灯片都能公开），网页同样按这张表显示分享按钮。
             if (page != null && onShare != null && kind.features.publicShare) {
                 val shareLabel = stringResource(R.string.share_action)
                 val isShared = page.isShared()

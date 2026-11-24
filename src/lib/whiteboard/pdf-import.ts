@@ -28,11 +28,21 @@ async function canvasBlob(canvas: HTMLCanvasElement, quality: number) {
 export async function importPdfPages(file: File, { onProgress, signal }: { onProgress?: (done: number, total: number) => void; signal?: AbortSignal } = {}): Promise<PdfImportResult> {
   if (!isPdfFile(file)) throw new Error(msg("Choose a PDF file."));
   if (file.size > MAX_PDF_IMPORT_BYTES) throw new Error(msg("This PDF is too large to import (max 50 MB)."));
-  const pdfjs = await import("pdfjs-dist");
+  // legacy 版：iOS 17.0〜17.3 の WKWebView・古い Safari に無い Promise.withResolvers などを補ってある（App も同じ編集画面を使う）。
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   pdfjs.GlobalWorkerOptions.workerSrc = "/whiteboard/pdf.worker.min.mjs";
   let document;
   try {
-    document = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false }).promise;
+    document = await pdfjs.getDocument({
+      data: new Uint8Array(await file.arrayBuffer()),
+      isEvalSupported: false,
+      // CJK のフォント（ToUnicode の無い Adobe-Japan1 など）・標準フォント・JPEG 2000 の画像・ICC を読めるように（無いと文字や画像が消える）。
+      cMapUrl: "/whiteboard/pdfjs/cmaps/",
+      cMapPacked: true,
+      standardFontDataUrl: "/whiteboard/pdfjs/standard_fonts/",
+      wasmUrl: "/whiteboard/pdfjs/wasm/",
+      iccUrl: "/whiteboard/pdfjs/iccs/",
+    }).promise;
   } catch {
     throw new Error(msg("Could not read this PDF."));
   }

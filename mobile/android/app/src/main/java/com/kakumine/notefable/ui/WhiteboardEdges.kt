@@ -3,6 +3,8 @@ package com.kakumine.notefable.ui
 import android.graphics.Rect
 import android.view.View
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -12,19 +14,20 @@ import kotlin.math.roundToInt
 /** 一块矩形（像素，左上右下，相对视图）。android.graphics.Rect 在 JVM 单元测试里是空壳，所以先算成这个再换。 */
 internal data class EdgeRect(val left: Int, val top: Int, val right: Int, val bottom: Int)
 
-/** 每块的宽（dp）。 */
+/** 每块的宽（dp）至少这么宽；系统的返回手势区更宽时（设置里调高了"返回手势灵敏度"）按手势区的宽。 */
 internal const val DRAWING_EDGE_WIDTH_DP = 32
 
 /** 每块的高（dp）：系统每条边最多认 200dp 高的排除区，多出来的不算，所以正好要 200。 */
 internal const val DRAWING_EDGE_HEIGHT_DP = 200
 
 /**
- * 要让开返回手势的区域：左右两边各一块 32×200dp，在视图里竖直居中；视图比 200dp 矮时就是整个高度。
+ * 要让开返回手势的区域：左右两边各一块 32×200dp（[gestureWidth] 是系统返回手势区的宽，像素；比 32dp 宽时按它），在视图里竖直居中；
+ * 视图比 200dp 矮时就是整个高度。系统的上限只算高度（每条边 200dp），宽度不占上限。
  * 视图还没量好（宽或高是 0）时没有。高度往下取整，不超过系统的上限（`200 × densityDpi / 160`，整数除法）。
  */
-internal fun drawingEdgeRects(width: Int, height: Int, density: Float): List<EdgeRect> {
+internal fun drawingEdgeRects(width: Int, height: Int, density: Float, gestureWidth: Int = 0): List<EdgeRect> {
     if (width <= 0 || height <= 0 || density <= 0f) return emptyList()
-    val edge = min(width, (DRAWING_EDGE_WIDTH_DP * density).roundToInt())
+    val edge = min(width, max((DRAWING_EDGE_WIDTH_DP * density).roundToInt(), gestureWidth))
     val tall = min(height, (DRAWING_EDGE_HEIGHT_DP * density).toInt())
     val top = (height - tall) / 2
     return listOf(EdgeRect(0, top, edge, top + tall), EdgeRect(width - edge, top, width, top + tall))
@@ -32,7 +35,9 @@ internal fun drawingEdgeRects(width: Int, height: Int, density: Float): List<Edg
 
 /** 设好（按现在的尺寸）或清掉（[enabled] 为 false）这个视图两侧的排除区。 */
 internal fun View.excludeDrawingEdges(enabled: Boolean) {
-    val rects = if (enabled) drawingEdgeRects(width, height, resources.displayMetrics.density) else emptyList()
+    val gesture = ViewCompat.getRootWindowInsets(this)?.getInsets(WindowInsetsCompat.Type.systemGestures())
+    val gestureWidth = max(gesture?.left ?: 0, gesture?.right ?: 0)
+    val rects = if (enabled) drawingEdgeRects(width, height, resources.displayMetrics.density, gestureWidth) else emptyList()
     ViewCompat.setSystemGestureExclusionRects(this, rects.map { Rect(it.left, it.top, it.right, it.bottom) })
 }
 

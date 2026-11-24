@@ -396,6 +396,8 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                     notice = (notes.notice ?: notes.error)?.let { notesErrorText(it) },
                     // 编辑器里的 AI 助手用 App 里选的模型和推理强度（网页按服务端的模型列表核对）。
                     embedUrl = { lang, theme, reveal ->
+                        // 检索命中的位置只用一次：从聊天回到笔记、编辑器重建时不再跳回去。
+                        if (reveal != null) notesViewModel.consumeReveal(open.editor)
                         app.api.noteEmbedUrl(open.id, lang, state.selectedModel?.id, state.selectedReasoning, theme, reveal)
                     },
                     onDownload = downloadNoteFile,

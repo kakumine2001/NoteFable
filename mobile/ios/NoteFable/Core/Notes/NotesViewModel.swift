@@ -267,6 +267,9 @@ final class NotesViewModel {
                 target = OpenNote(page: page)
                 target.reveal = reveal
             }
+            // 冲突后"另存为新笔记"时，开着的编辑器换到了新页面、editor 还是原来那篇的 id：再打开原来那篇时换一个 editor，
+            // 否则编辑器（按 editor 区分）不会重新加载，还显示着新页面，检索命中的位置也不会跳过去（和 Android 一样）。
+            if state.open?.editor == target.editor { target.editor = "\(target.id)#\(UUID().uuidString)" }
             update {
                 $0.workspace = .notes
                 $0.open = target

@@ -419,6 +419,14 @@ class NotesViewModel(
      * 从回答里打开笔记（项目参考笔记、提案的 Open / Open the note），对应网页 page.tsx 的 openNoteFromLink：
      * 马上切到笔记页（列表或读取中），再刷新列表，笔记出现了就打开；没找到（已删除、移到回收站、读取失败）就留在列表上。
      */
+    /** 编辑器把检索命中的位置（[OpenNote.reveal]）放进了地址：只用一次，之后重建编辑器（从聊天回到笔记）时不再跳回去。 */
+    fun consumeReveal(editor: String) {
+        _state.update { state ->
+            val open = state.open
+            if (open != null && open.editor == editor && open.reveal != null) state.copy(open = open.copy(reveal = null)) else state
+        }
+    }
+
     fun openNoteFromLink(id: String) {
         linkJob?.cancel()
         val current = _state.value
