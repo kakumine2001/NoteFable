@@ -106,6 +106,10 @@ export function takeCanvasReveal(accept: (id: string) => boolean): string | null
   pendingCanvasReveal = null;
   return pending.id;
 }
+// 別のページへ切り替えた・閉じた：前のページ宛ての預かり（遅れて開くスライド等のエディター向け）を捨てる。
+export function cancelCanvasReveal() {
+  pendingCanvasReveal = null;
+}
 export function revealNoteBlock(blockId: string, options: RevealOptions = {}) {
   pendingCanvasReveal = { id: blockId, at: Date.now() };
   if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") window.dispatchEvent(new CustomEvent<string>("notefable:reveal-canvas-item", { detail: blockId }));

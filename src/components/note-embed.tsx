@@ -11,13 +11,27 @@ import { createEmbedApi, installEmbedApi, REVEAL_TARGET, pageMeta, postToNative,
 import { parseThemePreference, saveThemePreference } from "@/lib/theme";
 import { useNotePages } from "@/lib/use-note-pages";
 import { pageKindOf } from "@/lib/page-kinds";
-import { revealNoteBlock } from "@/lib/search-reveal";
+import { cancelCanvasReveal, revealNoteBlock } from "@/lib/search-reveal";
 import { cancelWhiteboardReveal, requestWhiteboardReveal } from "@/lib/whiteboard/reveal";
 import { flushCanvasEditors } from "@/lib/canvas-flush";
 import { cancelNativeExports } from "@/lib/export-file";
 import { afterSheetHistory } from "@/lib/use-back-to-close";
 
 const noop = () => {};
+
+function cancelReveals(abortRef: { current: AbortController | null }) {
+  cancelWhiteboardReveal();
+  cancelCanvasReveal();
+  abortRef.current?.abort();
+  abortRef.current = null;
+}
+
+function revealBlock(abortRef: { current: AbortController | null }, target: string) {
+  abortRef.current?.abort();
+  const controller = new AbortController();
+  abortRef.current = controller;
+  void revealNoteBlock(target, { signal: controller.signal });
+}
 
 // Android / iOS アプリが WebView に載せる埋め込みノート画面（/note-embed?page=<id>）。
 // ホワイトボード・スライドもこの同じ URL で開く（古いアプリは別の URL をシステムのブラウザに渡してしまうため）。
@@ -31,7 +45,7 @@ export function NoteEmbed() {
   const notes = useNotePages(false, {
     embedded: true,
     onMissing: (id) => {
-      if (expectedPageRef.current === id) postToNative({ type: "missing" });
+      if (expectedPageRef.current === id) postToNative({ type: "missing", id });
     },
   });
   const { active, activeId, loading, select, deactivate } = notes;
@@ -53,6 +67,13 @@ export function NoteEmbed() {
   // 最後の flush で、ホワイトボードなどのエディターが変更を渡し切れたか（アップロードが終わらない画像が残ると false）。
   const canvasHanded = useRef(true);
   const sent = useRef({ readyId: "", meta: "", state: "", goneId: "" });
+  // openPage のたびに進める。閉じてすぐ同じページを開き直すと idle・activeId などが前の描画と同じ値に戻り、
+  // ready を送る effect が走らない（アプリはその ready を待って以降のメッセージを捨て続ける）ので、依存に入れて必ず走らせる。
+  const [openToken, setOpenToken] = useState(0);
+  // openPage で切り替えた先。URL の書き換えは描画の後（閉じたシートの history.back の予約が済んでから）に行う。
+  const urlPageRef = useRef<string | null>(null);
+  // 前のページ宛ての検索結果への移動（DOM の監視・預かり）を、切り替え・閉じる時に止める。
+  const revealAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     optionsRef.current = options;
@@ -83,7 +104,7 @@ export function NoteEmbed() {
     // 読み込みの前に預けておく（読み込み後の描画で下の effect が受け取る）。
     if (reveal && REVEAL_TARGET.test(reveal)) revealRef.current = { pageId: id, target: reveal };
     void select(id, "none", { keepCurrent: false }).then((opened) => {
-      if (!opened && expectedPageRef.current === id) postToNative({ type: "missing" });
+      if (!opened && expectedPageRef.current === id) postToNative({ type: "missing", id });
     });
   }, [select, options]);
 
@@ -120,15 +141,17 @@ export function NoteEmbed() {
       const queue = activeRef.current;
       if (!queue) return;
       if (pageKindOf(queue.page) === "whiteboard") requestWhiteboardReveal(queue.page.id, target);
-      else void revealNoteBlock(target);
+      else revealBlock(revealAbortRef, target);
     },
     // 常駐 WebView の中で別ページ（または以前開いたページ）へ即座に切り替える。履歴は積まない（canGoBack を汚さない）。
     openPage: ({ id, reveal, model: nextModel, reasoning: nextReasoning }) => {
-      cancelWhiteboardReveal();
+      cancelReveals(revealAbortRef);
       cancelNativeExports();
       setHistoryOpen(false);
       sent.current = { readyId: "", meta: "", state: "", goneId: "" };
       expectedPageRef.current = id;
+      urlPageRef.current = id;
+      setOpenToken((value) => value + 1);
       revealRef.current = reveal ? { pageId: id, target: reveal } : null;
       if (nextModel || nextReasoning) {
         const params = new URLSearchParams();
@@ -139,28 +162,18 @@ export function NoteEmbed() {
       }
       setIdle(false);
       setPageId(id);
-      // 履歴ダイアログや AI パネル（useBackToClose）が開いていた場合、その history.back() 後始末が終わってから URL を差し替える。
-      window.setTimeout(() => afterSheetHistory(() => {
-        if (expectedPageRef.current !== id) return;
-        try {
-          const url = new URL(window.location.href);
-          url.searchParams.set("page", id);
-          url.searchParams.delete("reveal");
-          url.searchParams.delete("warm");
-          window.history.replaceState(window.history.state, "", url);
-        } catch { /* URL 更新できなくても表示切り替えは続ける。 */ }
-      }));
       void select(id, "none", { keepCurrent: false }).then((opened) => {
-        if (!opened && expectedPageRef.current === id) postToNative({ type: "missing" });
+        if (!opened && expectedPageRef.current === id) postToNative({ type: "missing", id });
       });
     },
     // 一覧・チャットへ戻るとき：エディター DOM を外してキャッシュだけ残す。
     close: () => {
-      cancelWhiteboardReveal();
+      cancelReveals(revealAbortRef);
       cancelNativeExports();
       setHistoryOpen(false);
       revealRef.current = null;
       expectedPageRef.current = null;
+      urlPageRef.current = null;
       sent.current = { readyId: "", meta: "", state: "", goneId: "" };
       setIdle(true);
       setPageId(null);
@@ -195,22 +208,40 @@ export function NoteEmbed() {
     // アプリに missing を送って編集画面を閉じてもらう（閉じないと flush が失敗し続けて、どこへも移れなくなる）。
     if (gone && sent.current.goneId !== activeId) {
       sent.current.goneId = activeId;
-      postToNative({ type: "missing" });
+      postToNative({ type: "missing", id: activeId });
     }
-  }, [idle, active, activeId, loading, title, icon, status, gone, kind]);
+  }, [idle, active, activeId, loading, title, icon, status, gone, kind, openToken]);
 
   useEffect(() => {
     const request = revealRef.current;
     if (idle || !request || !active || activeId !== request.pageId || loading) return;
     revealRef.current = null;
     if (kind === "whiteboard") requestWhiteboardReveal(request.pageId, request.target);
-    else void revealNoteBlock(request.target);
-  }, [idle, active, activeId, loading, kind]);
+    else revealBlock(revealAbortRef, request.target);
+  }, [idle, active, activeId, loading, kind, openToken]);
+
+  // openPage で切り替えた先を URL に書く。閉じた履歴ダイアログ・AI パネル（useBackToClose）の後始末は同じ描画の
+  // effect の片付けで history.back を予約するので、その後に走るここから afterSheetHistory に渡せば、戻った後に書き換えられる。
+  useEffect(() => {
+    const id = urlPageRef.current;
+    if (!id || idle || pageId !== id) return;
+    urlPageRef.current = null;
+    afterSheetHistory(() => {
+      if (expectedPageRef.current !== id) return;
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set("page", id);
+        url.searchParams.delete("reveal");
+        url.searchParams.delete("warm");
+        window.history.replaceState(window.history.state, "", url);
+      } catch { /* URL 更新できなくても表示切り替えは続ける。 */ }
+    });
+  }, [idle, pageId, openToken]);
 
   const retry = async () => {
     if (!pageId) return;
     const opened = await select(pageId, "none", { keepCurrent: false });
-    if (!opened && expectedPageRef.current === pageId) postToNative({ type: "missing" });
+    if (!opened && expectedPageRef.current === pageId) postToNative({ type: "missing", id: pageId });
   };
 
   if (idle) {

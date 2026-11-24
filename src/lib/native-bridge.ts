@@ -15,7 +15,8 @@ export type NativeMessage =
   | { type: "ready"; page: { id: string; title: string; icon: string | null; kind?: PageKind } }
   | { type: "meta"; title: string; icon: string | null }
   | { type: "saveState"; state: EmbedSaveState }
-  | { type: "missing" }
+  // id: 見つからなかったページ。切り替えの途中に前のページの missing が届いても、アプリが新しいページを閉じないように付ける（古いアプリは読まない）。
+  | { type: "missing"; id?: string }
   | { type: "trashed" }
   // ノートの中のページのメンションを押した。アプリはそのページを開く（自分のページか、無いかはアプリ側で確かめる）。
   | { type: "openPage"; id: string }

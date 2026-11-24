@@ -43,4 +43,15 @@ describe("canvas flush", () => {
     offClean();
     expect(flushCanvasEditorsSync()).toBe(false);
   });
+
+  it("only checks the editor of the given page when a page id is passed", () => {
+    const calls: string[] = [];
+    const offA = registerCanvasFlusher(() => true, () => { calls.push("a"); return true; }, "page-a");
+    const offB = registerCanvasFlusher(() => true, () => { calls.push("b"); return false; }, "page-b");
+    expect(flushCanvasEditorsSync("page-b")).toBe(false);
+    expect(calls).toEqual(["b"]);
+    expect(flushCanvasEditorsSync()).toBe(true);
+    offA();
+    offB();
+  });
 });
