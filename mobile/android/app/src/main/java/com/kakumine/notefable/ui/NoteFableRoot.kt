@@ -131,7 +131,15 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     }
     DisposableEffect(notesViewModel, noteEmbedHost) {
         notesViewModel.notifyPagesTrashed = noteEmbedHost::pageTrashed
-        onDispose { notesViewModel.notifyPagesTrashed = null }
+        notesViewModel.notifyPageUpdated = noteEmbedHost::pageUpdated
+        notesViewModel.notifyPageSettings = { page ->
+            noteEmbedHost.pageSettings(com.kakumine.notefable.data.NoteFableJson.encodeToString(com.kakumine.notefable.data.NotePageSummary.serializer(), page))
+        }
+        onDispose {
+            notesViewModel.notifyPagesTrashed = null
+            notesViewModel.notifyPageUpdated = null
+            notesViewModel.notifyPageSettings = null
+        }
     }
     DisposableEffect(app, activity, noteEmbedHost) {
         val callbacks = object : ComponentCallbacks2 {

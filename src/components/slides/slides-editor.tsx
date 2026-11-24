@@ -17,6 +17,7 @@ import { SlideRenderRoot } from "@/components/slides/slide-render";
 import { SlideStage, type StageHandle } from "@/components/slides/slide-stage";
 import type { TextCommands } from "@/components/slides/text-editor";
 import type { CanvasData } from "@/lib/canvas-document";
+import { getNativeExportEpoch } from "@/lib/export-file";
 import { localizeSystemText } from "@/lib/i18n/translate";
 import { nativeCanPresent, postToNative } from "@/lib/native-bridge";
 import { takeCanvasReveal } from "@/lib/search-reveal";
@@ -338,20 +339,23 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     if (exporting) return;
     // PDF・PNG は隠した枚を入れない。見せる枚が無ければ空のファイルを作らない。
     if (!deck.slides.length || (format !== "pptx" && !deck.slides.some((slide) => !slide.hidden))) { setNotice(t("This deck has no slides to show.")); return; }
+    // 書き出しを始めた時点のページの番号。読み込みを待つ間にアプリが別のページへ切り替えたら、前のページのファイルを渡さない。
+    const exportEpoch = getNativeExportEpoch();
     setExporting(format);
     setNotice("");
     try {
-      const { getNativeExportEpoch } = await import("@/lib/export-file");
-      const exportEpoch = getNativeExportEpoch();
       const { exportDeckFiles } = await import("@/lib/slides/export-files");
       const result = await exportDeckFiles(deck, title, format, capture, exportEpoch);
-      if (result === "cancelled") return;
+      if (result === "cancelled" || exportEpoch !== getNativeExportEpoch()) return;
       // アプリの中では、ファイルを受け取れない古いアプリだと保存できない（WebView はダウンロードを扱えない）。
       if (result === "unsupported") setNotice(t("Update the app to save exported files."));
       else if (result === "tooLarge") setNotice(t("This file is too large to save in the app."));
       else if (result === "failed") setNotice(t("Could not save the file."));
     }
-    catch (caught) { setNotice(caught instanceof Error && caught.message ? caught.message : t("Could not export the slides.")); }
+    catch (caught) {
+      if (exportEpoch !== getNativeExportEpoch()) return;
+      setNotice(caught instanceof Error && caught.message ? caught.message : t("Could not export the slides."));
+    }
     finally { setExporting(null); }
   };
   const present = (from: "start" | "current") => {
