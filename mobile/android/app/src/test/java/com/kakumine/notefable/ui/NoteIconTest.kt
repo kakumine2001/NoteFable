@@ -79,6 +79,23 @@ class NoteIconTest {
     }
 
     @Test
+    fun `the server's full page goes to the resident editor cache after an icon change`() = runTest(dispatcher) {
+        val backend = object : NoteIconBackend {
+            override suspend fun setNoteIcon(id: String, icon: String?) = NotePageSummary(id, "Bio", icon, version = 4)
+            override suspend fun setNoteIconWithPage(id: String, icon: String?) =
+                com.kakumine.notefable.data.NoteIconWrite(setNoteIcon(id, icon), """{"id":"$id","version":4}""")
+        }
+        val vm = NotesViewModel(Notes(), Prefs(), backend)
+        val pushed = mutableListOf<String>()
+        vm.notifyPageUpdated = { pushed += it }
+        vm.setWorkspace(Workspace.Notes)
+        advanceUntilIdle()
+
+        assertTrue(vm.changeIcon("a", "🧬"))
+        assertEquals(listOf("""{"id":"a","version":4}"""), pushed)
+    }
+
+    @Test
     fun `a failed change keeps the icon and shows the sidebar error until the next try`() = runTest(dispatcher) {
         var fail = true
         val vm = NotesViewModel(Notes(), Prefs(), NoteIconBackend { id, icon ->
