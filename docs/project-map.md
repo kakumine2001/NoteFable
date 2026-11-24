@@ -49,14 +49,15 @@ flowchart LR
 - **Google 登录**：用 Google 账号证明“我是我”。
 - **邮箱验证码登录**：服务器用 Resend（发信服务）把 6 位数字发到邮箱，填对就登录。
 
-Google 登录要在 Google Cloud 登记“谁可以用我的登录”，这叫 **OAuth 客户端**。现在只有两个：
+Google 登录要在 Google Cloud 登记“谁可以用我的登录”，这叫 **OAuth 客户端**。现在有三个：
 
 | 客户端 | 管什么 | 登记的内容 |
 | --- | --- | --- |
 | NoteFable-Web | 网站的 Google 登录；也是 App 登录时 Google 发出的“通行证”的收件人 | 网站地址、登录后跳回的地址 |
 | NoteFable-Android | 告诉 Google：盖了这个章的 App 是我们的 | 包名 `com.kakumine.notefable` + Play 签名的 SHA-1 |
+| NoteFable-iOS | iPhone App 的 Google 登录 | Bundle ID `com.kakumine.notefable`（客户端 ID 写在 iOS 构建配置里） |
 
-客户端的名字只是标签，可以随便改；起作用的是包名和 SHA-1。
+客户端的名字只是标签，可以随便改；起作用的是包名、SHA-1 和 Bundle ID。
 
 ## 手机 App（安卓与 iOS）
 
@@ -134,7 +135,7 @@ Pro 每月 ¥300（含税），只提高使用上限和文件存储容量（单�
 | --- | --- | --- |
 | Vercel | 网站运行、密钥等环境变量 | 分域（`notefable.com` / `app.notefable.com`）、Stripe 3 项、Google Play 3 项均已设置 |
 | Stripe | 网页收款 | 本人确认（KYC）完成，收款和打款有效；解约用到月底；4 个网址已填 |
-| Google Cloud | Google 登录、Play 通知的传递 | OAuth 客户端 2 个（Web + Android）；Pub/Sub 已接到 `app.notefable.com` |
+| Google Cloud | Google 登录、Play 通知的传递 | OAuth 客户端 3 个（Web + Android + iOS）；Pub/Sub 已接到 `app.notefable.com` |
 | Play Console | 上架、App 内收款 | 应用签名已启用；订阅商品 `notefable_pro`（`monthly` + 30 天免费试用）已启用；1.0.14 已发布到内部测试和 Alpha 封闭测试；通过 Testers Community 开展 16 天封闭测试（2026-11-22 启动） |
 
 Stripe 还有 4 项没亲眼确认（商品价格、Webhook、扣款失败后的处理、网站连的是不是正式账户）。最省事的确认办法：用自己的卡真买一次 Pro，确认变成 Pro 后解约，再在 Stripe 退款。
@@ -148,7 +149,7 @@ Stripe 还有 4 项没亲眼确认（商品价格、Webhook、扣款失败后的
 - [x] 启动 14 天封闭测试（2026-11-22 起通过 Testers Community 在 Alpha 轨道进行，当前版本 1.0.14；期间再发 2–3 次更新）
 - [ ] 从 Play 测试轨道在真机走完 Google 登录与购买/取消/删号全流程验证
 - [ ] 封闭测试满 14 天后在 Play Console 申请正式上架
-- [ ] （iOS）注册 Apple Developer 账号并配置 `appstore-publish` 密钥，发 TestFlight 真机验证
+- [x] （iOS）注册 Apple Developer 账号并配置 `appstore-publish` 密钥，发 TestFlight 真机验证（2026-11-24 build 2 已装到真机）
 
 ## 术语表
 

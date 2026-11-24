@@ -54,4 +54,4 @@ cd mobile/ios && xcodegen generate && open NoteFable.xcodeproj
 swift test            # Core 的单元测试
 ```
 
-签名：在 `Config/Local.xcconfig`（不进仓库）里写 `DEVELOPMENT_TEAM = <Team ID>`。Google 登录要先在 Google Cloud 登记 iOS 客户端并填 `GOOGLE_IOS_CLIENT_ID` / `GOOGLE_IOS_REVERSED_CLIENT_ID`，留空时只有邮箱验证码登录。
+签名：在 `Config/Local.xcconfig`（不进仓库）里写 `DEVELOPMENT_TEAM = <Team ID>`。Google 登录的 iOS 客户端 ID 已写在 `Config/NoteFable.xcconfig`（`GOOGLE_IOS_CLIENT_ID` / `GOOGLE_IOS_REVERSED_CLIENT_ID`），清空时只有邮箱验证码登录。

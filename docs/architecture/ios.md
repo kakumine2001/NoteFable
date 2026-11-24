@@ -9,7 +9,7 @@
 - 工作流：[`.github/workflows/ios-pr.yml`](../../.github/workflows/ios-pr.yml)
 - 改动 `mobile/ios/**`、`mobile/android/app/src/main/assets/**`、`.github/workflows/ios-*.yml` 或 `scripts/release/ios-version*.sh` 并向 `main` 提 PR 时运行；只改 PR 标题或描述时不触发。
 - 先在 `ubuntu-latest` 上运行版本号校验脚本测试（`scripts/release/ios-version.test.sh`）与本次 PR 的版本号检查（`scripts/release/ios-version.sh`），避免版本号出错时白耗高倍率的 macOS 分钟数。
-- 只有校验通过且仓库存在 `mobile/ios/project.yml` 时，才启动 `macos-26` 运行 Core 的单元测试（`mobile/ios/scripts/ci-core-tests.sh`：`swift test` 加一个时限，测试挂住时打印卡住的调用栈并提前结束，不把任务时限耗完）、XcodeGen 生成工程和模拟器无签名构建。PR 检查不接触任何发布凭据。
+- 只有校验通过且仓库存在 `mobile/ios/project.yml` 时，才启动 `xcode-27` 镜像（macOS + Xcode 27）运行 Core 的单元测试（`mobile/ios/scripts/ci-core-tests.sh`：`swift test` 加一个时限，测试挂住时打印卡住的调用栈并提前结束，不把任务时限耗完）、XcodeGen 生成工程和模拟器无签名构建。PR 检查不接触任何发布凭据。
 
 ## 自动打包与上传 App Store Connect（TestFlight）
 
@@ -28,7 +28,7 @@
 
 ### 无 Mac 云端签名与安全边界
 
-- **Runner 与 SDK**：使用 `macos-26`（默认带 Xcode 26 / iOS 26 SDK，满足 App Store Connect 的最低 SDK 要求）。
+- **Runner 与 SDK**：使用 GitHub 的 `xcode-27` 镜像（默认 Xcode 27 / iOS 27 SDK）。App Store Connect 从 2027 年 4 月起要求用 iOS 27 SDK 构建（ITMS-90725），旧的 `macos-26` 只带 Xcode 26。
 - **凭据前置检查**：在跑测试和安装工具前先校验 `appstore-publish` 的必需 Secrets 是否齐全且格式正确，缺失时直接列出缺项并快速失败。
 - **构建与云端签名**：
   1. 运行 Core 的单元测试（同一个 `ci-core-tests.sh`）和 `xcodegen generate`。
@@ -40,7 +40,7 @@
 
 ## 注册 Apple Developer 账号后的启用清单
 
-当前工作流已就位，尚未注册 Apple Developer 账号也未配置 Environment / Secrets（平时合入不升版本号的 PR 不会触发发布）。账号就绪后按以下步骤启用：
+以下步骤已经做完（2026-11-24 首个 TestFlight 构建已装到真机），留作换账号或重建环境时的参考（平时合入不升版本号的 PR 不会触发发布）：
 
 1. 注册付费 **Apple Developer Program**，记下 10 位 **Team ID**。
 2. 在 Apple Developer / App Store Connect 中：
@@ -54,7 +54,7 @@
    - `APPSTORE_API_KEY_ID`：API Key ID
    - `APPSTORE_API_ISSUER_ID`：Issuer ID（UUID）
    - `APPSTORE_API_KEY_P8_B64`：`.p8` 私钥文件的 Base64 编码内容
-   - 可选（后续启用 iOS Google 登录时再配，需成对设置）：`GOOGLE_IOS_CLIENT_ID`、`GOOGLE_IOS_REVERSED_CLIENT_ID`
+   - 可选（需成对设置）：`GOOGLE_IOS_CLIENT_ID`、`GOOGLE_IOS_REVERSED_CLIENT_ID`，只在要覆盖 `Config/NoteFable.xcconfig` 里已提交的 iOS Google 客户端时才配
 4. 在 App Store Connect 的 **TestFlight → 内部测试（Internal Testing）** 中：
    - 新建一个内部测试组并开启自动分发（Automatic Distribution），把自己加入内部测试人员，并在 iPhone 的 TestFlight App 中接受邀请（未配置内部测试组并分配构建时，即使上传处理完成也不会在 iPhone 上显示可安装）。
 5. 需要发 TestFlight 时，在合入 `main` 的 PR 中调高 `mobile/ios/project.yml` 的 `CURRENT_PROJECT_VERSION` 即可自动打包并上传；TestFlight 内部测试无需苹果审核，处理完成后即可直接在 iPhone 安装。
