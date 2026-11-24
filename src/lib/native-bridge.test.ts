@@ -279,8 +279,8 @@ describe("usage limit capability", () => {
     expect(nativeCanShowUsageLimit({ NoteFableNative: { postMessage, canShowUsageLimit: () => true } })).toBe(true);
     expect(nativeCanShowUsageLimit({ NoteFableNative: { postMessage } })).toBe(false);
     expect(nativeCanShowUsageLimit({ NoteFableNative: { postMessage, canShowUsageLimit: () => { throw new Error("gone"); } } })).toBe(false);
-    expect(postToNative({ type: "usageLimit", tier: "guest", kind: "chat" }, { NoteFableNative: { postMessage } })).toBe(true);
-    expect(JSON.parse(postMessage.mock.calls[0][0])).toEqual({ type: "usageLimit", tier: "guest", kind: "chat" });
+    expect(postToNative({ type: "usageLimit", tier: "guest", kind: "chat", pageId: "page_1" }, { NoteFableNative: { postMessage } })).toBe(true);
+    expect(JSON.parse(postMessage.mock.calls[0][0])).toEqual({ type: "usageLimit", tier: "guest", kind: "chat", pageId: "page_1" });
   });
 });
 

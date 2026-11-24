@@ -96,7 +96,12 @@ export function pageToolDefinitions({ vision = false }: { vision?: boolean } = {
 // autoApply は AI パネルの「自動適用」（提案をすぐ適用する）。vision はモデルが画像を読めるか。
 // autoApply は AI パネルの「自動適用」。編集はそのパネルのページ（panelPageId）だけ、ロックしていなければすぐ適用する。
 // ほかのページへの編集は、自動適用のときも待確認の提案のまま。新しいページは自動適用ならすぐ作る。
-export type ToolContext = AdapterContext & { autoApply?: boolean; panelPageId?: string; vision?: boolean };
+export type ToolContext = AdapterContext & {
+  autoApply?: boolean;
+  panelPageId?: string;
+  vision?: boolean;
+  focusSelection?: { pageId: string; ids: readonly string[] };
+};
 
 const SEARCH_RESULT_LIMIT = 10;
 const LIST_LIMIT = 50;
@@ -184,10 +189,11 @@ async function loadPage(userId: string, pageId: string): Promise<{ page: Adapter
   return { page, adapter };
 }
 
-async function readPage(userId: string, pageId: string): Promise<ToolRun> {
+async function readPage(userId: string, pageId: string, focusIds?: readonly string[]): Promise<ToolRun> {
   const loaded = await loadPage(userId, pageId);
   if (!loaded) return { content: "Note not found.", isError: true, label: msg("Note not found") };
   const { page, adapter } = loaded;
+  if (focusIds?.length) page.focusIds = focusIds;
   const body = adapter.read(page);
   const content = body.length > MAX_READ_CHARS ? `${body.slice(0, MAX_READ_CHARS)}\n\n[Truncated: the page is longer than ${MAX_READ_CHARS} characters.]` : body;
   const note = adapter.readNote?.(page);
@@ -379,7 +385,8 @@ export async function runPageTool(name: string, value: unknown, ctx: ToolContext
     if (name === "read_note") {
       const pageId = input(value, "noteId");
       if (!pageId) return { content: "noteId must be a non-empty string.", isError: true, label: msg("Invalid note read") };
-      return await readPage(ctx.userId, pageId);
+      const focusIds = ctx.focusSelection?.pageId === pageId ? ctx.focusSelection.ids : undefined;
+      return await readPage(ctx.userId, pageId, focusIds);
     }
     if (name === "list_chat_attachments") {
       const attachments = await listChatAttachments(ctx.userId, ctx.sessionId, ctx.excludeMessageIds);

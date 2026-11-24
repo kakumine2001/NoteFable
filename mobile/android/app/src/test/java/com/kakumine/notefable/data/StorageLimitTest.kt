@@ -55,12 +55,12 @@ class StorageLimitTest {
             EmbedMessage.parse("""{"type":"usageLimit","tier":"guest","kind":"chat"}"""),
         )
         assertEquals(
-            EmbedMessage.UsageLimit("member", "image"),
-            EmbedMessage.parse("""{"type":"usageLimit","tier":"member","kind":"image"}"""),
+            EmbedMessage.UsageLimit("member", "image", "page_1"),
+            EmbedMessage.parse("""{"type":"usageLimit","tier":"member","kind":"image","pageId":"page_1"}"""),
         )
         assertEquals(
-            EmbedMessage.UsageLimit("pro", "chat"),
-            EmbedMessage.parse("""{"type":"usageLimit","tier":"pro","kind":"chat"}"""),
+            EmbedMessage.UsageLimit("pro", "chat", null),
+            EmbedMessage.parse("""{"type":"usageLimit","tier":"pro","kind":"chat","pageId":"  "}"""),
         )
         assertNull(EmbedMessage.parse("""{"type":"usageLimit","tier":"guest"}"""))
         assertNull(EmbedMessage.parse("""{"type":"usageLimit","tier":"unknown","kind":"chat"}"""))

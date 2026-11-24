@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   createMessage: vi.fn(),
   fetch: vi.fn(),
   loadProjectContext: vi.fn(),
+  liveOwnedNoteIds: vi.fn(),
+  loadAttachedNotesContext: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "user" }), isAccountUser: () => false }));
@@ -22,6 +24,11 @@ vi.mock("@/lib/files", () => ({
 }));
 vi.mock("@/lib/chat-history", () => ({ buildHistoryInput: async () => [] }));
 vi.mock("@/lib/chat-project-context", async (importOriginal) => ({ ...await importOriginal<object>(), loadProjectContext: mocks.loadProjectContext }));
+vi.mock("@/lib/chat-attached-notes", async (importOriginal) => ({
+  ...await importOriginal<object>(),
+  liveOwnedNoteIds: mocks.liveOwnedNoteIds,
+  loadAttachedNotesContext: mocks.loadAttachedNotesContext,
+}));
 vi.mock("@/lib/prisma", () => {
   const prisma: Record<string, unknown> = {
     session: { create: mocks.createSession, update: async () => ({}), updateMany: async () => ({ count: 0 }), findFirst: mocks.findSession, findUnique: async () => ({ stopRequestedAt: null }) },
@@ -58,6 +65,8 @@ describe("chat requests made from inside a note", () => {
     mocks.createSession.mockImplementation(async ({ data }: { data: { noteId?: string } }) => ({ id: "session", title: "Test", noteId: data.noteId ?? null }));
     mocks.findSession.mockResolvedValue({ id: "session", title: "Existing chat" });
     mocks.findNote.mockResolvedValue({ id: "note1", title: "Study \"plan\"\nline two" });
+    mocks.liveOwnedNoteIds.mockResolvedValue([]);
+    mocks.loadAttachedNotesContext.mockResolvedValue([]);
   });
 
   it("ties a new conversation to the note and tells the model which note it is", async () => {
@@ -189,5 +198,20 @@ describe("chat requests made from inside a note", () => {
     expect(instructions).toContain("The user is asking from inside their slide deck");
     expect(instructions).toContain(`selected these slides or elements in it (their IDs as shown by read_note): ${JSON.stringify(["el_1", "el_2"])}`);
     expect(instructions).toContain("You cannot change it with the tools.");
+  });
+
+  it("forwards selected element IDs for an attached canvas page in split view, and ignores unattached selectionPageId", async () => {
+    mocks.liveOwnedNoteIds.mockResolvedValue(["board1"]);
+    mocks.loadAttachedNotesContext.mockResolvedValue([{ id: "board1", kind: "whiteboard", title: "Architecture", markdown: "", truncated: false, latest: true }]);
+    await send({ pages: JSON.stringify(["board1"]), selectionPageId: "board1", selectionIds: JSON.stringify(["arrow_1", "box_2"]) });
+    const instructions = JSON.parse(mocks.fetch.mock.calls[0][1].body).instructions as string;
+    expect(instructions).toContain('In the attached whiteboard "Architecture" (noteId: board1)');
+    expect(instructions).toContain(`selected these elements (their IDs as shown by read_note): ${JSON.stringify(["arrow_1", "box_2"])}`);
+
+    mocks.fetch.mockClear();
+    await send({ pages: JSON.stringify(["board1"]), selectionPageId: "other_board", selectionIds: JSON.stringify(["arrow_1"]) });
+    const unattached = JSON.parse(mocks.fetch.mock.calls[0][1].body).instructions as string;
+    expect(unattached).not.toContain("other_board");
+    expect(unattached).not.toContain("arrow_1");
   });
 });

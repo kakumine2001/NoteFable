@@ -394,9 +394,10 @@ final class NotesViewModel {
                 $0.usageLimit = nil
                 $0.storageLimit = StorageLimitInfo(tier: tier, used: used, limit: limit)
             }
-        case .usageLimit(let tier, let kind):
-            // 已经关掉或换走的编辑器晚到的消息不收。
-            guard state.open?.editor == editor else { break }
+        case .usageLimit(let tier, let kind, let pageId):
+            // 已经关掉或换走的编辑器，以及来自旧页面的晚到消息不收。
+            guard let open = state.open, open.editor == editor else { break }
+            if let pageId, pageId != open.id { break }
             update {
                 $0.storageLimit = nil
                 $0.usageLimit = UsageLimitInfo(tier: tier, kind: kind)

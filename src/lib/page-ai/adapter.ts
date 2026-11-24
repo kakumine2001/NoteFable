@@ -28,6 +28,8 @@ export type AdapterPage = {
   segments?: CanvasSegment[];
   // ページの「ロック」（誤って変えないための画面の保護）。AI パネルの「自動適用」は、ロックしたページには書かない。
   locked?: boolean;
+  // 今回のターンで利用者が選んだ要素・スライドの ID。大きなボード・スライドで出力上限に達するとき、選んだ対象を優先して載せる。
+  focusIds?: readonly string[];
 };
 
 // ツールを実行するときの文脈。userId はサーバーのセッションのもので、モデルの入力からは決して取らない。

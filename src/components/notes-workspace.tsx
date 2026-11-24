@@ -109,8 +109,8 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   embedded?: boolean;
   // デスクトップの分割表示（チャットと並べて表示）。余白を詰め、右下の AI ボタンは隠す。
   split?: boolean;
-  // 分割表示中にエディターで「Ask AI」を押したとき、左のチャットへ引用を渡す。
-  onAskSelectionInChat?: (text: string) => void;
+  // 分割表示中にエディターで「Ask AI」を押したとき、左のチャットへ選択内容（引用・要素 ID・選区画像）を渡す。
+  onAskSelectionInChat?: (selection: PageSelection) => void;
 }) {
   const { t, locale } = useI18n();
   const { active, activeId, loading, listLoading, openingId, busy, error, actionError } = notes;
@@ -200,12 +200,11 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
           onOpenPage={(id) => { if (!embedded) { onOpen(id); return true; } return nativeCanOpenPage() && postToNative({ type: "openPage", id }); }}
           // 選んだ要素・スライドについて AI に聞く（AI パネルを開き、選んだものを文脈として渡す）。
           onAskAi={(selection) => {
-            // 分割表示では AI パネルを出さないので、ノートと同じく選んだ文字を左のチャットへ渡す。
-            // 文字の無い図形だけの選区では、ページ名と選択数の案内を引用して空振りを防ぐ。
+            // 分割表示では AI パネルを出さないので、選んだ抜粋・要素 ID・選区画像コールバックを左のチャットへ渡す。
             if (split && onAskSelectionInChat) {
-              const text = normalizeQuote(selection.text)
-                || (selection.ids?.length ? `${active.content.title || t("Untitled")} (${t("{count} items selected", { count: selection.ids.length })})` : "");
-              if (text) onAskSelectionInChat(text);
+              if (normalizeQuote(selection.text) || selection.ids?.length || selection.captureImage) {
+                onAskSelectionInChat(selection);
+              }
               return;
             }
             setAiAsk((current) => ({ noteId: activeId, selection, signal: (current?.noteId === activeId ? current.signal : 0) + 1 }));
@@ -246,7 +245,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
             titleRef.current?.setSelectionRange(end, end);
           }}
           onAskAi={(text) => {
-            if (split && onAskSelectionInChat) { onAskSelectionInChat(text); return; }
+            if (split && onAskSelectionInChat) { onAskSelectionInChat({ text }); return; }
             setAiAsk((current) => ({ noteId: activeId, selection: { text }, signal: (current?.noteId === activeId ? current.signal : 0) + 1 }));
           }}
           // 作成・削除の間（busy）に editable が切り替わると、エディターは内容が同じでも変更通知を出す。編集として扱うと、不要な保存（ゴミ箱へ移したノートへの保存を含む）が走る。

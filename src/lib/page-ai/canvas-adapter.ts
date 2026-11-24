@@ -101,12 +101,26 @@ type WhiteboardSection = {
   lines: string[];
 };
 
-function readWhiteboardSegments(segments: CanvasSegment[], budget: number): string {
-  const lines = segments
+function focusIdSet(focusIds?: readonly string[]): Set<string> {
+  const set = new Set<string>();
+  for (const id of focusIds ?? []) {
+    if (typeof id === "string" && id.trim()) set.add(id.trim());
+  }
+  return set;
+}
+
+function readWhiteboardSegments(segments: CanvasSegment[], budget: number, focusIds?: readonly string[]): string {
+  const entries = segments
     .map((segment) => ({ id: segment.id, text: segmentText(segment) }))
     .filter((segment) => segment.text)
-    .map((segment) => `- (id: ${segment.id}) ${inlineLine(segment.text)}`);
-  if (!lines.length) return "";
+    .map((segment) => ({ id: segment.id, line: `- (id: ${segment.id}) ${inlineLine(segment.text)}` }));
+  if (!entries.length) return "";
+  const fullLength = entries.reduce((sum, entry, index) => sum + entry.line.length + (index ? 1 : 0), 0);
+  const focus = focusIdSet(focusIds);
+  const ordered = fullLength > budget && focus.size > 0
+    ? [...entries.filter((entry) => focus.has(entry.id)), ...entries.filter((entry) => !focus.has(entry.id))]
+    : entries;
+  const lines = ordered.map((entry) => entry.line);
   const noticeReserve = 120;
   const out: string[] = [];
   let used = 0;
@@ -135,67 +149,7 @@ function readWhiteboardSegments(segments: CanvasSegment[], budget: number): stri
   return out.join("\n");
 }
 
-function readWhiteboard(page: AdapterPage, budget: number): string {
-  if (!isRecord(page.data) || !Array.isArray(page.data.elements)) {
-    return readWhiteboardSegments(page.segments ?? [], budget);
-  }
-
-  const live: RawElement[] = [];
-  for (const raw of page.data.elements) {
-    if (!isRecord(raw) || raw.isDeleted === true) continue;
-    if (typeof raw.id !== "string" || !raw.id || typeof raw.type !== "string" || !raw.type) continue;
-    live.push(raw as RawElement);
-  }
-  if (!live.length) return "";
-
-  const liveById = new Map(live.map((element) => [element.id, element]));
-  const boundTextIds = new Set<string>();
-  const boundTextByContainer = new Map<string, string[]>();
-  for (const element of live) {
-    if (element.type !== "text" || typeof element.containerId !== "string" || !element.containerId) continue;
-    const container = liveById.get(element.containerId);
-    if (!container || container.type === "frame") continue;
-    boundTextIds.add(element.id);
-    const label = elementOwnText(element);
-    if (!label) continue;
-    const list = boundTextByContainer.get(container.id) ?? [];
-    list.push(label);
-    boundTextByContainer.set(container.id, list);
-  }
-
-  const frames = live.filter((element) => element.type === "frame");
-  const frameById = new Map(frames.map((frame) => [frame.id, frame]));
-  const frameChildren = new Map<string, RawElement[]>(frames.map((frame) => [frame.id, []]));
-  const unframed: RawElement[] = [];
-
-  for (const element of live) {
-    if (element.type === "frame" || boundTextIds.has(element.id)) continue;
-    const frameId = typeof element.frameId === "string" ? element.frameId : null;
-    if (frameId && frameById.has(frameId)) {
-      frameChildren.get(frameId)!.push(element);
-    } else {
-      unframed.push(element);
-    }
-  }
-
-  const sections: WhiteboardSection[] = [];
-  for (const frame of frames) {
-    const name = typeof frame.name === "string" && frame.name.trim() ? inlineLine(frame.name) : "(unnamed)";
-    const children = frameChildren.get(frame.id) ?? [];
-    sections.push({
-      heading: `## Frame: ${name} (id: ${frame.id})`,
-      isFrame: true,
-      lines: children.map((child) => formatWhiteboardElement(child, boundTextByContainer.get(child.id) ?? [])),
-    });
-  }
-  if (unframed.length) {
-    sections.push({
-      heading: frames.length ? "## Unframed" : undefined,
-      isFrame: false,
-      lines: unframed.map((element) => formatWhiteboardElement(element, boundTextByContainer.get(element.id) ?? [])),
-    });
-  }
-
+function renderWhiteboardSections(sections: WhiteboardSection[], budget: number): { text: string; truncated: boolean } {
   const noticeReserve = 140;
   const output: string[] = [];
   let used = 0;
@@ -246,9 +200,9 @@ function readWhiteboard(page: AdapterPage, budget: number): string {
         if (!output.length) {
           output.push(clipToBudget(section.heading, Math.max(0, budget - noticeReserve)));
           const after = remainingCounts(s, 0, false);
-          return `${output.join("\n")}${formatNotice(after.omittedElements, after.omittedFrames)}`;
+          return { text: `${output.join("\n")}${formatNotice(after.omittedElements, after.omittedFrames)}`, truncated: true };
         }
-        return `${output.join("\n")}${formatNotice(omittedElements, omittedFrames)}`;
+        return { text: `${output.join("\n")}${formatNotice(omittedElements, omittedFrames)}`, truncated: true };
       }
       if (section.lines.length === 0) {
         appendBlock("- (empty)", !hasMoreAfterSection);
@@ -263,22 +217,184 @@ function readWhiteboard(page: AdapterPage, budget: number): string {
         if (l === 0 && section.heading && output.length > 1) {
           output.pop();
           const { omittedElements, omittedFrames } = remainingCounts(s, 0, true);
-          return `${output.join("\n")}${formatNotice(omittedElements, omittedFrames)}`;
+          return { text: `${output.join("\n")}${formatNotice(omittedElements, omittedFrames)}`, truncated: true };
         }
         if (!output.length || (output.length === 1 && section.heading)) {
           const remainingBudget = Math.max(0, budget - used - (output.length ? 1 : 0) - noticeReserve);
           const clipped = clipToBudget(line, remainingBudget);
           if (clipped) output.push(clipped);
           const { omittedElements, omittedFrames } = remainingCounts(s, l + 1, false);
-          return `${output.join("\n")}${formatNotice(omittedElements, omittedFrames)}`;
+          return { text: `${output.join("\n")}${formatNotice(omittedElements, omittedFrames)}`, truncated: true };
         }
         const { omittedElements, omittedFrames } = remainingCounts(s, l, false);
-        return `${output.join("\n")}${formatNotice(omittedElements, omittedFrames)}`;
+        return { text: `${output.join("\n")}${formatNotice(omittedElements, omittedFrames)}`, truncated: true };
       }
     }
   }
 
-  return output.join("\n");
+  return { text: output.join("\n"), truncated: false };
+}
+
+function readWhiteboard(page: AdapterPage, budget: number): string {
+  if (!isRecord(page.data) || !Array.isArray(page.data.elements)) {
+    return readWhiteboardSegments(page.segments ?? [], budget, page.focusIds);
+  }
+
+  const live: RawElement[] = [];
+  for (const raw of page.data.elements) {
+    if (!isRecord(raw) || raw.isDeleted === true) continue;
+    if (typeof raw.id !== "string" || !raw.id || typeof raw.type !== "string" || !raw.type) continue;
+    live.push(raw as RawElement);
+  }
+  if (!live.length) return "";
+
+  const liveById = new Map(live.map((element) => [element.id, element]));
+  const boundTextIds = new Set<string>();
+  const boundContainerOf = new Map<string, string>();
+  const boundTextByContainer = new Map<string, string[]>();
+  for (const element of live) {
+    if (element.type !== "text" || typeof element.containerId !== "string" || !element.containerId) continue;
+    const container = liveById.get(element.containerId);
+    if (!container || container.type === "frame") continue;
+    boundTextIds.add(element.id);
+    boundContainerOf.set(element.id, container.id);
+    const label = elementOwnText(element);
+    if (!label) continue;
+    const list = boundTextByContainer.get(container.id) ?? [];
+    list.push(label);
+    boundTextByContainer.set(container.id, list);
+  }
+
+  const frames = live.filter((element) => element.type === "frame");
+  const frameById = new Map(frames.map((frame) => [frame.id, frame]));
+  const frameNameOf = (frame: RawElement) => (typeof frame.name === "string" && frame.name.trim() ? inlineLine(frame.name) : "(unnamed)");
+  const frameChildren = new Map<string, RawElement[]>(frames.map((frame) => [frame.id, []]));
+  const unframed: RawElement[] = [];
+
+  for (const element of live) {
+    if (element.type === "frame" || boundTextIds.has(element.id)) continue;
+    const frameId = typeof element.frameId === "string" ? element.frameId : null;
+    if (frameId && frameById.has(frameId)) {
+      frameChildren.get(frameId)!.push(element);
+    } else {
+      unframed.push(element);
+    }
+  }
+
+  const sections: WhiteboardSection[] = [];
+  for (const frame of frames) {
+    const children = frameChildren.get(frame.id) ?? [];
+    sections.push({
+      heading: `## Frame: ${frameNameOf(frame)} (id: ${frame.id})`,
+      isFrame: true,
+      lines: children.map((child) => formatWhiteboardElement(child, boundTextByContainer.get(child.id) ?? [])),
+    });
+  }
+  if (unframed.length) {
+    sections.push({
+      heading: frames.length ? "## Unframed" : undefined,
+      isFrame: false,
+      lines: unframed.map((element) => formatWhiteboardElement(element, boundTextByContainer.get(element.id) ?? [])),
+    });
+  }
+
+  const normal = renderWhiteboardSections(sections, budget);
+  const focus = focusIdSet(page.focusIds);
+  if (!normal.truncated || !focus.size) return normal.text;
+
+  // 大きなボードで出力上限に引っかかるときは、選んだ要素（枠の中身・矢印の接続先を含む）を先頭に載せて読み落とさないようにする。
+  const normalizedFocus = new Set<string>();
+  for (const id of focus) {
+    normalizedFocus.add(boundContainerOf.get(id) ?? id);
+  }
+  const selectedIds = new Set<string>();
+  const selectedElements: RawElement[] = [];
+  const selectedEmptyFrames: RawElement[] = [];
+  for (const frame of frames) {
+    const frameSelected = normalizedFocus.has(frame.id);
+    const children = frameChildren.get(frame.id) ?? [];
+    if (frameSelected && children.length === 0) selectedEmptyFrames.push(frame);
+    for (const child of children) {
+      if (frameSelected || normalizedFocus.has(child.id)) {
+        if (!selectedIds.has(child.id)) {
+          selectedIds.add(child.id);
+          selectedElements.push(child);
+        }
+      }
+    }
+  }
+  for (const element of unframed) {
+    if (normalizedFocus.has(element.id) && !selectedIds.has(element.id)) {
+      selectedIds.add(element.id);
+      selectedElements.push(element);
+    }
+  }
+  if (!selectedElements.length && !selectedEmptyFrames.length) return normal.text;
+
+  // 選んだ矢印・線が指す先の要素も添え、ラベルのない矢印でも両端の意味が分かるようにする。
+  const endpointIds = new Set<string>();
+  for (const element of selectedElements) {
+    if (element.type !== "arrow" && element.type !== "line") continue;
+    for (const target of [bindingTarget(element.startBinding), bindingTarget(element.endBinding)]) {
+      if (!target) continue;
+      const canonical = boundContainerOf.get(target) ?? target;
+      const resolved = liveById.get(canonical);
+      if (resolved && resolved.type !== "frame" && !selectedIds.has(resolved.id)) {
+        endpointIds.add(resolved.id);
+      }
+    }
+  }
+  const endpointElements: RawElement[] = [];
+  for (const element of live) {
+    if (endpointIds.has(element.id)) endpointElements.push(element);
+  }
+
+  const formatFocusedLine = (element: RawElement) => {
+    const base = formatWhiteboardElement(element, boundTextByContainer.get(element.id) ?? []);
+    const frameId = typeof element.frameId === "string" ? element.frameId : null;
+    const frame = frameId ? frameById.get(frameId) : undefined;
+    return frame ? `${base} [in frame: ${frameNameOf(frame)} (${frame.id})]` : base;
+  };
+
+  const emittedIds = new Set<string>([...selectedIds, ...endpointIds]);
+  const emittedEmptyFrameIds = new Set<string>(selectedEmptyFrames.map((frame) => frame.id));
+  const prioritized: WhiteboardSection[] = [
+    {
+      heading: "## Selected",
+      isFrame: false,
+      lines: [
+        ...selectedElements.map(formatFocusedLine),
+        ...selectedEmptyFrames.map((frame) => `- frame (id: ${frame.id}): "${frameNameOf(frame)}" (empty)`),
+      ],
+    },
+  ];
+  if (endpointElements.length) {
+    prioritized.push({
+      heading: "## Connected to selected",
+      isFrame: false,
+      lines: endpointElements.map(formatFocusedLine),
+    });
+  }
+  for (const frame of frames) {
+    if (emittedEmptyFrameIds.has(frame.id)) continue;
+    const remainingChildren = (frameChildren.get(frame.id) ?? []).filter((child) => !emittedIds.has(child.id));
+    if (!remainingChildren.length && (frameChildren.get(frame.id) ?? []).length > 0) continue;
+    prioritized.push({
+      heading: `## Frame: ${frameNameOf(frame)} (id: ${frame.id})`,
+      isFrame: true,
+      lines: remainingChildren.map((child) => formatWhiteboardElement(child, boundTextByContainer.get(child.id) ?? [])),
+    });
+  }
+  const remainingUnframed = unframed.filter((element) => !emittedIds.has(element.id));
+  if (remainingUnframed.length) {
+    prioritized.push({
+      heading: "## Unframed",
+      isFrame: false,
+      lines: remainingUnframed.map((element) => formatWhiteboardElement(element, boundTextByContainer.get(element.id) ?? [])),
+    });
+  }
+
+  return renderWhiteboardSections(prioritized, budget).text;
 }
 
 // ---- スライド ----
@@ -354,11 +470,17 @@ function formatSlideElement(element: SlideElement): string {
   }
 }
 
-function readSlidesSegments(segments: CanvasSegment[], budget: number): string {
-  const blocks = segments.map(
-    (segment, index) => `Slide ${index + 1} (id: ${segment.id}): ${segmentText(segment) || "(no text)"}`,
+function readSlidesSegments(segments: CanvasSegment[], budget: number, focusIds?: readonly string[]): string {
+  const entries = segments.map(
+    (segment, index) => ({ id: segment.id, block: `Slide ${index + 1} (id: ${segment.id}): ${segmentText(segment) || "(no text)"}` }),
   );
-  if (!blocks.length) return "";
+  if (!entries.length) return "";
+  const fullLength = entries.reduce((sum, entry, index) => sum + entry.block.length + (index ? 1 : 0), 0);
+  const focus = focusIdSet(focusIds);
+  const ordered = fullLength > budget && focus.size > 0
+    ? [...entries.filter((entry) => focus.has(entry.id)), ...entries.filter((entry) => !focus.has(entry.id))]
+    : entries;
+  const blocks = ordered.map((entry) => entry.block);
   const noticeReserve = 110;
   const out: string[] = [];
   let used = 0;
@@ -388,12 +510,12 @@ function readSlidesSegments(segments: CanvasSegment[], budget: number): string {
 
 function readSlides(page: AdapterPage, budget: number): string {
   if (!isRecord(page.data) || !Array.isArray(page.data.slides)) {
-    return readSlidesSegments(page.segments ?? [], budget);
+    return readSlidesSegments(page.segments ?? [], budget, page.focusIds);
   }
 
   const deck = normalizeDeck(page.data);
   if (!deck.slides.length) {
-    return readSlidesSegments(page.segments ?? [], budget);
+    return readSlidesSegments(page.segments ?? [], budget, page.focusIds);
   }
 
   const segmentById = new Map((page.segments ?? []).map((segment) => [segment.id, segmentText(segment)]));
@@ -411,14 +533,18 @@ function readSlides(page: AdapterPage, budget: number): string {
     if (sectionsLine) metaLines.push(sectionsLine);
   }
   const metaHeader = clipToBudget(metaLines.join("\n"), Math.max(0, budget - noticeReserve));
+  const focus = focusIdSet(page.focusIds);
 
-  const slideBlocks = deck.slides.map((slide, index) => {
+  const formatSlideBlock = (slide: (typeof deck.slides)[number], index: number, prioritizeElements: boolean) => {
     const section = sectionOf.get(slide.id);
     const meta = [`id: ${slide.id}`, `layout: ${slide.layout}`, ...(section ? [`section: ${section}`] : [])].join(", ");
     const lines = [`## Slide ${index + 1} (${meta})${slide.hidden ? " [hidden]" : ""}`];
 
     if (slide.elements.length) {
-      for (const element of slide.elements) {
+      const elements = prioritizeElements && focus.size > 0
+        ? [...slide.elements.filter((element) => focus.has(element.id)), ...slide.elements.filter((element) => !focus.has(element.id))]
+        : slide.elements;
+      for (const element of elements) {
         lines.push(formatSlideElement(element));
       }
     } else {
@@ -431,15 +557,33 @@ function readSlides(page: AdapterPage, budget: number): string {
       lines.push(`Notes: ${slide.notes.trim()}`);
     }
     return lines.join("\n");
-  });
+  };
+
+  const slideEntries = deck.slides.map((slide, index) => ({
+    slide,
+    index,
+    focused: focus.size > 0 && (focus.has(slide.id) || slide.elements.some((element) => focus.has(element.id))),
+    block: formatSlideBlock(slide, index, false),
+  }));
+
+  const fullLength = metaHeader.length + slideEntries.reduce((sum, entry) => sum + 2 + entry.block.length, 0);
+  const singleSlideBudget = Math.max(0, budget - metaHeader.length - 2 - noticeReserve);
+  const orderedBlocks = fullLength > budget && slideEntries.some((entry) => entry.focused)
+    ? [
+        ...slideEntries.filter((entry) => entry.focused).map((entry) => (
+          entry.block.length > singleSlideBudget ? formatSlideBlock(entry.slide, entry.index, true) : entry.block
+        )),
+        ...slideEntries.filter((entry) => !entry.focused).map((entry) => entry.block),
+      ]
+    : slideEntries.map((entry) => entry.block);
 
   const out: string[] = metaHeader ? [metaHeader] : [];
   let used = metaHeader.length;
 
-  for (let i = 0; i < slideBlocks.length; i++) {
-    const block = slideBlocks[i];
+  for (let i = 0; i < orderedBlocks.length; i++) {
+    const block = orderedBlocks[i];
     const sep = 2; // "\n\n"
-    const isLast = i === slideBlocks.length - 1;
+    const isLast = i === orderedBlocks.length - 1;
     const limit = isLast ? budget : Math.max(0, budget - noticeReserve);
     if (used + sep + block.length <= limit) {
       out.push(block);
@@ -449,12 +593,12 @@ function readSlides(page: AdapterPage, budget: number): string {
         const remaining = Math.max(0, budget - used - sep - noticeReserve);
         const clipped = clipToBudget(block, remaining);
         if (clipped) out.push(clipped);
-        const omitted = slideBlocks.length - 1;
+        const omitted = orderedBlocks.length - 1;
         return omitted > 0
           ? `${out.join("\n\n")}\n\n[Truncated: ${omitted} more slide${omitted === 1 ? "" : "s"} omitted (limit: ${MAX_READ_CHARS} characters).]`
           : `${out.join("\n\n")}\n\n[Truncated: content exceeds ${MAX_READ_CHARS} characters.]`;
       }
-      const omitted = slideBlocks.length - i;
+      const omitted = orderedBlocks.length - i;
       return `${out.join("\n\n")}\n\n[Truncated: ${omitted} more slide${omitted === 1 ? "" : "s"} omitted (limit: ${MAX_READ_CHARS} characters).]`;
     }
   }

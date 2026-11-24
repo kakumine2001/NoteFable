@@ -26,7 +26,8 @@ export type NativeMessage =
   | { type: "storageLimit"; tier: UsageTier; used: number; limit: number }
   // メッセージや画像生成の使用回数上限（429 usage_limit）に達した。
   // アプリは自分の画面でログイン（未ログイン）やアップグレード（無料会員）の案内を出す。canShowUsageLimit を持つアプリにだけ送る。
-  | { type: "usageLimit"; tier: UsageTier; kind: UsageKind }
+  // pageId は発生元のページ ID。常駐 WebView で別ページへ切り替えたあとに届いた古い応答が別ページへ出ないよう確認に使う。
+  | { type: "usageLimit"; tier: UsageTier; kind: UsageKind; pageId?: string }
   // スライドの放映。start / end で、アプリは横向き・全画面・画面の常時点灯にする（戻す）。slide は見せている枚が替わった（index は 0 から、count は全体の枚数）。
   // canPresent を持つアプリにだけ送る。
   | { type: "presentation"; state: "start" | "slide" | "end"; index: number; count: number }

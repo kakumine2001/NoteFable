@@ -236,10 +236,12 @@ final class NoteEditorTests: XCTestCase {
         bridge.postMessage(#"{"type":"storageLimit","tier":"guest","used":104857600,"limit":104857600}"#)
         XCTAssertEqual(vm.state.storageLimit, StorageLimitInfo(tier: "guest", used: 104_857_600, limit: 104_857_600))
 
-        // 使用上限の案内も開いている編集器のものだけを受け取り、容量の案内とは排他にする。
+        // 使用上限の案内も開いている編集器・同じページのものだけを受け取り、容量の案内とは排他にする。
         vm.onEditorMessage("b", .usageLimit(tier: "guest", kind: "chat"))
         XCTAssertNil(vm.state.usageLimit)
-        bridge.postMessage(#"{"type":"usageLimit","tier":"member","kind":"image"}"#)
+        bridge.postMessage(#"{"type":"usageLimit","tier":"member","kind":"image","pageId":"other"}"#)
+        XCTAssertNil(vm.state.usageLimit)
+        bridge.postMessage(#"{"type":"usageLimit","tier":"member","kind":"image","pageId":"a"}"#)
         XCTAssertEqual(vm.state.usageLimit, UsageLimitInfo(tier: "member", kind: "image"))
         XCTAssertNil(vm.state.storageLimit)
         vm.dismissUsageLimit()

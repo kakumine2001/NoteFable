@@ -106,6 +106,31 @@ describe("canvasTextAdapter structured whiteboard read", () => {
     expect(beforeNotice.trimEnd().endsWith("## Frame: Second (id: f2)")).toBe(false);
     expect(result).toContain("1 more frame omitted");
   });
+
+  it("prioritizes selected elements and arrow endpoints beyond MAX_READ_CHARS on large boards", () => {
+    const filler = Array.from({ length: 180 }, (_, i) => ({
+      id: `filler_${i}`,
+      type: "text",
+      text: `Filler item ${i}: ${"x".repeat(120)}`,
+    }));
+    const elements = [
+      ...filler,
+      { id: "frame_tail", type: "frame", name: "Final Phase" },
+      { id: "box_start", type: "rectangle", frameId: "frame_tail" },
+      { id: "box_start_lbl", type: "text", containerId: "box_start", text: "Start Service" },
+      { id: "box_end", type: "rectangle", frameId: "frame_tail" },
+      { id: "box_end_lbl", type: "text", containerId: "box_end", text: "End Database" },
+      { id: "arrow_tail", type: "arrow", frameId: "frame_tail", startBinding: { elementId: "box_start" }, endBinding: { elementId: "box_end" } },
+    ];
+    const result = adapter.read(page("whiteboard", { data: { elements }, focusIds: ["arrow_tail"] }));
+    expect(result.length).toBeLessThanOrEqual(MAX_READ_CHARS);
+    expect(result).toContain("## Selected");
+    expect(result).toContain("- arrow (id: arrow_tail): box_start -> box_end [in frame: Final Phase (frame_tail)]");
+    expect(result).toContain("## Connected to selected");
+    expect(result).toContain('- rectangle (id: box_start): "Start Service"');
+    expect(result).toContain('- rectangle (id: box_end): "End Database"');
+    expect(result).toMatch(/\[Truncated: .* omitted \(limit: 20000 characters\)\.\]/);
+  });
 });
 
 describe("canvasTextAdapter structured slides read", () => {
@@ -218,5 +243,27 @@ describe("canvasTextAdapter structured slides read", () => {
     const noteLines = result.match(/^Notes: Speaker notes \d+:/gm) ?? [];
     expect(slideHeaders.length).toBeGreaterThan(0);
     expect(noteLines.length).toBe(slideHeaders.length);
+  });
+
+  it("prioritizes selected slides and elements beyond MAX_READ_CHARS on large decks while keeping true slide numbers", () => {
+    const slides = Array.from({ length: 60 }, (_, i) => ({
+      id: `s_${i}`,
+      layout: "bullets",
+      notes: `Speaker notes ${i}: ${"n".repeat(450)}`,
+      elements: [{
+        id: `t_${i}`,
+        type: "text",
+        role: "title",
+        doc: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: `Slide title ${i}` }] }] },
+      }],
+    }));
+    const result = adapter.read(page("slides", {
+      data: { format: 1, theme: { id: "simple", mode: "light" }, slides },
+      focusIds: ["t_58"],
+    }));
+    expect(result.length).toBeLessThanOrEqual(MAX_READ_CHARS);
+    expect(result).toContain("## Slide 59 (id: s_58, layout: bullets)");
+    expect(result).toContain("- text (id: t_58) [role: title]: Slide title 58");
+    expect(result).toMatch(/\[Truncated: \d+ more slides? omitted \(limit: 20000 characters\)\.\]/);
   });
 });

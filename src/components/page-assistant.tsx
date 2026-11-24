@@ -11,7 +11,7 @@ import { ChatMessage } from "@/components/chat-message";
 import { ModelSelect } from "@/components/model-controls";
 import { useModels } from "@/components/models-provider";
 import { composeQuotedMessage, normalizeQuote, splitQuotedMessage } from "@/lib/chat-quote";
-import { cleanupClientUploads, uploadChatFiles } from "@/lib/client-chat-upload";
+import { cleanupClientUploads, uploadChatFilesWithSelection } from "@/lib/client-chat-upload";
 import { createUploadFile, getClipboardImageFiles, getUploadRequestError, getUploadSelectionError, getUploadValidationError, revokeUploadPreviews } from "@/lib/client-files";
 import { GuestLimitPrompt, StorageLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
 import { keepRejectedDraft, savePendingDraft, takePendingDraft, useKeepDraftOnLeave } from "@/lib/pending-draft";
@@ -313,7 +313,10 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
   // （案内はパネルの外、エディターの上に出る）。送信が断られたときは吹き出しに理由が出るので、重ねて出さない。
   const showStorageLimit = (error: StorageLimitError, { inline = false } = {}) => {
     if (error.tier !== "pro") guestLimitHitRef.current = true;
-    if (embedded && nativeCanShowStorageLimit() && postToNative({ type: "storageLimit", tier: error.tier, used: error.used, limit: error.limit })) {
+    if (embedded && error.tier !== "pro" && inputValueRef.current.trim()) {
+      savePendingDraft(`note:${noteId}`, draftToKeep(inputValueRef.current), { persistent: true });
+    }
+    if (embedded && composerMountedRef.current && nativeCanShowStorageLimit() && postToNative({ type: "storageLimit", tier: error.tier, used: error.used, limit: error.limit })) {
       showLimitPrompt({});
       if (inline) setError(error.message);
       return;
@@ -323,8 +326,8 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
   const showUsageLimit = (limitError: UsageLimitError) => {
     if (limitError.tier !== "pro") guestLimitHitRef.current = true;
     if (embedded) {
-      if (nativeCanShowUsageLimit()) {
-        postToNative({ type: "usageLimit", tier: limitError.tier, kind: limitError.kind });
+      if (composerMountedRef.current && nativeCanShowUsageLimit()) {
+        postToNative({ type: "usageLimit", tier: limitError.tier, kind: limitError.kind, pageId: noteId });
       }
       // WebView 内ではウェブのログイン・Stripe 画面を開かず、新アプリはネイティブ案内、旧アプリは吹き出しの理由だけを出す。
       showLimitPrompt({});
@@ -341,7 +344,17 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
   const selectionRef = useRef(selectionText);
   selectionRef.current = selectionText;
   const draftToKeep = (text: string) => (text.trim() ? composeQuotedMessage(selectionRef.current, text) : "");
-  const composerMountedRef = useKeepDraftOnLeave(`note:${noteId}`, () => (guestLimitHitRef.current ? draftToKeep(inputValueRef.current) : null));
+  const composerMountedRef = useKeepDraftOnLeave(
+    `note:${noteId}`,
+    () => (guestLimitHitRef.current ? draftToKeep(inputValueRef.current) : null),
+    { persistent: embedded },
+  );
+  // アプリの WebView はログイン成功時に破棄・再作成される（pagehide が走らないこともある）ため、
+  // 上限到達後は下書きの変化をその都度 localStorage に反映しておく。
+  useEffect(() => {
+    if (!embedded || !guestLimitHitRef.current) return;
+    savePendingDraft(`note:${noteId}`, input.trim() ? composeQuotedMessage(selectionRef.current, input) : "", { persistent: true });
+  }, [embedded, noteId, input]);
   const lastOpenSignalRef = useRef(openSignal);
   const [seconds, setSeconds] = useState(0);
   const sessionId = useRef("");
@@ -710,11 +723,17 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
 
     let tickets: string[] = [];
     try {
-      if (rawFiles.length) {
+      if (rawFiles.length || selectionUpload) {
         setUploadProgress({ key: msg("Preparing attachments…") });
-        tickets = await uploadChatFiles(rawFiles, (name, index, total, percentage) => {
+        const uploaded = await uploadChatFilesWithSelection(rawFiles, selectionUpload?.file ?? null, (name, index, total, percentage) => {
           setUploadProgress({ key: msg("Uploading {index}/{total} · {name} · {percentage}%"), vars: { index, total, name, percentage } });
         });
+        tickets = uploaded.tickets;
+        if (uploaded.selectionDropped && selectionUpload) {
+          releaseSelectionPreview();
+          selectionUpload = null;
+          setNotice(msg("Sent text only this time."));
+        }
       }
     } catch (caught) {
       releaseSelectionPreview();
@@ -728,22 +747,6 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
       return;
     } finally {
       setUploadProgress(null);
-    }
-
-    if (selectionUpload) {
-      try {
-        setUploadProgress({ key: msg("Preparing attachments…") });
-        const selectionTickets = await uploadChatFiles([selectionUpload.file], (name, index, total, percentage) => {
-          setUploadProgress({ key: msg("Uploading {index}/{total} · {name} · {percentage}%"), vars: { index, total, name, percentage } });
-        });
-        tickets = [...tickets, ...selectionTickets];
-      } catch {
-        releaseSelectionPreview();
-        selectionUpload = null;
-        setNotice(msg("Sent text only this time."));
-      } finally {
-        setUploadProgress(null);
-      }
     }
     stick.current = true;
 
@@ -787,6 +790,8 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
           savedId = id;
           notePanelTurns.add(id);
           accepted = true;
+          guestLimitHitRef.current = false;
+          savePendingDraft(`note:${noteId}`, "", { persistent: embedded });
           if (activeSelection || activeIds.length) onClearSelection?.();
           if (display === undefined) {
             setFiles((list) => list.filter((item) => !sentFiles.includes(item)));
@@ -814,8 +819,16 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
       if (caught instanceof UsageLimitError) showUsageLimit(caught);
       // 上限で断られた本文は保存されていない。入力欄から送ったものなら戻す（待つ間に書き足した文は後ろに残す）。
       // 待つ間に別のノートへ移っていたら、入力欄の代わりにこのノートの分として預けておく。
-      if (limited && display === undefined && !composerMountedRef.current) keepRejectedDraft(`note:${noteId}`, activeSelection ? payloadText : text);
-      if (limited && display === undefined) setInput((current) => (current.trim() ? [text.trimEnd(), current].join("\n\n") : text));
+      if (limited && display === undefined && !composerMountedRef.current) {
+        keepRejectedDraft(`note:${noteId}`, activeSelection ? payloadText : text, { persistent: embedded });
+      }
+      if (limited && display === undefined) {
+        const nextInput = inputValueRef.current.trim() ? [text.trimEnd(), inputValueRef.current].join("\n\n") : text;
+        if (embedded && guestLimitHitRef.current) {
+          savePendingDraft(`note:${noteId}`, activeSelection ? composeQuotedMessage(activeSelection, nextInput) : nextInput, { persistent: true });
+        }
+        setInput((current) => (current.trim() ? [text.trimEnd(), current].join("\n\n") : text));
+      }
       // すでに届いた本文は残し、上限・失敗の文だけを表示時に訳す。
       // 断られた添付は入力欄に戻り、プレビューの URL は入力欄が持つ（外すと解放される）。送った発言からは外す。
       // 未受付で片付けた選区自動スクリーンショットも、解放済み blob URL が残らないよう発言から外す。

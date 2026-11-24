@@ -7,7 +7,7 @@ import { useT } from "@/components/i18n-provider";
 import { useAccount } from "@/lib/account-store";
 import { localizeSystemText } from "@/lib/i18n/translate";
 import { nativeCanShowUsageLimit, postToNative } from "@/lib/native-bridge";
-import { savePendingDraft, takePendingDraft, useKeepDraftOnLeave } from "@/lib/pending-draft";
+import { keepRejectedDraft, savePendingDraft, takePendingDraft, useKeepDraftOnLeave } from "@/lib/pending-draft";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import { copyChatImage, generateSlideImage, type GenerateSize, type SlideImage } from "@/lib/slides/images";
 import { StorageLimitError, UsageLimitError } from "@/lib/usage-plans";
@@ -85,8 +85,12 @@ export function GenerateImageDialog({ pageId, embedded = false, onGenerated, onC
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [usageLimit, setUsageLimit] = useState<UsageLimitError | null>(null);
-  const limitHitRef = useRef(false);
-  useKeepDraftOnLeave(draftScope, () => (limitHitRef.current ? prompt : null));
+  const limitHitRef = useRef(Boolean(prompt));
+  const dialogMountedRef = useKeepDraftOnLeave(draftScope, () => (limitHitRef.current ? prompt : null), { persistent: embedded });
+  useEffect(() => {
+    if (!embedded || !limitHitRef.current) return;
+    savePendingDraft(draftScope, prompt, { persistent: true });
+  }, [embedded, draftScope, prompt]);
 
   const showGuestPrompt = !embedded && usageLimit?.tier === "guest" && Boolean(account?.configured && !account.user);
   const showUpgradePrompt = !embedded && usageLimit?.tier === "member" && Boolean(account?.billing && account.user);
@@ -100,16 +104,29 @@ export function GenerateImageDialog({ pageId, embedded = false, onGenerated, onC
     try {
       onGenerated(await generateSlideImage(prompt.trim(), size));
       limitHitRef.current = false;
-      savePendingDraft(draftScope, "");
+      savePendingDraft(draftScope, "", { persistent: embedded });
       onClose();
     } catch (caught) {
       if (caught instanceof StorageLimitError) {
+        if (caught.tier !== "pro") {
+          limitHitRef.current = true;
+          savePendingDraft(draftScope, prompt, { persistent: embedded });
+        }
         onClose();
       } else if (caught instanceof UsageLimitError) {
-        if (caught.tier !== "pro") limitHitRef.current = true;
+        if (caught.tier !== "pro") {
+          limitHitRef.current = true;
+          if (!dialogMountedRef.current) {
+            keepRejectedDraft(draftScope, prompt.trim(), { persistent: embedded });
+            return;
+          }
+          if (embedded) savePendingDraft(draftScope, prompt, { persistent: true });
+        } else if (!dialogMountedRef.current) {
+          return;
+        }
         if (embedded) {
           if (nativeCanShowUsageLimit()) {
-            postToNative({ type: "usageLimit", tier: caught.tier, kind: "image" });
+            postToNative({ type: "usageLimit", tier: caught.tier, kind: "image", pageId });
           }
           // 入力途中のプロンプトを残したまま、ダイアログ内にも理由を示す（新アプリはネイティブの案内も上部に出る）。
           setError(caught.message);

@@ -6,6 +6,17 @@ import { resolveColor, type ResolvedTheme } from "@/lib/slides/themes";
 // 選区を AI へ送る PNG の長辺上限（D5）。
 export const MAX_SLIDE_SELECTION_SIDE = 1568;
 const CROP_PADDING = 32;
+export const SLIDE_CAPTURE_TIMEOUT_MS = 10_000;
+
+function raceTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("Slide capture timed out")), timeoutMs);
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (error) => { clearTimeout(timer); reject(error); },
+    );
+  });
+}
 
 // 選んだ要素があれば、その外接矩形に少し余白を足してスライド内へ収めた切り抜き範囲を返す。
 // 要素を選んでいない（枚全体）か、一致する要素が無いときは null（1 枚全体を使う）。
@@ -49,22 +60,29 @@ function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
 }
 
 // 選んだスライド（または要素の切り抜き）を長辺 <= 1568px の PNG Blob として描く。
+// 要素を選んだのにスライド外で可視の切り抜きが無いときは、関係のないスライド全体を送らず null（文字のみへ降格）を返す。
 export async function captureSlideSelectionPng(
   capture: SlideCapture,
   slide: Slide,
   theme: ResolvedTheme,
   elementIds: readonly string[],
+  timeoutMs = SLIDE_CAPTURE_TIMEOUT_MS,
 ): Promise<Blob | null> {
-  const crop = slideSelectionCropRect(slide, elementIds);
+  const hasElementSelection = elementIds.length > 0;
+  const crop = hasElementSelection ? slideSelectionCropRect(slide, elementIds) : null;
+  if (hasElementSelection && !crop) return null;
   const background = resolveColor(slide.background ?? "background", theme, "background");
   let sourceCanvas: HTMLCanvasElement | null = null;
   let outputCanvas: HTMLCanvasElement | null = null;
   try {
     const { domToCanvas } = await import("modern-screenshot");
-    const node = await capture.renderSlide(slide);
+    const node = await raceTimeout(capture.renderSlide(slide), timeoutMs);
     // 切り抜き時は 1:1（1920x1080）で描いて切り出し後に上限へ収め、全体時は最初から長辺 1568px で描く。
     const renderScale = crop ? 1 : MAX_SLIDE_SELECTION_SIDE / Math.max(SLIDE_WIDTH, SLIDE_HEIGHT);
-    sourceCanvas = await domToCanvas(node, { width: SLIDE_WIDTH, height: SLIDE_HEIGHT, scale: renderScale, backgroundColor: background });
+    sourceCanvas = await raceTimeout(
+      domToCanvas(node, { width: SLIDE_WIDTH, height: SLIDE_HEIGHT, scale: renderScale, backgroundColor: background }),
+      timeoutMs,
+    );
     if (!sourceCanvas.width || !sourceCanvas.height) return null;
 
     if (crop) {
@@ -96,6 +114,8 @@ export async function captureSlideSelectionPng(
     }
 
     return await canvasToPngBlob(sourceCanvas);
+  } catch {
+    return null;
   } finally {
     if (sourceCanvas) { sourceCanvas.width = 0; sourceCanvas.height = 0; }
     if (outputCanvas) { outputCanvas.width = 0; outputCanvas.height = 0; }

@@ -258,7 +258,7 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 | `{type:"openPage", id}` | 正文里的页面提及被点了。App 用"从链接打开笔记"的同一入口（`openNoteFromLink`）打开那一页：先 flush、切到列表、刷新后笔记在就打开 |
 | `{type:"flushed", requestId, ok, kept?}` | 对 `flush(requestId)` 的回复；`ok` 为 false 时带 `kept` |
 | `{type:"storageLimit", tier, used, limit}` | 编辑器里的图片、文件、封面、图标或 AI 面板的附件因存储空间不够被拒绝（`used` / `limit` 是字节）。只在 App 声明了 `window.NoteFableNative.canShowStorageLimit()` 时发；App 在编辑器上方显示与聊天相同的存储提示（登录 / 升级）。没有这个方法的旧版 App 不收到，网页在编辑器里只说明原因 |
-| `{type:"usageLimit", tier, kind}` | 编辑器里的 AI 面板（`kind = "chat"`）或幻灯片 AI 生图对话框（`kind = "image"`）撞到 429 `usage_limit`。只在 App 声明了 `window.NoteFableNative.canShowUsageLimit()` 时发；App 在编辑器上方显示原生登录（游客）或升级/只读上限提示（免费会员）。没有这个方法的旧版 App 不收到，网页在 WebView 内只展示原因并保留草稿，不弹网页登录 |
+| `{type:"usageLimit", tier, kind, pageId?}` | 编辑器里的 AI 面板（`kind = "chat"`）或幻灯片 AI 生图对话框（`kind = "image"`）撞到 429 `usage_limit`（附带源页面 `pageId` 以便原生过滤切页后晚到的旧响应）。只在 App 声明了 `window.NoteFableNative.canShowUsageLimit()` 时发；App 在编辑器上方显示原生登录（游客）或升级/只读上限提示（免费会员）。被拒草稿在 `/note-embed` 下经 `pending-draft` 写入带 2 小时有效期的 `localStorage`，原生登录后重建 WebView 再打开同一页面时仍能恢复。没有这个方法的旧版 App 不收到，网页在 WebView 内只展示原因并保留草稿，不弹网页登录 |
 | `{type:"drawing", active}` | 白板正在用绘图工具（抓手以外）。App 据此避开系统的边缘返回手势（Android 每条边 200dp），旧版 App 忽略 |
 | `{type:"fileStart", id, name, mime, size}` → `{type:"fileChunk", id, index, data}` ×n → `{type:"fileEnd", id}`（失败时 `{type:"fileAbort", id}`） | 把导出的文件（白板的 PNG / SVG / PDF 等）交给 App 保存：`data` 是每块原始 512 KiB 的 base64。只在 App 声明了 `window.NoteFableNative.canSaveFile()` 时发（`src/lib/export-file.ts`）；旧版 App 里网页提示更新 |
 | `{type:"trashed"}` | 预留：内嵌页目前不提供移入 Trash 的入口，Trash 由应用在 flush 成功后调用 `DELETE /api/pages/:id` |

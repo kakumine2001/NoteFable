@@ -481,9 +481,12 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                                 noteUsageLimit = null
                                 noteStorageLimit = editor to StorageLimitInfo(message.tier, message.used, message.limit)
                             }
-                            is EmbedMessage.UsageLimit -> if (notesViewModel.state.value.open?.editor == editor) {
-                                noteStorageLimit = null
-                                noteUsageLimit = editor to UsageLimitInfo(message.tier, message.kind)
+                            is EmbedMessage.UsageLimit -> {
+                                val current = notesViewModel.state.value.open
+                                if (current?.editor == editor && (message.pageId == null || message.pageId == current.id)) {
+                                    noteStorageLimit = null
+                                    noteUsageLimit = editor to UsageLimitInfo(message.tier, message.kind)
+                                }
                             }
                             is EmbedMessage.Drawing -> if (notesViewModel.state.value.open?.editor == editor) {
                                 drawingEditor = editor.takeIf { message.active }

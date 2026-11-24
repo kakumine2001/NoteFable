@@ -216,7 +216,7 @@ describe("themes", () => {
 
 import { slidesContextText, slidesSelectionIds } from "@/lib/slides/ai-context";
 import { generateSlideImage } from "@/lib/slides/images";
-import { MAX_SLIDE_SELECTION_SIDE, scaledSlideDimensions, slideSelectionCropRect } from "@/lib/slides/selection-capture";
+import { captureSlideSelectionPng, MAX_SLIDE_SELECTION_SIDE, scaledSlideDimensions, slideSelectionCropRect } from "@/lib/slides/selection-capture";
 import { UsageLimitError } from "@/lib/usage-plans";
 
 describe("slides AI context and selection capture", () => {
@@ -285,6 +285,45 @@ describe("slides AI context and selection capture", () => {
     expect(slideSelectionCropRect(sampleDeck.slides[0], ["el1"], 32)).toEqual({ x: 68, y: 88, w: 464, h: 264 });
     expect(scaledSlideDimensions(1920, 1080)).toEqual({ width: MAX_SLIDE_SELECTION_SIDE, height: 882 });
     expect(scaledSlideDimensions(464, 264)).toEqual({ width: 464, height: 264 });
+  });
+
+  it("returns null without rendering full slide when selected elements are off-slide, and settles cleanly on capture rejection or timeout", async () => {
+    const offSlide: Slide = {
+      id: "s_off",
+      layout: "blank",
+      elements: [
+        { id: "off1", type: "text", x: 3000, y: 2000, w: 200, h: 100, rotation: 0, doc: richDocFromText("Off-slide"), style: { font: "body", size: 24, color: "text", align: "left", valign: "top", bold: false, italic: false, lineHeight: 1.2 }, fill: null, autoHeight: false },
+      ],
+    };
+    let rendered = 0;
+    let doneCount = 0;
+    const theme = resolveTheme(sampleDeck.theme);
+    const capture = {
+      renderSlide: async () => { rendered += 1; return {} as HTMLElement; },
+      renderNotesPage: async () => ({} as HTMLElement),
+      done: () => { doneCount += 1; },
+    };
+    // Off-slide element selection must NOT fall back to rendering the whole slide.
+    expect(await captureSlideSelectionPng(capture, offSlide, theme, ["off1"])).toBeNull();
+    expect(rendered).toBe(0);
+
+    // Rejected capture (e.g. editor unmounted while settling) resolves cleanly to null and runs done().
+    const rejectedCapture = {
+      renderSlide: async () => Promise.reject(new Error("Slide capture cancelled")),
+      renderNotesPage: async () => ({} as HTMLElement),
+      done: () => { doneCount += 1; },
+    };
+    expect(await captureSlideSelectionPng(rejectedCapture, sampleDeck.slides[0], theme, [])).toBeNull();
+    expect(doneCount).toBe(1);
+
+    // Hung capture settles via timeout and runs done().
+    const hungCapture = {
+      renderSlide: () => new Promise<HTMLElement>(() => {}),
+      renderNotesPage: async () => ({} as HTMLElement),
+      done: () => { doneCount += 1; },
+    };
+    expect(await captureSlideSelectionPng(hungCapture, sampleDeck.slides[0], theme, [], 25)).toBeNull();
+    expect(doneCount).toBe(2);
   });
 
   it("throws UsageLimitError when /api/pages/images returns 429 usage_limit", async () => {

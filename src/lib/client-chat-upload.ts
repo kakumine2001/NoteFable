@@ -36,3 +36,24 @@ export async function uploadChatFiles(files: File[], onProgress: (name: string, 
     throw new Error(msg("Unable to upload attachments. Check your connection and try sending again."));
   }
 }
+
+// 利用者の添付ファイルと自動キャプチャした選区画像をまとめて 1 回の容量チェック・アップロードに掛ける。
+// 合算すると容量上限やアップロード失敗に引っかかるときは選区画像だけを外し、利用者の添付だけで送り直す。
+export async function uploadChatFilesWithSelection(
+  files: File[],
+  selectionFile: File | null,
+  onProgress: (name: string, index: number, total: number, percentage: number) => void,
+): Promise<{ tickets: string[]; selectionDropped: boolean }> {
+  if (!selectionFile) {
+    return { tickets: await uploadChatFiles(files, onProgress), selectionDropped: false };
+  }
+  try {
+    const tickets = await uploadChatFiles([...files, selectionFile], onProgress);
+    return { tickets, selectionDropped: false };
+  } catch {
+    return {
+      tickets: files.length ? await uploadChatFiles(files, onProgress) : [],
+      selectionDropped: true,
+    };
+  }
+}

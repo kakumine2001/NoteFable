@@ -44,12 +44,12 @@ final class StorageLimitTests: XCTestCase {
             .usageLimit(tier: "guest", kind: "chat")
         )
         XCTAssertEqual(
-            EmbedMessage.parse(#"{"type":"usageLimit","tier":"member","kind":"image"}"#),
-            .usageLimit(tier: "member", kind: "image")
+            EmbedMessage.parse(#"{"type":"usageLimit","tier":"member","kind":"image","pageId":"page_1"}"#),
+            .usageLimit(tier: "member", kind: "image", pageId: "page_1")
         )
         XCTAssertEqual(
-            EmbedMessage.parse(#"{"type":"usageLimit","tier":"pro","kind":"chat"}"#),
-            .usageLimit(tier: "pro", kind: "chat")
+            EmbedMessage.parse(#"{"type":"usageLimit","tier":"pro","kind":"chat","pageId":"  "}"#),
+            .usageLimit(tier: "pro", kind: "chat", pageId: nil)
         )
         XCTAssertNil(EmbedMessage.parse(#"{"type":"usageLimit","tier":"guest"}"#))
         XCTAssertNil(EmbedMessage.parse(#"{"type":"usageLimit","tier":"unknown","kind":"chat"}"#))
