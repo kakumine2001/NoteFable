@@ -254,6 +254,7 @@ export const ptBRServer: Record<string, string> = {
   "Only an applied change can be undone.": "Só é possível desfazer uma alteração aplicada.",
   "This change can't be undone here. Restore an earlier version from the page history.": "Esta alteração não pode ser desfeita aqui. Restaure uma versão anterior pelo histórico da página.",
   "This page changed after the AI edit. Restore an earlier version from the page history.": "A página mudou depois da edição da IA. Restaure uma versão anterior pelo histórico da página.",
+  "This page changed after the AI created it. Move it to Trash from its page menu instead.": "A página mudou depois que a IA a criou. Em vez disso, mova-a para a lixeira pelo menu da página.",
   "Invalid page list": "Lista de páginas inválida",
   "Listed pages": "Páginas listadas",
   "Applied edits to “{title}”": "Edições aplicadas a “{title}”",

@@ -254,6 +254,7 @@ export const jaServer: Record<string, string> = {
   "Only an applied change can be undone.": "元に戻せるのは適用済みの変更だけです。",
   "This change can't be undone here. Restore an earlier version from the page history.": "この変更はここでは元に戻せません。ページの履歴から以前の版を復元してください。",
   "This page changed after the AI edit. Restore an earlier version from the page history.": "AI の編集のあとでページが変更されています。ページの履歴から以前の版を復元してください。",
+  "This page changed after the AI created it. Move it to Trash from its page menu instead.": "AI が作ったあとでページが変更されています。代わりにページのメニューからゴミ箱へ移してください。",
   "Invalid page list": "ページ一覧の指定が不正です",
   "Listed pages": "ページを一覧しました",
   "Applied edits to “{title}”": "「{title}」に変更を適用しました",

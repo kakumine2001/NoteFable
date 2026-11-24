@@ -31,12 +31,12 @@ import { relativeTime } from "@/lib/notes-home-text";
 import { chatsTurns, notePanelTurns } from "@/lib/session-turns";
 import { anchorAncestors, anchorFabPosition, clampFabPosition, FAB_DRAG_THRESHOLD, loadFabPosition, panelPlacement, saveFabPosition, type FabPosition } from "@/lib/fab-position";
 import { StorageLimitError, UsageLimitError, storageLimitErrorFrom, usageLimitErrorFrom } from "@/lib/usage-plans";
-import { nativeCanShowStorageLimit, postToNative } from "@/lib/native-bridge";
+import { nativeCanOpenPage, nativeCanShowStorageLimit, postToNative } from "@/lib/native-bridge";
 import { NoteIcon } from "@/components/note-icon";
 import { PageKindIcon } from "@/components/page-kind-icon";
-import { ProposalHostContext } from "@/components/page-proposal";
+import { ProposalHostContext, type ProposalHost } from "@/components/page-proposal";
 import { PAGE_KIND_FEATURES, type PageKind } from "@/lib/page-kinds";
-import { MAX_SELECTION_ID_LENGTH, MAX_SELECTION_IDS, type PageSelection } from "@/lib/page-ai/types";
+import { isSelectionId, MAX_SELECTION_IDS, type PageSelection } from "@/lib/page-ai/types";
 import { loadAutoApply, saveAutoApply } from "@/lib/ai-auto-apply";
 
 type QuickAction = { label: string; prompt: string };
@@ -215,7 +215,10 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
 }) {
   const { t, tag } = useI18n();
   // 提案カードに、このパネルのページを伝える（そのページへの「開く」は出さない）。
-  const proposalHost = useMemo(() => ({ currentPageId: noteId }), [noteId]);
+  // アプリ（/note-embed）の中のカードの「開く」は、アプリにページを開いてもらう。開けない古いアプリでは出さない（ブラウザに飛ばさない）。
+  const proposalHost = useMemo<ProposalHost>(() => embedded
+    ? (nativeCanOpenPage() ? { currentPageId: noteId, openPage: (id) => postToNative({ type: "openPage", id }) } : { currentPageId: noteId, noOpen: true })
+    : { currentPageId: noteId }, [noteId, embedded]);
   const kindText = KIND_TEXT[pageKind];
   const actions = quickActions ?? DEFAULT_ACTIONS[pageKind].quick;
   const pickedActions = selectionActions ?? DEFAULT_ACTIONS[pageKind].selection;
@@ -228,7 +231,7 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
   // エディターが渡した文字も、ノートの「Ask AI」と同じく整えて長さを抑える（normalizeQuote）。
   const selectionText = selection?.text ? normalizeQuote(selection.text) : "";
   // サーバーが受け付ける形にそろえる（重複・空・長すぎる ID を外し、上限の数まで）。上限を超えた選択でも送れなくならない。
-  const selectionIds = [...new Set((selection?.ids ?? []).filter((id) => id && id.length <= MAX_SELECTION_ID_LENGTH))].slice(0, MAX_SELECTION_IDS);
+  const selectionIds = [...new Set((selection?.ids ?? []).filter(isSelectionId))].slice(0, MAX_SELECTION_IDS);
   const hasSelection = Boolean(selectionText || selectionIds.length);
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);

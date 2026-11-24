@@ -79,11 +79,21 @@ vi.mock("@/lib/prisma", () => {
   };
   return { prisma, databaseSchema: "notefable" };
 });
+// 提案の縮小画像はファイル置き場に置く（本物は Blob。ここでは置いた・消したことだけを記録する）。
+const files = vi.hoisted(() => ({ stored: [] as { path: string; kind: string; size: number; mimeType: string; options: unknown }[], discarded: [] as string[] }));
+vi.mock("@/lib/stored-files", async (load) => ({
+  ...await load<object>(),
+  storeFile: async (_owner: string, file: { path: string; kind: string; buffer: Buffer; mimeType: string }, options: unknown) => {
+    files.stored.push({ path: file.path, kind: file.kind, size: file.buffer.byteLength, mimeType: file.mimeType, options });
+  },
+  discardStoredFiles: async (paths: string[]) => { files.discarded.push(...paths); },
+}));
 // ホワイトボード・スライドの枠組みは、テスト用の偽アダプター（スライド）で確かめる。ノートは本物のアダプター。
 vi.mock("@/lib/page-ai/registry", async () => {
   const { noteAdapter } = await import("./note-adapter");
   const { fakeSlidesAdapter } = await import("./fake-adapter");
-  const adapters = { note: noteAdapter, whiteboard: noteAdapter, slides: fakeSlidesAdapter() };
+  const { canvasTextAdapter } = await import("./canvas-adapter");
+  const adapters = { note: noteAdapter, whiteboard: canvasTextAdapter("whiteboard"), slides: fakeSlidesAdapter() };
   return { PAGE_ADAPTERS: adapters, adapterFor: (kind: keyof typeof adapters) => adapters[kind], allAdapters: () => Object.values(adapters) };
 });
 import { applyProposal, attachProposals, discardProposal, proposalImage, proposalsByMessage, saveProposal, undoProposal, type SaveInput } from "./proposals";
@@ -357,17 +367,45 @@ describe("auto-apply and undo", () => {
     expect(await undoProposal("u2", view.id)).toMatchObject({ ok: false, httpStatus: 404 });
   });
 
-  it("undoes a created page by moving it and its sub-pages to the trash", async () => {
+  it("undoes a created page by moving it to the trash, and a repeated undo returns it again", async () => {
     const view = await saveProposal("u1", "s1", create());
     await applyProposal("u1", view.id, { auto: true });
     const pageId = db.pages[0].id as string;
     expect(db.pages[0].aiUpdatedAt).toBeInstanceOf(Date);
+    expect(await undoProposal("u1", view.id)).toEqual({ ok: true, status: "undone", kind: "create", trashedIds: [pageId] });
+    expect(db.pages[0].deletedAt).toBeInstanceOf(Date);
+    expect(db.proposals[0].status).toBe("UNDONE");
+    // 最初の応答を受け取れなかった画面がもう一度押しても、ゴミ箱へ移したページを返す（そのページを閉じられるように）。
+    expect(await undoProposal("u1", view.id)).toEqual({ ok: true, status: "undone", kind: "create", trashedIds: [pageId] });
+    // ゴミ箱から戻した後なら空（開いているページを閉じさせない）。
+    db.pages[0].deletedAt = null;
+    expect(await undoProposal("u1", view.id)).toEqual({ ok: true, status: "undone", kind: "create", trashedIds: [] });
+  });
+
+  it("keeps a created page that was written to or got sub-pages after the AI made it", async () => {
+    const view = await saveProposal("u1", "s1", create());
+    await applyProposal("u1", view.id);
+    const pageId = db.pages[0].id as string;
+    db.pages[0].version = (db.pages[0].version as number) + 1;
+    expect(await undoProposal("u1", view.id)).toMatchObject({ ok: false, httpStatus: 409, error: expect.stringContaining("changed after the AI created it") });
+    expect(db.pages[0].deletedAt).toBeNull();
+    expect(db.proposals[0].status).toBe("APPLIED");
+    db.pages[0].version = (db.pages[0].version as number) - 1;
     db.pages.push({ kind: "note", id: "child", userId: "u1", title: "Child", blocks: [], version: 0, deletedAt: null, parentId: pageId });
     db.childrenOf = pageId;
-    const undone = await undoProposal("u1", view.id);
-    expect(undone).toEqual({ ok: true, status: "undone", kind: "create", trashedIds: [pageId, "child"] });
-    expect(db.pages.every((row) => row.deletedAt instanceof Date)).toBe(true);
-    expect(db.proposals[0].status).toBe("UNDONE");
+    expect(await undoProposal("u1", view.id)).toMatchObject({ ok: false, httpStatus: 409 });
+    expect(db.pages.every((row) => row.deletedAt === null)).toBe(true);
+    expect(db.proposals[0].status).toBe("APPLIED");
+  });
+
+  it("says what happened to a proposal that is no longer pending, so the card can show it", async () => {
+    const view = await saveProposal("u1", "s1", create());
+    await applyProposal("u1", view.id);
+    const pageId = db.pages[0].id as string;
+    expect(await discardProposal("u1", view.id)).toEqual({ ok: false, httpStatus: 409, error: "This proposal was already applied.", status: "applied", pageId });
+    await undoProposal("u1", view.id);
+    expect(await discardProposal("u1", view.id)).toEqual({ ok: false, httpStatus: 409, error: "This change was undone.", status: "undone", pageId });
+    expect(await applyProposal("u1", view.id)).toEqual({ ok: false, httpStatus: 409, error: "This change was undone.", status: "undone", pageId });
   });
 
   it("creates a sub-page inside the requested parent", async () => {
@@ -394,18 +432,37 @@ describe("proposals for other page kinds (fake slides adapter)", () => {
     },
   });
 
-  it("keeps the canvas data and thumbnails on the server and gives the card image URLs", async () => {
+  it("keeps the canvas data on the server, puts the thumbnails in the file store and gives the card image URLs", async () => {
     seedDeck();
+    files.stored.length = 0;
     const view = await saveProposal("u1", "s1", slidesEdit());
+    // 画像の本体は DB に入れない（ファイル置き場に置き、提案には場所だけ）。容量の上限では止めない。
+    expect(files.stored).toEqual([{ path: expect.stringMatching(/^proposal-images\/u1\/[0-9a-f-]{36}\.png$/), kind: "PROPOSAL_IMAGE", size: expect.any(Number), mimeType: "image/png", options: { enforce: false, held: true } }]);
+    expect(JSON.stringify(db.proposals[0].payload)).not.toContain(FAKE_PNG_BASE64);
     expect(view).toMatchObject({ kind: "proposal", pageKind: "slides", proposed: { title: "Deck", blocks: [] } });
     expect(JSON.stringify(view)).not.toContain(FAKE_PNG_BASE64);
     expect(JSON.stringify(view)).not.toContain("s1-title");
     const [change] = (view as { changes: Record<string, unknown>[] }).changes;
     expect(change).toMatchObject({ target: { type: "slide", number: 1 }, afterImage: `/api/proposals/${view.id}/image?change=0&side=after` });
     expect(change).not.toHaveProperty("beforeImage");
-    expect(await proposalImage("u1", view.id, 0, "after")).toMatchObject({ mimeType: "image/png" });
+    expect(await proposalImage("u1", view.id, 0, "after")).toEqual({ mimeType: "image/png", path: files.stored[0].path });
     expect(await proposalImage("u2", view.id, 0, "after")).toBeNull();
     expect(await proposalImage("u1", view.id, 0, "before")).toBeNull();
+  });
+
+  it("removes the stored thumbnails when the proposal cannot be saved", async () => {
+    seedDeck();
+    files.stored.length = 0;
+    files.discarded.length = 0;
+    const create = db.proposals.push;
+    db.proposals.push = () => { throw new Error("db down"); };
+    try {
+      await expect(saveProposal("u1", "s1", slidesEdit())).rejects.toThrow("db down");
+    } finally {
+      db.proposals.push = create;
+    }
+    expect(files.discarded).toEqual(files.stored.map((file) => file.path));
+    expect(files.discarded).toHaveLength(1);
   });
 
   it("applies a slides edit with the same checks as a save, keeps the old deck as an AI_EDIT revision, and undoes it", async () => {

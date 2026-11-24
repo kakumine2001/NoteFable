@@ -37,8 +37,11 @@ data class AppliedPage(val id: String?, val json: String?)
 /** 撤销的结果：编辑提案是改回后的页面 [page]；新建提案是移进回收站的页面 ID [trashedIds]（含子页面，已撤销过的为空）。 */
 data class UndoneProposal(val page: AppliedPage? = null, val trashedIds: List<String> = emptyList())
 
-/** 服务端拒绝了操作。[serverMessage] 是响应里的 `error`（英文原句），没有时界面用"无法应用修改建议。"等本地文案。 */
-class ProposalException(val serverMessage: String?) : Exception(serverMessage)
+/**
+ * 服务端拒绝了操作。[serverMessage] 是响应里的 `error`（英文原句），没有时界面用"无法应用修改建议。"等本地文案。
+ * 提案已经在别的标签页 / 设备处理过时，[finalStatus] 是服务端的状态（applied / discarded / undone），[pageId] 是应用到的页面。
+ */
+class ProposalException(val serverMessage: String?, val finalStatus: String? = null, val pageId: String? = null) : Exception(serverMessage)
 
 class ProposalApi(
     private val client: OkHttpClient,
@@ -75,8 +78,9 @@ class ProposalApi(
         return response.use {
             val text = withContext(Dispatchers.IO) { runCatching { it.body.string() }.getOrDefault("") }
             if (!it.isSuccessful) {
-                val error = runCatching { NoteFableJson.decodeFromString<ApiError>(text) }.getOrNull()?.error
-                throw ProposalException(error?.takeIf { message -> message.isNotBlank() })
+                val body = json(text)
+                fun field(name: String) = (body?.get(name) as? JsonPrimitive)?.takeIf { value -> value.isString }?.content?.takeIf { value -> value.isNotBlank() }
+                throw ProposalException(field("error"), field("status"), field("pageId"))
             }
             text
         }
@@ -177,7 +181,9 @@ class ProposalStore(private val backend: ProposalBackend, private val scope: Cor
                 set(proposal.id, before.copy(error = null))
                 throw e
             } catch (e: Throwable) {
-                set(proposal.id, before.copy(error = ProposalError(ProposalError.Action.Apply, (e as? ProposalException)?.serverMessage)))
+                if (!settledByServer(proposal.id, before, e)) {
+                    set(proposal.id, before.copy(error = ProposalError(ProposalError.Action.Apply, (e as? ProposalException)?.serverMessage)))
+                }
             }
         }
     }
@@ -194,7 +200,9 @@ class ProposalStore(private val backend: ProposalBackend, private val scope: Cor
                 set(proposal.id, before.copy(error = null))
                 throw e
             } catch (e: Throwable) {
-                set(proposal.id, before.copy(error = ProposalError(ProposalError.Action.Discard, (e as? ProposalException)?.serverMessage)))
+                if (!settledByServer(proposal.id, before, e)) {
+                    set(proposal.id, before.copy(error = ProposalError(ProposalError.Action.Discard, (e as? ProposalException)?.serverMessage)))
+                }
             }
         }
     }
@@ -222,9 +230,27 @@ class ProposalStore(private val backend: ProposalBackend, private val scope: Cor
                 set(proposal.id, before.copy(error = null))
                 throw e
             } catch (e: Throwable) {
-                set(proposal.id, before.copy(error = ProposalError(ProposalError.Action.Undo, (e as? ProposalException)?.serverMessage)))
+                if ((e as? ProposalException)?.finalStatus != "discarded" || !settledByServer(proposal.id, before, e)) {
+                    set(proposal.id, before.copy(error = ProposalError(ProposalError.Action.Undo, (e as? ProposalException)?.serverMessage)))
+                }
             }
         }
+    }
+
+    /**
+     * 提案已经在别处处理过（服务端返回了状态）：不显示错误、也不再出"应用 / 放弃"，卡片换成服务端的状态（网页 settledByServer）。
+     * 服务端没说状态（版本冲突、网络错误等）时返回 false，照常显示错误。
+     */
+    private fun settledByServer(id: String, before: ProposalState, e: Throwable): Boolean {
+        val failure = e as? ProposalException ?: return false
+        val status = when (failure.finalStatus) {
+            "applied" -> ProposalState.Status.Applied
+            "discarded" -> ProposalState.Status.Discarded
+            "undone" -> ProposalState.Status.Undone
+            else -> return false
+        }
+        set(id, ProposalState(status, pageId = failure.pageId ?: before.pageId, undoable = false))
+        return true
     }
 
     private fun set(id: String, state: ProposalState) = _states.update { it + (id to state) }

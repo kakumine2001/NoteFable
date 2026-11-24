@@ -254,6 +254,7 @@ export const itServer: Record<string, string> = {
   "Only an applied change can be undone.": "Si può annullare solo una modifica applicata.",
   "This change can't be undone here. Restore an earlier version from the page history.": "Questa modifica non si può annullare qui. Ripristina una versione precedente dalla cronologia della pagina.",
   "This page changed after the AI edit. Restore an earlier version from the page history.": "La pagina è cambiata dopo la modifica dell’IA. Ripristina una versione precedente dalla cronologia della pagina.",
+  "This page changed after the AI created it. Move it to Trash from its page menu instead.": "La pagina è cambiata dopo che l’IA l’ha creata. Spostala invece nel cestino dal menu della pagina.",
   "Invalid page list": "Elenco di pagine non valido",
   "Listed pages": "Pagine elencate",
   "Applied edits to “{title}”": "Modifiche applicate a “{title}”",

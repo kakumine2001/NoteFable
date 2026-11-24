@@ -254,6 +254,7 @@ export const ruServer: Record<string, string> = {
   "Only an applied change can be undone.": "Отменить можно только применённое изменение.",
   "This change can't be undone here. Restore an earlier version from the page history.": "Это изменение нельзя отменить здесь. Восстановите более раннюю версию из истории страницы.",
   "This page changed after the AI edit. Restore an earlier version from the page history.": "Страница изменилась после правки ИИ. Восстановите более раннюю версию из истории страницы.",
+  "This page changed after the AI created it. Move it to Trash from its page menu instead.": "Страница изменилась после того, как ИИ её создал. Вместо этого переместите её в корзину через меню страницы.",
   "Invalid page list": "Неверный запрос списка страниц",
   "Listed pages": "Список страниц получен",
   "Applied edits to “{title}”": "Изменения в «{title}» применены",

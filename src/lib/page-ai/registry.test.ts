@@ -4,6 +4,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: {}, databaseSchema: "notefable" }));
 import { PAGE_KIND_FEATURES, PAGE_KINDS } from "@/lib/page-kinds";
 import { storedToolText, toAnthropicToolContent, toResponsesToolOutput } from "@/lib/chat-tools";
 import { PAGE_ADAPTERS } from "./registry";
+import { pageToolDefinitions } from "./tools";
 
 describe("page adapters", () => {
   it("has one adapter per page kind, and the client's aiEdit flag matches whether the adapter can edit", () => {
@@ -19,6 +20,11 @@ describe("page adapters", () => {
     expect(PAGE_ADAPTERS.note.create?.tool.name).toBe("propose_note_create");
     // ノートの新規作成は、確認してから作る（「自動適用」のときだけすぐ作る）。
     expect(PAGE_ADAPTERS.note.create?.direct).toBeFalsy();
+  });
+
+  it("gives every tool a unique name (a duplicate would be rejected by the providers and send calls to the wrong adapter)", () => {
+    const names = pageToolDefinitions({ vision: true }).map((tool) => tool.name);
+    expect(new Set(names).size).toBe(names.length);
   });
 });
 

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 这个文件由 scripts/gen-native-zh-hant.ts 从 values-zh 的同名文件生成，不要直接修改。 -->
-<!-- 批次 1（回答体验）的文案：网页 chat-activity.tsx、page-edit-proposal.tsx、assistant-markdown.tsx、answer-actions.tsx、chat-message.tsx 的原句，译文取自 src/lib/i18n/messages/{zh,ja}.ts。values / values-zh / values-ja 三份的键一一对应。 -->
+<!-- 批次 1（回答体验）的文案：网页 chat-activity.tsx、page-proposal.tsx、assistant-markdown.tsx、answer-actions.tsx、chat-message.tsx 的原句，译文取自 src/lib/i18n/messages/{zh,ja}.ts。values / values-zh / values-ja 三份的键一一对应。 -->
 <resources>
     <string name="activity_thinking">正在思考</string>
     <string name="activity_using_project">正在使用專案“%1$s”</string>

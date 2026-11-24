@@ -2,7 +2,8 @@ import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // 提案の「元に戻す」と縮小画像のエンドポイント（処理そのものは src/lib/page-ai/proposals.test.ts）。
-const mocks = vi.hoisted(() => ({ undo: vi.fn(), image: vi.fn(), sync: vi.fn() }));
+const mocks = vi.hoisted(() => ({ undo: vi.fn(), image: vi.fn(), sync: vi.fn(), readUrl: vi.fn(), read: vi.fn() }));
+vi.mock("@/lib/storage", () => ({ getStoredImageReadUrl: mocks.readUrl, readStoredImage: mocks.read }));
 vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "u1" }) }));
 vi.mock("@/lib/note-embeddings", () => ({ scheduleNoteEmbeddingSync: mocks.sync }));
 vi.mock("@/lib/page-ai/proposals", () => ({ undoProposal: mocks.undo, proposalImage: mocks.image }));
@@ -44,13 +45,27 @@ describe("GET /api/proposals/:id/image", () => {
   beforeEach(() => vi.clearAllMocks());
   const get = (query: string) => image(new NextRequest(`http://localhost/api/proposals/prop1/image${query}`), context);
 
-  it("returns the owner's thumbnail with safe headers", async () => {
-    mocks.image.mockResolvedValue({ mimeType: "image/png", bytes: Buffer.from([1, 2, 3]) });
+  it("sends the owner's thumbnail through a short-lived link to that one file, like chat images", async () => {
+    mocks.image.mockResolvedValue({ mimeType: "image/png", path: "proposal-images/u1/a.png" });
+    mocks.readUrl.mockResolvedValue("https://blob.example/proposal-images/u1/a.png?token=short");
     const response = await get("?change=0&side=after");
     expect(mocks.image).toHaveBeenCalledWith("u1", "prop1", 0, "after");
+    expect(mocks.readUrl).toHaveBeenCalledWith("proposal-images/u1/a.png");
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe("https://blob.example/proposal-images/u1/a.png?token=short");
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+  });
+
+  it("returns the bytes with safe headers when the files are stored locally", async () => {
+    mocks.image.mockResolvedValue({ mimeType: "image/png", path: "proposal-images/u1/a.png" });
+    mocks.readUrl.mockResolvedValue(null);
+    mocks.read.mockResolvedValue(Buffer.from([1, 2, 3]));
+    const response = await get("?change=0&side=after");
     expect(response.headers.get("Content-Type")).toBe("image/png");
     expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]));
+    mocks.read.mockRejectedValue(new Error("missing"));
+    expect((await get("?change=0&side=after")).status).toBe(404);
   });
 
   it("rejects a bad query and answers 404 for someone else's or a missing image", async () => {

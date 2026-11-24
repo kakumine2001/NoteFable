@@ -30,6 +30,8 @@ const updatedAt = new Date("2026-10-01T00:00:00Z");
 describe("page tools", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // 提案の読み直しは、テストが決めない限り「無い」（自動適用の後の読み直しを使うテストだけが返す）。
+    mocks.view.mockResolvedValue(null);
     mocks.semanticSearch.mockResolvedValue({ hits: [], hasMoreBackfill: false });
     // 保存した提案をそのまま行として返す。
     mocks.createProposal.mockImplementation(async ({ data }: { data: { kind: string; pageKind: string; payload: unknown } }) => ({
@@ -273,7 +275,7 @@ describe("page tools", () => {
       mocks.findFirst.mockResolvedValue(stored());
       mocks.apply.mockResolvedValue({ ok: true, status: "applied", kind: "edit", page: { id: "p1" } });
       mocks.view.mockResolvedValue({ kind: "proposal", id: "prop1", status: "applied", autoApplied: true, undoable: true, pageId: "p1", changes: [] });
-      const result = await runPageTool("propose_note_edit", edit, { ...ctx, autoApply: true });
+      const result = await runPageTool("propose_note_edit", edit, { ...ctx, autoApply: true, panelPageId: "p1" });
       expect(mocks.apply).toHaveBeenCalledWith("mine", "prop1", { auto: true });
       // 手動の適用と同じく、意味検索の索引を書き直す。
       expect(mocks.sync).toHaveBeenCalledWith("mine", ["p1"]);
@@ -285,7 +287,7 @@ describe("page tools", () => {
     it("leaves the proposal for the user when auto-apply fails, and never applies without auto-apply", async () => {
       mocks.findFirst.mockResolvedValue(stored());
       mocks.apply.mockResolvedValue({ ok: false, httpStatus: 409, error: "This note changed after the proposal was made. Ask again to get a fresh proposal." });
-      const failed = await runPageTool("propose_note_edit", edit, { ...ctx, autoApply: true });
+      const failed = await runPageTool("propose_note_edit", edit, { ...ctx, autoApply: true, panelPageId: "p1" });
       expect(JSON.parse(failed.content)).toMatchObject({ status: "proposed", applied: false, autoApplyFailed: expect.stringContaining("changed") });
       expect(failed.label).toBe("Proposed edits to “Notes”");
       mocks.apply.mockClear();
@@ -297,11 +299,47 @@ describe("page tools", () => {
       mocks.findFirst.mockResolvedValue(stored());
       mocks.apply.mockRejectedValue(new Error("db down"));
       vi.spyOn(console, "error").mockImplementation(() => {});
-      const result = await runPageTool("propose_note_edit", edit, { ...ctx, autoApply: true });
+      const result = await runPageTool("propose_note_edit", edit, { ...ctx, autoApply: true, panelPageId: "p1" });
       expect(result.isError).toBeUndefined();
       expect(JSON.parse(result.content)).toMatchObject({ status: "proposed", applied: false, autoApplyFailed: expect.any(String) });
       expect(result.events).toEqual([expect.objectContaining({ type: "notefable.proposal", id: "prop1", status: "pending" })]);
       expect(mocks.sync).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("auto-apply covers only the panel's own page", () => {
+    const stored = (extra: Record<string, unknown> = {}) => ({ id: "p1", title: "Notes", version: 4, blocks: [block("paragraph", [text("b")])], ...extra });
+    const edit = { noteId: "p1", version: 4, title: null, edits: [{ op: "replace", block: 1, markdown: "new" }] };
+
+    it("leaves edits to another page and to a locked page as proposals the user applies", async () => {
+      mocks.findFirst.mockResolvedValue(stored());
+      const other = await runPageTool("propose_note_edit", edit, { ...ctx, autoApply: true, panelPageId: "p2" });
+      expect(mocks.apply).not.toHaveBeenCalled();
+      expect(JSON.parse(other.content)).toMatchObject({ status: "proposed", applied: false, autoApplyFailed: expect.stringContaining("another page") });
+      mocks.findFirst.mockResolvedValue(stored({ locked: true }));
+      const locked = await runPageTool("propose_note_edit", edit, { ...ctx, autoApply: true, panelPageId: "p1" });
+      expect(mocks.apply).not.toHaveBeenCalled();
+      expect(JSON.parse(locked.content)).toMatchObject({ status: "proposed", applied: false, autoApplyFailed: expect.stringContaining("locked") });
+      expect(locked.events).toEqual([expect.objectContaining({ type: "notefable.proposal", status: "pending" })]);
+    });
+
+    it("still creates new pages right away", async () => {
+      mocks.apply.mockResolvedValue({ ok: true, status: "applied", kind: "create", page: { id: "new1" } });
+      mocks.view.mockResolvedValue({ kind: "create_proposal", id: "prop1", status: "applied", autoApplied: true, undoable: true, appliedPageId: "new1" });
+      const result = await runPageTool("propose_note_create", { title: "Cells", markdown: "x", icon: null }, { ...ctx, autoApply: true, panelPageId: "p1" });
+      expect(mocks.apply).toHaveBeenCalledWith("mine", expect.any(String), { auto: true });
+      expect(JSON.parse(result.content)).toMatchObject({ status: "applied", applied: true });
+    });
+
+    it("treats a change that was written but could not be read back as applied", async () => {
+      mocks.findFirst.mockResolvedValue(stored());
+      mocks.apply.mockRejectedValue(new Error("connection reset after commit"));
+      mocks.view.mockResolvedValue({ kind: "proposal", id: "prop1", status: "applied", autoApplied: true, undoable: true, pageId: "p1", appliedPageId: "p1", changes: [] });
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const result = await runPageTool("propose_note_edit", edit, { ...ctx, autoApply: true, panelPageId: "p1" });
+      expect(JSON.parse(result.content)).toMatchObject({ status: "applied", applied: true });
+      expect(result.events).toEqual([expect.objectContaining({ type: "notefable.proposal", status: "applied" })]);
+      expect(mocks.sync).toHaveBeenCalledWith("mine", ["p1"]);
     });
   });
 

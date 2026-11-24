@@ -1095,6 +1095,7 @@ export const zhHant: Record<string, string> = {
   "This note was changed in another tab.": "這篇筆記已在其他標籤頁中修改。",
   "This note was changed in another tab. Save a copy or load the latest version.": "此筆記已在其他標籤頁修改，請另存為副本或載入最新版本。",
   "This page can't be edited in this version of NoteFable.": "當前版本的 NoteFable 無法編輯此頁面。",
+  "This page changed after the AI created it. Move it to Trash from its page menu instead.": "AI 建立之後這個頁面又被改過。請改從頁面選單把它移到回收站。",
   "This page changed after the AI edit. Restore an earlier version from the page history.": "AI 修改之後這個頁面又被改過。請從頁面歷史中恢復較早的版本。",
   "This page contains invalid whiteboard or slide data.": "此頁面包含無效的白板或投影片資料。",
   "This page has no text yet.": "此頁面還沒有文字。",

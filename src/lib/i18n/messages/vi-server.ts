@@ -254,6 +254,7 @@ export const viServer: Record<string, string> = {
   "Only an applied change can be undone.": "Chỉ có thể hoàn tác thay đổi đã được áp dụng.",
   "This change can't be undone here. Restore an earlier version from the page history.": "Không thể hoàn tác thay đổi này tại đây. Hãy khôi phục phiên bản trước từ lịch sử trang.",
   "This page changed after the AI edit. Restore an earlier version from the page history.": "Trang đã thay đổi sau khi AI chỉnh sửa. Hãy khôi phục phiên bản trước từ lịch sử trang.",
+  "This page changed after the AI created it. Move it to Trash from its page menu instead.": "Trang đã thay đổi sau khi AI tạo. Thay vào đó, hãy chuyển trang vào Thùng rác từ menu của trang.",
   "Invalid page list": "Yêu cầu danh sách trang không hợp lệ",
   "Listed pages": "Đã liệt kê các trang",
   "Applied edits to “{title}”": "Đã áp dụng chỉnh sửa cho “{title}”",

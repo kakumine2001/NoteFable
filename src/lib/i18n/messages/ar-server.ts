@@ -254,6 +254,7 @@ export const arServer: Record<string, string> = {
   "Only an applied change can be undone.": "لا يمكن التراجع إلا عن تغيير تم تطبيقه.",
   "This change can't be undone here. Restore an earlier version from the page history.": "لا يمكن التراجع عن هذا التغيير هنا. استعد إصدارًا سابقًا من سجل الصفحة.",
   "This page changed after the AI edit. Restore an earlier version from the page history.": "تغيّرت هذه الصفحة بعد تعديل الذكاء الاصطناعي. استعد إصدارًا سابقًا من سجل الصفحة.",
+  "This page changed after the AI created it. Move it to Trash from its page menu instead.": "تغيّرت هذه الصفحة بعد أن أنشأها الذكاء الاصطناعي. انقلها إلى سلة المهملات من قائمة الصفحة بدلًا من ذلك.",
   "Invalid page list": "قائمة صفحات غير صالحة",
   "Listed pages": "تم سرد الصفحات",
   "Applied edits to “{title}”": "طُبّقت التعديلات على «{title}»",

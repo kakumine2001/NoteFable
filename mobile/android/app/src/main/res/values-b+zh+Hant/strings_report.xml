@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 这个文件由 scripts/gen-native-zh-hant.ts 从 values-zh 的同名文件生成，不要直接修改。 -->
-<!-- 报告 AI 回答（网页 answer-actions.tsx 的 ReportAnswerDialog）。 -->
+<!-- 报告 AI 回答和 AI 内容（网页 answer-actions.tsx 的 ReportDialog）。 -->
 <resources>
     <string name="report_answer">報告回答</string>
     <string name="report_title">報告這條回答</string>

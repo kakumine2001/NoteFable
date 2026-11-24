@@ -254,6 +254,7 @@ export const thServer: Record<string, string> = {
   "Only an applied change can be undone.": "เลิกทำได้เฉพาะการเปลี่ยนแปลงที่นำไปใช้แล้ว",
   "This change can't be undone here. Restore an earlier version from the page history.": "เลิกทำการเปลี่ยนแปลงนี้ที่นี่ไม่ได้ กู้คืนเวอร์ชันก่อนหน้าจากประวัติของหน้า",
   "This page changed after the AI edit. Restore an earlier version from the page history.": "หน้านี้ถูกเปลี่ยนหลังจาก AI แก้ไข กู้คืนเวอร์ชันก่อนหน้าจากประวัติของหน้า",
+  "This page changed after the AI created it. Move it to Trash from its page menu instead.": "หน้านี้ถูกเปลี่ยนหลังจาก AI สร้าง ให้ย้ายไปที่ถังขยะจากเมนูของหน้าแทน",
   "Invalid page list": "รายการหน้าไม่ถูกต้อง",
   "Listed pages": "แสดงรายการหน้าแล้ว",
   "Applied edits to “{title}”": "นำการแก้ไขไปใช้กับ “{title}” แล้ว",

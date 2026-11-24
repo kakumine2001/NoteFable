@@ -9,7 +9,7 @@ import { descendantIdsOf } from "@/lib/note-tree";
 import { isImportableMarkdownFile, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_FILES, MAX_IMPORT_TOTAL_BYTES } from "@/lib/note-io";
 import { isCanvasKind, pageKindFeatures, pageKindOf, type PageKind } from "@/lib/page-kinds";
 import { CANVAS_DRAFT_PREFIX, canvasSaveBody, canvasSavedPage, newPageBody, parseCanvasDraft } from "@/lib/canvas-save";
-import { PAGES_TRASHED_EVENT } from "@/lib/proposal-sync";
+import { PAGES_TRASHED_EVENT, PAGES_WILL_TRASH_EVENT, type PagesWillTrashDetail } from "@/lib/proposal-sync";
 import type { NoteContent, NoteGroupSummary, NotePage, NotePageSettings, NotePageSummary } from "@/types/notes";
 import { fmt, msg } from "@/lib/i18n/translate";
 
@@ -45,6 +45,9 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
   const [, refresh] = useState(0);
   const queues = useRef(new Map<string, NoteSaveQueue>());
   const createdWhileLoading = useRef<NotePageSummary[]>([]);
+  // いまの一覧（イベントの受け手から、サブページを探すのに使う）。
+  const pagesRef = useRef<NotePageSummary[]>([]);
+  useEffect(() => { pagesRef.current = pages; }, [pages]);
   const loaded = useRef(false);
   const started = useRef(false);
   const navigation = useRef(0);
@@ -121,12 +124,14 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
         // queue.page.data は最後に保存できた本体（読み込み・保存・最新版の読み込みのたびに替わる）。
         const saved = queue.page.data;
         const data = await pageRequest(`/api/pages/${page.id}`, "PATCH", canvasSaveBody(content, version, saved));
-        upsertSummary(data.page, { since: started });
+        // 送っている間にゴミ箱へ移った（キューを捨てた）ページを、一覧に戻さない。
+        if (queues.current.get(page.id) === queue) upsertSummary(data.page, { since: started });
         return canvasSavedPage(queue.page, data, content, saved);
       }
       const data = await pageRequest(`/api/pages/${page.id}`, "PATCH", { ...content, version });
       // 保存の間にこの画面でロックなどを変えていたら、応答の（変更前かもしれない）値で戻さない。変えていなければ別のタブ・アプリでの変更を拾う。
-      upsertSummary(data.page, { since: started });
+      // 送っている間にゴミ箱へ移った（キューを捨てた）ページは、一覧に戻さない。
+      if (queues.current.get(page.id) === queue) upsertSummary(data.page, { since: started });
       return data.page;
     }, () => {
       upsertSummary({ ...queue.page, title: queue.content.title.trim() || "Untitled", icon: queue.content.icon }, { local: true });
@@ -283,6 +288,22 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
         ...entry, favoritedAt: page.favoritedAt ?? null, fullWidth: page.fullWidth, smallText: page.smallText, font: page.font, locked: page.locked,
       } : entry));
     }
+    // AI の提案で作ったページを「元に戻す」前に、そのページ（とサブページ）の入力中の内容を保存する（「ゴミ箱へ移す」と同じ）。
+    // 保存できなければ false を返し、元に戻すのを止めてもらう（保存できない下書きを捨てない）。
+    function onPagesWillTrash(event: Event) {
+      const detail = (event as CustomEvent<PagesWillTrashDetail | undefined>).detail;
+      if (!detail || !Array.isArray(detail.ids)) return;
+      const ids = new Set<string>();
+      for (const id of detail.ids) {
+        if (typeof id !== "string") continue;
+        ids.add(id);
+        for (const childId of descendantIdsOf(pagesRef.current, id)) ids.add(childId);
+      }
+      for (const id of ids) {
+        const queue = queues.current.get(id);
+        if (queue) detail.waits.push(queue.flush());
+      }
+    }
     // AI の提案で作ったページを「元に戻す」でゴミ箱へ移した（サブページも一緒）。一覧と保存キューから外し、開いていたら閉じる。
     function onPagesTrashed(event: Event) {
       const ids = (event as CustomEvent<{ ids?: unknown } | undefined>).detail?.ids;
@@ -297,14 +318,20 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
           localStorage.removeItem(CANVAS_DRAFT_PREFIX + id);
         } catch { /* 古い下書きを、復元後の本文に重ねない。 */ }
       }
-      // 開こうとしている途中なら、届いた結果でゴミ箱のページを開き直さない。
-      if (pendingId.current && removed.has(pendingId.current)) { navigation.current += 1; pendingId.current = null; }
+      // 一覧を読む前に作られたページとして覚えていたものからも外す（読んだときに一覧へ戻さない）。
+      createdWhileLoading.current = createdWhileLoading.current.filter((page) => !removed.has(page.id));
+      // 開こうとしている途中なら、届いた結果でゴミ箱のページを開き直さない（読み込み中の表示も終える）。
+      if (pendingId.current && removed.has(pendingId.current)) { navigation.current += 1; pendingId.current = null; setLoading(false); setError(""); }
       runTransition(() => setPages((current) => current.filter((page) => !removed.has(page.id))), "list");
       if (displayedId.current && removed.has(displayedId.current)) {
         displayedId.current = null;
         setActiveId(null);
         setActive(undefined);
-        const url = new URL(window.location.href);
+      }
+      // URL がゴミ箱へ移ったページを指していたら外す（開いている途中のページも）。
+      const url = new URL(window.location.href);
+      const requested = url.searchParams.get("page");
+      if (requested && removed.has(requested)) {
         url.searchParams.delete("page");
         window.history.replaceState(null, "", url);
       }
@@ -313,11 +340,13 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     window.addEventListener("notefable:page-updated", onPageUpdated);
     window.addEventListener("notefable:page-created", onPageCreated);
     window.addEventListener(PAGES_TRASHED_EVENT, onPagesTrashed);
+    window.addEventListener(PAGES_WILL_TRASH_EVENT, onPagesWillTrash);
     return () => {
       window.removeEventListener("notefable:page-meta", onPageMeta);
       window.removeEventListener("notefable:page-updated", onPageUpdated);
       window.removeEventListener("notefable:page-created", onPageCreated);
       window.removeEventListener(PAGES_TRASHED_EVENT, onPagesTrashed);
+      window.removeEventListener(PAGES_WILL_TRASH_EVENT, onPagesWillTrash);
     };
   }, [upsertSummary, markMeta]);
 

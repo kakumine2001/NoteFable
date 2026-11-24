@@ -254,6 +254,7 @@ export const koServer: Record<string, string> = {
   "Only an applied change can be undone.": "적용된 변경 사항만 실행 취소할 수 있습니다.",
   "This change can't be undone here. Restore an earlier version from the page history.": "이 변경 사항은 여기서 실행 취소할 수 없습니다. 페이지 기록에서 이전 버전을 복원하세요.",
   "This page changed after the AI edit. Restore an earlier version from the page history.": "AI 편집 후에 페이지가 변경되었습니다. 페이지 기록에서 이전 버전을 복원하세요.",
+  "This page changed after the AI created it. Move it to Trash from its page menu instead.": "AI가 만든 후에 페이지가 변경되었습니다. 대신 페이지 메뉴에서 휴지통으로 옮기세요.",
   "Invalid page list": "잘못된 페이지 목록 요청",
   "Listed pages": "페이지 목록을 확인함",
   "Applied edits to “{title}”": "“{title}”에 편집을 적용함",

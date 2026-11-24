@@ -254,6 +254,7 @@ export const zhServer: Record<string, string> = {
   "Only an applied change can be undone.": "只有已应用的修改才能撤销。",
   "This change can't be undone here. Restore an earlier version from the page history.": "这项修改无法在这里撤销。请从页面历史中恢复较早的版本。",
   "This page changed after the AI edit. Restore an earlier version from the page history.": "AI 修改之后这个页面又被改过。请从页面历史中恢复较早的版本。",
+  "This page changed after the AI created it. Move it to Trash from its page menu instead.": "AI 创建之后这个页面又被改过。请改从页面菜单把它移到回收站。",
   "Invalid page list": "页面列表请求无效",
   "Listed pages": "列出了页面",
   "Applied edits to “{title}”": "已修改“{title}”",

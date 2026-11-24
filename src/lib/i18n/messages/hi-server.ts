@@ -254,6 +254,7 @@ export const hiServer: Record<string, string> = {
   "Only an applied change can be undone.": "केवल लागू किया गया बदलाव ही पूर्ववत किया जा सकता है।",
   "This change can't be undone here. Restore an earlier version from the page history.": "यह बदलाव यहाँ पूर्ववत नहीं किया जा सकता। पेज के इतिहास से पुराना संस्करण वापस लाएँ।",
   "This page changed after the AI edit. Restore an earlier version from the page history.": "AI के संपादन के बाद यह पेज बदल गया है। पेज के इतिहास से पुराना संस्करण वापस लाएँ।",
+  "This page changed after the AI created it. Move it to Trash from its page menu instead.": "AI के बनाने के बाद यह पेज बदल गया है। इसके बजाय पेज के मेन्यू से इसे ट्रैश में ले जाएँ।",
   "Invalid page list": "अमान्य पेज सूची",
   "Listed pages": "पेज सूचीबद्ध किए",
   "Applied edits to “{title}”": "“{title}” में बदलाव लागू किए",

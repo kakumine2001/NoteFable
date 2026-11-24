@@ -148,7 +148,8 @@ internal fun ProposalCard(
         ) {
             // 建成子页面时，先说建在哪一页里（标题是空的显示 Untitled）。
             proposal.parentTitle?.let { parent -> Op(stringResource(R.string.proposal_inside, parent.ifEmpty { stringResource(R.string.sb_untitled) })) }
-            Change {
+            // 空のページの一行は、本文も改动（缩略图）も無いときだけ（网页と同じ）。
+            if (proposal.content.isNotEmpty() || proposal.changes.isEmpty()) Change {
                 if (proposal.content.isNotEmpty()) After(proposal.content)
                 else Op(stringResource(if (note) R.string.proposal_empty_note else R.string.proposal_empty_page))
             }

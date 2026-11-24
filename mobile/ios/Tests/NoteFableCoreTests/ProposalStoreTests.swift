@@ -108,6 +108,18 @@ final class ProposalStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testAProposalSettledElsewhereShowsTheServersStateInsteadOfOfferingApplyAgain() async {
+        let backend = FakeBackend()
+        backend.fail = ProposalException(serverMessage: "This change was undone.", finalStatus: "undone", pageId: "p1")
+        let store = ProposalStore(backend: backend)
+        await store.apply(edit)?.value
+        XCTAssertEqual(store.stateOf(edit), ProposalState(status: .undone, pageId: "p1"))
+        backend.fail = ProposalException(serverMessage: "This proposal was already applied.", finalStatus: "applied", pageId: "new-page")
+        await store.discard(create)?.value
+        XCTAssertEqual(store.stateOf(create), ProposalState(status: .applied, pageId: "new-page"))
+    }
+
+    @MainActor
     func testTheStatusSavedOnTheServerWinsOverLocalState() async {
         let backend = FakeBackend()
         backend.fail = ProposalException(serverMessage: "x")

@@ -7,6 +7,8 @@ vi.mock("@/lib/prisma", () => ({
   prisma: { notePage: { findFirst: mocks.findFirst }, noteCanvas: { findFirst: mocks.canvas }, noteProposal: { create: mocks.createProposal } },
 }));
 vi.mock("@/lib/note-embeddings", () => ({ AI_SEMANTIC_THRESHOLD: 0.32, scheduleNoteEmbeddingBackfill: vi.fn(), scheduleNoteEmbeddingSync: vi.fn(), semanticSearchNotes: vi.fn() }));
+// 提案の縮小画像はファイル置き場に置く（ここでは置いたことだけを記録する）。
+vi.mock("@/lib/stored-files", async (load) => ({ ...await load<object>(), storeFile: vi.fn(async () => {}), discardStoredFiles: vi.fn(async () => {}) }));
 vi.mock("@/lib/page-ai/proposals", async (load) => ({ ...await load<object>(), applyProposal: mocks.apply, proposalView: mocks.view }));
 vi.mock("@/lib/page-ai/registry", async () => {
   const { noteAdapter } = await import("./note-adapter");
