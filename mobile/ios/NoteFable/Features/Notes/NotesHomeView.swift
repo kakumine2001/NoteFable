@@ -389,7 +389,7 @@ private struct NotesHomeKindBadge: View {
         Text(L(pageKindLabel(kind)))
             .font(.nf(11, weight: 550))
             .nfLineHeight(14, fontSize: 11)
-            .foregroundStyle(pageKindColor(kind))
+            .foregroundStyle(pageKindTextColor(kind))
             .lineLimit(1)
             .padding(.horizontal, 7)
             .padding(.vertical, 2)

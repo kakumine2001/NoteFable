@@ -180,12 +180,29 @@ struct NoteEditorScreen: View {
             }
             NFIconButton(Lucide.history, label: L("version_history")) { app.editorBridge?.openHistory() }
                 .padding(.leading, 8)
-            Text(noteSaveStateText(state.saveState))
-                .font(.nf(14))
-                .foregroundStyle(noteSaveStateIsWarning(state.saveState) ? Color(argb: 0xFFB45309) : Sm.muted)
-                .lineLimit(1)
+            let statusText = noteSaveStateText(state.saveState)
+            if !statusText.isEmpty {
+                let isWarning = noteSaveStateIsWarning(state.saveState)
+                let dotColor: Color = isWarning
+                    ? Color(argb: 0xFFD97706)
+                    : (state.saveState == "saving" || state.saveState == "unsaved") ? Sm.blue : Color(argb: 0xFF10B981)
+                let pillBg = isWarning ? Color(light: 0x1FD97706, dark: 0x29F59E0B) : Sm.hover
+                HStack(spacing: 5.5) {
+                    Circle()
+                        .fill(dotColor)
+                        .frame(width: 6, height: 6)
+                        .accessibilityHidden(true)
+                    Text(statusText)
+                        .font(.nf(12, weight: 520))
+                        .foregroundStyle(isWarning ? Sm.kindSlidesText : Sm.muted)
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 8)
+                .frame(height: 24)
+                .background(pillBg, in: Capsule())
                 .layoutPriority(1)
                 .padding(.leading, 8)
+            }
             if let page {
                 NotePageMenuButton(pageId: page.id, actions: actions)
                     .padding(.leading, 8)

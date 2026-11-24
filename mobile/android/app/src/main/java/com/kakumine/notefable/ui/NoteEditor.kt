@@ -1,6 +1,7 @@
 package com.kakumine.notefable.ui
 
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -885,7 +886,24 @@ fun NoteEditorScreen(
                 "conflict" -> stringResource(R.string.save_conflict)
                 else -> ""
             }
-            Text(status, color = if (saveState == "error" || saveState == "conflict") Color(0xFFB45309) else Sm.Muted, fontSize = 14.sp, maxLines = 1)
+            if (status.isNotEmpty()) {
+                val isError = saveState == "error" || saveState == "conflict"
+                val dotColor = when {
+                    isError -> Color(0xFFD97706)
+                    saveState == "saving" || saveState == "unsaved" -> Sm.Blue
+                    else -> Color(0xFF10B981)
+                }
+                val pillBg = if (isError) Sm.pick(Color(0x1FD97706), Color(0x29F59E0B)) else Sm.Hover
+                val pillText = if (isError) Sm.KindSlidesText else Sm.Muted
+                Row(
+                    Modifier.height(24.dp).clip(CircleShape).background(pillBg).padding(horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.size(6.dp).clip(CircleShape).background(dotColor))
+                    Spacer(Modifier.width(5.5.dp))
+                    Text(status, color = pillText, fontSize = 12.sp, fontWeight = androidx.compose.ui.text.font.FontWeight(520), maxLines = 1)
+                }
+            }
             if (page != null && menu != null) {
                 Spacer(Modifier.width(8.dp))
                 // 幻灯片的"…"菜单多出放映和导出（交给网页做，文件再交回 App 保存）。

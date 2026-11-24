@@ -120,6 +120,12 @@ internal fun pageKindColor(kind: PageKind): Color = when (kind) {
     PageKind.Whiteboard -> Sm.KindWhiteboard
 }
 
+internal fun pageKindTextColor(kind: PageKind): Color = when (kind) {
+    PageKind.Note -> Sm.KindNote
+    PageKind.Slides -> Sm.KindSlidesText
+    PageKind.Whiteboard -> Sm.KindWhiteboard
+}
+
 internal fun pageKindSoft(kind: PageKind): Color = when (kind) {
     PageKind.Note -> Sm.KindNoteSoft
     PageKind.Slides -> Sm.KindSlidesSoft
@@ -1000,7 +1006,7 @@ private fun FilterPill(text: String, icon: List<String>?, iconTint: Color, selec
     Row(
         Modifier.height(32.dp).clip(shape)
             .then(if (selected) Modifier.background(Sm.Surface).border(1.dp, Sm.Border, shape) else Modifier)
-            .clickable(role = Role.Tab, onClick = onClick)
+            .clickable(role = Role.Button, onClick = onClick)
             .semantics { this.selected = selected }
             .padding(horizontal = 10.4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -1039,7 +1045,7 @@ private fun HomeKindBadge(kind: PageKind) {
         Modifier.clip(CircleShape).background(pageKindSoft(kind)).padding(horizontal = 7.dp, vertical = 2.dp),
         Alignment.Center,
     ) {
-        Text(stringResource(pageKindLabel(kind)), color = pageKindColor(kind), fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight(550), maxLines = 1)
+        Text(stringResource(pageKindLabel(kind)), color = pageKindTextColor(kind), fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight(550), maxLines = 1)
     }
 }
 

@@ -56,8 +56,9 @@ data class SmPalette(
     val kindNote: Color,       // --kind-note
     val kindNoteSoft: Color,   // --kind-note-soft
     val kindNoteBorder: Color, // --kind-note-border
-    val kindSlides: Color,     // --kind-slides
-    val kindSlidesSoft: Color, // --kind-slides-soft
+    val kindSlides: Color,       // --kind-slides
+    val kindSlidesText: Color,   // --kind-slides-text（浅色下保证 >= 4.5:1 对比度）
+    val kindSlidesSoft: Color,   // --kind-slides-soft
     val kindSlidesBorder: Color, // --kind-slides-border
     val kindWhiteboard: Color,       // --kind-whiteboard
     val kindWhiteboardSoft: Color,   // --kind-whiteboard-soft
@@ -99,6 +100,7 @@ val LightSmPalette = SmPalette(
     kindNoteSoft = Color(0x172563EB),
     kindNoteBorder = Color(0x332563EB),
     kindSlides = Color(0xFFD97706),
+    kindSlidesText = Color(0xFFA14908),
     kindSlidesSoft = Color(0x1AD97706),
     kindSlidesBorder = Color(0x38D97706),
     kindWhiteboard = Color(0xFF7C3AED),
@@ -141,6 +143,7 @@ val DarkSmPalette = SmPalette(
     kindNoteSoft = Color(0x2460A5FA),
     kindNoteBorder = Color(0x4760A5FA),
     kindSlides = Color(0xFFFBBF24),
+    kindSlidesText = Color(0xFFFBBF24),
     kindSlidesSoft = Color(0x24FBBF24),
     kindSlidesBorder = Color(0x47FBBF24),
     kindWhiteboard = Color(0xFFA78BFA),
@@ -189,6 +192,7 @@ object Sm {
     val KindNoteSoft: Color get() = palette.kindNoteSoft
     val KindNoteBorder: Color get() = palette.kindNoteBorder
     val KindSlides: Color get() = palette.kindSlides
+    val KindSlidesText: Color get() = palette.kindSlidesText
     val KindSlidesSoft: Color get() = palette.kindSlidesSoft
     val KindSlidesBorder: Color get() = palette.kindSlidesBorder
     val KindWhiteboard: Color get() = palette.kindWhiteboard

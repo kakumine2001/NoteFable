@@ -1,5 +1,5 @@
-import { ChevronRight, Clock3, Folder, FolderInput, FolderPlus, LayoutGrid, Plus, Star, Upload } from "lucide-react";
-import { useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Clock3, Folder, FolderInput, FolderPlus, LayoutGrid, Plus, Star, Upload } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ReorderRowButton } from "@/components/reorder-row-button";
 import type { ReorderRequest } from "@/lib/list-order";
 import { GroupNameDialog, MoveNoteDialog } from "@/components/note-group-dialogs";
@@ -37,12 +37,38 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onPrefetch,
 }) {
   const { t, tag } = useI18n();
   const importInputRef = useRef<HTMLInputElement>(null);
+  const recentListRef = useRef<HTMLUListElement>(null);
+  const [recentScroll, setRecentScroll] = useState({ prev: false, next: false });
   const [moving, setMoving] = useState<NotePageSummary | null>(null);
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [kindFilter, setKindFilter] = useState<PageKind | null>(null);
   // ホームを開いた時刻。あいさつと相対時刻の基準にする。
   const [openedAt] = useState(() => Date.now());
   const recent = recentPages(pages);
+  const updateRecentScroll = useCallback(() => {
+    const el = recentListRef.current;
+    if (!el) { setRecentScroll({ prev: false, next: false }); return; }
+    const max = Math.max(0, el.scrollWidth - el.clientWidth);
+    const pos = Math.abs(el.scrollLeft);
+    const prev = pos > 2;
+    const next = max - pos > 2;
+    setRecentScroll((cur) => (cur.prev === prev && cur.next === next ? cur : { prev, next }));
+  }, []);
+  useEffect(() => {
+    const el = recentListRef.current;
+    if (!el) return;
+    const raf = requestAnimationFrame(updateRecentScroll);
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateRecentScroll) : null;
+    observer?.observe(el);
+    return () => { cancelAnimationFrame(raf); observer?.disconnect(); };
+  }, [recent.length, updateRecentScroll]);
+  function scrollRecent(direction: -1 | 1) {
+    const el = recentListRef.current;
+    if (!el) return;
+    const rtl = getComputedStyle(el).direction === "rtl";
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    el.scrollBy({ left: (rtl ? -1 : 1) * direction * 420, behavior: reduced ? "auto" : "smooth" });
+  }
   const relative = new Intl.RelativeTimeFormat(tag, { numeric: "auto" });
   // サブページの木。最上位のページをプロジェクトごとと種類ごとの分区に並べ、子は開いた親の下に字下げして出す（開閉はサイドバーと共有）。
   const kinds = creatablePageKinds();
@@ -164,8 +190,20 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onPrefetch,
       <div className="notes-home-hero">
         {recent.length > 0 && (
           <section aria-labelledby="notes-home-recent">
-            <h2 id="notes-home-recent" className="notes-home-section"><Clock3 size={14} aria-hidden="true" /><span>{t("Recently edited")}</span></h2>
-            <ul className="notes-recent-list">
+            <div className="ws-recent-head">
+              <h2 id="notes-home-recent" className="notes-home-section"><Clock3 size={14} aria-hidden="true" /><span>{t("Recently edited")}</span></h2>
+              {(recentScroll.prev || recentScroll.next) && (
+                <div className="ws-recent-nav">
+                  <button type="button" className="ws-recent-nav-btn" disabled={!recentScroll.prev} aria-label={t("Previous")} onClick={() => scrollRecent(-1)}>
+                    <ChevronLeft size={14} className="rtl-mirror" aria-hidden="true" />
+                  </button>
+                  <button type="button" className="ws-recent-nav-btn" disabled={!recentScroll.next} aria-label={t("Next")} onClick={() => scrollRecent(1)}>
+                    <ChevronRight size={14} className="rtl-mirror" aria-hidden="true" />
+                  </button>
+                </div>
+              )}
+            </div>
+            <ul ref={recentListRef} className="notes-recent-list" onScroll={updateRecentScroll}>
               {recent.map((page) => {
                 const kind = pageKindOf(page);
                 return <li key={page.id}>
@@ -198,14 +236,14 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onPrefetch,
           <span>{multiKind ? t("All pages") : t("All notes")}</span>
         </h2>
         {multiKind && (
-          <div className="ws-filter-bar" role="tablist" aria-label={t("Page type")}>
-            <button type="button" role="tab" aria-selected={activeFilter === null}
+          <div className="ws-filter-bar" role="group" aria-label={t("Page type")}>
+            <button type="button" aria-pressed={activeFilter === null}
               className={`ws-filter-pill${activeFilter === null ? " is-active" : ""}`}
               onClick={() => setKindFilter(null)}>
               {t("All")}
             </button>
             {kinds.map((kind) => (
-              <button key={kind} type="button" role="tab" aria-selected={activeFilter === kind}
+              <button key={kind} type="button" aria-pressed={activeFilter === kind}
                 className={`ws-filter-pill is-${kind}${activeFilter === kind ? " is-active" : ""}`}
                 onClick={() => setKindFilter(kind)}>
                 <PageKindIcon kind={kind} size={13} aria-hidden="true" />

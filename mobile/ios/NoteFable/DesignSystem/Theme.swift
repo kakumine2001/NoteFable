@@ -35,6 +35,7 @@ enum Sm {
     static let kindNoteSoft = Color(light: 0x172563EB, dark: 0x2460A5FA)
     static let kindNoteBorder = Color(light: 0x332563EB, dark: 0x4760A5FA)
     static let kindSlides = Color(light: 0xFFD97706, dark: 0xFFFBBF24)
+    static let kindSlidesText = Color(light: 0xFFA14908, dark: 0xFFFBBF24)
     static let kindSlidesSoft = Color(light: 0x1AD97706, dark: 0x24FBBF24)
     static let kindSlidesBorder = Color(light: 0x38D97706, dark: 0x47FBBF24)
     static let kindWhiteboard = Color(light: 0xFF7C3AED, dark: 0xFFA78BFA)
@@ -72,6 +73,14 @@ func pageKindColor(_ kind: PageKind) -> Color {
     switch kind {
     case .note: Sm.kindNote
     case .slides: Sm.kindSlides
+    case .whiteboard: Sm.kindWhiteboard
+    }
+}
+
+func pageKindTextColor(_ kind: PageKind) -> Color {
+    switch kind {
+    case .note: Sm.kindNote
+    case .slides: Sm.kindSlidesText
     case .whiteboard: Sm.kindWhiteboard
     }
 }
