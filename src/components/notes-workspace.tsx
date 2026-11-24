@@ -176,7 +176,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
     : active && activeId && !listMode && isCanvasKind(activeKind) ? (CanvasEditor ? <div className="canvas-editor-shell">
       <div className="canvas-editor-warnings"><NoteSaveWarnings notes={notes} /></div>
       <CanvasEditor key={`${activeId}:${notes.editorEpoch}`} pageId={activeId} kind={activeKind} title={active.content.title} icon={active.content.icon}
-        data={canvasData!} version={active.version} editable={editable} embedded={embedded} split={split} saveStatus={active.status}
+        data={canvasData!} version={active.version} generation={canvasGeneration} editable={editable} embedded={embedded} split={split} saveStatus={active.status}
         // 同じ内容の通知（作成・削除の途中で editable が替わったときなど）では、要らない保存を走らせない。
         // 中身をサーバーの版で置き換えた後（最新の版を読む・版の復元）は、置き換える前のエディターが閉じる時に渡す古い変更を捨てる。
         onChange={(data) => { if (active.generation === canvasGeneration && data !== active.content.data) active.edit({ ...active.content, data }); }}

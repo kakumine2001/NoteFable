@@ -322,7 +322,8 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     setError("");
     try {
       // 競合の副本は開いているページの今の中身を写す。ホワイトボードなどがまだ渡していない変更も先に渡してもらう。
-      if (copy) await flushCanvasEditors();
+      // 待っても終わらない画像のアップロードがあれば作らない（副本に画像が入らない）。
+      if (copy && !(await flushCanvasEditors())) throw new Error(msg("Wait for images to finish uploading, then try again."));
       const current = activeId ? queues.current.get(activeId) : undefined;
       const content: NoteContent = copy && current ? { ...current.content, title: `${current.content.title.slice(0, 185)} (copy)` } : { title: "Untitled", icon: null, cover: null, coverPosition: null, blocks: [] };
       // 競合の副本は元のページと同じ親の下に作る（サブページなら同じ親、グループも親に従う）。

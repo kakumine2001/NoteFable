@@ -23,4 +23,12 @@ describe("fitNoteFileName", () => {
     expect(fitted).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
     expect(parseNoteFileUrl(noteFileUrl(path, fitted))).not.toBeNull();
   });
+
+  it("never leaves half an emoji behind (extension or name cut), so the URL can always be built", () => {
+    for (const name of [`x.${"😀".repeat(8)}`, `${"a".repeat(119)}😀`, `a${"😀".repeat(60)}`, "bad\uD83D.png"]) {
+      const fitted = fitNoteFileName(path, name, "file.png");
+      expect(() => noteFileUrl(path, fitted)).not.toThrow();
+      expect(fitted).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/);
+    }
+  });
 });
