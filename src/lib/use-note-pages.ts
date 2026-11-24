@@ -191,9 +191,6 @@ export function useNotePages(
   }, [cancelPrefetch]);
 
   // local: 編集中の内容（queue.page は開いた時点の古い行）から作った 1 件。お気に入り・表示設定は一覧の値を残す。
-  // それ以外（サーバーから読んだ・保存した行）は、お気に入り・表示設定をサーバーの値にそろえる（別タブ・アプリでの変更を拾う）。
-
-  // local: 編集中の内容（queue.page は開いた時点の古い行）から作った 1 件。お気に入り・表示設定は一覧の値を残す。
   // since: 保存を始めた時点の番号。その後にこの画面で設定を変えていたら一覧の値を残し、変えていなければサーバーの値（別のタブ・アプリでの変更）を使う。
   const upsertSummary = useCallback((page: NotePageSummary, { local = false, since }: { local?: boolean; since?: number } = {}) => {
     // 保存のたびに行が動かないよう、作成順を保つ。
