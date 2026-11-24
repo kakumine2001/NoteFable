@@ -254,6 +254,8 @@ export const trServer: Record<string, string> = {
   "Only an applied change can be undone.": "Yalnızca uygulanmış bir değişiklik geri alınabilir.",
   "This change can't be undone here. Restore an earlier version from the page history.": "Bu değişiklik burada geri alınamaz. Sayfa geçmişinden önceki bir sürümü geri yükleyin.",
   "This page changed after the AI edit. Restore an earlier version from the page history.": "Bu sayfa yapay zekâ düzenlemesinden sonra değişti. Sayfa geçmişinden önceki bir sürümü geri yükleyin.",
+  "This page changed after the AI created it. Move it to Trash from its page menu instead.": "Bu sayfa yapay zekâ oluşturduktan sonra değişti. Bunun yerine sayfa menüsünden Çöp Kutusu’na taşıyın.",
+  "The page was locked, so the change was not applied automatically.": "Sayfa kilitliydi, bu yüzden değişiklik otomatik olarak uygulanmadı.",
   "Invalid page list": "Geçersiz sayfa listesi",
   "Listed pages": "Sayfalar listelendi",
   "Applied edits to “{title}”": "“{title}” düzenlemeleri uygulandı",

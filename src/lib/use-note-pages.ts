@@ -10,7 +10,7 @@ import { descendantIdsOf } from "@/lib/note-tree";
 import { isImportableMarkdownFile, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_FILES, MAX_IMPORT_TOTAL_BYTES } from "@/lib/note-io";
 import { isCanvasKind, pageKindFeatures, pageKindOf, type PageKind } from "@/lib/page-kinds";
 import { CANVAS_DRAFT_PREFIX, canvasSaveBody, canvasSavedPage, newPageBody, parseCanvasDraft } from "@/lib/canvas-save";
-import { PAGES_TRASHED_EVENT } from "@/lib/proposal-sync";
+import { PAGES_TRASHED_EVENT, PAGES_WILL_TRASH_EVENT, type PagesWillTrashDetail } from "@/lib/proposal-sync";
 import { preloadPageEditor } from "@/lib/preload-editor";
 import { afterSheetHistory, isSheetCleanupPopState, restoreSheetMarker } from "@/lib/use-back-to-close";
 import type { NoteContent, NoteGroupSummary, NotePage, NotePageSettings, NotePageSummary } from "@/types/notes";
@@ -77,6 +77,9 @@ export function useNotePages(
   const invalidationSeq = useRef(new Map<string, number>());
   const prefetchTimer = useRef<{ id: string; timer: ReturnType<typeof setTimeout> } | null>(null);
   const createdWhileLoading = useRef<NotePageSummary[]>([]);
+  // いまの一覧（イベントの受け手から、サブページを探すのに使う）。
+  const pagesRef = useRef<NotePageSummary[]>([]);
+  useEffect(() => { pagesRef.current = pages; }, [pages]);
   const loaded = useRef(false);
   const started = useRef(false);
   const navigation = useRef(0);
@@ -254,12 +257,14 @@ export function useNotePages(
         // queue.page.data は最後に保存できた本体（読み込み・保存・最新版の読み込みのたびに替わる）。
         const saved = queue.page.data;
         const data = await pageRequest(`/api/pages/${page.id}`, "PATCH", canvasSaveBody(content, version, saved));
-        upsertSummary(data.page, { since: started });
+        // 送っている間にゴミ箱へ移った（キューを捨てた）ページを、一覧に戻さない。
+        if (queues.current.get(page.id) === queue) upsertSummary(data.page, { since: started });
         return canvasSavedPage(queue.page, data, content, saved);
       }
       const data = await pageRequest(`/api/pages/${page.id}`, "PATCH", { ...content, version });
       // 保存の間にこの画面でロックなどを変えていたら、応答の（変更前かもしれない）値で戻さない。変えていなければ別のタブ・アプリでの変更を拾う。
-      upsertSummary(data.page, { since: started });
+      // 送っている間にゴミ箱へ移った（キューを捨てた）ページは、一覧に戻さない。
+      if (queues.current.get(page.id) === queue) upsertSummary(data.page, { since: started });
       return data.page;
     }, () => {
       upsertSummary({ ...queue.page, title: queue.content.title.trim() || "Untitled", icon: queue.content.icon }, { local: true });
@@ -539,6 +544,27 @@ export function useNotePages(
         ...entry, favoritedAt: page.favoritedAt ?? null, fullWidth: page.fullWidth, smallText: page.smallText, font: page.font, locked: page.locked,
       } : entry));
     }
+    // AI の提案で作ったページを「元に戻す」前に、そのページ（とサブページ）の入力中の内容を保存する（「ゴミ箱へ移す」と同じ）。
+    // 保存できなければ false を返し、元に戻すのを止めてもらう（保存できない下書きを捨てない）。
+    function onPagesWillTrash(event: Event) {
+      const detail = (event as CustomEvent<PagesWillTrashDetail | undefined>).detail;
+      if (!detail || !Array.isArray(detail.ids)) return;
+      const ids = new Set<string>();
+      for (const id of detail.ids) {
+        if (typeof id !== "string") continue;
+        ids.add(id);
+        for (const childId of descendantIdsOf(pagesRef.current, id)) ids.add(childId);
+      }
+      // 開いているページ（ホワイトボードなど）が対象なら、エディターがまだ保存キューへ渡していない変更（アップロード中の画像も）を
+      // 先に渡してもらう（「ゴミ箱へ移す」と同じ）。渡し切れなければ元に戻すのを止める。
+      const openPage = displayedId.current !== null && ids.has(displayedId.current);
+      const pending = [...ids].flatMap((id) => { const queue = queues.current.get(id); return queue ? [queue] : []; });
+      if (!openPage && !pending.length) return;
+      detail.waits.push((async () => {
+        if (openPage && !(await flushCanvasEditors())) return false;
+        return (await Promise.all(pending.map((queue) => queue.flush()))).every(Boolean);
+      })());
+    }
     // AI の提案で作ったページを「元に戻す」でゴミ箱へ移した（サブページも一緒）。一覧と保存キューから外し、開いていたら閉じる。
     function onPagesTrashed(event: Event) {
       const ids = (event as CustomEvent<{ ids?: unknown } | undefined>).detail?.ids;
@@ -554,14 +580,20 @@ export function useNotePages(
           localStorage.removeItem(CANVAS_DRAFT_PREFIX + id);
         } catch { /* 古い下書きを、復元後の本文に重ねない。 */ }
       }
-      // 開こうとしている途中なら、届いた結果でゴミ箱のページを開き直さない。
+      // 一覧を読む前に作られたページとして覚えていたものからも外す（読んだときに一覧へ戻さない）。
+      createdWhileLoading.current = createdWhileLoading.current.filter((page) => !removed.has(page.id));
+      // 開こうとしている途中なら、届いた結果でゴミ箱のページを開き直さない（読み込み中の表示も終える）。
       if (pendingId.current && removed.has(pendingId.current)) cancelPending();
       runTransition(() => setPages((current) => current.filter((page) => !removed.has(page.id))), "list");
       if (displayedId.current && removed.has(displayedId.current)) {
         displayedId.current = null;
         setActiveId(null);
         setActive(undefined);
-        const url = new URL(window.location.href);
+      }
+      // URL がゴミ箱へ移ったページを指していたら外す（開いている途中のページも）。
+      const url = new URL(window.location.href);
+      const requested = url.searchParams.get("page");
+      if (requested && removed.has(requested)) {
         url.searchParams.delete("page");
         window.history.replaceState(null, "", url);
       }
@@ -570,11 +602,13 @@ export function useNotePages(
     window.addEventListener("notefable:page-updated", onPageUpdated);
     window.addEventListener("notefable:page-created", onPageCreated);
     window.addEventListener(PAGES_TRASHED_EVENT, onPagesTrashed);
+    window.addEventListener(PAGES_WILL_TRASH_EVENT, onPagesWillTrash);
     return () => {
       window.removeEventListener("notefable:page-meta", onPageMeta);
       window.removeEventListener("notefable:page-updated", onPageUpdated);
       window.removeEventListener("notefable:page-created", onPageCreated);
       window.removeEventListener(PAGES_TRASHED_EVENT, onPagesTrashed);
+      window.removeEventListener(PAGES_WILL_TRASH_EVENT, onPagesWillTrash);
     };
   }, [upsertSummary, markMeta, invalidatePageCache, cancelPending]);
 
@@ -621,6 +655,9 @@ export function useNotePages(
     setBusy(true);
     setError("");
     try {
+      // 競合の副本は開いているページの今の中身を写す。ホワイトボードなどがまだ渡していない変更も先に渡してもらう。
+      // 待っても終わらない画像のアップロードがあれば作らない（副本に画像が入らない）。
+      if (copy && !(await flushCanvasEditors())) throw new Error(msg("Wait for images to finish uploading, then try again."));
       const current = activeId ? queues.current.get(activeId) : undefined;
       const content: NoteContent = copy && current ? { ...current.content, title: `${current.content.title.slice(0, 185)} (copy)` } : { title: "Untitled", icon: null, cover: null, coverPosition: null, blocks: [] };
       // 競合の副本は元のページと同じ親の下に作る（サブページなら同じ親、グループも親に従う）。
@@ -675,7 +712,8 @@ export function useNotePages(
     setError("");
     try {
       // ホワイトボードなどのエディターがまだ渡していない変更も先に渡してもらう（src/lib/canvas-flush.ts）。
-      await flushCanvasEditors();
+      // 待っても終わらない画像のアップロードがあれば、ゴミ箱へ移さない（移すと画像の入っていない版が残る）。
+      if (!(await flushCanvasEditors())) throw new Error(msg("Wait for images to finish uploading, then try again."));
       const queue = queues.current.get(id);
       if (queue && !(await queue.flush())) throw new Error(msg("Resolve the unsaved draft before moving this note to Trash."));
       // サブページも一緒にゴミ箱へ入る。開いている（未保存の）サブページも先に保存する。
@@ -793,7 +831,8 @@ export function useNotePages(
     setBusy(true);
     setError("");
     try {
-      await flushCanvasEditors();
+      // 待っても終わらない画像のアップロードがあれば複製しない（複製に画像が入らない）。
+      if (!(await flushCanvasEditors())) throw new Error(msg("Wait for images to finish uploading, then try again."));
       for (const pageId of [id, ...descendantIdsOf(pages, id)]) {
         const queue = queues.current.get(pageId);
         if (queue && !(await queue.flush())) throw new Error(msg("Resolve the unsaved draft before duplicating this page."));

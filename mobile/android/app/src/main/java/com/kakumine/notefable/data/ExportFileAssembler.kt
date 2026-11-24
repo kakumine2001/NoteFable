@@ -32,10 +32,14 @@ class ExportFileAssembler(
 
     private var current: Transfer? = null
 
+    // 编辑器拆掉（[close]）之后不再开始新的文件。和 JS 线程上的 [start] 用同一把锁判断，拆掉的同时到的 fileStart 也不会留下没人关的临时文件。
+    private var closed = false
+
     /** 开始收一个文件。不收（类型不对、太大、建不了临时文件）时返回 false，这个 id 之后的块落空，[finish] 返回 null。 */
     @Synchronized
     fun start(id: String, name: String, mime: String, size: Long): Boolean {
         drop()
+        if (closed) return false
         val type = mimeType(mime) ?: return false
         if (id.isBlank() || size < 0 || size > maxBytes) return false
         val file = try {
@@ -104,6 +108,19 @@ class ExportFileAssembler(
     /** 编辑器关掉、网页没了（WebView 销毁）：没拼完的不会再来，删掉。 */
     @Synchronized
     fun discard() = drop()
+
+    /** 编辑器拆掉了：没拼完的删掉，之后来的 fileStart 也不收（直到 [reopen]）。 */
+    @Synchronized
+    fun close() {
+        closed = true
+        drop()
+    }
+
+    /** 接上了新的编辑器：重新开始收文件。 */
+    @Synchronized
+    fun reopen() {
+        closed = false
+    }
 
     private fun drop() {
         val transfer = current ?: return

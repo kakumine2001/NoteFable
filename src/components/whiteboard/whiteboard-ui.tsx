@@ -282,7 +282,12 @@ function WhiteboardTitle({ title, icon, editable, onTitleChange, onIconChange }:
       onFocus={() => { editing.current = true; }}
       onBlur={() => { editing.current = false; }}
       onChange={(event) => { setDraft(event.target.value); onTitleChange(event.target.value); }}
-      onKeyDown={(event) => { if (event.key === "Enter" || event.key === "Escape") { event.preventDefault(); event.currentTarget.blur(); } event.stopPropagation(); }} />
+      // 日本語・中国語の変換中の Enter / Esc は確定・取り消しなので、入力欄を離れない。
+      onKeyDown={(event) => {
+        event.stopPropagation();
+        if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+        if (event.key === "Enter" || event.key === "Escape") { event.preventDefault(); event.currentTarget.blur(); }
+      }} />
     {picker && <FloatingEmojiPopover position={picker} trigger={triggerRef} current={icon} allowUpload onChange={(next) => { onIconChange(next); setPicker(null); }} onClose={() => setPicker(null)} />}
   </div>;
 }

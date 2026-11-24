@@ -254,6 +254,8 @@ export const idServer: Record<string, string> = {
   "Only an applied change can be undone.": "Hanya perubahan yang sudah diterapkan yang bisa dibatalkan.",
   "This change can't be undone here. Restore an earlier version from the page history.": "Perubahan ini tidak bisa dibatalkan di sini. Pulihkan versi sebelumnya dari riwayat halaman.",
   "This page changed after the AI edit. Restore an earlier version from the page history.": "Halaman berubah setelah diedit AI. Pulihkan versi sebelumnya dari riwayat halaman.",
+  "This page changed after the AI created it. Move it to Trash from its page menu instead.": "Halaman berubah setelah dibuat AI. Pindahkan ke Sampah dari menu halaman sebagai gantinya.",
+  "The page was locked, so the change was not applied automatically.": "Halaman dikunci, jadi perubahan tidak diterapkan secara otomatis.",
   "Invalid page list": "Daftar halaman tidak valid",
   "Listed pages": "Halaman dicantumkan",
   "Applied edits to “{title}”": "Edit diterapkan ke “{title}”",

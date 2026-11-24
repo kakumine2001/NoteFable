@@ -124,7 +124,7 @@ erDiagram
     StoredFile {
         string path PK
         string userId FK "nullable, null after account deletion"
-        enum kind "NOTE_FILE, NOTE_COVER, CHAT_IMAGE, AVATAR, APP_ICON"
+        enum kind "NOTE_FILE, NOTE_COVER, CHAT_IMAGE, AVATAR, APP_ICON, PROPOSAL_IMAGE"
         int size "bytes, nullable for files found by the inventory"
         datetime releasedAt "nullable, unreferenced since"
         datetime deletingAt "nullable"
@@ -390,7 +390,7 @@ User 1 -> N StoredFile（SetNull）
 | --- | --- |
 | `path` | 主键，存储路径 |
 | `userId` | 所属用户，可空；外键 `ON DELETE SET NULL`：删除账号后行留下（等文件删掉再删行） |
-| `kind` | `StoredFileKind`：`NOTE_FILE`（`note-files/<用户>/`，笔记的图片块、文件块）、`NOTE_COVER`（`page-covers/<用户>/`，封面和页面图片图标）、`CHAT_IMAGE`（`images/YYYY/MM/DD/`，聊天附件图片和生成的图片）、`AVATAR`（`avatars/<用户>/`）、`APP_ICON`（`app-icons/<用户>/`） |
+| `kind` | `StoredFileKind`：`NOTE_FILE`（`note-files/<用户>/`，笔记的图片块、文件块）、`NOTE_COVER`（`page-covers/<用户>/`，封面和页面图片图标）、`CHAT_IMAGE`（`images/YYYY/MM/DD/`，聊天附件图片和生成的图片）、`AVATAR`（`avatars/<用户>/`）、`APP_ICON`（`app-icons/<用户>/`）、`PROPOSAL_IMAGE`（`proposal-images/<用户>/`，AI 提案卡片的缩略图；写入时不检查容量上限，和生成的图片一样） |
 | `size` | 字节数。可空：迁移时搬来的封面和后来盘点到的旧文件在盘点补上之前为 null，用量按 0 算 |
 | `releasedAt` | 确认不再被引用（或刚上传、还没被引用）的时刻；null 是使用中 |
 | `deletingAt` | 开始删除的时刻：之后不能再被引用，文件删掉后删行 |
@@ -421,6 +421,7 @@ User 1 -> N StoredFile（SetNull）
 | `NOTE_COVER` | `NotePage.cover` / `NotePage.icon`（含 Trash）、`NoteRevision.icon` |
 | `CHAT_IMAGE` | 任意 `Attachment.imageStoragePath`（含切换版本可回去的非 active 消息；分支、编辑的复制行共用路径）；`Attachment` 为此加了 `(imageStoragePath)` 索引 |
 | `AVATAR` / `APP_ICON` | 所属用户的 `User.avatarImage` / `User.appIconImage` |
+| `PROPOSAL_IMAGE` | 所属用户的任何状态的 `NoteProposal.payload` 里写着这个路径（提案留着，卡片就要显示；提案随会话、账号一起删除后不再被引用） |
 
 新增一种存文件的内容时：在 `StoredFileKind` 和 `STORED_FILE_PREFIXES` 加一项、在 `REFERENCE_CHECKS` 写它的引用来源，写入一律用 `storeFile`，保存时用 `claimStoredFiles` 设为使用中，用量和清理随之生效。
 
@@ -451,16 +452,16 @@ Notes 的单层分组（文件夹）。`userId` 关联 `User`，删除用户时�
 | reason | 何时写入 |
 | --- | --- |
 | `AUTO` | 手动编辑的自动保存（`PATCH /api/pages/:id`）。**每个笔记最多每 10 分钟一份**（`AUTO_REVISION_INTERVAL_MS`），而不是每次保存一份；保存前由一条 `INSERT ... SELECT ... FOR UPDATE` 从已保存的行直接复制，正文不进应用内存。已保存的版本与请求的 `version` 不一致（冲突、响应丢失后的重发）、笔记在 Trash、正文为空数组时不写 |
-| `AI_EDIT` | 适用 AI 编辑提案（`POST /api/proposals/:id/apply`）、覆盖笔记之前，写在适用提案的同一个事务里；写入失败整体回滚时这份历史一起消失，重试不会重复 |
-| `RESTORE` | 从历史恢复（`POST /api/pages/:id/revisions/:revisionId/restore`）、覆盖笔记之前，写“恢复前”的当前状态，所以恢复本身也可以再恢复回去；与恢复写入在同一事务，版本被抢先修改（409）时一起回滚 |
+| `AI_EDIT` | 适用 AI 编辑提案（`POST /api/proposals/:id/apply`，或 AI 面板开着“自动应用”时在 `/api/chat` 里直接适用）、覆盖笔记之前，写在适用提案的同一个事务里；写入失败整体回滚时这份历史一起消失，重试不会重复 |
+| `RESTORE` | 从历史恢复（`POST /api/pages/:id/revisions/:revisionId/restore`）或撤销 AI 的编辑提案（`POST /api/proposals/:id/undo`）、覆盖页面之前，写“恢复前”的当前状态，所以恢复本身也可以再恢复回去；与恢复写入在同一事务，版本被抢先修改（409）时一起回滚 |
 
 **保留：** 白板 / 幻灯片每页最多 10 份（自动保存 5 份、`AI_EDIT` / `RESTORE` 5 份，自动快照最短间隔 30 分钟，`revisionLimits`），因为一份最多 2 MB。笔记每篇最多 50 份（`MAX_REVISIONS_PER_NOTE`），按类别分开计数：`AUTO` 最新 30 份（`MAX_AUTO_REVISIONS_PER_NOTE`，超过 90 天的也删除），`AI_EDIT` / `RESTORE` 合计最新 20 份（`MAX_MARKED_REVISIONS_PER_NOTE`），写入后按 `createdAt` 从旧到新裁剪，所以连续的自动保存不会把“AI 编辑前”的快照挤出去。自动快照在 `PATCH /api/pages/:id` 的事务里用 SAVEPOINT 包裹，失败时回滚到保存点并只记录日志，保存本身照常成功。历史随笔记走：笔记放进 Trash 时历史保留，复原后继续可用；笔记被永久删除时历史级联删除。历史读取接口只给“活着的”笔记（Trash 里的笔记返回 404）。快照 SQL 使用 `gen_random_uuid()`（PostgreSQL 13+，Neon 与本地 18 均满足），并明确限定 schema（`notefable`）。
 
 ### NoteProposal
 
-AI 提出的页面修改或新建提案（AI 操控底座，[chat-flow.md](chat-flow.md#编辑案与确认)），三种页面共用。`kind` 为 `EDIT`（修改已有页面）或 `CREATE`（新建），`pageKind` 是目标 / 要建的页面类型（默认 `note`，决定由哪个适配器校验和写入），`status` 为 `PENDING`（待确认）、`APPLIED`、`DISCARDED`、`UNDONE`。`payload` 保存画面要显示的内容（`changes` 等）和适用时要写入的内容 `proposed`（笔记是标题与块，白板 / 幻灯片是本体 `data`；编辑还包含目标页面 ID 和提案时的基准版本，新建可带父页面）以及适配器给的缩略图 `images`（base64，经 `GET /api/proposals/:id/image` 只返回给本人）；返回给浏览器时不带 `proposed` 的内容和缩略图本体。`messageId` 在回答保存后填入，用来在历史里把提案挂回那条回答（为 null 的不显示）。适用时记下 `appliedPageId`（新建是建出的页面，编辑是目标页面；重复适用时据此返回同一页面，举报 AI 写过的页面时据此列出提案，索引 `(userId, appliedPageId)`）、`appliedVersion`（适用后的页面版本）、`revisionId`（同一事务里写的 `AI_EDIT` 历史）和 `autoApplied`（AI 面板的“自动应用”，用户没有逐条确认）。`userId` 和 `sessionId` 删除时级联删除。
+AI 提出的页面修改或新建提案（AI 操控底座，[chat-flow.md](chat-flow.md#编辑案与确认)），三种页面共用。`kind` 为 `EDIT`（修改已有页面）或 `CREATE`（新建），`pageKind` 是目标 / 要建的页面类型（默认 `note`，决定由哪个适配器校验和写入），`status` 为 `PENDING`（待确认）、`APPLIED`、`DISCARDED`、`UNDONE`。`payload` 保存画面要显示的内容（`changes` 等）和适用时要写入的内容 `proposed`（笔记是标题与块，白板 / 幻灯片是本体 `data`；编辑还包含目标页面 ID 和提案时的基准版本，新建可带父页面）以及适配器给的缩略图的位置 `images`（`{ change, side, mimeType, path }`，本体在文件仓库的 `proposal-images/<用户>/`，经 `GET /api/proposals/:id/image` 只给本人，转到只能读那一张的短期地址）；返回给浏览器时不带 `proposed` 的内容和缩略图本体。`messageId` 在回答保存后填入，用来在历史里把提案挂回那条回答（为 null 的不显示）。适用时记下 `appliedPageId`（新建是建出的页面，编辑是目标页面；重复适用时据此返回同一页面，举报 AI 写过的页面时据此列出提案，索引 `(userId, appliedPageId)`）、`appliedVersion`（适用后的页面版本）、`revisionId`（同一事务里写的 `AI_EDIT` 历史）和 `autoApplied`（AI 面板的“自动应用”，用户没有逐条确认）。`userId` 和 `sessionId` 删除时级联删除。
 
-适用在一个事务里先把 `PENDING` 改为 `APPLIED`，再确认目标页面仍是活着的（`deletedAt` 为空）、类型与 `pageKind` 相同、版本等于提案的基准版本，把覆盖前的状态写成一份 `AI_EDIT` 的 `NoteRevision`，最后按保存的规则写页面（版本 +1，`aiUpdatedAt` 设为现在），所以并发或重发都只会生效一次；版本不一致或页面已进 Trash 时事务回滚（含刚写的历史），提案保持待确认，响应是 409（页面已变）或 404（页面不存在或在 Trash）。撤销（`APPLIED` → `UNDONE`）：编辑只在页面仍是 `appliedVersion` 时，把当前状态写成 `RESTORE` 历史，再写回 `revisionId` 那份历史的内容；新建把建出的页面及其子页面移入 Trash。迁移 `20261124000000_page_ai_harness` 追加了 `pageKind`、`autoApplied`、`appliedVersion`、`revisionId`、状态 `UNDONE` 和 `NotePage.aiUpdatedAt`，并把已适用的编辑提案的 `appliedPageId` 补成目标页面、给适用过 AI 提案的页面补上 `aiUpdatedAt`（之前适用的提案没有 `appliedVersion`，不能撤销）。索引 `(sessionId, createdAt)` 用于读取会话历史，`messageId` 索引用于按回答查找。
+适用在一个事务里先把 `PENDING` 改为 `APPLIED`，再确认目标页面仍是活着的（`deletedAt` 为空）、类型与 `pageKind` 相同、版本等于提案的基准版本，把覆盖前的状态写成一份 `AI_EDIT` 的 `NoteRevision`，最后按保存的规则写页面（版本 +1，`aiUpdatedAt` 设为现在），所以并发或重发都只会生效一次；版本不一致或页面已进 Trash 时事务回滚（含刚写的历史），提案保持待确认，响应是 409（页面已变）或 404（页面不存在或在 Trash）。撤销（`APPLIED` → `UNDONE`）：编辑只在页面仍是 `appliedVersion` 时，把当前状态写成 `RESTORE` 历史，再写回 `revisionId` 那份历史的内容；新建只在页面仍是 `appliedVersion`、下面也没有子页面时把它移入 Trash（否则 409，让用户从页面菜单移入）。已不是待确认的提案再被操作时，错误响应带它的 `status` 和 `pageId`。迁移 `20261124000000_page_ai_harness` 追加了 `pageKind`、`autoApplied`、`appliedVersion`、`revisionId`、状态 `UNDONE` 和 `NotePage.aiUpdatedAt`，并把已适用的编辑提案的 `appliedPageId` 补成目标页面、给适用过 AI 提案的页面补上 `aiUpdatedAt`（之前适用的提案没有 `appliedVersion`，不能撤销）；`20261125000000_proposal_images` 给 `StoredFileKind` 加了 `PROPOSAL_IMAGE`（缩略图从 `payload` 搬到文件仓库）。索引 `(sessionId, createdAt)` 用于读取会话历史，`messageId` 索引用于按回答查找。
 
 ### ChatProject
 
@@ -612,6 +613,7 @@ StoredFileKind
 - CHAT_IMAGE
 - AVATAR
 - APP_ICON
+- PROPOSAL_IMAGE
 ```
 
 ## 保留与级联

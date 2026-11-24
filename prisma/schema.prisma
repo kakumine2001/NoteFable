@@ -403,6 +403,8 @@ enum StoredFileKind {
   AVATAR
   // app-icons/<利用者 ID>/: 設定の「アイコン」の画像（User.appIconImage）
   APP_ICON
+  // proposal-images/<利用者 ID>/: AI の提案カードの縮小画像（改前・改後。NoteProposal.payload の images[].path）
+  PROPOSAL_IMAGE
 }
 
 // ファイル置き場のファイル 1 つ。容量の上限はこの行の size を利用者ごとに足して数え、どこからも参照されなくなった

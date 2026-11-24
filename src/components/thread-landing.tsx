@@ -158,7 +158,7 @@ function useStations(): Station[] {
     card: (
       <div className="tl-card tl-card-edit">
         <p className="tl-bubble">{t("Add a one-line summary at the top.")}</p>
-        {/* 実物の編集案カード（page-edit-proposal.tsx）と同じアイコン・文言を使う。 */}
+        {/* 実物の提案カード（page-proposal.tsx）と同じアイコン・文言を使う。 */}
         <div className="tl-proposal">
           <span className="tl-card-meta"><FilePenLine size={13} />{" "}{t("Proposed edit to “{title}”", { title: t("Why sunsets are red") })}</span>
           <div className="tl-proposal-add">

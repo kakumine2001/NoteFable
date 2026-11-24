@@ -21,6 +21,9 @@ export type CanvasEditorProps = {
   data: CanvasData;
   // 保存済みの版（保存のたびに進む）。0 は作ってから一度も保存していないページ。
   version: number;
+  // 保存キューの世代（最新の版を読む・版の復元で中身を置き換えると進む）。開き直した同じページのエディターどうしで、
+  // 置き換える前のエディターの変更を、置き換えた後のエディターへ渡さないために使う。
+  generation?: number;
   // ロック中・作成や削除の途中は false（見る・放映する・書き出すだけ）。
   editable: boolean;
   // Android / iOS アプリの WebView（/note-embed）。上部バーとメニューはアプリが描く。

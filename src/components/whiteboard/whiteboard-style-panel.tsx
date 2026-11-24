@@ -9,6 +9,7 @@ import {
 import { useState, type ReactNode } from "react";
 import { useT } from "@/components/i18n-provider";
 import { msg } from "@/lib/i18n/translate";
+import { useBackToClose } from "@/lib/use-back-to-close";
 import type { WhiteboardActions } from "@/lib/whiteboard/excalidraw-bridge";
 import type { WhiteboardUiState } from "@/components/whiteboard/whiteboard-ui";
 
@@ -64,8 +65,10 @@ const FONTS: { value: number; label: string; className: string }[] = [
   { value: 6, label: msg("Normal"), className: "is-normal" },
   { value: 8, label: msg("Code"), className: "is-code" },
 ];
-const FONT_SIZES: { value: number; label: string }[] = [
-  { value: 16, label: "S" }, { value: 20, label: "M" }, { value: 28, label: "L" }, { value: 36, label: "XL" },
+// 字号のボタンは S・M・L・XL と短く見せ、名前（読み上げ・ツールチップ）は訳す。
+const FONT_SIZES: { value: number; label: string; short: string }[] = [
+  { value: 16, label: msg("Small"), short: "S" }, { value: 20, label: msg("Medium"), short: "M" },
+  { value: 28, label: msg("Large"), short: "L" }, { value: 36, label: msg("Extra large"), short: "XL" },
 ];
 const ARROWHEADS: { value: string | null; label: string }[] = [
   { value: null, label: msg("None") }, { value: "arrow", label: msg("Arrow") }, { value: "triangle", label: msg("Triangle") },
@@ -85,6 +88,8 @@ export function WhiteboardStylePanel({ ui, drawMode, compact, theme, actions, on
 }) {
   const t = useT();
   const [expanded, setExpanded] = useState(false);
+  // スマホで広げた下のシートは、端末の「戻る」で畳む（アプリでも白板を閉じない）。
+  useBackToClose(compact && expanded, () => setExpanded(false));
   const { style } = ui;
   const types = new Set(ui.selectedCount ? ui.selectedTypes : [TOOL_ELEMENT[ui.tool] ?? ui.tool].filter(Boolean));
   if (textOnly) { types.clear(); types.add("text"); }
@@ -159,7 +164,7 @@ export function WhiteboardStylePanel({ ui, drawMode, compact, theme, actions, on
           <Choice options={FONTS.map((font) => ({ value: font.value, label: t(font.label) }))} current={style.fontFamily} onPick={(value) => run("changeFontFamily", { currentItemFontFamily: value })} />
         </Section>
         <Section label={t("Font size")}>
-          <Choice options={FONT_SIZES} current={style.fontSize} onPick={(value) => run("changeFontSize", value)} />
+          <Choice options={FONT_SIZES.map((size) => ({ value: size.value, label: t(size.label), icon: size.short }))} current={style.fontSize} onPick={(value) => run("changeFontSize", value)} />
         </Section>
         <Section label={t("Text align")}>
           <Choice options={[{ value: "left", label: t("Left"), icon: <AlignLeft size={15} /> }, { value: "center", label: t("Center"), icon: <AlignCenter size={15} /> }, { value: "right", label: t("Right"), icon: <AlignRight size={15} /> }]}
@@ -242,6 +247,8 @@ function IconAction({ label, onClick, danger = false, children }: { label: strin
 function Swatches({ picks, current, display, onPick }: { picks: string[]; current: string | null; display: (color: string) => string; onPick: (color: string) => void }) {
   const t = useT();
   const [open, setOpen] = useState(false);
+  // 開いた色の一覧も「戻る」で閉じる。
+  useBackToClose(open, () => setOpen(false));
   const [hex, setHex] = useState("");
   const normalized = current?.toLowerCase() ?? null;
   return <div className="whiteboard-swatches-wrap">

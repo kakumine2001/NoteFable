@@ -18,15 +18,14 @@ iOS 客户端是 Android 客户端（[android-native.md](android-native.md)）�
   - 单元测试：`ExportFileTests`（桥消息、拼文件、文件名、ViewModel），`PageKindTests` 的功能表和边缘手势，`NotesViewModelTests` / `NoteIconTests` 的 `reveal`，`NoteEditorTests` 的 `reveal` 脚本和开着的那一篇就地定位，`AppThemeTests` 的地址和 bootstrap。
   - **待验证（只经过编译检查）**：选了画笔后单指画、两指捏合缩放和移动，手的工具下单指移动画布；从屏幕边缘开始画时不返回列表、不拉出抽屉；导出 PNG / SVG / PDF 时“存储到文件”窗口的默认文件名和扩展名、存好 / 取消 / 失败时的提示；编辑器的工具栏在 Home 指示条和键盘上方、不被遮住；深色外观下的画布、工具栏和导出窗口。
 - 分区与新建（#168）和工作区 / 侧栏界面焕新与 Android / 网页相同（[android-native.md](android-native.md) 的对应条款）：`NotesUiState.kinds` / `sections` / `sectionKind(of:)` / `collapsedSections`（`NotesPrefs.collapsedSections`，UserDefaults 的 `notes.collapsedSections`），`NotesViewModel.createNote(parentId:kind:groupId:)` / `toggleSection`，拖动规则 `noteDropRules`（`ReorderDragController.rules`，拖动开始时取一次）和 `dropTargetAt` 的 `zoneAccepts` / `rowAccepts`；界面同步了深色黑曜石色板、页面类型语义色（蓝 / 琥珀 / 紫）、`Lucide.layoutGrid` 切换图标、280pt 抽屉与浮起圆角当前行、微沉命令搜索栏、句首大小写分区标题与色点、Studio 首页（头部工具胶囊、快速创建卡片、类型筛选栏、圆角卡片分组列表）和居中 Studio 空状态。单元测试：`WorkspaceSectionsTests`。**待验证**（只经过语法检查和 CI 编译，没在模拟器或真机上看过）：抽屉和首页的浅色 / 深色视觉效果、快速创建卡片与类型筛选栏交互、新建菜单位置、分区折叠与跨分区拖动。
-- 幻灯片和 Android 相同（[android-native.md](android-native.md) 的“幻灯片”一条，规则见 [slides.md](slides.md#原生应用android--ios)）：“…”菜单的放映和导出（`NotePageMenu` 的 `onSlides` → `NotesViewModel.sendSlidesCommand`，经 `notefableEmbed.slides(...)`），分享对话框不显示“包含子页面”（`NoteShareDialog.kind`），桥的 `canPresent()` / `canSaveFile()`。放映：`presentation` start 时 `NotesUiState.presenting`，编辑页收起顶栏、隐藏状态栏、`isIdleTimerDisabled`（常亮），`App/OrientationLock.swift`（`AppDelegate` 的 `supportedInterfaceOrientationsFor`）锁横屏；平时只允许竖屏（`Info.plist` 声明了横屏，供放映使用）。导出：分块写进临时文件（`Core/Notes/ExportFileAssembler.swift`，有单元测试），`fileEnd` 后用系统的导出面板（`UIDocumentPickerViewController(forExporting:)`，`NoteEditorWebView.saveExport`）保存，关掉后删临时文件（`ExportPickerCleanup.swift`）。单元测试：`SlidesBridgeTests`、`PageKindTests`。**横屏放映、常亮、文件导出都只经过 Linux 容器的 `swift test` 和 CI 编译，没在模拟器或真机上验证。**
+- 幻灯片和 Android 相同（[android-native.md](android-native.md) 的“幻灯片”一条，规则见 [slides.md](slides.md#原生应用android--ios)）：“…”菜单的放映和导出（`NotePageMenu` 的 `onSlides` → `NotesViewModel.sendSlidesCommand`，经 `notefableEmbed.slides(...)`），分享对话框不显示“包含子页面”（`NoteShareDialog.kind`），桥的 `canPresent()` / `canSaveFile()`。放映：`presentation` start 时 `NotesUiState.presenting`，编辑页收起顶栏、隐藏状态栏、`isIdleTimerDisabled`（常亮），`App/OrientationLock.swift`（`AppDelegate` 的 `supportedInterfaceOrientationsFor`）锁横屏；平时只允许竖屏（`Info.plist` 声明了横屏，供放映使用）。导出：和白板走同一条路（上面白板一节的“导出的文件”：`Core/Notes/ExportFile.swift` 的 `ExportFileAssembler` 拼临时文件，`NotesUiState.exportFile` 交给编辑页的 `.fileExporter`）。单元测试：`SlidesBridgeTests`、`PageKindTests`。**横屏放映、常亮、文件导出都只经过 Linux 容器的 `swift test` 和 CI 编译，没在模拟器或真机上验证。**
 - AI 的页面提案卡片（#158，网页 `page-proposal.tsx`）不分页面类型：笔记、白板、幻灯片的编辑 / 新建提案是同一张卡片，改动的文字和缩略图由服务端各类型的适配器做好（`src/lib/page-ai/types.ts`），卡片照着画。对应的代码：
   - 解析在 `Core/Chat/Activity.swift`：`pageKind`（缺了或不认识按笔记）、`autoApplied`、`undoable`、`status` 多了 `undone`；新建提案的 `parentId` / `parentTitle` / `changes`；改动的 `op` 是 `ProposalOp`（多了 add / update / move / reorder，不认识的按 update），`target`（`ProposalChangeTarget`：第几张幻灯片、白板的元素）、`beforeImage` / `afterImage`（只收本站的相对地址，别的当没有）。仍然要求 `proposed.blocks` 是数组（服务端总给空数组）。
   - 文案在 `Core/Chat/ProposalCopy.swift`：标题（编辑都是“对“…”的修改建议”，新建按类型）、读屏名（笔记 / 页面）、主按钮（应用 / 创建笔记 / 创建白板 / 创建幻灯片）、徽标（自动应用的写“已自动应用 / 已自动创建”，另有“已放弃”“已撤销”）、改动的小标题（笔记的第几块 / 开头，幻灯片第几张，白板元素的文字或个数，别的类型没有对象时只写操作）、子页面的“位于“…”中”。
-  - 撤销是 `ProposalStore.undo`（`POST /api/proposals/:id/undo`，`ProposalApi.undo` 读回 `page` 或移进回收站的 `ids`）。卡片显示的状态（`stateOf`，网页 `useProposalState`）：服务端说已放弃 / 已撤销的以服务端为准；服务端说已应用的，只用本机的撤销中、已撤销和撤销失败（还是“已应用”，带原因）；没处理的用本机的。“撤销”键在服务端说能撤销（`undoable`）或刚在这台设备上应用过时出现，撤销中转圈；失败显示服务端原句（系统文翻译）或“无法撤销这项修改。”。撤销编辑提案后和应用后一样刷新笔记列表、把恢复后的页面交给开着的编辑器（`pageUpdated`）；撤销新建提案后 `NotesViewModel.onPagesTrashed` 先从列表拿掉移进回收站的页面（含子页面）、关掉开着的那篇，再刷新（`AppEnvironment.onProposalChange`）。
+  - 撤销是 `ProposalStore.undo`（`POST /api/proposals/:id/undo`，`ProposalApi.undo` 读回 `page` 或移进回收站的 `ids`）。卡片显示的状态（`stateOf`，网页 `useProposalState`）：服务端说已放弃 / 已撤销的以服务端为准；服务端说已应用的，只用本机的撤销中、已撤销和撤销失败（还是“已应用”，带原因）；没处理的用本机的。“撤销”键在服务端说能撤销（`undoable`）或刚在这台设备上应用过时出现，撤销中转圈；失败显示服务端原句（系统文翻译）或“无法撤销这项修改。”。撤销编辑提案后和应用后一样刷新笔记列表、把恢复后的页面交给开着的编辑器（`pageUpdated`）；撤销新建提案后 `NotesViewModel.onPagesTrashed` 先从列表拿掉移进回收站的页面（含子页面）、关掉开着的那篇，再刷新（`AppEnvironment.onProposalChange`）。应用 / 放弃 / 撤销被拒、而错误响应带着提案的最终状态（`status`）时，卡片换成那个状态，不显示错误（`ProposalException.finalStatus`，和网页、Android 相同）。
   - 界面在 `Features/Chat/Answer/ProposalCard.swift`：按钮行待确认是“应用 / 放弃”，已应用是“打开笔记 / 打开页面” + “撤销”，撤销过的编辑提案还能打开，撤销过的新建提案写“这个页面已移到回收站。”。缩略图改前、改后并排（最高 176，红 / 绿边框），地址只给提案的主人，只收 `/api/proposals/<id>/image?change=<n>&side=before|after` 这一种写法（`Activity.isProposalImagePath`，Android 同），经 `RemoteImageLoader` 带 App 的 Cookie 读，读到之前按 16:9 留底色。撤销中和网页一样算已处理：徽章还是“已应用”，不显示“应用 / 放弃”，编辑提案的“打开…”还在（新建的页面要进回收站，不给）。
   - 报告 AI 内容：`Core/API/ReportApi.swift` 的 `ReportTarget`（回答 `messageId`、提案 `proposalId`、页面 `pageId`，请求体里只放一个）、`Core/Account/ReportModel.swift`、`Features/Chat/Answer/ReportDialog.swift`（`.reportDialog(_:isPresented:)`；标题和说明回答是 `report_title` / `report_help`，提案和页面是 `report_ai_content` / `report_ai_help`）。卡片标题行最右的旗子报告这个提案；页面“…”菜单在 `NotePageSummary.aiUpdatedAt` 不是 nil 时有“报告 AI 内容”（`notePageReportable`）。编辑器里网页的 AI 面板应用的修改不经原生，所以这一项要等笔记列表下次刷新（回到列表、重新打开）才出现。
   - 单元测试：`ActivityTests`（新字段、对象、缩略图地址、旧提案的默认值）、`ProposalCopyTests`、`ProposalStoreTests`（撤销、状态优先级、undo 和报告的请求体）、`AccountModelsTests`（报告提案 / 页面）、`NotesApiTests`（`aiUpdatedAt`）、`NotesViewModelTests` / `AppEnvironmentTests`（移进回收站的页面）。卡片、报告窗口和菜单项只经过语法检查和 CI 编译，没在模拟器或真机上看过。
-- 幻灯片和 Android 相同（[android-native.md](android-native.md) 的“幻灯片”一条，规则见 [slides.md](slides.md#原生应用android--ios)）：“…”菜单的放映和导出（`NotePageMenu` 的 `onSlides` → `NotesViewModel.sendSlidesCommand`，经 `notefableEmbed.slides(...)`），分享对话框不显示“包含子页面”（`NoteShareDialog.kind`），桥的 `canPresent()` / `canSaveFile()`。放映：`presentation` start 时 `NotesUiState.presenting`，编辑页收起顶栏、隐藏状态栏、`isIdleTimerDisabled`（常亮），`App/OrientationLock.swift`（`AppDelegate` 的 `supportedInterfaceOrientationsFor`）锁横屏；平时只允许竖屏（`Info.plist` 声明了横屏，供放映使用）。导出：和白板走同一条路（上面白板一节的“导出的文件”：`Core/Notes/ExportFile.swift` 的 `ExportFileAssembler` 拼临时文件，`NotesUiState.exportFile` 交给编辑页的 `.fileExporter`）。单元测试：`SlidesBridgeTests`、`PageKindTests`。**横屏放映、常亮、文件导出都只经过 Linux 容器的 `swift test` 和 CI 编译，没在模拟器或真机上验证。**
 
 **功能规则不在本文重复**：后台生成、附件、使用上限、回答导出、笔记、搜索跳转、头像等规则以 [android-native.md](android-native.md) 为准，本文只写 iOS 特有的结构和差异。改了其中一端的行为，另一端和网页要在同一个任务里一起改（见 `AGENTS.md`）。
 
@@ -36,16 +35,15 @@ iOS 客户端是 Android 客户端（[android-native.md](android-native.md)）�
 
 | 部分 | 验证方式 | 状态 |
 | --- | --- | --- |
-| `Core/`（网络、接口、解析、ViewModel） | Linux 容器里 `swift test`，以及 CI 的 macOS `swift test` | 690 多项单元测试通过（大部分移植自 Android 的单元测试） |
-| `Core/`（网络、接口、解析、ViewModel） | Linux 容器里 `swift test`，以及 CI 的 macOS `swift test` | 约 690 项单元测试通过（大部分移植自 Android 的单元测试） |
+| `Core/`（网络、接口、解析、ViewModel） | Linux 容器里 `swift test`，以及 CI 的 macOS `swift test` | 720 多项单元测试通过（大部分移植自 Android 的单元测试） |
 | `DesignSystem/`、`Features/`、`App/`（SwiftUI / UIKit） | CI 的模拟器无签名构建（`ios-pr.yml`） | 能编译；界面效果、手势、键盘、WebView 交互未经人工验证 |
+
+Google 登录：Google Cloud 里给 `com.kakumine.notefable` 登记的 iOS OAuth 客户端是 `NoteFable-iOS`，客户端 ID 写在 `Config/NoteFable.xcconfig` 的 `GOOGLE_IOS_CLIENT_ID` / `GOOGLE_IOS_REVERSED_CLIENT_ID`（不是密钥，会打进安装包；留空时登录窗口只有邮箱验证码）。服务端校验的 audience 仍是 Web 客户端 ID（`serverClientID`）。
 
 上线前还缺：
 
-- **Apple Developer 账号**及 `appstore-publish` 环境的密钥（[ios.md](ios.md) 的启用清单）。没有它就不能签名，装不到真机，TestFlight 也不会上传。
 - **真机验证**。第一次装机后要按 [android-native.md](android-native.md) 的各节逐项对照网页检查，预计会有一批界面细节要修。
 - **Sign in with Apple**。App Store 审核规则 4.8 要求提供第三方登录（Google）的 App 同时提供一个等价的隐私登录方式；现在只有 Google 和邮箱验证码。上架前要么加 Sign in with Apple（后端要支持 Apple 账号关联，属于认证改动），要么确认邮箱验证码登录满足该条。
-- **Google 登录的 iOS 客户端**。要在 Google Cloud 给 `com.kakumine.notefable` 登记 iOS OAuth 客户端，把客户端 ID 填进 `GOOGLE_IOS_CLIENT_ID` / `GOOGLE_IOS_REVERSED_CLIENT_ID`；留空时登录窗口不显示 Google，只有邮箱验证码。服务端校验的 audience 仍是 Web 客户端 ID（`serverClientID`）。
 - **购买**。iOS 没有接 App Store 内购，设置里的方案卡片只读（显示方案和用量，没有购买 / 管理按钮），已登录的免费用户撞到上限时也没有升级提示。
 - **通用链接**。`Support/NoteFable.entitlements` 声明了 `applinks:app.notefable.com`，但网站还没有提供 `/.well-known/apple-app-site-association`，所以点网页链接暂时不会打开 App。
 
@@ -153,7 +151,7 @@ mobile/ios/
 没有 Mac 时：
 
 - Core：`docker run --rm -v "<仓库>/mobile/ios:/src:ro" -v "<仓库>/mobile/android/app/src/main/assets:/android-assets:ro" -v nf-ios-build:/build swift:6.1 bash /src/scripts/core-check.sh test`（和 Android 共用的 JSON 资源挂在 `/android-assets`；不挂的话读这些资源的测试会跳过）
-- 界面层只能查语法：`swiftc -frontend -parse`（命令见 README）。**类型错误只有 CI 能发现**：改到 `mobile/ios/**` 的 PR 会在 `macos-26` 上跑 `swift test`、`xcodegen generate` 和模拟器无签名构建，失败时 “Compiler errors” 一步列出全部错误。macOS 机器按高倍率计分钟数，尽量攒够改动再推。
+- 界面层只能查语法：`swiftc -frontend -parse`（命令见 README）。**类型错误只有 CI 能发现**：改到 `mobile/ios/**` 的 PR 会在 `xcode-27` 镜像上跑 `swift test`、`xcodegen generate` 和模拟器无签名构建，失败时 “Compiler errors” 一步列出全部错误。macOS 机器按高倍率计分钟数，尽量攒够改动再推。
 
 有 Mac 时：`brew install xcodegen && cd mobile/ios && xcodegen generate && open NoteFable.xcodeproj`。
 

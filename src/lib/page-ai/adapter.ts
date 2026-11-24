@@ -23,6 +23,8 @@ export type AdapterPage = {
   // ホワイトボード・スライドの本体（needsData のアダプターにだけ読む）と、保存時に取り出した文字。
   data?: CanvasData | null;
   segments?: CanvasSegment[];
+  // ページの「ロック」（誤って変えないための画面の保護）。AI パネルの「自動適用」は、ロックしたページには書かない。
+  locked?: boolean;
 };
 
 // ツールを実行するときの文脈。userId はサーバーのセッションのもので、モデルの入力からは決して取らない。
@@ -92,7 +94,9 @@ export interface PageAdapter {
 
   // 適用：保存と同じ検証（題名・本文・アイコン・ファイルの持ち主）をして、書ける内容にする。失敗は NoteValidationError。
   validate(userId: string, content: ProposedContent): ValidatedContent;
-  // 適用：トランザクションの中で、参照するファイルを使用中にし、版が target.version のときだけ書いて版を 1 進める。書けなければ false。
+  // 適用：参照するファイル（アイコン・画像など）を使用中にする。履歴を書く前に呼ぶ（手動の保存と同じロックの順序：ファイルの行 → ページの行）。
+  claim(tx: Tx, userId: string, content: ValidatedContent): Promise<void>;
+  // 適用：トランザクションの中で、版が target.version のときだけ書いて版を 1 進める。書けなければ false。先に claim を呼ぶ。
   // ai は AI の書き込み（ページの aiUpdatedAt を進める）。元に戻す（履歴の内容を書く）ときは false。
   write(tx: Tx, target: { id: string; userId: string; version: number }, content: ValidatedContent, options: { ai: boolean }): Promise<boolean>;
   // 適用（新規）：トランザクションの中でページを作る。parentId はサブページの親。

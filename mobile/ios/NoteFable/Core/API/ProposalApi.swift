@@ -27,11 +27,19 @@ struct UndoneProposal: Equatable, Sendable {
 }
 
 /// 服务端拒绝了操作。[serverMessage] 是响应里的 `error`（英文原句），没有时界面用"无法应用修改建议。"等本地文案。
+/// 提案已经在别的标签页 / 设备处理过时，[finalStatus] 是服务端的状态（applied / discarded / undone），[pageId] 是应用到的页面。
 struct ProposalException: Error, Equatable, Sendable {
     var serverMessage: String?
+    var finalStatus: String?
+    var pageId: String?
+    /// 已应用的提案能不能撤销（服务端记下了应用的版本）。
+    var undoable: Bool
 
-    init(serverMessage: String?) {
+    init(serverMessage: String?, finalStatus: String? = nil, pageId: String? = nil, undoable: Bool = false) {
         self.serverMessage = serverMessage
+        self.finalStatus = finalStatus
+        self.pageId = pageId
+        self.undoable = undoable
     }
 }
 
@@ -69,8 +77,9 @@ final class ProposalApi: ProposalBackend, @unchecked Sendable {
         request.setHeader("Accept", "application/json")
         let (data, response) = try await http.execute(request)
         guard response.isSuccessful else {
-            let sentence = (try? NoteFableJson.decode(ApiError.self, from: data))?.error
-            throw ProposalException(serverMessage: sentence.flatMap { ApiText.isBlank($0) ? nil : $0 })
+            let body = JSONValue.parse(data)
+            func field(_ name: String) -> String? { body?[name]?.stringValue.flatMap { ApiText.isBlank($0) ? nil : $0 } }
+            throw ProposalException(serverMessage: field("error"), finalStatus: field("status"), pageId: field("pageId"), undoable: body?["undoable"]?.boolValue == true)
         }
         return data
     }
@@ -207,6 +216,7 @@ final class ProposalStore {
             } catch is CancellationError {
                 states[id] = ProposalState()
             } catch {
+                if settledByServer(id, error, pageId: editedPageId) { return }
                 let message = (error as? ProposalException)?.serverMessage
                 states[id] = ProposalState(error: ProposalError(action: .apply, serverMessage: message))
             }
@@ -217,6 +227,7 @@ final class ProposalStore {
     func discard(_ proposal: some ProposalTarget) -> Task<Void, Never>? {
         guard stateOf(proposal).status == .idle else { return nil }
         let id = proposal.id
+        let editedPageId = proposal.editedPageId
         states[id] = ProposalState(status: .discarding)
         return Task {
             do {
@@ -225,6 +236,7 @@ final class ProposalStore {
             } catch is CancellationError {
                 states[id] = ProposalState()
             } catch {
+                if settledByServer(id, error, pageId: editedPageId) { return }
                 let message = (error as? ProposalException)?.serverMessage
                 states[id] = ProposalState(error: ProposalError(action: .discard, serverMessage: message))
             }
@@ -259,11 +271,28 @@ final class ProposalStore {
             } catch is CancellationError {
                 states[id] = applied
             } catch {
+                let final = (error as? ProposalException)?.finalStatus
+                if final == "discarded" || final == "undone", settledByServer(id, error, pageId: applied.pageId) { return }
                 var failed = applied
                 failed.error = ProposalError(action: .undo, serverMessage: (error as? ProposalException)?.serverMessage)
                 states[id] = failed
             }
         }
+    }
+
+    /// 提案已经在别处处理过（服务端返回了状态）：不显示错误、也不再出"应用 / 放弃"，卡片换成服务端的状态（网页 settledByServer）。
+    /// 服务端没说状态（版本冲突、网络错误等）时返回 false，照常显示错误。
+    private func settledByServer(_ id: String, _ error: Error, pageId: String?) -> Bool {
+        guard let failure = error as? ProposalException else { return false }
+        let status: ProposalState.Status
+        switch failure.finalStatus {
+        case "applied": status = .applied
+        case "discarded": status = .discarded
+        case "undone": status = .undone
+        default: return false
+        }
+        states[id] = ProposalState(status: status, pageId: failure.pageId ?? pageId, undoable: status == .applied && failure.undoable)
+        return true
     }
 
     nonisolated static func initialState(_ proposal: some ProposalTarget) -> ProposalState {

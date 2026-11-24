@@ -272,12 +272,18 @@ describe("changing the icon of a whiteboard", () => {
 });
 
 describe("publishing", () => {
-  it("does not refuse to publish a whiteboard or a slide deck (both have public views)", async () => {
+  it("does not refuse to publish a whiteboard or a slide deck (both have public views): it turns the share on", async () => {
     for (const kind of ["whiteboard", "slides"]) {
+      mocks.raw.mockClear();
       mocks.findFirst.mockResolvedValue({ id: "p1", kind, shareToken: null, shareEnabled: false, shareExpiresAt: null });
       const response = await share(new Request("http://localhost/x", { method: "PUT", body: JSON.stringify({ enabled: true }), headers: { "accept-language": "ja" } }), context);
       const body = await response.json().catch(() => ({}));
       expect(body.code).not.toBe("wrong_page_kind");
+      expect(response.status).not.toBe(400);
+      // 種類で断らずに、公開の設定（shareEnabled = true とトークン）を書くところまで進む。
+      const update = mocks.raw.mock.calls.map((call) => call[0] as { sql: string; values: unknown[] }).find((query) => query.sql.includes('"shareEnabled"'));
+      expect(update?.values).toContain(true);
+      expect(update?.sql).toContain('"shareToken"');
     }
   });
 });

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 报告 AI 回答（网页 answer-actions.tsx 的 ReportAnswerDialog）。 -->
+<!-- 报告 AI 回答和 AI 内容（网页 answer-actions.tsx 的 ReportDialog）。 -->
 <resources>
     <string name="report_answer">回答を報告</string>
     <string name="report_title">この回答を報告</string>

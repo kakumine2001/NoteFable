@@ -17,7 +17,7 @@ import { StorageLimitError } from "@/lib/usage-plans";
 import { attachProposals } from "@/lib/page-ai/proposals";
 import { pageToolDefinitions, runPageTool } from "@/lib/page-ai/tools";
 import { allAdapters } from "@/lib/page-ai/registry";
-import { MAX_SELECTION_ID_LENGTH, MAX_SELECTION_IDS } from "@/lib/page-ai/types";
+import { isSelectionId, MAX_SELECTION_IDS } from "@/lib/page-ai/types";
 import { buildHistoryInput } from "@/lib/chat-history";
 import { generateChatTitle } from "@/lib/chat-title";
 import { buildAnthropicRequest, createAnthropicStream } from "@/lib/anthropic-messages";
@@ -65,7 +65,7 @@ function parseSelectionIds(value: FormDataEntryValue | null): string[] | null {
   let parsed: unknown;
   try { parsed = JSON.parse(value); } catch { return null; }
   if (!Array.isArray(parsed) || parsed.length > MAX_SELECTION_IDS) return null;
-  if (!parsed.every((id) => typeof id === "string" && id.length > 0 && id.length <= MAX_SELECTION_ID_LENGTH)) return null;
+  if (!parsed.every(isSelectionId)) return null;
   return [...new Set(parsed as string[])];
 }
 
@@ -128,7 +128,7 @@ function buildInstructions({ webSearchMode, pageTools = false, note, project, cu
           `The user's Workspace holds three kinds of pages: notes, whiteboards and slide decks. search_notes and list_pages find all of them and show each page's kind; read_note shows a whiteboard or slide deck as its text, with the IDs of its elements or slides.${editTools.length ? ` Change those only with their own tools: ${editTools.join(", ")}.` : ""}${readOnly.length ? ` ${capitalize(readOnly.join(" and "))} can't be changed with the tools yet: never try to edit one with propose_note_edit, and tell the user it can't be edited from chat yet.` : ""}`,
           autoApply
             // AI パネルの「自動適用」。提案はすぐ適用され、履歴にも残り、利用者はカードから元に戻せる。
-            ? "To change a note, call read_note first and then propose_note_edit. The user turned on auto-apply in this panel: your proposals are applied right away (the previous version stays in the page history and the user can undo the change from the card). Follow each tool result: say a page was changed or created only when the result says it was applied."
+            ? "To change a note, call read_note first and then propose_note_edit. The user turned on auto-apply in this panel: your edits to the page open in this panel (unless it is locked) and new pages are applied right away (the previous version stays in the page history and the user can undo the change from the card); edits to other pages stay proposals the user applies. Follow each tool result: say a page was changed or created only when the result says it was applied."
             : "To change a note, call read_note first and then propose_note_edit. That only shows the user a proposal to review; the note changes only after they apply it, so never say a note was updated.",
           "Notes can hold uploaded images and files, shown to you as [Image: …] / [File: …]; propose_note_edit may replace or delete those blocks. When the user wants an image they sent in this chat placed in a note, call list_chat_attachments and put the line ![caption](attachment:ID), alone on its own line, in the proposal's markdown.",
           autoApply
@@ -895,7 +895,7 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
         const runTool = modelOption.supportsPageTools
           ? async (name: string, args: unknown) => {
               const run = await runPageTool(name, args, {
-                userId: user.id, sessionId: session.id, excludeMessageIds: replacedIds, autoApply, vision: modelOption.supportsImageInput,
+                userId: user.id, sessionId: session.id, excludeMessageIds: replacedIds, autoApply, panelPageId: noteId ?? undefined, vision: modelOption.supportsImageInput,
               });
               for (const event of run.events ?? []) {
                 const id = (event as { id?: unknown }).id;

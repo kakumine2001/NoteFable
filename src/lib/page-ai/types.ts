@@ -77,3 +77,7 @@ export type PageSelection = { text: string; ids?: string[] };
 
 export const MAX_SELECTION_IDS = 100;
 export const MAX_SELECTION_ID_LENGTH = 120;
+// 要素・スライドの ID は指示の中に入るので、エディターが作る形（英数字と _ -）だけを受け付ける（文章を紛れ込ませない）。
+export function isSelectionId(id: unknown): id is string {
+  return typeof id === "string" && id.length > 0 && id.length <= MAX_SELECTION_ID_LENGTH && /^[A-Za-z0-9_-]+$/.test(id);
+}

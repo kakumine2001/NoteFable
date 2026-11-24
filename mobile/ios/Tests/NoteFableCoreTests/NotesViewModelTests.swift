@@ -456,11 +456,16 @@ final class NotesViewModelTests: XCTestCase {
         XCTAssertTrue(vm.state.pages.contains { $0.id == "copy" })
         XCTAssertEqual(vm.state.saveState, "saved")
 
-        // 打开原来那篇不再被当成"已经开着"。
+        // 打开原来那篇不再被当成"已经开着"，而且换一个 editor：编辑器重新加载，不再显示副本（和 Android 一样）。
         vm.flushEditor = { FlushResult(true) }
-        vm.openNote("a")
+        vm.openNote("a", reveal: "block-1")
         await notesSettle()
-        XCTAssertEqual(vm.state.open, OpenNote("a", originalTitle ?? "", vm.state.pages.first { $0.id == "a" }?.icon))
+        let reopened = vm.state.open
+        XCTAssertEqual(reopened?.id, "a")
+        XCTAssertEqual(reopened?.title, originalTitle ?? "")
+        XCTAssertEqual(reopened?.reveal, "block-1")
+        XCTAssertNotEqual(reopened?.editor, "a")
+        XCTAssertTrue(reopened?.editor.hasPrefix("a#") ?? false)
     }
 
     @MainActor

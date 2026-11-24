@@ -14,7 +14,8 @@ export async function POST(_request: Request, context: Context) {
     const user = await getOrCreateUser();
     const { proposalId } = await context.params;
     const result = await undoProposal(user.id, proposalId);
-    if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.httpStatus });
+    // 提案がもう待確認でなければ、その状態（status）と適用先（pageId）も返す（カードがその状態に合わせる）。
+    if (!result.ok) return NextResponse.json({ error: result.error, ...(result.status ? { status: result.status } : {}), ...(result.pageId ? { pageId: result.pageId } : {}), ...(result.undoable ? { undoable: true } : {}) }, { status: result.httpStatus });
     if (result.kind === "edit") {
       const pageId = (result.page as { id?: unknown } | null)?.id;
       if (typeof pageId === "string") scheduleNoteEmbeddingSync(user.id, [pageId]);

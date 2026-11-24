@@ -52,6 +52,20 @@ describe("sceneToStored", () => {
   });
 });
 
+describe("sceneToStored with files still being checked", () => {
+  it("leaves out an image whose pasted note-file URL is not confirmed yet, and keeps it once confirmed", () => {
+    const elements = [element("a"), element("i", { type: "image", fileId: "f1" })];
+    const files = { f1: { id: "f1", mimeType: "image/png", dataURL: fileUrl } };
+    const checking = sceneToStored({ elements, files, appState: {}, blocked: new Set(["f1"]) });
+    expect(checking.data.elements.map((entry) => entry.id)).toEqual(["a"]);
+    expect(checking.data.files).toBeUndefined();
+    expect(checking.pending).toBe(1);
+    const confirmed = sceneToStored({ elements, files, appState: {}, blocked: new Set() });
+    expect(confirmed.data.elements.map((entry) => entry.id)).toEqual(["a", "i"]);
+    expect(confirmed.data.files?.f1?.dataURL).toBe(fileUrl);
+  });
+});
+
 describe("storedToScene", () => {
   it("filters broken elements and files and keeps note-file URLs", () => {
     const image = (id: string, fileId: string) => element(id, { type: "image", fileId });

@@ -35,7 +35,7 @@ class NoteFableApp : Application(), SingletonImageLoader.Factory {
         })
     }
 
-    /** AI 笔记提案的应用 / 放弃状态（按提案 ID，跨界面重建保留；网页 page-edit-proposal.tsx 的 states）。 */
+    /** AI 笔记提案的应用 / 放弃状态（按提案 ID，跨界面重建保留；网页 page-proposal.tsx 的 states）。 */
     val proposals: ProposalStore by lazy { ProposalStore(ProposalApi(api.httpClient, api::absoluteUrl), scope) }
 
     /** 设置里选的图标（角色 / 图片，存在这台设备上；网页 localStorage 的 notefable:app-icon）。登录时由 [appIconSync] 和账号同步。 */

@@ -15,7 +15,7 @@ import type { PageAdapter, PageSnapshot, ProposedContent, Tx } from "@/lib/page-
 // アダプターの「適用」の部分（保存と同じ検証・書き込み・作成・履歴の内容）。置き場所はページの種類で決まる：
 // ノートは NotePage.blocks、ホワイトボード・スライドは NoteCanvas.data。どちらも手動の保存（PATCH /api/pages/:id）と同じ検証を通る。
 
-type Storage = Pick<PageAdapter, "validate" | "write" | "createPage" | "snapshot" | "fromSnapshot">;
+type Storage = Pick<PageAdapter, "validate" | "claim" | "write" | "createPage" | "snapshot" | "fromSnapshot">;
 
 // サブページとして作るときの親とグループ。親の移動・ゴミ箱と同時に作られても、ゴミ箱の親の下には作らない。
 async function parentGroup(tx: Tx, userId: string, parentId: string | null) {
@@ -39,10 +39,12 @@ export const noteStorage: Storage = {
     checkIcon(content.icon, userId);
     return { title: checked.title, ...(content.icon === undefined ? {} : { icon: checked.icon }), blocks: checked.blocks };
   },
+  async claim(tx, userId, content) {
+    // ファイルの行を、履歴・ページの行より先に取る（保存と同じ順序）。後片付けが削除を始めていたら書かない。
+    if (content.icon !== undefined) await claimCover(tx, content.icon, userId, "icon");
+    await claimNoteFiles(tx, content.blocks as never, userId);
+  },
   async write(tx, target, content, { ai }) {
-    // ファイルの行を先に取る（保存と同じ順序）。後片付けが削除を始めていたら書かない。
-    if (content.icon !== undefined) await claimCover(tx, content.icon, target.userId, "icon");
-    await claimNoteFiles(tx, content.blocks as never, target.userId);
     const changed = await tx.notePage.updateMany({
       where: { id: target.id, userId: target.userId, version: target.version, deletedAt: null, kind: "note" },
       data: {
@@ -87,9 +89,11 @@ export function canvasStorage(kind: CanvasKind): Storage {
         data: canvas.data, size: canvas.size, filePaths: canvas.filePaths,
       };
     },
+    async claim(tx, userId, content) {
+      if (content.icon !== undefined) await claimCover(tx, content.icon, userId, "icon");
+      await claimStoredFiles(tx, content.filePaths ?? [], userId);
+    },
     async write(tx, target, content, { ai }) {
-      if (content.icon !== undefined) await claimCover(tx, content.icon, target.userId, "icon");
-      await claimStoredFiles(tx, content.filePaths ?? [], target.userId);
       const changed = await tx.notePage.updateMany({
         where: { id: target.id, userId: target.userId, version: target.version, deletedAt: null, kind },
         data: { title: content.title, ...(content.icon === undefined ? {} : { icon: content.icon }), version: { increment: 1 }, ...(ai ? { aiUpdatedAt: new Date() } : {}) },

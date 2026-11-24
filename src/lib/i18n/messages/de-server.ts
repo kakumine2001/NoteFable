@@ -254,6 +254,8 @@ export const deServer: Record<string, string> = {
   "Only an applied change can be undone.": "Nur eine übernommene Änderung kann rückgängig gemacht werden.",
   "This change can't be undone here. Restore an earlier version from the page history.": "Diese Änderung kann hier nicht rückgängig gemacht werden. Stelle im Seitenverlauf eine frühere Version wieder her.",
   "This page changed after the AI edit. Restore an earlier version from the page history.": "Die Seite wurde nach der KI-Änderung bearbeitet. Stelle im Seitenverlauf eine frühere Version wieder her.",
+  "This page changed after the AI created it. Move it to Trash from its page menu instead.": "Die Seite wurde bearbeitet, nachdem die KI sie erstellt hat. Verschiebe sie stattdessen über das Seitenmenü in den Papierkorb.",
+  "The page was locked, so the change was not applied automatically.": "Die Seite war gesperrt, daher wurde die Änderung nicht automatisch übernommen.",
   "Invalid page list": "Ungültige Seitenliste",
   "Listed pages": "Seiten aufgelistet",
   "Applied edits to “{title}”": "Änderungen an „{title}“ übernommen",

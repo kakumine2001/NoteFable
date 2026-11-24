@@ -119,9 +119,19 @@ describe("POST /api/pages/:id/duplicate", () => {
     expect(root).toMatchObject({ title: "Plan (1)", parentId: null, groupId: "g1", fullWidth: true, font: "mono" });
     expect(child).toMatchObject({ title: "c1", parentId: "copy1" });
     expect(mocks.writeOrder).toHaveBeenCalledWith(expect.anything(), "mine", ["x", "p1", "copy1", "copy2", "c1", "y"]);
+    // AI が書いたページの複製も「AI の内容を報告」できる（目印を写す）。書いていないページには付けない。
+    expect(root).toMatchObject({ aiUpdatedAt: undefined });
     // 複製も同じファイルを参照するので、ファイルを使用中に戻す（元から外されても消えないように）。
     expect(mocks.claimFiles).toHaveBeenCalledTimes(2);
     expect(mocks.claimFiles).toHaveBeenCalledWith(expect.anything(), [], "mine");
+  });
+
+  it("keeps the AI-written marker on the copies", async () => {
+    const written = new Date("2026-11-20T00:00:00Z");
+    mocks.findFirst.mockImplementation(async ({ where }) => where.id === "p1" ? { ...row("p1", null, "Plan"), aiUpdatedAt: written } : { id: where.id });
+    mocks.descendants.mockResolvedValue([]);
+    expect((await duplicate(new Request("http://localhost/x", { method: "POST" }), context)).status).toBe(201);
+    expect(mocks.create.mock.calls[0][0].data).toMatchObject({ aiUpdatedAt: written });
   });
 
   it("copies a whiteboard with a slide deck inside, keeping each kind and copying their content inside the database", async () => {

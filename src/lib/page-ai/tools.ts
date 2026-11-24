@@ -94,7 +94,9 @@ export function pageToolDefinitions({ vision = false }: { vision?: boolean } = {
 
 // ツールを実行するときの文脈。userId・sessionId はサーバーのセッションのもので、モデルの入力からは決して取らない。
 // autoApply は AI パネルの「自動適用」（提案をすぐ適用する）。vision はモデルが画像を読めるか。
-export type ToolContext = AdapterContext & { autoApply?: boolean; vision?: boolean };
+// autoApply は AI パネルの「自動適用」。編集はそのパネルのページ（panelPageId）だけ、ロックしていなければすぐ適用する。
+// ほかのページへの編集は、自動適用のときも待確認の提案のまま。新しいページは自動適用ならすぐ作る。
+export type ToolContext = AdapterContext & { autoApply?: boolean; panelPageId?: string; vision?: boolean };
 
 const SEARCH_RESULT_LIMIT = 10;
 const LIST_LIMIT = 50;
@@ -173,7 +175,7 @@ export function delimitPageContent(content: string) {
 async function loadPage(userId: string, pageId: string): Promise<{ page: AdapterPage; adapter: PageAdapter } | null> {
   const row = await prisma.notePage.findFirst({
     where: { id: pageId, userId, deletedAt: null },
-    select: { id: true, kind: true, title: true, icon: true, blocks: true, version: true, updatedAt: true, canvas: { select: { segments: true } } },
+    select: { id: true, kind: true, title: true, icon: true, blocks: true, version: true, updatedAt: true, locked: true, canvas: { select: { segments: true } } },
   });
   if (!row) return null;
   const { canvas, ...rest } = row;
@@ -224,8 +226,10 @@ async function listPages(userId: string, value: unknown): Promise<ToolRun> {
   };
 }
 
-// 提案を保存し、「自動適用」なら（または確認なしに作るアダプターなら）すぐ適用する。保存できなかったら、提案のために写したファイルを消す。
-async function saveAndMaybeApply(ctx: ToolContext, save: () => Promise<ProposalView>, copiedFiles: string[] | undefined, direct: boolean) {
+// 提案を保存し、apply（自動適用の対象・確認なしに作るアダプター）ならすぐ適用する。保存できなかったら、提案のために写したファイルを消す。
+async function saveAndMaybeApply(
+  ctx: ToolContext, save: () => Promise<ProposalView>, copiedFiles: string[] | undefined, apply: boolean, skipped?: string,
+) {
   let view: ProposalView;
   try {
     view = await save();
@@ -233,16 +237,23 @@ async function saveAndMaybeApply(ctx: ToolContext, save: () => Promise<ProposalV
     if (copiedFiles?.length) await discardStoredFiles(copiedFiles);
     throw error;
   }
-  if (!ctx.autoApply && !direct) return { view, applied: false as const };
+  if (!apply) return { view, applied: false as const, ...(skipped ? { failure: skipped } : {}) };
   // 適用に失敗しても（DB の一時的な失敗を含む）、保存した提案はカードとして出し、利用者が自分で適用・破棄できるようにする。
+  // ただし、書き込みは済んだ後の読み直しで失敗したときは、適用済みとして扱う（待確認として出すと、モデルも画面も食い違う）。
+  const committed = async () => {
+    const latest = await proposalView(ctx.userId, view.id).catch(() => null);
+    if (latest?.status !== "applied") return null;
+    if (latest.appliedPageId) scheduleNoteEmbeddingSync(ctx.userId, [latest.appliedPageId]);
+    return { view: latest, applied: true as const };
+  };
   let result: Awaited<ReturnType<typeof applyProposal>>;
   try {
     result = await applyProposal(ctx.userId, view.id, { auto: true });
   } catch (error) {
     console.error("Failed to auto-apply a page proposal", error);
-    return { view, applied: false as const, failure: "The change could not be applied automatically." };
+    return (await committed()) ?? { view, applied: false as const, failure: "The change could not be applied automatically." };
   }
-  if (!result.ok) return { view, applied: false as const, failure: result.error };
+  if (!result.ok) return (await committed()) ?? { view, applied: false as const, failure: result.error };
   // 手動の適用（/api/proposals/:id/apply）と同じく、意味検索の索引を書き直す。
   const pageId = (result.page as { id?: unknown } | null)?.id;
   if (typeof pageId === "string") scheduleNoteEmbeddingSync(ctx.userId, [pageId]);
@@ -295,7 +306,13 @@ async function runEdit(adapter: PageAdapter, value: unknown, ctx: ToolContext): 
     if (draft.copiedFiles?.length) await discardStoredFiles(draft.copiedFiles);
     return toolError("The edits change nothing.");
   }
-  const outcome = await saveAndMaybeApply(ctx, () => saveProposal(ctx.userId, ctx.sessionId, { kind: "EDIT", pageKind: kind, page, draft }), draft.copiedFiles, false);
+  // 自動適用は、AI パネルのページそのもので、ロックしていないときだけ。ほかのページ・ロックしたページは待確認の提案のまま。
+  const own = Boolean(ctx.autoApply && ctx.panelPageId === page.id);
+  const skipped = ctx.autoApply
+    ? (!own ? "Auto-apply only changes the page the user has open, so this edit to another page waits for the user to apply it."
+      : page.locked ? "The page is locked, so the edit was not applied automatically and waits for the user to apply it." : undefined)
+    : undefined;
+  const outcome = await saveAndMaybeApply(ctx, () => saveProposal(ctx.userId, ctx.sessionId, { kind: "EDIT", pageKind: kind, page, draft }), draft.copiedFiles, own && !page.locked, skipped);
   return {
     content: proposalResult("edit", outcome),
     label: outcome.applied ? fmt("Applied edits to “{title}”", { title: page.title }) : fmt("Proposed edits to “{title}”", { title: page.title }),
@@ -319,7 +336,7 @@ async function runCreate(adapter: PageAdapter, value: unknown, ctx: ToolContext)
     }
     parentTitle = parent.title;
   }
-  const outcome = await saveAndMaybeApply(ctx, () => saveProposal(ctx.userId, ctx.sessionId, { kind: "CREATE", pageKind: adapter.kind, draft, parentTitle }), draft.copiedFiles, Boolean(adapter.create!.direct));
+  const outcome = await saveAndMaybeApply(ctx, () => saveProposal(ctx.userId, ctx.sessionId, { kind: "CREATE", pageKind: adapter.kind, draft, parentTitle }), draft.copiedFiles, Boolean(ctx.autoApply || adapter.create!.direct));
   return {
     content: proposalResult("create", outcome),
     label: outcome.applied ? fmt("Created page “{title}”", { title: draft.title }) : fmt("Proposed new note “{title}”", { title: draft.title }),

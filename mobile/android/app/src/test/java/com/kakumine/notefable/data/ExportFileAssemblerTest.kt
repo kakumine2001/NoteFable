@@ -42,6 +42,21 @@ class ExportFileAssemblerTest {
     }
 
     @Test
+    fun `after close no new file is started until reopen, and nothing is left behind`() {
+        val files = assembler()
+        assertTrue(files.start("a", "board.png", "image/png", 3))
+        files.close()
+        assertTrue(leftovers().isEmpty())
+        // 拆掉的同时到的 fileStart：不开临时文件。
+        assertFalse(files.start("b", "board.png", "image/png", 3))
+        assertTrue(leftovers().isEmpty())
+        files.reopen()
+        assertTrue(files.start("c", "board.png", "image/png", 3))
+        assertTrue(files.chunk("c", 0, base64(byteArrayOf(1, 2, 3))))
+        assertArrayEquals(byteArrayOf(1, 2, 3), files.finish("c")!!.file.readBytes())
+    }
+
+    @Test
     fun `an empty file has no chunks`() {
         val files = assembler()
         assertTrue(files.start("e", "Empty.svg", "image/svg+xml", 0))

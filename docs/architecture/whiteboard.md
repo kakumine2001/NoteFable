@@ -6,7 +6,7 @@
 
 - 用 MIT 授权的 `@excalidraw/excalidraw`，**版本钉死**在 `package.json` 的 `0.18.0-2c3dcc0`（2026-11-21 的开发版快照，`npm install --save-exact`）。选它是因为稳定版 0.18.1 没有便签、小地图和可替换的界面；动手前实测过这个快照有 `stickynote` 工具、小地图、`ui` / `activeTool` 属性、手写笔压感（`strokeOptions.variability`）和 `exportScene`（含按框导出）。开发版的 API 还会变：**升级前要重测**下面“依赖内部的地方”。
 - 动态加载、不做 SSR：`src/components/canvas-editors.tsx` 的 `CANVAS_EDITORS.whiteboard` 用 `next/dynamic` 加载 `src/components/whiteboard/whiteboard-canvas.tsx` → `whiteboard-editor.tsx`。Excalidraw（JS 约 1 MB、CSS 约 200 KB）只在打开白板时下载，`/`、`/app`、`/note-embed` 的静态页面不受影响。编辑历史的版本图（`whiteboard-thumbnail.tsx`）和公开页的只读视图（`public-whiteboard-canvas.tsx`）也各自动态加载。
-- **字体自托管。** `scripts/copy-whiteboard-assets.mjs`（`npm run dev` / `npm run build` 前的 `predev` / `prebuild`）把 Excalidraw 的图形字体（`dist/prod/fonts`，约 14 MB，其中中日韩手写字体 Xiaolai 按字符范围分成 209 个小文件，用到才下载）和 pdf.js 的 worker 写到 `public/whiteboard/`（不进仓库）；编辑器设 `window.EXCALIDRAW_ASSET_PATH = "/whiteboard/"`。Excalidraw 在我们的地址读不到时会再试 esm.sh，正常部署不会走到。界面用的 Assistant 字体随 CSS 一起打包。
+- **字体自托管。** `scripts/copy-whiteboard-assets.mjs`（`npm run dev` / `npm run build` 前的 `predev` / `prebuild`）把 Excalidraw 的图形字体（`dist/prod/fonts`，约 14 MB，其中中日韩手写字体 Xiaolai 按字符范围分成 209 个小文件，用到才下载）和 pdf.js 的 worker（legacy 版：iOS 17.0〜17.3 的 WKWebView 没有 `Promise.withResolvers`）、pdf.js 按需读取的 CMap（CJK 字体）/ 标准字体 / wasm（JPEG 2000 等）/ ICC 写到 `public/whiteboard/`（`pdfjs/`；不进仓库）；编辑器设 `window.EXCALIDRAW_ASSET_PATH = "/whiteboard/"`。Excalidraw 在我们的地址读不到时会再试 esm.sh，正常部署不会走到。界面用的 Assistant 字体随 CSS 一起打包。
 - **线条默认“整洁”。** 新图形的默认值是 `roughness 0`、字体 Nunito（`CLEAN_DEFAULTS`）。Nunito 没有中日韩字形，中日韩文字落到系统字体，三端显示会有差异；需要统一时可以在样式面板里换成手写风（Excalifont + Xiaolai，自托管）。
 - **界面语言。** Excalidraw 自带的界面全部关掉（`ui={false}`），工具栏和面板是我们自己的（`whiteboard-ui.tsx`、`whiteboard-style-panel.tsx`），文案走 `useT()`，17 种语言。Excalidraw 只剩少量自带文字（框的默认名等），`langCode` 按我们的语言映射（`excalidraw-locale.ts`，Excalidraw 没有的语言用英文）。Excalidraw 每次设语言都会改 `<html lang/dir>`，`useKeepDocumentLanguage` 用 MutationObserver 立刻改回 NoteFable 的设置（RTL 的阿拉伯语也保持 `dir="rtl"`）。
 
@@ -19,13 +19,13 @@
 
 ## 编辑器
 
-- **工具**：选择、套索、抓手、画笔（压感，`variability: variable`）、荧光笔（同是手写线，默认黄色、不透明度 40%、更粗）、橡皮、激光笔、矩形 / 菱形 / 椭圆、线、箭头（绑在形状上的箭头随形状移动；直线 / 曲线 / 折线）、文字、便签（Excalidraw 的 `stickynote`）、图片、框（Frame）。切换工具用 `api.setActiveTool`（不用强制的 `activeTool` 属性：那会让形状画完不回到选择、也不选中新形状）。画笔、荧光笔和其他图形各自记住颜色、粗细、不透明度，切换时互换（`switchStyle`），所以荧光笔的黄色不会染到矩形上。Excalidraw 的单键快捷键（V、H、P、E、R、D、O、L、A、T、S、I、F、K 等）照常有效，键盘切换工具时同样换色组。抓手的光标是自己画的（`whiteboard.css`：和工具栏一样的手，深色线条加白色描边，悬停张开、拖动握住）：Excalidraw 用 CSS 的 `grab` / `grabbing`，浏览器自带的是只有 1 像素黑边的白手，在浅色画布上几乎看不见，也不跟随 Windows 的指针颜色设置。其他工具的光标（系统的箭头 / 十字、Excalidraw 按主题换色的橡皮和激光笔）浅色、深色下都看得见。
+- **工具**：选择、套索、抓手、画笔（压感，`variability: variable`）、荧光笔（同是手写线，默认黄色、不透明度 40%、更粗）、橡皮、激光笔、矩形 / 菱形 / 椭圆、线、箭头（绑在形状上的箭头随形状移动；直线 / 曲线 / 折线）、文字、便签（Excalidraw 的 `stickynote`）、图片、框（Frame）。切换工具用 `api.setActiveTool`（不用强制的 `activeTool` 属性：那会让形状画完不回到选择、也不选中新形状）。画笔、荧光笔和其他图形各自记住颜色、粗细、不透明度，切换时互换（`switchStyle`），所以荧光笔的黄色不会染到矩形上。工具栏上各工具的单键快捷键（V 选择、H 抓手、P 画笔、E 橡皮、K 激光笔、R / D / O 形状、L 线、A 箭头、T 文字、N 便签、9 图片、F 框）照常有效，键盘切换工具时同样换色组。Excalidraw 还有几个我们没放在工具栏上的单键（例如 B 的油漆桶、Shift+X），按了会切到那个工具，工具栏上没有选中项；点工具栏的工具或按 Esc 回来。抓手的光标是自己画的（`whiteboard.css`：和工具栏一样的手，深色线条加白色描边，悬停张开、拖动握住）：Excalidraw 用 CSS 的 `grab` / `grabbing`，浏览器自带的是只有 1 像素黑边的白手，在浅色画布上几乎看不见，也不跟随 Windows 的指针颜色设置。其他工具的光标（系统的箭头 / 十字、Excalidraw 按主题换色的橡皮和激光笔）浅色、深色下都看得见。
 - **样式面板**（选中元素或拿着绘图工具时出现）：线色、背景 / 便签色（5 个常用色 + 调色板 + 色号）、粗细、压感、填充、线型、风格（整洁 / 手写 / 草图）、边角、箭头类型和两端、字体 / 字号 / 对齐、不透明度、层级、对齐与等距（多选时）、组合 / 取消组合、复制、翻转、链接、锁定、删除。深色模式下色块按 Excalidraw 的深色滤镜显示（`applyDarkModeFilter`），和画布上看到的一致；导出时一律是浅色。
-- **画布**：撤销重做、缩放、适应屏幕、小地图（自己画的：内容缩略图 + 视野框，点或拖跳到那里；元素超过 2,500 个时只画外框）、“回到内容”（视野里没有内容时出现）、网格、对象吸附、手写笔专用（检测到手写笔后可选，手指只拖动）、画布底色。每个设备记住每块白板的视野（`localStorage` 的 `notefable:whiteboard-viewport:v1:<id>`），小地图开关记在 `notefable:whiteboard-minimap:v1`。
+- **画布**：撤销重做、缩放、适应屏幕、小地图（自己画的：内容缩略图 + 视野框，点或拖跳到那里；元素超过 2,500 个时只画外框）、“回到内容”（视野里没有内容时出现；画布大小变了也重新判断，大小还是 0 时不判断。第一次打开时画布大小还是 0——看不见的框、后来才有大小的 App WebView——就等有了大小再缩放到内容或跳到检索结果）、网格、对象吸附、手写笔专用（检测到手写笔后可选，手指只拖动）、画布底色。每个设备记住每块白板的视野（`localStorage` 的 `notefable:whiteboard-viewport:v1:<id>`），小地图开关记在 `notefable:whiteboard-minimap:v1`。
 - **标题和图标**在左上角的小条里改（和笔记一样走自动保存）。
 - **锁定**（页面设置的 Lock）：Excalidraw 的 `viewModeEnabled`，只能看、拖动、缩放、导出。
 - **锁定的元素**（样式面板的锁、导入 PDF 的页面图片）：点它时 Excalidraw 只记下 `activeLockedId`（解除的小窗只在它自己的界面里），我们在画布上方显示 “Unlock” 按钮，解除后选中它（是组就整组）。
-- **布局**按画布宽度（不是窗口宽度）：撤销 / 缩放在右上（菜单旁），工具栏在下方中间；宽度 < 1010px 时小地图移到工具栏上方；< 640px（手机、App）时工具栏靠左、右下角留给 AI 按钮（`.whiteboard-ai-slot`，#153），样式面板变成底部的一条，可以展开。
+- **布局**按画布宽度（不是窗口宽度）：撤销 / 缩放在右上（菜单旁），工具栏在下方中间；宽度 < 1010px 时小地图移到工具栏上方；< 640px（手机、App）时工具栏靠左、右下角留给页面 AI 面板的按钮（`.whiteboard-ai-slot`，#158）；640–719px 且有这个按钮时，工具栏不居中，靠到按钮左边（`is-tight`），样式面板变成底部的一条，可以展开。
 
 ## 保存
 
@@ -40,6 +40,7 @@
 - 选中图形 → “添加链接”：选自己的页面（笔记 / 白板 / 幻灯片）或输入网址（只收 http、https、mailto）。页面链接存成 `/app?view=pages&page=<id>`，和笔记正文里的页面链接同形。
 - 点链接图标（没选中时画在图形右上）或面板的“打开链接”：页面链接在原地打开（网页切换页面，App 里发 `openPage`），按 Ctrl / ⌘ / Shift 时新窗口打开；外部链接新标签页打开。
 - “链接到页面”放一张**页面卡片**：圆角矩形 + 文字“图标 标题”，`link` 指向那一页，`customData.notefablePage = { id, kind }`。卡片的文字在放置时写入（之后改了页面标题不会自动更新），图片图标显示成类型符号。卡片文字也进搜索。
+- **还没做**（#152 里举的例子，另开 PR）：公式标签（KaTeX）、带内容预览的页面卡片（现在卡片显示标题和图标）。
 
 ## 导入 PDF 与导出
 
@@ -55,13 +56,14 @@
 ## App（`/note-embed`）
 
 - 白板和笔记一样在 `/note-embed?page=<id>` 里打开，桥接照旧（`ready` 带 `kind`）。触屏上默认是抓手（单指拖动），切到画笔后单指画、双指缩放平移。
-- 用绘图工具（抓手以外）时发 `{type:"drawing", active}`，App 据此在屏幕两侧各排除 200dp 的系统返回手势（Android 每条边的上限）；白板页上 App 的侧栏滑动和 iOS 的边缘返回都关闭（只用顶栏的返回）。
+- 用绘图工具（抓手以外）时发 `{type:"drawing", active}`，App 据此在屏幕两侧各排除 200dp 高的系统返回手势（Android 每条边的上限；宽至少 32dp，系统的返回手势区更宽时按它）；白板页上 App 的侧栏滑动和 iOS 的边缘返回都关闭（只用顶栏的返回）。
 - 导出文件：App 声明 `canSaveFile()` 时，网页发 `fileStart {id, name, mime, size}` → `fileChunk {id, index, data}`（base64，每块原始 512 KiB）×n → `fileEnd {id}`（中途失败发 `fileAbort`），App 写临时文件后让用户选保存位置。旧版 App 提示“请更新应用”。超过 App 能收的 64 MiB（`MAX_APP_FILE_BYTES`，和两端的 `ExportFileAssembler` 一致）时不发送，提示文件太大。各端的实现见 [android-native.md](android-native.md)、[ios-native.md](ios-native.md)。
 
 ## 给 AI（#153）留的口
 
 - `WhiteboardEditorHandle.selectionContext()`：当前选中元素的 ID 和其中的文字（绑定文字算到容器上）。
-- `aiSlot`：右下角的挂载位置（`.whiteboard-ai-slot`），手机布局下工具栏已经给它让出位置。
+- `aiSlot`：右下角的挂载位置（`.whiteboard-ai-slot`），手机布局下工具栏已经给它让出位置。NotesWorkspace 把页面 AI 面板（#158 的 `PageAssistant`）按钮的位置标记放进来（分屏不放），按钮就停在这里。
+- 还没接上：“就选中的元素问 AI”（`CanvasEditorProps.onAskAi`）。`selectionContext()` 已经有，白板的 AI 操作（#153）时接上。
 
 ## 测试
 

@@ -46,4 +46,12 @@ class WhiteboardEdgesTest {
     fun `a view narrower than both edges is covered by each rect`() {
         assertEquals(listOf(EdgeRect(0, 0, 40, 100), EdgeRect(0, 0, 40, 100)), drawingEdgeRects(40, 100, 2f))
     }
+
+    @Test
+    fun `a wider system back-gesture zone widens the strips (height is what counts against the limit)`() {
+        // 返回手势灵敏度を上げて手势区が 48dp（96px）になった端末：32dp（64px）では足りないので 96px にする。
+        assertEquals(listOf(EdgeRect(0, 0, 96, 300), EdgeRect(404, 0, 500, 300)), drawingEdgeRects(500, 300, 2f, gestureWidth = 96))
+        // 手势区が狭いときは 32dp のまま。
+        assertEquals(listOf(EdgeRect(0, 0, 64, 300), EdgeRect(436, 0, 500, 300)), drawingEdgeRects(500, 300, 2f, gestureWidth = 40))
+    }
 }

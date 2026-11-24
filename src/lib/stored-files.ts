@@ -28,10 +28,11 @@ export const STORED_FILE_PREFIXES: Record<StoredFileKind, string> = {
   CHAT_IMAGE: "images/",
   AVATAR: `${AVATAR_ROOT}/`,
   APP_ICON: `${APP_ICON_ROOT}/`,
+  PROPOSAL_IMAGE: "proposal-images/",
 };
 const KINDS = Object.keys(STORED_FILE_PREFIXES) as StoredFileKind[];
 // 保存先のパスに持ち主の ID が入っている種類（"<フォルダ>/<利用者 ID>/..."）。チャットの画像だけは日付のフォルダ。
-const USER_FOLDER_KINDS = new Set<StoredFileKind>(["NOTE_FILE", "NOTE_COVER", "AVATAR", "APP_ICON"]);
+const USER_FOLDER_KINDS = new Set<StoredFileKind>(["NOTE_FILE", "NOTE_COVER", "AVATAR", "APP_ICON", "PROPOSAL_IMAGE"]);
 
 // 参照されなくなってから消すまでの猶予。別のタブの下書きや、競合時の「新しいページとして保存」が、
 // 置き換える前のファイルをまだ使えるようにする。
@@ -261,12 +262,33 @@ function userColumnReferences(column: "avatarImage" | "appIconImage") {
   };
 }
 
+// AI の提案の縮小画像。状態（待確認・適用・破棄・元に戻した）によらず、提案が残っている間はカードに出るので使用中。
+// 提案は会話・アカウントと一緒に消える。そのあとは参照が無くなり、猶予のあとで消える。
+async function proposalImageReferences(candidates: Candidate[]) {
+  const found = new Set<string>();
+  const byUser = new Map<string, string[]>();
+  for (const candidate of candidates) {
+    if (candidate.userId) byUser.set(candidate.userId, [...(byUser.get(candidate.userId) ?? []), candidate.path]);
+  }
+  for (const [userId, paths] of byUser) {
+    // 提案の images の path だけを、持ち主ごとに 1 回で取り出す（本文全体を文字列にして探さない）。
+    const rows = await prisma.$queryRaw<{ path: string }[]>(Prisma.sql`
+      SELECT DISTINCT e->>'path' AS "path"
+      FROM ${table("NoteProposal")} p
+      CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(p."payload" -> 'images') = 'array' THEN p."payload" -> 'images' ELSE '[]'::jsonb END) AS e
+      WHERE p."userId" = ${userId} AND e->>'path' = ANY(${paths}::text[])`);
+    for (const row of rows) found.add(row.path);
+  }
+  return found;
+}
+
 const REFERENCE_CHECKS: Record<StoredFileKind, (candidates: Candidate[]) => Promise<Set<string>>> = {
   NOTE_FILE: noteFileReferences,
   NOTE_COVER: coverReferences,
   CHAT_IMAGE: chatImageReferences,
   AVATAR: userColumnReferences("avatarImage"),
   APP_ICON: userColumnReferences("appIconImage"),
+  PROPOSAL_IMAGE: proposalImageReferences,
 };
 
 // 候補のうち、どこかから参照されているもののパス。持ち主のいない（アカウントを消した）ファイルは参照なし。
@@ -295,7 +317,8 @@ export const NOTE_FILE_OWNERS_PER_BATCH = 20;
 export function limitNoteFileOwners<T extends Candidate>(rows: T[]) {
   const owners = new Set<string>();
   return rows.filter((row) => {
-    if (row.kind !== "NOTE_FILE" || !row.userId || owners.has(row.userId)) return true;
+    // 提案の縮小画像も、持ち主ごとに提案の表を読むので同じく数を抑える。
+    if ((row.kind !== "NOTE_FILE" && row.kind !== "PROPOSAL_IMAGE") || !row.userId || owners.has(row.userId)) return true;
     if (owners.size >= NOTE_FILE_OWNERS_PER_BATCH) return false;
     owners.add(row.userId);
     return true;

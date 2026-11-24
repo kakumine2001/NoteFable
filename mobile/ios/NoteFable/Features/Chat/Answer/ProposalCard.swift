@@ -210,11 +210,14 @@ struct ProposalCard: View {
             if let inside = ProposalCopy.inside(create) {
                 opLabel(inside)
             }
-            VStack(alignment: .leading, spacing: 0) {
-                if create.content.isEmpty {
-                    opLabel(ProposalCopy.emptyContent(create.pageKind))
-                } else {
-                    afterText(create.content)
+            // 空のページの一行は、本文も改动（缩略图）も無いときだけ（网页と同じ）。
+            if !create.content.isEmpty || create.changes.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    if create.content.isEmpty {
+                        opLabel(ProposalCopy.emptyContent(create.pageKind))
+                    } else {
+                        afterText(create.content)
+                    }
                 }
             }
             changeList(create.changes)

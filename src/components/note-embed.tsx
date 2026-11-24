@@ -50,6 +50,8 @@ export function NoteEmbed() {
   const revealRef = useRef<{ pageId: string; target: string } | null>(null);
   const initialLoadedRef = useRef(false);
   const backupErrorRef = useRef(notes.backupError);
+  // 最後の flush で、ホワイトボードなどのエディターが変更を渡し切れたか（アップロードが終わらない画像が残ると false）。
+  const canvasHanded = useRef(true);
   const sent = useRef({ readyId: "", meta: "", state: "", goneId: "" });
 
   useEffect(() => {
@@ -105,11 +107,13 @@ export function NoteEmbed() {
     // 待っても終わらないアップロードが残ったら false（アプリは編集画面を閉じずに知らせる）。
     flush: async () => {
       const handed = await flushCanvasEditors();
+      canvasHanded.current = handed;
       const saved = await (activeRef.current?.flush() ?? true);
       return handed && saved;
     },
     // 衝突ではなく一時的な失敗（オフライン・サーバーエラー）で、下書きを localStorage に退避できているときだけ。/app と同じく離れても後で送り直せる。
-    draftKept: () => activeRef.current?.status === "error" && !backupErrorRef.current,
+    // ホワイトボードの画像がまだアップロード中（下書きにも入っていない）なら、離れると失うので「残っている」とは言わない。
+    draftKept: () => canvasHanded.current && activeRef.current?.status === "error" && !backupErrorRef.current,
     openHistory: () => { if (activeRef.current) setHistoryOpen(true); },
     // すでに開いているページの検索結果：開き直さずに一致した場所まで動かす。
     reveal: (target) => {

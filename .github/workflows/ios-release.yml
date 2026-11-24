@@ -32,9 +32,9 @@ jobs:
   release:
     needs: plan
     if: needs.plan.outputs.publish == 'true'
-    # Xcode 26 / iOS 26 SDK is required by App Store Connect; macos-26 ships Xcode 26 by default.
+    # App Store Connect requires the iOS 27 SDK from April 2027 (ITMS-90725); the xcode-27 image defaults to Xcode 27.
     # Never write build outputs from this secret-holding job to the shared Actions cache.
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 45
     environment: appstore-publish
     concurrency:
@@ -142,7 +142,15 @@ jobs:
 
       - name: Xcode version
         if: steps.current.outputs.publish == 'true'
-        run: xcodebuild -version
+        # App Store Connect needs the iOS 27 SDK (ITMS-90725): stop before archiving if the image default changes.
+        run: |
+          ver=$(xcodebuild -version)
+          printf '%s\n' "$ver"
+          major=$(awk '$1 == "Xcode" { split($2, v, "."); print v[1]; exit }' <<< "$ver")
+          if ! [[ "$major" =~ ^[0-9]+$ ]] || (( 10#$major < 27 )); then
+            echo "::error::Xcode ${major:-unknown} found; Xcode 27 or later is required."
+            exit 1
+          fi
 
       - name: Core unit tests
         if: steps.current.outputs.publish == 'true'

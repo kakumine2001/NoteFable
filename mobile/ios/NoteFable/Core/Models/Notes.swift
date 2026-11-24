@@ -99,7 +99,7 @@ final class PageKindTable: @unchecked Sendable {
 
 /// 工作区页面的类型（网页 PAGE_KINDS，Android `PageKind`）：笔记、白板、幻灯片，建好后不会变。JSON 里是小写的 "note" / "whiteboard" / "slides"；
 /// 旧服务端没有这个字段，null 和不认识的值也都按笔记（网页 pageKindOf）。三种都用同一个 /note-embed 打开：白板是网页的白板编辑器，
-/// 幻灯片由网页显示只读的占位画面。
+/// 幻灯片是网页的幻灯片编辑器。
 enum PageKind: String, CaseIterable, Sendable {
     case note
     case whiteboard

@@ -71,7 +71,7 @@ import { useSwipeDismiss } from "@/lib/use-swipe-dismiss";
 import { runTransition } from "@/lib/view-transition";
 import { useModels } from "@/components/models-provider";
 import { revealChatMessage, revealNoteBlock } from "@/lib/search-reveal";
-import { requestWhiteboardReveal } from "@/lib/whiteboard/reveal";
+import { cancelWhiteboardReveal, requestWhiteboardReveal } from "@/lib/whiteboard/reveal";
 import { flushCanvasEditors } from "@/lib/canvas-flush";
 import { getSubmissionValidationError } from "@/lib/submission-validation";
 import { restoreSheetMarker, useBackToClose } from "@/lib/use-back-to-close";
@@ -333,6 +333,8 @@ export default function Home() {
     revealRef.current = null;
     revealAbortRef.current?.abort();
     revealAbortRef.current = null;
+    // ホワイトボードがまだ受け取っていない予約（エディターの読み込み待ち）も消す。
+    cancelWhiteboardReveal();
   }
 
   function queueReveal(target: RevealTarget) {
@@ -1437,8 +1439,11 @@ export default function Home() {
     // 保存を待つ間に別の会話へ移ったことも下の確認で分かるよう、待つ前に控える。
     const navigationIntent = sessionNavigationIntentRef.current;
     // 分割表示の右側ノートに未保存の編集があれば、AI が最新の本文を読めるよう先に保存する（失敗しても送信は止めない）。
-    if (splitActive && notes.active?.dirty) {
-      await notes.active.flush().catch(() => {});
+    // ホワイトボードなどがまだ保存キューへ渡していない変更（描き終わり・文字の確定の直後）も先に渡してもらう。
+    const splitPage = splitActive ? notes.active : undefined;
+    if (splitPage) {
+      await flushCanvasEditors();
+      if (splitPage.dirty) await splitPage.flush().catch(() => {});
     }
 
     let uploadedTickets: string[] = [];

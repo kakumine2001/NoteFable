@@ -9,7 +9,7 @@ import { PageKindIcon } from "@/components/page-kind-icon";
 import { localizeSystemText, msg, type Translate } from "@/lib/i18n/translate";
 import { noteIconText } from "@/lib/note-icon";
 import { pageKindOf, type PageKind } from "@/lib/page-kinds";
-import { PAGES_TRASHED_EVENT } from "@/lib/proposal-sync";
+import { PAGES_TRASHED_EVENT, saveBeforeTrash } from "@/lib/proposal-sync";
 import type { ProposalChange, ProposalOp } from "@/lib/page-ai/types";
 
 // AI の提案カード（ページの編集案・新しいページの案）。ページの種類によらない 1 つのカードで、改前・改後（文字と縮小画像）は
@@ -28,7 +28,9 @@ export type ProposalCardState = {
 type State = ProposalCardState;
 
 // カードを出している場所。AI パネルの中では、そのパネルのページへの「開く」は出さない（もう開いている）。
-export const ProposalHostContext = createContext<{ currentPageId?: string }>({});
+// openPage はアプリ（/note-embed）の中で、ページをアプリに開いてもらう（開けたら true）。noOpen はページを開く手段が無い（古いアプリ）。
+export type ProposalHost = { currentPageId?: string; openPage?: (id: string) => boolean; noOpen?: boolean };
+export const ProposalHostContext = createContext<ProposalHost>({});
 
 const OP_LABEL: Record<ProposalOp, string> = {
   replace: msg("Replace"), insert_after: msg("Insert"), delete: msg("Delete"),
@@ -80,11 +82,30 @@ export function initialState(proposal: Proposal): State {
   };
 }
 
+// 操作の失敗。提案がもう待確認でない（別のタブ・端末で処理済み）ときは、サーバーが返したその状態（final）を持つ。
+class ProposalActionError extends Error {
+  constructor(message: string, readonly final?: { status: State["status"]; pageId?: string; undoable?: boolean }) { super(message); }
+}
+
+const FINAL_STATUSES = new Set(["applied", "discarded", "undone"]);
+
 async function post(url: string, fallback: string) {
   const response = await fetch(url, { method: "POST" });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : fallback);
+  if (!response.ok) {
+    const status = typeof data.status === "string" && FINAL_STATUSES.has(data.status) ? data.status as State["status"] : undefined;
+    throw new ProposalActionError(typeof data.error === "string" ? data.error : fallback,
+      status ? { status, ...(typeof data.pageId === "string" ? { pageId: data.pageId } : {}), undoable: data.undoable === true } : undefined);
+  }
   return data as { page?: { id?: string }; ids?: unknown };
+}
+
+// サーバーで処理済みだったときは、エラーではなくその状態をカードに出す（適用・破棄のボタンを出し直さない）。
+function settledByServer(proposal: Proposal, caught: unknown): boolean {
+  const final = caught instanceof ProposalActionError ? caught.final : undefined;
+  if (!final) return false;
+  setState(proposal.id, { status: final.status, error: "", pageId: final.pageId ?? current(proposal).pageId, undoable: final.status === "applied" && final.undoable === true });
+  return true;
 }
 
 // 適用・破棄・元に戻すはサーバーの専用エンドポイントで行う。提案は保存済みで、どれも 1 回だけ有効（再送しても二重にならない）。
@@ -99,6 +120,7 @@ async function apply(proposal: Proposal) {
     // 開いているページの編集の状態（版と本文）や一覧を最新にそろえる。
     window.dispatchEvent(new CustomEvent(proposal.kind === "proposal" ? "notefable:page-updated" : "notefable:page-created", { detail: data.page }));
   } catch (caught) {
+    if (settledByServer(proposal, caught)) return;
     setState(proposal.id, { ...current(proposal), status: "idle", error: caught instanceof Error ? caught.message : msg("Could not apply the proposal.") });
   }
 }
@@ -110,6 +132,7 @@ async function discard(proposal: Proposal) {
     await post(`/api/proposals/${proposal.id}/discard`, msg("Could not discard the proposal."));
     setState(proposal.id, { ...current(proposal), status: "discarded", error: "" });
   } catch (caught) {
+    if (settledByServer(proposal, caught)) return;
     setState(proposal.id, { ...current(proposal), status: "idle", error: caught instanceof Error ? caught.message : msg("Could not discard the proposal.") });
   }
 }
@@ -119,12 +142,18 @@ async function undo(proposal: Proposal) {
   const before = current(proposal);
   if (before.status !== "applied") return;
   setState(proposal.id, { ...before, status: "undoing", error: "" });
+  // 新しいページはゴミ箱へ移るので、開いている編集（サブページも）を先に保存する。保存できなければ移さない（未保存の内容を捨てない）。
+  if (proposal.kind === "create_proposal" && before.pageId && !(await saveBeforeTrash([before.pageId]))) {
+    setState(proposal.id, { ...before, error: msg("Resolve the unsaved draft before moving this note to Trash.") });
+    return;
+  }
   try {
     const data = await post(`/api/proposals/${proposal.id}/undo`, msg("Could not undo the change."));
     setState(proposal.id, { ...before, status: "undone", error: "", undoable: false });
     if (proposal.kind === "proposal") window.dispatchEvent(new CustomEvent("notefable:page-updated", { detail: data.page }));
     else window.dispatchEvent(new CustomEvent(PAGES_TRASHED_EVENT, { detail: { ids: Array.isArray(data.ids) ? data.ids : [] } }));
   } catch (caught) {
+    if (caught instanceof ProposalActionError && (caught.final?.status === "discarded" || caught.final?.status === "undone")) { settledByServer(proposal, caught); return; }
     setState(proposal.id, { ...before, error: caught instanceof Error ? caught.message : msg("Could not undo the change.") });
   }
 }
@@ -180,8 +209,12 @@ function Card({ proposal, state, icon, title, label, applyLabel, doneBadge, open
   const open = busy || !!state.error || (manual ?? !settled);
   const badge = state.status === "applied" || state.status === "undoing" ? doneBadge : state.status === "discarded" ? t("Discarded") : state.status === "undone" ? t("Undone") : "";
   const host = useContext(ProposalHostContext);
-  const canOpen = !!openPageId(state, proposal.kind, host.currentPageId);
+  const canOpen = !host.noOpen && !!openPageId(state, proposal.kind, host.currentPageId);
   const href = state.pageId ? `/?view=pages&page=${encodeURIComponent(state.pageId)}` : "";
+  // アプリ（/note-embed）の中では、リンクをブラウザで開かず、アプリにページを開いてもらう（ブラウザにはアプリのログインが無い）。
+  const onOpen = (event: { preventDefault(): void }) => {
+    if (state.pageId && host.openPage?.(state.pageId)) event.preventDefault();
+  };
   return (
     <section className={`page-edit ${settled ? "is-settled" : ""} ${open ? "" : "is-minimized"}`} aria-label={label}>
       <header className="page-edit-header">
@@ -192,7 +225,7 @@ function Card({ proposal, state, icon, title, label, applyLabel, doneBadge, open
           <span className="min-w-0 flex-1 truncate">{title}</span>
           {badge && <span className="page-edit-badge">{badge}</span>}
         </button>
-        {!open && canOpen && <a className="page-edit-link page-edit-link-inline" href={href}>{t("Open")}</a>}
+        {!open && canOpen && <a className="page-edit-link page-edit-link-inline" href={href} onClick={onOpen}>{t("Open")}</a>}
         {/* AI が作った内容なので、カードからも報告できる（Google Play の AI 生成コンテンツのポリシー）。 */}
         <button type="button" className="page-edit-report" onClick={() => setReporting(true)} aria-label={t("Report AI content")} title={t("Report AI content")}>
           <Flag size={13} strokeWidth={1.9} aria-hidden="true" />
@@ -215,7 +248,7 @@ function Card({ proposal, state, icon, title, label, applyLabel, doneBadge, open
         )}
         {(canOpen || state.status === "undoing" || (state.status === "applied" && state.undoable)) && (
           <footer className="page-edit-actions">
-            {canOpen && <a className="page-edit-link" href={href}>{openLabel}</a>}
+            {canOpen && <a className="page-edit-link" href={href} onClick={onOpen}>{openLabel}</a>}
             {(state.status === "undoing" || (state.status === "applied" && state.undoable)) && (
               <button type="button" className="page-edit-discard" onClick={() => void undo(proposal)} disabled={busy}>
                 {state.status === "undoing" ? <LoaderCircle size={13} className="animate-spin" /> : <Undo2 size={13} />}

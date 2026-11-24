@@ -7,6 +7,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { NoteEditorHandle } from "@/components/note-editor";
 import { CanvasPagePlaceholder } from "@/components/canvas-page-placeholder";
 import { CANVAS_EDITORS } from "@/components/canvas-editors";
+import { flushCanvasEditors } from "@/lib/canvas-flush";
 import { PageAssistant } from "@/components/page-assistant";
 import { NotePageHeader } from "@/components/note-page-header";
 import { NewPageButtons, NotesHome } from "@/components/notes-home";
@@ -188,7 +189,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
       {CanvasEditor ? <div className="canvas-editor-shell">
         <div className="canvas-editor-warnings"><NoteSaveWarnings notes={notes} /></div>
         <CanvasEditor key={`${activeId}:${notes.editorEpoch}`} pageId={activeId} kind={activeKind} title={active.content.title} icon={active.content.icon}
-          data={canvasData!} version={active.version} editable={editable} embedded={embedded} split={split} saveStatus={active.status}
+          data={canvasData!} version={active.version} generation={canvasGeneration} editable={editable} embedded={embedded} split={split} saveStatus={active.status}
           // 同じ内容の通知（作成・削除の途中で editable が替わったときなど）では、要らない保存を走らせない。
           // 中身をサーバーの版で置き換えた後（最新の版を読む・版の復元）は、置き換える前のエディターが閉じる時に渡す古い変更を捨てる。
           onChange={(data) => { if (active.generation === canvasGeneration && data !== active.content.data) active.edit({ ...active.content, data }); }}
@@ -209,9 +210,10 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
         {(!!active.error || !!notes.backupError) && <div className="notes-column pt-6"><NoteSaveWarnings notes={notes} /></div>}
         <CanvasPagePlaceholder key={`${activeId}:${notes.editorEpoch}`} kind={activeKind} title={active.content.title} icon={active.content.icon} data={active.page.data} />
       </>}
-      {/* AI パネル（AI 操控底座）。エディターが選んだ要素・スライドを selection で渡す。AI が操作できない種類は読むだけ。 */}
+      {/* AI パネル（AI 操控底座）。エディターが選んだ要素・スライドを selection で渡す。AI が操作できない種類は読むだけ。
+          送る前の flush は、ホワイトボードなどがまだ保存キューへ渡していない変更（描き終わり・文字の確定の直後）も先に渡してもらう（版の履歴と同じ）。 */}
       <PageAssistant key={activeId} pageId={activeId} pageKind={activeKind} pageTitle={active.content.title} model={model} reasoning={reasoning}
-        onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={() => active.flush()} embedded={embedded}
+        onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={async () => { await flushCanvasEditors(); return active.flush(); }} embedded={embedded}
         selection={aiSelection} onClearSelection={() => setAiAsk((current) => (current?.noteId === activeId ? { ...current, selection: null } : current))}
         openSignal={aiOpenSignal} hidden={split} anchor={CanvasEditor && !split ? aiAnchor : null} />
     </>
