@@ -3,13 +3,19 @@ name: Android release to Play internal and alpha
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: "Optional 40-char merge commit SHA on main to replay (defaults to main HEAD)"
+        required: false
+        type: string
 
 permissions:
   contents: read
 
 jobs:
   plan:
-    if: github.ref == 'refs/heads/main' && github.event.deleted != true && github.event.forced != true
+    if: github.ref == 'refs/heads/main' && (github.event_name != 'push' || (github.event.deleted != true && github.event.forced != true))
     permissions:
       contents: read
       pull-requests: read
@@ -18,25 +24,59 @@ jobs:
     outputs:
       publish: ${{ steps.version.outputs.publish }}
       version_code: ${{ steps.version.outputs.version_code }}
+      commit_sha: ${{ steps.target.outputs.sha }}
     steps:
-      # Check out the commit pushed to main, then verify it came from a merged PR targeting main.
+      # Check out main, resolve the target commit (push SHA or manual replay SHA on main's first-parent history),
+      # and verify it came from a merged PR targeting main.
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Resolve target commit
+        id: target
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DEFAULT_SHA: ${{ github.sha }}
+          INPUT_SHA: ${{ inputs.commit_sha }}
+        run: |
+          set -euo pipefail
+          target_sha="$DEFAULT_SHA"
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && -n "$INPUT_SHA" ]]; then
+            if [[ ! "$INPUT_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+              echo "::error::commit_sha must be a 40-character commit SHA."
+              exit 1
+            fi
+            target_sha=$(git rev-parse --verify "${INPUT_SHA}^{commit}") || {
+              echo "::error::Commit $INPUT_SHA not found in main history."
+              exit 1
+            }
+            if ! git rev-list --first-parent HEAD | awk -v target="$target_sha" '$0 == target { found = 1 } END { exit !found }'; then
+              echo "::error::Commit $target_sha is not on main's first-parent history."
+              exit 1
+            fi
+          fi
+          echo "sha=$target_sha" >> "$GITHUB_OUTPUT"
       - name: Verify commit is a merged PR targeting main
         id: pr
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          COMMIT_SHA: ${{ github.sha }}
+          COMMIT_SHA: ${{ steps.target.outputs.sha }}
         run: bash scripts/release/verify-merged-pr.sh
       - name: Compare Android version with main before the merge
         if: steps.pr.outputs.is_merged_pr == 'true'
         id: version
         shell: bash
-        run: bash scripts/release/android-version.sh
+        env:
+          TARGET_SHA: ${{ steps.target.outputs.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$TARGET_SHA" != "$(git rev-parse HEAD)" ]]; then
+            git checkout --detach "$TARGET_SHA"
+          fi
+          bash scripts/release/android-version.sh
 
   release:
     needs: plan
@@ -54,7 +94,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ needs.plan.outputs.commit_sha }}
           fetch-depth: 2
           persist-credentials: false
 

@@ -19,7 +19,7 @@
 ### 触发与版本规则
 
 - **何时发布**：平时合并改动保持 `mobile/ios/project.yml` 的 `CURRENT_PROJECT_VERSION` 不变，不会触发打包或启动 macOS runner。需要上传 TestFlight 时，在合入 `main` 的 PR 中调高 `CURRENT_PROJECT_VERSION`（并按需调高 `MARKETING_VERSION`），在 PR 描述里标明这次会上传 TestFlight。
-- **合并校验**：`main` 收到推送后，`plan` 任务在 `ubuntu-latest` 上先核实该提交是合入 `main` 的已合并 PR（`scripts/release/verify-merged-pr.sh`，非 PR 直接推送跳过，接口异常则失败），再比较合并提交 `HEAD` 与第一父提交 `HEAD^1`（仓库只允许 merge commit，不是合并提交时直接失败）：
+- **合并校验**：`main` 收到推送后，`plan` 任务在 `ubuntu-latest` 上先核实该提交是合入 `main` 的已合并 PR（`scripts/release/verify-merged-pr.sh`，非 PR 直接推送跳过，接口异常则失败），再比较合并提交 `HEAD` 与第一父提交 `HEAD^1`（仓库只允许 merge commit，不是合并提交时直接失败）；若因合并提交含 `[skip ci]` 等标记未自动触发，可在 `main` 上通过 `workflow_dispatch`（可选填 `main` 第一父提交线上的 40 位合并提交 SHA）按同一套校验补发：
   - `mobile/ios/project.yml` 尚未存在，或本次合并首次引入该文件时：校验通过并跳过发布（`publish=false`），不会在首次合入客户端骨架时意外触发发布。
   - `CURRENT_PROJECT_VERSION` 未变且 `MARKETING_VERSION` 未变：跳过发布（`publish=false`）。
   - `CURRENT_PROJECT_VERSION` 降低、格式非正整数、重复定义，或 `MARKETING_VERSION` 降低、格式无效、修改了 `MARKETING_VERSION` 却未递增 `CURRENT_PROJECT_VERSION`，或 PR 把 `CURRENT_PROJECT_VERSION` 改到了 `main` 已被其他 PR 达到的同一个值：报错失败。

@@ -2,9 +2,18 @@
 set -euo pipefail
 # Verifies that COMMIT_SHA (default: GITHUB_SHA) is the merge commit of a merged PR
 # targeting TARGET_BRANCH (default: main) in GITHUB_REPOSITORY.
-# Used by release workflows on `push` to `main` so direct pushes never trigger a release.
-# Retries briefly to tolerate GitHub API indexing lag right after a merge, and fails
-# closed if the API query itself cannot succeed.
+# Used by release workflows on `push` to `main` (and manual replay) so direct pushes
+# never trigger a release.
+#
+# Lookup order per attempt:
+#   1. Commit-to-PR index: GET /repos/{owner}/{repo}/commits/{sha}/pulls
+#   2. Direct PR lookup (if commit subject is "Merge pull request #<N> ..."):
+#      GET /repos/{owner}/{repo}/pulls/<N>  (primary-key lookup; immune to index lag)
+#   3. Recent closed PRs targeting TARGET_BRANCH:
+#      GET /repos/{owner}/{repo}/pulls?state=closed&base=<branch>&sort=updated&direction=desc&per_page=30
+# Every lookup verifies the same GitHub-authoritative PR fields (closed, merged_at,
+# merge_commit_sha == COMMIT_SHA, base.ref == TARGET_BRANCH, base.repo.full_name == repo).
+# Fails closed if any required API query cannot succeed.
 
 repo="${GITHUB_REPOSITORY:-}"
 sha="${COMMIT_SHA:-${GITHUB_SHA:-}}"
@@ -50,6 +59,19 @@ if [[ -n "$retry_delays_str" ]]; then
   read -r -a retry_delays <<< "$retry_delays_str"
 fi
 
+# Extract optional candidate PR number from a standard GitHub merge commit subject.
+# Even if forged in a direct push, the direct PR endpoint still requires GitHub's
+# merge_commit_sha, merged_at, base.ref, and base.repo.full_name to match.
+if [[ -n "${COMMIT_SUBJECT+x}" ]]; then
+  commit_subject="$COMMIT_SUBJECT"
+else
+  commit_subject=$(git show -s --format=%s "$sha" 2>/dev/null || true)
+fi
+candidate_pr=""
+if [[ "$commit_subject" =~ ^Merge\ pull\ request\ \#([1-9][0-9]*)([^0-9]|$) ]]; then
+  candidate_pr="${BASH_REMATCH[1]}"
+fi
+
 api_err=$(mktemp)
 trap 'rm -f -- "$api_err"' EXIT
 
@@ -66,20 +88,22 @@ try:
 except Exception:
     sys.exit(2)
 
-if not isinstance(data, list):
-    sys.exit(2)
-
 prs = []
-for item in data:
-    if isinstance(item, list):
-        for sub in item:
-            if not isinstance(sub, dict):
-                sys.exit(2)
-            prs.append(sub)
-    elif isinstance(item, dict):
-        prs.append(item)
-    else:
-        sys.exit(2)
+if isinstance(data, dict):
+    prs.append(data)
+elif isinstance(data, list):
+    for item in data:
+        if isinstance(item, list):
+            for sub in item:
+                if not isinstance(sub, dict):
+                    sys.exit(2)
+                prs.append(sub)
+        elif isinstance(item, dict):
+            prs.append(item)
+        else:
+            sys.exit(2)
+else:
+    sys.exit(2)
 
 matches = []
 for pr in prs:
@@ -109,37 +133,89 @@ if matches:
 ' "$sha" "$repo" "$target_branch"
 }
 
-last_succeeded=false
-for (( attempt = 1; attempt <= max_attempts; attempt++ )); do
+# Queries a GitHub API endpoint and parses PR JSON.
+# Sets global query_pr (matching PR number or empty) and returns:
+#   0 = API succeeded and JSON was valid
+#   1 = API or JSON error (caller must treat attempt as failed)
+query_pr=""
+query_endpoint() {
+  local allow_404="$1"
+  shift
+  query_pr=""
   : > "$api_err"
   set +e
-  payload=$("$gh_bin" api --paginate --slurp "repos/$repo/commits/$sha/pulls?per_page=100" 2>"$api_err")
-  api_rc=$?
+  local payload
+  payload=$("$gh_bin" api "$@" 2>"$api_err")
+  local api_rc=$?
   set -e
 
-  if (( api_rc == 0 )); then
-    set +e
-    pr_number=$(printf '%s' "$payload" | find_matching_pr)
-    parse_rc=$?
-    set -e
+  if (( api_rc != 0 )); then
+    local err_text
+    err_text=$(tr '\n' ' ' < "$api_err")
+    if [[ "$allow_404" == "true" && "$err_text" == *"HTTP 404"* ]]; then
+      return 0
+    fi
+    echo "Attempt $attempt/$max_attempts: GitHub API query failed (exit $api_rc): $err_text" >&2
+    return 1
+  fi
 
-    if (( parse_rc == 0 )); then
-      last_succeeded=true
-      if [[ -n "$pr_number" ]]; then
-        echo "Confirmed commit $sha is merged pull request #$pr_number targeting $target_branch."
+  set +e
+  query_pr=$(printf '%s' "$payload" | find_matching_pr)
+  local parse_rc=$?
+  set -e
+  if (( parse_rc != 0 )); then
+    query_pr=""
+    echo "Attempt $attempt/$max_attempts: invalid JSON payload from GitHub API." >&2
+    return 1
+  fi
+  return 0
+}
+
+encoded_branch=$("$python_bin" -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$target_branch")
+
+last_succeeded=false
+for (( attempt = 1; attempt <= max_attempts; attempt++ )); do
+  attempt_ok=true
+
+  # 1. Primary lookup: commit-to-PR index.
+  if query_endpoint false --paginate --slurp "repos/$repo/commits/$sha/pulls?per_page=100"; then
+    if [[ -n "$query_pr" ]]; then
+      echo "Confirmed commit $sha is merged pull request #$query_pr targeting $target_branch."
+      write_output 'is_merged_pr=true'
+      write_output "pr_number=$query_pr"
+      exit 0
+    fi
+  else
+    attempt_ok=false
+  fi
+
+  # 2. Direct PR lookup from merge commit subject (immune to commit-to-PR index lag).
+  if [[ -n "$candidate_pr" ]]; then
+    if query_endpoint true "repos/$repo/pulls/$candidate_pr"; then
+      if [[ -n "$query_pr" ]]; then
+        echo "Confirmed commit $sha is merged pull request #$query_pr targeting $target_branch (via direct PR lookup)."
         write_output 'is_merged_pr=true'
-        write_output "pr_number=$pr_number"
+        write_output "pr_number=$query_pr"
         exit 0
       fi
     else
-      last_succeeded=false
-      echo "Attempt $attempt/$max_attempts: invalid JSON payload from GitHub API." >&2
+      attempt_ok=false
+    fi
+  fi
+
+  # 3. Fallback for customized merge commit subjects when commit-to-PR index is lagging.
+  if query_endpoint false "repos/$repo/pulls?state=closed&base=$encoded_branch&sort=updated&direction=desc&per_page=30"; then
+    if [[ -n "$query_pr" ]]; then
+      echo "Confirmed commit $sha is merged pull request #$query_pr targeting $target_branch (via recent closed PRs)."
+      write_output 'is_merged_pr=true'
+      write_output "pr_number=$query_pr"
+      exit 0
     fi
   else
-    last_succeeded=false
-    err_text=$(tr '\n' ' ' < "$api_err")
-    echo "Attempt $attempt/$max_attempts: GitHub API query failed (exit $api_rc): $err_text" >&2
+    attempt_ok=false
   fi
+
+  last_succeeded="$attempt_ok"
 
   if (( attempt < max_attempts )); then
     delay=0
