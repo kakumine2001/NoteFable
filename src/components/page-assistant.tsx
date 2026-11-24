@@ -837,7 +837,7 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
             </div>}
           </div>
         ) : <ProposalHostContext.Provider value={proposalHost}>{messages.map((message) => (
-          <ChatMessage key={message.id} message={message} isStreaming={streaming && message.id === activeTurnAssistantId} thinkingSeconds={seconds}
+          <ChatMessage key={message.renderKey ?? message.id} message={message} isStreaming={streaming && message.id === activeTurnAssistantId} thinkingSeconds={seconds}
             characterState={message.id === activeTurnAssistantId ? replyCharacterState : undefined} characterSize={24} />
         ))}</ProposalHostContext.Provider>}
       </div>
