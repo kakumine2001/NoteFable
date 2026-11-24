@@ -619,7 +619,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     const pending = consumeWhiteboardReveal(pageId);
     const { width, height } = ready.getAppState();
     // 枠の大きさがまだ 0（見えていない枠・後から広がる App の WebView）のときに合わせると、10% まで縮んで左上に寄る。
-    // 大きさが決まってから合わせる（下の ResizeObserver）。
+    // 大きさが決まってから合わせる（handleChange が Excalidraw の大きさの変化を見て行う）。
     if (width && height) placeOnOpen(ready, pending, fitOnOpen);
     else if (pending || fitOnOpen) deferredPlacement.current = { reveal: pending, fit: fitOnOpen };
     queueMicrotask(() => { if (mounted.current) setContentHidden(contentHiddenIn(ready)); });
