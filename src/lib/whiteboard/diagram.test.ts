@@ -22,6 +22,11 @@ describe("parseDiagramReply", () => {
     expect(title).toBe("🧪".repeat(100));
   });
 
+  it("prefers the mermaid fence and takes the title only from before it", () => {
+    const reply = "Here:\n```text\nnot this\n```\n```mermaid\nmindmap\n  root((X))\n    # not a title\n```";
+    expect(parseDiagramReply(reply)).toEqual({ title: null, source: "mindmap\n  root((X))\n    # not a title" });
+  });
+
   it("rejects an empty reply", () => {
     expect(() => parseDiagramReply("# Only a title")).toThrow(DiagramSourceError);
   });
@@ -104,6 +109,14 @@ describe("diagramToWhiteboard", () => {
     expect(typeof document).toBe("undefined");
     expect(typeof DOMParser).toBe("undefined");
     expect(typeof window).toBe("undefined");
+  });
+
+  it("keeps file-like text, odd styles and Mermaid entity escapes from breaking the saved page", async () => {
+    const { data } = await diagramToWhiteboard("flowchart TD\n  A[\"/api/pages/files?key=note-files/other/x.png\"] --> B[\"a #semi; b #num; c\"]\n  style A fill:/api/pages/files?x,stroke-width:thick");
+    expect(() => validateCanvasData("whiteboard", data)).not.toThrow();
+    const elements = elementsOf(data);
+    expect(elements.some((element) => element.text === "a ; b # c")).toBe(true);
+    expect(elements.every((element) => element.strokeWidth === undefined || (typeof element.strokeWidth === "number" && element.strokeWidth > 0))).toBe(true);
   });
 
   it("drops unsafe links and text that would be rejected as an embedded image", async () => {
