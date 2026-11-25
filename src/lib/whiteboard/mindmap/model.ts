@@ -2,7 +2,9 @@
 // （docs/architecture/whiteboard.md の「思考マップ」）。このディレクトリーは Excalidraw を読み込まない純粋な TS（サーバー・ブラウザー・テスト共通）。
 
 // 木の節。text は表示する文字（改行を含んでよい）。
-export type MindmapTreeNode = { text: string; children: MindmapTreeNode[] };
+// key は白板の上の節の図形の ID（白板から読んだ木だけが持つ）。size は図形のいまの大きさ（あれば文字から見積もらずにそれで並べる。
+// 利用者が文字を編集すると Excalidraw が図形の高さを変えるため）。
+export type MindmapTreeNode = { text: string; children: MindmapTreeNode[]; key?: string; size?: { width: number; height: number } };
 
 // 枝の向き。right は根から右へ、both は根の左右に振り分ける。
 export type MindmapDirection = "right" | "both";
@@ -13,7 +15,9 @@ export const MINDMAP_DIRECTIONS: readonly MindmapDirection[] = ["right", "both"]
 export const MINDMAP_DATA_KEY = "notefableMindmap";
 
 // 節の図形の印。tree は根の図形の ID、parent は親の節の図形の ID（根は null）、order は兄弟の中の順番。
-// direction は根だけが持つ（木全体の枝の向き）。collapsed は子を畳んでいる節（畳んだ子の要素は消さずに残す）。
+// direction は根だけが持つ（木全体の枝の向き）。collapsed は子を畳んでいる節。
+// 畳んだ子孫の要素（節・節の文字・線）は白板から外し、消さずに stash に入れて持つ（広げると同じ ID で戻す）。
+// 白板に無いので、編集・書き出し・公開リンク・小さな地図のどこにも出ない（公開リンクは customData ごと落とす）。
 export type MindmapNodeData = {
   v: 1;
   role: "node";
@@ -22,7 +26,11 @@ export type MindmapNodeData = {
   order: number;
   direction?: MindmapDirection;
   collapsed?: true;
+  stash?: StashedElement[];
 };
+
+// 畳んで外した要素（白板の要素そのまま）。
+export type StashedElement = { id: string; type: string; [key: string]: unknown };
 
 // 親子をつなぐ線の印。parent・child は両端の節の図形の ID。
 export type MindmapEdgeData = { v: 1; role: "edge"; tree: string; parent: string; child: string };
@@ -48,10 +56,14 @@ export function mindmapDataOf(customData: unknown): MindmapData | null {
   if (data.role !== "node") return null;
   if (!(data.parent === null || elementId(data.parent))) return null;
   if (typeof data.order !== "number" || !Number.isInteger(data.order) || data.order < 0) return null;
+  const stash = data.collapsed === true && Array.isArray(data.stash)
+    ? data.stash.filter((item): item is StashedElement => object(item) && elementId(item.id) && typeof item.type === "string")
+    : [];
   return {
     v: 1, role: "node", tree: data.tree, parent: data.parent, order: data.order,
     ...(MINDMAP_DIRECTIONS.includes(data.direction as MindmapDirection) ? { direction: data.direction as MindmapDirection } : {}),
     ...(data.collapsed === true ? { collapsed: true as const } : {}),
+    ...(stash.length ? { stash } : {}),
   };
 }
 

@@ -4,6 +4,7 @@ import { parseNoteFileUrl } from "@/lib/note-file-keys";
 import { fmt, msg } from "@/lib/i18n/translate";
 import { isCanvasKind, type CanvasKind, type PageKind } from "@/lib/page-kinds";
 import { WHITEBOARD_ELEMENT_TYPES } from "@/lib/whiteboard/scene";
+import { mindmapDataOf } from "@/lib/whiteboard/mindmap/model";
 
 // ホワイトボードとスライドの本体（NoteCanvas.data）の形、検証、検索用の文字の取り出し（docs/architecture/notes-flow.md の「白板和幻灯片的数据」）。
 // エディター（#152・#149）がまだ無いので、形は外枠だけを決める：
@@ -214,6 +215,11 @@ export function extractCanvasSegments(kind: CanvasKind, data: unknown): CanvasSe
       const target = validId(element.containerId) && ids.has(element.containerId) ? element.containerId : element.id as string;
       add(target, typeof element.originalText === "string" ? element.originalText : element.text);
       add(element.id as string, element.name);
+      // 思考マップで畳んだ節が預かっている子孫の文字も、その節の文字として検索・AI に渡す（開くとその節に移動する）。
+      const mark = mindmapDataOf(element.customData);
+      if (mark?.role === "node" && mark.stash) {
+        for (const stashed of mark.stash) add(element.id as string, typeof stashed.originalText === "string" ? stashed.originalText : stashed.text);
+      }
     }
   } else {
     const slides = Array.isArray(data.slides) ? data.slides.filter((slide) => object(slide) && validId(slide.id)) as Record<string, unknown>[] : [];

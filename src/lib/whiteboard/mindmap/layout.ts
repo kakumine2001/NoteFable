@@ -24,6 +24,8 @@ export type PlacedMindmapNode = {
   fontSize: number;
   // 折り返した後の文字（改行を含む）。
   text: string;
+  // 木の節の key（白板から読んだ木では節の図形の ID）。
+  key?: string;
 };
 
 export type MindmapLayout = { nodes: PlacedMindmapNode[]; direction: MindmapDirection };
@@ -40,10 +42,17 @@ const SIBLING_GAP = [28, 18, 12] as const;
 
 const pick = <T,>(values: readonly T[], depth: number) => values[Math.min(depth, values.length - 1)];
 
+// 深さごとの字の大きさ（新しく足す節の文字に使う）。
+export function mindmapFontSize(depth: number) {
+  return pick(MINDMAP_FONT_SIZES, depth);
+}
+
 type Box = { node: MindmapTreeNode; width: number; height: number; fontSize: number; text: string; children: Box[]; depth: number; subtree: number };
 
 function measure(node: MindmapTreeNode, depth: number): Box {
   const fontSize = pick(MINDMAP_FONT_SIZES, depth);
+  // 白板の上の節は、いまの大きさのまま並べる（文字は図形の中で Excalidraw が折り返している）。
+  if (node.size) return { node, width: node.size.width, height: node.size.height, fontSize, text: node.text, children: [], depth, subtree: node.size.height };
   const lines = wrapText(node.text, fontSize, pick(MAX_TEXT_WIDTH, depth));
   const text = lines.join("\n");
   const width = Math.max(pick(MIN_WIDTH, depth), Math.ceil(estimateTextWidth(text, fontSize) + 2 * pick(PADDING_X, depth)));
@@ -93,7 +102,10 @@ export function layoutMindmap(root: MindmapTreeNode, direction: MindmapDirection
   const nodes: PlacedMindmapNode[] = [];
   const place = (box: Box, x: number, y: number, parent: number | null, order: number, side: MindmapSide, branch: number) => {
     const index = nodes.length;
-    nodes.push({ index, parent, order, depth: box.depth, side, branch, x, y, width: box.width, height: box.height, fontSize: box.fontSize, text: box.text });
+    nodes.push({
+      index, parent, order, depth: box.depth, side, branch, x, y, width: box.width, height: box.height, fontSize: box.fontSize, text: box.text,
+      ...(box.node.key === undefined ? {} : { key: box.node.key }),
+    });
     return index;
   };
   // 子の並び（top から下へ）を、親の外側に置く。部分木の中央に子の箱を合わせる。

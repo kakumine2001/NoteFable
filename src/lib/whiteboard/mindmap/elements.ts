@@ -38,7 +38,7 @@ export function branchColors(branch: number) {
   return branch < 0 ? ROOT_COLORS : BRANCH_COLORS[branch % BRANCH_COLORS.length];
 }
 
-function nodeSkeleton(node: PlacedMindmapNode, id: string, data: MindmapNodeData, origin: { x: number; y: number }): MindmapSkeleton {
+export function nodeSkeleton(node: Pick<PlacedMindmapNode, "x" | "y" | "width" | "height" | "depth" | "branch" | "text" | "fontSize">, id: string, data: MindmapNodeData, origin: { x: number; y: number }): MindmapSkeleton {
   const colors = branchColors(node.branch);
   return {
     id,
@@ -66,38 +66,59 @@ function nodeSkeleton(node: PlacedMindmapNode, id: string, data: MindmapNodeData
   };
 }
 
+type Box = { x: number; y: number; width: number; height: number };
+
+// 線と節のすき間（Excalidraw が結び付いた矢印の端を図形から離す幅）。
+export const EDGE_GAP = 6;
+
 // 親の外側の辺の中央から、子の内側の辺の中央へ。中間点を子の高さに置いて、斜めに出て横から入るなめらかな曲線にする
 // （中間点を 2 つにして横に出すと、Excalidraw の曲線が出口で行き過ぎて小さな輪ができる）。
-function edgeSkeleton(parent: PlacedMindmapNode, child: PlacedMindmapNode, ids: { edge: string; parent: string; child: string }, tree: string, origin: { x: number; y: number }): MindmapSkeleton {
-  const right = child.side !== "left";
-  const startX = origin.x + (right ? parent.x + parent.width : parent.x);
-  const startY = origin.y + parent.y + parent.height / 2;
-  const endX = origin.x + (right ? child.x : child.x + child.width);
-  const endY = origin.y + child.y + child.height / 2;
+// 置き直し（relayout.ts）も同じ形を使う。right は子が親の右にあるか。
+export function edgeGeometry(parent: Box, child: Box, right: boolean) {
+  const startX = right ? parent.x + parent.width + EDGE_GAP : parent.x - EDGE_GAP;
+  const startY = parent.y + parent.height / 2;
+  const endX = right ? child.x - EDGE_GAP : child.x + child.width + EDGE_GAP;
+  const endY = child.y + child.height / 2;
   const dx = endX - startX;
   const dy = endY - startY;
-  const points = Math.abs(dy) < 1 ? [[0, 0], [dx, dy]] : [[0, 0], [dx * 0.5, dy], [dx, dy]];
-  const data: MindmapEdgeData = { v: 1, role: "edge", tree, parent: ids.parent, child: ids.child };
+  const points: [number, number][] = Math.abs(dy) < 1 ? [[0, 0], [dx, dy]] : [[0, 0], [dx * 0.5, dy], [dx, dy]];
   return {
-    id: ids.edge,
+    x: startX, y: startY, points, width: Math.abs(dx), height: Math.abs(dy),
+    // 結び付きの位置（図形の幅・高さに対する割合）。右の子は親の右の辺から出て子の左の辺に入る。
+    startFixedPoint: (right ? [1, 0.5001] : [0, 0.5001]) as [number, number],
+    endFixedPoint: (right ? [0, 0.5001] : [1, 0.5001]) as [number, number],
+  };
+}
+
+function edgeSkeleton(parent: PlacedMindmapNode, child: PlacedMindmapNode, ids: { edge: string; parent: string; child: string }, tree: string, origin: { x: number; y: number }): MindmapSkeleton {
+  const shift = (box: Box) => ({ ...box, x: origin.x + box.x, y: origin.y + box.y });
+  const geometry = edgeGeometry(shift(parent), shift(child), child.side !== "left");
+  const data: MindmapEdgeData = { v: 1, role: "edge", tree, parent: ids.parent, child: ids.child };
+  return edgeElementSkeleton(ids.edge, geometry, { parent: ids.parent, child: ids.child }, branchColors(child.branch).stroke, child.depth, data);
+}
+
+// 線の下書き（新しく足す節の線にも使う）。
+export function edgeElementSkeleton(id: string, geometry: ReturnType<typeof edgeGeometry>, ends: { parent: string; child: string }, stroke: string, childDepth: number, data: MindmapEdgeData): MindmapSkeleton {
+  return {
+    id,
     type: "arrow",
-    x: startX,
-    y: startY,
-    points,
-    strokeColor: branchColors(child.branch).stroke,
-    strokeWidth: child.depth <= 1 ? 2 : 1,
+    x: geometry.x,
+    y: geometry.y,
+    points: geometry.points,
+    strokeColor: stroke,
+    strokeWidth: childDepth <= 1 ? 2 : 1,
     roughness: 0,
     roundness: { type: 2 },
     startArrowhead: null,
     endArrowhead: null,
-    start: { id: ids.parent },
-    end: { id: ids.child },
+    start: { id: ends.parent },
+    end: { id: ends.child },
     customData: { [MINDMAP_DATA_KEY]: data },
   };
 }
 
 // 木から、白板に置く要素の下書きを作る。origin は思考マップの左上の位置。
-// 並びは前順の節のあとに線（線が節の下に描かれるよう、先に線を置く）。
+// 並びは線のあとに前順の節（線が節の下に描かれるよう、先に線を置く）。
 export function mindmapSkeletons(root: MindmapTreeNode, { direction, origin = { x: 0, y: 0 }, newId = randomElementId }: {
   direction: MindmapDirection;
   origin?: { x: number; y: number };
