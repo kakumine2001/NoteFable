@@ -132,6 +132,10 @@ final class AppRouter {
 
     // MARK: - 画成图
 
+    // 正在等待保存（flushBeforeServerRead）的笔记 id：避免慢保存期间连点两次并发 flush 或重复开任务。
+    @ObservationIgnored private var flushingDiagramPages: Set<String> = []
+    @ObservationIgnored private var diagramIdentityGeneration = 0
+
     /// 回答"…"菜单的「画成图」：马上开始（不先确认）并打开进度窗口。同一素材已有任务时只是重新打开窗口，不再发一次。
     /// 模型用聊天里选着的（和「整理成笔记」相同）。返回开始的任务（已有任务时是 nil）。
     @discardableResult
@@ -141,14 +145,23 @@ final class AppRouter {
         return task
     }
 
-    /// 笔记"…"菜单的「画成图」：服务端读的是已保存的正文，先让网页保存；存不上就提示（编辑页顶栏下面）、不开始。
-    /// 返回的任务在保存、开始的任务都结束后结束（界面不用等它）。
+    /// 笔记"…"菜单的「画成图」：已有任务时直接重开窗口（不重做保存）；否则服务端读的是已保存的正文，先让网页保存，
+    /// 存不上就提示（编辑页顶栏下面）、不开始。同页保存中忽略重入；保存期间换了身份也不再开始。
     @discardableResult
     func drawDiagramFromNote(_ pageId: String) -> Task<Void, Never> {
+        let source = DiagramSource.note(pageId: pageId)
+        if app.diagrams.job(source) != nil {
+            diagramSource = source
+            return Task {}
+        }
+        guard flushingDiagramPages.insert(pageId).inserted else { return Task {} }
+        let generation = diagramIdentityGeneration
         let notes = app.notes
         return Task { [weak self] in
+            defer { self?.flushingDiagramPages.remove(pageId) }
             guard await notes.flushBeforeServerRead(pageId) else { return }
-            await self?.drawDiagram(.note(pageId: pageId))?.value
+            guard let self, self.diagramIdentityGeneration == generation else { return }
+            await self.drawDiagram(source)?.value
         }
     }
 
@@ -173,6 +186,8 @@ final class AppRouter {
 
     /// 登录 / 退出后：旧身份整理好的笔记、画好的白板打不开了（网页登录 / 退出会重新加载页面）。
     func onIdentityChanged() {
+        diagramIdentityGeneration += 1
+        flushingDiagramPages.removeAll()
         createPageSessionId = nil
         diagramSource = nil
         // 检索面板里还是旧身份的结果。

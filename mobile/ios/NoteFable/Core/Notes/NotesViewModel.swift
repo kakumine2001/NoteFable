@@ -844,10 +844,12 @@ final class NotesViewModel {
     func flushBeforeServerRead(_ id: String) async -> Bool {
         let owner = identity
         if state.open?.id == id, !(await flushOpen()).ok {
-            if owner == identity { update { $0.notice = NotesError(.unsavedDraft) } }
+            if owner == identity && state.open?.id == id { update { $0.notice = NotesError(.unsavedDraft) } }
             return false
         }
-        return owner == identity
+        guard owner == identity else { return false }
+        if state.notice?.kind == .unsavedDraft { update { $0.notice = nil } }
+        return true
     }
 
     /// 别处建好的页面（「画成图」的新白板）：不等刷新先放进列表，并和新建时一样让侧栏里看得到它（[createNote]）：

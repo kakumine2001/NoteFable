@@ -266,6 +266,11 @@ class NoteEmbedBridge(
                     return@post
                 }
             }
+            if (message is EmbedMessage.PagesChanged) {
+                // 笔记 AI 面板的后台画成图可能在用户离开编辑页（常驻 WebView 停靠中）后完成：只要 WebView 还在就转发，不要求 activeEditor。
+                if (webView != null) onMessage(message)
+                return@post
+            }
             if (activeEditor == null) return@post
             onMessage(message)
         }
@@ -464,6 +469,7 @@ class NoteEmbedHost(
     currentIcon: () -> String?,
 ) {
     var onMessage: (String, EmbedMessage) -> Unit = { _, _ -> }
+    var onPagesChanged: () -> Unit = {}
     var onDownload: (String) -> Unit = {}
     var onChatLink: (ChatLink) -> Unit = {}
     var onExportFile: (ExportFile?) -> Unit = {}
@@ -498,6 +504,10 @@ class NoteEmbedHost(
         exports = ExportFileAssembler(File(cacheDir, ExportFileAssembler.DIR_NAME)),
         onExportFile = { file -> onExportFile(file) },
     ) { message ->
+        if (message is EmbedMessage.PagesChanged) {
+            if (webView != null) onPagesChanged()
+            return@NoteEmbedBridge
+        }
         val editor = bridge.activeEditor ?: return@NoteEmbedBridge
         val expected = awaitingPageId
         if (expected != null) {

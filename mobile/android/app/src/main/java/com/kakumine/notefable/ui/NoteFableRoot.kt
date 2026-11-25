@@ -138,12 +138,14 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
         onDispose { noteEmbedHost.destroy() }
     }
     DisposableEffect(notesViewModel, noteEmbedHost) {
+        noteEmbedHost.onPagesChanged = notesViewModel::refresh
         notesViewModel.notifyPagesTrashed = noteEmbedHost::pageTrashed
         notesViewModel.notifyPageUpdated = { pageId, pageJson -> noteEmbedHost.pageUpdated(pageJson, pageId) }
         notesViewModel.notifyPageSettings = { page ->
             noteEmbedHost.pageSettings(com.kakumine.notefable.data.NoteFableJson.encodeToString(com.kakumine.notefable.data.NotePageSummary.serializer(), page))
         }
         onDispose {
+            noteEmbedHost.onPagesChanged = {}
             notesViewModel.notifyPagesTrashed = null
             notesViewModel.notifyPageUpdated = null
             notesViewModel.notifyPageSettings = null
@@ -504,7 +506,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                             is EmbedMessage.Missing -> notesViewModel.onEditorMissing(editor)
                             EmbedMessage.Trashed -> notesViewModel.onEditorTrashed(editor)
                             is EmbedMessage.OpenPage -> notesViewModel.openNoteFromLink(message.id)
-                            EmbedMessage.PagesChanged -> notesViewModel.refresh()
+                            EmbedMessage.PagesChanged -> Unit // 由 NoteEmbedHost.onPagesChanged 处理（停靠或切页中也不丢）
                             is EmbedMessage.StorageLimit -> if (notesViewModel.state.value.open?.editor == editor) {
                                 noteUsageLimit = null
                                 noteStorageLimit = editor to StorageLimitInfo(message.tier, message.used, message.limit)
@@ -551,8 +553,15 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         // 画成图：先让编辑器存上（服务端读已保存的内容），存不上就提示、不开始；存上了开始（或重开同一篇的任务）并打开窗口。
                         onDrawDiagram = {
                             val pageId = open.id
+                            val diagramGeneration = diagrams.currentGeneration
+                            val notesGeneration = notesViewModel.identityGeneration
                             scope.launch {
-                                diagrams.startWhenReady(com.kakumine.notefable.data.DiagramSource.Note(pageId), currentModel) {
+                                if (notesViewModel.identityGeneration != notesGeneration) return@launch
+                                diagrams.startWhenReady(
+                                    com.kakumine.notefable.data.DiagramSource.Note(pageId),
+                                    currentModel,
+                                    expectedGeneration = diagramGeneration,
+                                ) {
                                     notesViewModel.saveBeforeDiagram(pageId)
                                 }?.let { diagramKey = it }
                             }
@@ -637,6 +646,8 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                 jobKey = key,
                 model = state.selectedModel?.id,
                 store = diagrams,
+                account = account,
+                onSignIn = openSignIn,
                 onOpenPage = notesViewModel::openCreatedPage,
                 onClose = { diagramKey = null },
             )

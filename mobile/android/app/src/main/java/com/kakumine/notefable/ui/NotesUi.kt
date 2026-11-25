@@ -1307,6 +1307,8 @@ fun NotionButton(
     danger: Boolean = false,
     primary: Boolean = false,
     large: Boolean = false,
+    /** 文字左边的图标（网页 inline-flex gap-1：间距 4，图标 15）。 */
+    leadingIcon: List<String>? = null,
     /** 文字右边的图标（网页 inline-flex gap-1：间距 4，图标 15）。 */
     trailingIcon: List<String>? = null,
 ) {
@@ -1325,6 +1327,7 @@ fun NotionButton(
         }
         val shown = if (primary) color else color.copy(alpha = color.alpha * fade)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (leadingIcon != null) LucideIcon(leadingIcon, 15.dp, shown)
             Text(
                 text,
                 color = shown,

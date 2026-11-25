@@ -222,6 +222,11 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         // 消息按当前活跃编辑器转发，不按页面 id：换到副本后由 ViewModel 跟过去。
         self.bridge = NoteEmbedBridge(onMessage: { [weak self] message in
             guard let self else { return }
+            if case .pagesChanged = message {
+                // 笔记 AI 面板的后台画成图可能在离开编辑页（常驻 WKWebView 停靠中）或切页途中完成：只要 WKWebView 还在就刷新列表。
+                if self.webView != nil { self.app.notes.refresh() }
+                return
+            }
             guard let editor = self.activeEditor else {
                 // 首次 HTML 还没加载完用户就离开了笔记：立刻让网页卸载编辑器 DOM，不留孤立实例。
                 if case .ready = message { self.bridge.close() }

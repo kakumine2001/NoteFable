@@ -88,10 +88,12 @@ let DIAGRAM_FAILED = "Could not draw a diagram. Try again."
 let DIAGRAM_NOT_CONVERTED = "Could not turn this into an editable diagram."
 
 /// 失败时窗口里显示的东西：[message] 是英文原句（服务端的，或兜底句），界面经系统文词典翻译；
-/// [source] 是 422 时模型写的 Mermaid 原文（有它才显示"复制图的源码"）。
+/// [source] 是 422 时模型写的 Mermaid 原文（有它才显示"复制图的源码"）；
+/// [usageLimitTier] 是 429 usage_limit 时的档位（"guest" / "member"），游客用于窗口内显示登录入口。
 struct DiagramFailure: Equatable, Sendable {
     var message: String
     var source: String? = nil
+    var usageLimitTier: String? = nil
 }
 
 /// 和「整理成笔记」同一条规则：400 / 404 / 413 / 422 / 429 显示服务端原句（429 是上限的说明），其余（5xx、网络错误、回复不对）是兜底句。
@@ -100,7 +102,9 @@ func diagramFailure(_ error: Error) -> DiagramFailure {
         return DiagramFailure(message: invalid.message, source: ApiText.isBlank(invalid.source) ? nil : invalid.source)
     }
     guard let api = error as? ApiException else { return DiagramFailure(message: DIAGRAM_FAILED) }
-    if [400, 404, 413, 422, 429].contains(api.status), let message = api.serverMessage() { return DiagramFailure(message: message) }
+    if [400, 404, 413, 422, 429].contains(api.status), let message = api.serverMessage() {
+        return DiagramFailure(message: message, usageLimitTier: api.isUsageLimit ? api.tier : nil)
+    }
     return DiagramFailure(message: DIAGRAM_FAILED)
 }
 

@@ -778,7 +778,9 @@ class NotesViewModel(
         val saved = flushOpen().ok
         if (owner != identity) return false
         if (!saved) {
-            _state.update { it.copy(notice = NotesError(NotesError.Kind.UnsavedDraft)) }
+            if (_state.value.open?.id == pageId) {
+                _state.update { it.copy(notice = NotesError(NotesError.Kind.UnsavedDraft)) }
+            }
             return false
         }
         // 刚才没存上的提示已经不对了。
