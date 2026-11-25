@@ -3581,10 +3581,114 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 }
 .note-upload-button:hover { background: var(--nf-ink-hover); }
 .note-upload-button.is-busy { opacity: 0.7; cursor: progress; }
+.note-upload-generate {
+  display: inline-flex; min-height: 2.35rem; align-items: center; justify-content: center; gap: 0.45rem; padding: 0 0.9rem;
+  border-radius: 8px; border: 1px solid var(--notion-border-strong); background: var(--notion-surface); color: var(--notion-text);
+  font-size: 14px; font-weight: 500; cursor: pointer; transition: background-color 120ms ease, border-color 120ms ease;
+}
+.note-upload-generate:hover:not(:disabled) { background: var(--notion-hover); border-color: var(--nf-accent-line); }
+.note-upload-generate:disabled { opacity: 0.55; cursor: not-allowed; }
 .note-upload-hint { margin: 0; font-size: 12px; color: var(--notion-muted); }
 .note-upload-hint.is-error { color: #b91c1c; }
 .note-upload-spin { animation: note-upload-spin 0.9s linear infinite; }
 @keyframes note-upload-spin { to { transform: rotate(360deg); } }
+
+/* ワークスペース（ノート・ホワイトボード・スライド）共通の AI 画像生成ダイアログ。 */
+.ws-image-dialog {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+.ws-image-muted { margin: 6px 0 10px; color: var(--notion-muted); font-size: 13px; line-height: 1.45; }
+.ws-image-prompt { min-height: 84px; resize: vertical; line-height: 1.45; }
+.ws-image-sizes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.ws-image-size {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 2rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--notion-border-strong);
+  border-radius: 999px;
+  background: var(--notion-surface);
+  color: var(--notion-text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.ws-image-size:hover { background: var(--notion-hover); }
+.ws-image-size:has(input:focus-visible) { outline: 2px solid var(--nf-accent-line); outline-offset: 1px; }
+.ws-image-size.is-selected {
+  border-color: var(--nf-accent-line);
+  background: var(--nf-accent-soft);
+  color: var(--nf-accent);
+  font-weight: 600;
+}
+.ws-image-size input { position: absolute; opacity: 0; pointer-events: none; }
+.ws-image-ratio { display: inline-block; border: 1.5px solid currentColor; border-radius: 2px; opacity: 0.75; }
+.ws-image-ratio.is-1536x1024 { width: 15px; height: 10px; }
+.ws-image-ratio.is-1024x1024 { width: 12px; height: 12px; }
+.ws-image-ratio.is-1024x1536 { width: 10px; height: 15px; }
+.ws-image-stage {
+  margin-top: 12px;
+  border: 1px solid var(--notion-border);
+  border-radius: 10px;
+  background: var(--notion-sidebar);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ws-image-stage.is-loading {
+  min-height: 150px;
+  gap: 10px;
+  color: var(--notion-muted);
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.ws-image-stage.is-ready { padding: 8px; }
+.ws-image-preview {
+  display: block;
+  max-width: 100%;
+  max-height: min(44vh, 320px);
+  width: auto;
+  height: auto;
+  border-radius: 6px;
+  object-fit: contain;
+}
+.ws-image-preview-meta { display: flex; justify-content: flex-end; align-items: center; margin-top: 6px; }
+.ws-image-report-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  color: var(--notion-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.ws-image-report-link:hover { background: var(--notion-hover); color: var(--notion-text); }
+.ws-image-report-sent { color: var(--notion-muted); font-size: 12px; }
+.ws-image-report-box {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--notion-border);
+  border-radius: 8px;
+  background: var(--notion-sidebar);
+}
+.ws-image-report-hint { margin: 0; color: var(--notion-muted); font-size: 12px; line-height: 1.4; }
+.ws-image-report-input { margin-top: 6px; min-height: 54px; resize: vertical; font-size: 0.875rem; }
+.ws-image-report-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; }
+.ws-image-error { margin: 10px 0 0; color: var(--nf-danger, #b91c1c); font-size: 13px; line-height: 1.45; }
+.ws-image-dialog .guest-limit-prompt { width: 100%; max-width: none; margin: 12px 0 0; }
+.ws-image-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+@media (max-width: 639px) {
+  .ws-image-dialog { padding: 1.15rem; }
+  .ws-image-size { min-height: 2.35rem; font-size: 0.875rem; }
+  .ws-image-actions .notion-button { min-height: 2.5rem; }
+}
 
 /* サイドバーの Search 行: 右端に Ctrl K の目印を出す。指で使う端末や狭い画面にはキーボードが無いので隠す。 */
 .sidebar-search-hint {

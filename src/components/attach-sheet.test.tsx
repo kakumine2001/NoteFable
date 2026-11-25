@@ -57,6 +57,17 @@ describe("AttachMenu and AttachSheet Create page item", () => {
   it("omits Create page from AttachMenu when onCreatePage is not provided", () => {
     const tree = AttachMenu({ disabled: false, onFilesChange: vi.fn(), onToggleImageMode: vi.fn() });
     expect(findButton(tree, "Create page")).toBeNull();
+    expect(findButton(tree, "Generate an image")).toBeNull();
+  });
+
+  it("renders Generate an image in AttachMenu when onGenerateImage is provided", () => {
+    const onGenerateImage = vi.fn();
+    const tree = AttachMenu({ disabled: false, onFilesChange: vi.fn(), onGenerateImage });
+    const button = findButton(tree, "Generate an image");
+    expect(button?.props?.["aria-haspopup"]).toBe("dialog");
+    (button?.props?.onClick as () => void)();
+    expect(state.setOpen).toHaveBeenCalledWith(false);
+    expect(onGenerateImage).toHaveBeenCalledTimes(1);
   });
 
   it("renders Create page in AttachMenu when onCreatePage is provided and respects createPageDisabled", () => {

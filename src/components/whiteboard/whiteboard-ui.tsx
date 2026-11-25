@@ -2,7 +2,7 @@
 
 import {
   Circle, Diamond, Ellipsis, Eraser, FileDown, FileUp, Frame, Grid3x3, Hand, Highlighter, ImagePlus, Lasso, LocateFixed, Magnet, Map as MapIcon,
-  Maximize, Minus, MousePointer2, MoveUpRight, Pen, Redo2, Square, StickyNote, Type, Undo2, Wand2, ZoomIn, ZoomOut, Link2, PenTool, Palette, LockOpen,
+  Maximize, Minus, MousePointer2, MoveUpRight, Pen, Redo2, Sparkles, Square, StickyNote, Type, Undo2, Upload, Wand2, ZoomIn, ZoomOut, Link2, PenTool, Palette, LockOpen,
 } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { AnswerMenu } from "@/components/answer-actions";
@@ -86,6 +86,7 @@ export type WhiteboardChromeProps = {
   // ロック中の要素（またはグループ）を解除して選ぶ。
   onUnlock: (target: string) => void;
   onInsertPageCard: () => void;
+  onGenerateImage: () => void;
   onExport: (format: "png" | "svg" | "pdf") => void;
   onImportPdf: () => void;
   onFitToContent: () => void;
@@ -151,17 +152,17 @@ function ToolButton({ tool, active, onSelect, label }: { tool: WhiteboardTool; a
   </button>;
 }
 
-function WhiteboardToolbar({ ui, drawMode, compact, onSelectTool, onLink, onInsertPageCard, onImportPdf }: WhiteboardChromeProps) {
+function WhiteboardToolbar({ ui, drawMode, compact, onSelectTool, onLink, onInsertPageCard, onGenerateImage, onImportPdf }: WhiteboardChromeProps) {
   const t = useT();
   const active = activeToolOf(ui, drawMode);
   const [shape, setShape] = useState<WhiteboardTool>("rectangle");
   const shown = active && SHAPES.includes(active) ? active : shape;
   const menuId = useId();
-  const [menu, setMenu] = useState<{ anchor: DOMRect; trigger: HTMLButtonElement; kind: "shapes" | "more" } | null>(null);
+  const [menu, setMenu] = useState<{ anchor: DOMRect; trigger: HTMLButtonElement; kind: "shapes" | "image" | "more" } | null>(null);
   // AnswerMenu は onClose が変わると開き直す（フォーカスが先頭へ飛ぶ）ので、作り直さない。
   const close = useCallback(() => setMenu(null), []);
   const pick = (tool: WhiteboardTool) => { close(); if (SHAPES.includes(tool)) setShape(tool); onSelectTool(tool); };
-  const open = (kind: "shapes" | "more") => (event: React.MouseEvent<HTMLButtonElement>) =>
+  const open = (kind: "shapes" | "image" | "more") => (event: React.MouseEvent<HTMLButtonElement>) =>
     setMenu({ anchor: event.currentTarget.getBoundingClientRect(), trigger: event.currentTarget, kind });
   // スマホでは、よく使う道具だけを並べ、残りは「その他」に入れる。
   const primary: WhiteboardTool[] = compact
@@ -178,18 +179,32 @@ function WhiteboardToolbar({ ui, drawMode, compact, onSelectTool, onLink, onInse
       onContextMenu={(event) => { event.preventDefault(); open("shapes")(event as unknown as React.MouseEvent<HTMLButtonElement>); }}>
       {TOOL_ICONS[shown]}<span className="whiteboard-caret" aria-hidden="true" onClick={(event) => { event.stopPropagation(); open("shapes")(event as unknown as React.MouseEvent<HTMLButtonElement>); }} />
     </button>
-    {primary.slice(compact ? 5 : 6).map((tool) => <ToolButton key={tool} tool={tool} active={active === tool} onSelect={onSelectTool} />)}
+    {primary.slice(compact ? 5 : 6).map((tool) => tool === "image" ? (
+      <button key={tool} type="button" className={`whiteboard-tool has-caret${active === "image" || menu?.kind === "image" ? " is-active" : ""}`}
+        aria-haspopup="menu" aria-expanded={menu?.kind === "image"} aria-label={t("Image")} title={`${t("Image")} — 9`} data-tool="image"
+        onClick={open("image")}>
+        {TOOL_ICONS.image}<span className="whiteboard-caret" aria-hidden="true" />
+      </button>
+    ) : <ToolButton key={tool} tool={tool} active={active === tool} onSelect={onSelectTool} />)}
     <button type="button" className="whiteboard-tool" aria-haspopup="menu" aria-expanded={menu?.kind === "more"} aria-label={t("More tools")} title={t("More tools")} onClick={open("more")}>
       <Ellipsis size={18} />
     </button>
-    {menu && <AnswerMenu id={menuId} label={menu.kind === "shapes" ? t("Shapes") : t("More tools")} className="whiteboard-menu" anchor={menu.anchor} trigger={menu.trigger} focusLast={false} onClose={close}>
+    {menu && <AnswerMenu id={menuId} label={menu.kind === "shapes" ? t("Shapes") : menu.kind === "image" ? t("Image") : t("More tools")} className="whiteboard-menu" anchor={menu.anchor} trigger={menu.trigger} focusLast={false} onClose={close}>
       {menu.kind === "shapes" ? SHAPES.map((tool) => <button key={tool} type="button" role="menuitemradio" aria-checked={active === tool} className="chat-menu-item" onClick={() => pick(tool)}>
         {TOOL_ICONS[tool]}<span className="flex-1">{t(TOOL_LABELS[tool])}</span>{TOOL_KEYS[tool] && <kbd className="whiteboard-kbd">{TOOL_KEYS[tool]}</kbd>}
-      </button>) : <>
+      </button>) : menu.kind === "image" ? <>
+        <button type="button" role="menuitem" className="chat-menu-item" onClick={() => pick("image")}>
+          <Upload size={16} aria-hidden="true" /><span className="flex-1">{t("Upload image")}</span><kbd className="whiteboard-kbd">9</kbd>
+        </button>
+        <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onGenerateImage(); }}>
+          <Sparkles size={16} aria-hidden="true" /><span className="flex-1">{t("Generate with AI")}</span>
+        </button>
+      </> : <>
         {extra.map((tool) => <button key={tool} type="button" role="menuitemradio" aria-checked={active === tool} className="chat-menu-item" onClick={() => pick(tool)}>
           {TOOL_ICONS[tool]}<span className="flex-1">{t(TOOL_LABELS[tool])}</span>{TOOL_KEYS[tool] && <kbd className="whiteboard-kbd">{TOOL_KEYS[tool]}</kbd>}
         </button>)}
         <hr className="chat-menu-divider" />
+        <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onGenerateImage(); }}><Sparkles size={18} /><span className="flex-1">{t("Generate with AI")}</span></button>
         <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onInsertPageCard(); }}><PageKindIcon kind="note" size={18} /><span className="flex-1">{t("Link to a page")}</span></button>
         {ui.selectedCount > 0 && <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onLink(); }}><Link2 size={18} /><span className="flex-1">{t("Add link")}</span></button>}
         <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onImportPdf(); }}><FileUp size={18} /><span className="flex-1">{t("Import PDF")}</span></button>
@@ -216,7 +231,7 @@ function WhiteboardZoomBar({ ui, editable, compact, actions, onFitToContent, min
   </div>;
 }
 
-function WhiteboardMenu({ ui, editable, embedded, onExport, onImportPdf, onFitToContent, actions, onCanvasBackground, onPenMode }: WhiteboardChromeProps) {
+function WhiteboardMenu({ ui, editable, embedded, onExport, onImportPdf, onGenerateImage, onFitToContent, actions, onCanvasBackground, onPenMode }: WhiteboardChromeProps) {
   const t = useT();
   const id = useId();
   const [menu, setMenu] = useState<{ anchor: DOMRect; trigger: HTMLButtonElement } | null>(null);
@@ -235,6 +250,7 @@ function WhiteboardMenu({ ui, editable, embedded, onExport, onImportPdf, onFitTo
       <button type="button" role="menuitem" className="chat-menu-item" onClick={run(() => onExport("pdf"))}><FileDown size={16} aria-hidden="true" />{t("Export as PDF")}</button>
       {editable && <>
         <hr className="chat-menu-divider" />
+        <button type="button" role="menuitem" className="chat-menu-item" onClick={run(onGenerateImage)}><Sparkles size={16} aria-hidden="true" />{t("Generate with AI")}</button>
         <button type="button" role="menuitem" className="chat-menu-item" onClick={run(onImportPdf)}><FileUp size={16} aria-hidden="true" />{t("Import PDF")}</button>
         <hr className="chat-menu-divider" />
         <MenuToggle icon={<Grid3x3 size={16} aria-hidden="true" />} label={t("Show grid")} checked={ui.grid} onToggle={() => actions?.run("gridMode")} />

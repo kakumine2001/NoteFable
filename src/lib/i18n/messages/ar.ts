@@ -905,6 +905,7 @@ export const ar: Record<string, string> = {
   "Portrait": "عمودي",
   "Generating…": "جارٍ الإنشاء…",
   "Generate": "إنشاء",
+  "Generate again": "إنشاء مرة أخرى",
   "Report image": "الإبلاغ عن الصورة",
   "Report sent": "تم إرسال البلاغ",
   "Thanks. We’ll review this image.": "شكرًا. سنراجع هذه الصورة.",

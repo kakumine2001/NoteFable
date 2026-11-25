@@ -905,6 +905,7 @@ export const ru: Record<string, string> = {
   "Portrait": "Книжная",
   "Generating…": "Создание…",
   "Generate": "Создать",
+  "Generate again": "Сгенерировать снова",
   "Report image": "Пожаловаться на изображение",
   "Report sent": "Жалоба отправлена",
   "Thanks. We’ll review this image.": "Спасибо. Мы проверим это изображение.",
