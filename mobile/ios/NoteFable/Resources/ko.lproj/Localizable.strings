@@ -612,6 +612,11 @@
 "branch_title" = "분기 · %1$s";
 
 /* iOS only (scripts/ios-strings.ts) */
+"ios_restore_purchases" = "구입 복원";
+"ios_manage_subscriptions" = "App Store 구독 관리";
+"ios_no_purchases" = "활성 App Store 구독을 찾을 수 없습니다.";
+"ios_subscription_conflict" = "이미 Pro를 이용 중입니다. 별도 구매는 App Store 구독에서 관리하세요.";
+"ios_delete_subscription_notice" = "NoteFable 계정을 삭제해도 App Store 구독은 취소되지 않습니다. 갱신을 막으려면 App Store에서 취소하세요.";
 "attach_source_photos" = "사진 보관함";
 "attach_source_camera" = "사진 찍기";
 "attach_source_files" = "파일 선택";

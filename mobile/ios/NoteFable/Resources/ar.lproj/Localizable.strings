@@ -612,6 +612,11 @@
 "branch_title" = "فرع · %1$s";
 
 /* iOS only (scripts/ios-strings.ts) */
+"ios_restore_purchases" = "استعادة المشتريات";
+"ios_manage_subscriptions" = "إدارة اشتراك App Store";
+"ios_no_purchases" = "لم يتم العثور على اشتراك نشط في App Store.";
+"ios_subscription_conflict" = "لديك Pro بالفعل. يمكنك إدارة عملية الشراء المنفصلة في اشتراكات App Store.";
+"ios_delete_subscription_notice" = "حذف حساب NoteFable لا يلغي اشتراك App Store. ألغِ الاشتراك في App Store لتجنب تجديده.";
 "attach_source_photos" = "مكتبة الصور";
 "attach_source_camera" = "التقاط صورة";
 "attach_source_files" = "اختيار ملفات";

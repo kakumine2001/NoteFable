@@ -612,6 +612,11 @@
 "branch_title" = "Diramazione · %1$s";
 
 /* iOS only (scripts/ios-strings.ts) */
+"ios_restore_purchases" = "Ripristina acquisti";
+"ios_manage_subscriptions" = "Gestisci l’abbonamento App Store";
+"ios_no_purchases" = "Nessun abbonamento App Store attivo trovato.";
+"ios_subscription_conflict" = "Hai già Pro. Gestisci l’acquisto separato negli abbonamenti App Store.";
+"ios_delete_subscription_notice" = "Eliminare l’account NoteFable non annulla un abbonamento App Store. Annullalo nell’App Store per evitare il rinnovo.";
 "attach_source_photos" = "Libreria foto";
 "attach_source_camera" = "Scatta foto";
 "attach_source_files" = "Scegli file";

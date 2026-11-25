@@ -212,6 +212,25 @@ GOOGLE_PLAY_PRODUCT_ID     # 可选
 
 Android App 内购买 Pro。前两项都设置时才开放；Play Console 的订阅商品、服务账号权限和 Pub/Sub（RTDN）设置见 [billing.md](billing.md#配置google-play)。
 
+### iOS Apple 登录和 App Store 结算（可选）
+
+```text
+AUTH_APPLE_TEAM_ID
+AUTH_APPLE_KEY_ID
+AUTH_APPLE_KEY_P8_B64
+APP_STORE_APP_ID
+APP_STORE_PRODUCT_ID
+APP_STORE_IAP_ISSUER_ID
+APP_STORE_IAP_KEY_ID
+APP_STORE_IAP_KEY_P8_B64
+APP_STORE_ROOT_CA_G3_B64
+APP_STORE_IAP_SANDBOX        # 仅隔离的本地 / Preview 测试环境设为 1
+```
+
+Apple 登录还使用已有的 `AUTH_SECRET`。在 Apple Developer 的 App ID 启用 Sign in with Apple（Primary App ID），创建该用途的专用签名密钥。内购在 App Store Connect 的 Users and Access → Integrations → In-App Purchase 创建内购专用密钥。两个私钥分别用 Base64 编码保存；TestFlight 上传使用的 App Store Connect 团队 API 密钥是第三套凭据。
+
+`APP_STORE_ROOT_CA_G3_B64` 为 [Apple PKI](https://www.apple.com/certificateauthority/) 的 Apple Root CA – G3 DER 证书的 Base64。启用内购前在 App Store Connect 配好订阅的价格、可用地区、元数据及 v2 通知。生产通知 URL 为 `https://app.notefable.com/api/billing/apple/notify`。沙盒通知指向独立测试站点，数据库必须隔离；App 的测试构建也要使用该站点（`NOTEFABLE_BASE_URL`）。沙盒交易不会在正式站发放 Pro。
+
 ### Google 登录（可选）
 
 ```text

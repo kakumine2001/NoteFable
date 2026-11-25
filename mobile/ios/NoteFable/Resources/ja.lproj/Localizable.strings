@@ -612,6 +612,11 @@
 "branch_title" = "分岐 · %1$s";
 
 /* iOS only (scripts/ios-strings.ts) */
+"ios_restore_purchases" = "購入を復元";
+"ios_manage_subscriptions" = "App Store のサブスクリプションを管理";
+"ios_no_purchases" = "有効な App Store のサブスクリプションが見つかりませんでした。";
+"ios_subscription_conflict" = "すでに Pro を利用中です。別途購入した分は App Store のサブスクリプションで管理できます。";
+"ios_delete_subscription_notice" = "NoteFable のアカウントを削除しても、App Store のサブスクリプションは解約されません。更新を止めるには App Store で解約してください。";
 "attach_source_photos" = "写真ライブラリ";
 "attach_source_camera" = "写真を撮る";
 "attach_source_files" = "ファイルを選択";

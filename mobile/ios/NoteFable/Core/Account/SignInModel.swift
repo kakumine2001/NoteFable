@@ -84,14 +84,15 @@ final class SignInDialogModel {
     /// Google 登录进行中（等 nonce、换令牌）也不让发邮箱验证码或核对：两种登录同时进行会互相覆盖会话。
     var locked: Bool { state.busy || account.state.signingIn }
     var showGoogle: Bool { account.state.googleEnabled }
+    var showApple: Bool { account.state.appleEnabled }
     var showEmail: Bool { account.state.emailEnabled }
     /// 两种方式都有时中间是"或"分隔线。
-    var showDivider: Bool { showGoogle && showEmail }
+    var showDivider: Bool { (showGoogle || showApple) && showEmail }
     /// Google 按钮上的字（文案键）和转圈。
-    var googleLabelKey: String { account.state.signInFailed ? "sign_in_failed" : "continue_google" }
+    var googleLabelKey: String { account.state.signInFailed && !showApple ? "sign_in_failed" : "continue_google" }
     var googleBusy: Bool { state.busy || account.state.signingIn }
     /// 只有邮箱时打开就聚焦邮箱输入框。
-    var autoFocusEmail: Bool { !showGoogle }
+    var autoFocusEmail: Bool { !showGoogle && !showApple }
     var canSendCode: Bool { !locked && !ApiText.isBlank(state.email) }
     var sendLabelKey: String { state.busy ? "signin_sending" : "continue_email" }
     var canVerify: Bool { !locked && state.code.count == 6 }
@@ -113,6 +114,14 @@ final class SignInDialogModel {
     func google() {
         account.signIn(onSignedIn: onSignedIn)
     }
+
+    func apple(request: @escaping @MainActor (String) async throws -> (code: String, name: String?)?) {
+        guard !locked else { return }
+        account.clearSignInFailed()
+        account.signInWithApple(request: request, beforeIdentityChange: beforeIdentityChange, onSignedIn: onSignedIn)
+    }
+
+    var appleSignInFailed: Bool { account.state.signInFailed }
 
     /// 发验证码；[again] 是第二屏的"重新发送"（发到上次的地址）。
     func sendCode(again: Bool = false) {
@@ -163,7 +172,7 @@ final class SignInDialogModel {
 
     /// 关闭键 / 点遮罩：发送、核对期间不关。
     func close() {
-        if !state.busy { onClose() }
+        if !locked { onClose() }
     }
 
     func idle() async {

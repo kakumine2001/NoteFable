@@ -1,6 +1,6 @@
 # 付费方案（Pro）与用量上限
 
-NoteFable 的收费只有一种：月额订阅 **Pro**，每月 ¥300（税込），第一次订阅先免费试用 30 天（见“免费试用”）。目标是用订阅费大致抵消 API 费用，不追求利润。网页用 Stripe（Checkout 与 Customer Portal），Android App 用 Google Play 结算（见下面的“Android”）；iOS 端尚未接入 App Store 内购，设置中的方案卡片为只读（见 [ios-native.md](ios-native.md)）。服务端只保存客户 ID、订阅 ID / 购买令牌和订阅状态，不接触卡号。
+NoteFable 的收费只有一种：月额订阅 **Pro**，每月 ¥300（税込），第一次订阅先免费试用 30 天（见“免费试用”）。目标是用订阅费大致抵消 API 费用，不追求利润。网页用 Stripe（Checkout 与 Customer Portal），Android App 用 Google Play 结算（见下面的“Android”）；iOS 用 App Store（StoreKit 2），月价由 App Store 商品决定（见下面的“iOS”）。服务端只保存客户 ID、订阅 ID / 购买令牌和订阅状态，不接触卡号。
 
 ## 档位与上限
 
@@ -27,6 +27,13 @@ NoteFable 的收费只有一种：月额订阅 **Pro**，每月 ¥300（税込�
 - 免费用户没有收入：登录用户每天用满，每月最坏约 ¥200–780（聊天 1,240 条 + 图片 20 张）；未登录每个 IP 的图片最坏约 ¥120–240 / 月。实际用量明显偏高时先收紧这些数值。
 
 改上限（含存储上限）或价格只改 `usage-plans.ts`，然后重新生成 Android 与 iOS 共用的 `mobile/android/app/src/main/assets/usage-limits.json`（`npx tsx scripts/gen-native-usage-limits.ts`；每档带 `storage` 字节数，原生的存储提示和 Pro 说明用它）。服务条款第 3、4 节和特商法标示直接读这里的数值；写成文字的 [Play 商店说明](../play-store/listing.md) 要手动改，并改 `legal-page.tsx` 的 `LEGAL_UPDATED_ISO`。
+
+## iOS
+
+- App Store Connect 的订阅组为 NoteFable Pro，月付商品 ID 为 `com.kakumine.notefable.pro.monthly`。商品价格在 App Store Connect 的各店面配置，App 通过 StoreKit 显示当地价格。首次内购需随 App 版本送审。
+- App 在发起购买前请求服务端检查已有权益并取得此账号专用的随机 UUID。StoreKit 把 UUID 和 App Store 交易绑定。恢复购买只能恢复原来的 NoteFable 账号。
+- 服务端验证 Apple 签名、产品、环境、交易和账号绑定，在账号账务锁内查询 Apple 的最新订阅状态。App 交付成功后才结束 StoreKit 交易。签名通知 v2 使用 `/api/billing/apple/notify`，续费、退款、撤销和宽限期同步到共用权益。
+- App Store 订阅由 Apple 管理。删除 NoteFable 账号之前提供 App Store 订阅管理入口，用户可以在那里取消续费。
 
 ## 免费试用
 

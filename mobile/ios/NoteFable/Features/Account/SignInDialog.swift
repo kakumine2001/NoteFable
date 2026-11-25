@@ -145,6 +145,19 @@ private struct SignInDialogCard: View {
         if model.showGoogle {
             GoogleSignInButton(label: L(model.googleLabelKey), busy: model.googleBusy, cornerRadius: 8, action: onGoogle)
         }
+        if model.showApple {
+            AppleSignInControl(enabled: !model.locked) { request in
+                model.apple(request: request)
+            }
+            .frame(height: 44)
+            .padding(.top, model.showGoogle ? 8 : 0)
+            if model.appleSignInFailed {
+                Text(L("sign_in_failed"))
+                    .font(.nf(14))
+                    .foregroundStyle(Sm.errorText)
+                    .padding(.top, 8)
+            }
+        }
         if model.showDivider {
             HStack(spacing: 12) {
                 NFDivider()

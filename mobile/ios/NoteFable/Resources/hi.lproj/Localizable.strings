@@ -612,6 +612,11 @@
 "branch_title" = "शाखा · %1$s";
 
 /* iOS only (scripts/ios-strings.ts) */
+"ios_restore_purchases" = "खरीदारी बहाल करें";
+"ios_manage_subscriptions" = "App Store सदस्यता प्रबंधित करें";
+"ios_no_purchases" = "कोई सक्रिय App Store सदस्यता नहीं मिली।";
+"ios_subscription_conflict" = "आपके पास पहले से Pro है। अलग खरीदारी को App Store की सदस्यताओं में प्रबंधित करें।";
+"ios_delete_subscription_notice" = "NoteFable खाता मिटाने से App Store सदस्यता रद्द नहीं होती। नवीनीकरण रोकने के लिए उसे App Store में रद्द करें।";
 "attach_source_photos" = "फ़ोटो लाइब्रेरी";
 "attach_source_camera" = "फ़ोटो लें";
 "attach_source_files" = "फ़ाइलें चुनें";

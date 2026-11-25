@@ -612,6 +612,11 @@
 "branch_title" = "Cabang · %1$s";
 
 /* iOS only (scripts/ios-strings.ts) */
+"ios_restore_purchases" = "Pulihkan Pembelian";
+"ios_manage_subscriptions" = "Kelola Langganan App Store";
+"ios_no_purchases" = "Tidak ditemukan langganan App Store aktif.";
+"ios_subscription_conflict" = "Anda sudah memiliki Pro. Kelola pembelian terpisah di langganan App Store.";
+"ios_delete_subscription_notice" = "Menghapus akun NoteFable tidak membatalkan langganan App Store. Batalkan di App Store untuk mencegah perpanjangan.";
 "attach_source_photos" = "Perpustakaan Foto";
 "attach_source_camera" = "Ambil Foto";
 "attach_source_files" = "Pilih File";

@@ -34,24 +34,23 @@ export default function TermsPage() {
             AI models can change for operational reasons. Pro requires signing in.
           </li>
           <li>
-            <strong>Price and billing.</strong> Pro costs ¥{PRO_PRICE_JPY.toLocaleString("en-US")} per month (tax included). On the website you pay through Stripe; in the Android app you pay through
-            Google Play, at the price Google Play shows before you buy. You are charged when you subscribe and then automatically every month on the renewal date
+            <strong>Price and billing.</strong> On the website, Pro costs ¥{PRO_PRICE_JPY.toLocaleString("en-US")} per month (tax included) and you pay through Stripe. In the Android and iOS apps, you pay through Google Play or the App Store at the price shown before you buy. You are charged when you subscribe and then automatically every month on the renewal date
             until you cancel.
           </li>
           <li>
             <strong>Free trial.</strong> The first time you subscribe, Pro is free for {PRO_TRIAL_DAYS} days. You add a payment method to start the trial. Unless
             you cancel before the trial ends, your first monthly payment is charged on the day it ends and the subscription then renews every month. If you
             cancel during the trial you are not charged, and Pro stays active until the trial ends. The trial is offered once per account; in the Android app
-            it follows Google Play’s eligibility rules and the terms Google Play shows before you buy.
+            it follows Google Play’s eligibility rules. On iOS, any trial is shown by the App Store before you buy.
           </li>
           <li>
             <strong>Cancelling.</strong> You can cancel at any time: on the website in <em>Settings → Plan → Manage subscription</em>; for a Google Play purchase in
-            {" "}<em>Settings → Plan → Manage subscription on Google Play</em> or in the Google Play Store’s Subscriptions. Pro stays active until the end of the period you
+            {" "}<em>Settings → Plan → Manage subscription on Google Play</em> or in the Google Play Store’s Subscriptions. For an iOS purchase, use <em>Settings → Plan → Manage App Store Subscription</em> or the App Store’s Subscriptions. Pro stays active until the end of the period you
             have paid for, and you are not charged again.
           </li>
           <li>
             <strong>Refunds.</strong> Payments are not refunded, including for the unused part of a billing period, except where the law requires it or we charged
-            you by mistake (for example, twice). Google Play purchases follow Google Play’s refund policies.
+            you by mistake (for example, twice). Google Play and App Store purchases follow their respective store’s refund policies.
           </li>
           <li>
             <strong>Payment problems.</strong> If a renewal payment fails, Pro can continue for a short grace period while the payment is retried; if it still
@@ -68,7 +67,7 @@ export default function TermsPage() {
 
       <LegalSection title="4. Your account and content">
         <p>
-          You can use NoteFable without signing in (your data is tied to your browser or app) or sign in with Google or an email code. You are responsible for what happens under your browser or account.
+          You can use NoteFable without signing in (your data is tied to your browser or app) or sign in with Google, an email code, or Apple on iOS. You are responsible for what happens under your browser or account.
           You keep ownership of the content you create. You allow us to store and process it only as needed to run the service, including sending it to the AI providers
           described in the Privacy Policy.
         </p>
@@ -101,7 +100,7 @@ export default function TermsPage() {
 
       <LegalSection title="7. Third-party services">
         <p>
-          NoteFable relies on third parties — OpenAI, Anthropic, DeepSeek, Google (including Google Play), Stripe, Resend, Vercel and Neon. Their own terms apply to their services, and their outages or changes can affect NoteFable.
+          NoteFable relies on third parties — OpenAI, Anthropic, DeepSeek, Google (including Google Play), Apple, Stripe, Resend, Vercel and Neon. Their own terms apply to their services, and their outages or changes can affect NoteFable.
         </p>
       </LegalSection>
 
@@ -115,7 +114,7 @@ export default function TermsPage() {
       <LegalSection title="9. Ending use">
         <p>
           You can stop using NoteFable at any time and delete your account in Settings, or ask us to delete your data (see the Privacy Policy). Deleting your
-          account ends a subscription bought on the website immediately and stops a Google Play subscription from renewing; it does not refund the current period.
+          account ends a subscription bought on the website immediately and stops a Google Play subscription from renewing. To prevent an App Store subscription from renewing, cancel it separately through the App Store. Deletion does not refund the current period.
           We may end or change the service or your access at any time. If we stop the paid service, we will stop charging you, and Pro stays active until the end
           of the period you have paid for or we refund the unused part.
         </p>

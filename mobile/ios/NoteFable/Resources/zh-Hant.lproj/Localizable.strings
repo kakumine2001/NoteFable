@@ -612,6 +612,11 @@
 "branch_title" = "分支 · %1$s";
 
 /* iOS only (scripts/ios-strings.ts) */
+"ios_restore_purchases" = "恢復購買";
+"ios_manage_subscriptions" = "管理 App Store 訂閱";
+"ios_no_purchases" = "沒有找到有效的 App Store 訂閱。";
+"ios_subscription_conflict" = "你已經有 Pro。請在 App Store 訂閱中管理這筆單獨的購買。";
+"ios_delete_subscription_notice" = "刪除 NoteFable 帳號不會取消 App Store 訂閱。請在 App Store 取消訂閱，以免續費。";
 "attach_source_photos" = "照片圖庫";
 "attach_source_camera" = "拍照";
 "attach_source_files" = "選擇檔案";

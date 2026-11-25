@@ -30,13 +30,14 @@ export type SubscriptionOwner = {
   subscriptionStatus: string | null;
   stripeSubscriptionId: string | null;
   googlePurchaseToken: string | null;
+  appleOriginalTransactionId?: string | null;
   subscriptionPeriodStart?: Date | null;
   subscriptionPeriodEnd?: Date | null;
 };
 
 export const SUBSCRIPTION_OWNER_SELECT = {
   id: true, subscriptionProvider: true, subscriptionStatus: true, stripeSubscriptionId: true, googlePurchaseToken: true,
-  subscriptionPeriodStart: true, subscriptionPeriodEnd: true,
+  appleOriginalTransactionId: true, subscriptionPeriodStart: true, subscriptionPeriodEnd: true,
 } as const;
 
 export type SubscriptionUpdate = {
@@ -44,14 +45,15 @@ export type SubscriptionUpdate = {
   periodStart: Date | null;
   periodEnd: Date | null;
   cancelAt: Date | null;
-} & ({ provider: "stripe"; stripeSubscriptionId: string } | { provider: "google"; googlePurchaseToken: string });
+} & ({ provider: "stripe"; stripeSubscriptionId: string } | { provider: "google"; googlePurchaseToken: string }
+  | { provider: "apple"; appleOriginalTransactionId: string });
 
 function isCurrent(owner: SubscriptionOwner, update: SubscriptionUpdate) {
   if (!owner.subscriptionProvider) return true;
   if (owner.subscriptionProvider !== update.provider) return false;
-  return update.provider === "stripe"
-    ? owner.stripeSubscriptionId === update.stripeSubscriptionId
-    : owner.googlePurchaseToken === update.googlePurchaseToken;
+  if (update.provider === "stripe") return owner.stripeSubscriptionId === update.stripeSubscriptionId;
+  if (update.provider === "google") return owner.googlePurchaseToken === update.googlePurchaseToken;
+  return owner.appleOriginalTransactionId === update.appleOriginalTransactionId;
 }
 
 // 行の購読とこの知らせの関係。
@@ -71,7 +73,9 @@ export async function writeSubscription(tx: BillingTx, owner: SubscriptionOwner,
     where: { id: owner.id },
     data: {
       subscriptionProvider: update.provider,
-      ...(update.provider === "stripe" ? { stripeSubscriptionId: update.stripeSubscriptionId } : { googlePurchaseToken: update.googlePurchaseToken }),
+      ...(update.provider === "stripe" ? { stripeSubscriptionId: update.stripeSubscriptionId } : {}),
+      ...(update.provider === "google" ? { googlePurchaseToken: update.googlePurchaseToken } : {}),
+      ...(update.provider === "apple" ? { appleOriginalTransactionId: update.appleOriginalTransactionId } : {}),
       subscriptionStatus: update.status,
       subscriptionPeriodStart: update.periodStart,
       subscriptionPeriodEnd: update.periodEnd,

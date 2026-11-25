@@ -66,6 +66,8 @@ model User {
   deviceId           String   @unique
   // Google ログインと紐付けた場合だけ設定する。別端末でも同じ利用者として復元できる。
   googleSub          String?  @unique
+  appleSub           String?  @unique
+  appleRefreshToken  String?
   // 確認済みのメールアドレス（小文字）。メールの確認コードでログインした、または Google が確認済みとしたメール。
   // 同じアドレスなら Google でもメールでも同じ利用者になる。null は未ログイン（または未確認のメールだけの Google 利用者）。
   verifiedEmail      String?  @unique
@@ -95,6 +97,8 @@ model User {
   stripeSubscriptionId          String?   @unique
   // Google Play の購読の購入トークン（src/lib/google-play-billing.ts）。状態はアプリからの報告と RTDN で Google から写す。
   googlePurchaseToken           String?   @unique
+  appleOriginalTransactionId    String?   @unique
+  appleAppAccountToken          String?   @unique @db.Uuid
   // Stripe の購読の状態（active / past_due / canceled など）。null は購読したことがない。
   subscriptionStatus            String?
   // いまの請求期間。PRO の月の上限はこの期間ごとに数える。

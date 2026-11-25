@@ -33,11 +33,13 @@ export default function LegalNoticePage() {
         <Row term="販売価格">
           {PRICE}。
           <br />Android アプリから Google Play で購入する場合は、購入画面に表示される価格（日本では{PRICE}）となります。
+          <br />iOS アプリでは、購入時に App Store に表示される価格が適用されます。
         </Row>
         <Row term="商品代金以外の必要料金">インターネット接続にかかる通信料はお客様のご負担となります。</Row>
         <Row term="支払方法">
           ウェブ版（notefable.com）：クレジットカードなど、決済画面（Stripe）に表示される方法。
           <br />Android アプリ：Google Play に登録されたお支払い方法。
+          <br />iOS アプリ：App Store に登録されたお支払い方法。
         </Row>
         <Row term="支払時期">
           お申し込み時に初回の 1 か月分をお支払いいただき、以降は毎月の更新日に自動で請求されます。
@@ -48,6 +50,7 @@ export default function LegalNoticePage() {
           <br />トライアル終了日までに解約しない場合、自動的に有料（{PRICE}）へ移行し、終了日に初回の料金が請求されます。
           <br />トライアル中に解約した場合、料金は発生せず、トライアル終了日まで Pro をご利用いただけます。
           <br />Android アプリでは、Google Play の購入画面に表示される条件が適用されます。
+          <br />iOS アプリで無料トライアルが提供される場合は、App Store の購入画面に表示される条件が適用されます。
         </Row>
         <Row term="提供時期">決済（無料トライアルの場合はお申し込み）の完了後、すぐにご利用いただけます。</Row>
         <Row term="契約期間・自動更新">1 か月ごとの自動更新です。解約しない限り、毎月同じ条件で更新されます。</Row>
@@ -55,13 +58,14 @@ export default function LegalNoticePage() {
           いつでも解約できます。
           <br />ウェブ版で購入した場合：設定 →「サブスクリプションを管理」から解約してください。
           <br />Android アプリで購入した場合：設定 →「Google Play でサブスクリプションを管理」、または Google Play ストアの「定期購入」から解約してください。
+          <br />iOS アプリで購入した場合：設定の「プラン」から App Store のサブスクリプション管理を開くか、iPhone の設定からサブスクリプションを解約してください。
           <br />解約後も、支払い済みの期間の終わりまで Pro をご利用いただけます。次回以降の請求は発生しません。
         </Row>
         <Row term="返品・返金">
           デジタルサービスの性質上、お支払い後の返金（期間途中の解約による日割り返金を含む）はお受けしていません。
           ただし、重複して請求された場合など当方の誤りによるものは返金いたします。
-          Google Play での購入は、Google Play の返金ポリシーに従います。
-          <br />アカウントを削除すると、ウェブ版で購入したサブスクリプションはその時点で終了し、Google Play のサブスクリプションは次回以降の更新が停止されます。
+          Google Play と App Store での購入は、各ストアの返金ポリシーに従います。
+          <br />アカウントを削除すると、ウェブ版で購入したサブスクリプションはその時点で終了し、Google Play のサブスクリプションは次回以降の更新が停止されます。App Store で購入した場合は、別途 App Store で解約してください。
         </Row>
         <Row term="Pro の内容">
           AI メッセージを 1 請求期間あたり {count(pro.chat)} 件、画像生成を {count(pro.image)} 枚（1 日 {count(USAGE_DAILY_LIMITS.pro.image ?? 0)} 枚）まで利用できます。無料プラン（ログイン時）では AI メッセージが 1 日 {count(member.chat)} 件、画像が 1 か月 {count(member.image)} 枚（1 日 {count(USAGE_DAILY_LIMITS.member.image ?? 0)} 枚）までです。ファイルの保存容量は、Pro が {formatStorageSize(STORAGE_LIMITS.pro)}、無料プラン（ログイン時）が {formatStorageSize(STORAGE_LIMITS.member)}、ログインなしが {formatStorageSize(STORAGE_LIMITS.guest)} までです。

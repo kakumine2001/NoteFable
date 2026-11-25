@@ -477,6 +477,17 @@ final class NoteFableApi: ChatBackend, AccountBackend, NotesBackend, @unchecked 
         identityGate.reset()
     }
 
+    func appleSignInNonce() async throws -> String {
+        let body: JSONValue = ["start": .bool(true)]
+        return try await http.send(try http.request("POST", "/api/native-auth/apple", json: body), as: NonceResponse.self).nonce
+    }
+
+    func appleSignIn(code: String, name: String?) async throws {
+        let body: JSONValue = ["code": .string(code), "name": ApiJson.string(name)]
+        let _: ApiError = try await http.send(try http.request("POST", "/api/native-auth/apple", json: body))
+        identityGate.reset()
+    }
+
     func emailSignInStart(email: String, locale: String) async throws {
         let body: JSONValue = ["email": .string(email), "locale": .string(locale)]
         let _: ApiError = try await http.send(try http.request("POST", "/api/auth/email/start", json: body))

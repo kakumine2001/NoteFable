@@ -601,6 +601,7 @@ struct FixtureCatalog: Sendable {
             "configured": true,
             "google": true,
             "email": true,
+            "apple": true,
             "googleClientId": "000000000000-fixture.apps.googleusercontent.com",
             "user": account == .signedIn ? signedInUserPayload() : .null,
         ]

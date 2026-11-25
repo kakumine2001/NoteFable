@@ -44,8 +44,8 @@ Google 登录：Google Cloud 里给 `com.kakumine.notefable` 登记的 iOS OAuth
 上线前还缺：
 
 - **真机验证**。TestFlight 构建已能装到 iPhone；按 [android-native.md](android-native.md) 的各节核对三端必须一致的部分（功能、入口、文案、数据与编辑器能力、品牌色和角色形象），外壳手感待 #195 在 iOS 26+ 的 iPhone 上按验收标准实测（Tab 栏按住滑动与折射、顶栏按压高光、抽屉跟手、输入框随键盘不跳；浅色 / 深色 / 降低透明度下可读）。预计会有一批细节要修。
-- **Sign in with Apple**。App Store 审核规则 4.8 要求提供第三方登录（Google）的 App 同时提供一个等价的隐私登录方式；现在只有 Google 和邮箱验证码。上架前要么加 Sign in with Apple（后端要支持 Apple 账号关联，属于认证改动），要么确认邮箱验证码登录满足该条。这是上架阻塞项，和 #195 的界面升级分开、独立并行推进（认证改动按 `AGENTS.md` 的 xhigh 评审；是否三端同步加由所有者决定）。
-- **购买**。iOS 没有接 App Store 内购，设置里的方案卡片只读（显示方案和用量，没有购买 / 管理按钮），已登录的免费用户撞到上限时也没有升级提示。
+- **Sign in with Apple**。服务端配置齐全后，登录弹窗显示原生 Apple 按钮。服务端绑定一次性授权码和设备 nonce，按 Apple 账号 ID 延续同一账户。Apple 登录入口在 iOS；网页与 Android 继续提供原有登录选项。真机仍需验收。
+- **购买**。设置的方案卡片显示店面月价，可购买、恢复及打开 App Store 订阅管理。购买、续费、退款都由服务端验证并同步，见 [billing.md](billing.md)。TestFlight 的沙盒购买须连接一个隔离的沙盒后端。
 - **通用链接**。`Support/NoteFable.entitlements` 声明了 `applinks:app.notefable.com`，但网站还没有提供 `/.well-known/apple-app-site-association`，所以点网页链接暂时不会打开 App。这也是上架阻塞项，和 #195 分开、单独推进（网站提供该文件属于服务端改动）。
 
 ## 结构

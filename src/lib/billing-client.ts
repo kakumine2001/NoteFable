@@ -12,7 +12,7 @@ export type PlanInfo = {
   subscription: { status: string; periodEnd: string | null; cancelAt: string | null } | null;
   canManage: boolean;
   manageUrl: string | null;
-  provider: "stripe" | "google" | null;
+  provider: "stripe" | "google" | "apple" | null;
   usage: Record<UsageKind, { used: number; limit: number; period: UsagePeriod; resetsAt: string; daily?: { used: number; limit: number; resetsAt: string } }>;
   // ファイル置き場の使用量と上限（バイト）。
   storage?: { used: number; limit: number };

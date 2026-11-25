@@ -612,6 +612,11 @@
 "branch_title" = "Rama · %1$s";
 
 /* iOS only (scripts/ios-strings.ts) */
+"ios_restore_purchases" = "Restaurar compras";
+"ios_manage_subscriptions" = "Gestionar suscripción de App Store";
+"ios_no_purchases" = "No se encontró una suscripción activa de App Store.";
+"ios_subscription_conflict" = "Ya tienes Pro. Gestiona la compra adicional en las suscripciones de App Store.";
+"ios_delete_subscription_notice" = "Eliminar la cuenta de NoteFable no cancela la suscripción de App Store. Cancélala en App Store para evitar la renovación.";
 "attach_source_photos" = "Fototeca";
 "attach_source_camera" = "Hacer foto";
 "attach_source_files" = "Seleccionar archivos";

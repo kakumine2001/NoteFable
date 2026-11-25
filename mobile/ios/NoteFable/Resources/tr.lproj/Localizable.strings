@@ -612,6 +612,11 @@
 "branch_title" = "Dal · %1$s";
 
 /* iOS only (scripts/ios-strings.ts) */
+"ios_restore_purchases" = "Satın Alımları Geri Yükle";
+"ios_manage_subscriptions" = "App Store Aboneliğini Yönet";
+"ios_no_purchases" = "Etkin App Store aboneliği bulunamadı.";
+"ios_subscription_conflict" = "Zaten Pro aboneliğin var. Ayrı satın alımı App Store aboneliklerinden yönet.";
+"ios_delete_subscription_notice" = "NoteFable hesabını silmek App Store aboneliğini iptal etmez. Yenilenmesini önlemek için App Store'dan iptal et.";
 "attach_source_photos" = "Fotoğraf Arşivi";
 "attach_source_camera" = "Fotoğraf Çek";
 "attach_source_files" = "Dosya Seç";

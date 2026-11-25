@@ -612,6 +612,11 @@
 "branch_title" = "แขนง · %1$s";
 
 /* iOS only (scripts/ios-strings.ts) */
+"ios_restore_purchases" = "กู้คืนการซื้อ";
+"ios_manage_subscriptions" = "จัดการการสมัครสมาชิก App Store";
+"ios_no_purchases" = "ไม่พบการสมัครสมาชิก App Store ที่ใช้งานอยู่";
+"ios_subscription_conflict" = "คุณมี Pro อยู่แล้ว จัดการการซื้อแยกในรายการสมัครสมาชิก App Store";
+"ios_delete_subscription_notice" = "การลบบัญชี NoteFable ไม่ได้ยกเลิกการสมัครสมาชิก App Store ยกเลิกใน App Store เพื่อป้องกันการต่ออายุ";
 "attach_source_photos" = "คลังรูปภาพ";
 "attach_source_camera" = "ถ่ายรูป";
 "attach_source_files" = "เลือกไฟล์";

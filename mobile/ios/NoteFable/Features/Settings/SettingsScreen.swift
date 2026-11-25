@@ -35,7 +35,11 @@ struct SettingsScreenHost: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
-            if model == nil { model = makeModel() }
+            if model == nil {
+                let created = makeModel()
+                if let page = router.settingsInitialPage { created.show(page) }
+                model = created
+            }
             if plan == nil {
                 let account = app.account
                 plan = PlanSettingsModel(load: { await account.loadPlan() })

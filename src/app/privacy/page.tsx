@@ -39,6 +39,11 @@ export default function PrivacyPage() {
             We do not request access to your Gmail, Drive, Calendar, contacts or any other Google data.
           </li>
           <li>
+            <strong>Apple sign-in (optional, iOS).</strong> Apple provides a unique account identifier and, if shared, your name and email address.
+            You can choose an Apple relay address. We store the identifier and shared profile details with your account, and encrypt the credential
+            used to revoke authorization if you delete the account.
+          </li>
+          <li>
             <strong>Email sign-in (optional).</strong> If you sign in with an email code, we store your email address with your account and send the
             six-digit code to it. We keep only a hash of the code, delete it once it is used or expires, and keep a hash of the requesting network address
             for a short time to limit abuse.
@@ -46,8 +51,7 @@ export default function PrivacyPage() {
           <li>
             <strong>Purchases (Pro).</strong> When you start a Pro purchase on the website, we create a customer record at Stripe and store its ID, even if you
             do not finish paying. If you subscribe, we also store the subscription’s status, plan, renewal and end dates, and the payment provider’s
-            identifiers for it: the Stripe customer and subscription IDs for a website purchase, or the Google Play purchase token for an Android purchase. Payments are handled by Stripe or Google Play; we never see or store your card number or other payment details. To match a Google Play
-            purchase to your account, the app passes your internal account ID to Google Play when you buy.
+            identifiers for it: Stripe customer and subscription IDs, a Google Play purchase token, or an App Store original transaction ID. Payments are handled by Stripe, Google Play or Apple. We never see or store your card details. For Android, we pass Google Play your internal account ID. For iOS, we pass Apple a random account token so it can associate the transaction with your NoteFable account.
           </li>
           <li>
             <strong>Reports.</strong> If you report AI content, the reason you give, the reported content and your internal account ID are emailed to us so
@@ -114,7 +118,7 @@ export default function PrivacyPage() {
           <li>
             <strong>Payment providers</strong>, if you buy Pro: <a href="https://stripe.com/privacy">Stripe</a> for website purchases (when you start a purchase we
             send your email address and internal account ID, and we receive the subscription status; you enter your payment and billing details directly with Stripe) and Google Play for Android
-            purchases (under <a href="https://policies.google.com/privacy">Google’s Privacy Policy</a>). They keep their own payment records as the law requires.
+            purchases (under <a href="https://policies.google.com/privacy">Google’s Privacy Policy</a>). <a href="https://www.apple.com/legal/privacy/">Apple</a> handles iOS purchases and Apple sign-in. These providers keep their own payment records as the law requires.
           </li>
           <li>
             <a href="https://resend.com/legal/privacy-policy">Resend</a>, which delivers the sign-in code email (your email address and the code), if you sign in
@@ -145,7 +149,7 @@ export default function PrivacyPage() {
         <p>
           <strong>Deleting your account.</strong> When signed in, open <em>Settings → Account → Delete account</em> on the website or in the Android app. This immediately and
           permanently deletes your account and everything in it: chats, messages, notes, note history, projects, uploaded and generated images, files, your profile
-          and settings. It also ends a Pro subscription bought on the website immediately, deletes your customer record at Stripe, and stops a Google Play subscription from renewing; Stripe and Google keep their payment records (such as invoices and charges) as the law requires. Database backups that may still contain it are overwritten within 30 days. To keep other signed-in devices from re-creating the account, we keep a one-way hash of its Google account ID and email address (not the ID or address itself) for 400 days. If you cannot sign in, email
+          and settings. It also ends a Pro subscription bought on the website immediately, deletes your customer record at Stripe, and stops a Google Play subscription from renewing. Apple subscriptions are managed in the App Store. We revoke Apple sign-in authorization when deleting the account. Payment providers retain payment records as the law requires. Database backups that may still contain it are overwritten within 30 days. To keep other signed-in devices from re-creating the account, we keep a one-way hash of linked sign-in identifiers (not the ID or address itself) for 400 days. If you cannot sign in, email
           {" "}<a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a> from the account’s address and we will delete it within 30 days.
           Data you used without signing in is tied only to your browser or app: delete its chats and notes in NoteFable, or clear the app’s data. See
           {" "}<Link href="/delete-account">notefable.com/delete-account</Link>.

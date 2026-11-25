@@ -144,6 +144,15 @@ async function expireOpenCheckouts(customer: string) {
   }
 }
 
+// StoreKit を開く前に、まだ支払えるウェブ Checkout を止めて実際の購読を確かめる。呼び出し元が利用者のロックを保持する。
+export async function blockApplePurchaseForStripe(tx: BillingTx, userId: string, customer: string) {
+  await expireOpenCheckouts(customer);
+  const live = (await customerSubscriptions(customer)).filter((subscription) => !ENDED_STATUSES.has(subscription.status));
+  if (!live.length) return false;
+  await applySubscription(tx, userId, preferred(live));
+  return true;
+}
+
 // 申し込み。ロックの中で行を読み直し、すでに PRO なら断る。前に開いた決済画面を先に閉じてから
 // Stripe の購読を確かめる（閉じる間に支払われた画面の購読も見つかる）。課金の続く購読がなければ新しい決済画面を 1 つだけ作る。
 export async function createCheckoutUrl(userId: string, origin: string) {

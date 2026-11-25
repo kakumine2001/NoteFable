@@ -612,6 +612,11 @@
 "branch_title" = "Verzweigung · %1$s";
 
 /* iOS only (scripts/ios-strings.ts) */
+"ios_restore_purchases" = "Käufe wiederherstellen";
+"ios_manage_subscriptions" = "App Store-Abonnement verwalten";
+"ios_no_purchases" = "Kein aktives App Store-Abonnement gefunden.";
+"ios_subscription_conflict" = "Du hast bereits Pro. Verwalte den getrennten Kauf in den App Store-Abonnements.";
+"ios_delete_subscription_notice" = "Das Löschen deines NoteFable-Kontos kündigt kein App Store-Abonnement. Kündige es im App Store, um eine Verlängerung zu vermeiden.";
 "attach_source_photos" = "Fotomediathek";
 "attach_source_camera" = "Foto aufnehmen";
 "attach_source_files" = "Dateien auswählen";

@@ -1,4 +1,7 @@
 import { after, NextResponse, type NextRequest } from "next/server";
+import { appleStoreProduct } from "@/lib/apple-app-store";
+import { isAppleLoginConfigured } from "@/lib/apple-identity-config";
+import { revokeAppleLogin } from "@/lib/native-apple-login";
 import { deleteAccount } from "@/lib/account-deletion";
 import { cancelCustomerBilling, isBillingConfigured, isTrialEligible } from "@/lib/billing";
 import { PRO_TRIAL_DAYS } from "@/lib/usage-plans";
@@ -19,7 +22,7 @@ export async function GET() {
   if (!isAccountLoginConfigured()) {
     return NextResponse.json({ configured: false, user: null });
   }
-  const methods = { google: isGoogleLoginConfigured(), email: isEmailLoginConfigured() };
+  const methods = { google: isGoogleLoginConfigured(), email: isEmailLoginConfigured(), apple: isAppleLoginConfigured(), appStoreBilling: Boolean(appleStoreProduct()) };
 
   try {
     const google = await currentAccountProfile();
@@ -116,7 +119,7 @@ export async function DELETE(request: NextRequest) {
   let deleted;
   try {
     deleted = await withUserBillingLock(row.id, async (tx) => {
-      const billing = await tx.user.findUnique({ where: { id: row.id }, select: { stripeCustomerId: true, googlePurchaseToken: true } });
+      const billing = await tx.user.findUnique({ where: { id: row.id }, select: { stripeCustomerId: true, googlePurchaseToken: true, appleSub: true, appleRefreshToken: true } });
       if (billing?.stripeCustomerId || billing?.googlePurchaseToken) {
         try {
           await cancelCustomerBilling(billing.stripeCustomerId);
@@ -126,7 +129,10 @@ export async function DELETE(request: NextRequest) {
           return null;
         }
       }
-      return deleteAccount(row, tx);
+      if (billing?.appleSub && billing.appleRefreshToken) {
+        await revokeAppleLogin(billing.appleSub, billing.appleRefreshToken);
+      }
+      return deleteAccount({ ...row, appleSub: billing?.appleSub ?? row.appleSub }, tx);
     });
   } catch (error) {
     console.error("Failed to delete account", error instanceof Error ? error.message : error);

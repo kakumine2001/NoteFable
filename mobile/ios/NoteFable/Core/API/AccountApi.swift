@@ -73,6 +73,10 @@ extension AccountProfileBackend {
     }
 }
 
+enum ApplePurchaseStatus: String, Decodable {
+    case subscribed, inactive, conflict
+}
+
 final class AccountApi: AccountProfileBackend, AppIconBackend, @unchecked Sendable {
     private let http: NoteFableHttp
 
@@ -107,6 +111,20 @@ final class AccountApi: AccountProfileBackend, AppIconBackend, @unchecked Sendab
 
     func plan() async throws -> PlanInfo {
         try await http.getJson("/api/billing")
+    }
+
+    func prepareApplePurchase() async throws -> UUID {
+        let body: JSONValue = ["prepare": .bool(true)]
+        struct Response: Decodable { let token: UUID }
+        let response: Response = try await http.send(try http.request("POST", "/api/billing/apple", json: body))
+        return response.token
+    }
+
+    func confirmApplePurchase(_ transaction: String) async throws -> ApplePurchaseStatus {
+        let body: JSONValue = ["transaction": .string(transaction)]
+        struct Response: Decodable { let status: ApplePurchaseStatus }
+        let response: Response = try await http.send(try http.request("POST", "/api/billing/apple", json: body))
+        return response.status
     }
 
     func accountAppIcon() async throws -> AppIconResponse {

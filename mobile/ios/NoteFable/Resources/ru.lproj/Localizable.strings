@@ -612,6 +612,11 @@
 "branch_title" = "Ветка · %1$s";
 
 /* iOS only (scripts/ios-strings.ts) */
+"ios_restore_purchases" = "Восстановить покупки";
+"ios_manage_subscriptions" = "Управление подпиской App Store";
+"ios_no_purchases" = "Активная подписка App Store не найдена.";
+"ios_subscription_conflict" = "У вас уже есть Pro. Управляйте отдельной покупкой в подписках App Store.";
+"ios_delete_subscription_notice" = "Удаление аккаунта NoteFable не отменяет подписку App Store. Чтобы избежать продления, отмените её в App Store.";
 "attach_source_photos" = "Медиатека";
 "attach_source_camera" = "Снять фото";
 "attach_source_files" = "Выбрать файлы";
