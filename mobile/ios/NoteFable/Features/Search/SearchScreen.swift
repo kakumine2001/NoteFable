@@ -17,10 +17,11 @@ import SwiftUI
 /// 命中词的黄色底（网页 <mark>：rgba(255,207,0,.4)）。
 private let SearchMarkColor = Color(argb: 0x66FFCF00)
 
-/// 全屏检索。每次打开都是空的（网页只在打开时挂载面板）：`SearchViewModel` 在这里新建，关掉时停掉还在等的请求。
+/// 搜索标签页。常驻在底部 `TabView` 里；身份切换时重建模型，避免残留上一位用户的检索结果。
 struct SearchScreen: View {
     @Environment(AppEnvironment.self) private var app
     @State private var model: SearchViewModel? = nil
+    @State private var modelIdentity = -1
 
     init() {}
 
@@ -31,10 +32,22 @@ struct SearchScreen: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Sm.background)
         .onAppear {
-            if model == nil { model = app.makeSearchViewModel() }
+            syncModel()
+        }
+        .onChange(of: app.identityGeneration) { _, _ in
+            syncModel()
         }
         .onDisappear { model?.close() }
+    }
+
+    private func syncModel() {
+        if model == nil || modelIdentity != app.identityGeneration {
+            model?.close()
+            modelIdentity = app.identityGeneration
+            model = app.makeSearchViewModel()
+        }
     }
 }
 
@@ -73,19 +86,14 @@ private struct SearchPanel: View {
             let notes = app.notes
             if !notes.state.loaded && !notes.state.loading { notes.refresh() }
         }
-        .task {
-            if ScreenshotHooks.isActive {
-                if ScreenshotHooks.consume(.search), let query = ScreenshotHooks.searchQuery {
-                    model.setInput(query)
-                }
-                return
+        .task(id: ScreenshotHooks.sceneTick) {
+            guard ScreenshotHooks.isActive, ScreenshotHooks.scene == .search else { return }
+            if ScreenshotHooks.consume(.search), let query = ScreenshotHooks.searchQuery {
+                model.setInput(query)
             }
-            // 等面板进了窗口再聚焦，太早设会被忽略。
-            try? await Task.sleep(nanoseconds: 80_000_000)
-            focused = true
         }
         .onChange(of: state.loaded, initial: true) { _, _ in
-            guard ScreenshotHooks.isActive, !view.groups.isEmpty else { return }
+            guard ScreenshotHooks.isActive, ScreenshotHooks.scene == .search, !view.groups.isEmpty else { return }
             ScreenshotHooks.markReady(.search)
         }
     }
@@ -93,38 +101,46 @@ private struct SearchPanel: View {
     // ---- 输入行 ----
 
     private func inputRow(_ state: SearchUiState, _ view: SearchView) -> some View {
-        HStack(spacing: 9.6) {
-            LucideIcon(Lucide.search, size: 18, color: Sm.muted)
-            TextField(
-                "",
-                text: Binding(get: { model.state.input }, set: { model.setInput($0) }),
-                prompt: Text(L("search_chats_and_notes")).foregroundStyle(Sm.faint)
-            )
-            .textFieldStyle(.plain)
-            .font(.nf(16))
-            .foregroundStyle(Sm.text)
-            .tint(Sm.ink)
-            .focused($focused)
-            .submitLabel(.search)
-            .autocorrectionDisabled()
-            .textInputAutocapitalization(.never)
-            .onSubmit {
-                // 网页的 Enter：结果是当前条件的才打开高亮的那一行。
-                if let hit = view.submitTarget(state.active) { select(hit) }
-            }
-            .frame(height: 48)
-            .frame(maxWidth: .infinity)
-            .accessibilityLabel(L("search_chats_and_notes"))
+        HStack(spacing: 6) {
+            NFIconButton(Lucide.menu, label: L("open_menu")) { router.openDrawer() }
+            HStack(spacing: 8) {
+                LucideIcon(Lucide.search, size: 17, color: Sm.muted)
+                TextField(
+                    "",
+                    text: Binding(get: { model.state.input }, set: { model.setInput($0) }),
+                    prompt: Text(L("search_chats_and_notes")).foregroundStyle(Sm.faint)
+                )
+                .textFieldStyle(.plain)
+                .font(.nf(16))
+                .foregroundStyle(Sm.text)
+                .tint(Sm.ink)
+                .focused($focused)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .onSubmit {
+                    // 网页的 Enter：结果是当前条件的才打开高亮的那一行。
+                    if let hit = view.submitTarget(state.active) { select(hit) }
+                }
+                .frame(height: 44)
+                .frame(maxWidth: .infinity)
+                .accessibilityLabel(L("search_chats_and_notes"))
 
-            if view.loading {
-                Spinner(size: 16, duration: 0.8)
+                if view.loading {
+                    Spinner(size: 16, duration: 0.8)
+                } else if !model.state.input.isEmpty {
+                    NFIconButton(Lucide.x, label: L("em_clear_search"), size: 32, iconSize: 16, cornerRadius: 16) {
+                        model.setInput("")
+                    }
+                }
             }
-            NFIconButton(Lucide.x, label: L("search_close"), iconSize: 18, cornerRadius: 6) {
-                router.searchOpen = false
-            }
+            .padding(.leading, 12)
+            .padding(.trailing, 4)
+            .frame(height: 44)
+            .background(Sm.hover, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
-        .padding(.leading, 14.4)
-        .padding(.trailing, 8)
+        .padding(.leading, 10.4)
+        .padding(.trailing, 14)
         .frame(height: 60)
         .overlay(alignment: .bottom) { NFDivider() }
     }

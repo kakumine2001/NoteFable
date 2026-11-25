@@ -351,6 +351,7 @@ struct ImageModeChip: View {
 /// 选了一项先关抽屉，等它滑下去再做事（网页：先关抽屉，再开选笔记的窗口）。行多了放不下时抽屉自己在里面滚动。
 struct AttachSheet: View {
     let imageMode: Bool
+    let onScheduleAction: (@escaping () -> Void) -> Void
     let onPickFiles: () -> Void
     let onAttachPages: () -> Void
     let onToggleImageMode: () -> Void
@@ -384,11 +385,7 @@ struct AttachSheet: View {
     }
 
     private func closeThen(_ action: @escaping () -> Void) {
+        onScheduleAction(action)
         dismiss()
-        // 抽屉退场 200ms。
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 200_000_000)
-            action()
-        }
     }
 }

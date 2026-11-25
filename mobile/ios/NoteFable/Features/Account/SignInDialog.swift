@@ -94,7 +94,7 @@ private struct SignInDialogCard: View {
     @FocusState private var focus: SignInFocus?
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 8)
+        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
         let state = model.state
         ZStack(alignment: .topTrailing) {
             FittingScrollView(maxHeight: maxHeight) {
@@ -115,15 +115,11 @@ private struct SignInDialogCard: View {
                 .padding(.trailing, 12)
         }
         .frame(width: width)
-        .background { shape.fill(Sm.surface).onTapGesture {} }
+        .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: Sm.panelRing)
+        .contentShape(shape)
+        .onTapGesture {}
         .clipShape(shape)
-        // --notion-shadow：0 4px 14px rgba(15,15,15,.12) + 外侧 1px 的细环 rgba(15,15,15,.05)。
-        .overlay {
-            RoundedRectangle(cornerRadius: 8.5)
-                .stroke(Sm.panelRing, lineWidth: 1)
-                .padding(-0.5)
-        }
-        .shadow(color: Sm.panelShadow, radius: 7, x: 0, y: 4)
+        .shadow(color: Sm.panelShadow, radius: 10, x: 0, y: 4)
         .accessibilityAddTraits(.isModal)
         .task {
             // 只有邮箱时打开就聚焦邮箱输入框。等窗口进场后再设，太早会被忽略。

@@ -41,6 +41,9 @@ struct LucideIcon: View {
 struct LucideShape: Shape {
     let paths: [String]
 
+    // Shape 在 iOS 17+ 默认会跟随 RTL 自动镜像，导致这里和外部的 `.flipsForRightToLeftLayoutDirection(mirrorInRTL)` 叠加后双重翻转。
+    var layoutDirectionBehavior: LayoutDirectionBehavior { .fixed }
+
     func path(in rect: CGRect) -> Path {
         let scale = min(rect.width, rect.height) / 24
         let transform = CGAffineTransform(

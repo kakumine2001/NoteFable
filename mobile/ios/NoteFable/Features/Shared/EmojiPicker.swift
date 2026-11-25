@@ -31,7 +31,7 @@ extension View {
     }
 }
 
-/// 把弹出框声明给 `.nfOverlayHost()`：用"全屏面板"那一层（透明底），自己在里面按按钮的位置摆卡片。
+/// 把弹出框声明给当前最近的 `NFOverlayCenter`：用全屏面板那一层（透明底），按触发按钮的全局位置摆卡片。
 /// 进场借面板的过渡：整层从下方 4 处淡入，120ms ease-out。
 private struct EmojiPickerPresenter: ViewModifier {
     @Binding var isPresented: Bool
@@ -41,50 +41,94 @@ private struct EmojiPickerPresenter: ViewModifier {
 
     @Namespace private var namespace
     @Environment(\.self) private var environment
+    @Environment(NFOverlayCenter.self) private var center: NFOverlayCenter?
+    @State private var anchorRect: CGRect = .zero
 
     private static let style = NFPanelStyle(background: .clear, rise: 4, animation: NFMotion.cssEaseOut(0.12))
 
-    func body(content: Content) -> some View {
-        let presented = isPresented
+    private var currentId: NFOverlayID {
+        NFOverlayID(namespace: namespace, key: nil)
+    }
+
+    private func makeItem(globalRect: CGRect) -> NFOverlayItem {
         let binding = $isPresented
         let current = self.current
         let removeLabel = self.removeLabel
         let onPick = self.onPick
-        let id = NFOverlayID(namespace: namespace, key: nil)
-        let environment = self.environment
-        let style = Self.style
-        return content.transformAnchorPreference(key: NFOverlayKey.self, value: .bounds) { (items: inout [NFOverlayItem], anchor: Anchor<CGRect>) in
-            guard presented else { return }
-            items.append(NFOverlayItem(
-                id: id,
-                kind: .panel(style),
-                dismissDisabled: false,
-                environment: environment,
-                content: {
-                    AnyView(EmojiPopoverLayer(
-                        anchor: anchor, current: current, removeLabel: removeLabel, onPick: onPick,
-                        onClose: { binding.wrappedValue = false }
-                    ))
-                },
-                dismiss: { binding.wrappedValue = false }
-            ))
+        return NFOverlayItem(
+            id: currentId,
+            kind: .panel(Self.style),
+            dismissDisabled: false,
+            environment: environment,
+            content: {
+                AnyView(EmojiPopoverLayer(
+                    globalAnchorRect: globalRect,
+                    current: current,
+                    removeLabel: removeLabel,
+                    onPick: onPick,
+                    onClose: { binding.wrappedValue = false }
+                ))
+            },
+            dismiss: { binding.wrappedValue = false }
+        )
+    }
+
+    func body(content: Content) -> some View {
+        if isPresented {
+            center?.updateStoredContent(makeItem(globalRect: anchorRect))
         }
+        return content
+            .onGeometryChange(for: CGRect.self) { proxy in
+                proxy.frame(in: .global)
+            } action: { rect in
+                anchorRect = rect
+                if isPresented {
+                    center?.upsert(makeItem(globalRect: rect))
+                }
+            }
+            .onChange(of: isPresented, initial: true) { _, shown in
+                if shown {
+                    center?.upsert(makeItem(globalRect: anchorRect))
+                } else {
+                    center?.remove(currentId)
+                }
+            }
+            .onChange(of: current) { _, _ in
+                if isPresented {
+                    center?.upsert(makeItem(globalRect: anchorRect))
+                }
+            }
+            .onDisappear {
+                center?.remove(currentId)
+            }
     }
 }
 
 /// 弹出框所在的那一层：透明的底接住"点外面"，卡片按 `floatingEmojiPosition` 摆。
 private struct EmojiPopoverLayer: View {
-    let anchor: Anchor<CGRect>
+    let globalAnchorRect: CGRect
     let current: String?
     let removeLabel: String?
     let onPick: (String?) -> Void
     let onClose: () -> Void
 
+    @Environment(\.layoutDirection) private var layoutDirection
+
     var body: some View {
         GeometryReader { proxy in
+            let hostGlobal = proxy.frame(in: .global)
+            let localX = (layoutDirection == .rightToLeft)
+                ? (hostGlobal.maxX - globalAnchorRect.maxX)
+                : (globalAnchorRect.minX - hostGlobal.minX)
+            let localAnchor = CGRect(
+                x: localX,
+                y: globalAnchorRect.minY - hostGlobal.minY,
+                width: globalAnchorRect.width,
+                height: globalAnchorRect.height
+            )
             let size = EmojiPopoverSize.of(viewport: proxy.size)
             let origin = floatingEmojiPosition(
-                anchor: proxy[anchor], viewport: proxy.size, popup: CGSize(width: size.width, height: size.height)
+                anchor: localAnchor, viewport: proxy.size, popup: CGSize(width: size.width, height: size.height)
             )
             ZStack(alignment: .topLeading) {
                 Color.clear
@@ -99,19 +143,15 @@ private struct EmojiPopoverLayer: View {
     }
 
     private func card(_ size: EmojiPopoverSize) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 8)
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
         return EmojiPickerBody(current: current, height: size.pickerHeight, removeLabel: removeLabel, onClose: onClose, onPick: onPick)
             .frame(width: size.width)
+            .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: Sm.panelRing)
             // 卡片上的空白处不算"点外面"。
-            .background { shape.fill(Sm.surface).onTapGesture {} }
+            .contentShape(shape)
+            .onTapGesture {}
             .clipShape(shape)
-            // --notion-shadow：0 4px 14px rgba(15,15,15,.12) + 外侧 1px 的细环 rgba(15,15,15,.05)。
-            .overlay {
-                RoundedRectangle(cornerRadius: 8.5)
-                    .stroke(Sm.panelRing, lineWidth: 1)
-                    .padding(-0.5)
-            }
-            .shadow(color: Sm.panelShadow, radius: 7, x: 0, y: 4)
+            .shadow(color: Sm.panelShadow, radius: 10, x: 0, y: 4)
             .accessibilityElement(children: .contain)
             .accessibilityLabel(L("em_choose"))
     }

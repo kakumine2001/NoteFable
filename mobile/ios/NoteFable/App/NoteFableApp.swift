@@ -72,11 +72,14 @@ private struct NoteFableWindow: View {
             .environment(\.layoutDirection, language.isRightToLeft ? .rightToLeft : .leftToRight)
             // 日期、数字按界面语言写（不跟系统语言）。
             .environment(\.locale, Locale(identifier: language.active.tag ?? language.uiLocale))
+            .environment(\.nfForceSolidChrome, ScreenshotHooks.forceSolidChrome)
             // 设置里选的外观（网页 data-theme）：浅色 / 深色定死，“跟随系统”不指定。`Sm` 的颜色跟着它自己换，
             // 状态栏的字、键盘、系统弹出的界面（文件选择、提示框、分享面板）也跟着窗口走。
             .preferredColorScheme(theme.colorScheme)
             // 同时直接定到窗口上：从深色 / 浅色改回“跟随系统”时，只靠 preferredColorScheme(nil) 有时不会马上放开。
             .onChange(of: theme, initial: true) { _, value in applyWindowAppearance(value) }
+            // 应用内切换 RTL 语言（例如 ar-app）时同步更新 UIKit 窗口方向，确保原生 TabBar 与系统 Sheet 一致翻转。
+            .onChange(of: language.isRightToLeft, initial: true) { _, rtl in applyWindowLayoutDirection(rtl) }
             // 自定义 URL scheme（Google 登录的回调）和 Universal Link 都可能从这里进来。
             .onOpenURL { url in open(url) }
             // Universal Link：`https://<工作区主机>/c/<会话>?message=<消息>` 等（规则在 `ChatLink.parse`；Android 的 VIEW intent）。
@@ -116,6 +119,19 @@ private struct NoteFableWindow: View {
             for window in windowScene.windows {
                 window.overrideUserInterfaceStyle = style
                 window.rootViewController?.overrideUserInterfaceStyle = style
+            }
+        }
+    }
+
+    private func applyWindowLayoutDirection(_ rtl: Bool) {
+        let attribute: UISemanticContentAttribute = rtl ? .forceRightToLeft : .forceLeftToRight
+        let direction: UITraitEnvironmentLayoutDirection = rtl ? .rightToLeft : .leftToRight
+        for scene in UIApplication.shared.connectedScenes {
+            guard let windowScene = scene as? UIWindowScene else { continue }
+            for window in windowScene.windows {
+                window.semanticContentAttribute = attribute
+                window.rootViewController?.view.semanticContentAttribute = attribute
+                window.rootViewController?.traitOverrides.layoutDirection = direction
             }
         }
     }

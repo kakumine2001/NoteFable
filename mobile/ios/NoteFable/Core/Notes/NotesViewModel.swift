@@ -19,6 +19,8 @@ struct MissingNoteIconBackend: NoteIconBackend {
 @Observable
 final class NotesViewModel {
     private(set) var state: NotesUiState
+    /// 离开未保存的笔记被拒绝的次数（包括连续多次失败，供导航层切回工作区展示错误提示）。
+    private(set) var leaveBlockedCount = 0
 
     /// 编辑器打开时由界面设置：让网页立刻保存，返回是否已经没有未保存的内容。
     /// 离开、切换笔记、切到聊天之前都先调用；没有编辑器（还没加载完）时视为已保存。抛错算没保存。
@@ -219,6 +221,7 @@ final class NotesViewModel {
                 let stillOpen = state.open != nil
                 if !result.ok && stillOpen && !(result.draftKept && warned) {
                     update { $0.notice = NotesError(.unsavedDraft) }
+                    leaveBlockedCount &+= 1
                     return
                 }
             }
@@ -333,6 +336,7 @@ final class NotesViewModel {
         if state.busy { return }
         leaveThen { [self] in
             update {
+                $0.workspace = .notes
                 $0.busy = true
                 $0.error = nil
             }

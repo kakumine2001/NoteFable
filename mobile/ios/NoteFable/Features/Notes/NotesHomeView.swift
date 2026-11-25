@@ -23,11 +23,9 @@ struct NotesHomeView: View {
         let nothing = state.pages.isEmpty && state.groups.isEmpty
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 0) {
-                WorkspaceSwitch()
-                    .padding(.top, 4)
                 if let error = state.error {
                     NotesErrorBar(notesErrorText(error, app.systemText), onRetry: { notes.refresh() })
-                        .padding(.top, 20)
+                        .padding(.top, 12)
                 }
                 if state.loading && nothing {
                     Text(L("loading_notes"))

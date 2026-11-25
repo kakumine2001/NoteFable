@@ -30,7 +30,6 @@ struct ChatTopBar: View {
             } else {
                 Spacer(minLength: 0)
             }
-            NFIconButton(Lucide.search, label: L("search_chats_and_notes")) { router.openSearch() }
             if showNewChat {
                 NFIconButton(Lucide.plus, label: L("new_chat")) { app.chat.newChat() }
                     .padding(.leading, 8)
