@@ -5,7 +5,7 @@ import SwiftUI
 // 笔记行长按标题后可以拖动排序（Features/Shared/ReorderDragUI.swift）：放到别的笔记前 / 后是排序，放到项目行上移进项目，
 // 放到分区标题上移出项目（只接受同一分区的页面，Core 的 noteDropRules）。
 
-/// 抽屉里的笔记部分。
+/// 抽屉里的工作区部分（嵌入统一抽屉的共享 ScrollView）。
 @MainActor
 struct NotesDrawerBody: View {
     @Environment(AppEnvironment.self) private var app
@@ -20,57 +20,32 @@ struct NotesDrawerBody: View {
         let notes = app.notes
         let state = notes.state
         let busy = state.busy || state.loading
-        let router = self.router
-        let kinds = state.kinds
-        VStack(spacing: 0) {
-            // 顶部固定操作区（.sidebar-top-actions）：新建 + 搜索，下方 1pt 细线分隔可滚动列表。
-            VStack(spacing: 0) {
-                // “新建”（.sidebar-primary-action）：上距 10、左右 10、下距 6。能建几种类型时右侧显示下拉箭头并先选类型。
-                NewPageMenuAnchor(kinds: kinds, label: L("ws_new_page"), onCreate: { kind in
-                    router.closeDrawer()
-                    notes.createNote(kind: kind)
-                }) { open in
-                    SidebarPrimaryButton(
-                        L(kinds.count > 1 ? "ws_new" : "new_note"),
-                        trailingIcon: kinds.count > 1 ? Lucide.chevronDown : nil,
-                        action: open
-                    )
-                }
-                .disabled(busy)
+        VStack(alignment: .leading, spacing: 0) {
+            NotesDrawerList(busy: busy, reorder: reorder, dialog: $dialog)
                 .padding(.horizontal, 10)
-                .padding(.top, 10)
-                .padding(.bottom, 6)
-                // Search 行：网页侧栏里在“新建”按钮正下方（左右 10 已经带在里面）。
-                SidebarSearchRow { router.openSearch() }
-            }
-            .padding(.bottom, 10)
-            .overlay(alignment: .bottom) { NFDivider() }
-            ScrollView(.vertical) {
-                NotesDrawerList(busy: busy, reorder: reorder, dialog: $dialog)
-                    .padding(.horizontal, 10)
-                    .padding(.bottom, 16)
-                    .reorderContainer(reorder, onStart: { [reorder] _ in
-                        NoteReorderOrigin.shared.surface = .drawer
-                        reorder.rules = { noteDropRules(notes.state) }
-                        notes.dismissReorderError()
-                    }) { id, target in
-                        notes.drop(id, on: target)
-                    }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // 工具区（.sidebar-utility-footer）：上方 1pt 细线，导入 Markdown、回收站。
+                .reorderContainer(reorder, onStart: { [reorder] _ in
+                    NoteReorderOrigin.shared.surface = .drawer
+                    reorder.rules = { noteDropRules(notes.state) }
+                    notes.dismissReorderError()
+                }) { id, target in
+                    notes.drop(id, on: target)
+                }
+
+            // 工具区（导入 Markdown、回收站）。
             VStack(spacing: 1) {
                 NotesSidebarActionRow(icon: Lucide.upload, title: L("import_markdown")) { importing = true }
                     .disabled(busy)
-                NotesSidebarActionRow(icon: Lucide.trash2, title: L("trash")) { notes.openTrash() }
+                NotesSidebarActionRow(icon: Lucide.trash2, title: L("trash")) {
+                    router.closeDrawer()
+                    notes.openTrash()
+                }
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-            .overlay(alignment: .top) { NFDivider() }
+            .padding(.top, 8)
+            .padding(.bottom, 12)
         }
-        // 选好文件就收起抽屉（网页 importMarkdownFiles 的 setSidebarOpen(false)），导入完打开第一篇。
-        .noteMarkdownImporter(isPresented: $importing) { router.closeDrawer() }
-        // 打开抽屉时的刷新（列表、清掉上次改图标失败的提示）由 Root 统一做（RootView.refreshDrawerLists）。
+        // 选好文件就切到工作区并收起抽屉，导入完打开第一篇。
+        .noteMarkdownImporter(isPresented: $importing) { router.selectTab(.workspace) }
         .notesDialogs($dialog)
         // 登录 / 退出后：旧身份的笔记对话框关掉（网页换身份会重新加载页面）。
         .onChange(of: app.identityGeneration) { _, _ in dialog = nil }
@@ -149,8 +124,7 @@ private struct NotesDrawerList: View {
         let isOpen = !state.collapsedSections.contains(section.kind)
         SidebarSectionDivider()
         NotesSectionHeading(kind: section.kind, count: section.count, isOpen: isOpen, busy: busy, onToggle: { notes.toggleSection(section.kind) }) {
-            router.closeDrawer()
-            notes.createNote(kind: section.kind)
+            router.createNote(kind: section.kind)
         }
         .reorderDropZone(noteSectionZone(section.kind), in: reorder)
         if isOpen {
@@ -220,8 +194,7 @@ private struct NotesDrawerList: View {
             // 项目的“+”（网页项目行的 NewPageButton）：在这个项目的最上层新建，能建几种类型时先选类型。
             let newLabel = L("ws_new_page_in", group.name)
             NewPageMenuAnchor(kinds: notes.state.kinds, label: newLabel, onCreate: { kind in
-                router.closeDrawer()
-                notes.createNote(kind: kind, groupId: group.id)
+                router.createNote(kind: kind, groupId: group.id)
             }) { open in
                 NoteRowAction(icon: Lucide.plus, iconSize: 14, label: newLabel, action: open)
             }
@@ -313,8 +286,7 @@ private struct NotesDrawerRow: View {
             }
             title(active: active, locked: busy || state.moveBusy.contains(page.id))
             NewPageMenuAnchor(kinds: state.kinds, label: L("pg_add_page_inside_title", page.title), onCreate: { kind in
-                router.closeDrawer()
-                notes.createNote(parentId: page.id, kind: kind)
+                router.createNote(parentId: page.id, kind: kind)
             }) { open in
                 NoteRowAction(icon: Lucide.plus, iconSize: 14, label: L("pg_add_page_inside_title", page.title), action: open)
             }
@@ -344,8 +316,7 @@ private struct NotesDrawerRow: View {
     }
 
     private func openNote() {
-        router.closeDrawer()
-        app.notes.openNote(page.id)
+        router.openNote(page.id, title: page.title, icon: page.icon, kind: page.kind)
     }
 
     /// 展开箭头（.notes-row-toggle）。
@@ -427,8 +398,7 @@ private struct NotesDrawerFavoriteRow: View {
         let shape = RoundedRectangle(cornerRadius: 8)
         HStack(spacing: 0) {
             Button {
-                router.closeDrawer()
-                notes.openNote(pageId)
+                router.openNote(pageId, title: page.title, icon: page.icon, kind: page.kind)
             } label: {
                 HStack(spacing: 0) {
                     NFIconTile(emoji: page.icon, fallback: pageKindIcon(page.kind), box: 28, glyph: 15, color: pageKindColor(page.kind))

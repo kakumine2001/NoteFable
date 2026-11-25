@@ -1,58 +1,43 @@
 import SwiftUI
 
-// 对话框、“更多”菜单、底部抽屉、全屏面板共用的“最上层”。
+// 对话框、“更多”菜单、全屏面板共用的“最上层”。
 //
-// 网页这些东西是 <dialog> / position: fixed，盖在整个页面上；系统的 .sheet / .alert / Menu 外观和动画都对不上，所以自己画：
-// 各处用 `.nfDialog` / `.actionsMenu` / `.nfBottomSheet` / `.nfPanel` 声明“现在要显示什么”，声明经 preference 传到根上，
-// 根上的 `.nfOverlayHost()` 把它们叠在内容上面。层的顺序：全屏面板 < 底部抽屉 < 对话框 < 菜单；
-// 从某一层里面再打开的（设置里的语言菜单、对话框里的菜单）叠在那一层上面。
-//
-// 使用时要知道的三件事：
-// 1. `.nfOverlayHost()` 在 App 的根视图上装一次。系统的 `.sheet` / `.fullScreenCover` 是另一棵视图树，里面要用这些控件就再装一次。
-// 2. 内容画在根上，但环境值取的是声明处的（`@Environment` 的模型、布局方向、语言都照常能读）。
-// 3. 内容里要自己关掉时用 `@Environment(\.nfDismiss)`，或者直接改绑定的状态。
+// 原先通过 PreferenceKey + Anchor<CGRect> 向根视图冒泡，但 UIKit 支持的 TabView 会截断 PreferenceKey 冒泡。
+// 改为根上和每个 `.nfPanel` / `.nfSheet` / `.nfDialog` / `.actionsMenu` 内部通过环境注入的 `@Observable NFOverlayCenter`，
+// 以及基于 `.global` 坐标的触发器矩形：跨 TabView 标签页与抽屉声明的层都能稳定画在 TabView 与液态玻璃底栏之上。
+// 层的顺序：全屏面板 < 对话框 < 菜单；从某一层里面再打开的（设置里的语言菜单、对话框里的菜单）叠在那一层上面。
 
 // MARK: - 根上的宿主
 
 extension View {
-    /// 在根视图上装一次：对话框、菜单、底部抽屉、全屏面板都画在它上面（见本文件开头的说明）。
-    ///
-    /// ```swift
-    /// RootView()
-    ///     .nfOverlayHost()
-    ///     .toastHost()
-    /// ```
+    /// 在根视图、系统 `.sheet` 或内嵌面板里安装叠加层宿主。
     func nfOverlayHost() -> some View {
         modifier(NFOverlayHostModifier())
     }
 
-    /// `nfOverlayHost()` 的别名：菜单和对话框、抽屉用的是同一个宿主，装过其中一个就不用再装。
+    /// `nfOverlayHost()` 的别名。
     func actionsMenuHost() -> some View {
         modifier(NFOverlayHostModifier())
     }
 }
 
 struct NFOverlayHostModifier: ViewModifier {
+    @State private var center = NFOverlayCenter()
+
     func body(content: Content) -> some View {
         content
-            .overlayPreferenceValue(NFOverlayKey.self) { items in
-                NFOverlayStack(items: items)
+            .environment(center)
+            .overlay {
+                NFOverlayStack(center: center)
             }
-            // 已经画出来的不再往上传：宿主套宿主时（面板里的宿主、根上的宿主）不会画两遍。
-            .transformPreference(NFOverlayKey.self) { $0.removeAll() }
     }
 }
 
 // MARK: - 关闭
 
-/// 关掉自己所在的那一层（对话框 / 菜单 / 抽屉 / 面板）。不在这些层里时什么也不做。
-///
-/// ```swift
-/// @Environment(\.nfDismiss) private var dismiss
-/// NotionButton(L("cancel")) { dismiss() }
-/// ```
+/// 关掉自己所在的那一层（对话框 / 菜单 / 面板 / 系统 Sheet）。不在这些层里时什么也不做。
 struct NFDismissAction {
-    fileprivate let action: () -> Void
+    let action: () -> Void
 
     func callAsFunction() {
         action()
@@ -70,32 +55,72 @@ extension EnvironmentValues {
     }
 }
 
+// MARK: - 中心状态
+
+@MainActor
+@Observable
+final class NFOverlayCenter {
+    @ObservationIgnored private var storage: [NFOverlayID: NFOverlayItem] = [:]
+    private(set) var ids: [NFOverlayID] = []
+    private(set) var revision: Int = 0
+
+    func upsert(_ item: NFOverlayItem) {
+        storage[item.id] = item
+        if !ids.contains(item.id) {
+            ids.append(item.id)
+        }
+        revision &+= 1
+    }
+
+    /// 在 `body` 重绘期间安全刷新闭包与环境快照（只写 `@ObservationIgnored` 的 storage，不触发状态变更）。
+    func updateStoredContent(_ item: NFOverlayItem) {
+        guard storage[item.id] != nil else { return }
+        storage[item.id] = item
+    }
+
+    func remove(_ id: NFOverlayID) {
+        let existed = storage.removeValue(forKey: id) != nil
+        if let index = ids.firstIndex(of: id) {
+            ids.remove(at: index)
+        }
+        if existed {
+            revision &+= 1
+        }
+    }
+
+    var orderedItems: [NFOverlayItem] {
+        _ = revision
+        return ids.compactMap { storage[$0] }
+            .enumerated()
+            .sorted { ($0.element.kind.level, $0.offset) < ($1.element.kind.level, $1.offset) }
+            .map(\.element)
+    }
+}
+
 // MARK: - 一层的描述
 
-/// 要显示的一层。由各个 `.nfXxx` 修饰符生成，经 `NFOverlayKey` 传给宿主。
+/// 要显示的一层。由各个 `.nfXxx` 修饰符注册给当前最近的 `NFOverlayCenter`。
 struct NFOverlayItem: Identifiable {
     enum Kind {
         case panel(NFPanelStyle)
-        case sheet(BottomSheetStyle)
         case dialog
-        case menu(ActionsMenuConfiguration, Anchor<CGRect>)
+        case menu(ActionsMenuConfiguration, CGRect)
 
         /// 叠放顺序：数字大的在上面。
         var level: Int {
             switch self {
             case .panel: return 0
-            case .sheet: return 1
-            case .dialog: return 2
-            case .menu: return 3
+            case .dialog: return 1
+            case .menu: return 2
             }
         }
     }
 
     let id: NFOverlayID
     let kind: Kind
-    /// 为 true 时点遮罩 / 点外面 / 下拉都不关（请求进行中）。
+    /// 为 true 时点遮罩 / 点外面都不关（请求进行中）。
     let dismissDisabled: Bool
-    /// 声明处的环境值：内容虽然画在根上，读到的环境和声明它的地方一样。
+    /// 声明处的环境值：内容虽然画在宿主上，读到的环境和声明它的地方一样。
     let environment: EnvironmentValues
     let content: () -> AnyView
     let dismiss: () -> Void
@@ -105,14 +130,6 @@ struct NFOverlayItem: Identifiable {
 struct NFOverlayID: Hashable {
     let namespace: Namespace.ID
     let key: AnyHashable?
-}
-
-struct NFOverlayKey: PreferenceKey {
-    static let defaultValue: [NFOverlayItem] = []
-
-    static func reduce(value: inout [NFOverlayItem], nextValue: () -> [NFOverlayItem]) {
-        value.append(contentsOf: nextValue())
-    }
 }
 
 /// 宿主的尺寸和键盘挡住的高度。各层按它摆放：内容区的底边 = `size.height - keyboardInset`。
@@ -128,7 +145,7 @@ struct NFOverlayMetrics: Equatable {
 
 // MARK: - 声明一层
 
-/// 不需要锚点的层（对话框、抽屉、面板）。
+/// 不需要锚点的层（对话框、面板）。
 struct NFOverlayPresenter: ViewModifier {
     let isPresented: Bool
     let key: AnyHashable?
@@ -139,23 +156,69 @@ struct NFOverlayPresenter: ViewModifier {
 
     @Namespace private var namespace
     @Environment(\.self) private var environment
+    @Environment(NFOverlayCenter.self) private var center: NFOverlayCenter?
+    @State private var registeredId: NFOverlayID?
+
+    private var currentId: NFOverlayID {
+        NFOverlayID(namespace: namespace, key: key)
+    }
+
+    private func makeItem() -> NFOverlayItem {
+        NFOverlayItem(
+            id: currentId,
+            kind: kind,
+            dismissDisabled: dismissDisabled,
+            environment: environment,
+            content: overlayContent,
+            dismiss: dismiss
+        )
+    }
 
     func body(content: Content) -> some View {
-        content.transformPreference(NFOverlayKey.self) { items in
-            guard isPresented else { return }
-            items.append(NFOverlayItem(
-                id: NFOverlayID(namespace: namespace, key: key),
-                kind: kind,
-                dismissDisabled: dismissDisabled,
-                environment: environment,
-                content: overlayContent,
-                dismiss: dismiss
-            ))
+        if isPresented {
+            center?.updateStoredContent(makeItem())
+        }
+        return content
+            .onChange(of: isPresented, initial: true) { _, shown in
+                sync(shown: shown)
+            }
+            .onChange(of: currentId) { oldId, _ in
+                if registeredId == oldId {
+                    center?.remove(oldId)
+                    registeredId = nil
+                }
+                sync(shown: isPresented)
+            }
+            .onChange(of: dismissDisabled) { _, _ in
+                if isPresented {
+                    sync(shown: true)
+                }
+            }
+            .onDisappear {
+                if let registeredId {
+                    center?.remove(registeredId)
+                    self.registeredId = nil
+                } else {
+                    center?.remove(currentId)
+                }
+            }
+    }
+
+    private func sync(shown: Bool) {
+        if shown {
+            let item = makeItem()
+            registeredId = item.id
+            center?.upsert(item)
+        } else if let registeredId {
+            center?.remove(registeredId)
+            self.registeredId = nil
+        } else {
+            center?.remove(currentId)
         }
     }
 }
 
-/// 贴着某个视图显示的层（菜单）：把那个视图的位置一起带上。
+/// 贴着某个视图显示的层（菜单）：使用 `.global` 坐标追踪锚点。
 struct NFAnchoredOverlayPresenter: ViewModifier {
     let isPresented: Bool
     let configuration: ActionsMenuConfiguration
@@ -165,37 +228,63 @@ struct NFAnchoredOverlayPresenter: ViewModifier {
 
     @Namespace private var namespace
     @Environment(\.self) private var environment
+    @Environment(NFOverlayCenter.self) private var center: NFOverlayCenter?
+    @State private var anchorRect: CGRect = .zero
+
+    private var currentId: NFOverlayID {
+        NFOverlayID(namespace: namespace, key: nil)
+    }
+
+    private func makeItem(globalRect: CGRect) -> NFOverlayItem {
+        NFOverlayItem(
+            id: currentId,
+            kind: .menu(configuration, globalRect),
+            dismissDisabled: dismissDisabled,
+            environment: environment,
+            content: overlayContent,
+            dismiss: dismiss
+        )
+    }
 
     func body(content: Content) -> some View {
-        content.transformAnchorPreference(key: NFOverlayKey.self, value: .bounds) { (items: inout [NFOverlayItem], anchor: Anchor<CGRect>) in
-            guard isPresented else { return }
-            items.append(NFOverlayItem(
-                id: NFOverlayID(namespace: namespace, key: nil),
-                kind: .menu(configuration, anchor),
-                dismissDisabled: dismissDisabled,
-                environment: environment,
-                content: overlayContent,
-                dismiss: dismiss
-            ))
+        if isPresented {
+            center?.updateStoredContent(makeItem(globalRect: anchorRect))
         }
+        return content
+            .onGeometryChange(for: CGRect.self) { proxy in
+                proxy.frame(in: .global)
+            } action: { rect in
+                anchorRect = rect
+                if isPresented {
+                    center?.upsert(makeItem(globalRect: rect))
+                }
+            }
+            .onChange(of: isPresented, initial: true) { _, shown in
+                if shown {
+                    center?.upsert(makeItem(globalRect: anchorRect))
+                } else {
+                    center?.remove(currentId)
+                }
+            }
+            .onChange(of: dismissDisabled) { _, _ in
+                if isPresented {
+                    center?.upsert(makeItem(globalRect: anchorRect))
+                }
+            }
+            .onDisappear {
+                center?.remove(currentId)
+            }
     }
 }
 
 // MARK: - 把各层叠起来
 
 private struct NFOverlayStack: View {
-    let items: [NFOverlayItem]
+    let center: NFOverlayCenter
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// 按层级排（同一级按声明的先后），并记下序号当 zIndex：退场动画期间也不会掉到别的层下面。
-    private var ordered: [NFOverlayEntry] {
-        items.enumerated()
-            .sorted { ($0.element.kind.level, $0.offset) < ($1.element.kind.level, $1.offset) }
-            .enumerated()
-            .map { NFOverlayEntry(index: $0.offset, item: $0.element.element) }
-    }
-
     var body: some View {
+        let items = center.orderedItems
         let keyboardTop = KeyboardObserver.shared.top
         GeometryReader { proxy in
             let metrics = NFOverlayMetrics(
@@ -203,11 +292,11 @@ private struct NFOverlayStack: View {
                 keyboardInset: max(0, proxy.frame(in: .global).maxY - keyboardTop)
             )
             ZStack {
-                ForEach(ordered) { entry in
-                    NFOverlayLayer(item: entry.item, metrics: metrics, zBase: Double(entry.index))
-                        .environment(\.nfDismiss, NFDismissAction(action: entry.item.dismiss))
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                    NFOverlayLayer(item: item, metrics: metrics, zBase: Double(index))
+                        .environment(\.nfDismiss, NFDismissAction(action: item.dismiss))
                         // 先放回声明处的环境，再在上面盖本层的关闭动作（离内容近的修饰符优先）。
-                        .environment(\.self, entry.item.environment)
+                        .environment(\.self, item.environment)
                 }
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
@@ -219,12 +308,6 @@ private struct NFOverlayStack: View {
     }
 }
 
-private struct NFOverlayEntry: Identifiable {
-    let index: Int
-    let item: NFOverlayItem
-    var id: NFOverlayID { item.id }
-}
-
 private struct NFOverlayLayer: View {
     let item: NFOverlayItem
     let metrics: NFOverlayMetrics
@@ -234,12 +317,10 @@ private struct NFOverlayLayer: View {
         switch item.kind {
         case .dialog:
             NFDialogLayer(item: item, metrics: metrics, zBase: zBase)
-        case let .sheet(style):
-            BottomSheetLayer(item: item, style: style, metrics: metrics, zBase: zBase)
         case let .panel(style):
             NFPanelLayer(item: item, style: style, metrics: metrics, zBase: zBase)
-        case let .menu(configuration, anchor):
-            ActionsMenuLayer(item: item, configuration: configuration, anchor: anchor, metrics: metrics, zBase: zBase)
+        case let .menu(configuration, globalRect):
+            ActionsMenuLayer(item: item, configuration: configuration, globalAnchorRect: globalRect, metrics: metrics, zBase: zBase)
         }
     }
 }

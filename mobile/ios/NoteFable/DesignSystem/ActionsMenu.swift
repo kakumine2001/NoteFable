@@ -111,11 +111,12 @@ enum ActionsMenuGeometry {
 struct ActionsMenuLayer: View {
     let item: NFOverlayItem
     let configuration: ActionsMenuConfiguration
-    let anchor: Anchor<CGRect>
+    let globalAnchorRect: CGRect
     let metrics: NFOverlayMetrics
     let zBase: Double
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.layoutDirection) private var layoutDirection
     @State private var contentHeight: CGFloat?
     @State private var shown = false
 
@@ -131,12 +132,22 @@ struct ActionsMenuLayer: View {
             .zIndex(zBase)
 
         GeometryReader { proxy in
-            // 离上下边至少 8。
+            // 离上下边至少 8；将全局坐标转换为宿主逻辑坐标（RTL 下 X 从右侧起算以配合 SwiftUI 自动镜像）。
             let edge: CGFloat = 8
+            let hostGlobal = proxy.frame(in: .global)
+            let localX = (layoutDirection == .rightToLeft)
+                ? (hostGlobal.maxX - globalAnchorRect.maxX)
+                : (globalAnchorRect.minX - hostGlobal.minX)
+            let localAnchor = CGRect(
+                x: localX,
+                y: globalAnchorRect.minY - hostGlobal.minY,
+                width: globalAnchorRect.width,
+                height: globalAnchorRect.height
+            )
             let maxHeight = max(44, metrics.availableHeight - edge * 2)
             let height = min(contentHeight ?? 0, maxHeight)
             let placed = ActionsMenuGeometry.place(
-                anchor: proxy[anchor],
+                anchor: localAnchor,
                 menu: CGSize(width: configuration.width, height: height),
                 bounds: CGSize(width: metrics.size.width, height: metrics.availableHeight),
                 alignment: configuration.alignment,
@@ -176,7 +187,7 @@ struct ActionsMenuLayer: View {
     }
 
     private func card(maxHeight: CGFloat) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 12)
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
         return ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 0) {
                 item.content()
@@ -190,9 +201,8 @@ struct ActionsMenuLayer: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .frame(width: configuration.width, height: min(contentHeight ?? maxHeight, maxHeight))
-        .background(Sm.surface, in: shape)
+        .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: Sm.border)
         .clipShape(shape)
-        .overlay { shape.strokeBorder(Sm.border, lineWidth: 1) }
         .shadow(color: Sm.menuShadow, radius: 16, x: 0, y: 8)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(configuration.label ?? "")

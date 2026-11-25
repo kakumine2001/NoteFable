@@ -23,9 +23,6 @@ struct ChatEmptyState: View {
             let showMascot = !showRecent || proxy.size.height >= 400
             ScrollView(.vertical) {
                 VStack(spacing: 0) {
-                    WorkspaceSwitch()
-                        .padding(.horizontal, ChatMetrics.pageGutter)
-                        .padding(.top, 4)
                     Spacer(minLength: 0)
                     ChatHero(
                         // 还没保存的新聊天叫"新聊天"。

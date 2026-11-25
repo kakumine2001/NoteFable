@@ -8,18 +8,21 @@ import SwiftUI
 struct AccountRow: View {
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router
+    private let glassStyle: Bool
 
-    init() {}
+    init(glassStyle: Bool = false) {
+        self.glassStyle = glassStyle
+    }
 
     var body: some View {
         let account = app.account.state
         Group {
             if account.configured {
                 if let user = account.user {
-                    AccountProfileRow(user: user) { router.openSettings() }
+                    AccountProfileRow(user: user, glassStyle: glassStyle) { router.openSettings() }
                 } else {
-                    // 网页 SignInButton：只放"登录"，点了打开登录窗口（SignInDialog）。侧栏底部使用柔和卡片样式。
-                    SignInButton(subtle: true) { router.openSignIn() }
+                    // 网页 SignInButton：只放"登录"，点了打开登录窗口（SignInDialog）。
+                    SignInButton(subtle: true, glassStyle: glassStyle) { router.openSignIn() }
                 }
             }
         }
@@ -27,26 +30,37 @@ struct AccountRow: View {
     }
 }
 
-/// "登录"按钮（网页 SignInButton / .signin-open-button 的手机尺寸）：整行、高 44（侧栏底部为 42）、圆角 6（侧栏底部为 9）。
-/// `subtle` 为 true 时采用侧栏底部的柔和白卡片样式（1pt 强细框 + CircleUser 图标 + 墨色字），避免与顶部主按钮抢焦点。
-/// 侧栏底部和上限提示都只放这一个按钮，点了打开登录窗口（`router.openSignIn()`）。
-///
-/// ```swift
-/// SignInButton(subtle: true) { router.openSignIn() }
-/// ```
+/// "登录"按钮（网页 SignInButton / .signin-open-button 的手机尺寸）。
 struct SignInButton: View {
     private let cornerRadius: CGFloat
     private let subtle: Bool
+    private let glassStyle: Bool
     private let action: () -> Void
 
-    init(cornerRadius: CGFloat? = nil, subtle: Bool = false, action: @escaping () -> Void) {
+    init(cornerRadius: CGFloat? = nil, subtle: Bool = false, glassStyle: Bool = false, action: @escaping () -> Void) {
         self.subtle = subtle
+        self.glassStyle = glassStyle
         self.cornerRadius = cornerRadius ?? (subtle ? 9 : 6)
         self.action = action
     }
 
     var body: some View {
-        if subtle {
+        if glassStyle {
+            Button(action: action) {
+                HStack(spacing: 7) {
+                    LucideIcon(Lucide.circleUser, size: 16, color: Sm.muted)
+                    Text(L("sign_in"))
+                        .font(.nf(15, weight: 600))
+                        .foregroundStyle(Sm.ink)
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 14)
+                .frame(maxWidth: .infinity)
+                .frame(height: 40)
+                .nfGlassBackground(.interactive, in: Capsule(), solidFill: Sm.surface, stroke: Sm.borderStrong)
+            }
+            .buttonStyle(.pressable(pressedBackground: nil, cornerRadius: 20, scale: 0.97))
+        } else if subtle {
             let shape = RoundedRectangle(cornerRadius: cornerRadius)
             Button(action: action) {
                 HStack(spacing: 7) {
@@ -78,10 +92,10 @@ struct SignInButton: View {
     }
 }
 
-/// 登录后的账号行（.notion-sidebar-action.profile-row，手机）：高 44、左右 8、圆角 4.8、间距 8.8；
-/// 头像 22、名字 16、右边齿轮 15（--notion-faint）。点了打开设置：个人资料、界面语言、自定义指令、退出登录都在里面。
+/// 登录后的账号行（.notion-sidebar-action.profile-row，手机）：头像 22、名字、设置图标。
 private struct AccountProfileRow: View {
     let user: AccountUser
+    let glassStyle: Bool
     let action: () -> Void
 
     var body: some View {
@@ -90,19 +104,32 @@ private struct AccountProfileRow: View {
             HStack(spacing: 8.8) {
                 UserAvatar(user: user, size: 22)
                 Text(name)
-                    .font(.nf(16))
+                    .font(.nf(15, weight: glassStyle ? 550 : 400))
                     .foregroundStyle(Sm.text)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 LucideIcon(Lucide.settings, size: 15, color: Sm.faint)
             }
-            .padding(.horizontal, 8)
-            .frame(height: 44)
+            .padding(.horizontal, glassStyle ? 12 : 8)
+            .frame(height: glassStyle ? 40 : 44)
+            .modifier(AccountProfileBackground(glassStyle: glassStyle))
         }
-        .buttonStyle(.pressable(cornerRadius: 4.8))
+        .buttonStyle(.pressable(cornerRadius: glassStyle ? 20 : 4.8, scale: glassStyle ? 0.97 : 1))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(name + " · " + L("acct_settings"))
         .accessibilityAddTraits(.isButton)
+    }
+}
+
+private struct AccountProfileBackground: ViewModifier {
+    let glassStyle: Bool
+
+    func body(content: Content) -> some View {
+        if glassStyle {
+            content.nfGlassBackground(.interactive, in: Capsule(), solidFill: Sm.surface, stroke: Sm.borderStrong)
+        } else {
+            content
+        }
     }
 }

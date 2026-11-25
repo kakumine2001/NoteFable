@@ -247,14 +247,33 @@ final class AppEnvironmentTests: XCTestCase {
         let environment = try makeEnvironment()
         let router = AppRouter(app: environment)
         XCTAssertEqual(environment.notes.state.workspace, .chat)
-        router.searchOpen = true
+        router.openSearch()
+        XCTAssertEqual(router.selectedTab, .search)
 
         router.openNote("n9", title: "Found", icon: "📘")
-        XCTAssertFalse(router.searchOpen)
+        XCTAssertEqual(router.selectedTab, .workspace)
         // 不只是切到笔记列表：那篇笔记要打开（Android NoteFableRoot 的 onOpenNote）。
         await eventually { environment.notes.state.open?.id == "n9" }
         XCTAssertEqual(environment.notes.state.workspace, .notes)
         XCTAssertEqual(environment.notes.state.open?.title, "Found")
+    }
+
+    func testTabSwitchingAndIdentityResetSyncWorkspaceAndSearchTab() async throws {
+        let environment = try makeEnvironment()
+        let router = AppRouter(app: environment)
+        router.openDrawer()
+        router.selectTab(.workspace)
+        XCTAssertFalse(router.drawerOpen)
+        XCTAssertEqual(router.selectedTab, .workspace)
+        await eventually { environment.notes.state.workspace == .notes }
+
+        router.openSearch()
+        XCTAssertEqual(router.selectedTab, .search)
+        router.onIdentityChanged()
+        XCTAssertEqual(router.selectedTab, .workspace)
+
+        router.openNewChat()
+        await eventually { environment.notes.state.workspace == .chat && router.selectedTab == .chat }
     }
 
     // MARK: - 系统分享
@@ -262,7 +281,7 @@ final class AppEnvironmentTests: XCTestCase {
     func testShareUrlPutsTheSharedContentIntoANewChatAndClosesPanels() async throws {
         let environment = try makeEnvironment()
         let router = AppRouter(app: environment)
-        router.searchOpen = true
+        router.openSearch()
         router.settingsOpen = true
         router.drawerOpen = true
         let photo = LocalFile(uri: "file:///photo", name: "photo.png", mimeType: "image/png", size: 10)
@@ -276,7 +295,7 @@ final class AppEnvironmentTests: XCTestCase {
         XCTAssertTrue(handled)
         await eventually { environment.chat.draft == "from share" && environment.chat.state.files == [photo] }
         XCTAssertEqual(requested, ["abcdef12-3456"])
-        XCTAssertFalse(router.searchOpen)
+        XCTAssertEqual(router.selectedTab, .chat)
         XCTAssertFalse(router.settingsOpen)
         XCTAssertFalse(router.drawerOpen)
         XCTAssertEqual(environment.notes.state.workspace, .chat)

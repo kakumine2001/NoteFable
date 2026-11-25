@@ -112,7 +112,7 @@ struct NFDialogLayer: View {
     }
 
     private var card: some View {
-        let shape = RoundedRectangle(cornerRadius: 8)
+        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
         // 卡片最高到“可用高度 − 38”，再高就在里面滚动。
         return FittingScrollView(maxHeight: max(120, metrics.availableHeight - 38)) {
             VStack(alignment: .leading, spacing: 0) {
@@ -123,15 +123,9 @@ struct NFDialogLayer: View {
             .padding(24)
         }
         .frame(width: max(0, min(metrics.size.width - 48, 400)))
-        .background(Sm.surface, in: shape)
+        .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: Sm.panelRing)
         .clipShape(shape)
-        // --notion-shadow：0 4px 14px rgba(15,15,15,.12) + 外侧 1px 的细环 rgba(15,15,15,.05)。
-        .overlay {
-            RoundedRectangle(cornerRadius: 8.5)
-                .stroke(Sm.panelRing, lineWidth: 1)
-                .padding(-0.5)
-        }
-        .shadow(color: Sm.panelShadow, radius: 7, x: 0, y: 4)
+        .shadow(color: Sm.panelShadow, radius: 10, x: 0, y: 4)
         .accessibilityAddTraits(.isModal)
     }
 }

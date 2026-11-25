@@ -24,7 +24,12 @@ private struct NoteTrashSheetModifier: ViewModifier {
                 if !open { notes.closeTrash() }
             }
         )
-        content.nfBottomSheet(isPresented: presented, style: .plain(cornerRadius: 16)) {
+        content.nfSheet(
+            isPresented: presented,
+            detents: .mediumAndLarge,
+            showsDragIndicator: true,
+            contentInsets: EdgeInsets()
+        ) {
             NoteTrashSheetContent()
         }
     }
@@ -109,14 +114,9 @@ private struct NoteTrashSheetContent: View {
         .padding(.top, 9.6)
     }
 
-    /// 列表最高 560，再多在里面滚动；屏幕矮时让头部留在面板里（面板本身最高 88% 屏高）。
-    private var listMaxHeight: CGFloat {
-        min(560, max(160, UIScreen.main.bounds.height * 0.88 - 220))
-    }
-
     private func list(_ trash: TrashUiState) -> some View {
         let notes = app.notes
-        return FittingScrollView(maxHeight: listMaxHeight) {
+        return ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 0) {
                 if let loadError = trash.loadError {
                     VStack(spacing: 8) {
@@ -147,6 +147,7 @@ private struct NoteTrashSheetContent: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(8)
         }
+        .frame(maxHeight: .infinity)
     }
 
     private func status(_ text: String) -> some View {

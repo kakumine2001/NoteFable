@@ -14,6 +14,7 @@ struct ChatWorkspace: View {
 
     @State private var modelSheetOpen = false
     @State private var attachSheetOpen = false
+    @State private var pendingAttachAction: (() -> Void)? = nil
     @State private var pagesOpen = false
     @State private var pickingFiles = false
     @State private var composerFocused = false
@@ -80,11 +81,27 @@ struct ChatWorkspace: View {
         )) {
             await loadRecentNotes(show: showRecent)
         }
-        .nfBottomSheet(isPresented: $modelSheetOpen) {
+        .nfSheet(
+            isPresented: $modelSheetOpen,
+            detents: .fitted,
+            showsDragIndicator: true,
+            contentInsets: EdgeInsets(top: 12, leading: 16, bottom: 16, trailing: 16)
+        ) {
             ChatModelSheet()
         }
-        .nfBottomSheet(isPresented: $attachSheetOpen) {
+        .nfSheet(
+            isPresented: $attachSheetOpen,
+            detents: .fitted,
+            showsDragIndicator: true,
+            contentInsets: EdgeInsets(top: 12, leading: 16, bottom: 16, trailing: 16),
+            onDismiss: {
+                guard let action = pendingAttachAction else { return }
+                pendingAttachAction = nil
+                action()
+            }
+        ) {
             ChatAttachSheetContent(
+                onScheduleAction: { action in pendingAttachAction = action },
                 onPickFiles: { pickingFiles = true },
                 onAttachPages: { pagesOpen = true }
             )
@@ -204,6 +221,7 @@ private struct ChatRecentNotesTrigger: Equatable {
 /// 「＋」抽屉里的内容：自己读聊天状态，抽屉开着时「生成图片」的勾和「整理成笔记」能不能点跟着变。
 @MainActor
 private struct ChatAttachSheetContent: View {
+    let onScheduleAction: (@escaping () -> Void) -> Void
     let onPickFiles: () -> Void
     let onAttachPages: () -> Void
 
@@ -214,6 +232,7 @@ private struct ChatAttachSheetContent: View {
         let state = app.chat.state
         AttachSheet(
             imageMode: state.imageMode,
+            onScheduleAction: onScheduleAction,
             onPickFiles: onPickFiles,
             onAttachPages: onAttachPages,
             onToggleImageMode: { app.chat.setImageMode(!app.chat.state.imageMode) },

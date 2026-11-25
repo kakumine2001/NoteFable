@@ -39,7 +39,7 @@ struct ProjectSettingsDialog: View {
     }
 
     private func card(maxHeight: CGFloat) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 8)
+        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
         let state = model.state
         return VStack(alignment: .leading, spacing: 0) {
             header
@@ -54,15 +54,11 @@ struct ProjectSettingsDialog: View {
                     if footerHeight != size.height { footerHeight = size.height }
                 }
         }
-        .background(Sm.surface, in: shape)
+        .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: Sm.panelRing)
+        .contentShape(shape)
+        .onTapGesture {}
         .clipShape(shape)
-        // --notion-shadow：0 4px 14px rgba(15,15,15,.12) + 外侧 1px 的细环 rgba(15,15,15,.05)。
-        .overlay {
-            RoundedRectangle(cornerRadius: 8.5)
-                .stroke(Sm.panelRing, lineWidth: 1)
-                .padding(-0.5)
-        }
-        .shadow(color: Sm.panelShadow, radius: 7, x: 0, y: 4)
+        .shadow(color: Sm.panelShadow, radius: 10, x: 0, y: 4)
         .accessibilityAddTraits(.isModal)
     }
 
