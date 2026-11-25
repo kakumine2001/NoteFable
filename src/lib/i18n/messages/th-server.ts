@@ -262,4 +262,8 @@ export const thServer: Record<string, string> = {
   "Created page “{title}”": "สร้างหน้า “{title}” แล้ว",
   "Preview failed": "สร้างตัวอย่างไม่สำเร็จ",
   "Previewed “{title}”": "ดูตัวอย่าง “{title}” แล้ว",
+  "Could not draw a diagram. Try again.": "วาดไดอะแกรมไม่สำเร็จ โปรดลองอีกครั้ง",
+  "Could not turn this into an editable diagram.": "แปลงเป็นไดอะแกรมที่แก้ไขได้ไม่สำเร็จ",
+  "There is nothing to draw yet.": "ยังไม่มีอะไรให้วาด",
+  "This diagram was moved to the trash.": "ไดอะแกรมนี้ถูกย้ายไปที่ถังขยะแล้ว",
 };

@@ -262,4 +262,8 @@ export const viServer: Record<string, string> = {
   "Created page “{title}”": "Đã tạo trang “{title}”",
   "Preview failed": "Không tạo được bản xem trước",
   "Previewed “{title}”": "Đã xem trước “{title}”",
+  "Could not draw a diagram. Try again.": "Không thể vẽ sơ đồ. Hãy thử lại.",
+  "Could not turn this into an editable diagram.": "Không thể chuyển thành sơ đồ có thể chỉnh sửa.",
+  "There is nothing to draw yet.": "Chưa có gì để vẽ.",
+  "This diagram was moved to the trash.": "Sơ đồ này đã được chuyển vào Thùng rác.",
 };

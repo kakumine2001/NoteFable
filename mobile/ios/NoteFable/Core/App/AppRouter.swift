@@ -24,6 +24,8 @@ final class AppRouter {
     var signInOpen = false
     /// 「整理成笔记」窗口开着的聊天（网页 createPageSessionId）。
     var createPageSessionId: String?
+    /// 「画成图」窗口显示的素材（状态在 `app.diagrams`）。
+    var diagramSource: DiagramSource?
 
     private var linkTask: Task<Void, Never>?
     private var shareTask: Task<Void, Never>?
@@ -215,10 +217,71 @@ final class AppRouter {
         }
     }
 
-    /// 登录 / 退出后：旧身份整理好的笔记与搜索状态恢复默认标签。
+    // MARK: - 画成图
+
+    // 正在等待保存（flushBeforeServerRead）的笔记 id：避免慢保存期间连点两次并发 flush 或重复开任务。
+    @ObservationIgnored private var flushingDiagramPages: Set<String> = []
+    @ObservationIgnored private var diagramIdentityGeneration = 0
+
+    /// 回答"…"菜单的「画成图」：马上开始（不先确认）并打开进度窗口。同一素材已有任务时只是重新打开窗口，不再发一次。
+    /// 模型用聊天里选着的（和「整理成笔记」相同）。返回开始的任务（已有任务时是 nil）。
+    @discardableResult
+    func drawDiagram(_ source: DiagramSource) -> Task<Void, Never>? {
+        let task = app.diagrams.start(source, model: app.chat.state.selectedModel?.id)
+        diagramSource = source
+        return task
+    }
+
+    /// 笔记"…"菜单的「画成图」：已有任务时直接重开窗口（不重做保存）；否则服务端读的是已保存的正文，先让网页保存，
+    /// 存不上就提示（编辑页顶栏下面）、不开始。同页保存中忽略重入；保存期间换了身份也不再开始。
+    @discardableResult
+    func drawDiagramFromNote(_ pageId: String) -> Task<Void, Never> {
+        let source = DiagramSource.note(pageId: pageId)
+        if app.diagrams.job(source) != nil {
+            diagramSource = source
+            return Task {}
+        }
+        guard flushingDiagramPages.insert(pageId).inserted else { return Task {} }
+        let generation = diagramIdentityGeneration
+        let notes = app.notes
+        return Task { [weak self] in
+            defer {
+                if let self, self.diagramIdentityGeneration == generation {
+                    self.flushingDiagramPages.remove(pageId)
+                }
+            }
+            guard await notes.flushBeforeServerRead(pageId) else { return }
+            guard let self, self.diagramIdentityGeneration == generation else { return }
+            await self.drawDiagram(source)?.value
+        }
+    }
+
+    /// 失败后的"重试"：同一个 clientRequestId。
+    @discardableResult
+    func retryDiagram(_ source: DiagramSource) -> Task<Void, Never>? {
+        app.diagrams.retry(source, model: app.chat.state.selectedModel?.id)
+    }
+
+    /// 关窗口（"关闭"、点遮罩、打开白板之后）：已结束的任务忘掉，之后再点是新的任务；进行中的留着。
+    func closeDiagram() {
+        if let source = diagramSource { app.diagrams.forgetFinished(source) }
+        diagramSource = nil
+    }
+
+    /// 完成后的"打开白板"：新白板先放进列表（从笔记来的展开父页面），打开它，再关窗口（网页：先打开再关）。
+    func openDrawnDiagram(_ page: NotePageSummary) {
+        app.notes.showCreatedPage(page)
+        openNote(page.id, title: page.title, icon: page.icon, kind: page.kind)
+        closeDiagram()
+    }
+
+    /// 登录 / 退出后：旧身份整理好的笔记、画好的白板与搜索状态恢复默认标签。
     func onIdentityChanged() {
         navigationEpoch &+= 1
+        diagramIdentityGeneration += 1
+        flushingDiagramPages.removeAll()
         createPageSessionId = nil
+        diagramSource = nil
         if selectedTab == .search {
             selectedTab = (app.notes.state.workspace == .notes) ? .workspace : .chat
         }

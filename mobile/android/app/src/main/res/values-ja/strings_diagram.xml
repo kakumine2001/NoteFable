@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="diagram_draw">図にする</string>
+    <string name="diagram_working">図を描いています…</string>
+    <string name="diagram_description">AI がこの内容を編集できる図にして、新しいホワイトボードに描きます。チャット 1 回分として数えます。</string>
+    <string name="diagram_done">図ができました。</string>
+    <string name="diagram_open">ホワイトボードを開く</string>
+    <string name="diagram_partial">材料が長いため、前半だけを図にしました。</string>
+    <string name="diagram_copy_source">図のソースをコピー</string>
+</resources>

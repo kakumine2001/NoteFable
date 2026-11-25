@@ -616,6 +616,8 @@ enum EmbedMessage: Equatable, Sendable {
     case trashed
     /// 笔记里的页面提及被点了：打开那一页（和回答里的笔记链接一样走 openNoteFromLink）。
     case openPage(id: String)
+    /// 网页那边新建了页面（笔记 AI 面板的「画成图」画好的白板）：刷新笔记列表。
+    case pagesChanged
     /// [kept]：没保存成功，但草稿已存在 WebView 里、之后会重试（不是冲突）。这时可以先离开。
     case flushed(requestId: String, ok: Bool, kept: Bool = false)
     /// 笔记里的图片、文件、封面或图标因为文件存储空间不够上传失败（used / limit 是字节）。App 在编辑器上方显示提示。
@@ -663,6 +665,8 @@ enum EmbedMessage: Equatable, Sendable {
             case "openPage":
                 guard let id = try text(fields["id"]), !id.isEmpty else { return nil }
                 return .openPage(id: id)
+            case "pagesChanged":
+                return .pagesChanged
             case "storageLimit":
                 guard let tier = try text(fields["tier"]), let used = fields["used"]?.intValue, let limit = fields["limit"]?.intValue else { return nil }
                 return .storageLimit(tier: tier, used: used, limit: limit)

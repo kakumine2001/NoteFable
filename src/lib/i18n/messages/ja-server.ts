@@ -262,4 +262,8 @@ export const jaServer: Record<string, string> = {
   "Created page “{title}”": "ページ「{title}」を作成しました",
   "Preview failed": "プレビューを作れませんでした",
   "Previewed “{title}”": "「{title}」のプレビューを見ました",
+  "Could not draw a diagram. Try again.": "図を描けませんでした。もう一度お試しください。",
+  "Could not turn this into an editable diagram.": "編集できる図に変換できませんでした。",
+  "There is nothing to draw yet.": "まだ図にする内容がありません。",
+  "This diagram was moved to the trash.": "この図はゴミ箱に移動されています。",
 };

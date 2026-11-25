@@ -318,6 +318,17 @@ private fun AnswerMenu(state: AnswerMoreState, save: AnswerSave?, onSave: () -> 
                     openNote(save.pageId)
                 }
             }
+            // 画成图（#153）：服务端读的是已保存的回答，所以只给已换成服务端 ID 的回答；只在主聊天里（NoteFableRoot 提供）。
+            // 选了就开始，窗口里显示进度；同一条回答已有任务时重开那个任务。
+            val drawDiagram = LocalAnswerDiagram.current
+            if (drawDiagram != null && turn != null && !state.messageId.startsWith("local-")) {
+                val jobs by drawDiagram.jobs.collectAsState()
+                val drawing = jobs[com.kakumine.notefable.data.DiagramSource.Answer(state.sessionId, state.messageId).key] is com.kakumine.notefable.data.DiagramJob.Working
+                MenuEntry(stringResource(if (drawing) R.string.diagram_working else R.string.diagram_draw), Lucide.Workflow, spinning = drawing) {
+                    close()
+                    drawDiagram.draw(state.sessionId, state.messageId)
+                }
+            }
             MenuEntry(
                 text = stringResource(if (state.downloading) R.string.downloading else R.string.answer_download_conversation),
                 icon = Lucide.Download,

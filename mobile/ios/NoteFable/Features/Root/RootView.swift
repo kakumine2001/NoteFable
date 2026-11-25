@@ -66,6 +66,8 @@ struct RootView: View {
             noteEditorPool.destroyIfParked()
         }
         .accountOverlays()
+        // 「画成图」的进度窗口：回答的菜单（聊天）和笔记的菜单（编辑页）都从这里开。
+        .drawDiagramDialog()
         .noteTrashSheet()
         .nfOverlayHost()
         .toastHost(tabBarVisible: !hideTabBar)

@@ -391,6 +391,8 @@ sealed interface EmbedMessage {
     data object Trashed : EmbedMessage
     /** 笔记里的页面提及被点了：打开那一页（和回答里的笔记链接一样走 openNoteFromLink）。 */
     data class OpenPage(val id: String) : EmbedMessage
+    /** 网页那边新建了页面（笔记 AI 面板的「画成图」画好的白板）：刷新笔记列表。 */
+    data object PagesChanged : EmbedMessage
     /** [kept]：没保存成功，但草稿已存在 WebView 里、之后会重试（不是冲突）。这时可以先离开。 */
     data class Flushed(val requestId: String, val ok: Boolean, val kept: Boolean = false) : EmbedMessage
     /**
@@ -442,6 +444,7 @@ sealed interface EmbedMessage {
                 "missing" -> Missing(obj.str("id")?.takeIf { it.isNotBlank() })
                 "trashed" -> Trashed
                 "openPage" -> OpenPage(obj.str("id")?.takeIf { it.isNotBlank() } ?: return@runCatching null)
+                "pagesChanged" -> PagesChanged
                 "storageLimit" -> StorageLimit(
                     obj.str("tier") ?: return@runCatching null,
                     obj["used"]?.jsonPrimitive?.longOrNull ?: return@runCatching null,

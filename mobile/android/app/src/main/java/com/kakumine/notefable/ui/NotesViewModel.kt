@@ -813,6 +813,39 @@ class NotesViewModel(
         }
     }
 
+    // ---- 画成图（#153） ----
+
+    /**
+     * 笔记"…"的「画成图」之前：服务端读的是已保存的内容，打开着的是这篇时先让编辑器存上。
+     * 存不上就在顶栏下面提示"保存失败，草稿已保留"并返回 false（不开始）。不用 [NotesUiState.busy]：画图期间列表照常能用。
+     */
+    suspend fun saveBeforeDiagram(pageId: String): Boolean {
+        val owner = identity
+        if (_state.value.open?.id != pageId) return true
+        val saved = flushOpen().ok
+        if (owner != identity) return false
+        if (!saved) {
+            if (_state.value.open?.id == pageId) {
+                _state.update { it.copy(notice = NotesError(NotesError.Kind.UnsavedDraft)) }
+            }
+            return false
+        }
+        // 刚才没存上的提示已经不对了。
+        _state.update { if (it.notice?.kind == NotesError.Kind.UnsavedDraft) it.copy(notice = null) else it }
+        return true
+    }
+
+    /**
+     * 打开「画成图」建好的白板（窗口里的"打开白板"）：列表可能还没刷新到它，先放进列表；是笔记的子页面就展开那篇
+     * （和"添加子页面"一样），再打开。
+     */
+    fun openCreatedPage(page: NotePageSummary) {
+        mutations++
+        _state.update { it.copy(pages = upsert(it.pages, page)) }
+        page.parentId?.let(::expand)
+        openNote(page.id, page.title, page.icon, page.kind)
+    }
+
     // ---- Markdown 导出 / 导入（网页 use-note-pages.ts 的 exportPage / importMarkdown） ----
 
     /** 一次只导出一篇（网页的 actionBusy）。 */

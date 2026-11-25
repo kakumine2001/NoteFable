@@ -262,4 +262,8 @@ export const deServer: Record<string, string> = {
   "Created page “{title}”": "Seite „{title}“ erstellt",
   "Preview failed": "Vorschau fehlgeschlagen",
   "Previewed “{title}”": "Vorschau von „{title}“ angesehen",
+  "Could not draw a diagram. Try again.": "Das Diagramm konnte nicht gezeichnet werden. Versuche es erneut.",
+  "Could not turn this into an editable diagram.": "Konnte nicht in ein bearbeitbares Diagramm umgewandelt werden.",
+  "There is nothing to draw yet.": "Es gibt noch nichts zu zeichnen.",
+  "This diagram was moved to the trash.": "Dieses Diagramm wurde in den Papierkorb verschoben.",
 };

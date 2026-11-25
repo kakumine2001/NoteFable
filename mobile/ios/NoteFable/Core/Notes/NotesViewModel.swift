@@ -391,6 +391,7 @@ final class NotesViewModel {
         case .missing: onEditorMissing(editor)
         case .trashed: onEditorTrashed(editor)
         case .openPage(let id): openNoteFromLink(id)
+        case .pagesChanged: refresh()
         case .storageLimit(let tier, let used, let limit):
             // 已经关掉或换走的编辑器晚到的消息不收。
             guard state.open?.editor == editor else { break }
@@ -872,6 +873,36 @@ final class NotesViewModel {
                 }
             }
         }
+    }
+
+    // ---- 「画成图」（AppRouter.drawDiagramFromNote / openDrawnDiagram） ----
+
+    /// 服务端要读这一篇已保存的正文之前（笔记"…"菜单的「画成图」）：打开着的是它时先让网页保存。
+    /// 存不上（冲突、断网）就提示"保存失败，草稿已保留"（编辑页顶栏下面，和复制一样）并返回 false；保存期间换了身份也返回 false。
+    /// 不设 busy：生成在后台跑，不挡住笔记的其它操作。
+    func flushBeforeServerRead(_ id: String) async -> Bool {
+        let owner = identity
+        if state.open?.id == id, !(await flushOpen()).ok {
+            if owner == identity && state.open?.id == id { update { $0.notice = NotesError(.unsavedDraft) } }
+            return false
+        }
+        guard owner == identity else { return false }
+        if state.notice?.kind == .unsavedDraft { update { $0.notice = nil } }
+        return true
+    }
+
+    /// 别处建好的页面（「画成图」的新白板）：不等刷新先放进列表，并和新建时一样让侧栏里看得到它（[createNote]）：
+    /// 子页面展开父页面，项目里的展开项目，最上层的展开它的分区。
+    func showCreatedPage(_ page: NotePageSummary) {
+        mutations += 1
+        if let parentId = page.parentId {
+            expand(parentId)
+        } else if let groupId = page.groupId {
+            if state.collapsed.contains(groupId) { toggleGroup(groupId) }
+        } else {
+            openSection(state.sectionKind(of: page))
+        }
+        update { $0.pages = Self.upsert($0.pages, page) }
     }
 
     // ---- Markdown 导出 / 导入（网页 use-note-pages.ts 的 exportPage / importMarkdown） ----

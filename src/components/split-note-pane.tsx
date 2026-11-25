@@ -6,6 +6,7 @@ import { useI18n } from "@/components/i18n-provider";
 import { NotePageMenu } from "@/components/note-page-menu";
 import { NotesWorkspace } from "@/components/notes-workspace";
 import { localizeSystemText } from "@/lib/i18n/translate";
+import { drawNoteDiagram } from "@/lib/draw-diagram-jobs";
 import { dispatchSlidesCommand } from "@/lib/native-bridge";
 import { recentPages } from "@/lib/notes-home-text";
 import type { useNotePages } from "@/lib/use-note-pages";
@@ -199,6 +200,8 @@ export function SplitNotePane({
               onFavorite={(favorite) => void notes.setFavorite(activeSummary.id, favorite)}
               onDuplicate={() => void notes.duplicate(activeSummary.id)}
               onAddSubpage={() => onCreateNote(activeSummary.id)}
+              // サーバーは保存済みのノートを読むので、入力中の内容を先に保存してから始める（窓は page.tsx の DrawDiagramHost）。
+              onDrawDiagram={() => void drawNoteDiagram(activeSummary.id, model, () => (notes.active?.page.id === activeSummary.id ? notes.active.flush() : Promise.resolve(true)))}
               onMove={() => onMoveNote(activeSummary.id)}
               onExport={() => onExportNote(activeSummary.id)}
               onTrash={() => onTrashNote(activeSummary.id)}

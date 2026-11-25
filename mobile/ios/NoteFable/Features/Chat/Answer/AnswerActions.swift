@@ -7,7 +7,7 @@ import UniformTypeIdentifiers
 // 从行首起：版本切换「‹ 2/3 ›」（重新生成过的回答）、复制（复制后图标换成 ✓ 停 2 秒）、"…"（Ellipsis 18）。
 // "…"的菜单和侧栏菜单同一外观（`.actionsMenu`），行首对齐按钮、在按钮下 4，放不下就翻到上方：
 // 重新生成、在新聊天中分支（已经保存到服务端的回答才有；这个聊天在发送或生成时不能点）、存到笔记（保存中转圈、
-// 保存后变 ✓ 并多出"打开已保存的笔记"）、下载对话、报告回答。
+// 保存后变 ✓ 并多出"打开已保存的笔记"）、画成图（Workflow；已经保存到服务端的回答才有）、下载对话、报告回答。
 // 错误和网页一样只有一处：任何一个操作开始时清掉上一条；菜单开着时显示在菜单里，关着时显示在操作行下方。
 // 这一行的状态跟着列表项的 key（对账把 local-N 换成服务端 ID 时不变）；"存到笔记"的状态在 App 级的 `AnswerExportStore`。
 
@@ -139,6 +139,15 @@ struct AnswerActions: View {
             ActionsMenuItem(L("answer_open_saved_page"), icon: Lucide.arrowUpRight) {
                 menuOpen = false
                 router.openNote(savedPageId)
+            }
+        }
+        if stored {
+            // 「画成图」：马上开始并打开进度窗口（窗口挂在根上，状态在 `app.diagrams`）；同一条回答已有任务时只是重新打开窗口。
+            let drawing = app.diagrams.job(.answer(sessionId: sessionId, messageId: message.id)) == .working
+            ActionsMenuItem(L(drawing ? "diagram_working" : "diagram_draw"), icon: Lucide.workflow, isBusy: drawing) {
+                menuOpen = false
+                menuError = nil
+                router.drawDiagram(.answer(sessionId: sessionId, messageId: message.id))
             }
         }
         ActionsMenuItem(

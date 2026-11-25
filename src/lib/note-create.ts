@@ -56,7 +56,12 @@ async function placementGroup(tx: Prisma.TransactionClient, userId: string, pare
 
 // ホワイトボード・スライドを作る。ページの行（blocks は空配列）と本体（NoteCanvas）を同じトランザクションで作る。
 // data を省略すると空の本体。戻り値は作ったページの行と、その本体。
-export async function createCanvasPage(userId: string, kind: CanvasKind, input: CanvasPageInput, { parentId = null, groupId: projectId = null }: CreatePlacement = {}) {
+// ai は AI が作った本体（画成図）。ページの「AI の内容を報告」の目印（aiUpdatedAt）を付ける。
+// id は AI の 1 回きりの生成が要求から決めたページの ID（page-ai/one-shot.ts。同じ要求の再送は主キーの重複で失敗する）。
+export async function createCanvasPage(
+  userId: string, kind: CanvasKind, input: CanvasPageInput,
+  { parentId = null, groupId: projectId = null, ai = false, id }: CreatePlacement & { ai?: boolean; id?: string } = {},
+) {
   assertCoverOwner(input.icon, userId, "icon");
   assertCanvasFilesOwner(input, userId);
   const data = input.data ?? emptyCanvasData(kind);
@@ -65,7 +70,10 @@ export async function createCanvasPage(userId: string, kind: CanvasKind, input: 
     const groupId = await placementGroup(tx, userId, parentId, projectId);
     await claimCover(tx, input.icon, userId, "icon");
     await claimStoredFiles(tx, input.filePaths, userId);
-    const created = await tx.notePage.create({ data: { userId, kind, parentId, groupId, title: input.title, icon: input.icon, cover: null, coverPosition: null, blocks: [] } });
+    const created = await tx.notePage.create({ data: {
+      ...(id ? { id } : {}), userId, kind, parentId, groupId, title: input.title, icon: input.icon, cover: null, coverPosition: null, blocks: [],
+      ...(ai ? { aiUpdatedAt: new Date() } : {}),
+    } });
     await writeCanvas(tx, created.id, canvas);
     return created;
   });

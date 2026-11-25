@@ -321,6 +321,15 @@
 "not_now" = "Non ora";
 "scroll_to_bottom" = "Scorri in basso";
 
+/* strings_diagram.xml */
+"diagram_draw" = "Disegna come diagramma";
+"diagram_working" = "Disegno del diagramma…";
+"diagram_description" = "L’IA trasforma questo contenuto in un diagramma modificabile su una nuova lavagna. Conta come 1 messaggio di chat.";
+"diagram_done" = "Il diagramma è pronto.";
+"diagram_open" = "Apri lavagna";
+"diagram_partial" = "Il materiale era troppo lungo, quindi è stata disegnata solo la prima parte.";
+"diagram_copy_source" = "Copia il codice del diagramma";
+
 /* strings_emoji.xml */
 "em_emoji" = "Emoji";
 "em_random" = "Casuale";

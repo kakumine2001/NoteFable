@@ -1,10 +1,5 @@
-import { buildAnthropicRequest, extractAnthropicText, requestAnthropic } from "@/lib/anthropic-messages";
-import { extractResponseText } from "@/lib/chat-title";
-import { buildDeepSeekResponsesRequest } from "@/lib/deepseek-responses";
-import { optionalEnv, requireEnv } from "@/lib/env";
 import type { ModelProvider, ReasoningEffort } from "@/lib/models";
-import { stringifyJsonForProxy } from "@/lib/proxy-json";
-import { buildUpstreamErrorMessage } from "@/lib/upstream-errors";
+import { generateOneShotText, OneShotGenerationError } from "@/lib/one-shot-model";
 
 // 「Create page」：会話全体を、AI が読みやすいノートのページに書き直す（POST /api/sessions/:id/page）。
 // ここは会話からモデルへの入力を組み立て、1 回の非ストリーム要求で Markdown を受け取るところまで。保存は呼び出し側。
@@ -33,7 +28,7 @@ export const PAGE_INSTRUCTIONS = [
 
 export type TranscriptMessage = { role: string; content: string; attachments?: readonly { filename: string }[] };
 
-export class PageGenerationError extends Error {}
+export class PageGenerationError extends OneShotGenerationError {}
 
 // 会話の区切りに使うタグを本文が閉じたり開いたりできないよう、そのような並びだけ無害な文字に替える。
 function neutralizeTags(text: string) {
@@ -88,9 +83,7 @@ export function unwrapPageMarkdown(raw: string) {
   return match[3].trim();
 }
 
-type ResponsesResult = Parameters<typeof extractResponseText>[0] & { status?: string; incomplete_details?: { reason?: string } };
-
-// 選ばれたモデルで 1 回だけ非ストリームで要求し、ページの Markdown を返す。検索・ツール・圧縮は使わない。
+// 選ばれたモデルで 1 回だけ非ストリームで要求し、ページの Markdown を返す（要求の形は one-shot-model.ts）。
 // 出力の上限で途中まで書いて止まったときは、書けた分を cutOff: true で返す（何もなければ失敗）。それ以外の止まり方は失敗。
 export async function generatePageMarkdown({ provider, model, effort, transcript, userId, signal, maxOutputTokens }: {
   provider: ModelProvider;
@@ -103,55 +96,7 @@ export async function generatePageMarkdown({ provider, model, effort, transcript
   maxOutputTokens?: number;
 }): Promise<{ markdown: string; cutOff: boolean }> {
   const limit = Math.min(MAX_PAGE_OUTPUT_TOKENS, maxOutputTokens && maxOutputTokens > 0 ? maxOutputTokens : MAX_PAGE_OUTPUT_TOKENS);
-  let text: string;
-  let cutOff = false;
-  if (provider === "anthropic") {
-    const response = await requestAnthropic(buildAnthropicRequest({
-      model,
-      instructions: PAGE_INSTRUCTIONS,
-      input: [{ role: "user", content: transcript }],
-      effort,
-      stream: false,
-      maxTokens: limit,
-    }), signal);
-    const data = await response.json();
-    if (data.stop_reason !== "end_turn" && data.stop_reason !== "max_tokens") throw new PageGenerationError(`Claude stopped with ${String(data.stop_reason)}.`);
-    cutOff = data.stop_reason === "max_tokens";
-    text = extractAnthropicText(data);
-  } else {
-    const deepseek = provider === "deepseek";
-    const url = deepseek
-      ? `${(optionalEnv("DEEPSEEK_BASE_URL") || "https://api.deepseek.com").replace(/\/$/, "")}/responses`
-      : `${(optionalEnv("OPENAI_BASE_URL") || "https://api.openai.com/v1").replace(/\/$/, "")}/responses`;
-    const key = requireEnv(deepseek ? "DEEPSEEK_API_KEY" : "OPENAI_API_KEY");
-    // DeepSeek には検索・safety_identifier・store を送らない（チャットと同じ）。
-    const body = deepseek
-      ? JSON.stringify(buildDeepSeekResponsesRequest({ model, instructions: PAGE_INSTRUCTIONS, input: transcript, effort, maxOutputTokens: limit, stream: false }))
-      : stringifyJsonForProxy({
-          model,
-          instructions: PAGE_INSTRUCTIONS,
-          input: transcript,
-          reasoning: { effort },
-          max_output_tokens: limit,
-          safety_identifier: userId,
-          store: false,
-          stream: false,
-        });
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body,
-      signal,
-    });
-    if (!response.ok) {
-      const raw = await response.text();
-      throw new PageGenerationError(buildUpstreamErrorMessage(deepseek ? "DeepSeek" : "OpenAI", response.status, raw));
-    }
-    const data = (await response.json()) as ResponsesResult;
-    cutOff = data.status === "incomplete" && data.incomplete_details?.reason === "max_output_tokens";
-    if (data.status && data.status !== "completed" && !cutOff) throw new PageGenerationError(`Response ${data.status}: ${data.incomplete_details?.reason ?? "unknown"}.`);
-    text = extractResponseText(data);
-  }
+  const { text, cutOff } = await generateOneShotText({ provider, model, effort, instructions: PAGE_INSTRUCTIONS, input: transcript, userId, signal, maxOutputTokens: limit });
   const markdown = unwrapPageMarkdown(text);
   if (!markdown) throw new PageGenerationError(cutOff ? "The model ran out of output tokens before writing the page." : "The model returned no page text.");
   return { markdown, cutOff };

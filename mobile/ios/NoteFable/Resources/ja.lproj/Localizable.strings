@@ -321,6 +321,15 @@
 "not_now" = "今はしない";
 "scroll_to_bottom" = "一番下へ移動";
 
+/* strings_diagram.xml */
+"diagram_draw" = "図にする";
+"diagram_working" = "図を描いています…";
+"diagram_description" = "AI がこの内容を編集できる図にして、新しいホワイトボードに描きます。チャット 1 回分として数えます。";
+"diagram_done" = "図ができました。";
+"diagram_open" = "ホワイトボードを開く";
+"diagram_partial" = "材料が長いため、前半だけを図にしました。";
+"diagram_copy_source" = "図のソースをコピー";
+
 /* strings_emoji.xml */
 "em_emoji" = "絵文字";
 "em_random" = "ランダム";

@@ -321,6 +321,15 @@
 "not_now" = "Nicht jetzt";
 "scroll_to_bottom" = "Nach unten scrollen";
 
+/* strings_diagram.xml */
+"diagram_draw" = "Als Diagramm zeichnen";
+"diagram_working" = "Diagramm wird gezeichnet …";
+"diagram_description" = "Die KI macht daraus ein bearbeitbares Diagramm auf einem neuen Whiteboard. Das zählt als 1 Chatnachricht.";
+"diagram_done" = "Das Diagramm ist fertig.";
+"diagram_open" = "Whiteboard öffnen";
+"diagram_partial" = "Der Inhalt war zu lang, daher wurde nur der erste Teil gezeichnet.";
+"diagram_copy_source" = "Diagramm-Quelltext kopieren";
+
 /* strings_emoji.xml */
 "em_emoji" = "Emoji";
 "em_random" = "Zufällig";

@@ -1304,6 +1304,70 @@ class NotesViewModelTest {
         assertEquals(listOf(setOf("a"), setOf("b")), notified)
     }
 
+    // ---- 画成图（#153） ----
+
+    /** 只记下请求的「画成图」后端（真的 DiagramStore 用它）。 */
+    private class RecordingDiagrams : com.kakumine.notefable.data.DiagramBackend {
+        val calls = mutableListOf<String>()
+        override suspend fun drawDiagram(source: com.kakumine.notefable.data.DiagramSource, model: String?, clientRequestId: String) =
+            com.kakumine.notefable.data.DrawnDiagram(NotePageSummary("w1", "Steps", kind = PageKind.Whiteboard), partial = false)
+                .also { calls += source.key }
+    }
+
+    @Test
+    fun `drawing a note saves it first and does not start while its draft cannot be saved`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        vm.openNote("a")
+        advanceUntilIdle()
+        val diagrams = RecordingDiagrams()
+        val store = com.kakumine.notefable.data.DiagramStore(diagrams, this)
+        val source = com.kakumine.notefable.data.DiagramSource.Note("a")
+
+        vm.flushEditor = { FlushResult(false, draftKept = true) }
+        assertNull(store.startWhenReady(source, null) { vm.saveBeforeDiagram("a") })
+        advanceUntilIdle()
+        assertTrue(diagrams.calls.isEmpty())
+        assertTrue(store.jobs.value.isEmpty())
+        assertEquals(NotesError(NotesError.Kind.UnsavedDraft), vm.state.value.notice)
+        // 不占用列表的忙碌状态。
+        assertFalse(vm.state.value.busy)
+
+        var flushes = 0
+        vm.flushEditor = { assertTrue(diagrams.calls.isEmpty()); flushes++; FlushResult(true) }
+        assertEquals("note:a", store.startWhenReady(source, null) { vm.saveBeforeDiagram("a") })
+        advanceUntilIdle()
+        assertEquals(1, flushes)
+        assertEquals(listOf("note:a"), diagrams.calls)
+        assertNull(vm.state.value.notice)
+        assertEquals("a", vm.state.value.open?.id)
+    }
+
+    @Test
+    fun `drawing a note that is not open needs no save`() = runTest(dispatcher) {
+        val vm = notesVm()
+        vm.flushEditor = { error("must not save another page") }
+        assertTrue(vm.saveBeforeDiagram("a"))
+    }
+
+    @Test
+    fun `opening a drawn whiteboard adds it to the list, expands its note and opens it`() = runTest(dispatcher) {
+        val prefs = MemoryPrefs()
+        val vm = notesVm(prefs = prefs)
+        vm.openNote("a")
+        advanceUntilIdle()
+        vm.flushEditor = { FlushResult(true) }
+        val board = NotePageSummary("w1", "Steps", null, parentId = "a", groupId = "g1", kind = PageKind.Whiteboard, createdAt = "2026-11-25T00:00:00Z")
+        vm.openCreatedPage(board)
+        advanceUntilIdle()
+        val state = vm.state.value
+        assertEquals("w1", state.open?.id)
+        assertEquals(PageKind.Whiteboard, state.open?.kind)
+        assertEquals(listOf("w1"), state.children("a").map { it.id })
+        assertTrue("a" in state.expanded)
+        assertTrue("a" in prefs.expandedPages)
+    }
+
     @Test
     fun `renaming a page saves the open draft first and updates the list, open title and warm webview cache`() = runTest(dispatcher) {
         val backend = FakeNotes()

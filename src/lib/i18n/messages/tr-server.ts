@@ -262,4 +262,8 @@ export const trServer: Record<string, string> = {
   "Created page “{title}”": "“{title}” sayfası oluşturuldu",
   "Preview failed": "Önizleme başarısız",
   "Previewed “{title}”": "“{title}” önizlendi",
+  "Could not draw a diagram. Try again.": "Diyagram çizilemedi. Tekrar deneyin.",
+  "Could not turn this into an editable diagram.": "Düzenlenebilir bir diyagrama dönüştürülemedi.",
+  "There is nothing to draw yet.": "Henüz çizilecek bir şey yok.",
+  "This diagram was moved to the trash.": "Bu diyagram Çöp Kutusu'na taşındı.",
 };

@@ -321,6 +321,15 @@
 "not_now" = "ไว้ทีหลัง";
 "scroll_to_bottom" = "เลื่อนลงด้านล่างสุด";
 
+/* strings_diagram.xml */
+"diagram_draw" = "วาดเป็นไดอะแกรม";
+"diagram_working" = "กำลังวาดไดอะแกรม…";
+"diagram_description" = "AI จะแปลงเนื้อหานี้เป็นไดอะแกรมที่แก้ไขได้บนไวท์บอร์ดใหม่ นับเป็นข้อความแชต 1 ครั้ง";
+"diagram_done" = "ไดอะแกรมพร้อมแล้ว";
+"diagram_open" = "เปิดไวท์บอร์ด";
+"diagram_partial" = "เนื้อหายาวเกินไป จึงวาดเฉพาะส่วนแรก";
+"diagram_copy_source" = "คัดลอกซอร์สของไดอะแกรม";
+
 /* strings_emoji.xml */
 "em_emoji" = "อิโมจิ";
 "em_random" = "สุ่ม";

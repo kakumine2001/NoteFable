@@ -375,7 +375,7 @@ User 1 -> N StoredFile（SetNull）
 
 `parentId`、`favoritedAt`、`fullWidth`、`smallText`、`font`、`locked`（`20261116000000_note_page_tree_settings` 追加，索引 `(parentId)`）。`parentId` 是自引用外键，指向父页面（子页面），父页面行被永久删除时置空（`SetNull`）；子页面的 `groupId` 与最上位的祖先一致。`favoritedAt` 非空即为收藏。其余四列是页面的显示设置和锁定。这些都是元数据：由专用接口用原生 SQL 写入，不增加 `version`、不刷新 `updatedAt`（与重排相同），子树的查询用 `WITH RECURSIVE`（`src/lib/note-tree-server.ts`）。规则见 [notes-flow.md](notes-flow.md#子页面收藏与页面设置)。
 
-`aiUpdatedAt`（可空，`20261124000000_page_ai_harness` 追加）是 AI 最后一次写这页内容的时间：适用（含自动应用）AI 提案、Create page 建页时设置，撤销不清除。非空的页面在“…”菜单里显示 “Report AI content”（Google Play 的 AI 生成内容政策），页面摘要（`PAGE_SUMMARY_SELECT`）带着它。
+`aiUpdatedAt`（可空，`20261124000000_page_ai_harness` 追加）是 AI 最后一次写这页内容的时间：适用（含自动应用）AI 提案、Create page 或画成图（`POST /api/pages/diagram`）建页时设置，撤销不清除。非空的页面在“…”菜单里显示 “Report AI content”（Google Play 的 AI 生成内容政策），页面摘要（`PAGE_SUMMARY_SELECT`）带着它。
 
 `kind`（枚举 `PageKind`：`note` / `whiteboard` / `slides`，默认 `note`，`20261123000000_page_kinds` 追加）是页面类型，新建后不变。白板和幻灯片的 `blocks` 是空数组，本体在 `NoteCanvas`；类型的规则见 [notes-flow.md](notes-flow.md#页面类型笔记--白板--幻灯片)。读取正文的代码要按 `kind` 分开处理：笔记读 `blocks`，白板 / 幻灯片的检索和聊天上下文读 `NoteCanvas.segments`，不要遍历 `NoteCanvas.data`。
 

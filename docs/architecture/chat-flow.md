@@ -337,7 +337,7 @@ DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_re
 
 **额度。** 用户每发一条消息算 1 条聊天额度，AI 内部的工具调用、自动应用、撤销都不另算；快捷按钮也是一次发送，算 1 条；生图仍按张数。
 
-**AI 内容的举报。** 提案卡片标题栏的旗帜和 AI 写过的页面（`NotePage.aiUpdatedAt` 非空：适用过 AI 提案，或由 Create page 建出）的“…”菜单里有 “Report AI content”，与回答的举报同一个对话框和接口：`POST /api/reports` 收 `{ messageId }`、`{ proposalId }` 或 `{ pageId }` 之一和可选的理由（`elementId` 只能和 `pageId` 一起：那是幻灯片里 AI 生成的图片，见下面的 Report answer），只认本人的内容，邮件附上卡片的改前改后文字或页面当前的文字和适用过的 AI 提案列表（`src/lib/answer-report.ts`），额度与回答的举报共用。已知的缺口：本功能之前用 Create page 建的笔记没有 `aiUpdatedAt`，页面菜单里没有这一项（那段对话的回答仍可举报）；Android / iOS 的原生“…”菜单在 WebView 编辑器里的 AI 面板写过页面之后，要等页面列表下次刷新才显示这一项（面板里的卡片有自己的举报按钮）；旧版 App 不认识 `undone`，会把撤销过的提案显示成待确认，点应用会得到 409 “This change was undone.”。
+**AI 内容的举报。** 提案卡片标题栏的旗帜和 AI 写过的页面（`NotePage.aiUpdatedAt` 非空：适用过 AI 提案，或由 Create page、画成图建出）的“…”菜单里有 “Report AI content”，与回答的举报同一个对话框和接口：`POST /api/reports` 收 `{ messageId }`、`{ proposalId }` 或 `{ pageId }` 之一和可选的理由（`elementId` 只能和 `pageId` 一起：那是幻灯片里 AI 生成的图片，见下面的 Report answer），只认本人的内容，邮件附上卡片的改前改后文字或页面当前的文字和适用过的 AI 提案列表（`src/lib/answer-report.ts`），额度与回答的举报共用。已知的缺口：本功能之前用 Create page 建的笔记没有 `aiUpdatedAt`，页面菜单里没有这一项（那段对话的回答仍可举报）；Android / iOS 的原生“…”菜单在 WebView 编辑器里的 AI 面板写过页面之后，要等页面列表下次刷新才显示这一项（面板里的卡片有自己的举报按钮）；旧版 App 不认识 `undone`，会把撤销过的提案显示成待确认，点应用会得到 409 “This change was undone.”。
 
 工具调用和结果不进入聊天记录正文（`Message.content` 只保存最终回答文字）；工具步骤的显示标签作为途中经过存入 `Message.activity`。发生压缩时，checkpoint 中每个工具调用之后都保留对应结果（`tool_result` / `function_call_output`，预览图片只留文字），保证重放合法。浏览器的途中经过里会显示"Searched notes for …"、"Listed pages"、"Read “笔记标题”"、"Applied edits to “…”"或"Created page “…”"。
 
@@ -517,7 +517,7 @@ AI 的 `search_notes` 工具（`src/lib/page-ai/tools.ts`）现在与站内搜�
 - **面板顶栏。** 笔记切换（按标题筛选，最多列 60 篇，带 New note）、锁定时的解锁按钮、版本历史、保存状态、“…”页面菜单（与 Notes 顶栏相同，含 Export Markdown）、“Open in full view”（切到 Notes 视图打开这一篇）和关闭。还没有打开笔记时显示说明、New note 和最近编辑的 8 篇。刚打开分屏时自动打开上次在这里开着的笔记，没有或已不存在就打开最近编辑的一篇（每次打开分屏只试一次）。
 - **分隔线。** `role="separator"`：拖动改变比例，比例是笔记面板占工作区的份额，限制在 0.3–0.65（`clampSplitRatio`），默认 0.46，面板最窄 320px；双击恢复默认；聚焦后 ←/→ 每次 0.03；RTL 下方向相反。
 - **本机保存。** `localStorage` 的 `notefable:split-view:v1` 存 `{ open, pageId, ratio }`（`loadSplitPreference` / `saveSplitPreference`），只按浏览器保存，不随账号同步。`/app` 是静态页面，所以在页面显示后才读取。
-- **笔记链接在右侧打开。** Chat 视图且宽度够时，`openNoteFromLink` 不切到 Notes，而是在分屏里打开（分屏关着就顺便打开）：搜索结果（带 `blockId` 时照常滚到命中的块并高亮）、空对话页最近笔记卡片的 ↗，以及所有派发 `notefable:open-note` 的地方（项目参考笔记和发言附加笔记的标签、Save to page 的 “Open saved page”、Create page 的 “Open page”）。其他情况仍切到 Notes 视图。
+- **笔记链接在右侧打开。** Chat 视图且宽度够时，`openNoteFromLink` 不切到 Notes，而是在分屏里打开（分屏关着就顺便打开）：搜索结果（带 `blockId` 时照常滚到命中的块并高亮）、空对话页最近笔记卡片的 ↗，以及所有派发 `notefable:open-note` 的地方（项目参考笔记和发言附加笔记的标签、Save to page 的 “Open saved page”、Create page 的 “Open page”、画成图的 “Open whiteboard”）。其他情况仍切到 Notes 视图。
 - **Ask AI 进聊天。** 分屏的笔记面板不显示笔记助手的悬浮按钮和面板。在这里选中文字点格式工具栏的 Ask AI，文字成为聊天输入框上方的引用条（与“引用回答追问”同一个引用条和发送格式），同时把这篇笔记加进这条发言的附加笔记（已附加或已满 5 篇时不加）。之后就是一条普通的聊天发言：不带 `noteId` / `noteSelection`，AI 通过附加的笔记和 Notes 工具读到内容。
 - **发送前保存。** 分屏打开且右侧笔记有未保存的编辑时（白板先交出还没交给保存队列的变更），发送聊天消息前先 `flush()`，让 AI 读到最新的正文；保存失败不阻止发送。关闭分屏时也 flush 一次。
 
@@ -552,6 +552,19 @@ AI 的 `search_notes` 工具（`src/lib/page-ai/tools.ts`）现在与站内搜�
 6. 生成失败（上游错误、超时、其他原因的中止或空输出）返回 502，保存失败返回 503（校验错误按原状态返回），这些情况都退还额度。
 
 模型不能借此修改已有笔记，只会新建一篇；生成的笔记和手动新建的一样可以编辑、移进 Trash，编辑历史从第一次保存开始。Android 和 iOS 原生端同样在输入栏的 “＋” 抽屉里提供该入口与确认窗口（Android 为 `ui/CreatePageDialog.kt`，状态放在 `AnswerExportStore.pageJobs`，见 [android-native.md](android-native.md#整理成笔记)；iOS 见 [ios-native.md](ios-native.md)）。
+
+## 画成图（Draw as diagram）
+
+把一条回答或一篇笔记交给 AI 画成**可以编辑的图**，放进一个新白板（#153；图怎么变成白板元素见 [whiteboard.md](whiteboard.md#画成图ai-把回答或笔记画成可编辑的图153)）。
+
+- **入口**：聊天回答的 “…” 菜单（网页、Android、iOS；只对已经入库的回答、只在主聊天里，笔记 AI 面板里的回答没有）、笔记的 “…” 菜单（只对笔记，不对白板 / 幻灯片；三端），以及网页笔记 AI 面板的快捷按钮（App 里的面板在 WebView 里，同一个按钮）。点了立即开始，不先确认；弹出进度窗口（说明会画成新白板、计入 1 次聊天额度），可以关掉，任务继续；同一条回答 / 同一篇笔记再点会回到同一个任务，不会再发一次。完成后显示 **Open whiteboard**（App 的 WebView 里经桥接 `openPage` 打开，不在 WebView 里跳转），新白板加进侧栏 / 页面列表（App 的 WebView 里画完时发桥接消息 `pagesChanged`，App 刷新笔记列表）；画的期间菜单项显示转圈和 “Drawing a diagram…”；失败显示原因和 Try again（同一个 `clientRequestId`），转换失败（422）时还能复制 Mermaid 原文。关掉已结束的窗口就忘掉这个任务，之后再点是新的任务。笔记的入口先保存正在编辑的内容（服务端读保存的正文），保存不了就提示、不开始。撞到聊天额度上限（429）时窗口里显示服务端的原句，网页和 Android 原生窗口按档位显示登录（游客）或升级（免费会员）的引导（iOS 显示游客登录引导）；App 的 WebView 里不开网页的登录 / Stripe，能处理 `usageLimit` 的 App 由原生弹出引导（和笔记 AI 面板的发送一样）。
+- **服务端**（`src/app/api/pages/diagram/route.ts`，`maxDuration = 300`）：
+  1. body（最多 1 MiB）是 `{ source: "answer", messageId }` 或 `{ source: "note", pageId }`，加 `model?` 与必填的 `clientRequestId`（8〜64 个 `[A-Za-z0-9_-]`，客户端每个任务生成一次、重试也用同一个），否则 400。
+  2. **防重复**（`src/lib/page-ai/one-shot.ts`）：新白板的 ID 由（用户、用途、`clientRequestId`）的 SHA-256 决定（cuid 的形）。先查这个 ID：已经有了就直接 200 `{ page }`（不计数、不再生成；在 Trash 里则 404 “This diagram was moved to the trash.”）。同一个请求同时到达两次时，后建的那次主键冲突（P2002），退还它的额度并返回先建的页面。所以响应丢了重发、双击都只建一页、只扣一次，不需要新表。
+  3. 读材料（计数前；找不到 404，空的 400 “There is nothing to draw yet.”）：回答只读本人会话里 `active: true` 的 ASSISTANT 消息和它的提问（`parentId` 指向的 USER 消息；旧数据没有 `parentId` 时取它之前最近的 USER 消息），各自最多 20,000 / 4,000 字符，放进 `<material>` 的 `<question>` / `<answer>`；不读 SYSTEM、`providerContext`、附件。笔记只读本人、不在 Trash、类型是笔记的页面，转成 Markdown（`pageContextText`）最多 20,000 字符，用 `delimitPageContent` 的随机分隔行包住（私有资料，不是指令）。正文里的 `<material>` / `<question>` / `<answer>` 标签被替换掉，不能提前结束材料块。不用网页搜索，所以笔记内容不会进搜索查询。
+  4. `consumeUsage(user, "chat")` 预占 1 次聊天额度，满额 429（与 `/api/chat` 相同的 `usage_limit` 响应）。
+  5. 用 body 的模型（`normalizeModel`，未知值回到默认模型）发非流式请求（格式见 [provider-requests.md](provider-requests.md#画成图的请求)）。回复里的 `# 标题` 是白板标题（没有就用会话标题 / 笔记标题），`mermaid` 代码块交给 `diagramToWhiteboard`。转不了（只能变成图片的类型、语法错误、太大）时带着错误让模型重写一次，仍不行就退还额度，422 `{ error, code: "diagram_invalid", source }`。上游错误、超时、被输出上限截断返回 502 并退还。
+  6. `createCanvasPage`（`ai: true` 设 `aiUpdatedAt`，所以页面 “…” 菜单有 Report AI content；`id` 是上面决定的 ID）建白板：从笔记来的作为这篇笔记的子页面（父页面同时进了 Trash 则 404），从回答来的放在最上层。返回 201 `{ page, partial? }`（页面摘要，`partial` 表示材料被截断或思维导图被裁剪）。之后同步语义检索。其他失败退还额度，校验错误按原状态返回，其余 503 “Could not draw a diagram. Try again.”。
 
 ## 回答前的途中经过
 

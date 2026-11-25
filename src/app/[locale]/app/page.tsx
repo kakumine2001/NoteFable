@@ -34,6 +34,8 @@ import { ANSWER_RESIZED_EVENT } from "@/components/assistant-markdown";
 import { TurnBusyContext, type TurnActions } from "@/components/turn-actions";
 import { AccountAppIconSync, AccountLocaleSync } from "@/components/account-button";
 import { CreatePageDialog } from "@/components/create-page-dialog";
+import { DrawDiagramHost } from "@/components/draw-diagram-dialog";
+import { drawAnswerDiagram, drawNoteDiagram } from "@/lib/draw-diagram-jobs";
 import { EmptyConversation, StarterPrompts } from "@/components/empty-conversation";
 import { BillingReturnNotice, GuestLimitPrompt, StorageLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
 import { AttachMenu, AttachSheet } from "@/components/attach-sheet";
@@ -2005,16 +2007,19 @@ export default function Home() {
     }
   }
 
+  // 「画成図」：保存済みの回答を、いま選んでいるモデルで図にする（モデルは押した時点のもの。メッセージを描き直さないよう ref 経由で読む）。
+  const drawDiagram = (sessionId: string, messageId: string) => drawAnswerDiagram(sessionId, messageId, model);
   // メッセージへ渡す操作。メッセージは memo 化しているので、同じオブジェクトのまま最新の関数を呼ぶ。
-  const turnHandlersRef = useRef({ rerunTurn, showVersion, branchChat });
+  const turnHandlersRef = useRef({ rerunTurn, showVersion, branchChat, drawDiagram });
   useEffect(() => {
-    turnHandlersRef.current = { rerunTurn, showVersion, branchChat };
+    turnHandlersRef.current = { rerunTurn, showVersion, branchChat, drawDiagram };
   });
   const turnActions = useMemo<TurnActions>(() => ({
     regenerate: (messageId) => void turnHandlersRef.current.rerunTurn("regenerate", messageId),
     edit: (messageId, text) => void turnHandlersRef.current.rerunTurn("edit", messageId, text),
     showVersion: (messageId) => void turnHandlersRef.current.showVersion(messageId),
     branch: (messageId) => void turnHandlersRef.current.branchChat(messageId),
+    drawDiagram: (sessionId, messageId) => turnHandlersRef.current.drawDiagram(sessionId, messageId),
     dismissEditDraft: () => setRejectedEdit(null),
   }), []);
   useEffect(() => {
@@ -2626,6 +2631,8 @@ export default function Home() {
                 onFavorite={(favorite) => void notes.setFavorite(activeSummary.id, favorite)}
                 onDuplicate={() => void notes.duplicate(activeSummary.id)}
                 onAddSubpage={() => createNote({ parentId: activeSummary.id })}
+                // サーバーは保存済みのノートを読むので、入力中の内容を先に保存してから始める。
+                onDrawDiagram={() => void drawNoteDiagram(activeSummary.id, model, () => (notes.active?.page.id === activeSummary.id ? notes.active.flush() : Promise.resolve(true)))}
                 onMove={() => setMovingNoteId(activeSummary.id)}
                 onExport={() => void notes.exportPage(activeSummary.id)}
                 onTrash={() => setTrashingNoteId(activeSummary.id)} />
@@ -3031,6 +3038,8 @@ export default function Home() {
         <CreatePageDialog key={createPageSessionId} sessionId={createPageSessionId} model={model}
           busy={createPageSessionId === activeSession?.id && isActiveSessionBusy} onClose={() => setCreatePageSessionId(null)} />
       )}
+      {/* 「画成図」の窓（回答・ノートの「…」・ノートの AI パネルのどこから始めても、ここに出す）。 */}
+      <DrawDiagramHost />
       {importingFiles && <ImportTargetDialog groups={notes.groups} onClose={() => setImportingFiles(null)}
         onChoose={(groupId) => { const files = importingFiles; setImportingFiles(null); void importMarkdownFiles(files, groupId); }} />}
       {movingNote && <MoveNoteDialog page={movingNote} groups={notes.groups} error={notes.groupError} pages={notes.pages}

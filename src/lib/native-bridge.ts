@@ -19,6 +19,8 @@ export type NativeMessage =
   | { type: "trashed" }
   // ノートの中のページのメンションを押した。アプリはそのページを開く（自分のページか、無いかはアプリ側で確かめる）。
   | { type: "openPage"; id: string }
+  // ページを新しく作った（ノートの AI パネルの「画成図」）。アプリは一覧を読み直す（知らない古いアプリは無視する）。
+  | { type: "pagesChanged" }
   // kept: 保存できなかったが、下書きはこの WebView の localStorage に残っていて後で送り直す（衝突ではない）。アプリはこのとき離れてよい。
   | { type: "flushed"; requestId: string; ok: boolean; kept?: boolean }
   // ファイル置き場の容量が足りず、画像・ファイル・カバーのアップロードが断られた（used / limit はバイト）。

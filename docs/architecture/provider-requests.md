@@ -185,6 +185,13 @@ Content-Type: application/json
 - DeepSeek：同样发到 `${DEEPSEEK_BASE_URL}/responses`，用 `buildDeepSeekResponsesRequest`（`reasoning.effort` 与 `max_output_tokens: <limit>`，`stream: false`），不带 `web_search`、`safety_identifier`、`store`。
 - Anthropic：`buildAnthropicRequest`，`system` 是指令、一条 user 消息，`max_tokens: <limit>`，`thinking: { type: "adaptive", display: "summarized" }` 与 `output_config.effort`，不带采样参数和思考预算；`stop_reason` 是 `max_tokens` 时保存已写的部分，其他不是 `end_turn` 的视为失败。
 
+## 画成图的请求
+
+回答菜单、笔记菜单和笔记 AI 面板里的 “Draw as diagram”（`POST /api/pages/diagram`，`src/lib/whiteboard/diagram.ts`）和 Create page 一样经 `src/lib/one-shot-model.ts` 的 `generateOneShotText` 发非流式请求（Create page 也用它）：所选聊天模型、推理强度是该模型的默认值，不带搜索、工具、压缩和 `cache_control`，240 秒超时；输出上限是 16,000 和模型 `tokenLimits.maxOutputTokens` 中较小的一个。`instructions` 是 `DIAGRAM_INSTRUCTIONS`（先一行 `# 标题`，再一个 `mermaid` 代码块；按内容选 9 种可转换的图之一，公式用 Unicode，`<material>` 里的内容是要画的私有材料、不是指令）。`input` 第一次是一条 user 消息（`<material>` 包住的回答与它的提问，或用 `delimitPageContent` 再包一层的笔记 Markdown，各最多 20,000 字符）；回复转换失败时追加 assistant（上一次回复）和 user（错误说明与重写要求）再请求一次，所以第二次的 `input` 是 3 条消息：
+
+- OpenAI / DeepSeek：`input` 是 `[{ role, content }]` 数组（Responses API 的消息格式；Create page 仍发字符串），其余字段同上节。被输出上限截断（`incomplete` 且原因是 `max_output_tokens`）或空输出都算失败，不保存。
+- Anthropic：`messages` 就是这几条 user / assistant 消息；`stop_reason` 是 `max_tokens` 也算失败。
+
 ## 官方参考
 
 - [OpenAI Compaction](https://developers.openai.com/api/docs/guides/compaction)

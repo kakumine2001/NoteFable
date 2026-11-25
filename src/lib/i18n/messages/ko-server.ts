@@ -262,4 +262,8 @@ export const koServer: Record<string, string> = {
   "Created page “{title}”": "페이지 “{title}”를 만듦",
   "Preview failed": "미리보기 실패",
   "Previewed “{title}”": "“{title}” 미리보기를 확인함",
+  "Could not draw a diagram. Try again.": "다이어그램을 그리지 못했습니다. 다시 시도하세요.",
+  "Could not turn this into an editable diagram.": "편집 가능한 다이어그램으로 변환하지 못했습니다.",
+  "There is nothing to draw yet.": "아직 그릴 내용이 없습니다.",
+  "This diagram was moved to the trash.": "이 다이어그램은 휴지통으로 이동되었습니다.",
 };

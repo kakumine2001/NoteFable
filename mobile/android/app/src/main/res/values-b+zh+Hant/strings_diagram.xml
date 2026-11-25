@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 这个文件由 scripts/gen-native-zh-hant.ts 从 values-zh 的同名文件生成，不要直接修改。 -->
+<resources>
+    <string name="diagram_draw">畫成圖</string>
+    <string name="diagram_working">正在畫圖…</string>
+    <string name="diagram_description">AI 會把這些內容畫成可編輯的圖，放進一個新白板。計入 1 次聊天額度。</string>
+    <string name="diagram_done">圖畫好了。</string>
+    <string name="diagram_open">開啟白板</string>
+    <string name="diagram_partial">材料太長，只畫了前面的部分。</string>
+    <string name="diagram_copy_source">複製圖的原始碼</string>
+</resources>

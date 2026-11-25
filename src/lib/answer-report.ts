@@ -122,7 +122,7 @@ export function pageReportEmail(report: {
     "--- AI changes applied to this page (newest first) ---",
     ...(page.proposals.length
       ? page.proposals.map((proposal) => `${proposal.id}: ${proposal.kind === "CREATE" ? "created" : "edited"}, chat ${proposal.sessionId}, message ${proposal.messageId ?? "(not saved)"}, ${proposal.status.toLowerCase()}${proposal.autoApplied ? " (automatically)" : ""}, ${proposal.createdAt.toISOString()}`)
-      : ["(none recorded: the page may come from Create page)"]),
+      : ["(none recorded: the page may come from Create page or Draw as diagram)"]),
     "",
     "--- Current page content ---",
     page.text.trim() ? clip(page.text, MAX_ANSWER_CHARS) : "(no text)",
