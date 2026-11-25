@@ -53,7 +53,7 @@ struct ToastMessage: Equatable, Identifiable {
 /// 网页没有对应的东西（这些场合只有读屏通知），所以外观借用网页里最接近的浮条 `.settings-unsaved`：
 /// 墨色底、圆角 14、白字 14 / 500、阴影 0 8 28 rgba(12,23,48,.28)，从下方 16 处滑入（200ms）。
 ///
-/// 根上装一次 `.toastHost()`，然后在任何地方：
+/// 根上装一次 `.toastHost(tabBarVisible:tab:)`（RootView），然后在任何地方：
 /// ```swift
 /// Toast.show(L("downloading"))
 /// Toast.show(L("request_failed", reason), long: true)
@@ -104,14 +104,17 @@ enum Toast {
 
 extension View {
     /// 在根视图上装一次：通过不拦截触摸的独立 `UIWindow` 在系统 `.sheet` 与悬浮底栏之上渲染提示条，并把 `ToastCenter` 放进环境。
-    func toastHost(_ center: ToastCenter = .shared, tabBarVisible: Bool = false) -> some View {
-        modifier(ToastHostModifier(center: center, tabBarVisible: tabBarVisible))
+    /// `tabBarVisible`：底部标签栏是否显示（不显示时离底边 16）。`tab`：当前标签页；提示条放在这个标签页量到的底部遮挡
+    /// （`NFBottomChrome`：标签栏 + 悬浮底栏，例如聊天的输入框）上方 8，还没量到时沿用原来的 84（见 `toastBottomClearance`）。
+    func toastHost(_ center: ToastCenter = .shared, tabBarVisible: Bool, tab: AppTab) -> some View {
+        modifier(ToastHostModifier(center: center, tabBarVisible: tabBarVisible, tab: tab))
     }
 }
 
 private struct ToastHostModifier: ViewModifier {
     let center: ToastCenter
     let tabBarVisible: Bool
+    let tab: AppTab
     @State private var controller = ToastWindowController()
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.layoutDirection) private var layoutDirection
@@ -124,7 +127,8 @@ private struct ToastHostModifier: ViewModifier {
             layoutDirection: layoutDirection,
             locale: locale,
             forceSolidChrome: forceSolidChrome,
-            tabBarVisible: tabBarVisible
+            tabBarVisible: tabBarVisible,
+            tab: tab
         )
         content
             .environment(center)
@@ -149,6 +153,8 @@ private struct ToastOverlayEnvironment: Equatable {
     let locale: Locale
     let forceSolidChrome: Bool
     let tabBarVisible: Bool
+    /// 当前标签页：提示条读这个标签页的底部遮挡（`NFBottomChrome`）。
+    let tab: AppTab
 }
 
 private final class ToastOverlayWindow: UIWindow {
@@ -216,11 +222,18 @@ private struct ToastOverlayRootView: View {
 
     var body: some View {
         let keyboardTop = KeyboardObserver.shared.top
+        // 只有提示条窗口的这个根视图读 NFBottomChrome：标签页量到的遮挡变了只重画这里，不牵动 RootView。
+        let obstruction = NFBottomChrome.shared.obstruction(for: env.tab)
         GeometryReader { proxy in
-            let keyboardInset = max(0, proxy.frame(in: .global).maxY - keyboardTop)
-            let bottomPadding: CGFloat = keyboardInset > 0
-                ? keyboardInset + 12
-                : (env.tabBarVisible ? 84 : 16)
+            let hostFrame = proxy.frame(in: .global)
+            let keyboardInset = max(0, hostFrame.maxY - keyboardTop)
+            let bottomPadding = toastBottomClearance(
+                keyboardInset: keyboardInset,
+                tabBarVisible: env.tabBarVisible,
+                obstructionFromScreenBottom: obstruction,
+                // 这一层只忽略键盘、不忽略容器安全区，底边停在主屏指示条上方；量到的遮挡却是从屏幕底边算的，减去这段差。
+                hostBottomGap: max(0, UIScreen.main.bounds.height - hostFrame.maxY)
+            )
             ZStack(alignment: .bottom) {
                 Color.clear
                 if let message = center.current {
@@ -245,12 +258,14 @@ private struct ToastOverlayRootView: View {
 
 private struct ToastBubble: View {
     let text: String
+    @Environment(\.nfChromePath) private var chromePath
 
     var body: some View {
         let shape = Capsule()
         Text(text)
             .font(.nf(14, weight: 500))
-            .foregroundStyle(Sm.text)
+            // 小块玻璃上的字（#195 规则 1.5）：原生玻璃上用系统主色（压在深色内容上会跟着翻转），其余照旧 Sm.text。
+            .foregroundStyle(chromePath.primaryInk)
             .multilineTextAlignment(.center)
             .lineLimit(4)
             .padding(.horizontal, 18)
@@ -258,9 +273,10 @@ private struct ToastBubble: View {
             .frame(minHeight: 44)
             .frame(maxWidth: 400)
             .fixedSize(horizontal: false, vertical: true)
-            .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: Sm.borderStrong)
+            // 先裁内容再上玻璃，玻璃自己的边缘和高光不被裁掉；自定义阴影只在非原生玻璃时画。
             .clipShape(shape)
-            .shadow(color: Sm.panelShadow, radius: 12, x: 0, y: 6)
+            .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: Sm.borderStrong)
+            .nfChromeShadow(Sm.panelShadow, radius: 12, y: 6)
             .accessibilityHidden(true)
     }
 }

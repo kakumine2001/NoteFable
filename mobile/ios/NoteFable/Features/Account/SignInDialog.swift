@@ -115,11 +115,12 @@ private struct SignInDialogCard: View {
                 .padding(.trailing, 12)
         }
         .frame(width: width)
+        // 先裁内容再上玻璃（玻璃自己的边缘和高光不被裁掉）；自定义阴影只在非原生玻璃时画。
+        .clipShape(shape)
         .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: Sm.panelRing)
         .contentShape(shape)
         .onTapGesture {}
-        .clipShape(shape)
-        .shadow(color: Sm.panelShadow, radius: 10, x: 0, y: 4)
+        .nfChromeShadow(Sm.panelShadow, radius: 10, y: 4)
         .accessibilityAddTraits(.isModal)
         .task {
             // 只有邮箱时打开就聚焦邮箱输入框。等窗口进场后再设，太早会被忽略。
@@ -320,6 +321,8 @@ private struct SignInField: View {
             .padding(.horizontal, 11.2)
             .frame(maxWidth: .infinity)
             .frame(height: 44)
+            // 卡片是玻璃的：输入框自己铺白底（和 `NFDialogTextField` 一样），不然看着像个透明的洞。
+            .background(Sm.surface, in: shape)
             .overlay { shape.strokeBorder(focused ? Sm.blue : Sm.borderStrong, lineWidth: focused ? 2 : 1) }
             .contentShape(shape)
             .onTapGesture { if enabled { focus.wrappedValue = field } }

@@ -4,7 +4,7 @@ import UIKit
 /// 整个界面的根（Android `ui/NoteFableRoot.kt`）：
 /// - 内层：底部原生 `TabView`（聊天 / 工作区 / 搜索），编辑器或幻灯片放映中隐藏底栏；
 /// - 外层：交互式行首推入圆角抽屉（合并聊天与工作区目录），底部悬浮玻璃操作栏；
-/// - 顶层：登录、设置、回收站 `.nfSheet`、全局 `.nfOverlayHost()` 与独立窗口 `.toastHost()`。
+/// - 顶层：登录、设置、回收站 `.nfSheet`、全局 `.nfOverlayHost()` 与独立窗口 `.toastHost(tabBarVisible:tab:)`。
 struct RootView: View {
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router
@@ -70,7 +70,8 @@ struct RootView: View {
         .drawDiagramDialog()
         .noteTrashSheet()
         .nfOverlayHost()
-        .toastHost(tabBarVisible: !hideTabBar)
+        // 提示条按当前标签页量到的底部遮挡（标签栏 + 悬浮底栏）摆放（`NFBottomChrome`，只有提示条窗口自己观察它）。
+        .toastHost(tabBarVisible: !hideTabBar, tab: router.selectedTab)
     }
 
     @ViewBuilder
@@ -137,27 +138,30 @@ struct RootView: View {
 // MARK: - 合并抽屉面板
 
 /// 合并侧边栏抽屉：顶部品牌栏、共享滚动区（聊天 + 工作区）、底部悬浮玻璃操作栏（账号 / 帮助 / 新建）。
+/// 面板本身是内容（推入式抽屉，后面没有东西可折射），保持实色 `Sm.sidebar`；顶栏和底栏是浮在列表上的两条栏
+/// （`nfFloatingHeader`）：iOS 26 起列表从它们下面滚过（系统滚动边缘效果），iOS 17–18 铺一条系统毛玻璃底，
+/// “减少透明度”时铺一条 `Sm.sidebar` 实色底（底栏上边再加 1px 细线）。
 private struct DrawerPanel: View {
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router
 
     var body: some View {
-        VStack(spacing: 0) {
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 0) {
+                ChatDrawerBody()
+                SidebarSectionDivider()
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                workspaceSectionHeader
+                NotesDrawerBody()
+            }
+            .padding(.bottom, 12)
+        }
+        .nfFloatingHeader(edge: .top, solidFill: Sm.sidebar, divider: false) {
             header
-            ScrollView(.vertical) {
-                VStack(alignment: .leading, spacing: 0) {
-                    ChatDrawerBody()
-                    SidebarSectionDivider()
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                    workspaceSectionHeader
-                    NotesDrawerBody()
-                }
-                .padding(.bottom, 12)
-            }
-            .nfFloatingBar(edge: .bottom) {
-                DrawerFooter()
-            }
+        }
+        .nfFloatingHeader(edge: .bottom, solidFill: Sm.sidebar, divider: true) {
+            DrawerFooter()
         }
     }
 
@@ -171,14 +175,17 @@ private struct DrawerPanel: View {
                 .lineLimit(1)
                 .padding(.leading, 8)
             Spacer(minLength: 0)
-            NFGlassIconButton(
-                Lucide.panelLeftClose,
-                label: L("sb_close_sidebar"),
-                size: 34,
-                iconSize: 16,
-                color: Sm.muted
-            ) {
-                router.closeDrawer()
+            // 每条栏的玻璃各包在一个容器里（#195 规则 1.4）。
+            NFGlassContainer(spacing: NFChromeMetrics.containerSpacing) {
+                NFGlassIconButton(
+                    Lucide.panelLeftClose,
+                    label: L("sb_close_sidebar"),
+                    size: 34,
+                    iconSize: 16,
+                    color: Sm.muted
+                ) {
+                    router.closeDrawer()
+                }
             }
         }
         .padding(.leading, 14)
@@ -221,8 +228,8 @@ private struct DrawerFooter: View {
                     .padding(.horizontal, 12)
                     .onAppear { UIAccessibility.post(notification: .announcement, argument: L("language_change_failed")) }
             }
-            NFGlassContainer(spacing: 8) {
-                HStack(spacing: 8) {
+            NFGlassContainer(spacing: NFChromeMetrics.containerSpacing) {
+                HStack(spacing: NFChromeMetrics.gap) {
                     AccountRow(glassStyle: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     HelpMenuButton(glassStyle: true)
