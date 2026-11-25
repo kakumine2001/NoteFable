@@ -167,7 +167,7 @@ function WhiteboardToolbar({ ui, drawMode, compact, onSelectTool, onLink, onInse
   // スマホでは、よく使う道具だけを並べ、残りは「その他」に入れる。
   const primary: WhiteboardTool[] = compact
     ? ["hand", "select", "pen", "highlighter", "eraser", "text", "sticky"]
-    : ["select", "hand", "pen", "highlighter", "eraser", "laser", "line", "arrow", "text", "sticky", "image", "frame"];
+    : ["select", "hand", "pen", "highlighter", "laser", "eraser", "line", "arrow", "text", "sticky", "image", "frame"];
   const extra: WhiteboardTool[] = compact
     ? ["lasso", "line", "arrow", "image", "frame", "laser"]
     : ["lasso"];
