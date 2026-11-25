@@ -3888,7 +3888,10 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 @container empty-chat (height < 25rem) {
   .notion-page-column:has(.chat-recent) .nf-mascot-stage { display: none; }
 }
-.chat-recent-open:hover .chat-recent-open-chip { background: var(--notion-hover); }
+/* --notion-hover は半透明の重ね色なので、チップの面の上に重ねる（置き換えると濃いカバーの上で透けてしまう）。 */
+@media (hover: hover) {
+  .chat-recent-open:hover .chat-recent-open-chip { background-image: linear-gradient(var(--notion-hover), var(--notion-hover)); }
+}
 @media (min-width: 640px) and (hover: hover) and (pointer: fine) {
   .chat-recent li:not(:hover):not(:focus-within) .chat-recent-open { opacity: 0; }
 }

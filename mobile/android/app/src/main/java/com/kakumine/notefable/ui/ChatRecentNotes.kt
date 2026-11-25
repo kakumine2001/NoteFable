@@ -112,7 +112,9 @@ internal fun ChatRecentNotes(
                         .semantics { contentDescription = openLabel }
                         .padding(4.dp),
                         contentAlignment = Alignment.TopEnd) {
-                        Box(Modifier.size(26.dp).clip(CircleShape).background(if (openPressed) Sm.Hover else Sm.Surface.copy(alpha = 0.86f))
+                        // Sm.Hover is a translucent overlay: layer it over the chip's surface, don't replace it.
+                        Box(Modifier.size(26.dp).clip(CircleShape).background(Sm.Surface.copy(alpha = 0.86f))
+                            .background(if (openPressed) Sm.Hover else Color.Transparent)
                             .border(1.dp, Sm.Border, CircleShape),
                             contentAlignment = Alignment.Center) {
                             LucideIcon(Lucide.ArrowUpRight, 14.dp, Sm.Muted)
