@@ -59,7 +59,7 @@ function isTypingTarget(target: EventTarget | null) {
 const MOD = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
 
 // aiSlot: AI の面板（#150）を置く場所。単ページ編集の面の右下（スマホでは縮小図の帯の上）に重ねて出す。
-export default function SlidesEditor({ pageId, title, data, version, editable, embedded, onChange, onTitleChange, onAskAi, onSelectionChange, aiSlot }: CanvasEditorProps & { aiSlot?: ReactNode }) {
+export default function SlidesEditor({ pageId, title, data, version, editable, embedded, onChange, onTitleChange, onAskAi, onSelectionChange, aiSlot, generateImageSignal = 0 }: CanvasEditorProps & { aiSlot?: ReactNode }) {
   const t = useT();
   const phone = useMediaQuery("(max-width: 640px)");
   // 作ったばかりで中身の無いスライドは、最初の 1 枚（標題）を入れて始める（作成の続き。開いただけで書き換えるのはこの時だけ）。
@@ -106,6 +106,12 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   const [formatTick, setFormatTick] = useState(0);
   const [presenting, setPresenting] = useState<{ startId: string | null } | null>(null);
   const [dialog, setDialog] = useState<{ kind: "chat" | "generate"; target: string | null } | { kind: "report"; target: string } | null>(null);
+  const [dismissedGenerateSignal, setDismissedGenerateSignal] = useState(generateImageSignal);
+  const activeDialog = dialog ?? (editable && generateImageSignal > dismissedGenerateSignal ? { kind: "generate" as const, target: null } : null);
+  const closeDialog = useCallback(() => {
+    setDialog(null);
+    setDismissedGenerateSignal(generateImageSignal);
+  }, [generateImageSignal]);
   const [menu, setMenu] = useState<{ x: number; y: number; kind: "element" | "slide"; slideId?: string } | null>(null);
   const [notice, setNotice] = useState("");
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
@@ -307,10 +313,18 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   // 画像は待ったあと（アップロード・生成の完了）に置くので、その時点の最新の本体に対して変更する（途中の編集や、続けて置いた画像を消さない）。
   // slideId は置く枚（既定は今の枚）。
   const placeImage = useCallback((image: SlideImage, target: string | null, at?: { x: number; y: number }, slideId: string | null = current?.id ?? null) => {
-    if (!slideId) return;
     const alt = image.name.replace(/\.[a-z0-9]+$/i, "");
     const generated = image.prompt ? { generated: { prompt: image.prompt.slice(0, 4000) } } : {};
     const fresh: ImageElement = { ...createImageElement(image.url, image.width, image.height, alt, at), ...generated };
+    if (!slideId) {
+      const createdSlide = addElements(createSlide("blank"), [fresh]);
+      commit((latest) => ({ ...latest, slides: [...latest.slides, createdSlide] }));
+      setCurrentId(createdSlide.id);
+      setSelectedSlides(new Set([createdSlide.id]));
+      setSelection(new Set([fresh.id]));
+      setView("slide");
+      return;
+    }
     // 差し替える画像（target）か、空の画像の置き場所。無ければ新しい画像として足す。
     const into = (slide: Slide) => {
       const existing = target ? slide.elements.find((element) => element.id === target && element.type === "image") : undefined;
@@ -648,7 +662,7 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   useBackToClose(sheetOpen, () => { setInspectorOpen(false); setSelection(new Set()); });
   const textCommands = editingId ? commandsRef.current : null;
   const inspector = current && view === "slide" ? <SlideInspector slide={current} slideCount={deck.slides.length} selection={liveSelection} theme={theme} editable={editable}
-    onChange={(next, merge) => commitSlide(next, merge)} onReplaceImage={(id) => requestImage(id)} onReportImage={(id) => setDialog({ kind: "report", target: id })}
+    onChange={(next, merge) => commitSlide(next, merge)} onReplaceImage={(id) => requestImage(id)} onGenerateImage={(id) => setDialog({ kind: "generate", target: id })} onReportImage={(id) => setDialog({ kind: "report", target: id })}
     onDelete={deleteSelection} onLayout={setLayout} onToggleHidden={() => commit(setHidden(deck, new Set([current.id]), !current.hidden))}
     onTransition={(transition) => commit(setTransition(deck, new Set([current.id]), transition))}
     onApplyTransitionAll={(transition) => commit(setTransition(deck, new Set(deck.slides.map((entry) => entry.id)), transition))}
@@ -737,9 +751,9 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
         {targetRange.last < deck.slides.length - 1 && <MenuItem icon={<ChevronDown size={16} />} label={t("Move down")} disabled={!editable} onClick={() => { setMenu(null); commit(moveSlides(deck, slideTargets(), targetRange.last + 2)); }} />}
         <MenuItem icon={<Trash2 size={16} />} label={t("Delete")} danger disabled={!editable} onClick={() => { setMenu(null); deleteSelectedSlides(); }} />
       </PointMenu>}
-      {dialog?.kind === "chat" && <ChatImagesDialog onClose={() => setDialog(null)} onPicked={(image) => placeImage(image, dialog.target)} />}
-      {dialog?.kind === "generate" && <GenerateImageDialog pageId={pageId} embedded={embedded} onClose={() => setDialog(null)} onGenerated={(image) => placeImage(image, dialog.target)} />}
-      {dialog?.kind === "report" && <ReportImageDialog pageId={pageId} elementId={dialog.target} onClose={() => setDialog(null)} />}
+      {activeDialog?.kind === "chat" && <ChatImagesDialog onClose={closeDialog} onPicked={(image) => placeImage(image, activeDialog.target)} />}
+      {activeDialog?.kind === "generate" && <GenerateImageDialog pageId={pageId} embedded={embedded} mode={activeDialog.target ? "replace" : "insert"} onClose={closeDialog} onGenerated={(image) => placeImage(image, activeDialog.target)} />}
+      {activeDialog?.kind === "report" && <ReportImageDialog pageId={pageId} elementId={activeDialog.target} onClose={closeDialog} />}
       {presenting && <SlidePlayer deck={deck} startId={presenting.startId} onExit={() => setPresenting(null)} allowPresenter={!embedded && !phone} fullscreen={!embedded}
         controlRef={playerControl}
         onChange={(_slide, index, count) => { if (embedded && nativeCanPresent()) postToNative({ type: "presentation", state: "slide", index, count }); }} />}

@@ -3,7 +3,7 @@
 import {
   AlignCenter, AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalDistributeCenter, AlignJustify, AlignLeft, AlignRight,
   AlignStartHorizontal, AlignStartVertical, AlignVerticalDistributeCenter, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, ArrowDown, ArrowUp,
-  Bold, BringToFront, Code, Eye, EyeOff, Flag, Group, ImagePlus, Italic, Link, List, ListOrdered, Minus, Plus, SendToBack, Sigma, SquareFunction, Strikethrough, Trash2,
+  Bold, BringToFront, Code, Eye, EyeOff, Flag, Group, ImagePlus, Italic, Link, List, ListOrdered, Minus, Plus, SendToBack, Sigma, Sparkles, SquareFunction, Strikethrough, Trash2,
   Underline, Ungroup,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -107,7 +107,7 @@ function tableWithSize(element: TableElement, rows: number, cols: number): Table
   return { ...element, rows: nextRows, cols: nextCols, h: Math.max(element.h * (rows / element.rows.length), 40) };
 }
 
-export function SlideInspector({ slide, slideCount, selection, theme, editable, onChange, onReplaceImage, onReportImage, onDelete, onLayout, onToggleHidden, onTransition, onApplyTransitionAll, onAskAi }: {
+export function SlideInspector({ slide, slideCount, selection, theme, editable, onChange, onReplaceImage, onGenerateImage, onReportImage, onDelete, onLayout, onToggleHidden, onTransition, onApplyTransitionAll, onAskAi }: {
   slide: Slide;
   slideCount: number;
   selection: Set<string>;
@@ -115,6 +115,7 @@ export function SlideInspector({ slide, slideCount, selection, theme, editable, 
   editable: boolean;
   onChange: (next: Slide, merge?: string) => void;
   onReplaceImage: (elementId: string) => void;
+  onGenerateImage: (elementId: string) => void;
   onReportImage: (elementId: string) => void;
   onDelete: () => void;
   onLayout: (layout: LayoutId) => void;
@@ -272,6 +273,7 @@ export function SlideInspector({ slide, slideCount, selection, theme, editable, 
 
     {single?.type === "image" && <Section title={t("Image")}>
       <button type="button" className="slides-wide-button" disabled={!editable} onClick={() => onReplaceImage(single.id)}><ImagePlus size={16} aria-hidden="true" />{single.src ? t("Replace image") : t("Add an image")}</button>
+      <button type="button" className="slides-wide-button" disabled={!editable} onClick={() => onGenerateImage(single.id)}><Sparkles size={16} aria-hidden="true" />{t("Generate with AI")}</button>
       <div className="slides-field">
         <span>{t("Fit")}</span>
         <select value={single.fit} onChange={(event) => update(ids, (element) => (element.type === "image" ? { ...element, fit: event.target.value as "cover" | "contain" } : element), "fit")}>

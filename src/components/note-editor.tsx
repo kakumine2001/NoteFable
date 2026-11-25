@@ -5,10 +5,12 @@ import { codeBlockOptions, syntaxHighlighter } from "@blocknote/code-block";
 import { BlockNoteView } from "@blocknote/ariakit";
 import { SideMenuExtension, SuggestionMenu, filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from "@blocknote/core/extensions";
 import { BasicTextStyleButton, BlockColorsItem, ColorStyleButton, CreateLinkButton, DragHandleButton, DragHandleMenu, FileCaptionButton, FileDeleteButton, FileDownloadButton, FilePanel, FilePanelController, FilePreviewButton, FileRenameButton, FormattingToolbar, FormattingToolbarController, SideMenu, SideMenuController, SuggestionMenuController, TableCellMergeButton, TableColumnHeaderItem, TableRowHeaderItem, getDefaultReactSlashMenuItems, useBlockNoteEditor, useComponentsContext, useCreateBlockNote, useDictionary, useEditorState, useExtensionState, usePortalElement, type DefaultReactSuggestionItem, type FilePanelProps, type SuggestionMenuProps } from "@blocknote/react";
-import { CalendarDays, Check, CheckSquare, ChevronRight, Code2, Columns2, Columns3, Columns4, Copy, GripVertical, Heading1, Lightbulb, ListTree, Loader2, Palette, Radical, Sigma, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Table, Text, Type, Upload } from "lucide-react";
+import { CalendarDays, Check, CheckSquare, ChevronRight, Code2, Columns2, Columns3, Columns4, Copy, GripVertical, Heading1, Lightbulb, ListTree, Loader2, Palette, Radical, Sigma, Sparkles, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Table, Text, Type, Upload } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref, type RefObject } from "react";
 import "@blocknote/ariakit/style.css";
 import { AppIcon } from "@/components/app-icon";
+import { WorkspaceImageDialog } from "@/components/workspace-image-dialog";
+import type { PageImage } from "@/lib/page-images";
 import { MAX_NOTE_FILE_BYTES } from "@/lib/note-file-keys";
 import { externalFilesGuard } from "@/components/note-external-files";
 import { storageLimitFromUpload } from "@/lib/storage-limit-client";
@@ -100,7 +102,9 @@ const schema = BlockNoteSchema.create({
 
 type Editor = BlockNoteEditor<typeof schema.blockSchema, typeof schema.inlineContentSchema, typeof schema.styleSchema>;
 type NotePartialBlock = PartialBlock<typeof schema.blockSchema, typeof schema.inlineContentSchema, typeof schema.styleSchema>;
-export type NoteEditorHandle = { focusStart: () => void; focusEnd: () => void };
+export type NoteEditorHandle = { focusStart: () => void; focusEnd: () => void; openImageGenerator: () => void };
+
+const NoteImageGenContext = createContext<((blockId: string) => void) | null>(null);
 
 type BlockSelectionCtx = {
   selectedIds: string[];
@@ -379,6 +383,7 @@ function NoteFilePanel({ onUploaded, ...props }: FilePanelProps & { onUploaded?:
 function NoteUploadTab({ blockId, onUploaded }: FilePanelProps & { onUploaded?: () => void }) {
   const t = useT();
   const editor = useBlockNoteEditor(schema);
+  const openImageGenForBlock = useContext(NoteImageGenContext);
   const [state, setState] = useState<{ phase: "idle" | "uploading" | "failed"; message?: string }>({ phase: "idle" });
   const block = editor.getBlock(blockId);
   if (!block) return null;
@@ -415,6 +420,20 @@ function NoteUploadTab({ blockId, onUploaded }: FilePanelProps & { onUploaded?: 
         <input type="file" className="sr-only" accept={isImage ? "image/png,image/jpeg,image/webp,image/gif" : undefined}
           disabled={state.phase === "uploading"} onChange={(event) => { const file = event.target.files?.[0] ?? null; event.target.value = ""; void upload(file); }} />
       </label>
+      {isImage && openImageGenForBlock && (
+        <button
+          type="button"
+          className="note-upload-generate"
+          disabled={state.phase === "uploading"}
+          onClick={() => {
+            onUploaded?.();
+            openImageGenForBlock(blockId);
+          }}
+        >
+          <Sparkles size={15} aria-hidden="true" />
+          <span>{t("Generate with AI")}</span>
+        </button>
+      )}
       <p className={`note-upload-hint ${state.phase === "failed" ? "is-error" : ""}`} role={state.phase === "failed" ? "alert" : undefined}>
         {state.phase === "failed" ? t(state.message ?? "", { size: MAX_NOTE_FILE_BYTES / 1024 / 1024 }) : t("Up to 4 MB.")}
       </p>
@@ -530,6 +549,7 @@ function NoteFormattingToolbar() {
 
 type NoteEditorProps = {
   blocks: NoteContent["blocks"]; onChange: (blocks: NoteContent["blocks"]) => void; editable: boolean;
+  embedded?: boolean;
   editorRef: Ref<NoteEditorHandle>; onFocusTitle: () => void; onAskAi?: (selection: PageSelection) => void;
   onSelectionChange?: (selection: PageSelection | null) => void;
   workspaceRef?: RefObject<HTMLDivElement | null>;
@@ -546,11 +566,12 @@ export default function NoteEditor(props: NoteEditorProps) {
     return hit ? { locale, dictionary: hit } : null;
   });
   const innerRef = useRef<NoteEditorHandle>(null);
-  const pendingFocus = useRef<"start" | "end" | null>(null);
+  const pendingFocus = useRef<"start" | "end" | "image" | null>(null);
 
   useImperativeHandle(props.editorRef, () => ({
     focusStart: () => { if (innerRef.current) innerRef.current.focusStart(); else pendingFocus.current = "start"; },
     focusEnd: () => { if (innerRef.current) innerRef.current.focusEnd(); else pendingFocus.current = "end"; },
+    openImageGenerator: () => { if (innerRef.current) innerRef.current.openImageGenerator(); else pendingFocus.current = "image"; },
   }));
 
   const dictionary = loaded?.locale === locale ? loaded.dictionary : cachedBlockNoteDictionary(locale);
@@ -569,7 +590,8 @@ export default function NoteEditor(props: NoteEditorProps) {
     const action = pendingFocus.current;
     pendingFocus.current = null;
     if (action === "start") innerRef.current?.focusStart();
-    else innerRef.current?.focusEnd();
+    else if (action === "end") innerRef.current?.focusEnd();
+    else innerRef.current?.openImageGenerator();
   }, [dictionary]);
 
   if (!dictionary) return <p className="notes-loading">{t("Loading editor…")}</p>;
@@ -615,7 +637,7 @@ function useMentionPages(given: MentionPage[] | undefined, blocks: NoteContent["
   return { pages: given ?? fetched, loadPages };
 }
 
-function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, onAskAi, onSelectionChange, workspaceRef, base, pages: givenPages, currentPageId, onOpenPage, pageMentions = true }: NoteEditorProps & { base: Dictionary }) {
+function NoteEditorBody({ blocks, onChange, editable, embedded = false, editorRef, onFocusTitle, onAskAi, onSelectionChange, workspaceRef, base, pages: givenPages, currentPageId, onOpenPage, pageMentions = true }: NoteEditorProps & { base: Dictionary }) {
   const { t, dir, locale } = useI18n();
   const { resolved: resolvedTheme } = useTheme();
   const { pages, loadPages } = useMentionPages(givenPages, blocks);
@@ -733,7 +755,57 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, o
     editor.focus();
     editor.setTextCursorPosition(last, "end");
   }
-  useImperativeHandle(editorRef, () => ({ focusStart, focusEnd }));
+  const [imageGenTarget, setImageGenTarget] = useState<{ kind: "new"; anchorBlockId: string | null } | { kind: "block"; blockId: string } | null>(null);
+
+  const openImageGenerator = useCallback((anchorBlockId?: string | null) => {
+    if (!editable) return;
+    let anchor = anchorBlockId ?? null;
+    if (!anchor) {
+      try { anchor = editor.getTextCursorPosition().block.id; }
+      catch { anchor = editor.document.at(-1)?.id ?? null; }
+    }
+    setImageGenTarget({ kind: "new", anchorBlockId: anchor });
+  }, [editable, editor]);
+
+  const openImageGenForBlock = useCallback((blockId: string) => {
+    if (!editable) return;
+    setImageGenTarget({ kind: "block", blockId });
+  }, [editable]);
+
+  const insertGeneratedImage = useCallback((image: PageImage) => {
+    if (!editable || !imageGenTarget) return;
+    const imageProps = { url: image.url, name: image.name };
+    if (imageGenTarget.kind === "block") {
+      const target = editor.getBlock(imageGenTarget.blockId);
+      if (target && target.type === "image") {
+        editor.updateBlock(target, { props: imageProps });
+        editor.focus();
+        return;
+      }
+    }
+    const anchor = imageGenTarget.kind === "new" && imageGenTarget.anchorBlockId ? editor.getBlock(imageGenTarget.anchorBlockId) : undefined;
+    const emptyParagraph = anchor && anchor.type === "paragraph" && anchor.content.length === 0 && anchor.children.length === 0;
+    let placedId: string;
+    if (emptyParagraph) {
+      editor.updateBlock(anchor, { type: "image", props: imageProps });
+      placedId = anchor.id;
+    } else {
+      const reference = anchor ?? editor.document.at(-1);
+      if (!reference) return;
+      const inserted = editor.insertBlocks([{ type: "image", props: imageProps }], reference, "after")[0];
+      placedId = inserted.id;
+    }
+    // 末尾に画像を挿入したら、続けて文字を書けるように空の段落を 1 つ下に置く。
+    if (editor.document.at(-1)?.id === placedId) {
+      const next = editor.insertBlocks([{ type: "paragraph" }], placedId, "after")[0];
+      editor.focus();
+      editor.setTextCursorPosition(next, "end");
+    } else {
+      editor.focus();
+    }
+  }, [editable, editor, imageGenTarget]);
+
+  useImperativeHandle(editorRef, () => ({ focusStart, focusEnd, openImageGenerator }));
 
   // コードブロックにホバーした時だけ、右上に Notion と同じ「Copy」ボタンを重ねる。
   const [codeHover, setCodeHover] = useState<{ id: string; top: number; right: number } | null>(null);
@@ -827,7 +899,10 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, o
     event.stopPropagation();
   }
 
-  return <NoteMentionContext.Provider value={mentionContext}><NoteAskAiContext.Provider value={onAskAi ?? null}><BlockSelectionContext.Provider value={blockSelectionCtx}><div ref={editorWrapRef} className="notes-block-editor" onClickCapture={onClickCapture} onKeyDownCapture={onKeyDown} onMouseMove={trackCodeHover} onFocus={trackCodeHover} onMouseLeave={() => setCodeHover(null)}>
+  const imageGenBlock = imageGenTarget?.kind === "block" ? editor.getBlock(imageGenTarget.blockId) : undefined;
+  const imageGenMode: "insert" | "replace" = imageGenBlock?.type === "image" && Boolean(imageGenBlock.props.url) ? "replace" : "insert";
+
+  return <NoteMentionContext.Provider value={mentionContext}><NoteAskAiContext.Provider value={onAskAi ?? null}><NoteImageGenContext.Provider value={editable ? openImageGenForBlock : null}><BlockSelectionContext.Provider value={blockSelectionCtx}><div ref={editorWrapRef} className="notes-block-editor" onClickCapture={onClickCapture} onKeyDownCapture={onKeyDown} onMouseMove={trackCodeHover} onFocus={trackCodeHover} onMouseLeave={() => setCodeHover(null)}>
     <MathEditorProvider editor={editor} editable={editable}>
     <BlockNoteView editor={editor} theme={resolvedTheme} editable={editable} slashMenu={false} sideMenu={false} formattingToolbar={false} filePanel={false} onChange={() => {
       // 入力ルールで未知の言語が入った場合も、保存前に Plain Text へ直す。
@@ -887,7 +962,23 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, o
           aliases: ["columns", "column", "layout", `${count} columns`, `${count}col`, "分栏", "分列", "段組み", "カラム", "列"],
           onItemClick: () => insertColumns(editor, count),
         })) : [];
-        const blockItems = [...textItems, tocItem, ...mathItems, ...columnItems, ...defaults.filter((item) => !NOTE_TEXT_BLOCKS.some((target) => target.key === item.key))];
+        const imageGroup = defaults.find((item) => item.key === "image")?.group ?? t("Image");
+        const aiImageItem: SlashItem = {
+          key: "generate_image",
+          title: t("Generate an image"),
+          group: imageGroup,
+          icon: <Sparkles size={18} />,
+          aliases: ["generate image", "ai image", "create image", "image generation", "draw", "picture", "生成图片", "ai图片", "ai生图", "画像生成", "ai画像", "이미지 생성"],
+          onItemClick: () => {
+            openImageGenerator(editor.getTextCursorPosition().block.id);
+          },
+        };
+        const restDefaults = defaults.filter((item) => !NOTE_TEXT_BLOCKS.some((target) => target.key === item.key));
+        const imageIndex = restDefaults.findIndex((item) => item.key === "image");
+        const mediaAndRest = imageIndex >= 0
+          ? [...restDefaults.slice(0, imageIndex + 1), aiImageItem, ...restDefaults.slice(imageIndex + 1)]
+          : [...restDefaults, aiImageItem];
+        const blockItems = [...textItems, tocItem, ...mathItems, ...columnItems, ...mediaAndRest];
         // 一覧が長くなるので、色と操作のコマンド（Notion の /red、/blue background、/duplicate、/delete）は文字を打った時だけ候補に出す。
         return filterSuggestionItems(query.trim() ? [...blockItems, ...commandItems(editor, t)] : blockItems, query);
       }} />
@@ -901,5 +992,15 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, o
     </button>}
     <button type="button" className="notes-editor-tail" tabIndex={-1} aria-label={t("Continue writing at end of note")} disabled={!editable} onClick={() => { if (!blockSelection.didMarqueeDragRef.current) focusEnd(); }} />
     <NoteBlockSelectionOverlay {...blockSelection.overlayProps} />
-  </div></BlockSelectionContext.Provider></NoteAskAiContext.Provider></NoteMentionContext.Provider>;
+    {imageGenTarget && (imageGenTarget.kind === "new" || imageGenTarget.kind === "block") && editable && (
+      <WorkspaceImageDialog
+        pageId={currentPageId ?? "note"}
+        pageKind="note"
+        embedded={embedded}
+        mode={imageGenMode}
+        onInsert={insertGeneratedImage}
+        onClose={() => setImageGenTarget(null)}
+      />
+    )}
+  </div></BlockSelectionContext.Provider></NoteImageGenContext.Provider></NoteAskAiContext.Provider></NoteMentionContext.Provider>;
 }

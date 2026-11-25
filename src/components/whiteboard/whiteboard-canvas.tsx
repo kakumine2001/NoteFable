@@ -14,5 +14,6 @@ export default function WhiteboardCanvas(props: CanvasEditorProps & { handleRef?
     title={props.title} icon={props.icon} onTitleChange={props.onTitleChange} onIconChange={props.onIconChange ?? noop}
     onAskAi={props.onAskAi} onSelectionChange={props.onSelectionChange} handleRef={props.handleRef}
     // AI ボタン（#158 の PageAssistant）の置き場所。右下（スマホでは道具のツールバーが空けた所）に置く。
-    aiSlot={props.aiSlot} />;
+    aiSlot={props.aiSlot}
+    generateImageSignal={props.generateImageSignal} />;
 }
