@@ -74,6 +74,7 @@ private sealed interface NotesDialogState {
     data class Move(val pageId: String) : NotesDialogState
     data object NewGroup : NotesDialogState
     data class RenameGroup(val group: NoteGroupSummary) : NotesDialogState
+    data class RenamePage(val page: NotePageSummary) : NotesDialogState
     data class DeleteGroup(val group: NoteGroupSummary) : NotesDialogState
     data class TrashNote(val page: NotePageSummary) : NotesDialogState
     /** [kind]：幻灯片是公开树的叶子，没有“包含子页面”（网页 note-share-dialog.tsx 的 kind）。 */
@@ -349,6 +350,8 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         onCreateInside = { page, kind -> closeDrawer(); notesViewModel.createNote(page.id, kind) },
                         onToggleSection = notesViewModel::toggleSection,
                         onUnfavorite = { page -> scope.launch { notesViewModel.setFavorite(page.id, false) } },
+                        onRenamePage = { dialog = NotesDialogState.RenamePage(it) },
+                        onToggleFavorite = { page -> scope.launch { notesViewModel.setFavorite(page.id, page.favoritedAt == null) } },
                         onImport = pickMarkdownImport,
                     )
                 } else {
@@ -471,8 +474,8 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                     onPresentingChange = { slidesPresenting = it },
                     onMessage = { editor, message ->
                         when (message) {
-                            is EmbedMessage.Ready -> notesViewModel.onEditorReady(editor, message.id, message.title, message.icon, message.kind)
-                            is EmbedMessage.Meta -> notesViewModel.onEditorMeta(editor, message.title, message.icon)
+                            is EmbedMessage.Ready -> notesViewModel.onEditorReady(editor, message.id, message.title, message.icon, message.kind, message.version)
+                            is EmbedMessage.Meta -> notesViewModel.onEditorMeta(editor, message.title, message.icon, message.version)
                             is EmbedMessage.SaveState -> notesViewModel.onEditorSaveState(editor, message.state)
                             is EmbedMessage.Missing -> notesViewModel.onEditorMissing(editor)
                             EmbedMessage.Trashed -> notesViewModel.onEditorTrashed(editor)
@@ -646,6 +649,11 @@ private fun NotesDialogs(dialog: NotesDialogState?, notes: NotesUiState, vm: Not
         is NotesDialogState.RenameGroup -> GroupNameDialog(
             stringResource(R.string.rename_project), dialog.group.name, stringResource(R.string.save), notes.groupError,
             onSubmit = { name -> vm.renameGroup(dialog.group.id, name) }, onClose = close,
+        )
+        is NotesDialogState.RenamePage -> GroupNameDialog(
+            stringResource(R.string.pg_rename_page), dialog.page.title, stringResource(R.string.save), notes.groupError,
+            placeholder = stringResource(R.string.pg_page_title), maxLength = 200,
+            onSubmit = { title -> vm.renamePage(dialog.page.id, title) }, onClose = close,
         )
         is NotesDialogState.DeleteGroup -> ConfirmDialog(
             stringResource(R.string.delete_project_title),

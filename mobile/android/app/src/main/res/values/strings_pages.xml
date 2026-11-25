@@ -25,4 +25,6 @@
     <string name="pg_search_pages">Search pages</string>
     <string name="pg_no_matching_pages">No matching pages.</string>
     <string name="pg_subpages_to_trash">Its sub-pages move to Trash with it.</string>
+    <string name="pg_rename_page">Rename page</string>
+    <string name="pg_page_title">Page title</string>
 </resources>

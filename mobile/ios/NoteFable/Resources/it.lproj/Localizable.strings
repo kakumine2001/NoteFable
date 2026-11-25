@@ -417,6 +417,8 @@
 "pg_search_pages" = "Cerca pagine";
 "pg_no_matching_pages" = "Nessuna pagina corrispondente.";
 "pg_subpages_to_trash" = "Anche le sue sottopagine verranno spostate nel Cestino.";
+"pg_rename_page" = "Rinomina pagina";
+"pg_page_title" = "Titolo della pagina";
 
 /* strings_personal.xml */
 "appearance" = "Aspetto";

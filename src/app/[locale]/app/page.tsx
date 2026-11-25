@@ -2420,7 +2420,7 @@ export default function Home() {
       onCreate={(request) => { setSidebarOpen(false); createNote(request); }} onImport={(files) => void importMarkdownFiles(files)} onSearch={() => setSearchOpen(true)} onSelect={(id) => { setSidebarOpen(false); openNote(id); }}
       onPrefetch={notes.prefetch} onCancelPrefetch={notes.cancelPrefetch}
       onDelete={deleteNote} onClose={closeSidebar} onWorkspaceChange={changeWorkspace}
-      groups={notes.groups} groupError={notes.groupError} onReorder={notes.reorder} onMoveNote={notes.moveNote} onChangeIcon={notes.changeIcon} onCreateGroup={notes.createGroup}
+      groups={notes.groups} groupError={notes.groupError} onReorder={notes.reorder} onMoveNote={notes.moveNote} onChangeIcon={notes.changeIcon} onRenamePage={notes.renamePage} onCreateGroup={notes.createGroup}
       onRenameGroup={notes.renameGroup} onDeleteGroup={notes.deleteGroup} onMoveToPage={notes.moveToPage} onFavorite={notes.setFavorite} />
   ) : (
     <ChatSidebar

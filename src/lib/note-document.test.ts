@@ -13,15 +13,18 @@ describe("page document boundary", () => {
     expect(() => validateNoteContent({ title: "Test", blocks: [{ ...paragraph, type }] })).toThrow("unsupported");
   });
 
-  it("accepts toggles, toggle headings and callouts", () => {
+  it("accepts toggles, toggle headings, callouts and tableOfContents", () => {
     const blocks = [
       { ...paragraph, id: "t1", type: "toggleListItem", children: [{ ...paragraph, id: "t2" }] },
       { ...paragraph, id: "t3", type: "heading", props: { level: 2, isToggleable: true } },
       { ...paragraph, id: "t4", type: "callout", props: { emoji: "💡", backgroundColor: "gray", textColor: "default" } },
+      { id: "toc1", type: "tableOfContents", props: { textColor: "default", backgroundColor: "default" }, children: [] },
     ];
     expect(() => validateNoteContent({ title: "Test", blocks })).not.toThrow();
     expect(() => validateNoteContent({ title: "Test", blocks: [{ ...paragraph, type: "callout", props: { emoji: "abc" } }] })).toThrow("unsupported");
     expect(() => validateNoteContent({ title: "Test", blocks: [{ ...paragraph, props: { emoji: "💡" } }] })).toThrow("unsupported");
+    expect(() => validateNoteContent({ title: "Test", blocks: [{ id: "tocBad1", type: "tableOfContents", props: {}, content: [], children: [] }] })).toThrow("unsupported");
+    expect(() => validateNoteContent({ title: "Test", blocks: [{ id: "tocBad2", type: "tableOfContents", props: { textAlignment: "center" }, children: [] }] })).toThrow("unsupported");
   });
 
   it("validates math blocks and inline math nodes", () => {

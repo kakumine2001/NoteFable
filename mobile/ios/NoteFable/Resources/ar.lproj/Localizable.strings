@@ -417,6 +417,8 @@
 "pg_search_pages" = "البحث في الصفحات";
 "pg_no_matching_pages" = "لا توجد صفحات مطابقة.";
 "pg_subpages_to_trash" = "تنتقل صفحاتها الفرعية معها إلى سلة المهملات.";
+"pg_rename_page" = "إعادة تسمية الصفحة";
+"pg_page_title" = "عنوان الصفحة";
 
 /* strings_personal.xml */
 "appearance" = "المظهر";

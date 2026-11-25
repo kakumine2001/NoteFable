@@ -20,7 +20,7 @@ it("reads only the four most recently edited live note summaries for this user",
     where: { userId: "owner", deletedAt: null },
     orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
     take: 4,
-    select: { id: true, kind: true, title: true, icon: true, updatedAt: true },
+    select: { id: true, kind: true, title: true, icon: true, cover: true, coverPosition: true, updatedAt: true },
   });
   expect(db.groups).not.toHaveBeenCalled();
   expect(response.headers.get("Cache-Control")).toBe("no-store");

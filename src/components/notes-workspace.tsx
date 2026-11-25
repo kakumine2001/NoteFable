@@ -12,6 +12,7 @@ import {
   applyExplicitSelection, applyLiveSelection, clearActiveSelection, resolveActiveSelection, type CanvasAiSelectionState,
 } from "@/lib/canvas-selection-state";
 import { PageAssistant } from "@/components/page-assistant";
+import { NoteFloatingToc } from "@/components/note-floating-toc";
 import { NotePageHeader } from "@/components/note-page-header";
 import { NewPageButtons, NotesHome } from "@/components/notes-home";
 import { WorkspaceSwitch, type WorkspaceView } from "@/components/workspace-nav";
@@ -303,6 +304,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
           // 作成・削除の間（busy）に editable が切り替わると、エディターは内容が同じでも変更通知を出す。編集として扱うと、不要な保存（ゴミ箱へ移したノートへの保存を含む）が走る。
           onChange={(blocks) => { if (!isUnchanged(blocks, active.content.blocks)) active.edit({ ...active.content, blocks }); }} />
       </div>
+      {!embedded && !split && <NoteFloatingToc blocks={active.content.blocks} scrollRootRef={rootRef} activeId={activeId} />}
       <PageAssistant key={activeId} pageId={activeId} pageTitle={active.content.title} model={model} reasoning={reasoning}
         onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={() => active.flush()} embedded={embedded}
         selection={aiSelection} onClearSelection={(sent) => setAiAsk((current) => clearActiveSelection(current, activeId, sent))} openSignal={aiOpenSignal} hidden={split} />

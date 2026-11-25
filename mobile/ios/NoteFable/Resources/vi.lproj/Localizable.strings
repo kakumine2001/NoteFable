@@ -417,6 +417,8 @@
 "pg_search_pages" = "Tìm kiếm trang";
 "pg_no_matching_pages" = "Không có trang nào khớp.";
 "pg_subpages_to_trash" = "Các trang con bên trong cũng sẽ được chuyển vào Thùng rác.";
+"pg_rename_page" = "Đổi tên trang";
+"pg_page_title" = "Tiêu đề trang";
 
 /* strings_personal.xml */
 "appearance" = "Giao diện";

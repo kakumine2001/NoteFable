@@ -103,7 +103,7 @@ private struct NotesDrawerList: View {
                 .padding(.top, 12)
                 .padding(.bottom, 6)
                 ForEach(favorites) { page in
-                    NotesDrawerFavoriteRow(page: page, busy: busy)
+                    NotesDrawerFavoriteRow(page: page, busy: busy, dialog: $dialog)
                 }
             }
             if !favorites.isEmpty {
@@ -286,6 +286,7 @@ private struct NotesDrawerRow: View {
     let reorder: ReorderDragController
     @Binding var dialog: NotesDialogState?
     @State private var picking = false
+    @State private var menuOpen = false
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router
 
@@ -319,14 +320,16 @@ private struct NotesDrawerRow: View {
                 NoteRowAction(icon: Lucide.plus, iconSize: 14, label: L("pg_add_page_inside_title", page.title), action: open)
             }
             .disabled(busy)
-            NoteRowAction(icon: Lucide.folderInput, iconSize: 14, label: L("move_title_to_project", page.title)) {
-                dialog = .move(pageId: page.id)
+            let menuLabel = L("sb_actions_for_title", page.title)
+            NoteRowAction(icon: Lucide.ellipsis, iconSize: 14, label: menuLabel) {
+                menuOpen = true
             }
             .disabled(busy)
-            NoteRowAction(icon: Lucide.trash2, iconSize: 14, label: L("move_title_to_trash", page.title)) {
-                dialog = .trashNote(page)
+            .actionsMenu(isPresented: $menuOpen, label: menuLabel) {
+                NoteRowMenu(page: page, dialog: $dialog) {
+                    menuOpen = false
+                }
             }
-            .disabled(busy)
         }
         .padding(.leading, 4)
         .frame(minHeight: 42)
@@ -412,11 +415,48 @@ private struct NotesDrawerRow: View {
 // MARK: - 收藏的行
 
 /// Favorites 的行：高 42；图标区 28（左距 4，语义色页面类型图标 15）；标题 14；
-/// 右侧“从收藏中移除”小按钮（StarOff 14）。当前打开的行浮起圆角卡。
+/// 笔记行的“...”操作菜单（网页 NotesSidebar 的 AnswerMenu）：改名、收藏/取消收藏、移到项目、移到回收站。
+@MainActor
+private struct NoteRowMenu: View {
+    let page: NotePageSummary
+    @Binding var dialog: NotesDialogState?
+    let onClose: () -> Void
+    @Environment(AppEnvironment.self) private var app
+
+    var body: some View {
+        let fav = page.favoritedAt != nil
+        VStack(alignment: .leading, spacing: 0) {
+            if !page.locked {
+                ActionsMenuItem(L("sb_rename"), icon: Lucide.pencil) {
+                    onClose()
+                    dialog = .renamePage(page)
+                }
+            }
+            ActionsMenuItem(L(fav ? "pg_remove_from_favorites" : "pg_add_to_favorites"), icon: fav ? Lucide.starOff : Lucide.star) {
+                onClose()
+                let notes = app.notes
+                let id = page.id
+                Task { @MainActor in _ = await notes.setFavorite(id, !fav) }
+            }
+            ActionsMenuItem(L("pg_move_to"), icon: Lucide.folderInput) {
+                onClose()
+                dialog = .move(pageId: page.id)
+            }
+            ActionsMenuDivider()
+            ActionsMenuItem(L("move_to_trash"), icon: Lucide.trash2, role: .danger) {
+                onClose()
+                dialog = .trashNote(page)
+            }
+        }
+    }
+}
+
+/// 右侧重命名（非锁定时）与“从收藏中移除”小按钮（Pencil 13 + StarOff 14）。当前打开的行浮起圆角卡。
 @MainActor
 private struct NotesDrawerFavoriteRow: View {
     let page: NotePageSummary
     let busy: Bool
+    @Binding var dialog: NotesDialogState?
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router
 
@@ -446,6 +486,12 @@ private struct NotesDrawerFavoriteRow: View {
             }
             .buttonStyle(.pressable(cornerRadius: 0))
             .disabled(busy)
+            if !page.locked {
+                NoteRowAction(icon: Lucide.pencil, iconSize: 13, label: L("rename_name", page.title)) {
+                    dialog = .renamePage(page)
+                }
+                .disabled(busy)
+            }
             NoteRowAction(icon: Lucide.starOff, iconSize: 14, label: L("pg_remove_title_from_favorites", page.title)) {
                 Task { @MainActor in _ = await notes.setFavorite(pageId, false) }
             }

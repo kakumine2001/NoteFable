@@ -171,7 +171,7 @@ describe("public note colors", { timeout: 30_000 }, () => {
         ] },
       },
     ]);
-    expect(html).toContain('<div class="public-note-block" style="color:var(--public-note-red-text);background-color:var(--public-note-blue-bg);text-align:center"><h2 class="public-note-h2">');
+    expect(html).toContain('<div class="public-note-block" style="color:var(--public-note-red-text);background-color:var(--public-note-blue-bg);text-align:center"><h2 id="heading-h" class="public-note-h2">');
     expect(html).toContain('<span style="color:var(--public-note-green-text);background-color:var(--public-note-yellow-bg)" class="public-note-highlight">marked</span>');
     expect(html).toContain('<span style="color:var(--public-note-pink-text)">tinted</span>');
     expect(html).toContain('<th style="background-color:var(--public-note-gray-bg)">');
@@ -200,6 +200,36 @@ describe("public note colors", { timeout: 30_000 }, () => {
     ]);
     expect(html).toContain('<div class="public-note-block public-note-paragraph"><p><span>plain</span></p></div>');
     expect(html).toContain('<div class="public-note-block public-note-paragraph"><p><span>block</span></p></div>');
+  });
+
+  it("renders tableOfContents anchor links targeting headings in the shared note", async () => {
+    const html = await render([
+      { id: "toc", type: "tableOfContents", props: {}, children: [] },
+      { id: "h-intro", type: "heading", props: { level: 1 }, content: [text("Intro")], children: [] },
+      { id: "h-detail", type: "heading", props: { level: 2 }, content: [text("Detail")], children: [] },
+    ]);
+    expect(html).toContain('<h1 id="heading-h-intro" class="public-note-h1"><span>Intro</span></h1>');
+    expect(html).toContain('<h2 id="heading-h-detail" class="public-note-h2"><span>Detail</span></h2>');
+    expect(html).toContain('<a href="#heading-h-intro" class="public-note-toc-link">Intro</a>');
+    expect(html).toContain('<a href="#heading-h-detail" class="public-note-toc-link">Detail</a>');
+  });
+
+  it("caps rendered tableOfContents links across repeated TOC blocks on one shared page", async () => {
+    const headings = Array.from({ length: 120 }, (_, i) => ({
+      id: `h-${i}`,
+      type: "heading",
+      props: { level: 1 },
+      content: [text(`Heading ${i}`)],
+      children: [],
+    }));
+    const tocs = Array.from({ length: 12 }, (_, i) => ({
+      id: `toc-${i}`,
+      type: "tableOfContents",
+      props: {},
+      children: [],
+    }));
+    const html = await render([...tocs, ...headings]);
+    expect(html.match(/class="public-note-toc-link"/g)?.length).toBe(1000);
   });
 
   it("keeps the light colors and uses the editor's colors in dark mode", () => {

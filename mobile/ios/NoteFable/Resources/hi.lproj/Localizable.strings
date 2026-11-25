@@ -417,6 +417,8 @@
 "pg_search_pages" = "पेज खोजें";
 "pg_no_matching_pages" = "कोई मेल खाता पेज नहीं मिला।";
 "pg_subpages_to_trash" = "इसके सब-पेज भी इसके साथ ट्रैश में चले जाएँगे।";
+"pg_rename_page" = "पृष्ठ का नाम बदलें";
+"pg_page_title" = "पृष्ठ शीर्षक";
 
 /* strings_personal.xml */
 "appearance" = "दिखावट";

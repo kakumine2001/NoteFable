@@ -3,6 +3,7 @@
 import { Check, FolderPlus } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { NoteGroupSummary, NotePageSummary } from "@/types/notes";
+import { MAX_NOTE_TITLE } from "@/lib/note-document";
 import { useT } from "@/components/i18n-provider";
 import { localizeSystemText } from "@/lib/i18n/translate";
 import { childrenByParent, descendantIdsOf } from "@/lib/note-tree";
@@ -40,6 +41,40 @@ export function GroupNameDialog({ title, initial = "", submitLabel, error, onSub
       <div className="mt-5 flex justify-end gap-2">
         <button type="button" className="notion-button" onClick={onClose}>{t("Cancel")}</button>
         <button type="submit" disabled={busy || !name.trim()} className="notion-button notion-button-primary">{submitLabel}</button>
+      </div>
+    </form>
+  </Modal>;
+}
+
+export function RenamePageDialog({ page, error, onSubmit, onClose }: {
+  page: NotePageSummary; error: string;
+  onSubmit: (title: string) => Promise<boolean>; onClose: () => void;
+}) {
+  const t = useT();
+  const [name, setName] = useState(page.title);
+  const [busy, setBusy] = useState(false);
+  const [tried, setTried] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    inputRef.current?.select();
+  }, []);
+  async function submit() {
+    setBusy(true);
+    setTried(true);
+    const ok = await onSubmit(name);
+    setBusy(false);
+    if (ok) onClose();
+  }
+  const heading = t("Rename page");
+  return <Modal label={heading} onClose={onClose}>
+    <form onSubmit={(event) => { event.preventDefault(); void submit(); }}>
+      <h2 className="text-base font-semibold">{heading}</h2>
+      <input ref={inputRef} autoFocus value={name} maxLength={MAX_NOTE_TITLE} onChange={(event) => setName(event.target.value)}
+        placeholder={t("Page title")} className="notes-dialog-input" aria-label={t("Page title")} />
+      {tried && error && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{localizeSystemText(error, t)}</p>}
+      <div className="mt-5 flex justify-end gap-2">
+        <button type="button" disabled={busy} className="notion-button" onClick={onClose}>{t("Cancel")}</button>
+        <button type="submit" disabled={busy || !name.trim()} className="notion-button notion-button-primary">{t("Save")}</button>
       </div>
     </form>
   </Modal>;

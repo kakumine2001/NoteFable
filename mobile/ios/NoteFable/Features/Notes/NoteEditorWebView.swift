@@ -229,7 +229,7 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
             }
             if let expected = self.awaitingPageId {
                 switch message {
-                case .ready(let id, _, _, _):
+                case .ready(let id, _, _, _, _):
                     if id != expected { return }
                     self.awaitingPageId = nil
                     self.currentPageId = id
@@ -242,7 +242,7 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
                 }
             } else {
                 switch message {
-                case .ready(let id, _, _, _):
+                case .ready(let id, _, _, _, _):
                     // 冲突后“另存为新笔记”：开着的换成了副本，它也在网页的缓存里。
                     self.currentPageId = id
                     self.openedPageIds.insert(id)

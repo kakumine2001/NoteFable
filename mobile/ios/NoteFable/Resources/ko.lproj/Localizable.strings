@@ -417,6 +417,8 @@
 "pg_search_pages" = "페이지 검색";
 "pg_no_matching_pages" = "일치하는 페이지가 없어요.";
 "pg_subpages_to_trash" = "하위 페이지도 함께 휴지통으로 이동합니다.";
+"pg_rename_page" = "페이지 이름 바꾸기";
+"pg_page_title" = "페이지 제목";
 
 /* strings_personal.xml */
 "appearance" = "화면 스타일";

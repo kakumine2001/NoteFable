@@ -417,6 +417,8 @@
 "pg_search_pages" = "Cari halaman";
 "pg_no_matching_pages" = "Tidak ada halaman yang cocok.";
 "pg_subpages_to_trash" = "Subhalaman di dalamnya ikut dipindahkan ke Sampah.";
+"pg_rename_page" = "Ganti nama halaman";
+"pg_page_title" = "Judul halaman";
 
 /* strings_personal.xml */
 "appearance" = "Tampilan";

@@ -25,4 +25,6 @@
     <string name="pg_search_pages">Поиск страниц</string>
     <string name="pg_no_matching_pages">Подходящих страниц не найдено.</string>
     <string name="pg_subpages_to_trash">Вложенные подстраницы будут перемещены в корзину вместе с ней.</string>
+    <string name="pg_rename_page">Переименовать страницу</string>
+    <string name="pg_page_title">Название страницы</string>
 </resources>

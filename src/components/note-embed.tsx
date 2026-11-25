@@ -133,6 +133,16 @@ export function NoteEmbed() {
       const handed = await flushCanvasEditors();
       canvasHanded.current = handed;
       const saved = await (activeRef.current?.flush() ?? true);
+      const current = activeRef.current;
+      // フラッシュで version が進んだ直後は、flushed より先に最新の meta(version) を届けて、直後の重命名等が古い版を送らないようにする。
+      if (handed && saved && current && sent.current.readyId === current.page.id) {
+        const meta = pageMeta({ title: current.content.title, icon: current.content.icon ?? null });
+        const metaKey = JSON.stringify({ ...meta, version: current.version });
+        if (sent.current.meta !== metaKey) {
+          sent.current.meta = metaKey;
+          postToNative({ type: "meta", ...meta, version: current.version });
+        }
+      }
       return handed && saved;
     },
     // 衝突ではなく一時的な失敗（オフライン・サーバーエラー）で、下書きを localStorage に退避できているときだけ。/app と同じく離れても後で送り直せる。
@@ -188,6 +198,7 @@ export function NoteEmbed() {
 
   const title = active?.content.title;
   const icon = active?.content.icon;
+  const version = active?.version;
   const status = active?.status;
   const gone = active?.gone;
   const kind = pageKindOf(active?.page);
@@ -195,14 +206,15 @@ export function NoteEmbed() {
     if (idle || !active || !activeId || loading || title === undefined) return;
     if (openToken !== openTokenRef.current) return;
     const meta = pageMeta({ title, icon: icon ?? null });
+    const metaKey = JSON.stringify({ ...meta, version });
     // 衝突を「新しいノートとして保存」すると、開いているノートが新しいページに替わる。そのときも ready を送り直す。
     if (sent.current.readyId !== activeId) {
       expectedPageRef.current = activeId;
-      sent.current = { readyId: activeId, meta: JSON.stringify(meta), state: "", goneId: "" };
-      postToNative({ type: "ready", page: { id: activeId, ...meta, kind } });
-    } else if (sent.current.meta !== JSON.stringify(meta)) {
-      sent.current.meta = JSON.stringify(meta);
-      postToNative({ type: "meta", ...meta });
+      sent.current = { readyId: activeId, meta: metaKey, state: "", goneId: "" };
+      postToNative({ type: "ready", page: { id: activeId, ...meta, kind, version } });
+    } else if (sent.current.meta !== metaKey) {
+      sent.current.meta = metaKey;
+      postToNative({ type: "meta", ...meta, version });
     }
     const state = status ? toEmbedSaveState(status) : "saved";
     if (sent.current.state !== state) {
@@ -215,7 +227,7 @@ export function NoteEmbed() {
       sent.current.goneId = activeId;
       postToNative({ type: "missing", id: activeId });
     }
-  }, [idle, active, activeId, loading, title, icon, status, gone, kind, openToken]);
+  }, [idle, active, activeId, loading, title, icon, version, status, gone, kind, openToken]);
 
   useEffect(() => {
     const request = revealRef.current;

@@ -25,4 +25,6 @@
     <string name="pg_search_pages">البحث في الصفحات</string>
     <string name="pg_no_matching_pages">لا توجد صفحات مطابقة.</string>
     <string name="pg_subpages_to_trash">تنتقل صفحاتها الفرعية معها إلى سلة المهملات.</string>
+    <string name="pg_rename_page">إعادة تسمية الصفحة</string>
+    <string name="pg_page_title">عنوان الصفحة</string>
 </resources>

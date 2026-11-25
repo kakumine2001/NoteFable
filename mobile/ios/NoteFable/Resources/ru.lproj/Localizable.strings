@@ -417,6 +417,8 @@
 "pg_search_pages" = "Поиск страниц";
 "pg_no_matching_pages" = "Подходящих страниц не найдено.";
 "pg_subpages_to_trash" = "Вложенные подстраницы будут перемещены в корзину вместе с ней.";
+"pg_rename_page" = "Переименовать страницу";
+"pg_page_title" = "Название страницы";
 
 /* strings_personal.xml */
 "appearance" = "Оформление";
