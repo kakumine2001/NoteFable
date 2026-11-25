@@ -68,7 +68,7 @@ private struct ChatRecentNoteCard: View {
     var body: some View {
         let title = page.title.isEmpty ? L("sb_untitled") : page.title
         let shape = RoundedRectangle(cornerRadius: 14.4)
-        let hasCover = NoteCovers.preset(page.cover) != null || NoteCovers.imagePath(page.cover) != null
+        let hasCover = NoteCovers.preset(page.cover) != nil || NoteCovers.imagePath(page.cover) != nil
         Button(action: onToggle) {
             VStack(alignment: .leading, spacing: 0) {
                 if hasCover {
