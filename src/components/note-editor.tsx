@@ -16,7 +16,7 @@ import { StorageLimitError } from "@/lib/usage-plans";
 import { normalizeQuote } from "@/lib/chat-quote";
 import { useTheme } from "@/lib/theme";
 import { createCalloutBlockSpec } from "@/components/note-callout";
-import { canInsertColumns, columnListSpec, columnSpec, computeColumnDropPosition, insertColumns } from "@/components/note-columns";
+import { canInsertColumns, columnListSpec, columnSpec, computeColumnDropPosition, insertColumns, removeBlocksSafely } from "@/components/note-columns";
 import { NoteIcon } from "@/components/note-icon";
 import { NoteMentionContext, createMentionSpec, formatNoteDate, type MentionPage } from "@/components/note-mention";
 import { dateMention, isNoteDate, localDate, notePageIdFromUrl, pageMention } from "@/lib/note-mention";
@@ -299,7 +299,7 @@ function BlockMenu() {
       {t("Duplicate")}<span className="notes-menu-shortcut">{MOD}+D</span>
     </Components.Generic.Menu.Item>
     <Components.Generic.Menu.Item className="bn-menu-item" icon={<Trash2 size={16} />} onClick={() => {
-      editor.removeBlocks(rootTargets);
+      editor.transact(() => removeBlocksSafely(editor, rootTargets.map((b) => b.id)));
       if (inMarqueeSelection) selectionCtx?.clearSelection();
     }}>
       {t("Delete")}<span className="notes-menu-shortcut">Del</span>
@@ -335,23 +335,23 @@ function NoteSideMenu() {
         position={dir === "rtl" ? "right" : "left"}
         portalElement={portalElement}
       >
-        <Components.Generic.Menu.Trigger>
-          <span
-            className="contents"
-            onPointerDownCapture={(event) => {
-              if (event.button === 0 && event.pointerType !== "touch") {
-                selectionCtx?.startSelectedBlocksDrag(event, true);
-              }
-            }}
-          >
+        <span
+          className="contents"
+          onPointerDownCapture={(event) => {
+            if (event.button === 0 && event.pointerType !== "touch") {
+              selectionCtx?.startSelectedBlocksDrag(event, true);
+            }
+          }}
+        >
+          <Components.Generic.Menu.Trigger>
             <Components.SideMenu.Button
               label={dict.side_menu.drag_handle_label}
               draggable={false}
               className="bn-button"
               icon={<GripVertical size={24} data-test="dragHandle" />}
             />
-          </span>
-        </Components.Generic.Menu.Trigger>
+          </Components.Generic.Menu.Trigger>
+        </span>
         <BlockMenu />
       </Components.Generic.Menu.Root>
     ) : (

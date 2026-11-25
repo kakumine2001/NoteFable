@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { removeBlocksSafely } from "@/components/note-columns";
 import {
   adjacentSelectableBlockId,
   buildNoteBlockSelection,
+  canIndentBlocks,
   canStartMarqueeTarget,
   clampRect,
   collectSubtreeIds,
@@ -10,6 +12,7 @@ import {
   isNoOpBlockMove,
   normalizeBlockSelection,
   orderedSelectableBlockIds,
+  parseClipboardBlocks,
   rectFromPoints,
   rectsIntersect,
   type SelectableBlock,
@@ -119,6 +122,80 @@ describe("note-block-selection tree helpers", () => {
     expect(sel?.text).toContain("---");
     expect(sel?.text).toContain("E=mc^2");
     expect(buildNoteBlockSelection(sampleDoc, [])).toBeNull();
+  });
+
+  it("skips collapsed toggle children in keyboard order, range expansion, and neighbor lookup", () => {
+    const collapsed = new Set(["t1"]);
+    expect(orderedSelectableBlockIds(sampleDoc, collapsed)).toEqual(["h1", "t1", "left-1", "right-1", "div", "math"]);
+    expect(adjacentSelectableBlockId(sampleDoc, "left-1", "up", collapsed)).toBe("t1");
+    expect(adjacentSelectableBlockId(sampleDoc, "t1", "down", collapsed)).toBe("left-1");
+    expect(expandSelectionRange(sampleDoc, "left-1", "t1", collapsed).map((b) => b.id)).toEqual(["t1", "left-1"]);
+  });
+
+  it("enforces the server nesting depth limit when indenting blocks", () => {
+    const makeChain = (prefix: string, levels: number): SelectableBlock => {
+      let cur: SelectableBlock = { id: `${prefix}-${levels}`, type: "paragraph", children: [] };
+      for (let i = levels - 1; i >= 0; i--) {
+        cur = { id: `${prefix}-${i}`, type: "bulletListItem", children: [cur] };
+      }
+      return cur;
+    };
+    // depth 8 parent chain (p-0 at depth 0 ... p-8 at depth 8): cannot indent sibling under p-8.
+    const deepRoot = makeChain("p", 7); // leaf p-7 at depth 7
+    const deepSibling: SelectableBlock = { id: "leaf", type: "paragraph", children: [] };
+    const parentAt7: SelectableBlock = {
+      id: "top",
+      type: "bulletListItem",
+      children: [makeChain("nested", 6), deepSibling], // nested-0 at 1 ... nested-6 at 7
+    };
+    expect(canIndentBlocks([deepRoot], "p-7", [deepSibling])).toBe(true); // parent depth 7 + 1 = 8
+    const tooDeepChild: SelectableBlock = {
+      id: "two-level",
+      type: "bulletListItem",
+      children: [{ id: "inner", type: "paragraph", children: [] }],
+    };
+    expect(canIndentBlocks([parentAt7], "nested-6", [tooDeepChild])).toBe(false); // 8 + 1 + 1 = 10 > 8
+    expect(canIndentBlocks([deepRoot], "p-6", [tooDeepChild])).toBe(true); // 6 + 1 + 1 = 8 <= 8
+  });
+
+  it("parses only valid structured Notefable clipboard payloads", () => {
+    expect(parseClipboardBlocks("")).toBeNull();
+    expect(parseClipboardBlocks("[Image: chart.png]")).toBeNull();
+    expect(parseClipboardBlocks("[]")).toBeNull();
+    expect(parseClipboardBlocks(JSON.stringify([{ id: "b1", type: "paragraph", children: [] }]))).toHaveLength(1);
+  });
+
+  it("removes blocks across multiple column layouts one-by-one in reverse document order", () => {
+    const doc = [
+      {
+        id: "cl-1",
+        type: "columnList",
+        children: [
+          { id: "c-1a", type: "column", children: [{ id: "a1", type: "paragraph", children: [] }] },
+          { id: "c-1b", type: "column", children: [{ id: "a2", type: "paragraph", children: [] }] },
+        ],
+      },
+      {
+        id: "cl-2",
+        type: "columnList",
+        children: [
+          { id: "c-2a", type: "column", children: [{ id: "b1", type: "paragraph", children: [] }] },
+          { id: "c-2b", type: "column", children: [{ id: "b2", type: "paragraph", children: [] }] },
+        ],
+      },
+    ];
+    const existing = new Set(["a1", "a2", "b1", "b2"]);
+    const calls: string[][] = [];
+    const fakeEditor = {
+      document: doc,
+      getBlock: (id: string) => (existing.has(id) ? { id } : undefined),
+      removeBlocks: (ids: string[]) => {
+        calls.push(ids);
+        for (const id of ids) existing.delete(id);
+      },
+    };
+    removeBlocksSafely(fakeEditor as never, ["a1", "b1"]);
+    expect(calls).toEqual([["b1"], ["a1"]]);
   });
 });
 

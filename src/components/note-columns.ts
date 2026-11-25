@@ -215,6 +215,30 @@ function collectJsonIds(blocks: readonly JsonBlock[]): string[] {
   return blocks.map((b) => b.id).filter((id): id is string => typeof id === "string" && id.length > 0);
 }
 
+function collectAllBlockIds(blocks: readonly JsonBlock[]): string[] {
+  const ids: string[] = [];
+  const visit = (list: readonly JsonBlock[]) => {
+    for (const block of list) {
+      if (typeof block.id === "string" && block.id.length > 0) ids.push(block.id);
+      if (block.children?.length) visit(block.children);
+    }
+  };
+  visit(blocks);
+  return ids;
+}
+
+// 複数カラムをまたいだ一括削除では先の columnList collapse が後ろの Pos をずらすため、文書逆順で 1 件ずつ削除する。
+export function removeBlocksSafely(editor: AnyEditor, ids: readonly string[]) {
+  if (!ids.length) return;
+  const targetSet = new Set(ids);
+  const docIds = collectAllBlockIds(editor.document as unknown as JsonBlock[]);
+  const ordered = docIds.filter((id) => targetSet.has(id));
+  const extras = ids.filter((id) => !ordered.includes(id));
+  for (const id of [...extras, ...ordered].reverse()) {
+    if (editor.getBlock(id)) editor.removeBlocks([id]);
+  }
+}
+
 export function moveBlocksBeside(
   editor: AnyEditor,
   dragged: JsonBlock[],
@@ -223,9 +247,14 @@ export function moveBlocksBeside(
   removeOriginal = true,
 ): string[] {
   if (!dragged.length) return [];
-  const moving = withoutIds(unwrapColumns(dragged));
+  const unwrapped = unwrapColumns(dragged);
+  const moving = removeOriginal ? structuredClone(unwrapped) : withoutIds(unwrapped);
   let insertedIds: string[] = [];
   editor.transact(() => {
+    if (removeOriginal) {
+      const toRemove = dragged.map((block) => block.id).filter((id): id is string => typeof id === "string");
+      removeBlocksSafely(editor, toRemove);
+    }
     const targetBlock = editor.getBlock(targetBlockId);
     if (!targetBlock) return;
     const parent = editor.getParentBlock(targetBlockId);
@@ -242,10 +271,6 @@ export function moveBlocksBeside(
       const { insertedBlocks } = editor.replaceBlocks([targetBlockId], [{ type: COLUMN_LIST, children: before ? [added, own] : [own, added] } as never]);
       const list = insertedBlocks[0] as unknown as JsonBlock | undefined;
       insertedIds = collectJsonIds(list?.children?.[before ? 0 : 1]?.children ?? []);
-    }
-    if (removeOriginal) {
-      const toRemove = dragged.map((block) => block.id).filter((id): id is string => typeof id === "string" && Boolean(editor.getBlock(id)));
-      if (toRemove.length) editor.removeBlocks(toRemove);
     }
   });
   return insertedIds;

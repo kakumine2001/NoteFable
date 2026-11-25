@@ -36,18 +36,24 @@ export function clampRect(rect: SelectionRect, bounds: SelectionRect): Selection
   return { left, top, right, bottom };
 }
 
+export const MAX_NOTE_BLOCK_DEPTH = 8;
+export const NOTEFABLE_BLOCKS_MIME = "application/x-notefable-blocks";
+
 export function isContainerOnlyBlock(type: string): boolean {
   return type === COLUMN_LIST || type === COLUMN;
 }
 
-export function orderedSelectableBlockIds(blocks: readonly SelectableBlock[]): string[] {
+export function orderedSelectableBlockIds(
+  blocks: readonly SelectableBlock[],
+  collapsedParentIds?: ReadonlySet<string>,
+): string[] {
   const ids: string[] = [];
   const visit = (list: readonly SelectableBlock[]) => {
     for (const block of list) {
       if (!isContainerOnlyBlock(block.type)) {
         ids.push(block.id);
       }
-      if (block.children.length) {
+      if (block.children.length && !collapsedParentIds?.has(block.id)) {
         visit(block.children);
       }
     }
@@ -94,8 +100,13 @@ export function normalizeBlockSelection(blocks: readonly SelectableBlock[], rawI
   return selectedRootBlocks(ordered);
 }
 
-export function expandSelectionRange(blocks: readonly SelectableBlock[], anchorId: string, targetId: string): SelectableBlock[] {
-  const ordered = orderedSelectableBlockIds(blocks);
+export function expandSelectionRange(
+  blocks: readonly SelectableBlock[],
+  anchorId: string,
+  targetId: string,
+  collapsedParentIds?: ReadonlySet<string>,
+): SelectableBlock[] {
+  const ordered = orderedSelectableBlockIds(blocks, collapsedParentIds);
   const a = ordered.indexOf(anchorId);
   const b = ordered.indexOf(targetId);
   if (a < 0 || b < 0) return [];
@@ -104,12 +115,71 @@ export function expandSelectionRange(blocks: readonly SelectableBlock[], anchorI
   return normalizeBlockSelection(blocks, ordered.slice(start, end + 1));
 }
 
-export function adjacentSelectableBlockId(blocks: readonly SelectableBlock[], currentId: string, direction: "up" | "down"): string | null {
-  const ordered = orderedSelectableBlockIds(blocks);
+export function adjacentSelectableBlockId(
+  blocks: readonly SelectableBlock[],
+  currentId: string,
+  direction: "up" | "down",
+  collapsedParentIds?: ReadonlySet<string>,
+): string | null {
+  const ordered = orderedSelectableBlockIds(blocks, collapsedParentIds);
   const idx = ordered.indexOf(currentId);
   if (idx < 0) return null;
   const nextIdx = direction === "up" ? idx - 1 : idx + 1;
   return nextIdx >= 0 && nextIdx < ordered.length ? ordered[nextIdx] : null;
+}
+
+function contentBlockDepth(blocks: readonly SelectableBlock[], targetId: string, depth = 0): number {
+  for (const block of blocks) {
+    if (block.id === targetId) return depth;
+    if (block.children.length) {
+      const nextDepth = isContainerOnlyBlock(block.type) ? depth : depth + 1;
+      const found = contentBlockDepth(block.children, targetId, nextDepth);
+      if (found >= 0) return found;
+    }
+  }
+  return -1;
+}
+
+function maxRelativeContentDepth(block: SelectableBlock): number {
+  if (!block.children.length) return 0;
+  let deepest = 0;
+  for (const child of block.children) {
+    const childDepth = isContainerOnlyBlock(child.type)
+      ? maxRelativeContentDepth(child)
+      : 1 + maxRelativeContentDepth(child);
+    if (childDepth > deepest) deepest = childDepth;
+  }
+  return deepest;
+}
+
+export function canIndentBlocks(
+  blocks: readonly SelectableBlock[],
+  targetParentId: string,
+  roots: readonly SelectableBlock[],
+): boolean {
+  const parentDepth = contentBlockDepth(blocks, targetParentId);
+  if (parentDepth < 0) return false;
+  const deepestRoot = roots.reduce((max, root) => Math.max(max, maxRelativeContentDepth(root)), 0);
+  return parentDepth + 1 + deepestRoot <= MAX_NOTE_BLOCK_DEPTH;
+}
+
+export function parseClipboardBlocks(raw: string): SelectableBlock[] | null {
+  if (!raw) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed) || !parsed.length) return null;
+    const valid = parsed.every(
+      (item): item is SelectableBlock =>
+        typeof item === "object" &&
+        item !== null &&
+        typeof (item as { id?: unknown }).id === "string" &&
+        typeof (item as { type?: unknown }).type === "string" &&
+        Array.isArray((item as { children?: unknown }).children),
+    );
+    return valid ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 function findSiblingList(blocks: readonly SelectableBlock[], targetId: string): readonly SelectableBlock[] | null {

@@ -4638,6 +4638,9 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 .whiteboard-thumbnail:not([data-state="ready"]) .whiteboard-thumbnail-image { display: none; }
 
 /* ===== ノート：Notion 風ブロック範囲選択・移動・フローティングバー ===== */
+.notes-workspace:focus {
+  outline: none;
+}
 .notes-workspace.is-marquee-selecting,
 .notes-workspace.is-marquee-selecting * {
   user-select: none !important;

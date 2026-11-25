@@ -8,12 +8,14 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { createPortal } from "react-dom";
 import { AppIcon } from "@/components/app-icon";
 import { useI18n, useT } from "@/components/i18n-provider";
-import { findColumnSideTarget, moveBlocksBeside, type ColumnSideDropTarget } from "@/components/note-columns";
+import { findColumnSideTarget, moveBlocksBeside, removeBlocksSafely, type ColumnSideDropTarget } from "@/components/note-columns";
 import { msg } from "@/lib/i18n/translate";
 import { NOTE_TEXT_BLOCKS, blockMatchesTarget, codeBlockText, copyNoteBlocks, selectedRootBlocks, targetProps, type NoteBlockTarget } from "@/lib/note-block-actions";
 import {
+  NOTEFABLE_BLOCKS_MIME,
   adjacentSelectableBlockId,
   buildNoteBlockSelection,
+  canIndentBlocks,
   canStartMarqueeTarget,
   clampRect,
   collectSubtreeIds,
@@ -22,6 +24,7 @@ import {
   isNoOpBlockMove,
   normalizeBlockSelection,
   orderedSelectableBlockIds,
+  parseClipboardBlocks,
   rectFromPoints,
   rectsIntersect,
   type SelectableBlock,
@@ -142,9 +145,6 @@ export function paintBlocksColor(
   });
 }
 
-type CopiedBlocksPayload = { text: string; blocks: SelectableBlock[] };
-let copiedBlocksClipboard: CopiedBlocksPayload | null = null;
-
 type DropTarget =
   | { kind: "vertical"; targetId: string; placement: "before" | "after"; line: { left: number; top: number; width: number } }
   | { kind: "column"; target: ColumnSideDropTarget };
@@ -177,6 +177,18 @@ function blockContentRect(container: HTMLElement): DOMRect {
     ?? container.querySelector<HTMLElement>(":scope > .bn-block > .bn-block-content")
     ?? container.querySelector<HTMLElement>(":scope > .bn-block");
   return (content ?? container).getBoundingClientRect();
+}
+
+function getCollapsedBlockIds(wrap: HTMLElement | null): Set<string> {
+  const collapsed = new Set<string>();
+  if (!wrap) return collapsed;
+  const hiddenToggles = wrap.querySelectorAll<HTMLElement>('[data-show-children="false"]');
+  for (const el of hiddenToggles) {
+    const container = el.closest<HTMLElement>('.bn-editor [data-node-type="blockContainer"][data-id]');
+    const id = container?.getAttribute("data-id");
+    if (id) collapsed.add(id);
+  }
+  return collapsed;
 }
 
 function blockPreviewLabel(blocks: readonly SelectableBlock[], fallback: string): string {
@@ -265,10 +277,30 @@ export function useNoteBlockSelection({
   const lastEmittedKeyRef = useRef("");
   const isMarqueeActiveRef = useRef(false);
   const didMarqueeDragRef = useRef(false);
+  const activeGestureCancelRef = useRef<(() => void) | null>(null);
 
   const onSelectionChangeRef = useRef(onSelectionChange);
   useEffect(() => { onSelectionChangeRef.current = onSelectionChange; }, [onSelectionChange]);
-  useEffect(() => () => { onSelectionChangeRef.current?.(null); }, []);
+  useEffect(() => () => {
+    activeGestureCancelRef.current?.();
+    activeGestureCancelRef.current = null;
+    onSelectionChangeRef.current?.(null);
+  }, []);
+
+  useEffect(() => {
+    const surface = workspaceRef?.current ?? editorWrapRef.current;
+    if (!surface) return;
+    const addedTabIndex = surface.getAttribute("tabindex") === null;
+    if (addedTabIndex) surface.setAttribute("tabindex", "-1");
+    return () => {
+      if (addedTabIndex) surface.removeAttribute("tabindex");
+    };
+  }, [editorWrapRef, workspaceRef]);
+
+  const focusSelectionSurface = useCallback(() => {
+    const surface = workspaceRef?.current ?? editorWrapRef.current;
+    surface?.focus({ preventScroll: true });
+  }, [editorWrapRef, workspaceRef]);
 
   const emitSelection = useCallback((ids: readonly string[]) => {
     const listener = onSelectionChangeRef.current;
@@ -358,7 +390,21 @@ export function useNoteBlockSelection({
     const getScrollContainer = () => workspaceRef?.current ?? editorWrapRef.current;
 
     const computeDropAt = (clientX: number, clientY: number): DropTarget | null => {
+      const workspaceEl = workspaceRef?.current ?? editorWrapRef.current;
       const view = editor.prosemirrorView;
+      if (!workspaceEl || !view || view.isDestroyed) return null;
+      const wsRect = workspaceEl.getBoundingClientRect();
+      if (clientX < wsRect.left || clientX > wsRect.right || clientY < wsRect.top || clientY > wsRect.bottom) {
+        return null;
+      }
+      const underPointer = document.elementFromPoint(clientX, clientY);
+      if (underPointer && !workspaceEl.contains(underPointer)) {
+        return null;
+      }
+      const viewRect = view.dom.getBoundingClientRect();
+      if (clientX < viewRect.left - 48 || clientX > viewRect.right + 48) {
+        return null;
+      }
       const sideTarget = findColumnSideTarget(view, clientX, clientY, excludedIds);
       if (sideTarget) {
         return { kind: "column", target: sideTarget };
@@ -366,16 +412,18 @@ export function useNoteBlockSelection({
       const wrap = editorWrapRef.current;
       if (!wrap) return null;
       const containers = Array.from(wrap.querySelectorAll<HTMLElement>('.bn-editor [data-node-type="blockContainer"][data-id]'));
-      let best: { id: string; rect: DOMRect; distance: number } | null = null;
+      let best: { id: string; rect: DOMRect; score: number } | null = null;
       for (const el of containers) {
         const id = el.getAttribute("data-id");
         if (!id || excludedIds.has(id)) continue;
         const rect = blockContentRect(el);
         if (rect.width <= 0 || rect.height <= 0) continue;
-        const distance = clientY < rect.top ? rect.top - clientY : clientY > rect.bottom ? clientY - rect.bottom : 0;
-        if (!best || distance < best.distance) {
-          best = { id, rect, distance };
-          if (distance === 0) break;
+        const dy = clientY < rect.top ? rect.top - clientY : clientY > rect.bottom ? clientY - rect.bottom : 0;
+        const dx = clientX < rect.left ? rect.left - clientX : clientX > rect.right ? clientX - rect.right : 0;
+        const score = (dx > 0 ? 10000 + dx : 0) + dy;
+        if (!best || score < best.score) {
+          best = { id, rect, score };
+          if (score === 0) break;
         }
       }
       if (!best) return null;
@@ -413,6 +461,7 @@ export function useNoteBlockSelection({
     };
 
     const cleanup = () => {
+      if (activeGestureCancelRef.current === cleanup) activeGestureCancelRef.current = null;
       if (rafId) { window.cancelAnimationFrame(rafId); rafId = 0; }
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
@@ -478,29 +527,38 @@ export function useNoteBlockSelection({
         window.addEventListener("click", suppressClick, { capture: true, once: true });
         window.setTimeout(() => window.removeEventListener("click", suppressClick, true), 50);
       }
-      if (!drop) return;
+      if (!drop) {
+        if (wasActive) focusSelectionSurface();
+        return;
+      }
       if (drop.kind === "vertical") {
-        const copies = copyNoteBlocks(roots);
+        const moved = structuredClone(roots);
         editor.transact(() => {
-          editor.insertBlocks(copies as never[], drop.targetId, drop.placement);
-          editor.removeBlocks(rootIds);
+          removeBlocksSafely(editor, rootIds);
+          editor.insertBlocks(moved as never[], drop.targetId, drop.placement);
         });
-        commitSelection(copies.map((copy) => copy.id));
+        commitSelection(rootIds, rootIds[0], rootIds[rootIds.length - 1]);
+        focusSelectionSurface();
       } else {
         const movedIds = moveBlocksBeside(editor, roots as never[], drop.target.blockId, drop.target.before);
-        if (movedIds.length) commitSelection(movedIds);
+        if (movedIds.length) {
+          commitSelection(movedIds, movedIds[0], movedIds[movedIds.length - 1]);
+          focusSelectionSurface();
+        }
       }
     };
 
     if (!fromHandle) {
       startEvent.preventDefault();
     }
+    activeGestureCancelRef.current?.();
+    activeGestureCancelRef.current = cleanup;
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointercancel", onCancel);
     window.addEventListener("keydown", onKey, true);
     return true;
-  }, [clearSelection, commitSelection, editable, editor, editorWrapRef, t, workspaceRef]);
+  }, [clearSelection, commitSelection, editable, editor, editorWrapRef, focusSelectionSurface, t, workspaceRef]);
 
   // 範囲選択（マーキー）＋ ブロック上の Shift / Ctrl+クリック / 選択中ブロックのドラッグ開始。
   useEffect(() => {
@@ -528,8 +586,12 @@ export function useNoteBlockSelection({
         if (event.shiftKey) {
           event.preventDefault();
           const anchor = anchorIdRef.current ?? selectedIdsRef.current[0];
-          const range = expandSelectionRange(editor.document as unknown as SelectableBlock[], anchor, hitId);
-          if (range.length) commitSelection(range.map((b) => b.id), anchor, hitId);
+          const collapsed = getCollapsedBlockIds(editorWrapEl);
+          const range = expandSelectionRange(editor.document as unknown as SelectableBlock[], anchor, hitId, collapsed);
+          if (range.length) {
+            commitSelection(range.map((b) => b.id), anchor, hitId);
+            focusSelectionSurface();
+          }
           return;
         }
         if (event.ctrlKey || event.metaKey) {
@@ -539,6 +601,7 @@ export function useNoteBlockSelection({
             ? selectedIdsRef.current.filter((id) => id !== hitId)
             : [...selectedIdsRef.current, hitId];
           commitSelection(next, anchorIdRef.current ?? hitId, hitId);
+          if (next.length) focusSelectionSurface();
           return;
         }
         if (Boolean(hitBlock?.closest('.bn-block-outer[data-block-selected="true"]'))) {
@@ -622,6 +685,7 @@ export function useNoteBlockSelection({
       };
 
       const cleanup = () => {
+        if (activeGestureCancelRef.current === cleanup) activeGestureCancelRef.current = null;
         isMarqueeActiveRef.current = false;
         if (rafId) { window.cancelAnimationFrame(rafId); rafId = 0; }
         window.removeEventListener("pointermove", onMove);
@@ -667,12 +731,15 @@ export function useNoteBlockSelection({
         cleanup();
         if (wasDragging) {
           window.setTimeout(() => { didMarqueeDragRef.current = false; }, 0);
-          commitSelection(latestHitIds, latestHitIds[0] ?? null, latestHitIds[latestHitIds.length - 1] ?? null);
+          const committed = commitSelection(latestHitIds, latestHitIds[0] ?? null, latestHitIds[latestHitIds.length - 1] ?? null);
+          if (committed.length) focusSelectionSurface();
         } else if (!event.shiftKey && !event.ctrlKey && !event.metaKey) {
           clearSelection();
         }
       };
 
+      activeGestureCancelRef.current?.();
+      activeGestureCancelRef.current = cleanup;
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
       window.addEventListener("pointercancel", onCancel);
@@ -680,31 +747,46 @@ export function useNoteBlockSelection({
 
     workspaceEl.addEventListener("pointerdown", onPointerDown);
     return () => workspaceEl.removeEventListener("pointerdown", onPointerDown);
-  }, [clearSelection, commitSelection, editor, editorWrapRef, startSelectedBlocksDrag, syncDomHighlights, workspaceRef]);
+  }, [clearSelection, commitSelection, editor, editorWrapRef, focusSelectionSurface, startSelectedBlocksDrag, syncDomHighlights, workspaceRef]);
 
-  // キーボード操作（Notion と同様の Escape / Shift+↑↓ / 删除 / 复制 / 移动 / 缩进 / 转换）。
+  // キーボード操作（フォーカス所有者のみに限定 + Escape / Shift+↑↓ / 删除 / 复制 / 移动 / 缩进 / 转换 / Undo）。
   useEffect(() => {
-    const isBlockedContext = (target: EventTarget | null) => {
-      const el = target instanceof Element ? target : document.activeElement;
+    const isBlockedElement = (el: Element | null) => {
       if (!el) return false;
-      if (el.closest(".note-ai-panel, .notes-math-popover, [role='dialog'], [role='menu'], [role='listbox'], #bn-suggestion-menu")) return true;
+      if (el.closest(".note-ai-panel, .note-ai-bubble, .note-ai-fab, .notes-header, .notes-math-popover, [role='dialog'], [role='menu'], [role='listbox'], #bn-suggestion-menu")) return true;
       if (el.closest("input, textarea, select")) return true;
       if (el instanceof HTMLElement && el.isContentEditable && !el.closest(".bn-editor")) return true;
       return false;
     };
 
+    const isSelectionFocusOwned = (target: EventTarget | null): boolean => {
+      const workspaceEl = workspaceRef?.current ?? editorWrapRef.current;
+      const editorWrapEl = editorWrapRef.current;
+      const active = document.activeElement instanceof Element ? document.activeElement : null;
+      const eventEl = target instanceof Element ? target : null;
+      const owner = active && active !== document.body && active !== document.documentElement ? active : eventEl;
+      if (!owner || isBlockedElement(owner)) return false;
+      if (owner.closest(".notes-block-bar")) return true;
+      if (editorWrapEl?.contains(owner)) return true;
+      if (workspaceEl && (owner === workspaceEl || (workspaceEl.contains(owner) && !owner.closest("button, a")))) {
+        return true;
+      }
+      return false;
+    };
+
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.isComposing || isBlockedContext(event.target)) return;
+      if (event.isComposing) return;
       const doc = editor.document as unknown as SelectableBlock[];
       const currentIds = selectedIdsRef.current;
 
       // ブロック選択が無いとき: エディター内で Esc を押すとキャレットのあるブロックを選択状態にする。
       if (!currentIds.length) {
+        const targetEl = event.target instanceof Element ? event.target : null;
         if (
           event.key === "Escape" &&
           !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey &&
-          event.target instanceof Element &&
-          editorWrapRef.current?.contains(event.target) &&
+          targetEl && !isBlockedElement(targetEl) &&
+          editorWrapRef.current?.contains(targetEl) &&
           !document.querySelector("#bn-suggestion-menu, .notes-math-popover")
         ) {
           try {
@@ -712,17 +794,20 @@ export function useNoteBlockSelection({
             if (block && !isContainerOnlyBlock(block.type)) {
               event.preventDefault();
               event.stopPropagation();
-              if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
               commitSelection([block.id], block.id, block.id);
+              focusSelectionSurface();
             }
           } catch { /* カーソル位置がない場合 */ }
         }
         return;
       }
 
+      if (!isSelectionFocusOwned(event.target)) return;
+
       const roots = normalizeBlockSelection(doc, currentIds);
       if (!roots.length) { clearSelection(); return; }
       const mod = event.ctrlKey || event.metaKey;
+      const collapsedIds = getCollapsedBlockIds(editorWrapRef.current);
 
       if (event.key === "Escape" && !mod && !event.shiftKey && !event.altKey) {
         event.preventDefault();
@@ -736,15 +821,31 @@ export function useNoteBlockSelection({
         return;
       }
 
+      if (mod && !event.altKey && editable) {
+        const lowerKey = event.key.toLowerCase();
+        if (lowerKey === "z" && !event.shiftKey) {
+          event.preventDefault();
+          event.stopPropagation();
+          editor.undo();
+          return;
+        }
+        if ((lowerKey === "z" && event.shiftKey) || (lowerKey === "y" && !event.shiftKey)) {
+          event.preventDefault();
+          event.stopPropagation();
+          editor.redo();
+          return;
+        }
+      }
+
       if ((event.key === "ArrowUp" || event.key === "ArrowDown") && event.shiftKey && !mod && !event.altKey) {
         event.preventDefault();
         event.stopPropagation();
         const direction = event.key === "ArrowUp" ? "up" : "down";
         const anchor = anchorIdRef.current ?? (direction === "up" ? roots[roots.length - 1].id : roots[0].id);
         const currentFocus = focusIdRef.current ?? (direction === "up" ? roots[0].id : roots[roots.length - 1].id);
-        const nextFocus = adjacentSelectableBlockId(doc, currentFocus, direction);
+        const nextFocus = adjacentSelectableBlockId(doc, currentFocus, direction, collapsedIds);
         if (!nextFocus) return;
-        const range = expandSelectionRange(doc, anchor, nextFocus);
+        const range = expandSelectionRange(doc, anchor, nextFocus, collapsedIds);
         if (range.length) {
           commitSelection(range.map((b) => b.id), anchor, nextFocus);
           editorWrapRef.current?.querySelector<HTMLElement>(`.bn-block-outer[data-id="${nextFocus}"]`)?.scrollIntoView({ block: "nearest" });
@@ -755,10 +856,10 @@ export function useNoteBlockSelection({
       if ((event.key === "Delete" || event.key === "Backspace") && !mod && !event.altKey && editable) {
         event.preventDefault();
         event.stopPropagation();
-        const neighbor = adjacentSelectableBlockId(doc, roots[roots.length - 1].id, "down")
-          ?? adjacentSelectableBlockId(doc, roots[0].id, "up");
+        const neighbor = adjacentSelectableBlockId(doc, roots[roots.length - 1].id, "down", collapsedIds)
+          ?? adjacentSelectableBlockId(doc, roots[0].id, "up", collapsedIds);
         editor.transact(() => {
-          editor.removeBlocks(roots.map((r) => r.id));
+          removeBlocksSafely(editor, roots.map((r) => r.id));
         });
         clearSelection();
         if (neighbor && editor.getBlock(neighbor)) {
@@ -770,14 +871,17 @@ export function useNoteBlockSelection({
       if (mod && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "d" && editable) {
         event.preventDefault();
         event.stopPropagation();
-        duplicateBlocks(editor, roots as never[], (newIds) => commitSelection(newIds, newIds[0], newIds[newIds.length - 1]));
+        duplicateBlocks(editor, roots as never[], (newIds) => {
+          commitSelection(newIds, newIds[0], newIds[newIds.length - 1]);
+          focusSelectionSurface();
+        });
         return;
       }
 
       if (mod && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "a") {
         event.preventDefault();
         event.stopPropagation();
-        const allIds = orderedSelectableBlockIds(doc);
+        const allIds = orderedSelectableBlockIds(doc, collapsedIds);
         const allRoots = normalizeBlockSelection(doc, allIds);
         if (allRoots.length) commitSelection(allRoots.map((b) => b.id), allRoots[0].id, allRoots[allRoots.length - 1].id);
         return;
@@ -794,7 +898,8 @@ export function useNoteBlockSelection({
 
       // Ctrl/⌘+Shift+↑/↓ で同階層のブロックを上下に移動。
       if (mod && event.shiftKey && !event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown") && editable) {
-        const run = contiguousSiblingRun(doc, roots.map((r) => r.id));
+        const rootIds = roots.map((r) => r.id);
+        const run = contiguousSiblingRun(doc, rootIds);
         if (!run) return;
         const movingUp = event.key === "ArrowUp";
         if (movingUp && run.startIndex === 0) return;
@@ -802,48 +907,50 @@ export function useNoteBlockSelection({
         event.preventDefault();
         event.stopPropagation();
         const target = movingUp ? run.siblings[run.startIndex - 1] : run.siblings[run.endIndex + 1];
-        const copies = copyNoteBlocks(roots);
+        const moved = structuredClone(roots);
         editor.transact(() => {
-          editor.insertBlocks(copies as never[], target.id, movingUp ? "before" : "after");
-          editor.removeBlocks(roots.map((r) => r.id));
+          removeBlocksSafely(editor, rootIds);
+          editor.insertBlocks(moved as never[], target.id, movingUp ? "before" : "after");
         });
-        const newIds = copies.map((copy) => copy.id);
-        commitSelection(newIds, newIds[0], newIds[newIds.length - 1]);
+        commitSelection(rootIds, rootIds[0], rootIds[rootIds.length - 1]);
+        focusSelectionSurface();
         return;
       }
 
       // Tab / Shift+Tab でインデント（入れ子）・アンインデント。
       if (event.key === "Tab" && !mod && !event.altKey && editable) {
-        const run = contiguousSiblingRun(doc, roots.map((r) => r.id));
+        const rootIds = roots.map((r) => r.id);
+        const run = contiguousSiblingRun(doc, rootIds);
         if (!run) return;
         if (!event.shiftKey) {
           if (run.startIndex === 0) return;
           const prev = run.siblings[run.startIndex - 1];
           if (isContainerOnlyBlock(prev.type) || prev.type === "table") return;
+          if (!canIndentBlocks(doc, prev.id, roots)) return;
           event.preventDefault();
           event.stopPropagation();
-          const copies = copyNoteBlocks(roots);
+          const moved = structuredClone(roots);
           editor.transact(() => {
+            removeBlocksSafely(editor, rootIds);
             if (prev.children.length) {
-              editor.insertBlocks(copies as never[], prev.children[prev.children.length - 1].id, "after");
+              editor.insertBlocks(moved as never[], prev.children[prev.children.length - 1].id, "after");
             } else {
-              editor.updateBlock(prev.id, { children: copies } as never);
+              editor.updateBlock(prev.id, { children: moved } as never);
             }
-            editor.removeBlocks(roots.map((r) => r.id));
           });
-          const newIds = copies.map((copy) => copy.id);
-          commitSelection(newIds, newIds[0], newIds[newIds.length - 1]);
+          commitSelection(rootIds, rootIds[0], rootIds[rootIds.length - 1]);
+          focusSelectionSurface();
         } else {
           if (!run.parent || isContainerOnlyBlock(run.parent.type)) return;
           event.preventDefault();
           event.stopPropagation();
-          const copies = copyNoteBlocks(roots);
+          const moved = structuredClone(roots);
           editor.transact(() => {
-            editor.insertBlocks(copies as never[], run.parent!.id, "after");
-            editor.removeBlocks(roots.map((r) => r.id));
+            removeBlocksSafely(editor, rootIds);
+            editor.insertBlocks(moved as never[], run.parent!.id, "after");
           });
-          const newIds = copies.map((copy) => copy.id);
-          commitSelection(newIds, newIds[0], newIds[newIds.length - 1]);
+          commitSelection(rootIds, rootIds[0], rootIds[rootIds.length - 1]);
+          focusSelectionSurface();
         }
         return;
       }
@@ -861,37 +968,38 @@ export function useNoteBlockSelection({
     };
 
     const onCopyOrCut = (event: ClipboardEvent) => {
-      if (!selectedIdsRef.current.length || isBlockedContext(event.target)) return;
+      if (!selectedIdsRef.current.length || !isSelectionFocusOwned(event.target)) return;
       const doc = editor.document as unknown as SelectableBlock[];
       const roots = normalizeBlockSelection(doc, selectedIdsRef.current);
       if (!roots.length) return;
       const markdown = blocksToMarkdown(roots as unknown as NoteBlock[]);
-      copiedBlocksClipboard = { text: markdown, blocks: copyNoteBlocks(roots) };
       if (event.clipboardData) {
         event.preventDefault();
         event.clipboardData.setData("text/plain", markdown);
+        event.clipboardData.setData(NOTEFABLE_BLOCKS_MIME, JSON.stringify(copyNoteBlocks(roots)));
       }
       if (event.type === "cut" && editable) {
-        editor.transact(() => editor.removeBlocks(roots.map((r) => r.id)));
+        editor.transact(() => removeBlocksSafely(editor, roots.map((r) => r.id)));
         clearSelection();
       }
     };
 
     const onPaste = (event: ClipboardEvent) => {
-      if (!editable || !selectedIdsRef.current.length || isBlockedContext(event.target)) return;
-      const plain = event.clipboardData?.getData("text/plain") ?? "";
-      if (!copiedBlocksClipboard || plain !== copiedBlocksClipboard.text) return;
+      if (!editable || !selectedIdsRef.current.length || !isSelectionFocusOwned(event.target)) return;
+      const parsed = parseClipboardBlocks(event.clipboardData?.getData(NOTEFABLE_BLOCKS_MIME) ?? "");
+      if (!parsed) return;
       const doc = editor.document as unknown as SelectableBlock[];
       const roots = normalizeBlockSelection(doc, selectedIdsRef.current);
       if (!roots.length) return;
       event.preventDefault();
-      const copies = copyNoteBlocks(copiedBlocksClipboard.blocks);
+      const copies = copyNoteBlocks(parsed);
       editor.transact(() => {
         editor.insertBlocks(copies as never[], roots[roots.length - 1].id, "after");
-        editor.removeBlocks(roots.map((r) => r.id));
+        removeBlocksSafely(editor, roots.map((r) => r.id));
       });
       const newIds = copies.map((copy) => copy.id);
       commitSelection(newIds, newIds[0], newIds[newIds.length - 1]);
+      focusSelectionSurface();
     };
 
     window.addEventListener("keydown", onKeyDown, true);
@@ -904,7 +1012,7 @@ export function useNoteBlockSelection({
       window.removeEventListener("cut", onCopyOrCut);
       window.removeEventListener("paste", onPaste);
     };
-  }, [clearSelection, commitSelection, editable, editor, editorWrapRef]);
+  }, [clearSelection, commitSelection, editable, editor, editorWrapRef, focusSelectionSurface, workspaceRef]);
 
   const selectedIdSet = useMemo(() => new Set(safeSelectedIds), [safeSelectedIds]);
   const overlayProps: OverlayData = {
@@ -1217,7 +1325,7 @@ export function NoteBlockSelectionOverlay({
                 aria-label={t("Delete")}
                 title={t("Delete")}
                 onClick={() => {
-                  editor.transact(() => editor.removeBlocks(roots.map((r) => r.id)));
+                  editor.transact(() => removeBlocksSafely(editor, roots.map((r) => r.id)));
                   onClearSelection();
                 }}
               >
