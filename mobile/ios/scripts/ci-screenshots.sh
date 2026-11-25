@@ -1,21 +1,32 @@
 #!/usr/bin/env bash
 # Fixture-mode screenshots of the Debug simulator build across iOS majors and UI variants.
 # Usage: ci-screenshots.sh <NoteFable.app> <out-dir>
+#        ci-screenshots.sh --boot-only   (CI: boot the simulators ahead of time, leave them running, capture nothing)
 # Env: NF_IOS_MAJORS, NF_VARIANTS, NF_SCENES
 # Written for macOS /bin/bash (bash 3.2): no mapfile, no associative arrays, no ${var,,}, no sort -V.
 set -euo pipefail
 
-APP=${1:?usage: ci-screenshots.sh <NoteFable.app> <out-dir>}
-OUT=${2:?usage: ci-screenshots.sh <NoteFable.app> <out-dir>}
+BOOT_ONLY=0
+if [[ "${1:-}" == "--boot-only" ]]; then
+  BOOT_ONLY=1
+  APP=""
+  OUT=$(mktemp -d)
+else
+  APP=${1:?usage: ci-screenshots.sh <NoteFable.app> <out-dir>}
+  OUT=${2:?usage: ci-screenshots.sh <NoteFable.app> <out-dir>}
+fi
 
 read -r -a MAJORS   <<<"${NF_IOS_MAJORS:-26 18}"
-read -r -a VARIANTS <<<"${NF_VARIANTS:-light dark ar ar-app rt}"
+read -r -a VARIANTS <<<"${NF_VARIANTS:-light dark ar rt}"
 DEFAULT_SCENES="chat-empty chat chat-streaming drawer workspace editor page-menu search model-sheet attach-sheet settings sign-in"
 read -r -a SCENES   <<<"${NF_SCENES:-$DEFAULT_SCENES}"
 
 DEVICES=("iPhone 17 Pro" "iPhone 18 Pro" "iPhone 16 Pro" "iPhone 17" "iPhone 16")
 USER_DEVELOPER_DIR="${DEVELOPER_DIR:-}"
-BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
+BUNDLE_ID=""
+if (( ! BOOT_ONLY )); then
+  BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
+fi
 
 mkdir -p "$OUT/logs"
 failed=0
@@ -119,7 +130,8 @@ find_or_create_device() {
       (.devices[$rt] // [])[]
       | select(.isAvailable and ((.name | contains("Duo")) or (.deviceTypeIdentifier | contains("Duo")) | not))
       | "\(.name)\t\(.udid)"')
-    for name in "${DEVICES[@]}"; do
+    # "NoteFable iOS <major>" is the simulator an earlier --boot-only run had to create.
+    for name in "NoteFable iOS ${major}" "${DEVICES[@]}"; do
       udid=$(awk -F'\t' -v n="$name" '$1 == n { print $2; exit }' <<<"$available")
       if [[ -n "$udid" ]]; then
         printf 'existing\t%s\t%s\n' "$udid" "$name"
@@ -283,6 +295,40 @@ else
   done
 fi
 
+# Without NF_SCENES, only light takes every scene: the other variants take the scenes where they differ visibly.
+# "ar-app" (system English + in-app Arabic) looks the same as "ar", so it only runs when NF_VARIANTS names it.
+# NF_ALL_SCENES=1 takes every scene in every variant.
+variant_scenes() {
+  if [[ -n "${NF_SCENES:-}" || "${NF_ALL_SCENES:-0}" == "1" ]]; then
+    return 0
+  fi
+  case "$1" in
+    dark)      echo "chat drawer workspace editor model-sheet settings" ;;
+    ar|ar-app) echo "chat drawer workspace settings" ;;
+    rt)        echo "chat drawer model-sheet" ;;
+  esac
+}
+
+# Sets V_SIGNED_IN / V_GUEST to the batches for one variant, keeping the batch order.
+declare -a V_SIGNED_IN=()
+declare -a V_GUEST=()
+select_variant_batches() {
+  local only s
+  only=$(variant_scenes "$1")
+  V_SIGNED_IN=()
+  V_GUEST=()
+  if [[ ${#SIGNED_IN_BATCH[@]} -gt 0 ]]; then
+    for s in "${SIGNED_IN_BATCH[@]}"; do
+      if [[ -z "$only" || " $only " == *" $s "* ]]; then V_SIGNED_IN+=("$s"); fi
+    done
+  fi
+  if [[ ${#GUEST_BATCH[@]} -gt 0 ]]; then
+    for s in "${GUEST_BATCH[@]}"; do
+      if [[ -z "$only" || " $only " == *" $s "* ]]; then V_GUEST+=("$s"); fi
+    done
+  fi
+}
+
 for major in "${MAJORS[@]}"; do
   selection=$(select_xcode_for_major "$major")
   if [[ -z "$selection" ]]; then
@@ -326,6 +372,9 @@ for major in "${MAJORS[@]}"; do
   boot_device "$udid"
   boot_end=$(date +%s)
   echo "Booted simulator iOS ${major} (${origin}: ${dname}, runtime=${runtime}, udid=${udid}) in $((boot_end - boot_start))s"
+  if (( BOOT_ONLY )); then
+    continue
+  fi
 
   xcrun simctl spawn "$udid" defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -int 1
   if [[ "$origin" == "existing" ]]; then
@@ -336,12 +385,13 @@ for major in "${MAJORS[@]}"; do
   for variant in "${VARIANTS[@]}"; do
     mkdir -p "$OUT/ios${major}/${variant}"
     set_variant_environment "$udid" "$variant"
+    select_variant_batches "$variant"
 
     rt_ok=1
     rt_rebooted=0
-    if [[ ${#SIGNED_IN_BATCH[@]} -gt 0 ]]; then
+    if [[ ${#V_SIGNED_IN[@]} -gt 0 ]]; then
       rc=0
-      run_batch "$udid" "$major" "$variant" "signed-in" "1" "${SIGNED_IN_BATCH[@]}" || rc=$?
+      run_batch "$udid" "$major" "$variant" "signed-in" "1" "${V_SIGNED_IN[@]}" || rc=$?
       if [[ "$rc" -eq 2 ]]; then
         echo "Rebooting iOS ${major} simulator so Reduce Transparency preference propagates..."
         xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
@@ -349,16 +399,16 @@ for major in "${MAJORS[@]}"; do
         set_variant_environment "$udid" "$variant"
         rt_rebooted=1
         rc=0
-        run_batch "$udid" "$major" "$variant" "signed-in" "0" "${SIGNED_IN_BATCH[@]}" || rc=$?
+        run_batch "$udid" "$major" "$variant" "signed-in" "0" "${V_SIGNED_IN[@]}" || rc=$?
       fi
       if [[ "$rc" -eq 3 ]]; then
         rt_ok=0
       fi
     fi
 
-    if [[ "$rt_ok" -eq 1 && ${#GUEST_BATCH[@]} -gt 0 ]]; then
+    if [[ "$rt_ok" -eq 1 && ${#V_GUEST[@]} -gt 0 ]]; then
       rc=0
-      run_batch "$udid" "$major" "$variant" "guest" "$((1 - rt_rebooted))" "${GUEST_BATCH[@]}" || rc=$?
+      run_batch "$udid" "$major" "$variant" "guest" "$((1 - rt_rebooted))" "${V_GUEST[@]}" || rc=$?
       if [[ "$rc" -eq 2 ]]; then
         echo "Rebooting iOS ${major} simulator so Reduce Transparency preference propagates..."
         xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
@@ -366,7 +416,7 @@ for major in "${MAJORS[@]}"; do
         set_variant_environment "$udid" "$variant"
         rt_rebooted=1
         rc=0
-        run_batch "$udid" "$major" "$variant" "guest" "0" "${GUEST_BATCH[@]}" || rc=$?
+        run_batch "$udid" "$major" "$variant" "guest" "0" "${V_GUEST[@]}" || rc=$?
       fi
     fi
 
@@ -380,6 +430,10 @@ for major in "${MAJORS[@]}"; do
     xcrun simctl delete "$udid" >/dev/null 2>&1 || true
   fi
 done
+
+if (( BOOT_ONLY )); then
+  exit "$failed"
+fi
 
 # Report any fixture misses as errors (never silent).
 while IFS= read -r miss; do
