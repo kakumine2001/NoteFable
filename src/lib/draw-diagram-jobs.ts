@@ -1,5 +1,6 @@
 import { msg } from "@/lib/i18n/translate";
 import { postToNative } from "@/lib/native-bridge";
+import { usageLimitErrorFrom, type UsageTier } from "@/lib/usage-plans";
 import type { NotePageSummary } from "@/types/notes";
 
 // 「画成図」（Draw as diagram）：チャットの回答かノートを、AI が編集できる図にして新しいホワイトボードに置く（POST /api/pages/diagram）。
@@ -16,7 +17,8 @@ export type DiagramJob =
   // partial: 材料が長く、前の部分だけを図にした。
   | { status: "done"; page: NotePageSummary; partial: boolean }
   // source: 編集できる図に変換できなかった（422）ときの Mermaid の原文。コピーして他で使える。
-  | { status: "error"; message: string; source: string | null };
+  // limit: 使用回数の上限（429 usage_limit）。窓はログイン・アップグレードの案内を出す（アプリの中ではアプリに任せる）。
+  | { status: "error"; message: string; source: string | null; limit?: { tier: UsageTier } };
 
 // notice: 要求を始めずに窓だけを開いた理由（ノートの未保存の変更を保存できなかった）。
 export type DiagramDialog = { key: string; notice?: string };
@@ -102,7 +104,8 @@ async function run(key: string, entry: Entry) {
     const page = body.page as NotePageSummary | undefined;
     if (!response.ok || typeof page?.id !== "string") {
       const source = response.status === 422 && typeof body.source === "string" && body.source ? body.source : null;
-      update(key, entry, { status: "error", message: diagramErrorMessage(response.status, body), source });
+      const limit = usageLimitErrorFrom(response.status, body);
+      update(key, entry, { status: "error", message: diagramErrorMessage(response.status, body), source, ...(limit ? { limit: { tier: limit.tier } } : {}) });
       return;
     }
     if (!update(key, entry, { status: "done", page, partial: body.partial === true })) return;

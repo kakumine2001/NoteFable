@@ -57,7 +57,7 @@ import kotlin.math.sqrt
 /**
  * 未登录用户撞到当日上限时，输入栏上方的登录提示（网页 src/components/guest-limit-prompt.tsx，样式在 globals.css 的
  * .guest-limit-*，412 宽手机下实测）：外框内边距 14/40/14/14、1px 蓝描边、圆角 12、浅蓝到浅黄的 135° 渐变 + 输入栏阴影，下距 12；
- * 左边 34 的蓝色圆角 10 图标框（Sparkles 18、描边 2.1、白）、间距 12；标题 15/600 行高 21 墨色；说明 13.5 / 20.925 灰，上距 2；
+ * 左边 34 的圆角 10 图标框（默认展示产品角色徽章 AppIcon 22，存储空间提示用蓝色框 + HardDrive 18）、间距 12；标题 15/600 行高 21 墨色；说明 13.5 / 20.925 灰，上距 2；
  * 按钮区上距 12、竖排、间距 8："登录"按钮高 44 全圆角、左右 16（点了打开登录窗口），"以后再说"13.5 灰居中；右上 8 处 28 的关闭键（✕ 16，浅灰，圆角 6）。
  * 和网页一样：只有服务端开了登录且还没登录时才显示（由调用方判断）；数值用 member 的上限。
  * 免费用户的升级提示（网页 UpgradePrompt，同一组 .guest-limit-* 样式）也用这个外框：title / body / note / actionLabel 换掉文字，
@@ -74,8 +74,8 @@ fun GuestLimitPrompt(
     body: String? = null,
     note: String? = null,
     actionLabel: String? = null,
-    /** 左边图标框里的图标（存储空间不够的提示用 HardDrive）。 */
-    icon: List<String> = Lucide.Sparkles,
+    /** 左边图标框里的图标：null 时展示产品角色徽章（网页 .guest-limit-icon.is-mascot），存储空间不够的提示传 HardDrive。 */
+    icon: List<String>? = null,
     /** false：不显示按钮和「以后再说」，只留右上角的关闭键（没有可做的事时，网页 StorageLimitPrompt）。 */
     showActions: Boolean = true,
 ) {
@@ -114,6 +114,7 @@ fun GuestLimitPrompt(
             Modifier.fillMaxWidth().padding(start = 14.dp, top = 14.dp, bottom = 14.dp, end = 40.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            val badgeShape = RoundedCornerShape(10.dp)
             Box(
                 Modifier.size(34.dp).graphicsLayer {
                     alpha = motion.iconAlpha()
@@ -121,10 +122,14 @@ fun GuestLimitPrompt(
                     scaleX = s
                     scaleY = s
                     rotationZ = motion.iconRotation()
-                }.clip(RoundedCornerShape(10.dp)).background(Sm.Blue),
+                }.clip(badgeShape).then(
+                    if (icon != null) Modifier.background(Sm.Blue)
+                    else Modifier.background(Sm.Surface).border(1.dp, Sm.BorderStrong, badgeShape),
+                ),
                 Alignment.Center,
             ) {
-                LucideIcon(icon, 18.dp, Color.White, strokeWidth = 2.1f)
+                if (icon != null) LucideIcon(icon, 18.dp, Color.White, strokeWidth = 2.1f)
+                else AppIcon(22.dp, Sm.Ink)
             }
             Column(Modifier.weight(1f)) {
                 Text(

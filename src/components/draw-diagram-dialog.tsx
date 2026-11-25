@@ -2,11 +2,13 @@
 
 import { ArrowUpRight, Check, Copy, LoaderCircle, Workflow } from "lucide-react";
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
+import { GuestLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
 import { useT } from "@/components/i18n-provider";
+import { useAccount } from "@/lib/account-store";
 import { writeClipboardText } from "@/lib/clipboard";
 import { closeDiagramDialog, dismissDiagramJob, getDiagramDialog, getDiagramJob, retryDiagramJob, subscribeDiagramJobs, type DiagramJob } from "@/lib/draw-diagram-jobs";
 import { localizeSystemText } from "@/lib/i18n/translate";
-import { nativeCanOpenPage, postToNative } from "@/lib/native-bridge";
+import { nativeCanOpenPage, nativeCanShowUsageLimit, postToNative } from "@/lib/native-bridge";
 import { useBackToClose } from "@/lib/use-back-to-close";
 
 // 「画成図」の進み具合と結果の窓（要求と状態は src/lib/draw-diagram-jobs.ts）。見た目と閉じ方は Create page の窓と同じ。
@@ -33,6 +35,9 @@ function DrawDiagramDialog({ jobKey, notice, embedded }: { jobKey: string; notic
   const job = useDiagramJob(jobKey);
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
+  // 使用回数の上限の案内（ログイン・アップグレード）を閉じた。
+  const [limitClosed, setLimitClosed] = useState(false);
+  const { account } = useAccount();
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   // 閉じたら、終わった結果は忘れる（次に選んだら新しく作る）。進行中のものは残す。
   const close = () => {
@@ -56,6 +61,7 @@ function DrawDiagramDialog({ jobKey, notice, embedded }: { jobKey: string; notic
   function retry() {
     setCopied(false);
     setCopyFailed(false);
+    setLimitClosed(false);
     retryDiagramJob(jobKey);
   }
 
@@ -72,6 +78,16 @@ function DrawDiagramDialog({ jobKey, notice, embedded }: { jobKey: string; notic
   const done = !notice && job?.status === "done" ? job : null;
   const failed = !notice && job?.status === "error" ? job : null;
   const source = failed?.source ?? null;
+  // 上限に当たった：ウェブではログイン（未ログイン）・アップグレード（無料会員）の案内を窓の中に出す（ノートの AI パネルの送信と同じ）。
+  // アプリの WebView では、案内を出せるアプリに任せる（ウェブのログイン画面や Stripe を WebView で開かない）。理由の文はどちらでも出す。
+  const limit = failed?.limit ?? null;
+  const showGuestPrompt = !embedded && !limitClosed && limit?.tier === "guest" && Boolean(account?.configured && !account.user);
+  const showUpgradePrompt = !embedded && !limitClosed && limit?.tier === "member" && Boolean(account?.billing && account.user);
+  useEffect(() => {
+    if (!embedded || !limit || !nativeCanShowUsageLimit()) return;
+    const pageId = jobKey.startsWith("note:") ? jobKey.slice("note:".length) : undefined;
+    postToNative({ type: "usageLimit", tier: limit.tier, kind: "chat", ...(pageId ? { pageId } : {}) });
+  }, [embedded, limit, jobKey]);
 
   return <dialog ref={ref} aria-labelledby={titleId} className="notes-dialog draw-diagram-dialog"
     onCancel={(event) => { event.preventDefault(); close(); }}
@@ -91,6 +107,8 @@ function DrawDiagramDialog({ jobKey, notice, embedded }: { jobKey: string; notic
     </>}
     {notice && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{t(notice)}</p>}
     {failed && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{localizeSystemText(failed.message, t)}</p>}
+    {showGuestPrompt && <div className="mt-3"><GuestLimitPrompt kind="chat" onClose={() => setLimitClosed(true)} /></div>}
+    {showUpgradePrompt && <div className="mt-3"><UpgradePrompt kind="chat" onClose={() => setLimitClosed(true)} /></div>}
     {/* クリップボードに書けなかったときは、原文を選んでコピーできるように出す。 */}
     {source && copyFailed && <>
       <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{t("Could not copy. Select the text and copy it instead.")}</p>

@@ -20,7 +20,7 @@ export type RichBlock =
   | RichParagraph
   | { type: "bullet_list"; content: RichListItem[] }
   | { type: "ordered_list"; attrs?: { order: number }; content: RichListItem[] }
-  | { type: "code_block"; content?: { type: "text"; text: string }[] }
+  | { type: "code_block"; attrs?: { language?: string }; content?: { type: "text"; text: string }[] }
   | { type: "math_block"; attrs: { latex: string } };
 export type RichDoc = { type: "doc"; content: RichBlock[] };
 
@@ -107,7 +107,14 @@ function normalizeBlocks(value: unknown, depth: number): RichBlock[] {
       }
     } else if (node.type === "code_block") {
       const text = cleanText((Array.isArray(node.content) ? node.content : []).map((child) => (object(child) && typeof child.text === "string" ? child.text : "")).join(""));
-      blocks.push(text ? { type: "code_block", content: [{ type: "text", text }] } : { type: "code_block" });
+      const rawLang = object(node.attrs) && typeof node.attrs.language === "string" ? cleanText(node.attrs.language).trim().slice(0, 40) : "";
+      const language = rawLang && !/^(text|plain|plaintext)$/i.test(rawLang) ? rawLang : "";
+      const block: RichBlock = {
+        type: "code_block",
+        ...(language ? { attrs: { language } } : {}),
+        ...(text ? { content: [{ type: "text", text }] } : {}),
+      };
+      blocks.push(block);
     } else if (node.type === "math_block") {
       blocks.push({ type: "math_block", attrs: { latex: latexOf(node.attrs) } });
     } else if (Array.isArray(node.content)) {

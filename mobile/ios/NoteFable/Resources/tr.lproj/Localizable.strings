@@ -597,6 +597,7 @@
 "slides_export_pdf_notes" = "Konuşmacı notlarıyla PDF olarak dışa aktar";
 "slides_export_png" = "PNG görseller olarak dışa aktar";
 "slides_export_pptx" = "PowerPoint (PPTX) olarak dışa aktar";
+"slides_export_pptx_transition_note" = "Slayt geçişleri PPTX dışa aktarımına dahil edilmez.";
 
 /* strings_turns.xml */
 "regenerate" = "Yeniden oluştur";

@@ -5,9 +5,10 @@ import { codeBlockOptions, syntaxHighlighter } from "@blocknote/code-block";
 import { BlockNoteView } from "@blocknote/ariakit";
 import { SideMenuExtension, SuggestionMenu, filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from "@blocknote/core/extensions";
 import { BasicTextStyleButton, BlockColorsItem, ColorStyleButton, CreateLinkButton, DragHandleButton, DragHandleMenu, FileCaptionButton, FileDeleteButton, FileDownloadButton, FilePanel, FilePanelController, FilePreviewButton, FileRenameButton, FormattingToolbar, FormattingToolbarController, SideMenu, SideMenuController, SuggestionMenuController, TableCellMergeButton, TableColumnHeaderItem, TableRowHeaderItem, getDefaultReactSlashMenuItems, useBlockNoteEditor, useComponentsContext, useCreateBlockNote, useDictionary, useEditorState, useExtensionState, usePortalElement, type DefaultReactSuggestionItem, type FilePanelProps, type SuggestionMenuProps } from "@blocknote/react";
-import { CalendarDays, Check, CheckSquare, ChevronRight, Code2, Columns2, Columns3, Columns4, Copy, Heading1, Lightbulb, Loader2, Radical, Sigma, Sparkles, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Table, Text, Type, Upload } from "lucide-react";
+import { CalendarDays, Check, CheckSquare, ChevronRight, Code2, Columns2, Columns3, Columns4, Copy, Heading1, Lightbulb, Loader2, Radical, Sigma, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Table, Text, Type, Upload } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref } from "react";
 import "@blocknote/ariakit/style.css";
+import { AppIcon } from "@/components/app-icon";
 import { MAX_NOTE_FILE_BYTES } from "@/lib/note-file-keys";
 import { externalFilesGuard } from "@/components/note-external-files";
 import { storageLimitFromUpload } from "@/lib/storage-limit-client";
@@ -415,8 +416,8 @@ function NoteFormattingToolbar() {
           const text = normalizeQuote(editor.getSelectedText() || window.getSelection()?.toString() || "");
           if (text) onAskAi(text);
         }}>
-        <Sparkles size={14} aria-hidden="true" />
-        <span>{t("Ask AI")}</span>
+        <AppIcon size={15} />
+        <span>{t("Ask NoteFable")}</span>
       </button>
       <span className="notes-toolbar-sep" />
     </>}

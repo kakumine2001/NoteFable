@@ -96,7 +96,7 @@ struct AppIconSettings: View {
 
     @ViewBuilder
     private func chips(picking: Bool) -> some View {
-        SettingsChip(L("app_icon_choose_character"), icon: Lucide.sparkles) { model.setAppIconPicking(!picking) }
+        SettingsChip(L("app_icon_choose_character"), icon: Lucide.smile) { model.setAppIconPicking(!picking) }
         SettingsChip(L("app_icon_upload_image"), icon: Lucide.imagePlus) {
             model.pickPhoto()
             pickerShown = true

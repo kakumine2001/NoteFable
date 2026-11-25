@@ -6,4 +6,5 @@
     <string name="slides_export_pdf_notes">Als PDF mit Sprechernotizen exportieren</string>
     <string name="slides_export_png">Als PNG-Bilder exportieren</string>
     <string name="slides_export_pptx">Als PowerPoint (PPTX) exportieren</string>
+    <string name="slides_export_pptx_transition_note">Folienübergänge sind im PPTX-Export nicht enthalten.</string>
 </resources>

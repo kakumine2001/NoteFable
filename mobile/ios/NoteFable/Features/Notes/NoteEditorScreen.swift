@@ -58,6 +58,13 @@ struct NoteEditorScreen: View {
                 GuestLimitPrompt(storage: storage, attachmentsLost: false) { notes.dismissStorageLimit() }
                     .padding(.horizontal, 16)
                     .padding(.top, 8)
+            } else if !state.presenting, let usage = state.usageLimit,
+                      (usage.tier == "guest" && app.account.state.configured && app.account.state.user == nil)
+                          || (usage.tier == "member" && app.account.state.user != nil) {
+                // AI 面板或幻灯片生图撞到使用次数上限（网页 usageLimit）：未登录给原生登录入口，已登录免费会员只读提示（无内购）。
+                GuestLimitPrompt(usage: usage, attachmentsLost: false) { notes.dismissUsageLimit() }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
             }
             NoteEditorWebView(
                 open: open, pool: editorPool, app: app, router: router,

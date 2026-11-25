@@ -7,12 +7,13 @@ import {
   Underline, Ungroup,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { AppIcon } from "@/components/app-icon";
 import { useT } from "@/components/i18n-provider";
 import { ColorPicker, MenuButton } from "@/components/slides/slide-menus";
 import type { TextCommands } from "@/components/slides/text-editor";
 import { alignElements, distributeElements, selectionUnits, type AlignMode } from "@/lib/slides/geometry";
 import { LAYOUTS } from "@/lib/slides/layouts";
-import { SHAPE_KINDS, type ColorRef, type FontRole, type LayoutId, type LineCap, type Slide, type SlideElement, type TableElement, type TextStyle } from "@/lib/slides/model";
+import { SHAPE_KINDS, SLIDE_TRANSITIONS, type ColorRef, type FontRole, type LayoutId, type LineCap, type Slide, type SlideElement, type SlideTransition, type TableElement, type TextStyle } from "@/lib/slides/model";
 import { groupElements, reorderElements, ungroupElements, updateElements, type ZOrder } from "@/lib/slides/ops";
 import { SHAPE_LABELS } from "@/lib/slides/shapes";
 import { resolveColor, type ResolvedTheme } from "@/lib/slides/themes";
@@ -23,6 +24,7 @@ import { msg } from "@/lib/i18n/translate";
 const FONT_ROLES: { key: FontRole; label: string }[] = [{ key: "heading", label: msg("Heading font") }, { key: "body", label: msg("Body font") }, { key: "mono", label: msg("Monospace") }];
 const CAPS: { key: LineCap; label: string }[] = [{ key: "none", label: msg("No arrow") }, { key: "arrow", label: msg("Arrow") }, { key: "triangle", label: msg("Triangle") }, { key: "oval", label: msg("Dot") }];
 const DASHES = [{ key: "solid", label: msg("Solid") }, { key: "dash", label: msg("Dashed") }, { key: "dot", label: msg("Dotted") }] as const;
+const TRANSITION_LABELS: Record<SlideTransition, string> = { none: msg("None"), fade: msg("Fade"), slide: msg("Slide in") };
 export const ELEMENT_LABELS: Record<SlideElement["type"], string> = {
   text: msg("Text box"), shape: msg("Shape"), line: msg("Line"), image: msg("Image"), table: msg("Table"), whiteboard: msg("Whiteboard frame"),
 };
@@ -105,8 +107,9 @@ function tableWithSize(element: TableElement, rows: number, cols: number): Table
   return { ...element, rows: nextRows, cols: nextCols, h: Math.max(element.h * (rows / element.rows.length), 40) };
 }
 
-export function SlideInspector({ slide, selection, theme, editable, onChange, onReplaceImage, onReportImage, onDelete, onLayout, onToggleHidden }: {
+export function SlideInspector({ slide, slideCount, selection, theme, editable, onChange, onReplaceImage, onReportImage, onDelete, onLayout, onToggleHidden, onTransition, onApplyTransitionAll, onAskAi }: {
   slide: Slide;
+  slideCount: number;
   selection: Set<string>;
   theme: ResolvedTheme;
   editable: boolean;
@@ -116,14 +119,29 @@ export function SlideInspector({ slide, selection, theme, editable, onChange, on
   onDelete: () => void;
   onLayout: (layout: LayoutId) => void;
   onToggleHidden: () => void;
+  onTransition: (transition: SlideTransition) => void;
+  onApplyTransitionAll: (transition: SlideTransition) => void;
+  onAskAi?: () => void;
 }) {
   const t = useT();
   const selected = slide.elements.filter((element) => selection.has(element.id));
   const update = (ids: Set<string>, patch: (element: SlideElement) => SlideElement, field: string) =>
     onChange(updateElements(slide, ids, patch), `${field}:${[...ids].join(",")}`);
+  // ロック中でも AI に質問できるよう、fieldset（disabled={!editable}）の外に出す。
+  const askAiSection = onAskAi ? (
+    <div className="slides-inspector-section slides-inspector-ai">
+      <button type="button" className="slides-wide-button slides-inspector-ask-ai" onClick={onAskAi} title={t("Ask NoteFable")}>
+        <AppIcon size={18} />
+        <span className="slides-inspector-ask-ai-label">{t("Ask NoteFable")}</span>
+        {selected.length > 1 && <span className="slides-inspector-ask-ai-count">{selected.length}</span>}
+      </button>
+    </div>
+  ) : null;
 
   if (!selected.length) {
+    const currentTransition: SlideTransition = slide.transition ?? "none";
     return <div className="slides-inspector" aria-label={t("Slide settings")}>
+      {askAiSection}
       <fieldset className="slides-inspector-fields" disabled={!editable}>
       <Section title={t("Layout")}>
         <div className="slides-layout-grid">
@@ -140,6 +158,18 @@ export function SlideInspector({ slide, selection, theme, editable, onChange, on
           {slide.hidden ? <Eye size={16} aria-hidden="true" /> : <EyeOff size={16} aria-hidden="true" />}{slide.hidden ? t("Show slide") : t("Hide slide")}
         </button>
       </Section>
+      <Section title={t("Transition")}>
+        <div className="slides-transition-group" role="group" aria-label={t("Transition")}>
+          {SLIDE_TRANSITIONS.map((option) => <button key={option} type="button" disabled={!editable}
+            className={`slides-transition-option${currentTransition === option ? " is-active" : ""}`}
+            aria-pressed={currentTransition === option} onClick={() => onTransition(option)}>
+            {t(TRANSITION_LABELS[option])}
+          </button>)}
+        </div>
+        <button type="button" className="slides-wide-button" disabled={!editable || slideCount <= 1} onClick={() => onApplyTransitionAll(currentTransition)}>
+          {t("Apply to all slides")}
+        </button>
+      </Section>
       </fieldset>
     </div>;
   }
@@ -152,6 +182,7 @@ export function SlideInspector({ slide, selection, theme, editable, onChange, on
   const allText = selected.every((element) => element.type === "text" || element.type === "shape");
 
   return <div className="slides-inspector" aria-label={t("Selection settings")}>
+    {askAiSection}
     <fieldset className="slides-inspector-fields" disabled={!editable}>
     <Section title={single ? t(ELEMENT_LABELS[single.type]) : t("{count} selected", { count: selected.length })}>
       <div className="slides-button-row" role="group" aria-label={t("Align")}>

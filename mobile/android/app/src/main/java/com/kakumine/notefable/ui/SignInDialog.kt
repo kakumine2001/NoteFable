@@ -84,17 +84,39 @@ private val SignInShadow = Color(0x1F0F0F0F) // --notion-shadow
 private val SignInRing: Color get() = Sm.Ring
 
 /**
- * "登录"按钮（网页 SignInButton / .signin-open-button 的手机尺寸）：整行、高 44、圆角 6、--nf-ink 底、白字 15/600。
+ * "登录"按钮（网页 SignInButton / .signin-open-button 的手机尺寸）：整行、高 44（侧栏底部为 42）、圆角 6（侧栏底部为 9）。
+ * [subtle] 为 true 时采用侧栏底部的柔和白卡片样式（1dp 描边 + CircleUser 图标 + 墨色字），避免与顶部墨色主按钮抢焦点。
  * 侧栏底部和上限提示都只放这一个按钮，点了打开 [SignInDialog]。
  */
 @Composable
-fun SignInButton(onClick: () -> Unit, modifier: Modifier = Modifier, shape: Shape = RoundedCornerShape(6.dp)) {
-    Box(
-        modifier.fillMaxWidth().height(44.dp).clip(shape).background(Sm.Ink)
-            .clickable(onClick = onClick).semantics { role = Role.Button }.padding(horizontal = 12.dp),
-        Alignment.Center,
-    ) {
-        Text(stringResource(R.string.sign_in), color = Sm.OnInk, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+fun SignInButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    shape: Shape = RoundedCornerShape(6.dp),
+    subtle: Boolean = false,
+) {
+    if (subtle) {
+        val cardShape = if (shape == RoundedCornerShape(6.dp)) RoundedCornerShape(9.dp) else shape
+        val cardShadow = Sm.pick(Color(0x0D0F172A), Color(0x40000000))
+        Row(
+            modifier.fillMaxWidth().height(42.dp)
+                .shadow(1.dp, cardShape, ambientColor = cardShadow, spotColor = cardShadow)
+                .clip(cardShape).background(Sm.Surface).border(1.dp, Sm.BorderStrong, cardShape)
+                .clickable(onClick = onClick).semantics { role = Role.Button }.padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp, Alignment.CenterHorizontally),
+        ) {
+            LucideIcon(Lucide.CircleUser, 16.dp, Sm.Muted)
+            Text(stringResource(R.string.sign_in), color = Sm.Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        }
+    } else {
+        Box(
+            modifier.fillMaxWidth().height(44.dp).clip(shape).background(Sm.Ink)
+                .clickable(onClick = onClick).semantics { role = Role.Button }.padding(horizontal = 12.dp),
+            Alignment.Center,
+        ) {
+            Text(stringResource(R.string.sign_in), color = Sm.OnInk, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        }
     }
 }
 

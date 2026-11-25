@@ -46,6 +46,11 @@
   --kind-whiteboard-border: rgba(124, 58, 237, 0.2);
   --kind-fav: #eab308;
   --kind-fav-soft: rgba(234, 179, 8, 0.12);
+  /* サイドバーの見出し・非アクティブタブ・件数ピルの高コントラスト色。 */
+  --sidebar-section-ink: rgba(var(--notion-ink-rgb), 0.84);
+  --sidebar-tab-muted: rgba(var(--notion-ink-rgb), 0.72);
+  --sidebar-count-bg: rgba(var(--notion-ink-rgb), 0.075);
+  --sidebar-count-text: rgba(var(--notion-ink-rgb), 0.74);
   /* UI テキスト用フォント。日本語/中国語環境でも崩れにくい CJK フォントを優先する。
      Geist は欧文だけなので、和欧混在のタイトルで字形と基線が揃わないよう UI には使わない。 */
   --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI",
@@ -406,6 +411,11 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   display: grid; flex-shrink: 0; width: 34px; height: 34px; place-items: center; border-radius: 10px;
   background: var(--nf-accent); color: #fff;
   animation: guest-limit-pop 620ms 180ms cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+.guest-limit-icon.is-mascot {
+  background: var(--notion-surface);
+  border: 1px solid var(--notion-border-strong);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
 }
 .guest-limit-title { color: var(--nf-ink); font-size: 15px; font-weight: 600; line-height: 1.4; }
 .guest-limit-body { margin-top: 2px; color: var(--notion-muted); font-size: 13.5px; line-height: 1.55; }
@@ -824,9 +834,18 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 }
 
 .sidebar-header { flex: none; }
+.sidebar-top-actions {
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--notion-border);
+}
 .sidebar-scroll { scrollbar-width: thin; scrollbar-color: transparent transparent; }
 .sidebar-scroll:hover { scrollbar-color: var(--notion-border-strong) transparent; }
-.sidebar-group + .sidebar-group { margin-top: 0.35rem; }
+.sidebar-group { padding-top: 0.55rem; padding-bottom: 0.25rem; }
+.sidebar-group + .sidebar-group {
+  margin-top: 0.25rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--notion-border);
+}
 .sidebar-utility-footer {
   display: flex; flex-direction: column; gap: 1px;
   border-top: 1px solid var(--notion-border);
@@ -879,7 +898,7 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
   transition: background 120ms ease, color 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
 }
 .notion-sidebar-action svg { flex: none; color: var(--notion-muted); transition: color 120ms ease; }
-.notion-sidebar-action.is-subtle { height: 1.9rem; font-size: 0.8125rem; color: var(--notion-muted); }
+.notion-sidebar-action.is-subtle { height: 1.95rem; font-size: 0.8125rem; color: var(--sidebar-tab-muted); }
 .notion-sidebar-action.is-subtle:hover { color: var(--notion-text); }
 
 @media (hover: hover) {
@@ -889,20 +908,20 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
   .notion-sidebar-action:hover svg { color: var(--notion-text); }
 }
 
-/* コマンドパレット風の Search トリガー。アクティブな Home ピルと差別化するため一段沈んだ枠＋Ctrl K キーキャップにする。 */
+/* コマンドパレット風の Search トリガー。白い面と細枠＋読みやすい文字＋Ctrl K キーキャップで明快に。 */
 .sidebar-search-trigger {
   height: 2.125rem;
-  border: 1px solid var(--notion-border);
-  background: rgba(var(--notion-ink-rgb), 0.032);
-  color: var(--notion-muted);
-  box-shadow: inset 0 1px 1px rgba(15, 23, 42, 0.02);
+  border: 1px solid var(--notion-border-strong);
+  background: var(--notion-surface);
+  color: var(--sidebar-tab-muted);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
 }
 @media (hover: hover) {
   .sidebar-search-trigger:hover {
     background: var(--notion-surface);
-    border-color: var(--notion-border-strong);
+    border-color: rgba(var(--notion-ink-rgb), 0.22);
     color: var(--notion-text);
-    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
   }
 }
 
@@ -942,7 +961,7 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
   padding: 3px;
   border: 1px solid var(--notion-border);
   border-radius: 0.625rem;
-  background: var(--notion-hover);
+  background: rgba(var(--notion-ink-rgb), 0.065);
 }
 .notion-segment {
   display: flex;
@@ -952,16 +971,17 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
   gap: 0.375rem;
   padding-inline: 0.35rem;
   border-radius: 0.45rem;
-  color: var(--notion-muted);
+  color: var(--sidebar-tab-muted);
   font-size: 0.8125rem;
-  font-weight: 550;
+  font-weight: 560;
   white-space: nowrap;
   transition: background 120ms ease, color 120ms ease, box-shadow 120ms ease;
 }
 .notion-segment.is-active {
   background: var(--notion-surface);
   color: var(--nf-ink);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(15, 23, 42, 0.05);
+  font-weight: 620;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.09), 0 0 0 1px var(--notion-border);
 }
 @media (hover: hover) {
   .notion-segment:not(.is-active):hover { color: var(--notion-text); }
@@ -1197,23 +1217,55 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 .sidebar-chevron { flex: none; color: var(--notion-faint); transition: transform 150ms cubic-bezier(0.23, 1, 0.32, 1), color 120ms ease; }
 .sidebar-chevron.is-open { transform: rotate(90deg); }
 .sidebar-fav-star { flex: none; color: var(--kind-fav); fill: var(--kind-fav-soft); }
-.sidebar-kind-dot { width: 6px; height: 6px; border-radius: 999px; flex: none; }
-.sidebar-kind-dot.is-note { background: var(--kind-note); }
-.sidebar-kind-dot.is-slides { background: var(--kind-slides); }
-.sidebar-kind-dot.is-whiteboard { background: var(--kind-whiteboard); }
-.sidebar-count-pill {
-  display: inline-flex; min-width: 1.15rem; height: 1.05rem; align-items: center; justify-content: center;
-  padding: 0 0.3rem; border-radius: 999px; background: var(--notion-hover);
-  font-size: 0.6875rem; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--notion-faint);
+.sidebar-section-badge {
+  display: inline-grid;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+  place-items: center;
+  border-radius: 0.375rem;
+  background: var(--sidebar-count-bg);
+  color: var(--sidebar-section-ink);
 }
-.sidebar-section-count { font-size: 0.6875rem; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--notion-faint); }
+.sidebar-section-badge.is-note {
+  background: var(--kind-note-soft);
+  border: 1px solid var(--kind-note-border);
+  color: var(--kind-note);
+}
+.sidebar-section-badge.is-slides {
+  background: var(--kind-slides-soft);
+  border: 1px solid var(--kind-slides-border);
+  color: var(--kind-slides);
+}
+.sidebar-section-badge.is-whiteboard {
+  background: var(--kind-whiteboard-soft);
+  border: 1px solid var(--kind-whiteboard-border);
+  color: var(--kind-whiteboard);
+}
+.sidebar-section-badge.is-chat,
+.sidebar-section-badge.is-pinned {
+  background: var(--nf-accent-soft);
+  border: 1px solid var(--kind-note-border);
+  color: var(--nf-accent);
+}
+.sidebar-section-badge.is-fav {
+  background: var(--kind-fav-soft);
+  color: var(--kind-fav);
+}
+.sidebar-count-pill,
+.sidebar-section-count {
+  display: inline-flex; min-width: 1.25rem; height: 1.125rem; align-items: center; justify-content: center;
+  padding: 0 0.375rem; border-radius: 999px; background: var(--sidebar-count-bg);
+  font-size: 0.6875rem; font-weight: 620; font-variant-numeric: tabular-nums; color: var(--sidebar-count-text);
+}
 
 .notion-session-row {
   --row-bg: var(--notion-sidebar);
   position: relative;
   display: flex;
-  min-height: 2rem;
+  min-height: 2.05rem;
   margin-block: 1px;
+  padding-inline-start: 3px;
   align-items: center;
   border-radius: 0.5rem;
   color: var(--notion-text);
@@ -1227,13 +1279,28 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
   }
 }
 
-/* 開いている会話・ノート。Linear / Craft 流のくっきり浮く角丸ピル（3px 縦帯を廃止）。 */
+/* 開いている会話・ノート。くっきり浮く角丸カード＋行頭の控えめな 3px セマンティック指示ピル。 */
 .notion-session-row.is-active {
   --row-bg: var(--notion-surface);
+  --row-accent: var(--nf-accent);
   background: var(--notion-surface);
   color: var(--nf-ink);
-  font-weight: 560;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 0 0 1px var(--notion-border);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08), 0 0 0 1px var(--notion-border-strong);
+}
+.notion-session-row.is-active[data-page-kind="slides"] { --row-accent: var(--kind-slides); }
+.notion-session-row.is-active[data-page-kind="whiteboard"] { --row-accent: var(--kind-whiteboard); }
+.notion-session-row.is-active::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 1px;
+  top: 50%;
+  width: 3px;
+  height: 16px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: var(--row-accent);
+  pointer-events: none;
 }
 
 .sidebar-row-actions {
@@ -1311,29 +1378,29 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 .list-reorder-error { position: absolute; z-index: 5; top: 100%; inset-inline-start: 0; width: min(220px, 90vw); padding: 6px; background: var(--notion-surface); color: var(--nf-danger); border: 1px solid var(--notion-border); border-radius: 8px; font-size: 12px; }
 .chat-more-button:hover { color: var(--notion-text); }
 
-/* サイドバーの見出し（Linear / Notion / Craft 風の落ち着いた文体サイズ・UI 書体）。 */
+/* サイドバーの見出し。高コントラストな文字＋ミニアイコンバッジ＋件数ピルで各欄を明快に分ける。 */
 .chat-section-label, .chat-project-heading {
-  padding: 0.85rem 0.5rem 0.3rem;
-  color: var(--notion-muted);
+  padding: 0 0.35rem 0.4rem;
+  color: var(--sidebar-section-ink);
   font-family: var(--font-ui);
-  font-size: 0.75rem;
-  font-weight: 560;
-  letter-spacing: -0.005em;
+  font-size: 0.78125rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
   text-transform: none;
 }
-.sidebar-section-inline { display: flex; align-items: center; gap: 0.35rem; }
-.chat-project-heading .notion-icon-button { margin-block: -0.3rem; }
-.chat-project-heading { display: flex; align-items: center; justify-content: space-between; }
+.sidebar-section-inline { display: flex; align-items: center; gap: 0.45rem; }
+.chat-project-heading .notion-icon-button { margin-block: -0.2rem; }
+.chat-project-heading { display: flex; align-items: center; justify-content: space-between; gap: 0.35rem; }
 @media (hover: hover) {
-  .sidebar-heading-add { opacity: 0.55; }
+  .sidebar-heading-add { opacity: 0.72; }
   .chat-project-heading:hover .sidebar-heading-add,
   .sidebar-heading-add:focus-visible { opacity: 1; }
 }
 .chat-project-toggle { display: flex; min-width: 0; flex: 1; align-items: center; gap: 0.4rem; padding: 0.35rem 0.3rem; text-align: start; font-size: 0.84375rem; }
 /* ワークスペースの分区（ノート・スライド・ホワイトボード、#168）の見出し。 */
-.notes-section-toggle { display: inline-flex; min-width: 0; align-items: center; gap: 0.35rem; margin-block: -0.25rem; padding: 0.25rem 0.3rem; margin-inline-start: -0.3rem; border-radius: 6px; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; text-align: start; transition: background 120ms ease, color 120ms ease; }
-.notes-section-toggle svg { flex: none; color: var(--notion-faint); }
-@media (hover: hover) { .notes-section-toggle:hover { background: var(--notion-hover); color: var(--notion-text); } }
+.notes-section-toggle { display: inline-flex; min-width: 0; align-items: center; gap: 0.45rem; margin-block: -0.2rem; padding: 0.2rem 0.35rem; margin-inline-start: -0.35rem; border-radius: 7px; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; text-align: start; transition: background 120ms ease, color 120ms ease; }
+.notes-section-toggle .sidebar-chevron { flex: none; color: var(--notion-muted); }
+@media (hover: hover) { .notes-section-toggle:hover { background: var(--notion-hover); color: var(--nf-ink); } }
 .notes-section-toggle:focus-visible { outline: 2px solid var(--nf-accent-line); outline-offset: 1px; }
 .chat-actions-menu { position: fixed; margin: 0; width: 228px; max-height: calc(100dvh - 16px); overflow-y: auto; padding: .35rem; border: 1px solid var(--notion-border); border-radius: .75rem; color: var(--notion-text); background: var(--notion-surface); box-shadow: 0 10px 32px rgba(15, 23, 42, 0.14); }
 .chat-actions-menu::backdrop { background: transparent; }
@@ -1370,9 +1437,31 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 .language-menu-name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .language-menu-check { flex: none; color: var(--notion-blue); }
 /* サイドバー最下段: アカウント（左、伸びる）と「?」（右、32px 角）。アカウントがないときは「?」だけ右に寄る。 */
-.sidebar-footer { display: flex; flex-shrink: 0; flex-wrap: wrap; align-items: center; gap: .25rem; padding: .5rem .625rem; border-top: 1px solid var(--notion-border); }
+.sidebar-footer { display: flex; flex-shrink: 0; flex-wrap: wrap; align-items: center; gap: .35rem; padding: .55rem .625rem; border-top: 1px solid var(--notion-border); }
 .sidebar-footer-account { min-width: 0; flex: 1; }
 .sidebar-footer-account:empty { display: none; }
+/* サイドバー下部のログインボタンは、最上部の主ボタン（墨色）と張り合わない穏やかな白カード調にする。 */
+.sidebar-footer .signin-open-button {
+  height: 2.25rem;
+  gap: 0.45rem;
+  border-radius: 0.55rem;
+  border: 1px solid var(--notion-border-strong);
+  background: var(--notion-surface);
+  color: var(--nf-ink);
+  font-size: 0.84375rem;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+.sidebar-footer .signin-open-button svg { color: var(--notion-muted); flex: none; }
+@media (hover: hover) {
+  .sidebar-footer .signin-open-button:hover {
+    background: var(--notion-hover);
+    border-color: rgba(var(--notion-ink-rgb), 0.22);
+  }
+}
+@media (max-width: 639px) {
+  .sidebar-footer .signin-open-button { height: 2.625rem; font-size: 0.9375rem; }
+}
 .sidebar-help-trigger { display: inline-flex; width: 2rem; height: 2rem; flex: none; margin-inline-start: auto; align-items: center; justify-content: center; border-radius: .45rem; color: var(--notion-faint); transition: background 120ms ease, color 120ms ease; }
 .sidebar-help-trigger:hover, .sidebar-help-trigger[aria-expanded="true"] { background: var(--notion-hover); color: var(--notion-text); }
 .sidebar-help-trigger:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: 2px; }
@@ -4066,6 +4155,10 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
   --kind-whiteboard-border: rgba(167, 139, 250, 0.28);
   --kind-fav: #facc15;
   --kind-fav-soft: rgba(250, 204, 21, 0.16);
+  --sidebar-section-ink: rgba(236, 237, 240, 0.88);
+  --sidebar-tab-muted: rgba(236, 237, 240, 0.74);
+  --sidebar-count-bg: rgba(255, 255, 255, 0.09);
+  --sidebar-count-text: rgba(236, 237, 240, 0.78);
 }
 
 :root[data-theme="dark"] .notes-workspace {
@@ -4093,17 +4186,39 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 :root[data-theme="dark"] .sidebar-search-trigger {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.055);
+  border-color: var(--notion-border-strong);
   box-shadow: none;
+}
+@media (hover: hover) {
+  :root[data-theme="dark"] .sidebar-search-trigger:hover {
+    background: rgba(255, 255, 255, 0.085);
+    border-color: rgba(255, 255, 255, 0.22);
+  }
+}
+:root[data-theme="dark"] .notion-segmented {
+  background: rgba(255, 255, 255, 0.06);
+}
+:root[data-theme="dark"] .sidebar-footer .signin-open-button {
+  background: var(--notion-surface);
+  border-color: var(--notion-border-strong);
+  color: var(--nf-ink);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+@media (hover: hover) {
+  :root[data-theme="dark"] .sidebar-footer .signin-open-button:hover {
+    background: var(--notion-hover);
+    border-color: rgba(255, 255, 255, 0.22);
+  }
 }
 :root[data-theme="dark"] .sidebar-search-hint {
   background: rgba(255, 255, 255, 0.05);
 }
 :root[data-theme="dark"] .notion-session-row.is-active,
 :root[data-theme="dark"] .notion-sidebar-action.is-active {
-  --row-bg: #22242c;
-  background: #22242c;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --row-bg: #242732;
+  background: #242732;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.11);
 }
 :root[data-theme="dark"] .ws-filter-pill.is-active,
 :root[data-theme="dark"] .notion-segment.is-active {

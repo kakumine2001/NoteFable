@@ -2,10 +2,11 @@
 
 import "@/components/slides/slides.css";
 import {
-  ChevronDown, Copy, Download, Eye, EyeOff, FileImage, FileText, Image as ImageIcon, LayoutGrid, LayoutTemplate, MessageSquareText, Minus, Monitor, MoveRight, Palette, PenTool,
-  Play, Plus, Presentation, Redo2, Scissors, Shapes, Sparkles, SquareDashed, StickyNote, Table, Trash2, Type, Undo2, Upload, Clipboard,
+  ChevronDown, Copy, Download, Eye, EyeOff, FileImage, FileText, Flag, Image as ImageIcon, ImagePlus, LayoutGrid, LayoutTemplate, MessageSquareText, Minus, Monitor, MoveRight, Palette, PenTool,
+  Play, Plus, Presentation, Redo2, Scissors, Shapes, SquareDashed, StickyNote, Table, Trash2, Type, Undo2, Upload, Clipboard,
 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { AppIcon } from "@/components/app-icon";
 import type { CanvasEditorProps } from "@/components/canvas-editors";
 import { useT } from "@/components/i18n-provider";
 import { ChatImagesDialog, GenerateImageDialog, ReportImageDialog } from "@/components/slides/slide-dialogs";
@@ -30,7 +31,7 @@ import { applyLayout, createSlide, LAYOUTS } from "@/lib/slides/layouts";
 import { normalizeDeck, SHAPE_KINDS, slideRows, SLIDE_HEIGHT, SLIDE_WIDTH, type Deck, type ImageElement, type LayoutId, type ShapeKind, type Slide, type SlideElement } from "@/lib/slides/model";
 import {
   addElements, cloneElements, clipboardPayload, CLIPBOARD_MIME, deleteElements, deleteSlides, duplicateSlides, groupElements, insertSlides, joinRowAt, moveSlides,
-  moveSlidesToRow, parseClipboard, renameRow, reorderElements, setHidden, startRowAt, ungroupElements, updateElements, updateSlide,
+  moveSlidesToRow, parseClipboard, renameRow, reorderElements, setHidden, setTransition, startRowAt, ungroupElements, updateElements, updateSlide,
 } from "@/lib/slides/ops";
 import { richDocFromText, richDocText } from "@/lib/slides/rich-text";
 import { SHAPE_LABELS, shapePath } from "@/lib/slides/shapes";
@@ -39,7 +40,8 @@ import type { ExportFormat } from "@/lib/slides/export-files";
 import { useSlideCapture } from "@/components/slides/slide-capture";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { StorageLimitError } from "@/lib/usage-plans";
-import { SLIDES_EVENTS, type SlidesSelectionDetail } from "@/lib/slides/ai-context";
+import { SLIDES_EVENTS, slidesContextText, slidesSelectionIds, type SlidesSelectionDetail } from "@/lib/slides/ai-context";
+import { captureSlideSelectionPng } from "@/lib/slides/selection-capture";
 
 // スライドのエディター（Figma Slides 式）。総覧（行 = 章）と単ページ編集、版式・主題、自由配置、放映、書き出し。
 // 保存は NotesWorkspace の保存キューが受け持つ（変わった本体を onChange で渡す）。取り消し・やり直しはこの中で持つ。
@@ -57,7 +59,7 @@ function isTypingTarget(target: EventTarget | null) {
 const MOD = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
 
 // aiSlot: AI の面板（#150）を置く場所。単ページ編集の面の右下（スマホでは縮小図の帯の上）に重ねて出す。
-export default function SlidesEditor({ pageId, title, data, version, editable, embedded, onChange, onTitleChange, aiSlot }: CanvasEditorProps & { aiSlot?: ReactNode }) {
+export default function SlidesEditor({ pageId, title, data, version, editable, embedded, onChange, onTitleChange, onAskAi, onSelectionChange, aiSlot }: CanvasEditorProps & { aiSlot?: ReactNode }) {
   const t = useT();
   const phone = useMediaQuery("(max-width: 640px)");
   // 作ったばかりで中身の無いスライドは、最初の 1 枚（標題）を入れて始める（作成の続き。開いただけで書き換えるのはこの時だけ）。
@@ -107,6 +109,10 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   const [menu, setMenu] = useState<{ x: number; y: number; kind: "element" | "slide"; slideId?: string } | null>(null);
   const [notice, setNotice] = useState("");
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
+  // 書き出し中か（runExport だけが立て・下ろす。state の再描画を待たずに選区の撮影を止めるため ref でも持つ）。
+  const exportingRef = useRef(false);
+  const captureBusyRef = useRef(false);
+  const captureJobRef = useRef<Promise<Blob | null> | null>(null);
   const [notesOpen, setNotesOpen] = useState(true);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const commandsRef = useRef<TextCommands | null>(null);
@@ -155,6 +161,84 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     const detail: SlidesSelectionDetail = { pageId, slideIds: view === "grid" ? [...selectedSlides] : current ? [current.id] : [], elementIds: [...liveSelection] };
     window.dispatchEvent(new CustomEvent<SlidesSelectionDetail>(SLIDES_EVENTS.selection, { detail }));
   }, [pageId, view, selectedSlides, current, liveSelection]);
+
+  const makeSlideCapture = useCallback((targetSlideId: string | null, elementIds: readonly string[], fallbackSlide: Slide | null, fallbackTheme: ReturnType<typeof resolveTheme>) => {
+    if (!targetSlideId) return undefined;
+    const fallbackSnapshot = fallbackSlide ? { ...fallbackSlide, elements: fallbackSlide.elements.map((el) => ({ ...el })) } : null;
+    const wantedIds = [...elementIds];
+    return async () => {
+      if (exportingRef.current || captureBusyRef.current) return null;
+      captureBusyRef.current = true;
+      const job = (async () => {
+        const latestDeck = deckRef.current;
+        const liveSlide = latestDeck.slides.find((slide) => slide.id === targetSlideId) ?? fallbackSnapshot;
+        if (!liveSlide) return null;
+        const liveTheme = resolveTheme(latestDeck.theme) ?? fallbackTheme;
+        const targetElementIds = wantedIds.filter((id) => liveSlide.elements.some((el) => el.id === id));
+        if (wantedIds.length > 0 && !targetElementIds.length) return null;
+        return await captureSlideSelectionPng(capture, { ...liveSlide, elements: liveSlide.elements.map((el) => ({ ...el })) }, liveTheme, targetElementIds);
+      })();
+      // 書き出しはこの撮影が終わるのを待ってから始める（runExport）。
+      captureJobRef.current = job;
+      try {
+        return await job;
+      } finally {
+        captureBusyRef.current = false;
+        if (captureJobRef.current === job) captureJobRef.current = null;
+      }
+    };
+  }, [capture]);
+
+  // 要素を選んだ状態・総覧で複数枚を選んだ状態をリアルタイムに AI パネルへ同期する（パネルが開いている時や、右下の AI ボタンを押した時にも自動で添付する）。
+  useEffect(() => {
+    if (!onSelectionChange) return;
+    return () => { onSelectionChange(null); };
+  }, [onSelectionChange]);
+  useEffect(() => {
+    if (!onSelectionChange) return;
+    const isElementSelection = view === "slide" && current && liveSelection.size > 0;
+    const isMultiSlideSelection = view === "grid" && selectedSlides.size > 1;
+    if (!isElementSelection && !isMultiSlideSelection) {
+      onSelectionChange(null);
+      return;
+    }
+    const slideIds = isElementSelection
+      ? [current.id]
+      : deck.slides.filter((slide) => selectedSlides.has(slide.id)).map((slide) => slide.id);
+    if (!slideIds.length) { onSelectionChange(null); return; }
+    const elementIds = isElementSelection ? [...liveSelection] : [];
+    const sel = { slideIds, elementIds };
+    const text = slidesContextText(deck, sel, { t });
+    const ids = slidesSelectionIds(deck, sel);
+    const targetSlideId = (current && slideIds.includes(current.id) ? current.id : slideIds[0]) ?? null;
+    const fallbackSlide = targetSlideId ? deck.slides.find((slide) => slide.id === targetSlideId) ?? null : null;
+    const captureImage = makeSlideCapture(targetSlideId, elementIds, fallbackSlide, theme);
+    onSelectionChange({ text, ids, captureImage });
+  }, [onSelectionChange, view, deck, selectedSlides, current, liveSelection, theme, makeSlideCapture, t]);
+
+  // 選んだスライドや要素について AI に聞く（ロック中のスライドからも利用可能）。
+  const askAi = useCallback((override?: { slideIds?: string[]; elementIds?: string[] }) => {
+    if (!onAskAi) return;
+    const rawSlideIds = override?.slideIds
+      ?? (view === "grid"
+        ? deck.slides.filter((slide) => selectedSlides.has(slide.id)).map((slide) => slide.id)
+        : current ? [current.id] : []);
+    const slideIds = rawSlideIds.length ? rawSlideIds : current ? [current.id] : [];
+    if (!slideIds.length) return;
+    const elementIds = override?.elementIds !== undefined
+      ? override.elementIds
+      : view === "slide" ? [...liveSelection] : [];
+    const sel = { slideIds, elementIds };
+    const text = slidesContextText(deck, sel, { t });
+    const ids = slidesSelectionIds(deck, sel);
+    // 複数枚選択時はアクティブな枚（なければ先頭）を対象にし、送信時点の最新スライド（保存後）を描画する。
+    const targetSlideId = (current && slideIds.includes(current.id) ? current.id : slideIds[0]) ?? null;
+    const fallbackSlide = targetSlideId ? deck.slides.find((slide) => slide.id === targetSlideId) ?? null : null;
+    const captureImage = makeSlideCapture(targetSlideId, elementIds, fallbackSlide, theme);
+    // スマホでは設定シートが開いたままだと AI 引き出しと重なるため閉じる。
+    if (phone) { setInspectorOpen(false); setSelection(new Set()); }
+    onAskAi({ text, ids, captureImage });
+  }, [onAskAi, view, deck, selectedSlides, current, liveSelection, theme, makeSlideCapture, phone, t]);
 
   // ---- 枚の操作 ----
   const addSlide = useCallback((layout: LayoutId = "bullets", index?: number) => {
@@ -336,14 +420,19 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
 
   // ---- 書き出し・放映 ----
   const runExport = async (format: ExportFormat) => {
-    if (exporting) return;
+    if (exporting || exportingRef.current) return;
     // PDF・PNG は隠した枚を入れない。見せる枚が無ければ空のファイルを作らない。
     if (!deck.slides.length || (format !== "pptx" && !deck.slides.some((slide) => !slide.hidden))) { setNotice(t("This deck has no slides to show.")); return; }
     // 書き出しを始めた時点のページの番号。読み込みを待つ間にアプリが別のページへ切り替えたら、前のページのファイルを渡さない。
     const exportEpoch = getNativeExportEpoch();
+    // 新しい選区の撮影を始めさせない（次の描画を待たずにすぐ立て、finally で下ろす）。
+    exportingRef.current = true;
     setExporting(format);
     setNotice("");
     try {
+      // AI パネルへ送る選区の画像を撮っている途中なら、終わるのを待ってから書き出す（黙って何もしないことがないように）。
+      const pendingCapture = captureJobRef.current;
+      if (pendingCapture) await pendingCapture.catch(() => null);
       const { exportDeckFiles } = await import("@/lib/slides/export-files");
       const result = await exportDeckFiles(deck, title, format, capture, exportEpoch);
       if (result === "cancelled" || exportEpoch !== getNativeExportEpoch()) return;
@@ -356,7 +445,7 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
       if (exportEpoch !== getNativeExportEpoch()) return;
       setNotice(caught instanceof Error && caught.message ? caught.message : t("Could not export the slides."));
     }
-    finally { setExporting(null); }
+    finally { exportingRef.current = false; setExporting(null); }
   };
   const present = (from: "start" | "current") => {
     setEditing(null);
@@ -482,7 +571,7 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
         {(close) => <>
           <MenuItem icon={<Upload size={16} />} label={t("Upload image")} onClick={() => { close(); requestImage(null); }} />
           <MenuItem icon={<MessageSquareText size={16} />} label={t("From chats")} onClick={() => { close(); setDialog({ kind: "chat", target: null }); }} />
-          <MenuItem icon={<Sparkles size={16} />} label={t("Generate with AI")} onClick={() => { close(); setDialog({ kind: "generate", target: null }); }} />
+          <MenuItem icon={<ImagePlus size={16} />} label={t("Generate with AI")} onClick={() => { close(); setDialog({ kind: "generate", target: null }); }} />
         </>}
       </MenuButton>
       <MenuButton label={t("Shape")} icon={<Shapes size={18} />} disabled={!current} menuClassName="slides-shape-menu">
@@ -527,12 +616,20 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
       <button type="button" className="slides-tool" onClick={redo} disabled={!history.future.length} aria-label={t("Redo")} title={`${t("Redo")} (${MOD}Shift+Z)`}><Redo2 size={18} className="rtl-mirror" /></button>
     </div>}
     <span className="slides-toolbar-spacer" />
+    {onAskAi && deck.slides.length > 0 && (
+      <button type="button" className={`slides-tool slides-ask-ai${liveSelection.size > 0 || (view === "grid" && selectedSlides.size > 0) ? " is-highlighted" : ""}`}
+        onClick={() => askAi()} aria-label={t("Ask NoteFable")} title={t("Ask NoteFable")}>
+        <AppIcon size={16} />
+        {!phone && <span>{t("Ask NoteFable")}</span>}
+      </button>
+    )}
     <MenuButton label={t("Export")} icon={<Download size={18} />} disabled={!deck.slides.length || !!exporting} text={exporting ? <span className="slides-tool-busy" aria-hidden="true" /> : null}>
       {(close) => <>
         <MenuItem icon={<FileText size={16} />} label={t("Export PDF")} onClick={() => { close(); void runExport("pdf"); }} />
         <MenuItem icon={<StickyNote size={16} />} label={t("Export PDF with speaker notes")} onClick={() => { close(); void runExport("pdf-notes"); }} />
         <MenuItem icon={<FileImage size={16} />} label={t("Export PNG images")} onClick={() => { close(); void runExport("png"); }} />
         <MenuItem icon={<Presentation size={16} />} label={t("Export PowerPoint (PPTX)")} onClick={() => { close(); void runExport("pptx"); }} />
+        <p className="slides-menu-note">{t("Slide transitions aren’t included in PPTX export.")}</p>
       </>}
     </MenuButton>
     <div className="slides-present">
@@ -550,9 +647,12 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   const sheetOpen = phone && view === "slide" && (liveSelection.size > 0 || inspectorOpen);
   useBackToClose(sheetOpen, () => { setInspectorOpen(false); setSelection(new Set()); });
   const textCommands = editingId ? commandsRef.current : null;
-  const inspector = current && view === "slide" ? <SlideInspector slide={current} selection={liveSelection} theme={theme} editable={editable}
+  const inspector = current && view === "slide" ? <SlideInspector slide={current} slideCount={deck.slides.length} selection={liveSelection} theme={theme} editable={editable}
     onChange={(next, merge) => commitSlide(next, merge)} onReplaceImage={(id) => requestImage(id)} onReportImage={(id) => setDialog({ kind: "report", target: id })}
-    onDelete={deleteSelection} onLayout={setLayout} onToggleHidden={() => commit(setHidden(deck, new Set([current.id]), !current.hidden))} /> : null;
+    onDelete={deleteSelection} onLayout={setLayout} onToggleHidden={() => commit(setHidden(deck, new Set([current.id]), !current.hidden))}
+    onTransition={(transition) => commit(setTransition(deck, new Set([current.id]), transition))}
+    onApplyTransitionAll={(transition) => commit(setTransition(deck, new Set(deck.slides.map((entry) => entry.id)), transition))}
+    onAskAi={onAskAi ? () => askAi() : undefined} /> : null;
 
   return <SlideRenderRoot theme={theme} mode="view">
     <div ref={root} className={`slides-editor${phone ? " is-phone" : ""}${embedded ? " is-embedded" : ""}`} onKeyDown={onKeyDown} data-theme-mode={theme.mode}>
@@ -615,16 +715,18 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
       <input ref={fileInput} type="file" accept={SLIDE_IMAGE_TYPES.join(",")} multiple className="sr-only" tabIndex={-1} aria-hidden="true"
         onChange={(event) => { const files = Array.from(event.target.files ?? []); event.target.value = ""; if (files.length) void uploadFiles(files, imageTarget.current); }} />
       {menu?.kind === "element" && current && <PointMenu x={menu.x} y={menu.y} label={selectedElement ? t(ELEMENT_LABELS[selectedElement.type]) : t("Selection")} onClose={() => setMenu(null)}>
+        {onAskAi && <MenuItem icon={<AppIcon size={16} />} label={t("Ask NoteFable")} onClick={() => { setMenu(null); askAi(); }} />}
         <MenuItem icon={<Scissors size={16} />} label={t("Cut")} shortcut={`${MOD}X`} disabled={!editable} onClick={() => { copyFromMenu(true); setMenu(null); }} />
         <MenuItem icon={<Copy size={16} />} label={t("Copy")} shortcut={`${MOD}C`} onClick={() => { copyFromMenu(false); setMenu(null); }} />
         <MenuItem icon={<Clipboard size={16} />} label={t("Paste")} shortcut={`${MOD}V`} disabled={!editable || !clipboard.current} onClick={() => { setMenu(null); const parsed = clipboard.current ? parseClipboard(clipboard.current) : null; if (parsed?.elements.length) insertElements(parsed.elements); }} />
         <MenuItem icon={<Copy size={16} />} label={t("Duplicate")} shortcut={`${MOD}D`} disabled={!editable} onClick={() => { setMenu(null); duplicateSelection(); }} />
         <MenuItem icon={<SquareDashed size={16} />} label={t("Bring to front")} disabled={!editable} onClick={() => { setMenu(null); commitSlide(reorderElements(current, liveSelection, "front")); }} />
         <MenuItem icon={<SquareDashed size={16} />} label={t("Send to back")} disabled={!editable} onClick={() => { setMenu(null); commitSlide(reorderElements(current, liveSelection, "back")); }} />
-        {selectedElement?.type === "image" && selectedElement.generated && <MenuItem icon={<Sparkles size={16} />} label={t("Report image")} onClick={() => { setMenu(null); setDialog({ kind: "report", target: selectedElement.id }); }} />}
+        {selectedElement?.type === "image" && selectedElement.generated && <MenuItem icon={<Flag size={16} />} label={t("Report image")} onClick={() => { setMenu(null); setDialog({ kind: "report", target: selectedElement.id }); }} />}
         <MenuItem icon={<Trash2 size={16} />} label={t("Delete")} danger disabled={!editable} onClick={() => { setMenu(null); deleteSelection(); }} />
       </PointMenu>}
       {menu?.kind === "slide" && <PointMenu x={menu.x} y={menu.y} label={t("Slide")} onClose={() => setMenu(null)}>
+        {onAskAi && <MenuItem icon={<AppIcon size={16} />} label={t("Ask NoteFable")} onClick={() => { const targets = [...slideTargets()]; setMenu(null); askAi({ slideIds: targets, elementIds: [] }); }} />}
         <MenuItem icon={<Plus size={16} />} label={t("New slide")} shortcut={`${MOD}M`} disabled={!editable} onClick={() => { setMenu(null); addSlide(); }} />
         <MenuItem icon={<Copy size={16} />} label={t("Duplicate")} disabled={!editable} onClick={() => { setMenu(null); duplicateSelectedSlides(); }} />
         <MenuItem icon={deck.slides.some((slide) => slideTargets().has(slide.id) && !slide.hidden) ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -636,7 +738,7 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
         <MenuItem icon={<Trash2 size={16} />} label={t("Delete")} danger disabled={!editable} onClick={() => { setMenu(null); deleteSelectedSlides(); }} />
       </PointMenu>}
       {dialog?.kind === "chat" && <ChatImagesDialog onClose={() => setDialog(null)} onPicked={(image) => placeImage(image, dialog.target)} />}
-      {dialog?.kind === "generate" && <GenerateImageDialog onClose={() => setDialog(null)} onGenerated={(image) => placeImage(image, dialog.target)} />}
+      {dialog?.kind === "generate" && <GenerateImageDialog pageId={pageId} embedded={embedded} onClose={() => setDialog(null)} onGenerated={(image) => placeImage(image, dialog.target)} />}
       {dialog?.kind === "report" && <ReportImageDialog pageId={pageId} elementId={dialog.target} onClose={() => setDialog(null)} />}
       {presenting && <SlidePlayer deck={deck} startId={presenting.startId} onExit={() => setPresenting(null)} allowPresenter={!embedded && !phone} fullscreen={!embedded}
         controlRef={playerControl}

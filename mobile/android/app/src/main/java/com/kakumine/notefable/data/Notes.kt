@@ -371,6 +371,11 @@ sealed interface EmbedMessage {
      */
     data class StorageLimit(val tier: String, val used: Long, val limit: Long) : EmbedMessage
     /**
+     * 笔记编辑器里的 AI 面板或幻灯片生图撞到使用次数上限（429 usage_limit）。App 在编辑器上方显示和聊天一样的提示（登录 / 升级）。
+     * 只有声明了 `canShowUsageLimit()` 的 App 才会收到。[pageId] 是发生上限的源页面 ID（用于过滤切页后晚到的旧页面响应）。
+     */
+    data class UsageLimit(val tier: String, val kind: String, val pageId: String? = null) : EmbedMessage
+    /**
      * 幻灯片的放映：[state] 是 start（App 横屏、全屏、屏幕常亮）、slide（换了页，[index] 从 0 开始，[count] 是总页数）、end（恢复）。
      * 只有声明了 `canPresent()` 的 App 才会收到。
      */
@@ -413,6 +418,11 @@ sealed interface EmbedMessage {
                     obj.str("tier") ?: return@runCatching null,
                     obj["used"]?.jsonPrimitive?.longOrNull ?: return@runCatching null,
                     obj["limit"]?.jsonPrimitive?.longOrNull ?: return@runCatching null,
+                )
+                "usageLimit" -> UsageLimit(
+                    obj.text("tier")?.takeIf { it == "guest" || it == "member" || it == "pro" } ?: return@runCatching null,
+                    obj.text("kind")?.takeIf { it == "chat" || it == "image" } ?: return@runCatching null,
+                    obj.text("pageId")?.takeIf { it.isNotBlank() },
                 )
                 "presentation" -> Presentation(
                     obj.str("state")?.takeIf { it == "start" || it == "slide" || it == "end" } ?: return@runCatching null,

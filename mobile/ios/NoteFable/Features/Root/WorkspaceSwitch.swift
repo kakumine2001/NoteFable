@@ -19,6 +19,7 @@ struct WorkspaceSwitch: View {
         let workspace = app.notes.state.workspace
         let fontSize: CGFloat = inDrawer ? 13.5 : 15
         let trackShape = RoundedRectangle(cornerRadius: 10)
+        let trackBg = Color(light: 0x111C202A, dark: 0x0FFFFFFF)
         WorkspaceSegmentsLayout(spacing: 2) {
             WorkspaceSegment(title: L("chat_mode"), icon: Lucide.messageSquareText, fontSize: fontSize, active: workspace == .chat) {
                 select(.chat)
@@ -30,7 +31,7 @@ struct WorkspaceSwitch: View {
         .padding(3)
         .frame(maxWidth: .infinity)
         .frame(height: 46)
-        .background(Sm.hover, in: trackShape)
+        .background(trackBg, in: trackShape)
         .overlay { trackShape.strokeBorder(Sm.border, lineWidth: 1) }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(L("workspace_mode"))
@@ -77,10 +78,10 @@ private struct WorkspaceSegment: View {
         let shape = RoundedRectangle(cornerRadius: 7.2)
         Button(action: action) {
             HStack(spacing: 6) {
-                LucideIcon(icon, size: 15, color: active ? Sm.blue : Sm.muted)
+                LucideIcon(icon, size: 15, color: active ? Sm.blue : Sm.tabMuted)
                 Text(title)
-                    .font(.nf(fontSize, weight: 550))
-                    .foregroundStyle(active ? Sm.ink : Sm.muted)
+                    .font(.nf(fontSize, weight: active ? 620 : 500))
+                    .foregroundStyle(active ? Sm.ink : Sm.tabMuted)
                     .lineLimit(1)
             }
             .padding(.horizontal, 5)
@@ -90,9 +91,9 @@ private struct WorkspaceSegment: View {
                 if active {
                     shape
                         .fill(Sm.surface)
-                        .shadow(color: Color(argb: 0x140F172A), radius: 1, x: 0, y: 1)
+                        .shadow(color: Color(light: 0x170F172A, dark: 0x59000000), radius: 1.5, x: 0, y: 1)
                         .overlay {
-                            shape.strokeBorder(Color(light: 0x0D0F172A, dark: 0x17FFFFFF), lineWidth: 1)
+                            shape.strokeBorder(Sm.border, lineWidth: 1)
                         }
                 }
             }

@@ -49,4 +49,10 @@ final class SlidesBridgeTests: XCTestCase {
         vm.registerEditor(nil)
         XCTAssertFalse(vm.state.presenting)
     }
+
+    func testNotesAndSlidesBothSupportPresentationInPageMenu() {
+        XCTAssertTrue(notePageSupportsPresentation(.note))
+        XCTAssertTrue(notePageSupportsPresentation(.slides))
+        XCTAssertFalse(notePageSupportsPresentation(.whiteboard))
+    }
 }

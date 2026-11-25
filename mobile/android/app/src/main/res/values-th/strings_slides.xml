@@ -6,4 +6,5 @@
     <string name="slides_export_pdf_notes">ส่งออก PDF พร้อมบันทึกผู้บรรยาย</string>
     <string name="slides_export_png">ส่งออกรูปภาพ PNG</string>
     <string name="slides_export_pptx">ส่งออกเป็น PowerPoint (PPTX)</string>
+    <string name="slides_export_pptx_transition_note">การเปลี่ยนสไลด์จะไม่รวมอยู่ในการส่งออก PPTX</string>
 </resources>

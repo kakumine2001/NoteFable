@@ -7,9 +7,11 @@ import { NotePageMenu } from "@/components/note-page-menu";
 import { NotesWorkspace } from "@/components/notes-workspace";
 import { localizeSystemText } from "@/lib/i18n/translate";
 import { drawNoteDiagram } from "@/lib/draw-diagram-jobs";
+import { dispatchSlidesCommand } from "@/lib/native-bridge";
 import { recentPages } from "@/lib/notes-home-text";
 import type { useNotePages } from "@/lib/use-note-pages";
 import { pageSettingsOf, type NotePageSummary } from "@/types/notes";
+import type { PageSelection } from "@/lib/page-ai/types";
 import { NoteIcon } from "@/components/note-icon";
 import { PageKindIcon } from "@/components/page-kind-icon";
 
@@ -24,7 +26,7 @@ type SplitNotePaneProps = {
   onMoveNote: (id: string) => void;
   onExportNote: (id: string) => void;
   onTrashNote: (id: string) => void;
-  onAskSelectionInChat: (text: string) => void;
+  onAskSelectionInChat: (selection: PageSelection) => void;
   onClose: () => void;
 };
 
@@ -194,6 +196,7 @@ export function SplitNotePane({
               busy={notes.busy}
               error={notes.groupError}
               onSettings={(settings) => void notes.updateSettings(activeSummary.id, settings)}
+              onPresent={() => dispatchSlidesCommand({ action: "present" })}
               onFavorite={(favorite) => void notes.setFavorite(activeSummary.id, favorite)}
               onDuplicate={() => void notes.duplicate(activeSummary.id)}
               onAddSubpage={() => onCreateNote(activeSummary.id)}

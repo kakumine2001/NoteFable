@@ -597,6 +597,7 @@
 "slides_export_pdf_notes" = "Export PDF with speaker notes";
 "slides_export_png" = "Export PNG images";
 "slides_export_pptx" = "Export PowerPoint (PPTX)";
+"slides_export_pptx_transition_note" = "Slide transitions aren’t included in PPTX export.";
 
 /* strings_turns.xml */
 "regenerate" = "Regenerate";

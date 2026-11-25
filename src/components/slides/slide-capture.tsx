@@ -12,43 +12,67 @@ import type { ResolvedTheme } from "@/lib/slides/themes";
 // エディターの中（同じ React の木）に描くので、言語・主題の設定がそのまま効く。
 
 export type NotesPageInput = { image: string; number: number; count: number; title: string; notes: string };
-type Job = { kind: "slide"; slide: Slide; resolve: (node: HTMLElement) => void } | { kind: "notes"; input: NotesPageInput; resolve: (node: HTMLElement) => void };
+type Job =
+  | { kind: "slide"; slide: Slide; resolve: (node: HTMLElement) => void; reject: (reason?: unknown) => void }
+  | { kind: "notes"; input: NotesPageInput; resolve: (node: HTMLElement) => void; reject: (reason?: unknown) => void };
+
+const SETTLE_RESOURCE_TIMEOUT_MS = 8_000;
+
+function withTimeout(promise: Promise<unknown>, ms = SETTLE_RESOURCE_TIMEOUT_MS): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = window.setTimeout(resolve, ms);
+    void promise.finally(() => {
+      window.clearTimeout(timer);
+      resolve();
+    });
+  });
+}
 
 async function settle(node: HTMLElement) {
-  await document.fonts?.ready.catch(() => undefined);
-  await Promise.all(Array.from(node.querySelectorAll("img")).map((image) => image.complete
-    ? image.decode?.().catch(() => undefined)
-    : new Promise((resolve) => { image.onload = resolve; image.onerror = resolve; })));
+  if (document.fonts?.ready) {
+    await withTimeout(document.fonts.ready.catch(() => undefined));
+  }
+  await withTimeout(Promise.all(Array.from(node.querySelectorAll("img")).map((image) => image.complete
+    ? (image.decode?.().catch(() => undefined) ?? Promise.resolve())
+    : new Promise((resolve) => { image.onload = resolve; image.onerror = resolve; }))));
   // 数式は KaTeX を読み込んでから描かれる。
   if (node.querySelector(".slide-math-inline, .slide-math-block")) {
-    await loadSlideKatex().catch(() => undefined);
-    await document.fonts?.ready.catch(() => undefined);
+    await withTimeout(loadSlideKatex().catch(() => undefined));
+    if (document.fonts?.ready) {
+      await withTimeout(document.fonts.ready.catch(() => undefined));
+    }
   }
   await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 }
 
-function CaptureSlide({ slide, onReady }: { slide: Slide; onReady: (node: HTMLElement) => void }) {
+function CaptureSlide({ slide, onReady, onError }: { slide: Slide; onReady: (node: HTMLElement) => void; onError: (reason: unknown) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let cancelled = false;
     const node = ref.current?.firstElementChild as HTMLElement | null;
-    if (!node) return;
-    void settle(node).then(() => { if (!cancelled) onReady(node); });
+    if (!node) {
+      onError(new Error("Slide capture element unavailable"));
+      return;
+    }
+    void settle(node).then(() => { if (!cancelled) onReady(node); }, (reason) => { if (!cancelled) onError(reason); });
     return () => { cancelled = true; };
-  }, [slide, onReady]);
+  }, [slide, onReady, onError]);
   return <div ref={ref}><SlideSurface slide={slide} /></div>;
 }
 
 // 演説者ノートつきの PDF の 1 ページ（A4 縦）：上に枚の画像、下にノート。
-function CaptureNotes({ input, onReady }: { input: NotesPageInput; onReady: (node: HTMLElement) => void }) {
+function CaptureNotes({ input, onReady, onError }: { input: NotesPageInput; onReady: (node: HTMLElement) => void; onError: (reason: unknown) => void }) {
   const t = useT();
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let cancelled = false;
-    if (!ref.current) return;
-    void settle(ref.current).then(() => { if (!cancelled && ref.current) onReady(ref.current); });
+    if (!ref.current) {
+      onError(new Error("Notes capture element unavailable"));
+      return;
+    }
+    void settle(ref.current).then(() => { if (!cancelled && ref.current) onReady(ref.current); }, (reason) => { if (!cancelled) onError(reason); });
     return () => { cancelled = true; };
-  }, [input, onReady]);
+  }, [input, onReady, onError]);
   return <div ref={ref} className="slides-notes-page" dir={document.documentElement.dir}>
     <div className="slides-notes-page-head"><span>{input.title}</span><span>{t("Slide {number} of {count}", { number: input.number, count: input.count })}</span></div>
     {/* eslint-disable-next-line @next/next/no-img-element -- 書き出しの途中で作った画像（data URL）。 */}
@@ -59,13 +83,51 @@ function CaptureNotes({ input, onReady }: { input: NotesPageInput; onReady: (nod
 
 export function useSlideCapture(theme: ResolvedTheme) {
   const [job, setJob] = useState<Job | null>(null);
-  const renderSlide = useCallback((slide: Slide) => new Promise<HTMLElement>((resolve) => setJob({ kind: "slide", slide, resolve })), []);
-  const renderNotesPage = useCallback((input: NotesPageInput) => new Promise<HTMLElement>((resolve) => setJob({ kind: "notes", input, resolve })), []);
-  const done = useCallback(() => setJob(null), []);
-  const onReady = useCallback((node: HTMLElement) => { job?.resolve(node); }, [job]);
+  const jobRef = useRef<Job | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      const pending = jobRef.current;
+      jobRef.current = null;
+      pending?.reject(new Error("Slide capture cancelled"));
+    };
+  }, []);
+
+  const startJob = useCallback((build: (resolve: (node: HTMLElement) => void, reject: (reason?: unknown) => void) => Job) => {
+    if (!mountedRef.current) return Promise.reject(new Error("Slide capture unmounted"));
+    return new Promise<HTMLElement>((resolve, reject) => {
+      const previous = jobRef.current;
+      if (previous) previous.reject(new Error("Slide capture superseded"));
+      const next = build(resolve, reject);
+      jobRef.current = next;
+      setJob(next);
+    });
+  }, []);
+
+  const renderSlide = useCallback((slide: Slide) => startJob((resolve, reject) => ({ kind: "slide", slide, resolve, reject })), [startJob]);
+  const renderNotesPage = useCallback((input: NotesPageInput) => startJob((resolve, reject) => ({ kind: "notes", input, resolve, reject })), [startJob]);
+  const done = useCallback(() => {
+    const pending = jobRef.current;
+    jobRef.current = null;
+    pending?.reject(new Error("Slide capture finished"));
+    if (mountedRef.current) setJob(null);
+  }, []);
+  const onReady = useCallback((node: HTMLElement) => {
+    const current = jobRef.current;
+    jobRef.current = null;
+    current?.resolve(node);
+  }, []);
+  const onError = useCallback((reason: unknown) => {
+    const current = jobRef.current;
+    jobRef.current = null;
+    current?.reject(reason);
+  }, []);
   const node: ReactNode = job && typeof document !== "undefined" ? createPortal(<div className="slides-capture" aria-hidden="true">
     <SlideRenderRoot theme={theme} mode="view">
-      {job.kind === "slide" ? <CaptureSlide slide={job.slide} onReady={onReady} /> : <CaptureNotes input={job.input} onReady={onReady} />}
+      {job.kind === "slide" ? <CaptureSlide slide={job.slide} onReady={onReady} onError={onError} /> : <CaptureNotes input={job.input} onReady={onReady} onError={onError} />}
     </SlideRenderRoot>
   </div>, document.body) : null;
   return { node, renderSlide, renderNotesPage, done };

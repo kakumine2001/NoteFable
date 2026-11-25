@@ -6,4 +6,5 @@
     <string name="slides_export_pdf_notes">Ekspor PDF dengan catatan pembicara</string>
     <string name="slides_export_png">Ekspor gambar PNG</string>
     <string name="slides_export_pptx">Ekspor ke PowerPoint (PPTX)</string>
+    <string name="slides_export_pptx_transition_note">Transisi slide tidak disertakan saat mengekspor ke PPTX.</string>
 </resources>

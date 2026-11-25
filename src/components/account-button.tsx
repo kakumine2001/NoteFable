@@ -1,6 +1,6 @@
 "use client";
 
-import { Settings } from "lucide-react";
+import { CircleUser, Settings } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
 import { forgetLocaleChoice, useI18n } from "@/components/i18n-provider";
@@ -60,7 +60,7 @@ export function AccountButton() {
 
   if (!user) {
     return (
-      <SignInButton />
+      <SignInButton icon={<CircleUser size={15} aria-hidden="true" />} />
     );
   }
 

@@ -27,8 +27,11 @@ vi.mock("@/lib/use-back-to-close", () => ({ useBackToClose: vi.fn() }));
 const bridge = vi.hoisted(() => ({ canOpen: false, posted: [] as unknown[] }));
 vi.mock("@/lib/native-bridge", () => ({
   nativeCanOpenPage: () => bridge.canOpen,
+  nativeCanShowUsageLimit: () => false,
   postToNative: (message: unknown) => { bridge.posted.push(message); return true; },
 }));
+const accountState = vi.hoisted(() => ({ account: null as null | { configured: boolean; user: unknown; billing?: boolean } }));
+vi.mock("@/lib/account-store", () => ({ useAccount: () => ({ account: accountState.account }) }));
 vi.mock("@/lib/clipboard", () => ({ writeClipboardText: vi.fn(async () => true) }));
 
 import { AnswerActions } from "./answer-actions";
@@ -114,8 +117,8 @@ function noteMenu(page: NotePageSummary, onDrawDiagram?: () => void) {
 function dialog(embedded = false) {
   const host = DrawDiagramHost({ embedded }) as AnyElement | null;
   if (!host) return null;
-  // copied, copyFailed
-  hooks.states = [false, false];
+  // copied, copyFailed, limitClosed
+  hooks.states = [false, false, false];
   return (host.type as (props: unknown) => ReactNode)(host.props);
 }
 
@@ -220,6 +223,19 @@ describe("Draw as diagram window", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const [first, second] = fetchMock.mock.calls.map(([, init]) => JSON.parse(String(init?.body)) as unknown);
     expect(second).toEqual(first);
+  });
+
+  it("offers sign-in when a guest hits the usage limit, but not inside the app", async () => {
+    accountState.account = { configured: true, user: null };
+    startDiagramJob({ type: "answer", sessionId: SESSION, messageId: SAVED }, "luna");
+    pending[0].resolve(json(429, { error: "You've reached today's limit.", code: "usage_limit", tier: "guest", kind: "chat" }));
+    await settle();
+    openDiagramDialog(key);
+    const names = (tree: ReactNode) => elements(tree).map((el) => (typeof el.type === "function" ? el.type.name : ""));
+    expect(textOf(dialog())).toContain("You've reached today's limit.");
+    expect(names(dialog())).toContain("GuestLimitPrompt");
+    expect(names(dialog(true))).not.toContain("GuestLimitPrompt");
+    accountState.account = null;
   });
 
   it("shows the generic failure without a copy button", async () => {

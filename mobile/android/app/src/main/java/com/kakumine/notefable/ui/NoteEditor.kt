@@ -182,6 +182,10 @@ class NoteEmbedBridge(
     @JavascriptInterface
     fun canShowStorageLimit(): Boolean = true
 
+    /** 网页据此把使用次数上限（`usageLimit` 消息）交给 App 显示登录 / 升级提示；旧版 App 没有这个方法，网页就在 WebView 里只说明原因。 */
+    @JavascriptInterface
+    fun canShowUsageLimit(): Boolean = true
+
     /** 网页据此把幻灯片的放映交给 App（横屏、全屏、屏幕常亮；`presentation` 消息）。旧版 App 没有这个方法，网页只在 WebView 里放映。 */
     @JavascriptInterface
     fun canPresent(): Boolean = true
@@ -977,8 +981,8 @@ fun NoteEditorScreen(
             }
             if (page != null && menu != null) {
                 Spacer(Modifier.width(8.dp))
-                // 幻灯片的"…"菜单多出放映和导出（交给网页做，文件再交回 App 保存）。
-                NotePageMenuButton(page, if (kind == PageKind.Slides) menu.withSlides(bridge::slides) else menu)
+                // 笔记和幻灯片的"…"菜单多出放映，幻灯片还多出导出（交给网页做，文件再交回 App 保存）。
+                NotePageMenuButton(page, if (supportsPresentation(kind)) menu.withSlides(bridge::slides) else menu)
             }
         }
         if (notice != null && !presenting) {

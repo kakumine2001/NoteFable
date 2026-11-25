@@ -597,6 +597,7 @@
 "slides_export_pdf_notes" = "تصدير PDF مع ملاحظات المتحدث";
 "slides_export_png" = "تصدير صور PNG";
 "slides_export_pptx" = "تصدير إلى PowerPoint (PPTX)";
+"slides_export_pptx_transition_note" = "لا تُضمَّن انتقالات الشرائح عند التصدير إلى PPTX.";
 
 /* strings_turns.xml */
 "regenerate" = "إعادة التوليد";

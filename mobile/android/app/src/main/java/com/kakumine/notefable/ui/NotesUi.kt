@@ -49,10 +49,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -148,12 +150,13 @@ fun WorkspaceSwitch(workspace: Workspace, onChange: (Workspace) -> Unit, modifie
     val label = stringResource(R.string.workspace_mode)
     val fontSize = if (inDrawer) 13.5.sp else 15.sp
     val trackShape = RoundedCornerShape(10.dp)
+    val trackBg = Sm.pick(Color(0x111C202A), Color(0x0FFFFFFF))
     Layout(
         content = {
             Segment(stringResource(R.string.chat_mode), Lucide.MessageSquareText, workspace == Workspace.Chat, fontSize) { onChange(Workspace.Chat) }
             Segment(stringResource(R.string.note_mode), Lucide.LayoutGrid, workspace == Workspace.Notes, fontSize) { onChange(Workspace.Notes) }
         },
-        modifier = modifier.fillMaxWidth().height(46.dp).clip(trackShape).background(Sm.Hover).border(1.dp, Sm.Border, trackShape).padding(3.dp)
+        modifier = modifier.fillMaxWidth().height(46.dp).clip(trackShape).background(trackBg).border(1.dp, Sm.Border, trackShape).padding(3.dp)
             .semantics { contentDescription = label },
     ) { measurables, constraints ->
         val gap = 2.dp.roundToPx()
@@ -175,21 +178,23 @@ fun WorkspaceSwitch(workspace: Workspace, onChange: (Workspace) -> Unit, modifie
 @Composable
 private fun Segment(text: String, icon: List<String>, active: Boolean, fontSize: TextUnit, onClick: () -> Unit) {
     val shape = RoundedCornerShape(7.2.dp)
+    val segShadow = Sm.pick(Color(0x170F172A), Color(0x59000000))
     Row(
         Modifier.height(40.dp)
-            .then(if (active) Modifier.shadow(1.dp, shape, ambientColor = Color(0x140F172A), spotColor = Color(0x140F172A)) else Modifier)
+            .then(if (active) Modifier.shadow(1.5.dp, shape, ambientColor = segShadow, spotColor = segShadow) else Modifier)
             .clip(shape)
-            .then(if (active) Modifier.background(Sm.Surface).border(1.dp, Sm.pick(Color(0x0D0F172A), Color(0x17FFFFFF)), shape) else Modifier)
+            .then(if (active) Modifier.background(Sm.Surface).border(1.dp, Sm.Border, shape) else Modifier)
             .clickable(onClick = onClick)
             .semantics { role = Role.Button }
             .padding(horizontal = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
-        LucideIcon(icon, 15.dp, if (active) Sm.Blue else Sm.Muted)
+        LucideIcon(icon, 15.dp, if (active) Sm.Blue else Sm.TabMuted)
         Spacer(Modifier.width(6.dp))
         Text(
-            text, color = if (active) Sm.Ink else Sm.Muted, fontSize = fontSize, fontWeight = FontWeight(550),
+            text, color = if (active) Sm.Ink else Sm.TabMuted, fontSize = fontSize,
+            fontWeight = if (active) FontWeight(620) else FontWeight(560),
             maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
         )
     }
@@ -324,45 +329,64 @@ fun NotesDrawerBody(
         sections.forEach { section -> section.roots.forEach { drag.rowAccepts[it.id] = section.kind.wire } }
     }
     Column(modifier) {
-        // "新建"（.sidebar-primary-action，手机）：上距 10、高 42、圆角 9、墨色底，左对齐图标 16 + 间距 8 + 15/560 字；多种类型时右侧下拉箭头。
-        NewPageMenuAnchor(kinds, stringResource(R.string.ws_new_page), { kind -> onCreate(kind, null) },
-            Modifier.padding(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 6.dp).fillMaxWidth()) { open ->
-            Row(
-                Modifier.fillMaxWidth().height(42.dp)
-                    .shadow(1.dp, RoundedCornerShape(9.dp), ambientColor = Color(0x1F0F172A), spotColor = Color(0x1F0F172A))
-                    .clip(RoundedCornerShape(9.dp)).background(if (busy) Sm.Ink.copy(alpha = 0.6f) else Sm.Ink)
-                    .clickable(enabled = !busy, onClick = open)
-                    .padding(horizontal = 11.2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                LucideIcon(Lucide.Plus, 16.dp, Sm.OnInk)
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(if (kinds.size > 1) R.string.ws_new else R.string.new_note), color = Sm.OnInk, fontSize = 15.sp, fontWeight = FontWeight(560), modifier = Modifier.weight(1f))
-                if (kinds.size > 1) LucideIcon(Lucide.ChevronDown, 14.dp, Sm.OnInk.copy(alpha = 0.65f))
+        // 顶部固定操作区（.sidebar-top-actions）：新建 + 搜索，下方 1dp 细线分隔可滚动列表。
+        Column(
+            Modifier.fillMaxWidth()
+                .drawBehind { drawRect(Sm.Border, topLeft = Offset(0f, size.height - 1.dp.toPx()), size = Size(size.width, 1.dp.toPx())) }
+                .padding(bottom = 10.dp),
+        ) {
+            // "新建"（.sidebar-primary-action，手机）：上距 10、高 42、圆角 9、墨色底，左对齐图标 16 + 间距 8 + 15/560 字；多种类型时右侧下拉箭头。
+            NewPageMenuAnchor(kinds, stringResource(R.string.ws_new_page), { kind -> onCreate(kind, null) },
+                Modifier.padding(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 6.dp).fillMaxWidth()) { open ->
+                Row(
+                    Modifier.fillMaxWidth().height(42.dp)
+                        .shadow(1.dp, RoundedCornerShape(9.dp), ambientColor = Color(0x1F0F172A), spotColor = Color(0x1F0F172A))
+                        .clip(RoundedCornerShape(9.dp)).background(if (busy) Sm.Ink.copy(alpha = 0.6f) else Sm.Ink)
+                        .clickable(enabled = !busy, onClick = open)
+                        .padding(horizontal = 11.2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    LucideIcon(Lucide.Plus, 16.dp, Sm.OnInk)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(if (kinds.size > 1) R.string.ws_new else R.string.new_note), color = Sm.OnInk, fontSize = 15.sp, fontWeight = FontWeight(560), modifier = Modifier.weight(1f))
+                    if (kinds.size > 1) LucideIcon(Lucide.ChevronDown, 14.dp, Sm.OnInk.copy(alpha = 0.65f))
+                }
             }
+            // Search 行（Batch 4）：网页侧栏里在"新建"按钮正下方。
+            SidebarSearchRow(onSearch)
         }
-        // Search 行（Batch 4）：网页侧栏里在"新建"按钮正下方。
-        SidebarSearchRow(onSearch)
 
         Column(
             Modifier.weight(1f).fillMaxWidth()
                 .onGloballyPositioned { drag.listBounds = it.boundsInWindow() }
                 .verticalScroll(scroll).padding(start = 10.dp, end = 10.dp, bottom = 16.dp),
         ) {
-            // Favorites（句首大小写 + 琥珀星标）：收藏的页面，平铺、不能拖，右侧"从收藏中移除"。
+            // Favorites（高对比标题 + 琥珀星标徽章 + 数量胶囊）：收藏的页面，平铺、不能拖，右侧"从收藏中移除"。
             val favorites = state.favorites
             if (favorites.isNotEmpty()) {
-                Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 14.dp, bottom = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                    LucideIcon(Lucide.Star, 12.5.dp, Sm.KindFav)
-                    Spacer(Modifier.width(5.6.dp))
-                    Text(stringResource(R.string.pg_favorites), color = Sm.Muted, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight(560))
+                Row(Modifier.fillMaxWidth().padding(start = 6.dp, end = 6.dp, top = 12.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    SidebarSectionBadge(Lucide.Star, Sm.KindFavSoft, Sm.KindFav)
+                    Spacer(Modifier.width(7.dp))
+                    Text(stringResource(R.string.pg_favorites), color = Sm.SectionTitle, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight(650), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    Spacer(Modifier.width(6.dp))
+                    CountPill(favorites.size)
                 }
                 favorites.forEach { page -> key("fav-" + page.id) { FavoriteRow(page, state.open?.id == page.id, busy, onOpen, onUnfavorite) } }
             }
-            // "Projects" 小标题 + 右侧 40 的"新项目"按钮。
-            Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 4.dp, top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.projects), color = Sm.Muted, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight(560), modifier = Modifier.weight(1f))
-                IconSquare(Lucide.Plus, 15.dp, 40.dp, stringResource(R.string.new_project), Sm.Muted, onClick = onNewGroup)
+            // "Projects" 分区标题（徽章 + 高对比标题 + 数量胶囊 + 右侧 40 的"新项目"按钮）。
+            Column(Modifier.fillMaxWidth().sidebarSectionTopDivider(favorites.isNotEmpty())) {
+                Row(Modifier.fillMaxWidth().padding(start = 6.dp, end = 2.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                        SidebarSectionBadge(Lucide.Folder, Sm.CountBg, Sm.SectionTitle)
+                        Spacer(Modifier.width(7.dp))
+                        Text(stringResource(R.string.projects), color = Sm.SectionTitle, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight(650), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                        if (state.groups.isNotEmpty()) {
+                            Spacer(Modifier.width(6.dp))
+                            CountPill(state.groups.size)
+                        }
+                    }
+                    IconSquare(Lucide.Plus, 15.dp, 40.dp, stringResource(R.string.new_project), Sm.TabMuted, onClick = onNewGroup)
+                }
             }
             state.groups.forEach { group ->
                 val members = state.members(group.id)
@@ -442,9 +466,9 @@ private fun SidebarAction(icon: List<String>, text: String, onClick: () -> Unit,
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        LucideIcon(icon, 15.dp, Sm.Muted)
+        LucideIcon(icon, 15.dp, Sm.TabMuted)
         Spacer(Modifier.width(8.8.dp))
-        Text(text, color = Sm.Muted, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(text, color = Sm.TabMuted, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -477,38 +501,89 @@ private fun GroupRow(
     }
 }
 
+/** 侧栏分区标题左侧的 20×20 圆角语义图标徽章（网页 .sidebar-section-badge）。 */
 @Composable
-private fun CountPill(count: Int) {
+internal fun SidebarSectionBadge(icon: List<String>, background: Color, iconTint: Color, border: Color? = null) {
+    val shape = RoundedCornerShape(6.dp)
     Box(
-        Modifier.clip(CircleShape).background(Sm.Hover).padding(horizontal = 6.dp, vertical = 1.5.dp),
+        Modifier.size(20.dp).clip(shape).background(background)
+            .then(if (border != null) Modifier.border(1.dp, border, shape) else Modifier),
         Alignment.Center,
     ) {
-        Text(count.toString(), color = Sm.Muted, fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight(550))
+        LucideIcon(icon, 12.dp, iconTint)
     }
 }
 
-// 分区标题（网页 .notes-section-heading）：语义色点 + 句首大小写标题 + 数量 + 折叠箭头 + "+"。
+/** 侧栏分区之间的顶部分隔线（网页 .sidebar-group + .sidebar-group）。第一个分区传 false 只留上边距。 */
+internal fun Modifier.sidebarSectionTopDivider(show: Boolean): Modifier =
+    if (!show) padding(top = 12.dp)
+    else padding(top = 8.dp)
+        .drawBehind { drawRect(Sm.Border, size = Size(size.width, 1.dp.toPx())) }
+        .padding(top = 10.dp)
+
+/** 侧栏选中行的卡片质感与行头 3dp 语义指示条（网页 .notion-session-row.is-active + ::before）。 */
+@Composable
+internal fun Modifier.sidebarActiveRow(active: Boolean, accentColor: Color, shape: RoundedCornerShape): Modifier {
+    if (!active) return clip(shape)
+    val rowShadow = Sm.pick(Color(0x160F172A), Color(0x59000000))
+    val activeBg = Sm.ActiveRow
+    val activeBorder = Sm.BorderStrong
+    return shadow(1.5.dp, shape, ambientColor = rowShadow, spotColor = rowShadow)
+        .clip(shape)
+        .background(activeBg)
+        .border(1.dp, activeBorder, shape)
+        .drawWithContent {
+            drawContent()
+            val pillW = 3.dp.toPx()
+            val pillH = 18.dp.toPx().coerceAtMost((size.height - 8.dp.toPx()).coerceAtLeast(8.dp.toPx()))
+            val inset = 2.dp.toPx()
+            val x = if (layoutDirection == LayoutDirection.Rtl) size.width - inset - pillW else inset
+            val y = (size.height - pillH) / 2f
+            drawRoundRect(accentColor, topLeft = Offset(x, y), size = Size(pillW, pillH), cornerRadius = CornerRadius(pillW / 2f))
+        }
+}
+
+@Composable
+internal fun CountPill(count: Int) {
+    Box(
+        Modifier.widthIn(min = 20.dp).heightIn(min = 18.dp).clip(CircleShape).background(Sm.CountBg).padding(horizontal = 6.dp, vertical = 1.5.dp),
+        Alignment.Center,
+    ) {
+        Text(
+            count.toString(),
+            color = Sm.CountText,
+            fontSize = 11.sp,
+            lineHeight = 14.sp,
+            fontWeight = FontWeight(620),
+            style = TextStyle(fontFeatureSettings = "tnum"),
+        )
+    }
+}
+
+// 分区标题（网页 .notes-section-heading）：顶部分隔线 + 语义图标徽章 + 高对比标题 + 数量胶囊 + 折叠箭头 + "+"。
 @Composable
 private fun SectionHeading(kind: PageKind, count: Int, open: Boolean, busy: Boolean, onToggle: () -> Unit, onCreate: () -> Unit, modifier: Modifier = Modifier) {
     val name = stringResource(sectionLabel(kind))
     val toggleLabel = if (open) collapseLabel(name) else expandLabel(name)
-    Row(modifier.fillMaxWidth().padding(start = 8.dp, end = 4.dp, top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Row(
-            Modifier.weight(1f).heightIn(min = 38.dp).clip(RoundedCornerShape(6.dp)).clickable(onClick = onToggle)
-                .semantics { contentDescription = toggleLabel; role = Role.Button },
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(Modifier.size(6.dp).clip(CircleShape).background(pageKindColor(kind)))
-            Spacer(Modifier.width(6.dp))
-            Text(name, color = Sm.Muted, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight(560), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-            if (count > 0) {
+    Column(Modifier.fillMaxWidth().sidebarSectionTopDivider(true)) {
+        Row(modifier.fillMaxWidth().padding(start = 6.dp, end = 2.dp, bottom = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier.weight(1f).heightIn(min = 38.dp).clip(RoundedCornerShape(7.dp)).clickable(onClick = onToggle)
+                    .semantics { contentDescription = toggleLabel; role = Role.Button },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SidebarSectionBadge(pageKindIcon(kind), pageKindSoft(kind), pageKindColor(kind), border = pageKindBorder(kind))
+                Spacer(Modifier.width(7.dp))
+                Text(name, color = Sm.SectionTitle, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight(650), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                if (count > 0) {
+                    Spacer(Modifier.width(6.dp))
+                    CountPill(count)
+                }
                 Spacer(Modifier.width(5.dp))
-                Text(count.toString(), color = Faint, fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium)
+                LucideIcon(if (open) Lucide.ChevronDown else Lucide.ChevronRight, 13.dp, Sm.Muted)
             }
-            Spacer(Modifier.width(4.dp))
-            LucideIcon(if (open) Lucide.ChevronDown else Lucide.ChevronRight, 12.5.dp, Faint)
+            IconSquare(Lucide.Plus, 15.dp, 40.dp, stringResource(newPageLabel(kind)), Sm.TabMuted) { if (!busy) onCreate() }
         }
-        IconSquare(Lucide.Plus, 15.dp, 40.dp, stringResource(newPageLabel(kind)), Sm.Muted) { if (!busy) onCreate() }
     }
 }
 
@@ -562,14 +637,15 @@ private fun NoteTree(page: NotePageSummary, busy: Boolean, rowDrag: NoteRowDrag,
 private fun FavoriteRow(page: NotePageSummary, active: Boolean, busy: Boolean, onOpen: (String) -> Unit, onUnfavorite: (NotePageSummary) -> Unit) {
     val shape = RoundedCornerShape(8.dp)
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 42.dp).clip(shape)
-            .then(if (active) Modifier.background(Sm.ActiveRow).border(1.dp, Sm.Border, shape) else Modifier)
-            .clickable(enabled = !busy) { onOpen(page.id) },
+        Modifier.fillMaxWidth().heightIn(min = 42.dp)
+            .sidebarActiveRow(active, pageKindColor(page.kind), shape)
+            .clickable(enabled = !busy) { onOpen(page.id) }
+            .padding(start = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.padding(start = 4.dp).size(28.dp), Alignment.Center) { NoteIcon(page.icon, 15.sp, 15.dp, pageKindColor(page.kind), page.kind) }
         Text(page.title, modifier = Modifier.weight(1f).padding(start = 4.dp, end = 8.dp), color = if (active) Sm.Ink else Sm.Text,
-            fontSize = 14.sp, lineHeight = 20.sp, fontWeight = if (active) FontWeight(560) else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            fontSize = 14.sp, lineHeight = 20.sp, fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
         RowAction(Lucide.StarOff, 14.dp, stringResource(R.string.pg_remove_title_from_favorites, page.title), enabled = !busy) { onUnfavorite(page) }
     }
 }
@@ -601,9 +677,9 @@ private fun NoteRow(
             Modifier.fillMaxWidth().heightIn(min = 42.dp)
                 .alpha(if (drag.dragging == page.id) 0.5f else 1f)
                 .onGloballyPositioned { drag.rows[page.id] = it.boundsInWindow() }
-                .clip(rowShape)
-                .then(if (active) Modifier.background(Sm.ActiveRow).border(1.dp, Sm.Border, rowShape) else Modifier)
-                .dropLine(lineBefore, lineAfter),
+                .sidebarActiveRow(active, iconTint, rowShape)
+                .dropLine(lineBefore, lineAfter)
+                .padding(start = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // 展开箭头（.notes-row-toggle）：18×28、圆角 4，Chevron 13.5 浅灰。
@@ -636,7 +712,7 @@ private fun NoteRow(
                     color = if (active) Sm.Ink else Sm.Text,
                     fontSize = 14.sp,
                     lineHeight = 20.sp,
-                    fontWeight = if (active) FontWeight(560) else FontWeight.Normal,
+                    fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

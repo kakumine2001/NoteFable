@@ -597,6 +597,7 @@
 "slides_export_pdf_notes" = "वक्ता नोट्स के साथ PDF एक्सपोर्ट करें";
 "slides_export_png" = "PNG इमेज एक्सपोर्ट करें";
 "slides_export_pptx" = "PowerPoint (PPTX) एक्सपोर्ट करें";
+"slides_export_pptx_transition_note" = "PPTX एक्सपोर्ट में स्लाइड ट्रांज़िशन शामिल नहीं होते हैं।";
 
 /* strings_turns.xml */
 "regenerate" = "फिर से जवाब बनाएँ";

@@ -3,7 +3,7 @@ import { isImageIcon, parseCharacterIcon, saveAppIcon, toCharacterIcon } from "@
 import { parseThemePreference, saveThemePreference, type ThemePreference } from "@/lib/theme";
 import { pageSettingsOf, type NotePage, type NotePageSummary, type NoteSaveStatus, type PageKind } from "@/types/notes";
 import { PAGES_TRASHED_EVENT } from "@/lib/proposal-sync";
-import type { UsageTier } from "@/lib/usage-plans";
+import type { UsageKind, UsageTier } from "@/lib/usage-plans";
 
 // Android アプリ（mobile/android）の WebView にノートのエディターだけを載せる /note-embed と、アプリ側とのやり取り。
 // 取り決めは docs/architecture/notes-flow.md の「Android アプリへの埋め込み」。ここを変えたらアプリ側も合わせる。
@@ -26,6 +26,10 @@ export type NativeMessage =
   // ファイル置き場の容量が足りず、画像・ファイル・カバーのアップロードが断られた（used / limit はバイト）。
   // アプリは自分の画面で理由と、ログイン・アップグレードの案内を出す。canShowStorageLimit を持つアプリにだけ送る。
   | { type: "storageLimit"; tier: UsageTier; used: number; limit: number }
+  // メッセージや画像生成の使用回数上限（429 usage_limit）に達した。
+  // アプリは自分の画面でログイン（未ログイン）やアップグレード（無料会員）の案内を出す。canShowUsageLimit を持つアプリにだけ送る。
+  // pageId は発生元のページ ID。常駐 WebView で別ページへ切り替えたあとに届いた古い応答が別ページへ出ないよう確認に使う。
+  | { type: "usageLimit"; tier: UsageTier; kind: UsageKind; pageId?: string }
   // スライドの放映。start / end で、アプリは横向き・全画面・画面の常時点灯にする（戻す）。slide は見せている枚が替わった（index は 0 から、count は全体の枚数）。
   // canPresent を持つアプリにだけ送る。
   | { type: "presentation"; state: "start" | "slide" | "end"; index: number; count: number }
@@ -43,10 +47,11 @@ export type NativeMessage =
 // appIcon はアプリの設定で選んだアイコン（絵文字 1 つか画像の data URL、既定のロゴは空文字）を返す。古いアプリにはない。
 // canOpenPage は openPage を処理できるアプリだけが持つ（古いアプリは持たない。そのときは送らずに元のリンクの動きにする）。
 // canShowStorageLimit は storageLimit を処理できるアプリだけが持つ（古いアプリには送らず、WebView の中に理由だけを出す）。
+// canShowUsageLimit は usageLimit を処理できるアプリだけが持つ（古いアプリには送らず、WebView 内でウェブのログイン画面を出さずに理由だけを出す）。
 // canPresent は放映（presentation）を、canSaveFile はファイルの保存（fileStart…fileEnd）を受け持てるアプリだけが持つ。
 export type NativeHost = {
   postMessage: (json: string) => void; appIcon?: () => string; language?: () => string; theme?: () => string; canOpenPage?: () => boolean; canShowStorageLimit?: () => boolean;
-  canPresent?: () => boolean; canSaveFile?: () => boolean;
+  canShowUsageLimit?: () => boolean; canPresent?: () => boolean; canSaveFile?: () => boolean;
 };
 // アプリ → web。アプリは evaluateJavascript で window.notefableEmbed.flush("<requestId>") などを呼ぶ。
 // pageUpdated はアプリのチャットで編集案を適用したときに、サーバーが返した新しいページ（JSON 文字列かオブジェクト）を渡す。
@@ -131,6 +136,13 @@ export function nativeCanShowStorageLimit(target: BridgeWindow | undefined = bro
   const native = host(target);
   if (!native || typeof native.canShowStorageLimit !== "function") return false;
   try { return native.canShowStorageLimit() === true; } catch { return false; }
+}
+
+// アプリが使用回数上限の案内（usageLimit）を自分の画面で出せるか。古いアプリや普通のブラウザでは false。
+export function nativeCanShowUsageLimit(target: BridgeWindow | undefined = browserWindow()): boolean {
+  const native = host(target);
+  if (!native || typeof native.canShowUsageLimit !== "function") return false;
+  try { return native.canShowUsageLimit() === true; } catch { return false; }
 }
 
 // アプリが放映（横向き・全画面・常時点灯）を受け持てるか。古いアプリや普通のブラウザでは false（そのときは WebView の中だけで放映する）。

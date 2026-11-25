@@ -49,6 +49,26 @@ class StorageLimitTest {
     }
 
     @Test
+    fun `the note editor tells the app when usage limit is hit`() {
+        assertEquals(
+            EmbedMessage.UsageLimit("guest", "chat"),
+            EmbedMessage.parse("""{"type":"usageLimit","tier":"guest","kind":"chat"}"""),
+        )
+        assertEquals(
+            EmbedMessage.UsageLimit("member", "image", "page_1"),
+            EmbedMessage.parse("""{"type":"usageLimit","tier":"member","kind":"image","pageId":"page_1"}"""),
+        )
+        assertEquals(
+            EmbedMessage.UsageLimit("pro", "chat", null),
+            EmbedMessage.parse("""{"type":"usageLimit","tier":"pro","kind":"chat","pageId":"  "}"""),
+        )
+        assertNull(EmbedMessage.parse("""{"type":"usageLimit","tier":"guest"}"""))
+        assertNull(EmbedMessage.parse("""{"type":"usageLimit","tier":"unknown","kind":"chat"}"""))
+        assertNull(EmbedMessage.parse("""{"type":"usageLimit","tier":"guest","kind":"other"}"""))
+        assertNull(EmbedMessage.parse("""{"type":"usageLimit","tier":1,"kind":"chat"}"""))
+    }
+
+    @Test
     fun `the plan carries storage usage beyond 2 GiB`() {
         val plan = NoteFableJson.decodeFromString<PlanInfo>("""{"plan":"pro","storage":{"used":3221225472,"limit":10737418240}}""")
         assertEquals(PlanStorage(3221225472L, 10737418240L), plan.storage)

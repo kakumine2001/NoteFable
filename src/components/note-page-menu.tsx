@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, Download, Ellipsis, FilePlus2, Flag, FolderInput, LoaderCircle, Lock, Star, StarOff, Trash2, Workflow } from "lucide-react";
+import { Copy, Download, Ellipsis, FilePlus2, Flag, FolderInput, LoaderCircle, Lock, Presentation, Star, StarOff, Trash2, Workflow } from "lucide-react";
 import { useId, useState, type ReactNode } from "react";
 import { AnswerMenu, ReportDialog } from "@/components/answer-actions";
 import { useDiagramJob } from "@/components/draw-diagram-dialog";
@@ -25,11 +25,12 @@ function ToggleItem({ icon, label, checked, onToggle }: { icon?: ReactNode; labe
 // ページの種類で出す項目を変える：書体・小さい文字・全幅・Markdown の書き出しはノートだけ（PAGE_KIND_FEATURES）。
 // AI が内容を書いたページ（aiUpdatedAt あり）には「AI の内容を報告」を出す（Google Play の AI 生成コンテンツのポリシー）。
 // 「画成図」はノートだけ（ホワイトボード・スライドには出さない）。押したらノートを保存してから始める（onDrawDiagram）。
-export function NotePageMenu({ page, busy, error, onSettings, onFavorite, onDuplicate, onAddSubpage, onDrawDiagram, onMove, onExport, onTrash }: {
+export function NotePageMenu({ page, busy, error, onSettings, onPresent, onFavorite, onDuplicate, onAddSubpage, onDrawDiagram, onMove, onExport, onTrash }: {
   page: NotePageSummary;
   busy: boolean;
   error: string;
   onSettings: (settings: Partial<NotePageSettings>) => void;
+  onPresent?: () => void;
   onFavorite: (favorite: boolean) => void;
   onDuplicate: () => void;
   onAddSubpage: () => void;
@@ -43,8 +44,9 @@ export function NotePageMenu({ page, busy, error, onSettings, onFavorite, onDupl
   const [menu, setMenu] = useState<{ anchor: DOMRect; trigger: HTMLButtonElement; focusLast: boolean } | null>(null);
   const [reporting, setReporting] = useState(false);
   const settings = pageSettingsOf(page);
-  const features = pageKindFeatures(pageKindOf(page));
-  const canDraw = !!onDrawDiagram && pageKindOf(page) === "note";
+  const kind = pageKindOf(page);
+  const features = pageKindFeatures(kind);
+  const canDraw = !!onDrawDiagram && kind === "note";
   const diagram = useDiagramJob(canDraw ? diagramKey({ type: "note", pageId: page.id }) : null);
   const close = () => setMenu(null);
   // 操作を選んだらメニューを閉じてから実行する（ダイアログ・画面遷移と重ならないように）。
@@ -75,6 +77,11 @@ export function NotePageMenu({ page, busy, error, onSettings, onFavorite, onDupl
       </>}
       <ToggleItem icon={<Lock size={16} aria-hidden="true" />} label={t("Lock page")} checked={settings.locked} onToggle={() => onSettings({ locked: !settings.locked })} />
       <hr className="chat-menu-divider" />
+      {onPresent && kind === "note" && (
+        <button type="button" role="menuitem" className="chat-menu-item" onClick={run(onPresent)}>
+          <Presentation size={16} aria-hidden="true" />{t("Present")}
+        </button>
+      )}
       <button type="button" role="menuitem" className="chat-menu-item" onClick={run(() => onFavorite(!page.favoritedAt))}>
         {page.favoritedAt ? <StarOff size={16} aria-hidden="true" /> : <Star size={16} aria-hidden="true" />}
         {page.favoritedAt ? t("Remove from Favorites") : t("Add to Favorites")}
