@@ -206,8 +206,8 @@ struct ChatSessionRow: View {
 }
 
 /// 聊天行的“更多”菜单（`.chat-actions-menu.chat-row-menu`）：置顶 / 取消置顶（点了就保存：成功关菜单，失败留着、在下面显示原因）、
-/// 改名、移到项目、删除。保存中其它项也不能点（网页 disabled={busy}）。
-private struct ChatSessionMenu: View {
+/// 改名、移到项目、删除。保存中其它项也不能点（网页 disabled={busy}）。聊天顶栏的“…”菜单也用它（`ChatTopBar`）。
+struct ChatSessionMenu: View {
     let session: SessionSummary
     let runner: SidebarActionRunner?
     let onAction: (ChatAction) -> Void

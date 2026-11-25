@@ -207,6 +207,28 @@ final class ChatScrollController: NSObject {
     }
 }
 
+#if DEBUG
+extension ChatScrollController {
+    /// CI 截图（chat-scrolled）用：停止跟随，先跳到最上面，再平滑地滚到离底部 `distance` 处停住，
+    /// 让消息在浮动顶栏下面、"滚动到底部"按钮也显示出来。不改跟随规则本身。
+    func fixtureScroll(distanceFromBottom distance: CGFloat) async {
+        guard let scrollView else { return }
+        following = false
+        scrollView.setContentOffset(
+            CGPoint(x: scrollView.contentOffset.x, y: -scrollView.adjustedContentInset.top),
+            animated: false
+        )
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        // 等的时候列表可能换了（换了会话）：用现在接着的那个。
+        guard let current = self.scrollView else { return }
+        let target = max(-current.adjustedContentInset.top, bottomOffset(current) - distance)
+        current.setContentOffset(CGPoint(x: current.contentOffset.x, y: target), animated: true)
+        try? await Task.sleep(nanoseconds: 450_000_000)
+        evaluate()
+    }
+}
+#endif
+
 /// 放在滚动内容的背景里，只用来找到外面的 UIScrollView 并交给 `ChatScrollController`。不显示任何东西、不接触摸。
 struct ChatScrollProbe: UIViewRepresentable {
     let controller: ChatScrollController

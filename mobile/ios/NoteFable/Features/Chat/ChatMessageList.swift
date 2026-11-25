@@ -20,6 +20,7 @@ struct ChatRevealTrigger: Equatable {
 
 /// 消息列表（Android ChatScreen.kt 的 `MessageList` 里有消息的那一支）：正向排列，短对话从顶部开始。
 /// 左右 24、顶部 4、底部 96（网页消息列的 pb-12 + 输入栏区顶部"滚动到底部"那一行），消息间距 36。
+/// 列表铺到浮动顶栏下面（顶栏的高度从安全区让出来，内容从顶栏下面滚过去）。
 /// 提问由 `UserTurn` 画，回答交给 `AssistantTurn`。跟随底部的规则在 `ChatScrollController`。
 @MainActor
 struct ChatMessageList: View {
@@ -60,6 +61,9 @@ struct ChatMessageList: View {
             // 往下拖列表时键盘跟着手指收起。
             .scrollDismissesKeyboard(.interactively)
             .nfOnSizeChange { _ in scroll.viewportChanged() }
+            // 浮动的顶栏 / 底栏、键盘、标签栏改的是安全区（UIScrollView 的 adjustedContentInset），不改列表的大小：
+            // 安全区变了也重新看一遍跟随和贴底。
+            .nfOnSafeAreaChange { _ in scroll.viewportChanged() }
             .onAppear {
                 // 打开会话先到最底部；懒加载的列表按 id 跳最稳，剩下的底部留白由跟随规则贴齐。
                 if let last = messages.last, !revealPending { proxy.scrollTo(last.key, anchor: .bottom) }
@@ -96,6 +100,22 @@ struct ChatMessageList: View {
             try? await Task.sleep(nanoseconds: UInt64(RevealFlash.durationMs + 50) * 1_000_000)
             if !Task.isCancelled, flash == current { flash = nil }
         }
+        .task(id: "\(ScreenshotHooks.sceneTick)-\(messages.count)") {
+            await runScrolledHook(hasMessages: !messages.isEmpty)
+        }
+    }
+
+    /// CI 截图 chat-scrolled：离开底部，让消息在玻璃顶栏下面、"滚动到底部"按钮也显示出来。
+    private func runScrolledHook(hasMessages: Bool) async {
+        guard ScreenshotHooks.isActive, ScreenshotHooks.scene == .chatScrolled, hasMessages else { return }
+        // 等打开会话时的贴底先做完。
+        try? await Task.sleep(for: .milliseconds(250))
+        if Task.isCancelled { return }
+        guard ScreenshotHooks.consume(.chatScrolled) else { return }
+        #if DEBUG
+        await scroll.fixtureScroll(distanceFromBottom: 360)
+        #endif
+        ScreenshotHooks.markReady(.chatScrolled)
     }
 
     @ViewBuilder
@@ -191,8 +211,8 @@ private struct ChatRevealFlashModifier: ViewModifier {
     }
 }
 
-/// "滚动到底部"（.notion-scroll-bottom 里的 .notion-icon-button）：40 的白底按钮、圆角 4.8、--notion-shadow
-/// （0 4 14 .12 + 1px .05 的细环），ArrowDown 20 / 描边 2.1 灰。离开底部时 150ms 淡入 + 从 .95 放大。
+/// "滚动到底部"（.notion-scroll-bottom 里的 .notion-icon-button）：40 的玻璃圆（iOS 26 Liquid Glass；iOS 17–18 毛玻璃；
+/// “降低透明度”时白底加描边），ArrowDown 20 / 描边 2.1。离开底部时 150ms 淡入 + 从 .95 放大。
 /// 网页里按钮在输入栏区的上内边距 12 之下；这里放在列表底部再往下 4，下沿离输入栏内容正好 8。
 private struct ChatScrollToBottomButton: View {
     let visible: Bool
@@ -200,23 +220,12 @@ private struct ChatScrollToBottomButton: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Button(action: action) {
-            LucideIcon(Lucide.arrowDown, size: 20, strokeWidth: 2.1, color: Sm.muted)
-                .frame(width: 40, height: 40)
-        }
-        .buttonStyle(.pressable(background: Sm.surface, cornerRadius: 4.8, scale: 0.97))
-        .overlay {
-            RoundedRectangle(cornerRadius: 4.8)
-                .strokeBorder(Sm.panelRing, lineWidth: 1)
-                .allowsHitTesting(false)
-        }
-        .shadow(color: Sm.panelShadow, radius: 7, x: 0, y: 4)
-        .opacity(visible ? 1 : 0)
-        .scaleEffect(visible ? 1 : 0.95)
-        .animation(NFMotion.unlessReduced(Animation.timingCurve(0.4, 0, 0.2, 1, duration: 0.15), reduceMotion), value: visible)
-        .allowsHitTesting(visible)
-        .accessibilityLabel(L("scroll_to_bottom"))
-        .accessibilityHidden(!visible)
-        .offset(y: 4)
+        NFGlassIconButton(Lucide.arrowDown, label: L("scroll_to_bottom"), size: 40, iconSize: 20, strokeWidth: 2.1, action: action)
+            .opacity(visible ? 1 : 0)
+            .scaleEffect(visible ? 1 : 0.95)
+            .animation(NFMotion.unlessReduced(Animation.timingCurve(0.4, 0, 0.2, 1, duration: 0.15), reduceMotion), value: visible)
+            .allowsHitTesting(visible)
+            .accessibilityHidden(!visible)
+            .offset(y: 4)
     }
 }
