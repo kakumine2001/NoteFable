@@ -1,12 +1,20 @@
 #!/usr/bin/env bash
 # Fixture-mode screenshots of the Debug simulator build across iOS majors and UI variants.
 # Usage: ci-screenshots.sh <NoteFable.app> <out-dir>
+#        ci-screenshots.sh --boot-only   (CI: boot the simulators ahead of time, leave them running, capture nothing)
 # Env: NF_IOS_MAJORS, NF_VARIANTS, NF_SCENES
 # Written for macOS /bin/bash (bash 3.2): no mapfile, no associative arrays, no ${var,,}, no sort -V.
 set -euo pipefail
 
-APP=${1:?usage: ci-screenshots.sh <NoteFable.app> <out-dir>}
-OUT=${2:?usage: ci-screenshots.sh <NoteFable.app> <out-dir>}
+BOOT_ONLY=0
+if [[ "${1:-}" == "--boot-only" ]]; then
+  BOOT_ONLY=1
+  APP=""
+  OUT=$(mktemp -d)
+else
+  APP=${1:?usage: ci-screenshots.sh <NoteFable.app> <out-dir>}
+  OUT=${2:?usage: ci-screenshots.sh <NoteFable.app> <out-dir>}
+fi
 
 read -r -a MAJORS   <<<"${NF_IOS_MAJORS:-26 18}"
 read -r -a VARIANTS <<<"${NF_VARIANTS:-light dark ar ar-app rt}"
@@ -15,7 +23,10 @@ read -r -a SCENES   <<<"${NF_SCENES:-$DEFAULT_SCENES}"
 
 DEVICES=("iPhone 17 Pro" "iPhone 18 Pro" "iPhone 16 Pro" "iPhone 17" "iPhone 16")
 USER_DEVELOPER_DIR="${DEVELOPER_DIR:-}"
-BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
+BUNDLE_ID=""
+if (( ! BOOT_ONLY )); then
+  BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
+fi
 
 mkdir -p "$OUT/logs"
 failed=0
@@ -119,7 +130,8 @@ find_or_create_device() {
       (.devices[$rt] // [])[]
       | select(.isAvailable and ((.name | contains("Duo")) or (.deviceTypeIdentifier | contains("Duo")) | not))
       | "\(.name)\t\(.udid)"')
-    for name in "${DEVICES[@]}"; do
+    # "NoteFable iOS <major>" is the simulator an earlier --boot-only run had to create.
+    for name in "NoteFable iOS ${major}" "${DEVICES[@]}"; do
       udid=$(awk -F'\t' -v n="$name" '$1 == n { print $2; exit }' <<<"$available")
       if [[ -n "$udid" ]]; then
         printf 'existing\t%s\t%s\n' "$udid" "$name"
@@ -326,6 +338,9 @@ for major in "${MAJORS[@]}"; do
   boot_device "$udid"
   boot_end=$(date +%s)
   echo "Booted simulator iOS ${major} (${origin}: ${dname}, runtime=${runtime}, udid=${udid}) in $((boot_end - boot_start))s"
+  if (( BOOT_ONLY )); then
+    continue
+  fi
 
   xcrun simctl spawn "$udid" defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -int 1
   if [[ "$origin" == "existing" ]]; then
@@ -380,6 +395,10 @@ for major in "${MAJORS[@]}"; do
     xcrun simctl delete "$udid" >/dev/null 2>&1 || true
   fi
 done
+
+if (( BOOT_ONLY )); then
+  exit "$failed"
+fi
 
 # Report any fixture misses as errors (never silent).
 while IFS= read -r miss; do

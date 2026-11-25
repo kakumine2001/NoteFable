@@ -37,7 +37,7 @@ iOS 客户端是 Android 客户端（[android-native.md](android-native.md)）�
 | 部分 | 验证方式 | 状态 |
 | --- | --- | --- |
 | `Core/`（网络、接口、解析、ViewModel） | Linux 容器里 `swift test`，以及 CI 的 macOS `swift test` | 740 多项单元测试通过（大部分移植自 Android 的单元测试） |
-| `DesignSystem/`、`Features/`、`App/`（SwiftUI / UIKit） | CI 的模拟器无签名构建与模拟器截图（`ios-pr.yml`：iOS 26 / iOS 18 / iOS 27 × 浅色 / 深色、阿拉伯语 RTL 与“降低透明度”） | 能编译，截图供人工验收；手势、键盘、WebView 交互需在真机（TestFlight）上验 |
+| `DesignSystem/`、`Features/`、`App/`（SwiftUI / UIKit） | CI 的模拟器无签名构建，以及 PR 带 `ios-screenshots` 标签时的模拟器截图（`ios-pr.yml`：iOS 26 / iOS 18 / iOS 27 × 浅色 / 深色、阿拉伯语 RTL 与“降低透明度”） | 能编译，截图供人工验收；手势、键盘、WebView 交互需在真机（TestFlight）上验 |
 
 Google 登录：Google Cloud 里给 `com.kakumine.notefable` 登记的 iOS OAuth 客户端是 `NoteFable-iOS`，客户端 ID 写在 `Config/NoteFable.xcconfig` 的 `GOOGLE_IOS_CLIENT_ID` / `GOOGLE_IOS_REVERSED_CLIENT_ID`（不是密钥，会打进安装包；留空时登录窗口只有邮箱验证码）。服务端校验的 audience 仍是 Web 客户端 ID（`serverClientID`）。
 
