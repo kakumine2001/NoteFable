@@ -160,6 +160,7 @@ final class FixtureTransportTests: XCTestCase {
         var sawStarted = false
         var sawActivity = false
         var text = ""
+        var streamFinished = false
         let streamTask = Task {
             for try await event in api.streamChat(ChatRequest(message: "Hi", sessionId: nil, model: "gpt-6-luna", reasoning: "medium")) {
                 switch event {
@@ -172,6 +173,7 @@ final class FixtureTransportTests: XCTestCase {
                     text += chunk
                 }
             }
+            streamFinished = true
         }
 
         // 等流吐完所有分块，验证它真的保持打开不自动结束。
@@ -185,6 +187,7 @@ final class FixtureTransportTests: XCTestCase {
 
         try await Task.sleep(for: .milliseconds(120))
         // 任务仍在等待，说明流还开着。
+        XCTAssertFalse(streamFinished)
         streamTask.cancel()
         _ = await streamTask.result
     }

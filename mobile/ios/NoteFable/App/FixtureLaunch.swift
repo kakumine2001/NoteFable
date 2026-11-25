@@ -9,20 +9,25 @@ final class FixtureLaunch {
     private static let suiteName = "com.kakumine.notefable.fixtures"
     private(set) static var current: FixtureLaunch?
 
-    let scene: ScreenshotScene
+    let scenes: [ScreenshotScene]
+    let ackDirectory: URL?
     let account: FixtureCatalog.Account
     let appLanguage: String?
     let searchQuery: String
     let forceSolidChrome: Bool
 
+    var scene: ScreenshotScene { scenes[0] }
+
     private init(
-        scene: ScreenshotScene,
+        scenes: [ScreenshotScene],
+        ackDirectory: URL?,
         account: FixtureCatalog.Account,
         appLanguage: String?,
         searchQuery: String,
         forceSolidChrome: Bool
     ) {
-        self.scene = scene
+        self.scenes = scenes
+        self.ackDirectory = ackDirectory
         self.account = account
         self.appLanguage = appLanguage
         self.searchQuery = searchQuery
@@ -32,8 +37,15 @@ final class FixtureLaunch {
     static func fromProcess() -> FixtureLaunch? {
         let args = UserDefaults.standard
         guard args.bool(forKey: "NFFixtures") else { return nil }
-        let scene = args.string(forKey: "NFFixtureScene").flatMap(ScreenshotScene.init(rawValue:)) ?? .chatEmpty
-        let defaultAccount: FixtureCatalog.Account = (scene == .signIn) ? .guest : .signedIn
+        let rawBatch = args.string(forKey: "NFFixtureBatch")?
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .compactMap(ScreenshotScene.init(rawValue:)) ?? []
+        let singleScene = args.string(forKey: "NFFixtureScene").flatMap(ScreenshotScene.init(rawValue:)) ?? .chatEmpty
+        let scenes = rawBatch.isEmpty ? [singleScene] : rawBatch
+        let rawAckDir = args.string(forKey: "NFFixtureAckDir")?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let ackDirectory = (rawAckDir?.isEmpty == false) ? URL(fileURLWithPath: rawAckDir!, isDirectory: true) : nil
+        let defaultAccount: FixtureCatalog.Account = (scenes == [.signIn]) ? .guest : .signedIn
         let account = args.string(forKey: "NFFixtureAccount").flatMap(FixtureCatalog.Account.init(rawValue:)) ?? defaultAccount
         let rawLang = args.string(forKey: "NFFixtureAppLanguage")?.trimmingCharacters(in: .whitespacesAndNewlines)
         let appLanguage = (rawLang?.isEmpty == false) ? rawLang : nil
@@ -42,7 +54,8 @@ final class FixtureLaunch {
         let forceSolid = args.bool(forKey: "NFForceSolidChrome")
 
         let launch = FixtureLaunch(
-            scene: scene,
+            scenes: scenes,
+            ackDirectory: ackDirectory,
             account: account,
             appLanguage: appLanguage,
             searchQuery: searchQuery,
@@ -53,7 +66,7 @@ final class FixtureLaunch {
     }
 
     func makeEnvironment() -> AppEnvironment {
-        ScreenshotHooks.configure(scene: scene, searchQuery: searchQuery, forceSolidChrome: forceSolidChrome)
+        ScreenshotHooks.configure(scene: scenes[0], searchQuery: searchQuery, forceSolidChrome: forceSolidChrome)
 
         let defaults = UserDefaults(suiteName: Self.suiteName) ?? .standard
         defaults.removePersistentDomain(forName: Self.suiteName)
@@ -74,7 +87,7 @@ final class FixtureLaunch {
             models: modelsData,
             kinds: kindsData,
             image: Self.renderSampleImage(),
-            streamHoldsOpen: scene == .chatStreaming,
+            streamHoldsOpen: scenes.contains(.chatStreaming),
             appLanguage: appLanguage
         )
         let transport = FixtureTransport(catalog: catalog) { miss in
@@ -99,117 +112,209 @@ final class FixtureLaunch {
     }
 
     func apply(app: AppEnvironment, router: AppRouter) async {
-        let deadline = Date().addingTimeInterval(15)
-        let baseReady = await poll(until: deadline) {
+        let baseDeadline = Date().addingTimeInterval(15)
+        let baseReady = await poll(until: baseDeadline) {
             app.account.state.loaded && !app.chat.state.sessionsLoading && !app.chat.state.models.isEmpty
         }
 
-        var sceneReady = baseReady
-        if baseReady {
-            switch scene {
-            case .chatEmpty:
-                sceneReady = true
+        for (idx, target) in scenes.enumerated() {
+            if idx > 0 {
+                await resetBefore(target: target, previous: scenes[idx - 1], app: app, router: router)
+                ScreenshotHooks.setScene(target)
+            }
 
-            case .chat:
-                app.chat.openSession(FixtureCatalog.IDs.kyotoSession)
-                sceneReady = await poll(until: deadline) {
-                    app.chat.state.activeSessionId == FixtureCatalog.IDs.kyotoSession
-                        && !app.chat.state.messagesLoading
-                        && !app.chat.state.messages.isEmpty
-                }
+            let sceneDeadline = Date().addingTimeInterval(15)
+            var sceneReady = baseReady
+            if baseReady {
+                sceneReady = await prepareScene(target, app: app, router: router, deadline: sceneDeadline)
+            }
 
-            case .chatStreaming:
+            // 等动画、图片解码与 WKWebView 首帧绘制落下。
+            let settleMs = (target == .editor) ? 700 : 500
+            try? await Task.sleep(for: .milliseconds(settleMs))
+            let idxPart = (ackDirectory != nil) ? " idx=\(idx)" : ""
+            let line = "NF_FIXTURE_READY\(idxPart) scene=\(target.rawValue) reduceTransparency=\(UIAccessibility.isReduceTransparencyEnabled) forcedSolid=\(forceSolidChrome) rtl=\(app.language.isRightToLeft) locale=\(app.language.uiLocale) timeout=\(!sceneReady)\n"
+            Self.writeStderr(line)
+
+            if let ackDir = ackDirectory {
+                let keepGoing = await waitForAck(idx: idx, in: ackDir)
+                if !keepGoing { return }
+            }
+        }
+    }
+
+    private func resetBefore(
+        target: ScreenshotScene,
+        previous: ScreenshotScene,
+        app: AppEnvironment,
+        router: AppRouter
+    ) async {
+        if previous == .modelSheet || previous == .attachSheet || previous == .pageMenu {
+            ScreenshotHooks.dismissOverlays()
+            try? await Task.sleep(for: .milliseconds(350))
+        }
+        if router.drawerOpen {
+            router.closeDrawer()
+            try? await Task.sleep(for: .milliseconds(350))
+        }
+        if router.searchOpen {
+            router.searchOpen = false
+            try? await Task.sleep(for: .milliseconds(350))
+        }
+        if router.settingsOpen {
+            router.settingsOpen = false
+            try? await Task.sleep(for: .milliseconds(350))
+        }
+        if router.signInOpen {
+            router.signInOpen = false
+            try? await Task.sleep(for: .milliseconds(350))
+        }
+        let targetUsesNotes = (target == .workspace || target == .editor || target == .pageMenu)
+        if app.notes.state.workspace == .notes && !targetUsesNotes {
+            app.notes.setWorkspace(.chat)
+            let leaveDeadline = Date().addingTimeInterval(5)
+            _ = await poll(until: leaveDeadline) {
+                app.notes.state.workspace == .chat && app.notes.state.open == nil
+            }
+        }
+    }
+
+    private func prepareScene(
+        _ target: ScreenshotScene,
+        app: AppEnvironment,
+        router: AppRouter,
+        deadline: Date
+    ) async -> Bool {
+        switch target {
+        case .chatEmpty:
+            if app.chat.state.activeSessionId != nil {
                 app.chat.newChat()
-                app.chat.send("Compare Liquid Glass and earlier blur materials on iOS.")
-                sceneReady = await poll(until: deadline) {
-                    app.chat.state.sending && app.chat.state.messages.contains {
-                        $0.role == .assistant && !$0.content.isEmpty
-                    }
-                }
+            }
+            return app.chat.state.activeSessionId == nil && app.chat.state.messages.isEmpty
 
-            case .drawer:
+        case .chat:
+            app.chat.openSession(FixtureCatalog.IDs.kyotoSession)
+            return await poll(until: deadline) {
+                app.chat.state.activeSessionId == FixtureCatalog.IDs.kyotoSession
+                    && !app.chat.state.messagesLoading
+                    && !app.chat.state.messages.isEmpty
+            }
+
+        case .chatStreaming:
+            app.chat.newChat()
+            app.chat.send("Compare Liquid Glass and earlier blur materials on iOS.")
+            return await poll(until: deadline) {
+                app.chat.state.sending && app.chat.state.messages.contains {
+                    $0.role == .assistant && !$0.content.isEmpty
+                }
+            }
+
+        case .drawer:
+            if app.chat.state.activeSessionId != FixtureCatalog.IDs.kyotoSession || app.chat.state.messages.isEmpty {
                 app.chat.openSession(FixtureCatalog.IDs.kyotoSession)
-                let chatLoaded = await poll(until: deadline) {
-                    app.chat.state.activeSessionId == FixtureCatalog.IDs.kyotoSession
-                        && !app.chat.state.messagesLoading
-                        && !app.chat.state.messages.isEmpty
-                }
-                router.openDrawer()
-                sceneReady = chatLoaded && router.drawerOpen
+            }
+            let chatLoaded = await poll(until: deadline) {
+                app.chat.state.activeSessionId == FixtureCatalog.IDs.kyotoSession
+                    && !app.chat.state.messagesLoading
+                    && !app.chat.state.messages.isEmpty
+            }
+            router.openDrawer()
+            return chatLoaded && router.drawerOpen
 
-            case .workspace:
-                app.notes.setWorkspace(.notes)
-                sceneReady = await poll(until: deadline) {
-                    app.notes.state.workspace == .notes
-                        && app.notes.state.loaded
-                        && !app.notes.state.pages.isEmpty
-                }
+        case .workspace:
+            app.notes.setWorkspace(.notes)
+            return await poll(until: deadline) {
+                app.notes.state.workspace == .notes
+                    && app.notes.state.loaded
+                    && !app.notes.state.pages.isEmpty
+            }
 
-            case .editor:
+        case .editor:
+            if !app.notes.state.loaded || app.notes.state.pages.isEmpty {
                 app.notes.refresh()
-                let listLoaded = await poll(until: deadline) {
-                    app.notes.state.loaded && !app.notes.state.pages.isEmpty
-                }
-                router.openNote(FixtureCatalog.IDs.tripPage, title: "Kyoto trip plan", icon: "🗺️", kind: .note)
-                let editorLoaded = await poll(until: deadline) {
-                    app.notes.state.open?.id == FixtureCatalog.IDs.tripPage
-                        && app.notes.state.saveState == "saved"
-                }
-                sceneReady = listLoaded && editorLoaded
+            }
+            let listLoaded = await poll(until: deadline) {
+                app.notes.state.loaded && !app.notes.state.pages.isEmpty
+            }
+            router.openNote(FixtureCatalog.IDs.tripPage, title: "Kyoto trip plan", icon: "🗺️", kind: .note)
+            let editorLoaded = await poll(until: deadline) {
+                app.notes.state.open?.id == FixtureCatalog.IDs.tripPage
+                    && app.notes.state.saveState == "saved"
+            }
+            return listLoaded && editorLoaded
 
-            case .pageMenu:
-                app.notes.refresh()
-                let listLoaded = await poll(until: deadline) {
-                    app.notes.state.loaded && !app.notes.state.pages.isEmpty
-                }
-                router.openNote(FixtureCatalog.IDs.tripPage, title: "Kyoto trip plan", icon: "🗺️", kind: .note)
-                let menuReady = await poll(until: deadline) {
+        case .pageMenu:
+            if app.notes.state.open?.id == FixtureCatalog.IDs.tripPage && app.notes.state.saveState == "saved" {
+                return await poll(until: deadline) {
                     app.notes.state.open?.id == FixtureCatalog.IDs.tripPage
                         && app.notes.state.saveState == "saved"
                         && ScreenshotHooks.isReady(.pageMenu)
                 }
-                sceneReady = listLoaded && menuReady
+            }
+            if !app.notes.state.loaded || app.notes.state.pages.isEmpty {
+                app.notes.refresh()
+            }
+            let listLoaded = await poll(until: deadline) {
+                app.notes.state.loaded && !app.notes.state.pages.isEmpty
+            }
+            router.openNote(FixtureCatalog.IDs.tripPage, title: "Kyoto trip plan", icon: "🗺️", kind: .note)
+            let menuReady = await poll(until: deadline) {
+                app.notes.state.open?.id == FixtureCatalog.IDs.tripPage
+                    && app.notes.state.saveState == "saved"
+                    && ScreenshotHooks.isReady(.pageMenu)
+            }
+            return listLoaded && menuReady
 
-            case .search:
-                router.openSearch()
-                sceneReady = await poll(until: deadline) {
-                    router.searchOpen && ScreenshotHooks.isReady(.search)
-                }
+        case .search:
+            router.openSearch()
+            return await poll(until: deadline) {
+                router.searchOpen && ScreenshotHooks.isReady(.search)
+            }
 
-            case .modelSheet:
+        case .modelSheet:
+            if app.chat.state.activeSessionId != FixtureCatalog.IDs.kyotoSession || app.chat.state.messages.isEmpty {
                 app.chat.openSession(FixtureCatalog.IDs.kyotoSession)
-                sceneReady = await poll(until: deadline) {
-                    app.chat.state.activeSessionId == FixtureCatalog.IDs.kyotoSession
-                        && !app.chat.state.messages.isEmpty
-                        && ScreenshotHooks.isReady(.modelSheet)
-                }
+            }
+            return await poll(until: deadline) {
+                app.chat.state.activeSessionId == FixtureCatalog.IDs.kyotoSession
+                    && !app.chat.state.messages.isEmpty
+                    && ScreenshotHooks.isReady(.modelSheet)
+            }
 
-            case .attachSheet:
+        case .attachSheet:
+            if app.chat.state.activeSessionId != FixtureCatalog.IDs.kyotoSession || app.chat.state.messages.isEmpty {
                 app.chat.openSession(FixtureCatalog.IDs.kyotoSession)
-                sceneReady = await poll(until: deadline) {
-                    app.chat.state.activeSessionId == FixtureCatalog.IDs.kyotoSession
-                        && !app.chat.state.messages.isEmpty
-                        && ScreenshotHooks.isReady(.attachSheet)
-                }
+            }
+            return await poll(until: deadline) {
+                app.chat.state.activeSessionId == FixtureCatalog.IDs.kyotoSession
+                    && !app.chat.state.messages.isEmpty
+                    && ScreenshotHooks.isReady(.attachSheet)
+            }
 
-            case .settings:
-                router.openSettings()
-                sceneReady = await poll(until: deadline) {
-                    router.settingsOpen && app.account.state.user != nil
-                }
+        case .settings:
+            router.openSettings()
+            return await poll(until: deadline) {
+                router.settingsOpen && app.account.state.user != nil
+            }
 
-            case .signIn:
-                router.openSignIn()
-                sceneReady = await poll(until: deadline) {
-                    router.signInOpen && app.account.state.configured && app.account.state.user == nil
-                }
+        case .signIn:
+            router.openSignIn()
+            return await poll(until: deadline) {
+                router.signInOpen && app.account.state.configured && app.account.state.user == nil
             }
         }
+    }
 
-        // 等动画、图片解码与 WKWebView 首帧绘制落下。
-        try? await Task.sleep(for: .milliseconds(900))
-        let line = "NF_FIXTURE_READY scene=\(scene.rawValue) reduceTransparency=\(UIAccessibility.isReduceTransparencyEnabled) forcedSolid=\(forceSolidChrome) rtl=\(app.language.isRightToLeft) locale=\(app.language.uiLocale) timeout=\(!sceneReady)\n"
-        Self.writeStderr(line)
+    private func waitForAck(idx: Int, in ackDir: URL) async -> Bool {
+        let ackFile = ackDir.appendingPathComponent("ack-\(idx)")
+        let abortFile = ackDir.appendingPathComponent("abort")
+        let deadline = Date().addingTimeInterval(30)
+        while Date() < deadline {
+            if FileManager.default.fileExists(atPath: abortFile.path) { return false }
+            if FileManager.default.fileExists(atPath: ackFile.path) { return true }
+            try? await Task.sleep(for: .milliseconds(25))
+        }
+        return false
     }
 
     private func poll(until deadline: Date, condition: () -> Bool) async -> Bool {

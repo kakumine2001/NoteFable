@@ -53,7 +53,7 @@ jobs:
             echo 'has_project=false' >> "$GITHUB_OUTPUT"
           fi
           if git rev-parse --verify HEAD^1 >/dev/null 2>&1; then
-            if git diff --quiet HEAD^1 HEAD -- mobile/ios/NoteFable mobile/ios/Support mobile/ios/project.yml mobile/ios/scripts/ci-screenshots.sh .github/workflows/ios-pr.yml; then
+            if git diff --quiet HEAD^1 HEAD -- mobile/ios/NoteFable mobile/ios/Support mobile/ios/project.yml mobile/ios/scripts/ci-screenshots.sh mobile/android/app/src/main/assets .github/workflows/ios-pr.yml; then
               echo 'ui_changed=false' >> "$GITHUB_OUTPUT"
             else
               echo 'ui_changed=true' >> "$GITHUB_OUTPUT"
@@ -151,19 +151,23 @@ jobs:
     needs: [version, ios]
     if: needs.version.outputs.ui_changed == 'true'
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 30
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         include:
-          - label: iOS 26 + iOS 18
-            runner: macos-15
-            majors: "26 18"
-            artifact: ios-screenshots-ios26-18
           - label: iOS 27
             runner: xcode-27
             majors: "27"
             artifact: ios-screenshots-ios27
+          - label: iOS 26
+            runner: macos-15
+            majors: "26"
+            artifact: ios-screenshots-ios26
+          - label: iOS 18
+            runner: macos-15
+            majors: "18"
+            artifact: ios-screenshots-ios18
     steps:
       - uses: actions/checkout@v7
         with:

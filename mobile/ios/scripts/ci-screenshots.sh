@@ -10,9 +10,10 @@ OUT=${2:?usage: ci-screenshots.sh <NoteFable.app> <out-dir>}
 
 read -r -a MAJORS   <<<"${NF_IOS_MAJORS:-26 18}"
 read -r -a VARIANTS <<<"${NF_VARIANTS:-light dark ar ar-app rt}"
-read -r -a SCENES   <<<"${NF_SCENES:-chat-empty chat chat-streaming drawer workspace editor page-menu search model-sheet attach-sheet settings sign-in}"
+DEFAULT_SCENES="chat-empty chat chat-streaming drawer workspace editor page-menu search model-sheet attach-sheet settings sign-in"
+read -r -a SCENES   <<<"${NF_SCENES:-$DEFAULT_SCENES}"
 
-DEVICES=("iPhone 16 Pro" "iPhone 17 Pro" "iPhone 17" "iPhone 18 Pro" "iPhone 16")
+DEVICES=("iPhone 17 Pro" "iPhone 18 Pro" "iPhone 16 Pro" "iPhone 17" "iPhone 16")
 USER_DEVELOPER_DIR="${DEVELOPER_DIR:-}"
 BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
 
@@ -52,26 +53,36 @@ PY
 }
 
 runtime_for_current_dev() {
-  local major=$1
-  xcrun simctl list runtimes -j | jq -r --arg p "com.apple.CoreSimulator.SimRuntime.iOS-${major}-" '
-    [.runtimes[] | select(.isAvailable and (.identifier | startswith($p)))]
-    | sort_by(.version | split(".") | map(tonumber)) | last | .identifier // empty'
+  local major=$1 json rt
+  json=$(xcrun simctl list runtimes -j)
+  # Prefer standard single-display runtimes (e.g. SimRuntime.iOS-27-2) before device-specific variants (e.g. iPhone19-4).
+  rt=$(jq -r --arg m "$major" '
+    [.runtimes[] | select(.isAvailable and (.identifier | test("^com\\.apple\\.CoreSimulator\\.SimRuntime\\.iOS-" + $m + "-[0-9]+$")))]
+    | sort_by(.version | split(".") | map(tonumber)) | last | .identifier // empty' <<<"$json")
+  if [[ -n "$rt" ]]; then
+    printf '%s\n' "$rt"
+    return 0
+  fi
+  jq -r --arg p "com.apple.CoreSimulator.SimRuntime.iOS-${major}-" '
+    [.runtimes[] | select(.isAvailable and (.identifier | startswith($p)) and ((.identifier | contains("-iPhone")) or (.identifier | contains("-iPad")) | not))]
+    | sort_by(.version | split(".") | map(tonumber)) | last | .identifier // empty' <<<"$json"
 }
 
+# Prints "<developer_dir>\t<runtime_identifier>" when a runtime for <major> is found.
 select_xcode_for_major() {
   local major=$1 dev rt
   if [[ -n "$USER_DEVELOPER_DIR" ]]; then
-    export DEVELOPER_DIR="$USER_DEVELOPER_DIR"
-    rt=$(runtime_for_current_dev "$major")
-    printf '%s\n' "$rt"
+    rt=$(DEVELOPER_DIR="$USER_DEVELOPER_DIR" runtime_for_current_dev "$major")
+    if [[ -n "$rt" ]]; then
+      printf '%s\t%s\n' "$USER_DEVELOPER_DIR" "$rt"
+    fi
     return 0
   fi
   while IFS= read -r dev; do
     [[ -n "$dev" ]] || continue
-    export DEVELOPER_DIR="$dev"
-    rt=$(runtime_for_current_dev "$major")
+    rt=$(DEVELOPER_DIR="$dev" runtime_for_current_dev "$major")
     if [[ -n "$rt" ]]; then
-      printf '%s\n' "$rt"
+      printf '%s\t%s\n' "$dev" "$rt"
       return 0
     fi
   done < <(sorted_developer_dirs)
@@ -81,7 +92,9 @@ select_xcode_for_major() {
 devicetype_for() {
   local runtime=$1 supported name picked=""
   supported=$(xcrun simctl list runtimes -j | jq -r --arg id "$runtime" '
-    .runtimes[] | select(.identifier == $id) | .supportedDeviceTypes[]? | "\(.name)\t\(.identifier)"')
+    .runtimes[] | select(.identifier == $id) | .supportedDeviceTypes[]?
+    | select(((.name | contains("Duo")) or (.identifier | contains("Duo"))) | not)
+    | "\(.name)\t\(.identifier)"')
   for name in "${DEVICES[@]}"; do
     picked=$(awk -F'\t' -v n="$name" '$1 == n { print $2; exit }' <<<"$supported")
     if [[ -n "$picked" ]]; then
@@ -97,6 +110,32 @@ devicetype_for() {
   return 1
 }
 
+# Reuses an existing pre-created simulator for this runtime if available, else creates one.
+# Prints "<existing|created>\t<udid>\t<device_name_or_type>".
+find_or_create_device() {
+  local major=$1 runtime=$2 available name udid dtype
+  available=$(xcrun simctl list devices -j | jq -r --arg rt "$runtime" '
+    (.devices[$rt] // [])[]
+    | select(.isAvailable and ((.name | contains("Duo")) or (.deviceTypeIdentifier | contains("Duo")) | not))
+    | "\(.name)\t\(.udid)"')
+  for name in "${DEVICES[@]}"; do
+    udid=$(awk -F'\t' -v n="$name" '$1 == n { print $2; exit }' <<<"$available")
+    if [[ -n "$udid" ]]; then
+      printf 'existing\t%s\t%s\n' "$udid" "$name"
+      return 0
+    fi
+  done
+  udid=$(awk -F'\t' '$1 ~ /iPhone/ { print $2; exit }' <<<"$available")
+  if [[ -n "$udid" ]]; then
+    name=$(awk -F'\t' -v u="$udid" '$2 == u { print $1; exit }' <<<"$available")
+    printf 'existing\t%s\t%s\n' "$udid" "$name"
+    return 0
+  fi
+  dtype=$(devicetype_for "$runtime") || return 1
+  udid=$(xcrun simctl create "NoteFable iOS ${major}" "$dtype" "$runtime")
+  printf 'created\t%s\t%s\n' "$udid" "$dtype"
+}
+
 boot_device() {
   local udid=$1
   xcrun simctl bootstatus "$udid" -b >/dev/null
@@ -108,12 +147,53 @@ boot_device() {
     --batteryState charged --batteryLevel 100
 }
 
-launch_scene() {
-  local udid=$1 log=$2 scene=$3 variant=$4 force_solid=$5
-  local account="signed-in"
-  [[ "$scene" == "sign-in" ]] && account="guest"
+set_variant_environment() {
+  local udid=$1 variant=$2 rt=0
+  if [[ "$variant" == "dark" ]]; then
+    xcrun simctl ui "$udid" appearance dark >/dev/null
+  else
+    xcrun simctl ui "$udid" appearance light >/dev/null
+  fi
+  [[ "$variant" == "rt" ]] && rt=1
+  xcrun simctl spawn "$udid" defaults write com.apple.Accessibility EnhancedBackgroundContrastEnabled -int "$rt" >/dev/null
+}
 
-  local -a args=(-NFFixtures YES -NFFixtureScene "$scene" -NFFixtureAccount "$account")
+wait_for_ready_idx() {
+  local log=$1 idx=$2 i
+  for i in $(seq 1 120); do
+    if grep -qE "^NF_FIXTURE_READY idx=${idx}( |$)" "$log" 2>/dev/null; then
+      return 0
+    fi
+    sleep 0.25
+  done
+  return 1
+}
+
+# Runs one app process for a comma-separated batch of scenes.
+# Returns: 0 on completion (even if a scene set failed=1), 2 if rt did not propagate and needs reboot+retry.
+run_batch() {
+  local udid=$1 major=$2 variant=$3 account=$4 probe_rt=$5
+  shift 5
+  local -a batch=("$@")
+  local csv="" s idx=0 log ack_dir app_data ready_line png
+
+  for s in "${batch[@]}"; do
+    if [[ -z "$csv" ]]; then csv="$s"; else csv="${csv},${s}"; fi
+  done
+
+  app_data=$(xcrun simctl get_app_container "$udid" "$BUNDLE_ID" data 2>/dev/null || true)
+  if [[ -n "$app_data" ]]; then
+    ack_dir="${app_data}/tmp/nf-fixture-ack"
+  else
+    ack_dir="$OUT/ack-ios${major}-${variant}-${account}"
+  fi
+  rm -rf "$ack_dir"
+  mkdir -p "$ack_dir"
+
+  log="$OUT/logs/ios${major}-${variant}-${account}.log"
+  : >"$log"
+
+  local -a args=(-NFFixtures YES -NFFixtureBatch "$csv" -NFFixtureAckDir "$ack_dir" -NFFixtureAccount "$account")
   case "$variant" in
     ar)
       args+=(-AppleLanguages "(ar)" -AppleLocale ar_SA)
@@ -125,64 +205,92 @@ launch_scene() {
       args+=(-AppleLanguages "(en)" -AppleLocale en_US)
       ;;
   esac
-  if [[ "$variant" == "rt" && "$force_solid" == "1" ]]; then
-    args+=(-NFForceSolidChrome YES)
-  fi
 
-  : >"$log"
   xcrun simctl terminate "$udid" "$BUNDLE_ID" >/dev/null 2>&1 || true
   xcrun simctl launch --terminate-running-process --stderr="$log" "$udid" "$BUNDLE_ID" "${args[@]}" >/dev/null
 
-  local i
-  for i in $(seq 1 120); do
-    if grep -q '^NF_FIXTURE_READY ' "$log" 2>/dev/null; then
+  for s in "${batch[@]}"; do
+    if ! wait_for_ready_idx "$log" "$idx"; then
+      echo "::error::ios${major} ${variant} ${s}: missing NF_FIXTURE_READY idx=${idx} (app crash or hang)"
+      cat "$log" >&2 || true
+      failed=1
+      png="$OUT/ios${major}/${variant}/${s}-MISSING.png"
+      xcrun simctl io "$udid" screenshot --type=png "$png" >/dev/null || true
+      : >"$ack_dir/abort"
+      xcrun simctl terminate "$udid" "$BUNDLE_ID" >/dev/null 2>&1 || true
       return 0
     fi
-    sleep 0.25
+
+    ready_line=$(grep -m1 -E "^NF_FIXTURE_READY idx=${idx}( |$)" "$log" || true)
+
+    if [[ "$variant" == "rt" && "$account" == "signed-in" && "$idx" -eq 0 ]]; then
+      if [[ "$ready_line" != *"reduceTransparency=true"* ]]; then
+        : >"$ack_dir/abort"
+        xcrun simctl terminate "$udid" "$BUNDLE_ID" >/dev/null 2>&1 || true
+        if [[ "$probe_rt" -eq 1 ]]; then
+          return 2
+        fi
+        echo "::error::Reduce Transparency did not reach app on iOS ${major} (${ready_line}); refusing to label un-tinted captures as rt."
+        failed=1
+        return 3
+      fi
+    fi
+
+    printf 'ios%s\t%s\t%s\t%s\n' "$major" "$variant" "$s" "$ready_line" >>"$ready_summary_file"
+
+    if [[ "$ready_line" == *"timeout=true"* ]]; then
+      echo "::error::ios${major} ${variant} ${s} timed out waiting for readiness: ${ready_line}"
+      failed=1
+      png="$OUT/ios${major}/${variant}/${s}-TIMEOUT.png"
+      xcrun simctl io "$udid" screenshot --type=png "$png" >/dev/null || true
+    else
+      png="$OUT/ios${major}/${variant}/${s}.png"
+      if ! xcrun simctl io "$udid" screenshot --type=png "$png" >/dev/null; then
+        echo "::error::Failed to capture screenshot ${png}"
+        failed=1
+      fi
+    fi
+
+    : >"$ack_dir/ack-${idx}"
+    idx=$((idx + 1))
   done
-  return 1
+
+  sleep 0.1
+  xcrun simctl terminate "$udid" "$BUNDLE_ID" >/dev/null 2>&1 || true
+  return 0
 }
 
-# Sets appearance & Reduce Transparency. Echoes "1" if -NFForceSolidChrome fallback is needed, else "0".
-configure_variant() {
-  local udid=$1 major=$2 variant=$3
-  local rt=0 probe="$OUT/logs/probe-ios${major}.log"
-
-  if [[ "$variant" == "dark" ]]; then
-    xcrun simctl ui "$udid" appearance dark >/dev/null
-  else
-    xcrun simctl ui "$udid" appearance light >/dev/null
-  fi
-
-  [[ "$variant" == "rt" ]] && rt=1
-  xcrun simctl spawn "$udid" defaults write com.apple.Accessibility EnhancedBackgroundContrastEnabled -int "$rt" >/dev/null
-
-  if [[ "$rt" -eq 0 ]]; then
-    echo "0"
-    return 0
-  fi
-
-  launch_scene "$udid" "$probe" "chat-empty" "light" "0" || true
-  if grep -q 'reduceTransparency=true' "$probe" 2>/dev/null; then
-    echo "0"
-    return 0
-  fi
-
-  # Reboot simulator once so Accessibility preference propagates if required on this runtime.
-  xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
-  boot_device "$udid" >&2
-  launch_scene "$udid" "$probe" "chat-empty" "light" "0" || true
-  if grep -q 'reduceTransparency=true' "$probe" 2>/dev/null; then
-    echo "0"
-    return 0
-  fi
-
-  echo "::warning::Reduce Transparency did not reach app via defaults on iOS ${major}; falling back to -NFForceSolidChrome YES for rt variant." >&2
-  echo "1"
-}
+# Partition SCENES into signed-in and guest batches.
+declare -a SIGNED_IN_BATCH=()
+declare -a GUEST_BATCH=()
+if [[ -z "${NF_SCENES:-}" ]]; then
+  SIGNED_IN_BATCH=(chat-empty chat model-sheet attach-sheet drawer search settings workspace editor page-menu chat-streaming)
+  GUEST_BATCH=(sign-in)
+else
+  for s in "${SCENES[@]}"; do
+    if [[ "$s" == "sign-in" ]]; then
+      GUEST_BATCH+=("$s")
+    else
+      SIGNED_IN_BATCH+=("$s")
+    fi
+  done
+fi
 
 for major in "${MAJORS[@]}"; do
-  runtime=$(select_xcode_for_major "$major")
+  selection=$(select_xcode_for_major "$major")
+  if [[ -z "$selection" ]]; then
+    echo "::error::No available iOS ${major}.x simulator runtime found."
+    xcrun simctl list runtimes || true
+    failed=1
+    continue
+  fi
+
+  selected_dev=""
+  runtime=""
+  IFS=$'\t' read -r selected_dev runtime <<<"$selection"
+  if [[ -n "$selected_dev" ]]; then
+    export DEVELOPER_DIR="$selected_dev"
+  fi
   if [[ -z "$runtime" ]]; then
     echo "::error::No available iOS ${major}.x simulator runtime found."
     xcrun simctl list runtimes || true
@@ -197,41 +305,52 @@ for major in "${MAJORS[@]}"; do
     printed_simctl_help=1
   fi
 
-  dtype=$(devicetype_for "$runtime") || {
+  device_info=$(find_or_create_device "$major" "$runtime") || {
     echo "::error::No iPhone device type supports ${runtime}."
     failed=1
     continue
   }
+  origin=""
+  udid=""
+  dname=""
+  IFS=$'\t' read -r origin udid dname <<<"$device_info"
 
-  udid=$(xcrun simctl create "NoteFable iOS ${major}" "$dtype" "$runtime")
-  echo "Created simulator iOS ${major}: runtime=${runtime}, device=${dtype}, udid=${udid}"
+  boot_start=$(date +%s)
   boot_device "$udid"
+  boot_end=$(date +%s)
+  echo "Booted simulator iOS ${major} (${origin}: ${dname}, runtime=${runtime}, udid=${udid}) in $((boot_end - boot_start))s"
+
   xcrun simctl spawn "$udid" defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -int 1
+  if [[ "$origin" == "existing" ]]; then
+    xcrun simctl uninstall "$udid" "$BUNDLE_ID" >/dev/null 2>&1 || true
+  fi
   xcrun simctl install "$udid" "$APP"
 
   for variant in "${VARIANTS[@]}"; do
-    rt_force_solid=$(configure_variant "$udid" "$major" "$variant")
     mkdir -p "$OUT/ios${major}/${variant}"
+    set_variant_environment "$udid" "$variant"
 
-    for scene in "${SCENES[@]}"; do
-      log="$OUT/logs/ios${major}-${variant}-${scene}.log"
-      if launch_scene "$udid" "$log" "$scene" "$variant" "$rt_force_solid"; then
-        ready_line=$(grep -m1 '^NF_FIXTURE_READY ' "$log" || true)
-        printf 'ios%s\t%s\t%s\t%s\n' "$major" "$variant" "$scene" "$ready_line" >>"$ready_summary_file"
-        if [[ "$ready_line" == *"timeout=true"* ]]; then
-          echo "::warning::ios${major} ${variant} ${scene} timed out waiting for readiness: ${ready_line}"
-        fi
-      else
-        echo "::error::ios${major} ${variant} ${scene}: missing NF_FIXTURE_READY (app crash or hang)"
-        cat "$log" >&2 || true
-        failed=1
+    rt_ok=1
+    if [[ ${#SIGNED_IN_BATCH[@]} -gt 0 ]]; then
+      rc=0
+      run_batch "$udid" "$major" "$variant" "signed-in" "1" "${SIGNED_IN_BATCH[@]}" || rc=$?
+      if [[ "$rc" -eq 2 ]]; then
+        echo "Rebooting iOS ${major} simulator so Reduce Transparency preference propagates..."
+        xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
+        boot_device "$udid"
+        set_variant_environment "$udid" "$variant"
+        rc=0
+        run_batch "$udid" "$major" "$variant" "signed-in" "0" "${SIGNED_IN_BATCH[@]}" || rc=$?
       fi
-      png="$OUT/ios${major}/${variant}/${scene}.png"
-      if ! xcrun simctl io "$udid" screenshot --type=png "$png" >/dev/null; then
-        echo "::error::Failed to capture screenshot ${png}"
-        failed=1
+      if [[ "$rc" -eq 3 ]]; then
+        rt_ok=0
       fi
-    done
+    fi
+
+    if [[ "$rt_ok" -eq 1 && ${#GUEST_BATCH[@]} -gt 0 ]]; then
+      rc=0
+      run_batch "$udid" "$major" "$variant" "guest" "0" "${GUEST_BATCH[@]}" || rc=$?
+    fi
 
     if [[ "$variant" == "rt" ]]; then
       xcrun simctl spawn "$udid" defaults write com.apple.Accessibility EnhancedBackgroundContrastEnabled -int 0 || true
@@ -239,12 +358,17 @@ for major in "${MAJORS[@]}"; do
   done
 
   xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
-  xcrun simctl delete "$udid" >/dev/null 2>&1 || true
+  if [[ "$origin" == "created" ]]; then
+    xcrun simctl delete "$udid" >/dev/null 2>&1 || true
+  fi
 done
 
-# Report any fixture misses as warnings (never silent).
+# Report any fixture misses as errors (never silent).
 while IFS= read -r miss; do
-  [[ -n "$miss" ]] && echo "::warning::${miss}"
+  if [[ -n "$miss" ]]; then
+    echo "::error::${miss}"
+    failed=1
+  fi
 done < <(grep -h '^NF_FIXTURE_MISS ' "$OUT"/logs/*.log 2>/dev/null | sort -u || true)
 
 mkdir -p "$OUT/crashes"
@@ -285,6 +409,8 @@ parts = [
     'th{background:#f1f3f6;position:sticky;top:0}',
     'th.scene{text-align:left;min-width:130px}',
     'img{width:190px;height:auto;border-radius:12px;border:1px solid #ddd;display:block}',
+    'img.fail{border:3px solid #d93025}',
+    '.fail-label{color:#d93025;font-size:12px;font-weight:700;margin-top:4px}',
     '</style></head><body>',
     '<h1>NoteFable iOS Fixture Screenshots</h1>',
 ]
@@ -304,9 +430,17 @@ for major in majors:
         for v in present_variants:
             rel = f'{major}/{v}/{s}.png'
             full = os.path.join(out_dir, rel)
+            timeout_rel = f'{major}/{v}/{s}-TIMEOUT.png'
+            missing_rel = f'{major}/{v}/{s}-MISSING.png'
             if os.path.exists(full):
                 esc = html.escape(rel)
                 parts.append(f'<td><a href="{esc}"><img src="{esc}" loading="lazy" alt="{esc}"></a></td>')
+            elif os.path.exists(os.path.join(out_dir, timeout_rel)):
+                esc = html.escape(timeout_rel)
+                parts.append(f'<td><a href="{esc}"><img class="fail" src="{esc}" loading="lazy" alt="{esc}"></a><div class="fail-label">TIMEOUT</div></td>')
+            elif os.path.exists(os.path.join(out_dir, missing_rel)):
+                esc = html.escape(missing_rel)
+                parts.append(f'<td><a href="{esc}"><img class="fail" src="{esc}" loading="lazy" alt="{esc}"></a><div class="fail-label">MISSING</div></td>')
             else:
                 parts.append('<td>—</td>')
         parts.append('</tr>')
@@ -317,12 +451,15 @@ with open(os.path.join(out_dir, 'index.html'), 'w', encoding='utf-8') as fh:
     fh.write('\n'.join(parts))
 
 if summary_path:
-    pngs = sorted(glob.glob(os.path.join(out_dir, 'ios*', '*', '*.png')))
+    all_pngs = sorted(glob.glob(os.path.join(out_dir, 'ios*', '*', '*.png')))
+    ok_pngs = [p for p in all_pngs if not (p.endswith('-TIMEOUT.png') or p.endswith('-MISSING.png'))]
+    bad_pngs = [p for p in all_pngs if p.endswith('-TIMEOUT.png') or p.endswith('-MISSING.png')]
     sample_ready = {}
     for major, variant, scene, line in ready_rows:
         sample_ready.setdefault((major, variant), line)
     with open(summary_path, 'a', encoding='utf-8') as fh:
-        fh.write(f'### iOS fixture screenshots ({len(pngs)} PNGs)\n\n')
+        extra = f' ({len(bad_pngs)} failed diagnostics)' if bad_pngs else ''
+        fh.write(f'### iOS fixture screenshots ({len(ok_pngs)} valid PNGs{extra})\n\n')
         if sample_ready:
             fh.write('| Runtime | Variant | Sample READY flags |\n|---|---|---|\n')
             for (major, variant), line in sorted(sample_ready.items()):
