@@ -29,7 +29,7 @@ import { ChatSidebar } from "@/components/chat-sidebar";
 import { ChatTitleIcon, ChatTopbarIcon } from "@/components/chat-icon";
 import { ChatMessage } from "@/components/chat-message";
 import { QuoteSelectionButton } from "@/components/quote-selection";
-import { composeQuotedMessage, splitQuotedMessage } from "@/lib/chat-quote";
+import { composeQuotedMessage, normalizeQuote, splitQuotedMessage } from "@/lib/chat-quote";
 import { ANSWER_RESIZED_EVENT } from "@/components/assistant-markdown";
 import { TurnBusyContext, type TurnActions } from "@/components/turn-actions";
 import { AccountAppIconSync, AccountLocaleSync } from "@/components/account-button";
@@ -60,7 +60,8 @@ import { useNotePages } from "@/lib/use-note-pages";
 import { applyActivityEvent } from "@/lib/chat-activity";
 import { createUploadFile, formatUploadSize, getClipboardImageFiles, getUploadRequestError, getUploadSelectionError, getUploadValidationError, revokeUploadPreviews } from "@/lib/client-files";
 import { MAX_UPLOAD_FILES } from "@/lib/upload-limits";
-import { cleanupClientUploads, uploadChatFiles } from "@/lib/client-chat-upload";
+import { cleanupClientUploads, uploadChatFilesWithSelection } from "@/lib/client-chat-upload";
+import { isSelectionId, MAX_SELECTION_IDS, type PageSelection } from "@/lib/page-ai/types";
 import type { ReorderRequest } from "@/lib/list-order";
 import { ChatProjectSync, SessionOrganizationSync } from "@/lib/session-organization-sync";
 import { SessionIconSync } from "@/lib/session-icon-sync";
@@ -557,6 +558,15 @@ export default function Home() {
   // 回答から選んで「NoteFable に聞く」で取り込んだ引用。送るときに本文の先頭へ引用ブロックとして付ける（lib/chat-quote.ts）。
   const [quote, setQuote] = useState<string | null>(null);
   const quoteRef = useRef<string | null>(null);
+  // 分割表示のホワイトボード・スライドから「Ask AI」で渡された選区（要素・スライド ID と選区画像キャプチャ）。
+  const [splitSelection, setSplitSelection] = useState<{ pageId: string; ids: string[]; captureImage?: () => Promise<Blob | null> } | null>(null);
+  // 選区画像のみ失敗して文字だけで送ったときなど、送信を止めない穏やかな知らせ。
+  const [sendNotice, setSendNotice] = useState("");
+  const selectionPreviewsRef = useRef(new Set<string>());
+  useEffect(() => {
+    const urls = selectionPreviewsRef.current;
+    return () => { for (const url of urls) URL.revokeObjectURL(url); };
+  }, []);
   useEffect(() => {
     quoteRef.current = quote;
   }, [quote]);
@@ -992,28 +1002,43 @@ export default function Home() {
   function quoteSelection(text: string) {
     // 添付の送信中は入力欄も引用も変えられない（送る中身は確定済み）。
     if (uploadProgress) return;
+    setSplitSelection(null);
     setQuote(text);
     setSendError("");
+    setSendNotice("");
     // 続けて質問を打てるよう入力欄へ。iOS ではタップの処理の中で同期してフォーカスしないと画面キーボードが開かない。
     inputRef.current?.focus();
   }
 
-  // 分割表示の右側ノートで「Ask AI」を押したとき：選択抜粋を左チャットの引用に入れ、そのノートも添付する。
-  function askSplitNoteSelectionInChat(text: string) {
+  // 分割表示の右側ページで「Ask AI」を押したとき：選択抜粋を左チャットの引用に入れ、そのページと選区（要素 ID・画像キャプチャ）も渡す。
+  function askSplitNoteSelectionInChat(selection: PageSelection) {
     // 添付の送信中は引用も入らない（quoteSelection）。ノートだけ添付に足さない。
     if (uploadProgress) return;
-    quoteSelection(text);
-    // 画像の作成はノートを添付できない（送信時に断られる）ので、引用だけ入れる。
-    if (imageGenerationMode) return;
     const id = notes.activeId;
-    if (!id) return;
-    const summary = notes.pages.find((page) => page.id === id);
-    const title = notes.active?.content.title.trim() || summary?.title || "Untitled";
+    const summary = id ? notes.pages.find((page) => page.id === id) : undefined;
+    const title = notes.active?.content.title.trim() || summary?.title || t("Untitled");
     const icon = notes.active?.content.icon ?? summary?.icon ?? null;
+    const ids = [...new Set((selection.ids ?? []).filter(isSelectionId))].slice(0, MAX_SELECTION_IDS);
+    const quoteText = normalizeQuote(selection.text)
+      || (ids.length ? `${title} (${t("{count} items selected", { count: ids.length })})` : "");
+    if (quoteText) quoteSelection(quoteText);
+    else {
+      setSplitSelection(null);
+      setSendError("");
+      setSendNotice("");
+      inputRef.current?.focus();
+    }
+    // 画像の作成はノートを添付できない（送信時に断られる）ので、引用だけ入れる。
+    if (imageGenerationMode || !id) return;
+    const canAttach = attachedPages.some((item) => item.id === id) || attachedPages.length < MAX_MESSAGE_NOTES;
+    if (!canAttach) return;
     setAttachedPages((current) => {
       if (current.some((item) => item.id === id) || current.length >= MAX_MESSAGE_NOTES) return current;
-      return [...current, { id, title, icon }];
+      return [...current, { id, title, icon, kind: summary?.kind ?? notes.active?.page.kind }];
     });
+    if (ids.length || selection.captureImage) {
+      setSplitSelection({ pageId: id, ids, captureImage: selection.captureImage });
+    }
   }
 
   function hasDraggedFiles(event: React.DragEvent) {
@@ -1460,6 +1485,7 @@ export default function Home() {
     }
 
     setSendError("");
+    setSendNotice("");
     flashCharacterOutcome(requestSessionKey, null);
     stopRequestedRef.current.delete(requestSessionKey);
     submittingSessionKeysRef.current.add(requestSessionKey);
@@ -1474,18 +1500,57 @@ export default function Home() {
       if (splitPage.dirty) await splitPage.flush().catch(() => {});
     }
 
+    const activeSplitSelection = !imageGenerationMode && splitSelection && submittedPages.some((page) => page.id === splitSelection.pageId)
+      ? splitSelection
+      : null;
+    let selectionUpload: UploadFile | null = null;
+    const releaseSelectionPreview = () => {
+      if (!selectionUpload?.previewUrl) return;
+      selectionPreviewsRef.current.delete(selectionUpload.previewUrl);
+      URL.revokeObjectURL(selectionUpload.previewUrl);
+    };
+    const rawSubmittedFiles = submittedFiles.map(({ file }) => file);
+    const willCaptureSelection = Boolean(activeSplitSelection?.captureImage && selectedModel.supportsImageInput);
     let uploadedTickets: string[] = [];
     try {
-      if (submittedFiles.length) setUploadProgress(msg("Preparing attachments…"));
-      uploadedTickets = await uploadChatFiles(submittedFiles.map(({ file }) => file), (name, index, total, percentage) => {
+      if (willCaptureSelection || rawSubmittedFiles.length) setUploadProgress(msg("Preparing attachments…"));
+      if (willCaptureSelection && activeSplitSelection?.captureImage) {
+        try {
+          const blob = await activeSplitSelection.captureImage();
+          if (blob && blob.size > 0) {
+            const imageFile = new File([blob], "selection.png", { type: "image/png" });
+            const candidateFiles = [...rawSubmittedFiles, imageFile];
+            const selectionProblem = getUploadValidationError(candidateFiles, uploadOptions, t) || getUploadRequestError(candidateFiles, userContent, t);
+            if (!selectionProblem) {
+              selectionUpload = createUploadFile(imageFile);
+              if (selectionUpload.previewUrl) selectionPreviewsRef.current.add(selectionUpload.previewUrl);
+            } else {
+              setSendNotice(msg("Could not attach the selection screenshot this time."));
+            }
+          } else {
+            setSendNotice(msg("Could not attach the selection screenshot this time."));
+          }
+        } catch {
+          setSendNotice(msg("Could not attach the selection screenshot this time."));
+        }
+      }
+      const uploaded = await uploadChatFilesWithSelection(rawSubmittedFiles, selectionUpload?.file ?? null, (name, index, total, percentage) => {
         setUploadProgress({ key: msg("Uploading {index}/{total} · {name} · {percentage}%"), vars: { index, total, name, percentage } });
       });
+      uploadedTickets = uploaded.tickets;
+      if (uploaded.selectionDropped && selectionUpload) {
+        releaseSelectionPreview();
+        selectionUpload = null;
+        setSendNotice(msg("Could not attach the selection screenshot this time."));
+      }
       if (navigationIntent !== sessionNavigationIntentRef.current) {
+        releaseSelectionPreview();
         await cleanupClientUploads(uploadedTickets);
         submittingSessionKeysRef.current.delete(initialRequestSessionKey);
         return;
       }
     } catch (error) {
+      releaseSelectionPreview();
       if (navigationIntent === sessionNavigationIntentRef.current) {
         if (error instanceof StorageLimitError) {
           // 本文と添付は入力欄に残っている（まだ何も送っていない）。ログインや申し込みから戻っても本文が残るようにする。
@@ -1509,6 +1574,7 @@ export default function Home() {
       const draftEpoch = draftEpochRef.current;
       const { error, session } = await createEmptySession(sentIcon);
       if (!session) {
+        releaseSelectionPreview();
         await cleanupClientUploads(uploadedTickets);
         setSendError(error || msg("Database is unavailable. Start local PostgreSQL and try again."));
         flashCharacterOutcome(requestSessionKey, "error");
@@ -1541,13 +1607,14 @@ export default function Home() {
     // 入力欄の値はここで確定する。以降は state を空にしてもこの変数を API 送信用に使う。
     // 送信時点の添付を固定する。setFiles([]) 後もこの配列を使って FormData とプレビュー解放を行う。
     // API 応答を待たずに画面へ出すユーザー発言。添付には送信前プレビュー URL も含める。
+    const allSubmittedFiles = selectionUpload ? [...submittedFiles, selectionUpload] : submittedFiles;
     const localUserMessage: Message = {
       id: crypto.randomUUID(),
       role: "USER",
       content: userContent,
       model,
       reasoningEffort: reasoning.toUpperCase(),
-      attachments: submittedFiles.map(({ id, file, previewUrl }) => ({
+      attachments: allSubmittedFiles.map(({ id, file, previewUrl }) => ({
         id,
         filename: file.name,
         mimeType: file.type || "application/octet-stream",
@@ -1578,13 +1645,20 @@ export default function Home() {
       value: submittedInputValue,
       expiresAt: new Date().getTime() + INPUT_RESTORE_GUARD_MS,
     };
-    setInput("");
+    const liveInputValue = inputRef.current?.value ?? input;
+    const remainingInput = liveInputValue === submittedInputValue
+      ? ""
+      : liveInputValue.startsWith(submittedInputValue)
+        ? liveInputValue.slice(submittedInputValue.length).trimStart()
+        : liveInputValue;
+    setInput(remainingInput);
     if (inputRef.current) {
-      inputRef.current.value = "";
+      inputRef.current.value = remainingInput;
     }
     setFiles([]);
     setAttachedPages([]);
     if (submittedQuote) setQuote(null);
+    if (splitSelection) setSplitSelection(null);
 
     const streamStartedAt = new Date().getTime();
     startStreamingSession(requestSessionKey, streamStartedAt);
@@ -1597,6 +1671,10 @@ export default function Home() {
     if (requestSessionId) body.append("sessionId", requestSessionId);
     body.append("uploads", JSON.stringify(uploadedTickets));
     if (submittedPages.length) body.append("pages", JSON.stringify(submittedPages.map((page) => page.id)));
+    if (activeSplitSelection?.ids.length) {
+      body.append("selectionPageId", activeSplitSelection.pageId);
+      body.append("selectionIds", JSON.stringify(activeSplitSelection.ids));
+    }
 
     // 送信完了後にサーバー履歴へ差し替えられた時だけ、楽観表示用 previewUrl を解放する。
     let shouldCleanupSubmittedPreviews = false;
@@ -1725,6 +1803,8 @@ export default function Home() {
         submittedInputRestoreGuardRef.current = null;
         const typedMeanwhile = inputRef.current?.value ?? "";
         // 引用を付けて送った本文は、引用を入力欄の上へ戻し、質問だけを入力欄に戻す。引用が無ければ打ったままの原文を戻す。
+        // 待つ間に別の引用・選区が選ばれていたらそちらを優先し、古い選区メタデータで上書きしない。
+        const hadNewerQuote = Boolean(quoteRef.current);
         const rejectedText = submittedQuote ? userContent : submittedInputValue;
         const rejectedBody = submittedQuote ? restoreComposerText(userContent) : submittedInputValue;
         const restored = typedMeanwhile.trim() ? [rejectedBody.trimEnd(), typedMeanwhile].join("\n\n") : rejectedBody;
@@ -1735,11 +1815,23 @@ export default function Home() {
         if (submittedFiles.length) setFiles((current) => [...submittedFiles, ...current.filter((item) => !submittedFiles.some((sent) => sent.id === item.id))]);
         // 合わせて上限を超えても切り捨てない（送る前に知らせて、利用者に外してもらう）。
         if (submittedPages.length) setAttachedPages((current) => [...submittedPages, ...current.filter((item) => !submittedPages.some((sent) => sent.id === item.id))]);
+        if (activeSplitSelection && !hadNewerQuote) {
+          setSplitSelection((current) => current ?? activeSplitSelection);
+        }
       }
+      // 上限で断られた送信はどこにも保存されていないので、選区画像は発言から外して片付ける（次の送信で撮り直す）。
+      // それ以外の失敗では、ほかの添付と同じく発言に残す（サーバーが保存済みのこともあり、プレビューも表示中）。
+      const droppedSelectionId = limited ? selectionUpload?.id : undefined;
+      if (droppedSelectionId) releaseSelectionPreview();
       updateCachedMessages(requestSessionKey, (current) =>
         current.map((message) =>
-          message.id === localUserMessage.id && limited
-            ? stripAttachmentPreviewUrls(message)
+          message.id === localUserMessage.id && (limited || droppedSelectionId)
+            ? (() => {
+              const filtered = droppedSelectionId
+                ? { ...message, attachments: message.attachments?.filter((attachment) => attachment.id !== droppedSelectionId) }
+                : message;
+              return limited ? stripAttachmentPreviewUrls(filtered) : filtered;
+            })()
             : message.id === assistantMessageId
             // 途中まで届いていた回答は消さず、その後ろに失敗の文を足す。
             ? { ...message, content: limited ? detail : message.content ? `${message.content}\n\n${failureText(detail)}` : failureText(detail), failed: true, isGeneratingImage: false,
@@ -1752,6 +1844,7 @@ export default function Home() {
       if (shouldCleanupSubmittedPreviews) {
         // DB から再取得した添付情報に置き換わったので、送信前 previewUrl は不要になる。
         revokeUploadPreviews(submittedFiles);
+        releaseSelectionPreview();
         updateCachedMessages(requestSessionKey, (current) =>
           current.map(stripAttachmentPreviewUrls),
         );
@@ -2288,8 +2381,10 @@ export default function Home() {
       setActiveSessionId(null);
       setMessages([]);
       setSendError("");
+      setSendNotice("");
       quoteRef.current = null;
       setQuote(null);
+      setSplitSelection(null);
       void consumeWebShare(shareId).then((shared) => {
         if (cancelled || !shared || sessionNavigationIntentRef.current !== shareIntent || activeSessionIdRef.current !== null) return;
         const combined = mergeDraftWithShare(savedDraft, shared.text);
@@ -2648,13 +2743,18 @@ export default function Home() {
               {uploadError || (typeof sendError === "function" ? sendError(t) : localizeSystemText(sendError, t))}
             </div>
           )}
+          {sendNotice && !(uploadError || sendError) && (
+            <p className="notion-page-column mb-2 text-xs text-[var(--notion-muted)]" role="status">
+              {t(sendNotice)}
+            </p>
+          )}
           {/* 入力欄はボタンの文字や添付のチップが状態でよく差し替わる。ページ翻訳や拡張がここの文字を書き換えると React の更新が失敗して画面が落ちるので、翻訳の対象から外す。 */}
           <form onSubmit={sendMessage} className="notion-page-column" translate="no">
             {quote && (
               // 回答から取り込んだ引用。送ると発言の先頭に引用として付く。× で外す。
               <div className="chat-quote mb-3" role="group" aria-label={t("Quote")}>
                 <span className="chat-quote-text">{quote}</span>
-                <button type="button" className="chat-quote-remove" onClick={() => setQuote(null)} disabled={Boolean(uploadProgress)}
+                <button type="button" className="chat-quote-remove" onClick={() => { setQuote(null); setSplitSelection(null); }} disabled={Boolean(uploadProgress)}
                   aria-label={t("Remove quote")} title={t("Remove quote")}>
                   <X size={14} aria-hidden="true" />
                 </button>
@@ -2668,7 +2768,11 @@ export default function Home() {
                   <li key={page.id} className="min-w-0 max-w-full">
                     <button
                       type="button"
-                      onClick={() => { setSendError(""); setAttachedPages((current) => current.filter((item) => item.id !== page.id)); }}
+                      onClick={() => {
+                        setSendError("");
+                        setAttachedPages((current) => current.filter((item) => item.id !== page.id));
+                        setSplitSelection((current) => (current?.pageId === page.id ? null : current));
+                      }}
                       disabled={Boolean(uploadProgress)}
                       aria-label={t("Remove {title}", { title: page.title || t("Untitled") })}
                       className="motion-menu inline-flex max-w-full items-center gap-2 rounded border border-[var(--notion-border)] bg-[var(--notion-sidebar)] px-2.5 py-1.5 text-[var(--notion-muted)] hover:bg-[var(--notion-hover)]"

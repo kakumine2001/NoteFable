@@ -1138,4 +1138,6 @@ export const fr: Record<string, string> = {
   "Empty page": "Page vide",
   "Proposed page edit": "Modification de page proposée",
   "Applied automatically": "Appliqué automatiquement",
+  "Group & organize": "Regrouper et organiser",
+  "Could not attach the selection screenshot this time.": "Impossible de joindre la capture de la sélection cette fois.",
 };

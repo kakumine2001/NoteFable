@@ -7,6 +7,7 @@ import {
   Underline, Ungroup,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { AppIcon } from "@/components/app-icon";
 import { useT } from "@/components/i18n-provider";
 import { ColorPicker, MenuButton } from "@/components/slides/slide-menus";
 import type { TextCommands } from "@/components/slides/text-editor";
@@ -105,7 +106,7 @@ function tableWithSize(element: TableElement, rows: number, cols: number): Table
   return { ...element, rows: nextRows, cols: nextCols, h: Math.max(element.h * (rows / element.rows.length), 40) };
 }
 
-export function SlideInspector({ slide, selection, theme, editable, onChange, onReplaceImage, onReportImage, onDelete, onLayout, onToggleHidden }: {
+export function SlideInspector({ slide, selection, theme, editable, onChange, onReplaceImage, onReportImage, onDelete, onLayout, onToggleHidden, onAskAi }: {
   slide: Slide;
   selection: Set<string>;
   theme: ResolvedTheme;
@@ -116,14 +117,26 @@ export function SlideInspector({ slide, selection, theme, editable, onChange, on
   onDelete: () => void;
   onLayout: (layout: LayoutId) => void;
   onToggleHidden: () => void;
+  onAskAi?: () => void;
 }) {
   const t = useT();
   const selected = slide.elements.filter((element) => selection.has(element.id));
   const update = (ids: Set<string>, patch: (element: SlideElement) => SlideElement, field: string) =>
     onChange(updateElements(slide, ids, patch), `${field}:${[...ids].join(",")}`);
+  // ロック中でも AI に質問できるよう、fieldset（disabled={!editable}）の外に出す。
+  const askAiSection = onAskAi ? (
+    <div className="slides-inspector-section slides-inspector-ai">
+      <button type="button" className="slides-wide-button slides-inspector-ask-ai" onClick={onAskAi} title={t("Ask NoteFable")}>
+        <AppIcon size={18} />
+        <span className="slides-inspector-ask-ai-label">{t("Ask NoteFable")}</span>
+        {selected.length > 1 && <span className="slides-inspector-ask-ai-count">{selected.length}</span>}
+      </button>
+    </div>
+  ) : null;
 
   if (!selected.length) {
     return <div className="slides-inspector" aria-label={t("Slide settings")}>
+      {askAiSection}
       <fieldset className="slides-inspector-fields" disabled={!editable}>
       <Section title={t("Layout")}>
         <div className="slides-layout-grid">
@@ -152,6 +165,7 @@ export function SlideInspector({ slide, selection, theme, editable, onChange, on
   const allText = selected.every((element) => element.type === "text" || element.type === "shape");
 
   return <div className="slides-inspector" aria-label={t("Selection settings")}>
+    {askAiSection}
     <fieldset className="slides-inspector-fields" disabled={!editable}>
     <Section title={single ? t(ELEMENT_LABELS[single.type]) : t("{count} selected", { count: selected.length })}>
       <div className="slides-button-row" role="group" aria-label={t("Align")}>

@@ -187,12 +187,108 @@ button.whiteboard-zoom-value:hover { background: var(--notion-hover); }
   top: 64px;
   inset-inline-start: 12px;
   z-index: 5;
-  width: 232px;
+  width: 244px;
   max-height: calc(100% - 136px);
-  padding: 10px 12px 12px;
+  padding: 10px 10px 12px;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
+}
+.whiteboard-panel-head {
+  display: grid;
+  gap: 8px;
+}
+.whiteboard-panel-ai {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 36px;
+  padding-block: 5px;
+  padding-inline: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--nf-accent-line);
+  background: linear-gradient(135deg, var(--nf-accent-soft) 0%, var(--kind-whiteboard-soft) 100%);
+  color: var(--notion-text);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: start;
+  transition: background-color .14s ease, border-color .14s ease, box-shadow .14s ease, transform .12s ease;
+}
+.whiteboard-panel-ai:hover {
+  border-color: var(--nf-accent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--nf-accent) 16%, transparent) 0%, color-mix(in srgb, var(--kind-whiteboard) 16%, transparent) 100%);
+  box-shadow: 0 2px 10px var(--nf-accent-soft);
+}
+.whiteboard-panel-ai:active { transform: scale(0.985); }
+.whiteboard-panel-ai:focus-visible { outline: 2px solid var(--nf-accent-line); outline-offset: 1px; }
+.whiteboard-panel-ai-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.whiteboard-panel-ai-count {
+  flex: none;
+  min-width: 18px;
+  height: 18px;
+  padding-inline: 5px;
+  border-radius: 999px;
+  background: var(--nf-accent);
+  color: var(--nf-on-ink);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  display: inline-grid;
+  place-items: center;
+}
+.whiteboard-actions-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 3px;
+}
+.whiteboard-actions-row .whiteboard-icon-action {
+  flex: 1 1 0;
+  min-width: 0;
+  width: auto;
+  height: 30px;
+}
+.whiteboard-actions-sep {
+  flex: none;
+  width: 1px;
+  height: 18px;
+  margin-inline: 1px;
+  background: var(--notion-border-strong);
+}
+.whiteboard-panel-divider {
+  margin: 2px 0 8px;
+  border: 0;
+  border-top: 1px solid var(--notion-border);
+}
+.whiteboard-compact-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--notion-border);
+}
+.whiteboard-compact-top .whiteboard-panel-ai {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  min-height: 32px;
+  padding-block: 4px;
+  padding-inline: 7px 9px;
+  font-size: 12.5px;
+}
+.whiteboard-compact-top .whiteboard-actions-row {
+  flex: none;
+}
+.whiteboard-compact-top .whiteboard-actions-row .whiteboard-icon-action {
+  flex: none;
+  width: 32px;
+  height: 32px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .whiteboard-panel-ai { transition: none; }
+  .whiteboard-panel-ai:active { transform: none; }
 }
 .whiteboard-section { margin: 0; padding: 0; border: 0; min-width: 0; }
 .whiteboard-section + .whiteboard-section { margin-top: 10px; }

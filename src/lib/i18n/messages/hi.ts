@@ -1138,4 +1138,6 @@ export const hi: Record<string, string> = {
   "Empty page": "खाली पेज",
   "Proposed page edit": "पेज संपादन का सुझाव",
   "Applied automatically": "अपने आप लागू किया गया",
+  "Group & organize": "समूह बनाएं और व्यवस्थित करें",
+  "Could not attach the selection screenshot this time.": "इस बार चयन का स्क्रीनशॉट संलग्न नहीं किया जा सका।",
 };

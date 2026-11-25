@@ -96,7 +96,7 @@ To make a new note, call propose_note_create (parentId puts it inside another pa
 The user is asking from inside their <种类> "<标题>" (noteId: <id>). Unless they clearly mean something else, treat requests as being about it: call read_note with this noteId to read it.
 ```
 
-在白板 / 幻灯片里选中元素 / 幻灯片后提问（表单字段 `selectionIds` 是 ID 的 JSON 数组）时再加一句（`<部分>` 是 `elements` / `slides`）；只带了选中的文字、没有 ID 时改为 “The user selected part of it (quoted at the start of their message). Focus on that part unless they clearly mean the whole <种类>.”：
+在白板 / 幻灯片里选中元素 / 幻灯片后提问（表单字段 `selectionIds` 是 ID 的 JSON 数组）时再加一句（`<部分>` 是 `elements` / `slides or elements`）；只带了选中的文字、没有 ID 时改为 “The user selected part of it (quoted at the start of their message). Focus on that part unless they clearly mean the whole <种类>.”：
 
 ```text
 The user selected these <部分> in it (their IDs as shown by read_note): ["…", "…"]. Their text, if any, is quoted at the start of the message. Focus on them unless the user clearly means the whole <种类>.

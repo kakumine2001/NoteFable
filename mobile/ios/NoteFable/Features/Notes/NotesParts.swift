@@ -21,46 +21,77 @@ final class NoteReorderOrigin {
     init() {}
 }
 
-/// 侧栏的小标题（网页 .chat-section-label，Android NotesUi.kt）：句首大小写 UI 字体 12 / 560 灰色。
+/// 侧栏分区标题左侧的 20×20 圆角语义图标徽章（网页 .sidebar-section-badge，Android SidebarSectionBadge）。
+struct SidebarSectionBadge: View {
+    let icon: [String]
+    let background: Color
+    let iconColor: Color
+    var border: Color? = nil
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 6)
+        LucideIcon(icon, size: 12, color: iconColor)
+            .frame(width: 20, height: 20)
+            .background(background, in: shape)
+            .overlay {
+                if let border {
+                    shape.strokeBorder(border, lineWidth: 1)
+                }
+            }
+            .accessibilityHidden(true)
+    }
+}
+
+/// 侧栏分区之间的顶部分隔线（网页 .sidebar-group + .sidebar-group，Android sidebarSectionTopDivider）。
+struct SidebarSectionDivider: View {
+    var body: some View {
+        NFDivider()
+            .padding(.top, 8)
+            .padding(.bottom, 10)
+    }
+}
+
+/// 侧栏的小标题（网页 .chat-section-label，Android NotesUi.kt）：高对比 UI 字体 13 / 620。
 struct NotesSectionLabel: View {
     private let text: String
     private let icon: [String]?
     private let iconColor: Color
 
-    init(_ text: String, icon: [String]? = nil, iconColor: Color = Sm.muted) {
+    init(_ text: String, icon: [String]? = nil, iconColor: Color = Sm.sectionTitle) {
         self.text = text
         self.icon = icon
         self.iconColor = iconColor
     }
 
     var body: some View {
-        HStack(spacing: 5.6) {
+        HStack(spacing: 6) {
             if let icon {
                 LucideIcon(icon, size: 12.5, color: iconColor)
             }
             Text(text)
-                .font(.nf(12, weight: 560))
-                .nfLineHeight(16, fontSize: 12)
-                .foregroundStyle(Sm.muted)
+                .font(.nf(13, weight: 620))
+                .nfLineHeight(18, fontSize: 13)
+                .foregroundStyle(Sm.sectionTitle)
                 .lineLimit(1)
         }
         .accessibilityAddTraits(.isHeader)
     }
 }
 
-/// 数量胶囊（侧栏项目行和首页分组标题共用）。
+/// 数量胶囊（侧栏分区标题、项目行和首页分组标题共用）。
 struct NotesCountPill: View {
     let count: Int
 
     var body: some View {
         Text(String(count))
-            .font(.nf(11, weight: 550))
+            .font(.nf(11, weight: 620).monospacedDigit())
             .nfLineHeight(14, fontSize: 11)
-            .foregroundStyle(Sm.muted)
+            .foregroundStyle(Sm.countText)
             .lineLimit(1)
             .padding(.horizontal, 6)
             .padding(.vertical, 1.5)
-            .background(Sm.hover, in: Capsule())
+            .frame(minWidth: 20, minHeight: 18)
+            .background(Sm.countBg, in: Capsule())
             .layoutPriority(1)
     }
 }
@@ -103,7 +134,7 @@ struct NewPageMenuAnchor<Content: View>: View {
     }
 }
 
-/// 侧栏的分区标题（网页 .notes-section-heading，Android `SectionHeading`）：语义色点 + 句首大小写标题 + 数量 + 折叠箭头 + "+"。
+/// 侧栏的分区标题（网页 .notes-section-heading，Android `SectionHeading`）：语义图标徽章 + 高对比标题 + 数量胶囊 + 折叠箭头 + "+"。
 @MainActor
 struct NotesSectionHeading: View {
     let kind: PageKind
@@ -117,32 +148,31 @@ struct NotesSectionHeading: View {
         let name = L(pageKindSectionLabel(kind))
         HStack(spacing: 0) {
             Button(action: onToggle) {
-                HStack(spacing: 5.5) {
-                    Circle()
-                        .fill(pageKindColor(kind))
-                        .frame(width: 6, height: 6)
-                        .accessibilityHidden(true)
+                HStack(spacing: 6) {
+                    SidebarSectionBadge(
+                        icon: pageKindIcon(kind),
+                        background: pageKindSoft(kind),
+                        iconColor: pageKindColor(kind),
+                        border: pageKindBorder(kind)
+                    )
                     NotesSectionLabel(name)
                     if count > 0 {
-                        Text(String(count))
-                            .font(.nf(11, weight: 500))
-                            .foregroundStyle(Sm.faint)
-                            .lineLimit(1)
+                        NotesCountPill(count: count)
                     }
-                    LucideIcon(isOpen ? Lucide.chevronDown : Lucide.chevronRight, size: 12.5, color: Sm.faint)
+                    LucideIcon(isOpen ? Lucide.chevronDown : Lucide.chevronRight, size: 13, color: Sm.muted)
                     Spacer(minLength: 0)
                 }
                 .frame(maxWidth: .infinity, minHeight: 38, alignment: .leading)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.pressable(cornerRadius: 6))
+            .buttonStyle(.pressable(cornerRadius: 7))
             .accessibilityLabel(isOpen ? L("pg_collapse_title", name) : L("pg_expand_title", name))
-            NFIconButton(Lucide.plus, label: L(pageKindNewLabel(kind)), iconSize: 15, action: onCreate)
+            NFIconButton(Lucide.plus, label: L(pageKindNewLabel(kind)), iconSize: 15, color: Sm.tabMuted, action: onCreate)
                 .disabled(busy)
         }
-        .padding(.leading, 8)
-        .padding(.trailing, 4)
-        .padding(.top, 10)
+        .padding(.leading, 6)
+        .padding(.trailing, 2)
+        .padding(.bottom, 3)
     }
 }
 
@@ -181,10 +211,10 @@ struct NotesSidebarActionRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 8.8) {
-                LucideIcon(icon, size: 15, color: Sm.muted)
+                LucideIcon(icon, size: 15, color: Sm.tabMuted)
                 Text(title)
                     .font(.nf(14, weight: 500))
-                    .foregroundStyle(Sm.muted)
+                    .foregroundStyle(Sm.tabMuted)
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }
@@ -290,6 +320,35 @@ struct NoteIconGlyph: View {
 }
 
 extension View {
+    /// 侧栏选中行的浮起卡片样式与行头 3pt 语义指示条（网页 .notion-session-row.is-active + ::before，Android sidebarActiveRow）。
+    /// 阴影画在 background 里的形状上不被裁剪；RTL 下 alignment: .leading 自动镜像到右侧。
+    func sidebarActiveRow(active: Bool, accent: Color, cornerRadius: CGFloat = 8) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius)
+        return self
+            .background {
+                if active {
+                    shape
+                        .fill(Sm.activeRow)
+                        .shadow(color: Color(light: 0x160F172A, dark: 0x59000000), radius: 1.5, x: 0, y: 1)
+                }
+            }
+            .overlay {
+                if active {
+                    shape.strokeBorder(Sm.borderStrong, lineWidth: 1).allowsHitTesting(false)
+                }
+            }
+            .overlay(alignment: .leading) {
+                if active {
+                    Capsule()
+                        .fill(accent)
+                        .frame(width: 3, height: 18)
+                        .padding(.leading, 2)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
+    }
+
     /// `.notes-group-members` / `.notes-subpages`：项目里的笔记、展开的子页面。左距 10、1px 竖线、内左距 4。
     func notesIndentedMembers() -> some View {
         self

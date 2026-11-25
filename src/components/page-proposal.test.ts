@@ -53,4 +53,14 @@ describe("restoring quick-action labels", () => {
     expect(restoreNoteChatMessages(messages, t)[0].content).toBe("Tidy the layout of this board.");
     expect(restoreNoteChatMessages(messages, t, [{ label: "Tidy up", prompt: "Tidy the layout of this board." }])[0].content).toBe("Tidy up");
   });
+
+  it("restores built-in whiteboard selection quick-action labels while preserving quoted selection", () => {
+    const messages = [
+      { id: "m1", role: "USER", content: "> Item A\n\nSuggest how to group and organize the selected items, in their own language. Do not change the page unless asked." } as Message,
+      { id: "m2", role: "USER", content: "> Item B\n\nSuggest concrete next steps based on the selected items, in their own language. Do not change the page unless asked." } as Message,
+    ];
+    const restored = restoreNoteChatMessages(messages, t);
+    expect(restored[0].content).toBe("> Item A\n\nGroup & organize");
+    expect(restored[1].content).toBe("> Item B\n\nSuggest next steps");
+  });
 });

@@ -248,6 +248,8 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
                     self.openedPageIds.insert(id)
                 case .missing(let id):
                     if let id, let current = self.currentPageId, id != current { return }
+                case .usageLimit(_, _, let pageId):
+                    if let pageId, let current = self.currentPageId, pageId != current { return }
                 default:
                     break
                 }

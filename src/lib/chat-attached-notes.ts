@@ -36,9 +36,11 @@ export function parseAttachedNoteIds(raw: FormDataEntryValue | null): string[] {
 
 // 添付するノートを、自分の生きたノートだけに絞る（順序は保つ）。他人のノートや存在しない ID は使わせない。
 // 入力欄で選んだあとにゴミ箱へ入れたノートは、送信ごと断らずに外す（下書きを失わせないため）。
-export async function liveOwnedNoteIds(userId: string, ids: string[]) {
+type NoteLookupDb = Pick<typeof prisma, "notePage">;
+
+export async function liveOwnedNoteIds(userId: string, ids: string[], db: NoteLookupDb = prisma) {
   if (!ids.length) return [];
-  const found = await prisma.notePage.findMany({ where: { id: { in: ids }, userId, deletedAt: null }, select: { id: true } });
+  const found = await db.notePage.findMany({ where: { id: { in: ids }, userId, deletedAt: null }, select: { id: true } });
   const owned = new Set(found.map((note) => note.id));
   return ids.filter((id) => owned.has(id));
 }

@@ -1138,4 +1138,6 @@ export const ar: Record<string, string> = {
   "Empty page": "صفحة فارغة",
   "Proposed page edit": "تعديل مقترح للصفحة",
   "Applied automatically": "طُبّق تلقائيًا",
+  "Group & organize": "تجميع وتنظيم",
+  "Could not attach the selection screenshot this time.": "تعذّر إرفاق لقطة التحديد هذه المرة.",
 };

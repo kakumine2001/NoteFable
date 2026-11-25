@@ -10,6 +10,9 @@ import type { ProposalChange } from "@/lib/page-ai/types";
 
 export type Tx = Prisma.TransactionClient;
 
+// read_note が 1 回に返す本文の上限（文字数）。超えた分は枠・スライド・末尾の区切りで切る。
+export const MAX_READ_CHARS = 20_000;
+
 // 枠組みがアダプターに渡すページ（持ち主を確かめ、ゴミ箱のものは除いたもの）。
 export type AdapterPage = {
   id: string;
@@ -25,6 +28,8 @@ export type AdapterPage = {
   segments?: CanvasSegment[];
   // ページの「ロック」（誤って変えないための画面の保護）。AI パネルの「自動適用」は、ロックしたページには書かない。
   locked?: boolean;
+  // 今回のターンで利用者が選んだ要素・スライドの ID。大きなボード・スライドで出力上限に達するとき、選んだ対象を優先して載せる。
+  focusIds?: readonly string[];
 };
 
 // ツールを実行するときの文脈。userId はサーバーのセッションのもので、モデルの入力からは決して取らない。

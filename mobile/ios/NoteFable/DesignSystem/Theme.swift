@@ -29,8 +29,12 @@ enum Sm {
     static let danger = Color(light: 0xFFDC2626, dark: 0xFFF87171)         // --nf-danger：.is-danger
     static let composerShadow = Color(light: 0x120F172A, dark: 0x70000000) // --nf-composer-shadow 的主阴影 .07 / 黑 .44
 
-    // 侧栏选中行的卡片底色 + 页面类型语义色（与网页 globals.css / Android Theme.kt 同名同值）。
-    static let activeRow = Color(light: 0xFFFFFFFF, dark: 0xFF22242C)
+    // 侧栏选中行的卡片底色、高对比标题/标签/计数胶囊与页面类型语义色（与网页 globals.css / Android Theme.kt 同名同值）。
+    static let activeRow = Color(light: 0xFFFFFFFF, dark: 0xFF242732)
+    static let sectionTitle = Color(light: 0xD61C202A, dark: 0xE0ECEDF0)    // --sidebar-section-ink .84 / .88
+    static let tabMuted = Color(light: 0xB81C202A, dark: 0xBDECEDF0)        // --sidebar-tab-muted .72 / .74
+    static let countBg = Color(light: 0x131C202A, dark: 0x17FFFFFF)         // --sidebar-count-bg .075 / .09
+    static let countText = Color(light: 0xBD1C202A, dark: 0xC7ECEDF0)       // --sidebar-count-text .74 / .78
     static let kindNote = Color(light: 0xFF2563EB, dark: 0xFF60A5FA)
     static let kindNoteSoft = Color(light: 0x172563EB, dark: 0x2460A5FA)
     static let kindNoteBorder = Color(light: 0x332563EB, dark: 0x4760A5FA)

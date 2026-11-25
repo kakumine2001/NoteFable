@@ -73,7 +73,8 @@ export type PageCreateProposal = ProposalState & {
 };
 
 // エディターで選んだ範囲（AI パネルに渡す文脈）。text は引用として発言の先頭に付け、ids は要素・スライドの ID（ホワイトボード・スライド）。
-export type PageSelection = { text: string; ids?: string[] };
+// captureImage はクライアント側だけで使い、画像を読めるモデルで送信するときに選区の PNG を作る。
+export type PageSelection = { text: string; ids?: string[]; captureImage?: () => Promise<Blob | null> };
 
 export const MAX_SELECTION_IDS = 100;
 export const MAX_SELECTION_ID_LENGTH = 120;

@@ -18,8 +18,8 @@ struct AccountRow: View {
                 if let user = account.user {
                     AccountProfileRow(user: user) { router.openSettings() }
                 } else {
-                    // 网页 SignInButton：只放"登录"，点了打开登录窗口（SignInDialog）。
-                    SignInButton { router.openSignIn() }
+                    // 网页 SignInButton：只放"登录"，点了打开登录窗口（SignInDialog）。侧栏底部使用柔和卡片样式。
+                    SignInButton(subtle: true) { router.openSignIn() }
                 }
             }
         }
@@ -27,32 +27,54 @@ struct AccountRow: View {
     }
 }
 
-/// "登录"按钮（网页 SignInButton / .signin-open-button 的手机尺寸）：整行、高 44、圆角 6、--nf-ink 底、白字 15/600。
+/// "登录"按钮（网页 SignInButton / .signin-open-button 的手机尺寸）：整行、高 44（侧栏底部为 42）、圆角 6（侧栏底部为 9）。
+/// `subtle` 为 true 时采用侧栏底部的柔和白卡片样式（1pt 强细框 + CircleUser 图标 + 墨色字），避免与顶部主按钮抢焦点。
 /// 侧栏底部和上限提示都只放这一个按钮，点了打开登录窗口（`router.openSignIn()`）。
 ///
 /// ```swift
-/// SignInButton { router.openSignIn() }
+/// SignInButton(subtle: true) { router.openSignIn() }
 /// ```
 struct SignInButton: View {
     private let cornerRadius: CGFloat
+    private let subtle: Bool
     private let action: () -> Void
 
-    init(cornerRadius: CGFloat = 6, action: @escaping () -> Void) {
-        self.cornerRadius = cornerRadius
+    init(cornerRadius: CGFloat? = nil, subtle: Bool = false, action: @escaping () -> Void) {
+        self.subtle = subtle
+        self.cornerRadius = cornerRadius ?? (subtle ? 9 : 6)
         self.action = action
     }
 
     var body: some View {
-        Button(action: action) {
-            Text(L("sign_in"))
-                .font(.nf(15, weight: 600))
-                .foregroundStyle(Sm.onInk)
-                .lineLimit(1)
+        if subtle {
+            let shape = RoundedRectangle(cornerRadius: cornerRadius)
+            Button(action: action) {
+                HStack(spacing: 7) {
+                    LucideIcon(Lucide.circleUser, size: 16, color: Sm.muted)
+                    Text(L("sign_in"))
+                        .font(.nf(15, weight: 600))
+                        .foregroundStyle(Sm.ink)
+                        .lineLimit(1)
+                }
                 .padding(.horizontal, 12)
                 .frame(maxWidth: .infinity)
-                .frame(height: 44)
+                .frame(height: 42)
+            }
+            .buttonStyle(.pressable(background: Sm.surface, pressedBackground: Sm.hover, cornerRadius: cornerRadius, scale: 0.98))
+            .overlay { shape.strokeBorder(Sm.borderStrong, lineWidth: 1).allowsHitTesting(false) }
+            .shadow(color: Color(light: 0x0D0F172A, dark: 0x40000000), radius: 1.5, x: 0, y: 1)
+        } else {
+            Button(action: action) {
+                Text(L("sign_in"))
+                    .font(.nf(15, weight: 600))
+                    .foregroundStyle(Sm.onInk)
+                    .lineLimit(1)
+                    .padding(.horizontal, 12)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+            }
+            .buttonStyle(.pressable(background: Sm.ink, pressedBackground: Sm.inkHover, cornerRadius: cornerRadius, scale: 0.97))
         }
-        .buttonStyle(.pressable(background: Sm.ink, pressedBackground: Sm.inkHover, cornerRadius: cornerRadius, scale: 0.97))
     }
 }
 

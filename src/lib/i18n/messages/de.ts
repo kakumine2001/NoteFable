@@ -1138,4 +1138,6 @@ export const de: Record<string, string> = {
   "Empty page": "Leere Seite",
   "Proposed page edit": "Vorgeschlagene Seitenänderung",
   "Applied automatically": "Automatisch übernommen",
+  "Group & organize": "Gruppieren und ordnen",
+  "Could not attach the selection screenshot this time.": "Der Screenshot der Auswahl konnte diesmal nicht angehängt werden.",
 };

@@ -38,6 +38,26 @@ final class StorageLimitTests: XCTestCase {
         XCTAssertTrue(NoteEmbedScripts.bootstrap(handler: "h", appIcon: nil, language: "en").contains("canShowStorageLimit:function(){return true}"))
     }
 
+    func testTheNoteEditorTellsTheAppWhenUsageLimitIsHit() {
+        XCTAssertEqual(
+            EmbedMessage.parse(#"{"type":"usageLimit","tier":"guest","kind":"chat"}"#),
+            .usageLimit(tier: "guest", kind: "chat")
+        )
+        XCTAssertEqual(
+            EmbedMessage.parse(#"{"type":"usageLimit","tier":"member","kind":"image","pageId":"page_1"}"#),
+            .usageLimit(tier: "member", kind: "image", pageId: "page_1")
+        )
+        XCTAssertEqual(
+            EmbedMessage.parse(#"{"type":"usageLimit","tier":"pro","kind":"chat","pageId":"  "}"#),
+            .usageLimit(tier: "pro", kind: "chat", pageId: nil)
+        )
+        XCTAssertNil(EmbedMessage.parse(#"{"type":"usageLimit","tier":"guest"}"#))
+        XCTAssertNil(EmbedMessage.parse(#"{"type":"usageLimit","tier":"unknown","kind":"chat"}"#))
+        XCTAssertNil(EmbedMessage.parse(#"{"type":"usageLimit","tier":"guest","kind":"other"}"#))
+        XCTAssertNil(EmbedMessage.parse(#"{"type":"usageLimit","tier":1,"kind":"chat"}"#))
+        XCTAssertTrue(NoteEmbedScripts.bootstrap(handler: "h", appIcon: nil, language: "en").contains("canShowUsageLimit:function(){return true}"))
+    }
+
     func testThePlanShowsStorageUsageAfterTheOtherMeters() throws {
         let plan = try NoteFableJson.decodeFromString(
             PlanInfo.self,

@@ -3,11 +3,14 @@
 import type { Block } from "@blocknote/core";
 import { LayoutGrid, RefreshCw, Upload } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { NoteEditorHandle } from "@/components/note-editor";
 import { CanvasPagePlaceholder } from "@/components/canvas-page-placeholder";
 import { CANVAS_EDITORS } from "@/components/canvas-editors";
 import { flushCanvasEditors } from "@/lib/canvas-flush";
+import {
+  applyExplicitSelection, applyLiveSelection, clearActiveSelection, resolveActiveSelection, type CanvasAiSelectionState,
+} from "@/lib/canvas-selection-state";
 import { PageAssistant } from "@/components/page-assistant";
 import { NotePageHeader } from "@/components/note-page-header";
 import { NewPageButtons, NotesHome } from "@/components/notes-home";
@@ -109,18 +112,22 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   embedded?: boolean;
   // デスクトップの分割表示（チャットと並べて表示）。余白を詰め、右下の AI ボタンは隠す。
   split?: boolean;
-  // 分割表示中にエディターで「Ask AI」を押したとき、左のチャットへ引用を渡す。
-  onAskSelectionInChat?: (text: string) => void;
+  // 分割表示中にエディターで「Ask AI」を押したとき、左のチャットへ選択内容（引用・要素 ID・選区画像）を渡す。
+  onAskSelectionInChat?: (selection: PageSelection) => void;
 }) {
   const { t, locale } = useI18n();
   const { active, activeId, loading, listLoading, openingId, busy, error, actionError } = notes;
-  // エディターで選んで「Ask AI」に渡した抜粋と、アシスタントを開く合図。どのノートのものかを持ち、別のノートへ移ったら効かない。
-  // ホワイトボード・スライドのエディターは、選んだ要素・スライドの ID も渡す（PageSelection）。
-  const [aiAsk, setAiAsk] = useState<{ noteId: string; selection: PageSelection | null; signal: number } | null>(null);
+  // エディターで選んで「Ask NoteFable / Ask AI」に渡した抜粋、またはキャンバス上でリアルタイムに選んでいる要素と、アシスタントを開く合図。
+  // どのノートのものかを持ち、別のノートへ移ったら効かない（PageSelection）。
+  const [aiAsk, setAiAsk] = useState<CanvasAiSelectionState | null>(null);
   // ホワイトボード・スライドのエディターが空けた AI ボタンの置き場所（CanvasEditorProps.aiSlot の目印）。
   const [aiAnchor, setAiAnchor] = useState<HTMLElement | null>(null);
-  const aiSelection = aiAsk && aiAsk.noteId === activeId ? aiAsk.selection : null;
+  const aiSelection = resolveActiveSelection(aiAsk, activeId);
   const aiOpenSignal = aiAsk && aiAsk.noteId === activeId ? aiAsk.signal : 0;
+  const handleCanvasSelectionChange = useCallback((selection: PageSelection | null) => {
+    if (!activeId) return;
+    setAiAsk((current) => applyLiveSelection(current, activeId, selection));
+  }, [activeId]);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const editorRef = useRef<NoteEditorHandle>(null);
   const emptyImportRef = useRef<HTMLInputElement>(null);
@@ -200,10 +207,17 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
           onOpenPage={(id) => { if (!embedded) { onOpen(id); return true; } return nativeCanOpenPage() && postToNative({ type: "openPage", id }); }}
           // 選んだ要素・スライドについて AI に聞く（AI パネルを開き、選んだものを文脈として渡す）。
           onAskAi={(selection) => {
-            // 分割表示では AI パネルを出さないので、ノートと同じく選んだ文字を左のチャットへ渡す。
-            if (split && onAskSelectionInChat) { const text = normalizeQuote(selection.text); if (text) onAskSelectionInChat(text); return; }
-            setAiAsk((current) => ({ noteId: activeId, selection, signal: (current?.noteId === activeId ? current.signal : 0) + 1 }));
+            // 分割表示では AI パネルを出さないので、選んだ抜粋・要素 ID・選区画像コールバックを左のチャットへ渡す。
+            if (split && onAskSelectionInChat) {
+              if (normalizeQuote(selection.text) || selection.ids?.length || selection.captureImage) {
+                onAskSelectionInChat(selection);
+              }
+              return;
+            }
+            setAiAsk((current) => applyExplicitSelection(current, activeId, selection));
           }}
+          // キャンバス上の選択が変わったことをリアルタイムに AI パネルへ同期する（分割表示時は明示の「Ask NoteFable」のみチャットへ渡す）。
+          onSelectionChange={split ? undefined : handleCanvasSelectionChange}
           // 分割表示では AI ボタンを出さないので、置き場所も作らない。
           aiSlot={split ? undefined : <span ref={setAiAnchor} className="page-ai-anchor" aria-hidden="true" />} />
       </div> : <>
@@ -214,7 +228,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
           送る前の flush は、ホワイトボードなどがまだ保存キューへ渡していない変更（描き終わり・文字の確定の直後）も先に渡してもらう（版の履歴と同じ）。 */}
       <PageAssistant key={activeId} pageId={activeId} pageKind={activeKind} pageTitle={active.content.title} model={model} reasoning={reasoning}
         onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={async () => { await flushCanvasEditors(); return active.flush(); }} embedded={embedded}
-        selection={aiSelection} onClearSelection={() => setAiAsk((current) => (current?.noteId === activeId ? { ...current, selection: null } : current))}
+        selection={aiSelection} onClearSelection={(sent) => setAiAsk((current) => clearActiveSelection(current, activeId, sent))}
         openSignal={aiOpenSignal} hidden={split} anchor={CanvasEditor && !split ? aiAnchor : null} />
     </>
     : active && activeId && !listMode ? <>
@@ -240,15 +254,15 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
             titleRef.current?.setSelectionRange(end, end);
           }}
           onAskAi={(text) => {
-            if (split && onAskSelectionInChat) { onAskSelectionInChat(text); return; }
-            setAiAsk((current) => ({ noteId: activeId, selection: { text }, signal: (current?.noteId === activeId ? current.signal : 0) + 1 }));
+            if (split && onAskSelectionInChat) { onAskSelectionInChat({ text }); return; }
+            setAiAsk((current) => applyExplicitSelection(current, activeId, { text }));
           }}
           // 作成・削除の間（busy）に editable が切り替わると、エディターは内容が同じでも変更通知を出す。編集として扱うと、不要な保存（ゴミ箱へ移したノートへの保存を含む）が走る。
           onChange={(blocks) => { if (!isUnchanged(blocks, active.content.blocks)) active.edit({ ...active.content, blocks }); }} />
       </div>
       <PageAssistant key={activeId} pageId={activeId} pageTitle={active.content.title} model={model} reasoning={reasoning}
         onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={() => active.flush()} embedded={embedded}
-        selection={aiSelection} onClearSelection={() => setAiAsk((current) => (current?.noteId === activeId ? { ...current, selection: null } : current))} openSignal={aiOpenSignal} hidden={split} />
+        selection={aiSelection} onClearSelection={(sent) => setAiAsk((current) => clearActiveSelection(current, activeId, sent))} openSignal={aiOpenSignal} hidden={split} />
     </> : embedded ? !error && <div className="notes-column pt-24"><p className="notes-loading">{t("Loading note…")}</p></div>
     : !error && <>{!listMode && <div className="notes-column"><div className="notion-home-switch lg:hidden"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div></div>}<div className="notes-column notes-empty">
       <div className="notes-empty-emblem" aria-hidden="true"><LayoutGrid size={26} strokeWidth={1.6} /></div>

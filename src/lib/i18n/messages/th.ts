@@ -1138,4 +1138,6 @@ export const th: Record<string, string> = {
   "Empty page": "หน้าว่าง",
   "Proposed page edit": "ข้อเสนอการแก้ไขหน้า",
   "Applied automatically": "นำไปใช้อัตโนมัติแล้ว",
+  "Group & organize": "จัดกลุ่มและจัดระเบียบ",
+  "Could not attach the selection screenshot this time.": "ไม่สามารถแนบภาพหน้าจอส่วนที่เลือกได้ในครั้งนี้",
 };

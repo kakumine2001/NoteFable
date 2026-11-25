@@ -1138,4 +1138,6 @@ export const ru: Record<string, string> = {
   "Empty page": "Пустая страница",
   "Proposed page edit": "Предложенная правка страницы",
   "Applied automatically": "Применено автоматически",
+  "Group & organize": "Сгруппировать и упорядочить",
+  "Could not attach the selection screenshot this time.": "В этот раз не удалось прикрепить снимок выделения.",
 };
