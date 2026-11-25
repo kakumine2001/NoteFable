@@ -213,7 +213,7 @@ async function appliedResult(userId: string, row: Row): Promise<ApplyResult> {
 // 編集を書けなかった理由（ページが消えた・種類が違う・版が進んだ）。
 async function editConflict(userId: string, row: Row, pageId: string): Promise<ApplyResult> {
   const exists = await prisma.notePage.findFirst({ where: { id: pageId, userId, deletedAt: null }, select: { id: true, kind: true } });
-  if (!exists) return fail(404, msg("Note not found."));
+  if (!exists) return fail(404, msg("Page not found."));
   const kind = pageKindOf(exists);
   if (kind !== row.pageKind && row.pageKind === "note" && isCanvasKind(kind)) return fail(409, NOT_A_NOTE_ERRORS[kind]);
   return fail(409, msg("This note changed after the proposal was made. Ask again to get a fresh proposal."));
@@ -354,12 +354,12 @@ export async function undoProposal(userId: string, id: string): Promise<UndoResu
     }, { timeout: 20_000 });
     if (!done) return undoneAfterLostClaim(userId, id);
     const page = await loadFullPage(userId, pageId);
-    if (!page) return fail(404, msg("Note not found."), { status: "undone", pageId });
+    if (!page) return fail(404, msg("Page not found."), { status: "undone", pageId });
     return { ok: true, status: "undone", kind: "edit", page };
   } catch (error) {
     if (error instanceof Changed) {
       const exists = await prisma.notePage.findFirst({ where: { id: pageId, userId, deletedAt: null }, select: { id: true } });
-      return exists ? fail(409, msg("This page changed after the AI edit. Restore an earlier version from the page history.")) : fail(404, msg("Note not found."));
+      return exists ? fail(409, msg("This page changed after the AI edit. Restore an earlier version from the page history.")) : fail(404, msg("Page not found."));
     }
     if (error instanceof NoteValidationError) return fail(409, fmt("This version cannot be restored. {detail}", { detail: error.message }));
     throw error;
@@ -376,7 +376,7 @@ async function undoneResult(userId: string, row: Row): Promise<UndoResult> {
     return { ok: true, status: "undone", kind: "create", trashedIds: trashed ? [trashed.id] : [] };
   }
   const page = row.appliedPageId ? await loadFullPage(userId, row.appliedPageId) : null;
-  if (!page) return fail(404, msg("Note not found."), finalState(row));
+  if (!page) return fail(404, msg("Page not found."), finalState(row));
   return { ok: true, status: "undone", kind: "edit", page };
 }
 

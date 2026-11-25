@@ -6,7 +6,7 @@
     <string name="share_publish">Yayınla</string>
     <string name="share_republish">Yeniden yayınla</string>
     <string name="share_unpublish">Yayından kaldır</string>
-    <string name="share_desc">Bağlantıya sahip herkesin görebilmesi için bu notu yayınlayın.</string>
+    <string name="share_desc">Bağlantıya sahip herkesin görebilmesi için bu sayfayı yayınlayın.</string>
     <string name="share_expired">Bu paylaşım bağlantısının süresi doldu.</string>
     <string name="share_public_link">Genel bağlantı</string>
     <string name="share_copy_link">Bağlantıyı kopyala</string>

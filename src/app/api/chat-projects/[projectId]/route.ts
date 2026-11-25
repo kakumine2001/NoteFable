@@ -42,7 +42,7 @@ export async function PATCH(request: Request, context: Context) {
       // 検証を書き込みより先に済ませて、失敗時に一部だけ保存されないようにする。
       if (noteIds?.length) {
         const live = await tx.notePage.findMany({ where: { id: { in: noteIds }, userId: user.id, deletedAt: null }, select: { id: true } });
-        if (live.length !== noteIds.length) throw new NoteValidationError(msg("One or more of the selected notes could not be found."), 404);
+        if (live.length !== noteIds.length) throw new NoteValidationError(msg("One or more of the selected pages could not be found."), 404);
       }
       if (Object.keys(data).length) await tx.chatProject.updateMany({ where: { id: projectId, userId: user.id }, data });
       if (noteIds) {

@@ -32,12 +32,12 @@ export async function PUT(request: Request, context: Context) {
     const { pageId } = await context.params;
     if (data.font !== undefined || data.smallText !== undefined || data.fullWidth !== undefined) {
       const target = await prisma.notePage.findFirst({ where: { id: pageId, userId: user.id, deletedAt: null }, select: { kind: true } });
-      if (!target) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+      if (!target) return NextResponse.json({ error: msg("Page not found.") }, { status: 404 });
       const kind = pageKindOf(target);
       if (!pageKindFeatures(kind).typography) return pageKindRejection(request, NOTE_ONLY_ACTION_ERRORS.typography, kind);
     }
     const changed = await prisma.$transaction((tx) => setPageMeta(tx, user.id, pageId, data));
     const page = changed ? await pageSummary(user.id, pageId) : null;
-    return page ? NextResponse.json({ page }) : NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+    return page ? NextResponse.json({ page }) : NextResponse.json({ error: msg("Page not found.") }, { status: 404 });
   } catch (error) { return noteApiError(error); }
 }

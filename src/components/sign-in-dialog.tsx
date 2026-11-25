@@ -114,7 +114,7 @@ export function SignInDialog({ onClose, onBeforeSignIn }: { onClose: () => void;
       {step === "choose" ? (
         <>
           <h2 className="signin-title">{t("Sign in to NoteFable")}</h2>
-          <p className="signin-subtitle">{t("Keep your chats and notes, and open them on any device.")}</p>
+          <p className="signin-subtitle">{t("Keep your chats and Workspace, and open them on any device.")}</p>
           {showGoogle && (
             <button type="button" className="google-signin-button signin-option" disabled={busy}
               onClick={() => { onBeforeSignIn?.(); void google.start(); }}>

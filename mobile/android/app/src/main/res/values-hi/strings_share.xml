@@ -6,7 +6,7 @@
     <string name="share_publish">प्रकाशित करें</string>
     <string name="share_republish">पुनः प्रकाशित करें</string>
     <string name="share_unpublish">प्रकाशन रद्द करें</string>
-    <string name="share_desc">इस नोट को प्रकाशित करें ताकि लिंक वाला कोई भी व्यक्ति इसे देख सके।</string>
+    <string name="share_desc">इस पेज को प्रकाशित करें ताकि लिंक वाला कोई भी व्यक्ति इसे देख सके।</string>
     <string name="share_expired">यह साझाकरण लिंक समाप्त हो गया है।</string>
     <string name="share_public_link">सार्वजनिक लिंक</string>
     <string name="share_copy_link">लिंक कॉपी करें</string>

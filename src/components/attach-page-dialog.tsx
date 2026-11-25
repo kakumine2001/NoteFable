@@ -39,7 +39,7 @@ export function AttachPageDialog({ initial, onClose, onAttach }: {
       const list = data && typeof data === "object" ? (data as { pages?: unknown }).pages : undefined;
       if (!response.ok || !Array.isArray(list)) {
         const error = data && typeof data === "object" ? (data as { error?: unknown }).error : undefined;
-        throw new Error(typeof error === "string" && error ? error : msg("Could not load your notes."));
+        throw new Error(typeof error === "string" && error ? error : msg("Could not load your pages."));
       }
       const live = (list as AttachedPage[]).map(({ id, kind, title, icon }) => ({ id, kind, title, icon: icon ?? null }));
       setPages(live);
@@ -47,7 +47,7 @@ export function AttachPageDialog({ initial, onClose, onAttach }: {
       const byId = new Map(live.map((page) => [page.id, page]));
       setSelected((current) => current.flatMap((page) => byId.get(page.id) ?? []));
     }).catch((reason: unknown) => {
-      if (!controller.signal.aborted) setLoadError(reason instanceof Error && reason.message ? reason.message : msg("Could not load your notes."));
+      if (!controller.signal.aborted) setLoadError(reason instanceof Error && reason.message ? reason.message : msg("Could not load your pages."));
     });
     return () => controller.abort();
   }, [attempt]);
@@ -76,10 +76,10 @@ export function AttachPageDialog({ initial, onClose, onAttach }: {
       <div className="project-settings-body">
         <section className="project-settings-section" aria-labelledby={`${titleId}-notes`}>
           <h3 id={`${titleId}-notes`} className="project-settings-label">
-            {t("Your notes")}
+            {t("Your pages")}
             <span className={`project-settings-count${full ? " is-full" : ""}`} aria-live="polite">{selected.length}/{MAX_MESSAGE_NOTES}</span>
           </h3>
-          {selected.length > 0 && <ul className="project-settings-chips" aria-label={t("Selected notes")}>
+          {selected.length > 0 && <ul className="project-settings-chips" aria-label={t("Selected pages")}>
             {selected.map((page) => <li key={page.id} className="project-settings-chip">
               <PageKindIcon kind={page.kind} size={13} aria-hidden="true" className="flex-none" />
               <span className="project-settings-chip-title">{page.title || t("Untitled")}</span>
@@ -94,11 +94,11 @@ export function AttachPageDialog({ initial, onClose, onAttach }: {
           {pages && <>
             <label className="project-settings-search">
               <Search size={14} aria-hidden="true" />
-              <input type="search" autoFocus value={filter} placeholder={t("Filter your notes")} aria-label={t("Filter your notes")} onChange={(event) => setFilter(event.target.value)}
+              <input type="search" autoFocus value={filter} placeholder={t("Filter your pages")} aria-label={t("Filter your pages")} onChange={(event) => setFilter(event.target.value)}
                 // Enter は絞り込みの確定だけで、添付の確定にはしない。
                 onKeyDown={(event) => { if (event.key === "Enter") event.preventDefault(); }} />
             </label>
-            {listed.length > 0 && <ul className="project-settings-list" aria-label={t("Your notes")}>
+            {listed.length > 0 && <ul className="project-settings-list" aria-label={t("Your pages")}>
               {listed.slice(0, MAX_LISTED).map((page) => {
                 const checked = selectedIds.has(page.id);
                 const blocked = !checked && full;
@@ -111,9 +111,9 @@ export function AttachPageDialog({ initial, onClose, onAttach }: {
                 </li>;
               })}
             </ul>}
-            {!listed.length && <p className="project-settings-empty">{pages.length ? t("No notes match.") : t("You don’t have any notes yet.")}</p>}
-            {listed.length > MAX_LISTED && <p className="project-settings-empty">{t("Showing the first {count} notes. Type in the filter to find others.", { count: MAX_LISTED })}</p>}
-            {full && <p className="project-settings-empty">{t("You can choose up to {count} notes. Remove one to pick another.", { count: MAX_MESSAGE_NOTES })}</p>}
+            {!listed.length && <p className="project-settings-empty">{pages.length ? t("No matching pages.") : t("You don’t have any pages yet.")}</p>}
+            {listed.length > MAX_LISTED && <p className="project-settings-empty">{t("Showing the first {count} pages. Type in the filter to find others.", { count: MAX_LISTED })}</p>}
+            {full && <p className="project-settings-empty">{t("You can choose up to {count} pages. Remove one to pick another.", { count: MAX_MESSAGE_NOTES })}</p>}
           </>}
         </section>
       </div>

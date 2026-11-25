@@ -98,7 +98,7 @@ describe("POST /api/pages/:id/revisions/:revisionId/restore", () => {
     const response = await restore(restoreRequest({ version: 5 }), context);
     expect(response.status).toBe(409);
     const body = await response.json();
-    expect(body.error).toBe("This note was changed in another tab.");
+    expect(body.error).toBe("This page was changed in another tab.");
     expect(body.page.version).toBe(6);
     expect(mocks.revCreate).not.toHaveBeenCalled();
     expect(mocks.pageUpdate).not.toHaveBeenCalled();

@@ -208,7 +208,7 @@ fun SearchScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     SearchTab(stringResource(R.string.search_tab_all), state.scope == SearchScope.All) { vm.setScope(SearchScope.All) }
                     SearchTab(stringResource(R.string.search_tab_chats), state.scope == SearchScope.Chats) { vm.setScope(SearchScope.Chats) }
-                    SearchTab(stringResource(R.string.notes), state.scope == SearchScope.Notes) { vm.setScope(SearchScope.Notes) }
+                    SearchTab(stringResource(R.string.pg_pages), state.scope == SearchScope.Notes) { vm.setScope(SearchScope.Notes) }
                 }
                 if (state.scope == SearchScope.Chats && view.projectOptions.isNotEmpty()) {
                     Spacer(Modifier.weight(1f).widthIn(min = 8.dp))
@@ -364,7 +364,7 @@ private fun ResultList(view: SearchView, active: Int, onSelect: (Int, SearchHit)
             val offset = base
             item(key = "group:${group.isChats}") {
                 Text(
-                    stringResource(if (group.isChats) R.string.search_tab_chats else R.string.notes),
+                    stringResource(if (group.isChats) R.string.search_tab_chats else R.string.pg_pages),
                     Modifier.fillMaxWidth().padding(start = 9.6.dp, end = 9.6.dp, top = 8.dp, bottom = 4.dp),
                     color = Sm.Muted, fontSize = 12.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold,
                 )

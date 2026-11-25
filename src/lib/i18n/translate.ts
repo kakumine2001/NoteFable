@@ -10,7 +10,7 @@ export function msg<T extends string>(text: T): T {
 // 英語のまま保存・送信するシステム文だけを登録する。一般の UI 辞書から句型を推測しない。
 // キーは 1 つの値だけを持ち、固定の先頭部分が互いに重ならないことをテストする。
 export const SYSTEM_TEXT_TEMPLATES = [
-  "A project can have at most {max} reference notes.",
+  "A project can have at most {max} reference pages.",
   "Applied edits to “{title}”",
   "Claude response stopped: {reason}. Please retry.",
   "Created page “{title}”",
@@ -21,7 +21,7 @@ export const SYSTEM_TEXT_TEMPLATES = [
   "Instructions can have at most {max} characters.",
   "Model {model} does not support image uploads. Use GPT-6 Luna for images.",
   "Name must be 1–{max} characters with no control characters.",
-  "Note title must be at most {max} characters.",
+  "Page title must be at most {max} characters.",
   "Previewed “{title}”",
   "Project names can have at most {max} characters.",
   "Proposed edits to “{title}”",
@@ -29,6 +29,8 @@ export const SYSTEM_TEXT_TEMPLATES = [
   "Read “{title}”",
   "Request failed: {detail}",
   "Scope must be one of: {scopes}.",
+  "Searched pages for “{query}”",
+  // 旧表記（保存済みのチャットの手順ラベル用。#205 で pages に改めた）。
   "Searched notes for “{query}”",
   "This version cannot be restored. {detail}",
   "Unsupported file type: {name}",

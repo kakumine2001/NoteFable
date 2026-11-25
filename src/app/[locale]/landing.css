@@ -180,6 +180,18 @@ a.tl-brand { min-height: 44px; }
 .tl-card-project dd span { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 8px; background: var(--tl-soft); font-size: 13px; }
 .tl-project-quote { padding-inline-start: 12px; border-inline-start: 2px solid var(--tl-blue); color: var(--tl-ink); }
 
+/* スライドとホワイトボード（画成図）。種類のアイコンは実物と同じ（page-kind-icon.tsx）。 */
+.tl-card-make { display: grid; gap: 12px; background: var(--tl-soft); }
+.tl-slide { display: flex; flex-direction: column; aspect-ratio: 16 / 9; padding: 14px 20px 18px; border: 1px solid var(--tl-line); border-radius: 10px; background: #fff; }
+.tl-slide h4 { margin-top: auto; font-size: 22px; }
+.tl-slide p { margin-top: 2px; color: var(--tl-blue-deep); font-size: 13px; font-weight: 550; }
+.tl-diagram { padding: 12px 14px 14px; border: 1px solid var(--tl-line); border-radius: 10px; background: #fff radial-gradient(rgba(55, 53, 47, 0.16) 1px, transparent 1px) 0 0 / 14px 14px; }
+.tl-diagram ol { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.tl-diagram li:not(.tl-diagram-arrow) { padding: 5px 10px; border: 1.5px solid var(--tl-ink); border-radius: 8px; background: #fff; color: var(--tl-ink); font-size: 13px; font-weight: 550; }
+.tl-diagram li:last-child { border-color: var(--tl-blue); color: var(--tl-blue-deep); }
+.tl-diagram-arrow { display: inline-flex; color: var(--tl-muted); }
+:root[data-theme="dark"] .tl-page :is(.tl-slide, .tl-diagram, .tl-diagram li:not(.tl-diagram-arrow)) { background-color: var(--notion-surface); }
+
 .tl-card-search { padding: 0; overflow: hidden; }
 .tl-search-box { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--tl-line); color: var(--tl-muted); }
 .tl-search-box > span { direction: ltr; color: var(--tl-ink); font-size: 16px; }
@@ -196,7 +208,7 @@ a.tl-brand { min-height: 44px; }
 .tl-live .tl-station:not(.is-on) .tl-node::after { transform: scale(0); }
 .tl-live .tl-station:not(.is-on) .tl-card { opacity: 0; transform: translateY(22px) scale(0.98); }
 .tl-live .tl-card { transition: opacity 520ms ease, transform 520ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 300ms ease; }
-.tl-live .tl-station:not(.is-on) :is(.tl-bubble, .tl-file, .tl-models li, .tl-word, .tl-actions, .tl-proposal, .tl-card-note li, .tl-note-own, .tl-card-project dd span, .tl-card-search li, .tl-search-box > span) { animation: none; opacity: 0; }
+.tl-live .tl-station:not(.is-on) :is(.tl-bubble, .tl-file, .tl-models li, .tl-word, .tl-actions, .tl-proposal, .tl-card-note li, .tl-note-own, .tl-card-project dd span, .tl-card-search li, .tl-search-box > span, .tl-slide, .tl-diagram li) { animation: none; opacity: 0; }
 .tl-live .tl-station:not(.is-on) .tl-card-search mark { animation: none; background-size: 0 100%; }
 .tl-live .is-on .tl-bubble { animation: tl-pop 460ms 200ms cubic-bezier(0.3, 1.5, 0.5, 1) both; }
 .tl-live .is-on .tl-file { animation: tl-drop 420ms 560ms cubic-bezier(0.3, 1.4, 0.5, 1) both; }
@@ -214,6 +226,9 @@ a.tl-brand { min-height: 44px; }
 .tl-live .is-on .tl-card-project dd span { animation: tl-fly 520ms calc(300ms + var(--n, 0) * 110ms) cubic-bezier(0.2, 0.9, 0.3, 1.15) both; }
 .tl-card-project dd:nth-of-type(2) span:nth-child(1) { --n: 1; } .tl-card-project dd:nth-of-type(2) span:nth-child(2) { --n: 2; }
 .tl-card-project dd:nth-of-type(3) span:nth-child(1) { --n: 3; } .tl-card-project dd:nth-of-type(3) span:nth-child(2) { --n: 4; } .tl-card-project dd:nth-of-type(3) span:nth-child(3) { --n: 5; }
+.tl-live .is-on .tl-slide { animation: tl-rise-s 460ms 300ms both; }
+.tl-live .is-on .tl-diagram li { animation: tl-fly 520ms calc(800ms + var(--n, 0) * 110ms) cubic-bezier(0.2, 0.9, 0.3, 1.15) both; }
+.tl-diagram li:nth-child(2) { --n: 1; } .tl-diagram li:nth-child(3) { --n: 2; } .tl-diagram li:nth-child(4) { --n: 3; } .tl-diagram li:nth-child(5) { --n: 4; }
 .tl-live .is-on .tl-search-box > span { animation: tl-type 900ms 350ms steps(8) both; }
 .tl-live .is-on .tl-card-search li { animation: tl-rise-s 380ms calc(1350ms + var(--n, 0) * 130ms) both; }
 .tl-card-search li:nth-child(2) { --n: 1; } .tl-card-search li:nth-child(3) { --n: 2; }

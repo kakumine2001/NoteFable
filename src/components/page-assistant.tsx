@@ -744,7 +744,7 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
     setNotice("");
     flashOutcome(null);
     if (!(await flush())) {
-      setError(msg("Resolve the note's unsaved changes first, then ask again."));
+      setError(msg("Resolve the page's unsaved changes first, then ask again."));
       setActiveTurnAssistantId(null);
       flashOutcome("error");
       if (continued) notePanelTurns.delete(continued);

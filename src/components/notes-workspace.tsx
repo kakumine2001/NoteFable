@@ -125,7 +125,7 @@ function NoteSaveWarnings({ notes }: { notes: ReturnType<typeof useNotePages> })
       <p>{localizeSystemText(active.error, t)}</p>
       <div className="mt-3 flex flex-wrap gap-2">
         {active.status === "conflict" ? <>
-          <button type="button" className="notion-button" disabled={busy} onClick={() => void notes.create(true)}>{t("Save as new note")}</button>
+          <button type="button" className="notion-button" disabled={busy} onClick={() => void notes.create(true)}>{t("Save as new page")}</button>
           <button type="button" className="notion-button" onClick={() => { if (window.confirm(t("Discard this unsaved draft and load the latest version?"))) void notes.loadLatest(); }}>{t("Load latest")}</button>
         </> : <button type="button" className="notion-button inline-flex items-center gap-2" onClick={() => void active.flush()}><RefreshCw size={13} />{t("Retry save")}</button>}
       </div>
@@ -219,7 +219,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
     }}
     // 要素が消えて外れたフォーカス（relatedTarget なし）は覚えたままにして、上で付け直す。
     onBlur={(event) => { if (event.relatedTarget) switchFocused.current = null; }}>
-    {openingId && (listMode || active) && <div className="notes-switch-progress" role="progressbar" aria-label={t("Loading note…")} />}
+    {openingId && (listMode || active) && <div className="notes-switch-progress" role="progressbar" aria-label={t("Loading page…")} />}
     {listMode && !hasItems && <div className="notes-column"><div className="notion-home-switch lg:hidden"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div></div>}
     {error && <div className="notes-column pt-6"><div className="notion-error" role="alert">{localizeSystemText(error, t)}<button type="button" className="notion-button ml-3" onClick={() => void notes.load()}>{t("Retry")}</button></div></div>}
     <NoteStorageLimitNotice embedded={embedded} />
@@ -228,7 +228,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
       <NotesHome pages={notes.pages} groups={notes.groups} groupError={notes.groupError} busy={busy} onOpen={onOpen}
         onPrefetch={notes.prefetch} onCancelPrefetch={notes.cancelPrefetch} onCreate={onCreate} onImport={onImport}
         onWorkspaceChange={onWorkspaceChange} onReorder={notes.reorder} onMoveNote={notes.moveNote} onCreateGroup={notes.createGroup} onMoveToPage={notes.moveToPage} />
-    ) : loading && (!listMode || !(notes.pages.length || notes.groups.length)) ? <div className="notes-column pt-24"><p className="notes-loading">{listMode ? t("Loading notes…") : t("Loading note…")}</p></div>
+    ) : loading && (!listMode || !(notes.pages.length || notes.groups.length)) ? <div className="notes-column pt-24"><p className="notes-loading">{listMode ? t("Loading pages…") : t("Loading page…")}</p></div>
     // ホワイトボード・スライドは種類ごとのエディター（canvas-editors.tsx）。エディターがまだ無い種類は読み取り専用の仮の画面
     // （ノートのエディター・AI ボタンは出さない。保存もしない）。
     : active && activeId && !listMode && isCanvasKind(activeKind) ? <>
@@ -318,11 +318,11 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
         embedded={embedded}
         onOpenSaved={(id) => { if (!embedded) onOpen(id); else void notes.select(id, "none"); }}
       />
-    </> : embedded ? !error && <div className="notes-column pt-24"><p className="notes-loading">{t("Loading note…")}</p></div>
+    </> : embedded ? !error && <div className="notes-column pt-24"><p className="notes-loading">{t("Loading page…")}</p></div>
     : !error && <>{!listMode && <div className="notes-column"><div className="notion-home-switch lg:hidden"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div></div>}<div className="notes-column notes-empty">
       <div className="notes-empty-emblem" aria-hidden="true"><LayoutGrid size={26} strokeWidth={1.6} /></div>
       <h1 className="notes-empty-title">{t("Workspace")}</h1>
-      <p className="notes-empty-subtitle">{t("Write notes with blocks — type {key} for headings, lists, to-dos and code.").split("{key}").flatMap((part, index) => index ? [<kbd key={index} className="notes-kbd">/</kbd>, part] : [part])}</p>
+      <p className="notes-empty-subtitle">{t("Write notes, build slide decks and sketch on whiteboards. In a note, type {key} for headings, lists, to-dos and code.").split("{key}").flatMap((part, index) => index ? [<kbd key={index} className="notes-kbd">/</kbd>, part] : [part])}</p>
       <div className="notes-empty-actions">
         <NewPageButtons kinds={creatablePageKinds()} busy={busy} className="!mt-0" onCreate={(kind) => onCreate({ kind })} />
         {onImport && <>
@@ -335,7 +335,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
           <button type="button" disabled={busy} className="ws-util-pill notes-empty-import" onClick={() => emptyImportRef.current?.click()}><Upload size={14} aria-hidden="true" /><span>{t("Import Markdown")}</span></button>
         </>}
       </div>
-      <p className="notes-empty-footnote">{t("Notes are saved on the server and linked to this device. Sign in to open them on other devices. If you clear app or site data before signing in, you lose access to them.")}</p>
+      <p className="notes-empty-footnote">{t("Your Workspace is saved on the server and linked to this device. Sign in to open it on other devices. If you clear app or site data before signing in, you lose access to it.")}</p>
     </div></>}
   </div>;
 }

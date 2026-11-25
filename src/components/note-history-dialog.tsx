@@ -224,13 +224,13 @@ export function NoteHistoryDialog({ noteId, getVersion, flush, onRestored, onClo
     setRestoreError("");
     try {
       // 未保存の編集を先に保存する。保存できなければ、その編集を失わないよう戻さない。
-      if (!(await flush())) { setRestoreError(msg("Your latest edits could not be saved, so nothing was restored. Resolve the save problem in the note, then try again.")); return; }
+      if (!(await flush())) { setRestoreError(msg("Your latest edits could not be saved, so nothing was restored. Resolve the save problem on the page, then try again.")); return; }
       const { response, data } = await jsonRequest(`/api/pages/${noteId}/revisions/${selectedId}/restore`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ version: getVersion() }),
       });
       if (response.status === 409) {
         setOutdated(true);
-        setRestoreError(msg("This note was changed in another tab, so nothing was restored. Close this window and reopen the history to see the latest versions."));
+        setRestoreError(msg("This page was changed in another tab, so nothing was restored. Close this window and reopen the history to see the latest versions."));
         // 開いているノートを最新の版にそろえる（そうしないと次の保存も 409 になる）。
         if (data.page) window.dispatchEvent(new CustomEvent("notefable:page-updated", { detail: data.page }));
         return;

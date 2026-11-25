@@ -6,7 +6,7 @@
     <string name="share_publish">Publikasikan</string>
     <string name="share_republish">Publikasikan ulang</string>
     <string name="share_unpublish">Batalkan publikasi</string>
-    <string name="share_desc">Publikasikan catatan ini agar siapa pun yang memiliki tautan dapat melihatnya.</string>
+    <string name="share_desc">Publikasikan halaman ini agar siapa pun yang memiliki tautan dapat melihatnya.</string>
     <string name="share_expired">Tautan berbagi ini telah kedaluwarsa.</string>
     <string name="share_public_link">Tautan publik</string>
     <string name="share_copy_link">Salin tautan</string>

@@ -287,7 +287,7 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onPrefetch,
             </h2>
             {entry.members.length
               ? <ul className="notes-home-list">{entry.members.map((page) => item(page, { showKindTag: true, flat: activeFilter !== null }))}</ul>
-              : <p className="notes-home-empty ws-home-empty-card">{t("No notes in this project.")}</p>}
+              : <p className="notes-home-empty ws-home-empty-card">{t("No pages in this project.")}</p>}
           </section>
         ))}
 
@@ -310,7 +310,7 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onPrefetch,
       ))}
 
       {filterEmpty && (
-        <p className="notes-home-empty ws-home-empty-card">{t("No notes match.")}</p>
+        <p className="notes-home-empty ws-home-empty-card">{t("No matching pages.")}</p>
       )}
 
       {moving && <MoveNoteDialog page={pages.find((page) => page.id === moving.id) ?? moving} groups={groups} error={groupError}

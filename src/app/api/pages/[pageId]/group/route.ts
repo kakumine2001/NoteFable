@@ -26,6 +26,6 @@ export async function PUT(request: Request, context: Context) {
       if (!(await setPageMeta(tx, user.id, pageId, { parentId: null }))) return null;
       return setSubtreeGroup(tx, user.id, pageId, groupId as string | null);
     });
-    return ids ? NextResponse.json({ id: pageId, groupId, parentId: null, ids }) : NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+    return ids ? NextResponse.json({ id: pageId, groupId, parentId: null, ids }) : NextResponse.json({ error: msg("Page not found.") }, { status: 404 });
   } catch (error) { return noteApiError(error); }
 }

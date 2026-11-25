@@ -46,7 +46,7 @@ export function ChatProjectSettings({ project, onClose, onSaved }: {
     void Promise.all([get(`/api/chat-projects/${project.id}`), get("/api/pages")]).then(async ([detailResponse, pagesResponse]) => {
       const [detailData, pagesData] = await Promise.all([readJson(detailResponse), readJson(pagesResponse)]);
       if (!detailResponse.ok) throw new Error(errorOf(detailData, msg("Could not load the project settings.")));
-      if (!pagesResponse.ok || !Array.isArray(pagesData.pages)) throw new Error(errorOf(pagesData, msg("Could not load your notes.")));
+      if (!pagesResponse.ok || !Array.isArray(pagesData.pages)) throw new Error(errorOf(pagesData, msg("Could not load your pages.")));
       const initial = detailData.project as ChatProjectDetail;
       setLoaded({ initial, pages: (pagesData.pages as NoteRef[]).map(({ id, kind, title, icon }) => ({ id, kind, title, icon })) });
       setInstructions(initial.instructions ?? "");
@@ -119,10 +119,10 @@ export function ChatProjectSettings({ project, onClose, onSaved }: {
           </section>
           <section className="project-settings-section" aria-labelledby={`${titleId}-notes`}>
             <h3 id={`${titleId}-notes`} className="project-settings-label">
-              {t("Reference notes")}
+              {t("Reference pages")}
               <span className={`project-settings-count${full ? " is-full" : ""}`} aria-live="polite">{selected.length}/{MAX_PROJECT_NOTES}</span>
             </h3>
-            {selected.length > 0 && <ul className="project-settings-chips" aria-label={t("Selected notes")}>
+            {selected.length > 0 && <ul className="project-settings-chips" aria-label={t("Selected pages")}>
               {selected.map((note) => <li key={note.id} className="project-settings-chip">
                 <PageKindIcon kind={note.kind} size={13} aria-hidden="true" className="flex-none" />
                 <span className="project-settings-chip-title">{note.title || t("Untitled")}</span>
@@ -131,11 +131,11 @@ export function ChatProjectSettings({ project, onClose, onSaved }: {
             </ul>}
             <label className="project-settings-search">
               <Search size={14} aria-hidden="true" />
-              <input type="search" value={filter} placeholder={t("Filter your notes")} aria-label={t("Filter your notes")} onChange={(event) => setFilter(event.target.value)}
+              <input type="search" value={filter} placeholder={t("Filter your pages")} aria-label={t("Filter your pages")} onChange={(event) => setFilter(event.target.value)}
                 // Enter は絞り込みの確定だけで、フォームの保存にはしない。
                 onKeyDown={(event) => { if (event.key === "Enter") event.preventDefault(); }} />
             </label>
-            {listed.length > 0 && <ul className="project-settings-list" aria-label={t("Your notes")}>
+            {listed.length > 0 && <ul className="project-settings-list" aria-label={t("Your pages")}>
               {listed.slice(0, MAX_LISTED).map((page) => {
                 const checked = selectedIds.has(page.id);
                 const blocked = !checked && full;
@@ -148,9 +148,9 @@ export function ChatProjectSettings({ project, onClose, onSaved }: {
                 </li>;
               })}
             </ul>}
-            {!listed.length && <p className="project-settings-empty">{loaded.pages.length ? t("No notes match.") : t("You don’t have any notes yet.")}</p>}
-            {listed.length > MAX_LISTED && <p className="project-settings-empty">{t("Showing the first {count} notes. Type in the filter to find others.", { count: MAX_LISTED })}</p>}
-            {full && <p className="project-settings-empty">{t("You can choose up to {count} notes. Remove one to pick another.", { count: MAX_PROJECT_NOTES })}</p>}
+            {!listed.length && <p className="project-settings-empty">{loaded.pages.length ? t("No matching pages.") : t("You don’t have any pages yet.")}</p>}
+            {listed.length > MAX_LISTED && <p className="project-settings-empty">{t("Showing the first {count} pages. Type in the filter to find others.", { count: MAX_LISTED })}</p>}
+            {full && <p className="project-settings-empty">{t("You can choose up to {count} pages. Remove one to pick another.", { count: MAX_PROJECT_NOTES })}</p>}
           </section>
         </>}
         {error && <p role="alert" className="project-settings-error">{localizeSystemText(error, t)}</p>}

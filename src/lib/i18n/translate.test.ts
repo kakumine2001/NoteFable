@@ -13,14 +13,14 @@ describe("translation interpolation", () => {
   it("requires explicit system context to translate formatted errors and tool labels", () => {
     const t = createTranslator({
       "Request failed: {detail}": "请求失败：{detail}",
-      "Note not found.": "找不到笔记。",
-      "Searched notes for “{query}”": "搜索了笔记“{query}”",
+      "Page not found.": "找不到页面。",
+      "Searched pages for “{query}”": "搜索了笔记“{query}”",
       "Unsupported file type: {name}": "不支持的文件类型：{name}",
     });
-    const failure = fmt("Request failed: {detail}", { detail: "Note not found." });
+    const failure = fmt("Request failed: {detail}", { detail: "Page not found." });
     expect(t(failure)).toBe(failure);
-    expect(localizeSystemText(failure, t)).toBe("请求失败：找不到笔记。");
-    expect(localizeSystemText(fmt("Searched notes for “{query}”", { query: "Rayleigh" }), t)).toBe("搜索了笔记“Rayleigh”");
+    expect(localizeSystemText(failure, t)).toBe("请求失败：找不到页面。");
+    expect(localizeSystemText(fmt("Searched pages for “{query}”", { query: "Rayleigh" }), t)).toBe("搜索了笔记“Rayleigh”");
     expect(localizeSystemText(fmt("Request failed: {detail}", { detail: fmt("Unsupported file type: {name}", { name: "a.txt" }) }), t)).toBe("请求失败：不支持的文件类型：a.txt");
     expect(localizeSystemText("Something else", t)).toBe("Something else");
     expect(localizeSystemText("Request failed:", t)).toBe("Request failed:");
@@ -35,14 +35,14 @@ describe("translation interpolation", () => {
 
   it("preserves titles, search terms and filenames that happen to be UI sentences", () => {
     const t = createTranslator({
-      "Note not found.": "找不到笔记。",
+      "Page not found.": "找不到页面。",
       "Read “{title}”": "读取了“{title}”",
-      "Searched notes for “{query}”": "搜索了“{query}”",
+      "Searched pages for “{query}”": "搜索了“{query}”",
       "Unsupported file type: {name}": "不支持的文件类型：{name}",
     });
-    expect(localizeSystemText(fmt("Read “{title}”", { title: "Note not found." }), t)).toBe("读取了“Note not found.”");
-    expect(localizeSystemText(fmt("Searched notes for “{query}”", { query: "Note not found." }), t)).toBe("搜索了“Note not found.”");
-    expect(localizeSystemText(fmt("Unsupported file type: {name}", { name: "Note not found." }), t)).toBe("不支持的文件类型：Note not found.");
+    expect(localizeSystemText(fmt("Read “{title}”", { title: "Page not found." }), t)).toBe("读取了“Page not found.”");
+    expect(localizeSystemText(fmt("Searched pages for “{query}”", { query: "Page not found." }), t)).toBe("搜索了“Page not found.”");
+    expect(localizeSystemText(fmt("Unsupported file type: {name}", { name: "Page not found." }), t)).toBe("不支持的文件类型：Page not found.");
     expect(localizeSystemText(fmt("Read “{title}”", { title: "" }), t)).toBe("读取了“”");
   });
 

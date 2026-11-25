@@ -74,7 +74,7 @@ export function AttachSheet({
           <FileText size={22} />
           <span>
             <strong>{t("Attach pages")}</strong>
-            <small>{t("Let the AI read your notes")}</small>
+            <small>{t("Let the AI read your pages")}</small>
           </span>
         </button>
 
@@ -258,7 +258,7 @@ export function AttachMenu({
               <FileText size={18} />
               <span>
                 <strong>{t("Attach pages")}</strong>
-                <small>{t("Let the AI read your notes")}</small>
+                <small>{t("Let the AI read your pages")}</small>
               </span>
             </button>
           )}

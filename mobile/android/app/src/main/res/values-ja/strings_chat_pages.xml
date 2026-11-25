@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="attach_pages">ページを添付</string>
-    <string name="attach_pages_desc">ノートの内容を AI に読ませる</string>
+    <string name="attach_pages_desc">ページの内容を AI に読ませる</string>
     <string name="attached_pages">添付したページ</string>
     <string name="ask_notefable">NoteFable に聞く</string>
     <string name="quote">引用</string>

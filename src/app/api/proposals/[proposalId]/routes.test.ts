@@ -36,9 +36,9 @@ describe("POST /api/proposals/:id/undo", () => {
     expect(refused.status).toBe(409);
     expect((await refused.json()).error).toContain("page history");
     // 提案がもう別の状態なら、その状態と適用先も返す（カードがそれに合わせる）。
-    mocks.undo.mockResolvedValue({ ok: false, httpStatus: 404, error: "Note not found.", status: "undone", pageId: "p1" });
+    mocks.undo.mockResolvedValue({ ok: false, httpStatus: 404, error: "Page not found.", status: "undone", pageId: "p1" });
     const settled = await undo(new Request("http://localhost/api/proposals/prop1/undo", { method: "POST" }), context);
-    expect(await settled.json()).toEqual({ error: "Note not found.", status: "undone", pageId: "p1" });
+    expect(await settled.json()).toEqual({ error: "Page not found.", status: "undone", pageId: "p1" });
     mocks.undo.mockResolvedValue({ ok: false, httpStatus: 409, error: "x", status: "applied", pageId: "p1", undoable: true });
     expect(await (await undo(new Request("http://localhost/api/proposals/prop1/undo", { method: "POST" }), context)).json()).toEqual({ error: "x", status: "applied", pageId: "p1", undoable: true });
     mocks.undo.mockRejectedValue(new Error("db down"));

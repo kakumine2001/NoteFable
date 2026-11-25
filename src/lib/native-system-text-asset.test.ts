@@ -17,13 +17,13 @@ describe("native system text asset", { timeout: 60_000 }, () => {
     expect(Object.keys(messages)).toEqual(translatedLocales);
     for (const key of [
       "Request failed: {detail}",
-      "Note not found.",
+      "Page not found.",
       "Invalid purchase.",
       "This proposal was discarded.",
       "This note changed after the proposal was made. Ask again to get a fresh proposal.",
       "Upload up to {max} files at a time.",
       "You've used today's free messages. Sign in for more, or try again tomorrow.",
-      "Searched notes for “{query}”",
+      "Searched pages for “{query}”",
       "Could not save the chat. Please try again.",
     ]) {
       for (const locale of translatedLocales) {

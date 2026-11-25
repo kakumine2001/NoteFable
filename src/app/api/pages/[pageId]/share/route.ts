@@ -24,7 +24,7 @@ export async function GET(request: Request, { params }: Params) {
     const { pageId } = await params;
     const user = await getOrCreateUser();
     const share = await resolveOwnerShareState(user.id, pageId, shareOriginForRequest(request));
-    if (!share) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+    if (!share) return NextResponse.json({ error: msg("Page not found.") }, { status: 404 });
     return NextResponse.json({ share }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return noteApiError(error);
@@ -50,7 +50,7 @@ export async function PUT(request: Request, { params }: Params) {
       where: { id: pageId, userId: user.id, deletedAt: null },
       select: { id: true, kind: true, shareToken: true, shareEnabled: true, shareExpiresAt: true },
     });
-    if (!existing) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+    if (!existing) return NextResponse.json({ error: msg("Page not found.") }, { status: 404 });
     const kind = pageKindOf(existing);
     if (body.enabled === true && !pageKindFeatures(kind).publicShare) return pageKindRejection(request, NOTE_ONLY_ACTION_ERRORS.share, kind);
 
@@ -95,13 +95,13 @@ export async function PUT(request: Request, { params }: Params) {
     }
 
     const updated = await updatePageShareMeta(user.id, pageId, update);
-    if (!updated) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+    if (!updated) return NextResponse.json({ error: msg("Page not found.") }, { status: 404 });
 
     const [share, page] = await Promise.all([
       resolveOwnerShareState(user.id, pageId, shareOriginForRequest(request)),
       sharedPageSummary(user.id, pageId),
     ]);
-    if (!share || !page) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+    if (!share || !page) return NextResponse.json({ error: msg("Page not found.") }, { status: 404 });
     return NextResponse.json({ share, page }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return noteApiError(error);
