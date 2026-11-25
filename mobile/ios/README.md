@@ -61,4 +61,4 @@ swift test            # Core 的单元测试
 Debug 构建支持完全离线的截图模式，CI（`.github/workflows/ios-pr.yml` 的 `ios-screenshots` 三路并行任务）通过它分别在 `xcode-27`（iOS 27）与 `macos-15`（iOS 26、iOS 18）上截取界面图：
 
 - 启动参数：`-NFFixtures YES` 开启离线 `FixtureTransport`（`.invalid` 域名、独立 `UserDefaults` 套件和临时目录、本地替身编辑页），支持单场景 `-NFFixtureScene <场景>` 或同进程批量 `-NFFixtureBatch <逗号分隔场景>` + `-NFFixtureAckDir <目录>`（场景：`chat-empty` / `chat` / `chat-streaming` / `drawer` / `workspace` / `editor` / `page-menu` / `search` / `model-sheet` / `attach-sheet` / `settings` / `sign-in`）、`-NFFixtureAccount signed-in|guest`、`-NFFixtureAppLanguage <locale>`、`-NFForceSolidChrome YES`。
-- 每个场景稳定后向 `stderr` 输出一行 `NF_FIXTURE_READY ...`；脚本 `mobile/ios/scripts/ci-screenshots.sh <NoteFable.app> <out-dir>` 会优先复用预置单屏模拟器、按变体同进程批量截取所有场景并生成 `index.html` 拼图（超时 / 缺失场景标红并令脚本失败）。Release / TestFlight 构建不含任何 fixture 代码。
+- 每个场景稳定后向 `stderr` 输出一行 `NF_FIXTURE_READY ...`；脚本 `mobile/ios/scripts/ci-screenshots.sh <NoteFable.app> <out-dir>` 在本地会新建并清理一次性模拟器以保护本机原有 App 数据（CI 或显式传 `NF_REUSE_SIMULATOR=1` 时才复用预置单屏模拟器），按变体同进程批量截取所有场景并生成 `index.html` 拼图（超时 / 缺失场景标红并令脚本失败）。Release / TestFlight 构建不含任何 fixture 代码。

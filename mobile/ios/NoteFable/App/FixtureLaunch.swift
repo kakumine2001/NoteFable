@@ -222,9 +222,14 @@ final class FixtureLaunch {
             return chatLoaded && router.drawerOpen
 
         case .workspace:
-            app.notes.setWorkspace(.notes)
+            if app.notes.state.workspace != .notes {
+                app.notes.setWorkspace(.notes)
+            } else if app.notes.state.open != nil {
+                app.notes.closeNote()
+            }
             return await poll(until: deadline) {
                 app.notes.state.workspace == .notes
+                    && app.notes.state.open == nil
                     && app.notes.state.loaded
                     && !app.notes.state.pages.isEmpty
             }

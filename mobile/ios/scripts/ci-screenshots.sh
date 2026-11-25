@@ -110,26 +110,28 @@ devicetype_for() {
   return 1
 }
 
-# Reuses an existing pre-created simulator for this runtime if available, else creates one.
-# Prints "<existing|created>\t<udid>\t<device_name_or_type>".
+# Reuses an existing pre-created simulator only on CI or when NF_REUSE_SIMULATOR=1;
+# local runs always create a fresh disposable simulator to protect existing app data.
 find_or_create_device() {
   local major=$1 runtime=$2 available name udid dtype
-  available=$(xcrun simctl list devices -j | jq -r --arg rt "$runtime" '
-    (.devices[$rt] // [])[]
-    | select(.isAvailable and ((.name | contains("Duo")) or (.deviceTypeIdentifier | contains("Duo")) | not))
-    | "\(.name)\t\(.udid)"')
-  for name in "${DEVICES[@]}"; do
-    udid=$(awk -F'\t' -v n="$name" '$1 == n { print $2; exit }' <<<"$available")
+  if [[ "${CI:-}" == "true" || "${NF_REUSE_SIMULATOR:-0}" == "1" ]]; then
+    available=$(xcrun simctl list devices -j | jq -r --arg rt "$runtime" '
+      (.devices[$rt] // [])[]
+      | select(.isAvailable and ((.name | contains("Duo")) or (.deviceTypeIdentifier | contains("Duo")) | not))
+      | "\(.name)\t\(.udid)"')
+    for name in "${DEVICES[@]}"; do
+      udid=$(awk -F'\t' -v n="$name" '$1 == n { print $2; exit }' <<<"$available")
+      if [[ -n "$udid" ]]; then
+        printf 'existing\t%s\t%s\n' "$udid" "$name"
+        return 0
+      fi
+    done
+    udid=$(awk -F'\t' '$1 ~ /iPhone/ { print $2; exit }' <<<"$available")
     if [[ -n "$udid" ]]; then
+      name=$(awk -F'\t' -v u="$udid" '$2 == u { print $1; exit }' <<<"$available")
       printf 'existing\t%s\t%s\n' "$udid" "$name"
       return 0
     fi
-  done
-  udid=$(awk -F'\t' '$1 ~ /iPhone/ { print $2; exit }' <<<"$available")
-  if [[ -n "$udid" ]]; then
-    name=$(awk -F'\t' -v u="$udid" '$2 == u { print $1; exit }' <<<"$available")
-    printf 'existing\t%s\t%s\n' "$udid" "$name"
-    return 0
   fi
   dtype=$(devicetype_for "$runtime") || return 1
   udid=$(xcrun simctl create "NoteFable iOS ${major}" "$dtype" "$runtime")
@@ -211,6 +213,10 @@ run_batch() {
   xcrun simctl launch --terminate-running-process --stderr="$log" "$udid" "$BUNDLE_ID" "${args[@]}" >/dev/null
 
   for s in "${batch[@]}"; do
+    rm -f "$OUT/ios${major}/${variant}/${s}.png" \
+          "$OUT/ios${major}/${variant}/${s}-TIMEOUT.png" \
+          "$OUT/ios${major}/${variant}/${s}-MISSING.png"
+
     if ! wait_for_ready_idx "$log" "$idx"; then
       echo "::error::ios${major} ${variant} ${s}: missing NF_FIXTURE_READY idx=${idx} (app crash or hang)"
       cat "$log" >&2 || true
@@ -224,11 +230,11 @@ run_batch() {
 
     ready_line=$(grep -m1 -E "^NF_FIXTURE_READY idx=${idx}( |$)" "$log" || true)
 
-    if [[ "$variant" == "rt" && "$account" == "signed-in" && "$idx" -eq 0 ]]; then
+    if [[ "$variant" == "rt" ]]; then
       if [[ "$ready_line" != *"reduceTransparency=true"* ]]; then
         : >"$ack_dir/abort"
         xcrun simctl terminate "$udid" "$BUNDLE_ID" >/dev/null 2>&1 || true
-        if [[ "$probe_rt" -eq 1 ]]; then
+        if [[ "$probe_rt" -eq 1 && "$idx" -eq 0 ]]; then
           return 2
         fi
         echo "::error::Reduce Transparency did not reach app on iOS ${major} (${ready_line}); refusing to label un-tinted captures as rt."
@@ -332,6 +338,7 @@ for major in "${MAJORS[@]}"; do
     set_variant_environment "$udid" "$variant"
 
     rt_ok=1
+    rt_rebooted=0
     if [[ ${#SIGNED_IN_BATCH[@]} -gt 0 ]]; then
       rc=0
       run_batch "$udid" "$major" "$variant" "signed-in" "1" "${SIGNED_IN_BATCH[@]}" || rc=$?
@@ -340,6 +347,7 @@ for major in "${MAJORS[@]}"; do
         xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
         boot_device "$udid"
         set_variant_environment "$udid" "$variant"
+        rt_rebooted=1
         rc=0
         run_batch "$udid" "$major" "$variant" "signed-in" "0" "${SIGNED_IN_BATCH[@]}" || rc=$?
       fi
@@ -350,7 +358,16 @@ for major in "${MAJORS[@]}"; do
 
     if [[ "$rt_ok" -eq 1 && ${#GUEST_BATCH[@]} -gt 0 ]]; then
       rc=0
-      run_batch "$udid" "$major" "$variant" "guest" "0" "${GUEST_BATCH[@]}" || rc=$?
+      run_batch "$udid" "$major" "$variant" "guest" "$((1 - rt_rebooted))" "${GUEST_BATCH[@]}" || rc=$?
+      if [[ "$rc" -eq 2 ]]; then
+        echo "Rebooting iOS ${major} simulator so Reduce Transparency preference propagates..."
+        xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
+        boot_device "$udid"
+        set_variant_environment "$udid" "$variant"
+        rt_rebooted=1
+        rc=0
+        run_batch "$udid" "$major" "$variant" "guest" "0" "${GUEST_BATCH[@]}" || rc=$?
+      fi
     fi
 
     if [[ "$variant" == "rt" ]]; then
