@@ -126,14 +126,23 @@ final class FixtureLaunch {
             let sceneDeadline = Date().addingTimeInterval((target == .editor || target == .pageMenu) ? 45 : 30)
             var sceneReady = baseReady
             if baseReady {
-                sceneReady = await prepareScene(target, app: app, router: router, deadline: sceneDeadline)
+                sceneReady = await prepareScene(
+                    target,
+                    previous: idx > 0 ? scenes[idx - 1] : nil,
+                    app: app,
+                    router: router,
+                    deadline: sceneDeadline
+                )
             }
 
             // 等动画、图片解码与 WKWebView 首帧绘制落下。
             let settleMs = (target == .editor) ? 700 : 500
             try? await Task.sleep(for: .milliseconds(settleMs))
             let idxPart = (ackDirectory != nil) ? " idx=\(idx)" : ""
-            let line = "NF_FIXTURE_READY\(idxPart) scene=\(target.rawValue) reduceTransparency=\(UIAccessibility.isReduceTransparencyEnabled) forcedSolid=\(forceSolidChrome) rtl=\(app.language.isRightToLeft) locale=\(app.language.uiLocale) timeout=\(!sceneReady)\n"
+            let reduceTransparency = UIAccessibility.isReduceTransparencyEnabled
+            // 浮动外观走的是哪条路（native / material / solid）：和界面上的玻璃组件用同一个判断，脚本按系统版本和变体核对。
+            let glass = NFChromePath.resolve(reduceTransparency: reduceTransparency, forceSolid: forceSolidChrome)
+            let line = "NF_FIXTURE_READY\(idxPart) scene=\(target.rawValue) reduceTransparency=\(reduceTransparency) forcedSolid=\(forceSolidChrome) rtl=\(app.language.isRightToLeft) locale=\(app.language.uiLocale) glass=\(glass.rawValue) timeout=\(!sceneReady)\n"
             Self.writeStderr(line)
 
             if let ackDir = ackDirectory {
@@ -149,9 +158,29 @@ final class FixtureLaunch {
         app: AppEnvironment,
         router: AppRouter
     ) async {
-        if previous == .modelSheet || previous == .attachSheet || previous == .pageMenu {
+        if previous == .toast {
+            // 长提示条要 3.5 秒才自己收起：马上收掉，免得留到下一个场景。
+            ToastCenter.shared.hide()
+        }
+        let overlayScenes: Set<ScreenshotScene> = [
+            .modelSheet, .attachSheet, .pageMenu, .chatMenu, .emojiPicker, .toast, .settingsPage,
+        ]
+        if overlayScenes.contains(previous) {
             ScreenshotHooks.dismissOverlays()
             try? await Task.sleep(for: .milliseconds(450))
+        }
+        if previous == .chatScrolled {
+            // chat-scrolled 把京都聊天滚上去并停止跟随底部。先换到新聊天（列表被拿掉）再打开京都聊天，
+            // 新建的列表从最底部开始，后面的菜单、抽屉、底部弹层、提示条场景和原来的截图一样贴底。
+            app.chat.newChat()
+            try? await Task.sleep(for: .milliseconds(150))
+            app.chat.openSession(FixtureCatalog.IDs.kyotoSession)
+            let repinDeadline = Date().addingTimeInterval(5)
+            _ = await poll(until: repinDeadline) {
+                app.chat.state.activeSessionId == FixtureCatalog.IDs.kyotoSession
+                    && !app.chat.state.messagesLoading
+                    && !app.chat.state.messages.isEmpty
+            }
         }
         if router.drawerOpen {
             router.closeDrawer()
@@ -166,7 +195,8 @@ final class FixtureLaunch {
             try? await Task.sleep(for: .milliseconds(350))
         }
         let targetUsesNotes = (target == .workspace || target == .editor || target == .pageMenu)
-        if !targetUsesNotes && target != .search && router.selectedTab != .chat {
+        let targetUsesSearch = (target == .search || target == .searchScrolled)
+        if !targetUsesNotes && !targetUsesSearch && router.selectedTab != .chat {
             router.selectTab(.chat)
             let leaveDeadline = Date().addingTimeInterval(5)
             _ = await poll(until: leaveDeadline) {
@@ -177,6 +207,7 @@ final class FixtureLaunch {
 
     private func prepareScene(
         _ target: ScreenshotScene,
+        previous: ScreenshotScene?,
         app: AppEnvironment,
         router: AppRouter,
         deadline: Date
@@ -319,6 +350,78 @@ final class FixtureLaunch {
             return await poll(until: deadline) {
                 router.signInOpen && app.account.state.configured && app.account.state.user == nil
             }
+
+        case .chatScrolled, .chatMenu, .emojiPicker:
+            // 京都聊天显示出来后，界面里的钩子（消息列表 / 顶栏）滚动列表、打开「…」菜单或换图标的选择器，再报告就绪。
+            _ = await openKyoto(app: app, router: router, deadline: deadline)
+            return await awaitHook(target, deadline: deadline) {
+                kyotoShown(app: app, router: router)
+            }
+
+        case .toast:
+            // 提示条完全由这里驱动：在京都聊天上显示一条已有文案的长提示条（3.5 秒），等它滑入。
+            let shown = await openKyoto(app: app, router: router, deadline: deadline)
+            Toast.show(L("export_file_saved"), long: true)
+            try? await Task.sleep(for: .milliseconds(400))
+            return shown && ToastCenter.shared.current != nil
+
+        case .searchScrolled:
+            // 先走 search 的准备：检索界面里的 search 钩子输入固定的检索词，结果出来后报告就绪。
+            // 上一个场景就是 search 时结果已经在界面上，直接用（同样的词不会重新检索，search 钩子也不会再报告）；
+            // 别的情况下结果也可能早就在了，所以只等一小段时间。
+            // 再切回 search-scrolled：结果列表里的钩子把结果往上滚一段后报告就绪。
+            let primed = previous == .search && router.selectedTab == .search
+            if !primed {
+                ScreenshotHooks.setScene(.search)
+                router.openSearch()
+                let searchGrace = min(deadline, Date().addingTimeInterval(10))
+                _ = await poll(until: searchGrace) {
+                    router.selectedTab == .search && ScreenshotHooks.isReady(.search)
+                }
+                ScreenshotHooks.setScene(.searchScrolled)
+            }
+            router.openSearch()
+            return await awaitHook(.searchScrolled, deadline: deadline) {
+                router.selectedTab == .search
+            }
+
+        case .settingsPage:
+            // 和 settings 一样打开设置；设置界面里的钩子换到「通用」页、往上滚一段后报告就绪。
+            router.openSettings()
+            return await awaitHook(.settingsPage, deadline: deadline) {
+                router.settingsOpen && app.account.state.user != nil
+            }
+        }
+    }
+
+    /// 切到聊天并打开京都聊天（已经开着就不重开），等消息显示出来。
+    private func openKyoto(app: AppEnvironment, router: AppRouter, deadline: Date) async -> Bool {
+        router.selectTab(.chat)
+        if app.chat.state.activeSessionId != FixtureCatalog.IDs.kyotoSession || app.chat.state.messages.isEmpty {
+            app.chat.openSession(FixtureCatalog.IDs.kyotoSession)
+        }
+        return await poll(until: deadline) {
+            kyotoShown(app: app, router: router)
+        }
+    }
+
+    private func kyotoShown(app: AppEnvironment, router: AppRouter) -> Bool {
+        router.selectedTab == .chat
+            && app.chat.state.activeSessionId == FixtureCatalog.IDs.kyotoSession
+            && !app.chat.state.messagesLoading
+            && !app.chat.state.messages.isEmpty
+    }
+
+    /// 等界面里的钩子报告 [target] 就绪：先等它所在的界面显示出来（[shown]），再等钩子。
+    /// 钩子跟着 `sceneTick` 跑；场景切过去时界面还没内容（例如聊天还是空的），钩子可能已经跑过一次、之后不再跑，
+    /// 所以一段时间内没就绪就重新设一次场景（新的 tick，清掉已消费 / 已就绪），让钩子在有内容时再跑一次。
+    private func awaitHook(_ target: ScreenshotScene, deadline: Date, shown: () -> Bool) async -> Bool {
+        guard await poll(until: deadline, condition: shown) else { return false }
+        let grace = min(deadline, Date().addingTimeInterval(5))
+        if await poll(until: grace, condition: { ScreenshotHooks.isReady(target) }) { return true }
+        ScreenshotHooks.setScene(target)
+        return await poll(until: deadline) {
+            shown() && ScreenshotHooks.isReady(target)
         }
     }
 
