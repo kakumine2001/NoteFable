@@ -45,9 +45,10 @@ struct RootView: View {
                 if router.selectedTab != .search { router.selectedTab = .workspace }
             }
         }
-        // 在搜索标签切走失败（草稿未能保存，包含重复触发的失败）时回到工作区展示编辑器内的保存失败提示。
+        // 离开未保存的笔记被拒绝时（无论当前停留在抽屉还是搜索页）收起遮挡以展示编辑器里的保存失败提示。
         .onChange(of: app.notes.leaveBlockedCount) { _, _ in
-            if router.selectedTab == .search {
+            if router.drawerOpen { router.closeDrawer() }
+            if router.selectedTab != .workspace {
                 router.selectedTab = .workspace
             }
         }
@@ -230,6 +231,7 @@ private struct DrawerFooter: View {
 
     private var newActionButton: some View {
         let kinds = app.notes.state.kinds
+        let notesBusy = app.notes.state.busy || app.notes.state.loading
         return NFGlassIconButton(Lucide.plus, label: L("ws_new"), size: 40, iconSize: 18, color: Sm.ink) {
             newMenuOpen.toggle()
         }
@@ -244,6 +246,7 @@ private struct DrawerFooter: View {
                     newMenuOpen = false
                     router.createNote(kind: kind)
                 }
+                .disabled(notesBusy)
             }
         }
     }
@@ -313,15 +316,15 @@ private struct AppDrawer<Panel: View, Content: View>: View {
                 content
                     .frame(width: proxy.size.width, height: proxy.size.height)
                     .overlay {
-                        if shown > 0.01 {
-                            Self.scrim
-                                .opacity(shown)
-                                .ignoresSafeArea()
-                                .contentShape(Rectangle())
-                                .onTapGesture { isOpen = false }
-                                .gesture(closeGesture(width: width, rtl: rtl))
-                                .accessibilityHidden(true)
-                        }
+                        // 始终保持挂载，以免拖动接近 0 时卸载手势宿主触发系统取消并重新打开抽屉。
+                        Self.scrim
+                            .opacity(shown)
+                            .ignoresSafeArea()
+                            .contentShape(Rectangle())
+                            .onTapGesture { isOpen = false }
+                            .gesture(closeGesture(width: width, rtl: rtl))
+                            .allowsHitTesting(isOpen || shown > 0 || closeDrag == .active)
+                            .accessibilityHidden(true)
                     }
                     .mask {
                         RoundedRectangle(cornerRadius: shown * 32, style: .continuous)

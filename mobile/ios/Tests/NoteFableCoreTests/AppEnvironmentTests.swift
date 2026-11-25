@@ -301,6 +301,19 @@ final class AppEnvironmentTests: XCTestCase {
         XCTAssertEqual(environment.notes.state.workspace, .notes)
     }
 
+    func testOpeningANoteSupersedesPendingProjectChatNavigation() async throws {
+        let environment = try makeEnvironment()
+        let router = AppRouter(app: environment)
+        router.openDrawer()
+        router.openNewChat(inProject: "proj1")
+        // 在项目聊天的网络返回前用户打开了笔记：滞后响应不得夺走工作区或关闭其它切换。
+        router.openNote("n9", title: "Opened", icon: "📘")
+        await eventually { environment.notes.state.open?.id == "n9" && environment.notes.state.workspace == .notes }
+        await settleMainActor()
+        XCTAssertEqual(router.selectedTab, .workspace)
+        XCTAssertFalse(router.drawerOpen)
+    }
+
     // MARK: - 系统分享
 
     func testShareUrlPutsTheSharedContentIntoANewChatAndClosesPanels() async throws {

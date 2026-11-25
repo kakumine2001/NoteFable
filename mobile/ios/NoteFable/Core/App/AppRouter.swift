@@ -27,6 +27,8 @@ final class AppRouter {
 
     private var linkTask: Task<Void, Never>?
     private var shareTask: Task<Void, Never>?
+    /// 每次导航动作递增，确保延迟完成的异步新建项目聊天不会覆盖用户后续的新切换（如打开笔记）。
+    private var navigationEpoch = 0
 
     init(app: AppEnvironment) {
         self.app = app
@@ -48,6 +50,7 @@ final class AppRouter {
 
     /// 切换底部标签页（必要时先保存当前打开的笔记，等工作区真正切换完成后再更新选中标签）。
     func selectTab(_ tab: AppTab) {
+        navigationEpoch &+= 1
         drawerOpen = false
         switch tab {
         case .search:
@@ -72,6 +75,7 @@ final class AppRouter {
     }
 
     func openSearch() {
+        navigationEpoch &+= 1
         drawerOpen = false
         selectedTab = .search
     }
@@ -81,6 +85,7 @@ final class AppRouter {
 
     /// 关闭抽屉并切到聊天新建会话（在笔记工作区时先保存打开的笔记）。
     func openNewChat() {
+        navigationEpoch &+= 1
         drawerOpen = false
         let startNew: @MainActor () -> Void = { [weak self, app] in
             app.chat.newChat()
@@ -95,11 +100,15 @@ final class AppRouter {
 
     /// 在项目里新建聊天；在笔记工作区时先保存打开的笔记并切换工作区，成功后才创建会话与关抽屉。
     func openNewChat(inProject projectId: String) {
+        navigationEpoch &+= 1
+        let epoch = navigationEpoch
         let createAndSwitch: @MainActor () -> Void = { [weak self, app] in
             Task { @MainActor in
+                guard let self, self.navigationEpoch == epoch else { return }
                 guard await app.sidebar.newChatInProject(projectId) else { return }
-                self?.selectedTab = .chat
-                self?.drawerOpen = false
+                guard self.navigationEpoch == epoch, app.notes.state.workspace == .chat else { return }
+                self.selectedTab = .chat
+                self.drawerOpen = false
             }
         }
         if app.notes.state.workspace == .chat {
@@ -111,6 +120,7 @@ final class AppRouter {
 
     /// 在工作区新建页面（同步由 `NotesViewModel.createNote` 切入工作区，保证标签与工作区一致）。
     func createNote(parentId: String? = nil, kind: PageKind = .note, groupId: String? = nil) {
+        navigationEpoch &+= 1
         dismissOverlays()
         if app.notes.state.workspace == .notes {
             selectedTab = .workspace
@@ -120,6 +130,7 @@ final class AppRouter {
 
     /// 打开一篇笔记（提案卡片的“打开笔记”、项目上下文的笔记标签、发言下的笔记标签、“打开已保存的笔记”、统一抽屉）。
     func openNote(_ id: String) {
+        navigationEpoch &+= 1
         dismissOverlays()
         selectedTab = .workspace
         app.notes.openNoteFromLink(id)
@@ -127,6 +138,7 @@ final class AppRouter {
 
     /// 检索结果 / 列表里已知元信息的笔记，直接打开并切到工作区标签页。
     func openNote(_ id: String, title: String?, icon: String?, kind: PageKind = .note, reveal: String? = nil) {
+        navigationEpoch &+= 1
         dismissOverlays()
         selectedTab = .workspace
         app.notes.openNote(id, title: title, icon: icon, kind: kind, reveal: reveal)
@@ -139,6 +151,7 @@ final class AppRouter {
 
     /// 外部链接（Universal Link、笔记里点到的聊天链接）：先关掉抽屉，再切到聊天工作区与标签页。
     func openLink(_ link: ChatLink) {
+        navigationEpoch &+= 1
         dismissOverlays()
         app.notes.setWorkspace(.chat) { [weak self, app] in
             self?.selectedTab = .chat
@@ -204,6 +217,7 @@ final class AppRouter {
 
     /// 登录 / 退出后：旧身份整理好的笔记与搜索状态恢复默认标签。
     func onIdentityChanged() {
+        navigationEpoch &+= 1
         createPageSessionId = nil
         if selectedTab == .search {
             selectedTab = (app.notes.state.workspace == .notes) ? .workspace : .chat
