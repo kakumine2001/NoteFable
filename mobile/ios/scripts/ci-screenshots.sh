@@ -159,14 +159,15 @@ set_variant_environment() {
 }
 
 wait_for_ready_idx() {
-  local log=$1 idx=$2 i
-  for i in $(seq 1 120); do
+  local log=$1 idx=$2
+  local deadline=$((SECONDS + 60))
+  while (( SECONDS < deadline )); do
     if grep -qE "^NF_FIXTURE_READY idx=${idx}( |$)" "$log" 2>/dev/null; then
       return 0
     fi
     sleep 0.25
   done
-  return 1
+  grep -qE "^NF_FIXTURE_READY idx=${idx}( |$)" "$log" 2>/dev/null
 }
 
 # Runs one app process for a comma-separated batch of scenes.

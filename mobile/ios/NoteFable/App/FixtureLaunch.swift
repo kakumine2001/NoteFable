@@ -308,7 +308,7 @@ final class FixtureLaunch {
     private func waitForAck(idx: Int, in ackDir: URL) async -> Bool {
         let ackFile = ackDir.appendingPathComponent("ack-\(idx)")
         let abortFile = ackDir.appendingPathComponent("abort")
-        let deadline = Date().addingTimeInterval(30)
+        let deadline = Date().addingTimeInterval(180)
         while Date() < deadline {
             if FileManager.default.fileExists(atPath: abortFile.path) { return false }
             if FileManager.default.fileExists(atPath: ackFile.path) { return true }
