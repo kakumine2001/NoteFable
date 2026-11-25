@@ -139,11 +139,11 @@ class NotesViewModelTest {
         }
         override suspend fun createGroup(name: String): NoteGroupSummary { calls += "group:$name"; maybeFail(); hold("group"); return NoteGroupSummary("g2", name, 1) }
         override suspend fun renameGroup(id: String, name: String): NoteGroupSummary { calls += "rename:$id:$name"; maybeFail(); return NoteGroupSummary(id, name) }
-        override suspend fun renameNote(id: String, title: String): NoteIconWrite {
-            calls += "renamePage:$id:$title"; maybeFail()
+        override suspend fun renameNote(id: String, title: String, version: Int): NoteIconWrite {
+            calls += "renamePage:$id:$title:$version"; maybeFail()
             val index = pages.indexOfFirst { it.id == id }
             val current = if (index >= 0) pages[index] else NotePageSummary(id, title, null)
-            val updated = current.copy(title = title, version = current.version + 1)
+            val updated = current.copy(title = title, version = version + 1)
             if (index >= 0) pages[index] = updated
             val json = """{"id":"$id","title":${Json.encodeToString(kotlinx.serialization.serializer<String>(), title)},"version":${updated.version}}"""
             return NoteIconWrite(updated, json)
@@ -1316,15 +1316,17 @@ class NotesViewModelTest {
         vm.flushEditor = { FlushResult(false) }
         assertFalse(vm.renamePage("a", "Renamed page"))
         assertEquals(NotesError(NotesError.Kind.UnsavedDraft), vm.state.value.groupError)
-        assertFalse("renamePage:a:Renamed page" in backend.calls)
+        assertTrue(backend.calls.none { it.startsWith("renamePage:a:") })
 
+        vm.onEditorMeta("a", "A", null, version = 3)
         vm.flushEditor = { FlushResult(true) }
         assertTrue(vm.renamePage("a", "  Renamed\npage  "))
         assertNull(vm.state.value.groupError)
         val updated = vm.state.value.pages.first { it.id == "a" }
         assertEquals("Renamed page", updated.title)
-        assertEquals(1, updated.version)
+        assertEquals(4, updated.version)
         assertEquals("Renamed page", vm.state.value.open?.title)
+        assertTrue("renamePage:a:Renamed page:3" in backend.calls)
         assertEquals(listOf("a"), warmUpdated.map { it.first })
     }
 }

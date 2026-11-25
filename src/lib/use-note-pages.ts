@@ -917,17 +917,28 @@ export function useNotePages(
     return true;
   });
 
-  // サイドバーからタイトルを変える。開いているページは編集と同じ自動保存に載せ、開いていないページは専用の API で書く。
+  // サイドバーからタイトルを変える。開いている・キャッシュにあるノートは自動保存に載せ、無いページは専用の API で書く。
   const renamePage = (id: string, title: string) => groupAction(async () => {
     const normalized = title.replace(/\r?\n/g, " ").trim();
     if (!normalized) return false;
-    if (active && id === activeId && (!isCanvasKind(pageKindOf(active.page)) || pageKindFeatures(pageKindOf(active.page)).editor)) {
-      active.edit({ ...active.content, title: normalized });
+    const queue = (id === activeId ? active : undefined) ?? queues.current.get(id);
+    if (queue && (!isCanvasKind(pageKindOf(queue.page)) || pageKindFeatures(pageKindOf(queue.page)).editor)) {
+      if (queue.gone) return false;
+      if (queue.status === "conflict") throw new Error(queue.error || msg("This note was changed in another tab."));
+      queue.edit({ ...queue.content, title: normalized });
       return true;
     }
-    const { page } = await pageRequest(`/api/pages/${encodeURIComponent(id)}/title`, "PUT", { title: normalized });
-    window.dispatchEvent(new CustomEvent<NotePage>("notefable:page-updated", { detail: page }));
-    return true;
+    const version = queue?.version ?? pagesRef.current.find((entry) => entry.id === id)?.version ?? 0;
+    try {
+      const { page } = await pageRequest(`/api/pages/${encodeURIComponent(id)}/title`, "PUT", { title: normalized, version });
+      window.dispatchEvent(new CustomEvent<NotePage>("notefable:page-updated", { detail: page }));
+      return true;
+    } catch (caught) {
+      if (caught instanceof NoteSaveError && caught.status === 409 && caught.latest) {
+        window.dispatchEvent(new CustomEvent<NotePage>("notefable:page-updated", { detail: caught.latest }));
+      }
+      throw caught;
+    }
   });
 
   async function reorder(move:ReorderRequest) {

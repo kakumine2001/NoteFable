@@ -21,6 +21,7 @@ enum NotesDialogState: Identifiable, Equatable {
         case .move(let pageId): return "move:" + pageId
         case .newGroup: return "new-group"
         case .renameGroup(let group): return "rename-group:" + group.id
+        case .renamePage(let page): return "rename-page:" + page.id
         case .deleteGroup(let group): return "delete-group:" + group.id
         case .trashNote(let page): return "trash-note:" + page.id
         case .share(let pageId, _): return "share:" + pageId

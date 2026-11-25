@@ -162,12 +162,12 @@ final class NotesTestBackend: NotesBackend {
         return NoteGroupSummary(id: id, name: name)
     }
 
-    func renameNote(id: String, title: String) async throws -> NoteIconWrite {
-        calls.append("renamePage:\(id):\(title)")
+    func renameNote(id: String, title: String, version: Int) async throws -> NoteIconWrite {
+        calls.append("renamePage:\(id):\(title):\(version)")
         try maybeFail()
         var page = try XCTUnwrap(pages.first { $0.id == id })
         page.title = title
-        page.version += 1
+        page.version = version + 1
         let json = NoteFableJson.encodeToString(page)
         return NoteIconWrite(page: page, json: json)
     }

@@ -214,6 +214,24 @@ describe("public note colors", { timeout: 30_000 }, () => {
     expect(html).toContain('<a href="#heading-h-detail" class="public-note-toc-link">Detail</a>');
   });
 
+  it("caps rendered tableOfContents links across repeated TOC blocks on one shared page", async () => {
+    const headings = Array.from({ length: 120 }, (_, i) => ({
+      id: `h-${i}`,
+      type: "heading",
+      props: { level: 1 },
+      content: [text(`Heading ${i}`)],
+      children: [],
+    }));
+    const tocs = Array.from({ length: 12 }, (_, i) => ({
+      id: `toc-${i}`,
+      type: "tableOfContents",
+      props: {},
+      children: [],
+    }));
+    const html = await render([...tocs, ...headings]);
+    expect(html.match(/class="public-note-toc-link"/g)?.length).toBe(1000);
+  });
+
   it("keeps the light colors and uses the editor's colors in dark mode", () => {
     const css = readFileSync(fileURLToPath(new URL("../app/globals.css", import.meta.url)), "utf8");
     const light = declarations(css, /\.public-note-shell/);

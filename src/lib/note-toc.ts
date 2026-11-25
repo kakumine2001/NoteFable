@@ -17,7 +17,8 @@ export function extractTocHeadings(blocks: unknown): TocHeading[] {
     const id = typeof block.id === "string" ? block.id : "";
     if (!id) continue;
     const props = block.props && typeof block.props === "object" ? (block.props as { level?: unknown }) : null;
-    const level = props?.level;
+    const rawLevel = props?.level;
+    const level = rawLevel === undefined ? 1 : rawLevel;
     if (level !== 1 && level !== 2 && level !== 3) continue;
     const text = inlineText(block.content).trim();
     if (!text) continue;

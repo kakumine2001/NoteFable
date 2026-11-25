@@ -1076,15 +1076,17 @@ final class NotesViewModelTests: XCTestCase {
         let blocked = await vm.renamePage("a", title: "New Title")
         XCTAssertFalse(blocked)
         XCTAssertEqual(vm.state.groupError?.kind, .unsavedDraft)
-        XCTAssertFalse(backend.calls.contains("renamePage:a:New Title"))
+        XCTAssertFalse(backend.calls.contains { $0.hasPrefix("renamePage:a:") })
 
+        vm.onEditorMeta("a", title: "A", icon: nil, version: 3)
         vm.flushEditor = { FlushResult(true) }
         let ok = await vm.renamePage("a", title: "  New\nTitle  ")
         XCTAssertTrue(ok)
         XCTAssertNil(vm.state.groupError)
         XCTAssertEqual(page(vm, "a")?.title, "New Title")
-        XCTAssertEqual(page(vm, "a")?.version, 1)
+        XCTAssertEqual(page(vm, "a")?.version, 4)
         XCTAssertEqual(vm.state.open?.title, "New Title")
+        XCTAssertTrue(backend.calls.contains("renamePage:a:New Title:3"))
         XCTAssertEqual(warmUpdated.map(\.0), ["a"])
     }
 

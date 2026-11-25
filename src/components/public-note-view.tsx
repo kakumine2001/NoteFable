@@ -67,12 +67,16 @@ type RenderBlock = {
 // 数式の TeX を KaTeX の HTML にする（描けない時は空文字）。
 type MathRenderer = (latex: string, displayMode: boolean) => string;
 
+// 公開ページで多数の目次ブロックが並んでも HTML サイズが膨らみすぎないよう、1 ページあたりの描画上限を設ける。
+const MAX_PUBLIC_TOC_LINKS = 1000;
+
 type RenderContext = {
   labels: { copy: string; copied: string; download: string };
   // 数式のあるページだけ、サーバーで読み込んだ KaTeX で描く関数が入る（数式の無いページは null）。
   math: MathRenderer | null;
   tocHeadings: TocHeading[];
   tocLabel: string;
+  tocRemainingLinks: { count: number };
 };
 
 // 同じページの同じ式は 1 回だけ描く（公開ページはリクエストごとにサーバーで描くため）。
@@ -431,13 +435,17 @@ function renderBlock(block: RenderBlock, numberIndex: number, ctx: RenderContext
     }
     case "tableOfContents": {
       const items = ctx.tocHeadings;
-      if (!items.length) return childrenNode ? <div key={block.id} className="public-note-block">{childrenNode}</div> : null;
-      const minLevel = items.reduce((min, h) => Math.min(min, h.level), 3);
+      if (!items.length || ctx.tocRemainingLinks.count <= 0) {
+        return childrenNode ? <div key={block.id} className="public-note-block">{childrenNode}</div> : null;
+      }
+      const visible = items.slice(0, ctx.tocRemainingLinks.count);
+      ctx.tocRemainingLinks.count -= visible.length;
+      const minLevel = visible.reduce((min, h) => Math.min(min, h.level), 3);
       return (
         <div key={block.id} className="public-note-block">
           <nav className="public-note-toc" style={colors} aria-label={ctx.tocLabel}>
             <ul className="public-note-toc-list">
-              {items.map((item) => (
+              {visible.map((item) => (
                 <li
                   key={item.id}
                   className="public-note-toc-item"
@@ -535,7 +543,13 @@ export async function PublicNoteView({ data, locale }: { data: ResolvedPublicSha
         </div>
 
         <article className="notes-column notes-body public-note-body">
-          {renderBlockList(blocks, { labels: { copy: t("Copy"), copied: t("Copied"), download: t("Download") }, math, tocHeadings, tocLabel: t("Table of contents") })}
+          {renderBlockList(blocks, {
+            labels: { copy: t("Copy"), copied: t("Copied"), download: t("Download") },
+            math,
+            tocHeadings,
+            tocLabel: t("Table of contents"),
+            tocRemainingLinks: { count: MAX_PUBLIC_TOC_LINKS },
+          })}
         </article>
 
         {children.length > 0 ? (

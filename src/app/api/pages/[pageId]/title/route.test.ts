@@ -29,11 +29,11 @@ describe("PUT /api/pages/:id/title", () => {
   it("renames an owned live note, normalizes newlines, and bumps version", async () => {
     mocks.updateMany.mockResolvedValue({ count: 1 });
     mocks.findFirst.mockResolvedValue({ id: "n1", kind: "note", title: "My Plan", version: 4 });
-    const response = await call({ title: "  My\nPlan  " });
+    const response = await call({ title: "  My\nPlan  ", version: 3 });
     expect(response.status).toBe(200);
     expect((await response.json()).page).toMatchObject({ id: "n1", title: "My Plan", version: 4 });
     expect(mocks.updateMany).toHaveBeenCalledWith({
-      where: { id: "n1", userId: "mine", deletedAt: null },
+      where: { id: "n1", userId: "mine", version: 3, deletedAt: null },
       data: { title: "My Plan", version: { increment: 1 } },
     });
     expect(mocks.scheduleNoteEmbeddingSync).toHaveBeenCalledWith("mine", ["n1"]);
@@ -42,7 +42,7 @@ describe("PUT /api/pages/:id/title", () => {
   it("falls back to Untitled when blank", async () => {
     mocks.updateMany.mockResolvedValue({ count: 1 });
     mocks.findFirst.mockResolvedValue({ id: "n1", kind: "note", title: "Untitled", version: 5 });
-    const response = await call({ title: "   \n  " });
+    const response = await call({ title: "   \n  ", version: 4 });
     expect(response.status).toBe(200);
     expect(mocks.updateMany.mock.calls[0][0].data.title).toBe("Untitled");
   });
@@ -52,24 +52,38 @@ describe("PUT /api/pages/:id/title", () => {
     mocks.updateMany.mockResolvedValue({ count: 1 });
     mocks.findFirst.mockResolvedValue({ id: "w1", kind: "whiteboard", title: "Board", version: 3 });
     mocks.readCanvasData.mockResolvedValue(data);
-    const response = await call({ title: "Board" });
+    const response = await call({ title: "Board", version: 2 });
     expect(response.status).toBe(200);
     expect((await response.json()).page).toMatchObject({ id: "w1", kind: "whiteboard", title: "Board", version: 3, data });
     expect(mocks.readCanvasData).toHaveBeenCalledWith("mine", "n1");
   });
 
-  it("rejects non-string or overlong titles without writing", async () => {
+  it("rejects non-string or overlong titles and invalid versions without writing", async () => {
     for (const title of [123, null, {}, "a".repeat(201)]) {
-      expect((await call({ title })).status).toBe(400);
+      expect((await call({ title, version: 0 })).status).toBe(400);
+    }
+    for (const version of [undefined, null, -1, 1.5, "1"]) {
+      expect((await call({ title: "Valid", version })).status).toBe(400);
     }
     expect(mocks.updateMany).not.toHaveBeenCalled();
     expect(mocks.scheduleNoteEmbeddingSync).not.toHaveBeenCalled();
   });
 
+  it("answers 409 with the latest note when version is stale", async () => {
+    mocks.updateMany.mockResolvedValue({ count: 0 });
+    mocks.findFirst.mockResolvedValue({ id: "n1", kind: "note", title: "Changed in tab 2", version: 7 });
+    const response = await call({ title: "Stale rename", version: 6 });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      page: { id: "n1", title: "Changed in tab 2", version: 7 },
+    });
+    expect(mocks.scheduleNoteEmbeddingSync).not.toHaveBeenCalled();
+  });
+
   it("answers 404 for another user's, missing, or trashed note", async () => {
     mocks.updateMany.mockResolvedValue({ count: 0 });
-    expect((await call({ title: "New" })).status).toBe(404);
-    expect(mocks.findFirst).not.toHaveBeenCalled();
+    mocks.findFirst.mockResolvedValue(null);
+    expect((await call({ title: "New", version: 0 })).status).toBe(404);
     expect(mocks.scheduleNoteEmbeddingSync).not.toHaveBeenCalled();
   });
 });

@@ -306,8 +306,11 @@ class NoteFableApi(
         send<JsonObjectResponse>(Request.Builder().url(absoluteUrl("/api/pages/groups/${segment(id)}")).delete())
     }
 
-    override suspend fun renameNote(id: String, title: String): NoteIconWrite = withContext(Dispatchers.Default) {
-        val body = buildJsonObject { put("title", title) }.toString()
+    override suspend fun renameNote(id: String, title: String, version: Int): NoteIconWrite = withContext(Dispatchers.Default) {
+        val body = buildJsonObject {
+            put("title", title)
+            put("version", version)
+        }.toString()
         val response = send<kotlinx.serialization.json.JsonObject>(
             Request.Builder().url(absoluteUrl("/api/pages/${segment(id)}/title")).put(body.toRequestBody(JSON)),
         )

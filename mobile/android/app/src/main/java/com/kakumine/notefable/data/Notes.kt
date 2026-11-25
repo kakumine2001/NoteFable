@@ -301,7 +301,7 @@ interface NotesBackend {
     suspend fun createGroup(name: String): NoteGroupSummary
     suspend fun renameGroup(id: String, name: String): NoteGroupSummary
     suspend fun deleteGroup(id: String)
-    suspend fun renameNote(id: String, title: String): NoteIconWrite = error("unused")
+    suspend fun renameNote(id: String, title: String, version: Int): NoteIconWrite = error("unused")
 
     suspend fun trash(): List<NoteTrashItem>
     /** 复原；一起移进回收站的子页面也回来。返回所有复原的页面（第一篇是这一篇）。 */
@@ -383,9 +383,9 @@ const val TRASH_RETENTION_DAYS = 30
  * 约定见 src/lib/native-bridge.ts 和 docs/architecture/android-native.md；两边要一起改。
  */
 sealed interface EmbedMessage {
-    /** [kind]：网页读到的页面类型；旧网页不发时是 null（这时不改 App 这边已知的类型）。 */
-    data class Ready(val id: String, val title: String, val icon: String?, val kind: PageKind? = null) : EmbedMessage
-    data class Meta(val title: String, val icon: String?) : EmbedMessage
+    /** [kind]：网页读到的页面类型；旧网页不发时是 null（这时不改 App 这边已知的类型）。[version]：打开时的页面版本号。 */
+    data class Ready(val id: String, val title: String, val icon: String?, val kind: PageKind? = null, val version: Int? = null) : EmbedMessage
+    data class Meta(val title: String, val icon: String?, val version: Int? = null) : EmbedMessage
     data class SaveState(val state: String) : EmbedMessage
     data class Missing(val id: String? = null) : EmbedMessage
     data object Trashed : EmbedMessage
@@ -434,9 +434,10 @@ sealed interface EmbedMessage {
                 "ready" -> {
                     val page = obj["page"]?.jsonObject ?: return@runCatching null
                     val kind = (page["kind"] as? JsonPrimitive)?.takeIf { it.isString }?.content?.let(PageKind::of)
-                    Ready(page.str("id") ?: return@runCatching null, page.str("title").orEmpty(), page.str("icon"), kind)
+                    val version = page.number("version")?.takeIf { it in 0..Int.MAX_VALUE }?.toInt()
+                    Ready(page.str("id") ?: return@runCatching null, page.str("title").orEmpty(), page.str("icon"), kind, version)
                 }
-                "meta" -> Meta(obj.str("title").orEmpty(), obj.str("icon"))
+                "meta" -> Meta(obj.str("title").orEmpty(), obj.str("icon"), obj.number("version")?.takeIf { it in 0..Int.MAX_VALUE }?.toInt())
                 "saveState" -> SaveState(obj.str("state") ?: return@runCatching null)
                 "missing" -> Missing(obj.str("id")?.takeIf { it.isNotBlank() })
                 "trashed" -> Trashed

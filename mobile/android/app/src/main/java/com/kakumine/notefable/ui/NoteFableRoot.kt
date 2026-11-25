@@ -474,8 +474,8 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                     onPresentingChange = { slidesPresenting = it },
                     onMessage = { editor, message ->
                         when (message) {
-                            is EmbedMessage.Ready -> notesViewModel.onEditorReady(editor, message.id, message.title, message.icon, message.kind)
-                            is EmbedMessage.Meta -> notesViewModel.onEditorMeta(editor, message.title, message.icon)
+                            is EmbedMessage.Ready -> notesViewModel.onEditorReady(editor, message.id, message.title, message.icon, message.kind, message.version)
+                            is EmbedMessage.Meta -> notesViewModel.onEditorMeta(editor, message.title, message.icon, message.version)
                             is EmbedMessage.SaveState -> notesViewModel.onEditorSaveState(editor, message.state)
                             is EmbedMessage.Missing -> notesViewModel.onEditorMissing(editor)
                             EmbedMessage.Trashed -> notesViewModel.onEditorTrashed(editor)

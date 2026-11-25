@@ -21,6 +21,7 @@ export function NoteFloatingToc({
   const t = useT();
   const headings = useMemo(() => extractTocHeadings(blocks), [blocks]);
   const [currentId, setCurrentId] = useState<string | null>(() => headings[0]?.id ?? null);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     const root = scrollRootRef.current;
@@ -35,16 +36,26 @@ export function NoteFloatingToc({
       const threshold = rootTop + 120;
       const elements = root.querySelectorAll<HTMLElement>(".notes-block-editor .bn-block-outer[data-id]");
       let activeHeading: string | null = null;
+      let activeTop = Number.NEGATIVE_INFINITY;
+      let firstVisibleId: string | null = null;
+      let firstVisibleTop = Number.POSITIVE_INFINITY;
       for (const el of elements) {
         const id = el.dataset.id;
         if (!id || !headingIds.has(id)) continue;
-        if (el.getBoundingClientRect().top <= threshold) {
+        // 折りたたまれたトグル内など、画面に配置されていない見出しは無視する。
+        if (el.getClientRects().length === 0) continue;
+        const top = el.getBoundingClientRect().top;
+        if (top < firstVisibleTop) {
+          firstVisibleTop = top;
+          firstVisibleId = id;
+        }
+        // トグル内や段組みで DOM 順が画面の上下順とずれても、最も近い見出しを選ぶため途中で打ち切らない。
+        if (top <= threshold && top >= activeTop) {
+          activeTop = top;
           activeHeading = id;
-        } else {
-          break;
         }
       }
-      setCurrentId(activeHeading ?? headings[0].id);
+      setCurrentId(activeHeading ?? firstVisibleId ?? headings[0].id);
     };
 
     const schedule = () => {
@@ -68,16 +79,32 @@ export function NoteFloatingToc({
   const resolvedCurrent = headings.some((h) => h.id === currentId) ? currentId : headings[0].id;
 
   return (
-    <aside className="notes-floating-toc" aria-label={t("Table of contents")}>
-      <div className="notes-floating-toc-bars" aria-hidden="true">
+    <aside
+      className={`notes-floating-toc${open ? " is-open" : ""}`}
+      aria-label={t("Table of contents")}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") setOpen(false);
+      }}
+    >
+      <button
+        type="button"
+        className="notes-floating-toc-bars"
+        aria-label={t("Table of contents")}
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
         {headings.map((item) => (
           <span
             key={item.id}
+            aria-hidden="true"
             className={`notes-floating-toc-bar${resolvedCurrent === item.id ? " is-active" : ""}`}
             data-level={item.level}
           />
         ))}
-      </div>
+      </button>
       <nav className="notes-floating-toc-panel" aria-label={t("Table of contents")}>
         <ul className="notes-floating-toc-list">
           {headings.map((item) => {
@@ -95,6 +122,7 @@ export function NoteFloatingToc({
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => {
                     setCurrentId(item.id);
+                    setOpen(false);
                     void revealNoteBlock(item.id);
                   }}
                 >

@@ -4663,20 +4663,27 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 
 /* ページ内目次ブロック（/table of contents、src/components/note-toc.tsx）と公開ページの目次。 */
 .notes-toc, .public-note-toc { padding: 4px 0; }
+.public-note-toc { color: var(--notion-muted); }
 .notes-toc-list, .public-note-toc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .notes-toc-link, .public-note-toc-link {
   display: inline-block; max-width: 100%; text-align: start; padding: 3px 6px; border-radius: 4px;
-  color: var(--notes-muted, var(--notion-muted)); text-decoration: underline;
+  color: inherit; text-decoration: underline;
   text-decoration-color: rgba(var(--notion-ink-rgb), 0.22); text-underline-offset: 3px;
   font-size: 14px; line-height: 1.5; background: transparent; cursor: pointer;
+}
+.notes-block-editor .bn-block-content[data-content-type="tableOfContents"]:not([data-text-color]) .notes-toc-link {
+  color: var(--notes-muted);
 }
 .notes-toc-item[data-level="1"] .notes-toc-link,
 .public-note-toc-item[data-level="1"] .public-note-toc-link { font-weight: 500; }
 @media (hover: hover) {
   .notes-toc-link:hover, .public-note-toc-link:hover {
     background: var(--notes-hover, var(--notion-hover));
-    color: var(--notes-text, var(--notion-text));
     text-decoration-color: currentColor;
+  }
+  .notes-block-editor .bn-block-content[data-content-type="tableOfContents"]:not([data-text-color]) .notes-toc-link:hover,
+  .public-note-toc:not([style*="color:"]) .public-note-toc-link:hover {
+    color: var(--notes-text, var(--notion-text));
   }
 }
 .notes-toc-link:focus-visible, .public-note-toc-link:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: 1px; }
@@ -4688,7 +4695,11 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
   position: fixed; inset-block-start: 48%; inset-inline-end: 18px; transform: translateY(-50%); z-index: 20;
   display: flex; align-items: center; justify-content: flex-end;
 }
-.notes-floating-toc-bars { display: flex; flex-direction: column; align-items: flex-end; gap: 7px; padding: 10px 6px; cursor: pointer; }
+.notes-floating-toc-bars {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 7px; padding: 10px 6px;
+  background: transparent; border-radius: 6px; cursor: pointer;
+}
+.notes-floating-toc-bars:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: 2px; }
 .notes-floating-toc-bar {
   display: block; height: 2px; border-radius: 999px;
   background: rgba(var(--notion-ink-rgb), 0.18); transition: background-color 140ms ease, width 140ms ease;
@@ -4707,7 +4718,8 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
   transition: opacity 140ms ease, transform 140ms ease, visibility 140ms ease;
 }
 .notes-floating-toc:hover .notes-floating-toc-panel,
-.notes-floating-toc:focus-within .notes-floating-toc-panel {
+.notes-floating-toc:focus-within .notes-floating-toc-panel,
+.notes-floating-toc.is-open .notes-floating-toc-panel {
   opacity: 1; visibility: visible; pointer-events: auto; transform: translateY(-50%);
 }
 .notes-floating-toc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }

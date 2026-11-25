@@ -191,7 +191,9 @@ class NotesApiTest {
     @Test
     fun `parses the bridge messages and ignores unknown ones`() {
         assertEquals(EmbedMessage.Ready("p", "Title", null), EmbedMessage.parse("""{"type":"ready","page":{"id":"p","title":"Title","icon":null}}"""))
+        assertEquals(EmbedMessage.Ready("p", "Title", null, version = 7), EmbedMessage.parse("""{"type":"ready","page":{"id":"p","title":"Title","icon":null,"version":7}}"""))
         assertEquals(EmbedMessage.Meta("T", "📘"), EmbedMessage.parse("""{"type":"meta","title":"T","icon":"📘"}"""))
+        assertEquals(EmbedMessage.Meta("T", "📘", version = 8), EmbedMessage.parse("""{"type":"meta","title":"T","icon":"📘","version":8}"""))
         assertEquals(EmbedMessage.SaveState("conflict"), EmbedMessage.parse("""{"type":"saveState","state":"conflict"}"""))
         assertEquals(EmbedMessage.Missing(), EmbedMessage.parse("""{"type":"missing"}"""))
         assertEquals(EmbedMessage.Missing("p1"), EmbedMessage.parse("""{"type":"missing","id":"p1"}"""))
@@ -271,7 +273,7 @@ class NotesApiTest {
             assertNotNull(NoteCovers.preset(recent[0].cover))
             assertNull(NoteCovers.imagePath(recent[0].cover))
 
-            val written = api.renameNote("r", "Renamed plan")
+            val written = api.renameNote("r", "Renamed plan", 3)
             assertEquals("Renamed plan", written.page.title)
             assertEquals(4, written.page.version)
             assertTrue(written.json?.contains("Renamed plan") == true)
@@ -279,7 +281,7 @@ class NotesApiTest {
             val renameReq = server.next()
             assertEquals("PUT", renameReq.method)
             assertEquals("/api/pages/r/title", renameReq.path)
-            assertEquals("""{"title":"Renamed plan"}""", renameReq.body.readUtf8())
+            assertEquals("""{"title":"Renamed plan","version":3}""", renameReq.body.readUtf8())
         }
     }
 }

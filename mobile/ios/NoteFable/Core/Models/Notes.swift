@@ -542,7 +542,7 @@ protocol NotesBackend {
     func createGroup(name: String) async throws -> NoteGroupSummary
     func renameGroup(id: String, name: String) async throws -> NoteGroupSummary
     func deleteGroup(id: String) async throws
-    func renameNote(id: String, title: String) async throws -> NoteIconWrite
+    func renameNote(id: String, title: String, version: Int) async throws -> NoteIconWrite
 
     func trash() async throws -> [NoteTrashItem]
     /// 复原；一起移进回收站的子页面也回来。返回所有复原的页面（第一篇是这一篇）。
@@ -573,7 +573,7 @@ extension NotesBackend {
         try await createNote(parentId: nil, kind: .note, groupId: nil)
     }
 
-    func renameNote(id: String, title: String) async throws -> NoteIconWrite {
+    func renameNote(id: String, title: String, version: Int) async throws -> NoteIconWrite {
         fatalError("unused")
     }
 
@@ -608,9 +608,9 @@ let TRASH_RETENTION_DAYS = 30
 /// `window.webkit.messageHandlers.<名字>.postMessage(json)` 的对象（还有同步返回的 `appIcon()` / `language()` / `theme()`），
 /// 收到的 JSON 文本交给 [parse]。
 enum EmbedMessage: Equatable, Sendable {
-    /// [kind]：网页读到的页面类型；旧网页不发时是 nil（这时不改 App 这边已知的类型）。
-    case ready(id: String, title: String, icon: String?, kind: PageKind? = nil)
-    case meta(title: String, icon: String?)
+    /// [kind]：网页读到的页面类型；旧网页不发时是 nil（这时不改 App 这边已知的类型）。[version]：打开时的页面版本号。
+    case ready(id: String, title: String, icon: String?, kind: PageKind? = nil, version: Int? = nil)
+    case meta(title: String, icon: String?, version: Int? = nil)
     case saveState(state: String)
     case missing(id: String? = nil)
     case trashed
@@ -647,9 +647,11 @@ enum EmbedMessage: Equatable, Sendable {
                 guard let page = fields["page"]?.objectValue, let id = try text(page["id"]) else { return nil }
                 // 只认字符串（和 Android 一样）；不认识的值按笔记。
                 let kind = page["kind"]?.stringValue.map { PageKind.of($0) }
-                return .ready(id: id, title: try text(page["title"]) ?? "", icon: try text(page["icon"]), kind: kind)
+                let version = page["version"]?.intValue.flatMap { $0 >= 0 ? $0 : nil }
+                return .ready(id: id, title: try text(page["title"]) ?? "", icon: try text(page["icon"]), kind: kind, version: version)
             case "meta":
-                return .meta(title: try text(fields["title"]) ?? "", icon: try text(fields["icon"]))
+                let version = fields["version"]?.intValue.flatMap { $0 >= 0 ? $0 : nil }
+                return .meta(title: try text(fields["title"]) ?? "", icon: try text(fields["icon"]), version: version)
             case "saveState":
                 guard let state = try text(fields["state"]) else { return nil }
                 return .saveState(state: state)

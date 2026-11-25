@@ -511,7 +511,7 @@ class NotesViewModel(
      * 打开着的笔记换成副本（WebView 不重新加载），原来那篇的列表项不动，重读列表把副本加进来。
      * [kind] 是网页读到的页面类型（旧网页不发时是 null，保留已知的类型）。
      */
-    fun onEditorReady(editor: String, pageId: String, title: String, icon: String?, kind: PageKind? = null) {
+    fun onEditorReady(editor: String, pageId: String, title: String, icon: String?, kind: PageKind? = null, version: Int? = null) {
         val open = _state.value.open
         if (open != null && open.editor == editor && open.id != pageId) {
             _state.update { it.copy(open = open.copy(id = pageId, title = title, icon = icon, kind = kind ?: open.kind), saveState = null) }
@@ -527,15 +527,25 @@ class NotesViewModel(
                 )
             }
         }
-        onEditorMeta(editor, title, icon)
+        onEditorMeta(editor, title, icon, version)
     }
 
-    fun onEditorMeta(editor: String, title: String, icon: String?) {
+    fun onEditorMeta(editor: String, title: String, icon: String?, version: Int? = null) {
         val id = pageOf(editor)
         _state.update { state ->
             state.copy(
                 open = state.open?.takeIf { it.id == id }?.copy(title = title, icon = icon) ?: state.open,
-                pages = state.pages.map { if (it.id == id) it.copy(title = title, icon = icon) else it },
+                pages = state.pages.map {
+                    if (it.id == id) {
+                        it.copy(
+                            title = title,
+                            icon = icon,
+                            version = version?.takeIf { v -> v > it.version } ?: it.version,
+                        )
+                    } else {
+                        it
+                    }
+                },
             )
         }
     }
@@ -661,13 +671,24 @@ class NotesViewModel(
             return false
         }
         if (owner != identity) return false
+        val version = _state.value.pages.firstOrNull { it.id == pageId }?.version ?: 0
         return groupAction {
-            val written = backend.renameNote(pageId, normalized)
+            val written = backend.renameNote(pageId, normalized, version)
             val page = written.page
             Pair({
                 _state.update { s ->
                     s.copy(
-                        pages = s.pages.map { if (it.id == pageId) it.copy(title = page.title, version = page.version) else it },
+                        pages = s.pages.map {
+                            if (it.id == pageId) {
+                                it.copy(
+                                    title = page.title,
+                                    version = page.version,
+                                    updatedAt = page.updatedAt.ifBlank { it.updatedAt },
+                                )
+                            } else {
+                                it
+                            }
+                        },
                         open = s.open?.let { if (it.id == pageId) it.copy(title = page.title) else it },
                     )
                 }

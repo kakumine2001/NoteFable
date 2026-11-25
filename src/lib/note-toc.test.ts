@@ -39,14 +39,18 @@ describe("note table of contents helpers", () => {
     ]);
   });
 
-  it("ignores empty headings, headings without IDs, and unsupported heading levels", () => {
+  it("treats omitted heading level as H1 and ignores empty headings, missing IDs, and unsupported levels", () => {
     const blocks = [
       { id: "empty", type: "heading", props: { level: 1 }, content: [{ type: "text", text: "   ", styles: {} }], children: [] },
+      { id: "h-default", type: "heading", props: {}, content: [{ type: "text", text: "Default H1", styles: {} }], children: [] },
       { type: "heading", props: { level: 1 }, content: [{ type: "text", text: "No ID", styles: {} }], children: [] },
       { id: "h4", type: "heading", props: { level: 4 }, content: [{ type: "text", text: "Too deep", styles: {} }], children: [] },
       { id: "ok", type: "heading", props: { level: 2 }, content: [{ type: "text", text: "Valid", styles: {} }], children: [] },
     ];
-    expect(extractTocHeadings(blocks)).toEqual([{ id: "ok", level: 2, text: "Valid" }]);
+    expect(extractTocHeadings(blocks)).toEqual([
+      { id: "h-default", level: 1, text: "Default H1" },
+      { id: "ok", level: 2, text: "Valid" },
+    ]);
   });
 
   it("compares heading snapshots accurately", () => {
