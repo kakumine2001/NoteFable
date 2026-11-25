@@ -29,7 +29,8 @@ import { msg } from "@/lib/i18n/translate";
 import { failureText } from "@/lib/failure-text";
 import { relativeTime } from "@/lib/notes-home-text";
 import { chatsTurns, notePanelTurns } from "@/lib/session-turns";
-import { anchorAncestors, anchorFabPosition, clampFabPosition, FAB_DRAG_THRESHOLD, loadFabPosition, panelPlacement, saveFabPosition, type FabPosition } from "@/lib/fab-position";
+import { bubblePlacement, anchorAncestors, anchorFabPosition, clampFabPosition, FAB_DRAG_THRESHOLD, loadFabPosition, panelPlacement, saveFabPosition, type FabPosition } from "@/lib/fab-position";
+import { selectionKey } from "@/lib/canvas-selection-state";
 import { StorageLimitError, UsageLimitError, storageLimitErrorFrom, usageLimitErrorFrom } from "@/lib/usage-plans";
 import { nativeCanOpenPage, nativeCanShowStorageLimit, nativeCanShowUsageLimit, postToNative } from "@/lib/native-bridge";
 import { NoteIcon } from "@/components/note-icon";
@@ -225,7 +226,7 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
   // エディターが用意したボタンの置き場所（CanvasEditorProps.aiSlot の目印）。動かしていないボタンはここに重ねる。
   anchor?: HTMLElement | null;
 }) {
-  const { t, tag } = useI18n();
+  const { t, tag, dir } = useI18n();
   // 提案カードに、このパネルのページを伝える（そのページへの「開く」は出さない）。
   // アプリ（/note-embed）の中のカードの「開く」は、アプリにページを開いてもらう。開けない古いアプリでは出さない（ブラウザに飛ばさない）。
   const proposalHost = useMemo<ProposalHost>(() => embedded
@@ -455,8 +456,43 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
     window.setTimeout(() => { skipClick.current = false; });
   }
 
+  const [dismissedBubbleKey, setDismissedBubbleKey] = useState<string | null>(null);
+  const [perked, setPerked] = useState(false);
+  const lastBubbleSelectionKeyRef = useRef("");
+  const perkTimerRef = useRef(0);
+  const activeSelectionKey = selectionKey(selection);
+  useEffect(() => {
+    if (!activeSelectionKey) {
+      lastBubbleSelectionKeyRef.current = "";
+      queueMicrotask(() => {
+        setDismissedBubbleKey(null);
+        setPerked(false);
+      });
+      return;
+    }
+    if (activeSelectionKey !== lastBubbleSelectionKeyRef.current) {
+      lastBubbleSelectionKeyRef.current = activeSelectionKey;
+      queueMicrotask(() => setDismissedBubbleKey(null));
+      if (!open && !hidden && hasSelection) {
+        window.clearTimeout(perkTimerRef.current);
+        queueMicrotask(() => setPerked(true));
+        perkTimerRef.current = window.setTimeout(() => setPerked(false), 520);
+      }
+    }
+  }, [activeSelectionKey, open, hidden, hasSelection]);
+  useEffect(() => () => window.clearTimeout(perkTimerRef.current), []);
+
   // PC では、動かしたボタンのそばにパネルを開く。動かしていなければ CSS の既定位置（右下）のまま。
   const panelStyle = fab && !phone ? panelPlacement(fab, fabSize, Math.min(26 * viewport.rem, viewport.width - 2.5 * viewport.rem), viewport.width, viewport.height) : undefined;
+  const showBubble = !open && !hidden && hasSelection && !dragging && dismissedBubbleKey !== activeSelectionKey;
+  const bubble = showBubble && viewport.width > 0
+    ? bubblePlacement(fab, fabSize, viewport.width, viewport.height, dir, phone)
+    : null;
+  const selectionSummary = pageKind === "note" && selectionIds.length > 0
+    ? (selectionIds.length === 1 ? t("1 block") : t("{count} blocks", { count: selectionIds.length }))
+    : selectionIds.length > 0
+      ? t("{count} items selected", { count: selectionIds.length })
+      : "";
 
   // スマホではシートとして開き、端末の「戻る」で閉じられるようにする。
   useBackToClose(open && phone, close);
@@ -995,7 +1031,16 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
         {hasSelection && (
           <div className="note-ai-selection">
             <div className="chat-quote note-ai-quote" role="group" aria-label={selectionText ? t("Selected text") : t("Selected items")}>
-              <span className="chat-quote-text">{selectionText || t("{count} items selected", { count: selectionIds.length })}</span>
+              {pageKind === "note" && selectionIds.length > 0 && selectionText && (
+                <span className="note-ai-quote-badge">
+                  {selectionIds.length === 1 ? t("1 block") : t("{count} blocks", { count: selectionIds.length })}
+                </span>
+              )}
+              <span className="chat-quote-text">
+                {selectionText || (pageKind === "note"
+                  ? (selectionIds.length === 1 ? t("1 block") : t("{count} blocks", { count: selectionIds.length }))
+                  : t("{count} items selected", { count: selectionIds.length }))}
+              </span>
               {Boolean(selection?.captureImage && modelOption.supportsImageInput) && (
                 <ImageIcon size={13} className="note-ai-quote-vision" aria-hidden="true" />
               )}
@@ -1066,7 +1111,38 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
 
   return (
     <>
-      <button ref={fabRef} type="button" className={`note-ai-fab ${open ? "is-open" : ""} ${!open && hasSelection ? "has-selection" : ""} ${dragging ? "is-dragging" : ""} ${anchored ? "is-anchored" : ""}`}
+      {bubble && (
+        <div
+          className={`note-ai-bubble is-side-${bubble.side} ${anchored ? "is-anchored" : ""}`}
+          style={bubble.style}
+          role="region"
+          aria-label={t("Ask NoteFable")}
+        >
+          <button
+            type="button"
+            className="note-ai-bubble-action"
+            onClick={() => {
+              setOpen(true);
+              setHistoryOpen(false);
+              if (!phone) queueMicrotask(() => inputRef.current?.focus());
+            }}
+          >
+            <span className="note-ai-bubble-dot" aria-hidden="true" />
+            <span className="note-ai-bubble-label">{t("Ask NoteFable")}</span>
+            {selectionSummary && <span className="note-ai-bubble-meta">{selectionSummary}</span>}
+          </button>
+          <button
+            type="button"
+            className="note-ai-bubble-close"
+            aria-label={t("Close")}
+            title={t("Close")}
+            onClick={() => setDismissedBubbleKey(activeSelectionKey)}
+          >
+            <X size={13} aria-hidden="true" />
+          </button>
+        </div>
+      )}
+      <button ref={fabRef} type="button" className={`note-ai-fab ${open ? "is-open" : ""} ${!open && hasSelection ? "has-selection" : ""} ${perked && !open ? "is-perked" : ""} ${dragging ? "is-dragging" : ""} ${anchored ? "is-anchored" : ""}`}
         style={fab ? { right: fab.right, bottom: fab.bottom } : undefined}
         onPointerDown={onFabPointerDown} onPointerMove={onFabPointerMove} onPointerUp={onFabPointerEnd} onPointerCancel={onFabPointerEnd}
         onClick={() => { if (skipClick.current) { skipClick.current = false; return; } setOpen((current) => !current); }}

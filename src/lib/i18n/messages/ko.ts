@@ -15,6 +15,10 @@ export const ko: Record<string, string> = {
   "A recovered draft differs from the latest note. Save a copy or load the latest version.": "복구된 임시 저장본이 최신 노트와 다릅니다. 사본으로 저장하거나 최신 버전을 불러오세요.",
   "AI chat and notes in one place: ask a question, keep the answer as a note in your workspace, and find it again later.": "AI 채팅과 노트를 한곳에서: 질문하고, 답변을 노트로 워크스페이스에 남기고, 나중에 다시 찾아보세요.",
   "AI chat and notes, in one place": "AI 채팅과 노트를 한곳에서",
+  "Add headings to create a table of contents.": "제목을 추가하면 목차가 자동으로 생성됩니다.",
+  "Page title": "페이지 제목",
+  "Rename page": "페이지 이름 바꾸기",
+  "Table of contents": "목차",
   "Visit website": "웹사이트 방문",
   "Account": "계정",
   "Actions": "작업",
@@ -1181,4 +1185,7 @@ export const ko: Record<string, string> = {
   "Branches on both sides": "가지를 양쪽에",
   "Branches on the right": "가지를 오른쪽에",
   "New topic": "새 주제",
+  "1 block": "1개 블록",
+  "{count} blocks": "{count}개 블록",
+  "Block selection actions": "블록 선택 작업",
 };

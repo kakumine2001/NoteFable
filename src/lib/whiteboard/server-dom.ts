@@ -19,7 +19,8 @@ function sharedScope(): AsyncLocalStorage<Scope> {
   return (holder[SHARED] ??= new AsyncLocalStorage<Scope>());
 }
 
-const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'", nbsp: " " };
+// Mermaid の #semi; / #num; は、変換器が &semi; / &num; にしてから戻させる。
+const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'", nbsp: " ", semi: ";", num: "#" };
 
 function decodeHtml(html: string) {
   return html

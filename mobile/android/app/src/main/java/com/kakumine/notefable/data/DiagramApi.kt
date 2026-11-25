@@ -128,12 +128,14 @@ sealed interface DiagramJob {
     /**
      * [message] 是英文原句（服务端的，或兜底句），界面经系统文词典翻译。
      * [mermaid]：422 转换不了时 AI 写的 Mermaid 原文，有它时窗口里多一个"复制图的源码"。
+     * [usageLimitTier]：429 usage_limit 时的档位（"guest" / "member"），用于窗口内显示登录 / 升级提示。
      */
     data class Failed(
         override val source: DiagramSource,
         override val requestId: String,
         val message: String,
         val mermaid: String? = null,
+        val usageLimitTier: String? = null,
     ) : DiagramJob
 }
 
@@ -167,8 +169,11 @@ class DiagramStore(
     /** 画好的新白板（窗口关着、在后台画完也会发出）。 */
     val created: SharedFlow<NotePageSummary> = _created.asSharedFlow()
 
-    // 换身份的次数。进行中的任务按开始时的值判断结果还要不要。
+    // 换身份的次数。进行中的任务和保存前置步骤按开始时的值判断结果还要不要。
     private var generation = 0
+    val currentGeneration: Int get() = generation
+    // 正在等待保存（prepare）的素材 key：避免慢保存期间连点两次并发保存或重复开启任务。
+    private val preparing = mutableSetOf<String>()
 
     /**
      * 开始画 [source]，返回任务的 key（窗口按它显示）。这份素材已经有任务（进行中、画好了或失败了）时不另起，
@@ -180,9 +185,28 @@ class DiagramStore(
         return key
     }
 
-    /** 先做 [prepare]（笔记：让编辑器把这篇存上），成功了才 [start]。返回任务的 key；没准备好时 null（不开始）。 */
-    suspend fun startWhenReady(source: DiagramSource, model: String?, prepare: suspend () -> Boolean): String? =
-        if (prepare()) start(source, model) else null
+    /**
+     * 先查已有任务（已存在时直接返回 key 重开窗口，不重做保存）；否则做 [prepare]（笔记：让编辑器把这篇存上），
+     * 成功且期间未换身份才 [start]。同 key 正在保存或期间换了身份时返回 null。
+     */
+    suspend fun startWhenReady(
+        source: DiagramSource,
+        model: String?,
+        expectedGeneration: Int = generation,
+        prepare: suspend () -> Boolean,
+    ): String? {
+        if (expectedGeneration != generation) return null
+        val key = source.key
+        if (_jobs.value[key] != null) return key
+        if (!preparing.add(key)) return null
+        val ready = try {
+            prepare()
+        } finally {
+            if (expectedGeneration == generation) preparing.remove(key)
+        }
+        if (!ready || expectedGeneration != generation) return null
+        return start(source, model)
+    }
 
     /** 失败后"重试"：沿用同一个 clientRequestId（上次其实建好了的话服务端直接返回那一页，不重复建、不再扣次数）。 */
     fun retry(key: String, model: String?) {
@@ -203,7 +227,8 @@ class DiagramStore(
                 _jobs.update { it - key }
                 throw e
             } catch (e: Throwable) {
-                DiagramJob.Failed(source, requestId, diagramErrorMessage(e), (e as? DiagramInvalidException)?.mermaid)
+                val limitTier = (e as? ApiException)?.takeIf { it.isUsageLimit }?.tier
+                DiagramJob.Failed(source, requestId, diagramErrorMessage(e), (e as? DiagramInvalidException)?.mermaid, limitTier)
             }
             // 期间换过身份：结果不留（那张白板是别的身份的，打不开），只把"进行中"去掉。
             _jobs.update { if (startedIn == generation) it + (key to next) else it - key }
@@ -221,6 +246,7 @@ class DiagramStore(
      */
     fun clear() {
         generation++
+        preparing.clear()
         _jobs.update { jobs -> jobs.filterValues { it is DiagramJob.Working } }
     }
 }

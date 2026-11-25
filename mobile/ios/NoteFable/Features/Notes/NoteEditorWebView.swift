@@ -222,6 +222,11 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         // 消息按当前活跃编辑器转发，不按页面 id：换到副本后由 ViewModel 跟过去。
         self.bridge = NoteEmbedBridge(onMessage: { [weak self] message in
             guard let self else { return }
+            if case .pagesChanged = message {
+                // 笔记 AI 面板的后台画成图可能在离开编辑页（常驻 WKWebView 停靠中）或切页途中完成：只要 WKWebView 还在就刷新列表。
+                if self.webView != nil { self.app.notes.refresh() }
+                return
+            }
             guard let editor = self.activeEditor else {
                 // 首次 HTML 还没加载完用户就离开了笔记：立刻让网页卸载编辑器 DOM，不留孤立实例。
                 if case .ready = message { self.bridge.close() }
@@ -229,7 +234,7 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
             }
             if let expected = self.awaitingPageId {
                 switch message {
-                case .ready(let id, _, _, _):
+                case .ready(let id, _, _, _, _):
                     if id != expected { return }
                     self.awaitingPageId = nil
                     self.currentPageId = id
@@ -242,7 +247,7 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
                 }
             } else {
                 switch message {
-                case .ready(let id, _, _, _):
+                case .ready(let id, _, _, _, _):
                     // 冲突后“另存为新笔记”：开着的换成了副本，它也在网页的缓存里。
                     self.currentPageId = id
                     self.openedPageIds.insert(id)
@@ -272,7 +277,7 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         }
 
         let configuration = WKWebViewConfiguration()
-        configuration.websiteDataStore = Self.dataStore
+        configuration.websiteDataStore = ScreenshotHooks.isActive ? .nonPersistent() : Self.dataStore
         configuration.allowsInlineMediaPlayback = true
         // WKUserContentController 会强引用消息处理者，中间隔一个弱引用，免得和 WebView 互相拉住。
         configuration.userContentController.add(NoteScriptMessageProxy(self), name: Self.handlerName)
@@ -471,6 +476,20 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
             forMainFrameOnly: true
         ))
 
+        #if DEBUG
+        if ScreenshotHooks.isActive {
+            self.isLoaded = true
+            self.historyFloor = 0
+            let html = FixtureEditorPage.html(
+                pageId: pageId,
+                theme: self.pushedTheme.isEmpty ? "light" : self.pushedTheme,
+                language: self.app.language.uiLocale
+            )
+            webView.loadHTMLString(html, baseURL: url)
+            return
+        }
+        #endif
+
         // 排在前面的换 Cookie 做完再轮到这次；轮到时这次已经被新的加载或离开页面取代就什么都不做。
         // App 的 Cookie 在真正换的那一刻读，不用开始加载时的旧值（中间可能登录 / 退出了）。
         let previous = Self.cookieChain
@@ -646,6 +665,9 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         let baseUrl = app.config.baseURL
         let scheme = url.scheme?.lowercased() ?? ""
         if scheme == "about" { return true }
+        if ScreenshotHooks.isActive {
+            return (scheme == "http" || scheme == "https") && isSameSite(url) && url.path.contains("/note-embed")
+        }
         guard scheme == "http" || scheme == "https" else {
             // mailto:、tel: 之类交给系统；blob:、data:、javascript: 系统打不开，也不让它换掉编辑器。
             if !["blob", "data", "javascript", "file"].contains(scheme) { openExternally(url) }

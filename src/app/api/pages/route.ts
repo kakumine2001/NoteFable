@@ -19,7 +19,7 @@ export async function GET(request: Request) {
         where: { userId: user.id, deletedAt: null },
         orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
         take: CHAT_RECENT_COUNT,
-        select: { id: true, kind: true, title: true, icon: true, updatedAt: true },
+        select: { id: true, kind: true, title: true, icon: true, cover: true, coverPosition: true, updatedAt: true },
       });
       return NextResponse.json({ pages }, { headers: { "Cache-Control": "no-store" } });
     }

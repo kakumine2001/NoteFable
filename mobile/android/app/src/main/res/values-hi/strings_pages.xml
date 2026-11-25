@@ -25,4 +25,6 @@
     <string name="pg_search_pages">पेज खोजें</string>
     <string name="pg_no_matching_pages">कोई मेल खाता पेज नहीं मिला।</string>
     <string name="pg_subpages_to_trash">इसके सब-पेज भी इसके साथ ट्रैश में चले जाएँगे।</string>
+    <string name="pg_rename_page">पृष्ठ का नाम बदलें</string>
+    <string name="pg_page_title">पृष्ठ शीर्षक</string>
 </resources>

@@ -171,7 +171,7 @@ describe("public note colors", { timeout: 30_000 }, () => {
         ] },
       },
     ]);
-    expect(html).toContain('<div class="public-note-block" style="color:var(--public-note-red-text);background-color:var(--public-note-blue-bg);text-align:center"><h2 class="public-note-h2">');
+    expect(html).toContain('<div class="public-note-block" style="color:var(--public-note-red-text);background-color:var(--public-note-blue-bg);text-align:center"><h2 id="heading-h" class="public-note-h2">');
     expect(html).toContain('<span style="color:var(--public-note-green-text);background-color:var(--public-note-yellow-bg)" class="public-note-highlight">marked</span>');
     expect(html).toContain('<span style="color:var(--public-note-pink-text)">tinted</span>');
     expect(html).toContain('<th style="background-color:var(--public-note-gray-bg)">');
@@ -202,6 +202,36 @@ describe("public note colors", { timeout: 30_000 }, () => {
     expect(html).toContain('<div class="public-note-block public-note-paragraph"><p><span>block</span></p></div>');
   });
 
+  it("renders tableOfContents anchor links targeting headings in the shared note", async () => {
+    const html = await render([
+      { id: "toc", type: "tableOfContents", props: {}, children: [] },
+      { id: "h-intro", type: "heading", props: { level: 1 }, content: [text("Intro")], children: [] },
+      { id: "h-detail", type: "heading", props: { level: 2 }, content: [text("Detail")], children: [] },
+    ]);
+    expect(html).toContain('<h1 id="heading-h-intro" class="public-note-h1"><span>Intro</span></h1>');
+    expect(html).toContain('<h2 id="heading-h-detail" class="public-note-h2"><span>Detail</span></h2>');
+    expect(html).toContain('<a href="#heading-h-intro" class="public-note-toc-link">Intro</a>');
+    expect(html).toContain('<a href="#heading-h-detail" class="public-note-toc-link">Detail</a>');
+  });
+
+  it("caps rendered tableOfContents links across repeated TOC blocks on one shared page", async () => {
+    const headings = Array.from({ length: 120 }, (_, i) => ({
+      id: `h-${i}`,
+      type: "heading",
+      props: { level: 1 },
+      content: [text(`Heading ${i}`)],
+      children: [],
+    }));
+    const tocs = Array.from({ length: 12 }, (_, i) => ({
+      id: `toc-${i}`,
+      type: "tableOfContents",
+      props: {},
+      children: [],
+    }));
+    const html = await render([...tocs, ...headings]);
+    expect(html.match(/class="public-note-toc-link"/g)?.length).toBe(1000);
+  });
+
   it("keeps the light colors and uses the editor's colors in dark mode", () => {
     const css = readFileSync(fileURLToPath(new URL("../app/globals.css", import.meta.url)), "utf8");
     const light = declarations(css, /\.public-note-shell/);
@@ -222,5 +252,40 @@ describe("public note colors", { timeout: 30_000 }, () => {
     expect(light["--public-note-callout-bg"]).toBe(declarations(css, editorCallout).background);
     expect(dark["--public-note-callout-bg"]).toBe(declarations(css, new RegExp(`:root\\[data-theme="dark"\\] ${editorCallout.source}`)).background);
     expect(dark["--public-note-callout-bg"]).toBe("rgba(255, 255, 255, 0.05)");
+  });
+});
+
+describe("public share scrolling", () => {
+  it("gives public note, unavailable, and slides views a 100dvh scroll container because body hides overflow", () => {
+    const globals = readFileSync(fileURLToPath(new URL("../app/globals.css", import.meta.url)), "utf8");
+    const slidesCss = readFileSync(fileURLToPath(new URL("./slides/slides.css", import.meta.url)), "utf8");
+
+    expect(declarations(globals, /body/).overflow).toBe("hidden");
+
+    const noteShell = declarations(globals, /\.public-note-shell/);
+    expect(noteShell.height).toBe("100dvh");
+    expect(noteShell["overflow-y"]).toBe("auto");
+    expect(noteShell["scroll-padding-top"]).toBe("3rem");
+
+    const topbar = declarations(globals, /\.public-note-topbar/);
+    expect(topbar.position).toBe("sticky");
+    expect(topbar.top).toBe("0");
+    expect(topbar.flex).toBe("none");
+
+    expect(declarations(globals, /\.public-note-main/).flex).toBe("1 0 auto");
+
+    const unavailable = declarations(globals, /\.public-note-unavailable/);
+    expect(unavailable.height).toBe("100dvh");
+    expect(unavailable["overflow-y"]).toBe("auto");
+
+    const whiteboardShell = declarations(globals, /\.public-whiteboard-shell/);
+    expect(whiteboardShell.height).toBe("100dvh");
+    expect(whiteboardShell.overflow).toBe("hidden");
+    expect(globals.lastIndexOf(".public-whiteboard-shell")).toBeGreaterThan(globals.lastIndexOf(".public-note-shell"));
+
+    const slidesShell = declarations(slidesCss, /\.public-slides-shell/);
+    expect(slidesShell.height).toBe("100dvh");
+    expect(slidesShell["overflow-y"]).toBe("auto");
+    expect(declarations(slidesCss, /\.public-slides-topbar/).flex).toBe("none");
   });
 });

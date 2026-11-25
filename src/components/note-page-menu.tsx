@@ -1,7 +1,7 @@
 "use client";
 
 import { Copy, Download, Ellipsis, FilePlus2, Flag, FolderInput, LoaderCircle, Lock, Presentation, Star, StarOff, Trash2, Workflow } from "lucide-react";
-import { useId, useState, type ReactNode } from "react";
+import { useCallback, useId, useState, type ReactNode } from "react";
 import { AnswerMenu, ReportDialog } from "@/components/answer-actions";
 import { useDiagramJob } from "@/components/draw-diagram-dialog";
 import { diagramKey } from "@/lib/draw-diagram-jobs";
@@ -48,7 +48,7 @@ export function NotePageMenu({ page, busy, error, onSettings, onPresent, onFavor
   const features = pageKindFeatures(kind);
   const canDraw = !!onDrawDiagram && kind === "note";
   const diagram = useDiagramJob(canDraw ? diagramKey({ type: "note", pageId: page.id }) : null);
-  const close = () => setMenu(null);
+  const close = useCallback(() => setMenu(null), []);
   // 操作を選んだらメニューを閉じてから実行する（ダイアログ・画面遷移と重ならないように）。
   const run = (action: () => void) => () => { close(); action(); };
   return <>

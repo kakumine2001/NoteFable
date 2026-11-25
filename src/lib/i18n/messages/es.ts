@@ -15,6 +15,10 @@ export const es: Record<string, string> = {
   "A recovered draft differs from the latest note. Save a copy or load the latest version.": "Un borrador recuperado difiere de la nota más reciente. Guarda una copia o carga la última versión.",
   "AI chat and notes in one place: ask a question, keep the answer as a note in your workspace, and find it again later.": "Chat con IA y notas en un solo lugar: haz una pregunta, guarda la respuesta como nota en tu Espacio y vuelve a encontrarla después.",
   "AI chat and notes, in one place": "Chat con IA y notas, en un solo lugar",
+  "Add headings to create a table of contents.": "Añade encabezados para crear una tabla de contenido.",
+  "Page title": "Título de la página",
+  "Rename page": "Cambiar nombre de la página",
+  "Table of contents": "Tabla de contenido",
   "Visit website": "Visitar el sitio web",
   "Account": "Cuenta",
   "Actions": "Acciones",
@@ -1181,4 +1185,7 @@ export const es: Record<string, string> = {
   "Branches on both sides": "Ramas a ambos lados",
   "Branches on the right": "Ramas a la derecha",
   "New topic": "Nuevo tema",
+  "1 block": "1 bloque",
+  "{count} blocks": "{count} bloques",
+  "Block selection actions": "Acciones de selección de bloques",
 };

@@ -306,6 +306,18 @@ class NoteFableApi(
         send<JsonObjectResponse>(Request.Builder().url(absoluteUrl("/api/pages/groups/${segment(id)}")).delete())
     }
 
+    override suspend fun renameNote(id: String, title: String, version: Int): NoteIconWrite = withContext(Dispatchers.Default) {
+        val body = buildJsonObject {
+            put("title", title)
+            put("version", version)
+        }.toString()
+        val response = send<kotlinx.serialization.json.JsonObject>(
+            Request.Builder().url(absoluteUrl("/api/pages/${segment(id)}/title")).put(body.toRequestBody(JSON)),
+        )
+        val page = response["page"] as? kotlinx.serialization.json.JsonObject ?: throw IllegalStateException("missing page")
+        NoteIconWrite(NoteFableJson.decodeFromJsonElement(NotePageSummary.serializer(), page), page.toString())
+    }
+
     override suspend fun trash(): List<NoteTrashItem> = getJson<TrashResponse>("/api/pages/trash").pages
 
     override suspend fun restoreNote(id: String): List<NotePageSummary> {

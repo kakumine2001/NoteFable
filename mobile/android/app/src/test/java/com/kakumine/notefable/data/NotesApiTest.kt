@@ -9,6 +9,7 @@ import okhttp3.CookieJar
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -190,7 +191,9 @@ class NotesApiTest {
     @Test
     fun `parses the bridge messages and ignores unknown ones`() {
         assertEquals(EmbedMessage.Ready("p", "Title", null), EmbedMessage.parse("""{"type":"ready","page":{"id":"p","title":"Title","icon":null}}"""))
+        assertEquals(EmbedMessage.Ready("p", "Title", null, version = 7), EmbedMessage.parse("""{"type":"ready","page":{"id":"p","title":"Title","icon":null,"version":7}}"""))
         assertEquals(EmbedMessage.Meta("T", "📘"), EmbedMessage.parse("""{"type":"meta","title":"T","icon":"📘"}"""))
+        assertEquals(EmbedMessage.Meta("T", "📘", version = 8), EmbedMessage.parse("""{"type":"meta","title":"T","icon":"📘","version":8}"""))
         assertEquals(EmbedMessage.SaveState("conflict"), EmbedMessage.parse("""{"type":"saveState","state":"conflict"}"""))
         assertEquals(EmbedMessage.Missing(), EmbedMessage.parse("""{"type":"missing"}"""))
         assertEquals(EmbedMessage.Missing("p1"), EmbedMessage.parse("""{"type":"missing","id":"p1"}"""))
@@ -257,5 +260,29 @@ class NotesApiTest {
         assertEquals(null, NoteIcons.imagePath("upload:page-covers/user1/../x.png"))
         assertEquals(null, NoteIcons.text(key))
         assertEquals("📄", NoteIcons.text("📄"))
+    }
+
+    @Test
+    fun `renames a page via PUT title and decodes cover fields on recent notes`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setBody("""{"pages":[{"id":"r","title":"Plan","cover":"gradient-ocean","coverPosition":35}]}"""))
+            server.enqueue(MockResponse().setBody("""{"page":{"id":"r","title":"Renamed plan","version":4,"cover":"gradient-ocean","coverPosition":35}}"""))
+            val api = server.api()
+            val recent = api.recentNotes()
+            assertEquals("gradient-ocean", recent[0].cover)
+            assertEquals(35, recent[0].coverPosition)
+            assertNotNull(NoteCovers.preset(recent[0].cover))
+            assertNull(NoteCovers.imagePath(recent[0].cover))
+
+            val written = api.renameNote("r", "Renamed plan", 3)
+            assertEquals("Renamed plan", written.page.title)
+            assertEquals(4, written.page.version)
+            assertTrue(written.json?.contains("Renamed plan") == true)
+            assertEquals("/api/pages?recent=1", server.next().path)
+            val renameReq = server.next()
+            assertEquals("PUT", renameReq.method)
+            assertEquals("/api/pages/r/title", renameReq.path)
+            assertEquals("""{"title":"Renamed plan","version":3}""", renameReq.body.readUtf8())
+        }
     }
 }

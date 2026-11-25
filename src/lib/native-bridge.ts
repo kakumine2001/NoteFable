@@ -12,8 +12,8 @@ import type { UsageKind, UsageTier } from "@/lib/usage-plans";
 export type EmbedSaveState = "saved" | "saving" | "unsaved" | "error" | "conflict";
 export type NativeMessage =
   // kind はページの種類（note / whiteboard / slides）。古いアプリは読まない（知らない項目は無視する）。
-  | { type: "ready"; page: { id: string; title: string; icon: string | null; kind?: PageKind } }
-  | { type: "meta"; title: string; icon: string | null }
+  | { type: "ready"; page: { id: string; title: string; icon: string | null; kind?: PageKind; version?: number } }
+  | { type: "meta"; title: string; icon: string | null; version?: number }
   | { type: "saveState"; state: EmbedSaveState }
   | { type: "missing"; id?: string }
   | { type: "trashed" }

@@ -23,11 +23,9 @@ struct NotesHomeView: View {
         let nothing = state.pages.isEmpty && state.groups.isEmpty
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 0) {
-                WorkspaceSwitch()
-                    .padding(.top, 4)
                 if let error = state.error {
                     NotesErrorBar(notesErrorText(error, app.systemText), onRetry: { notes.refresh() })
-                        .padding(.top, 20)
+                        .padding(.top, 12)
                 }
                 if state.loading && nothing {
                     Text(L("loading_notes"))
@@ -145,6 +143,13 @@ private struct NotesHomeList: View {
         CreateDeckCards(kinds: kinds, busy: busy) { notes.createNote(kind: $0) }
             .padding(.bottom, 18)
 
+        // 最近编辑（网页 notes-recent-list）：显示封面、图标、标题和日期
+        let recent = recentHomePages(state.pages)
+        if !recent.isEmpty {
+            RecentNotesCarousel(recent: recent, busy: busy, multiKind: multiKind) { notes.openNote($0) }
+                .padding(.bottom, 18)
+        }
+
         // 类型筛选栏（All | Notes | Slides | Whiteboards）
         if multiKind {
             KindFilterBar(kinds: kinds, active: activeFilter) { kindFilter = $0 }
@@ -207,6 +212,151 @@ private struct NotesHomeList: View {
 }
 
 // MARK: - Studio 组件（工具胶囊、快速创建卡、筛选栏、卡片容器）
+
+struct NoteCoverBanner: View {
+    let cover: String?
+    let coverPosition: Int?
+    let kind: PageKind
+    @Environment(AppEnvironment.self) private var app
+    @State private var loaded: LoadedImage? = nil
+
+    var body: some View {
+        let preset = NoteCovers.preset(cover)
+        let imagePath = NoteCovers.imagePath(cover)
+        ZStack {
+            if let preset {
+                if preset.startArgb == preset.endArgb {
+                    Color(argb: preset.startArgb)
+                } else {
+                    LinearGradient(
+                        colors: [Color(argb: preset.startArgb), Color(argb: preset.endArgb)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                }
+            } else {
+                LinearGradient(
+                    colors: [pageKindSoft(kind), Sm.sidebar],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+            if let imagePath, let image = currentImage(imagePath) {
+                GeometryReader { proxy in
+                    let pos = Double(min(100, max(0, coverPosition ?? 50))) / 100.0
+                    let targetW = proxy.size.width
+                    let targetH = proxy.size.height
+                    let imgAspect = image.size.height > 0 ? image.size.width / image.size.height : 1
+                    let boxAspect = targetH > 0 ? targetW / targetH : 1
+                    let renderedH = imgAspect > boxAspect ? targetH : targetW / max(imgAspect, 0.01)
+                    let overflowY = max(0, renderedH - targetH)
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: targetW, height: renderedH)
+                        .offset(y: -(overflowY * pos))
+                        .frame(width: targetW, height: targetH, alignment: .top)
+                        .clipped()
+                }
+            }
+        }
+        .clipped()
+        .accessibilityHidden(true)
+        .task(id: RemoteImageRequest(path: imagePath ?? "", generation: app.identityGeneration)) {
+            guard let imagePath else { loaded = nil; return }
+            let image = await RemoteImageLoader.image(imagePath, app: app)
+            if Task.isCancelled { return }
+            loaded = image.map { LoadedImage(path: imagePath, generation: app.identityGeneration, image: $0) }
+        }
+    }
+
+    private func currentImage(_ path: String) -> UIImage? {
+        if let image = loaded?.current(path, app: app) { return image }
+        return RemoteImageLoader.cachedImage(path, app: app)
+    }
+}
+
+@MainActor
+private struct RecentNotesCarousel: View {
+    let recent: [NotePageSummary]
+    let busy: Bool
+    let multiKind: Bool
+    let onOpen: (String) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                LucideIcon(Lucide.clock3, size: 14, color: Sm.muted)
+                Text(L("recently_edited"))
+                    .font(.nf(13, weight: 600))
+                    .foregroundStyle(Sm.muted)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 4)
+
+            ScrollView(.horizontal) {
+                HStack(spacing: 10) {
+                    ForEach(recent) { page in
+                        let shape = RoundedRectangle(cornerRadius: 14)
+                        let iconShape = RoundedRectangle(cornerRadius: 9)
+                        let title = page.title.isEmpty ? L("sb_untitled") : page.title
+                        Button {
+                            onOpen(page.id)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 0) {
+                                ZStack(alignment: .topTrailing) {
+                                    NoteCoverBanner(cover: page.cover, coverPosition: page.coverPosition, kind: page.kind)
+                                        .frame(height: 44)
+                                        .overlay(alignment: .bottom) { NFDivider() }
+                                    if multiKind {
+                                        Text(L(pageKindLabel(page.kind)))
+                                            .font(.nf(10.5, weight: 600))
+                                            .foregroundStyle(pageKindTextColor(page.kind))
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 1.5)
+                                            .background(Sm.surface.opacity(0.88), in: Capsule())
+                                            .overlay { Capsule().strokeBorder(Sm.border, lineWidth: 1) }
+                                            .padding(6)
+                                    }
+                                }
+                                VStack(alignment: .leading, spacing: 0) {
+                                    NFIconTile(emoji: page.icon, fallback: pageKindIcon(page.kind), box: 30, glyph: 15, color: pageKindColor(page.kind))
+                                        .background(Sm.surface, in: iconShape)
+                                        .overlay { iconShape.strokeBorder(Sm.border, lineWidth: 1) }
+                                        .shadow(color: Color(argb: 0x120F172A), radius: 2, x: 0, y: 1)
+                                        .offset(y: -14)
+                                    Text(title)
+                                        .font(.nf(13.5, weight: 600))
+                                        .nfLineHeight(18, fontSize: 13.5)
+                                        .foregroundStyle(Sm.ink)
+                                        .lineLimit(2)
+                                        .multilineTextAlignment(.leading)
+                                        .offset(y: -8)
+                                    Spacer(minLength: 0)
+                                    Text(noteShortDate(page.updatedAt))
+                                        .font(.nf(11.5))
+                                        .foregroundStyle(Sm.faint)
+                                        .lineLimit(1)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.bottom, 10)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                            }
+                            .frame(width: 168, height: 132, alignment: .topLeading)
+                        }
+                        .buttonStyle(.pressable(background: Sm.surface, cornerRadius: 14, scale: 0.99, disabledOpacity: 0.55))
+                        .overlay { shape.strokeBorder(Sm.border, lineWidth: 1).allowsHitTesting(false) }
+                        .clipShape(shape)
+                        .shadow(color: Color(argb: 0x0A0F172A), radius: 1, x: 0, y: 1)
+                        .disabled(busy)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+            .scrollIndicators(.hidden)
+        }
+    }
+}
 
 private struct NotesHomeUtilPill: View {
     let icon: [String]

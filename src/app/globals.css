@@ -1325,6 +1325,7 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 
 .notion-session-row:hover .notion-row-action,
 .notion-session-row:focus-within .notion-row-action,
+.notion-session-row.is-menu-open .notion-row-action,
 .notion-row-action:focus-visible {
   opacity: 1;
 }
@@ -1354,12 +1355,14 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
     transition: opacity 110ms ease;
   }
   .notion-session-row:hover .sidebar-row-actions,
-  .notion-session-row:focus-within .sidebar-row-actions {
+  .notion-session-row:focus-within .sidebar-row-actions,
+  .notion-session-row.is-menu-open .sidebar-row-actions {
     opacity: 1;
     pointer-events: auto;
   }
   .notion-session-row:hover .notion-row-action,
-  .notion-session-row:focus-within .notion-row-action {
+  .notion-session-row:focus-within .notion-row-action,
+  .notion-session-row.is-menu-open .notion-row-action {
     opacity: 1;
   }
 }
@@ -3598,7 +3601,7 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 .answer-report-dialog .answer-report-reason { min-height: 6rem; resize: vertical; line-height: 1.5; }
 
 /* ===== Workspace ホーム: スタジオヘッダー・作成デッキ・最近編集したページ・フィルター付きライブラリ ===== */
-.notes-home-hero { display: none; }
+.notes-home-hero { display: block; margin-bottom: 0.25rem; }
 .notes-sidebar-home { display: none; }
 .notes-home-greeting { display: none; }
 .ws-home-header {
@@ -3718,11 +3721,32 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
   .ws-create-icon { width: 2rem; height: 2rem; border-radius: 0.55rem; }
   .ws-home-header { margin-bottom: 0.85rem; padding-top: 0.65rem; }
   .ws-util-pill { height: 2.15rem; font-size: 0.8125rem; }
+  .ws-recent-nav { display: none; }
   .ws-library-bar { margin-top: 0.15rem; }
   .ws-library-heading { display: none; }
   .ws-filter-bar { width: 100%; }
   .ws-filter-pill { height: 2rem; font-size: 0.8125rem; }
 }
+
+.ws-recent-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin: 0 0.2rem 0.6rem; }
+.ws-recent-head .notes-home-section { margin: 0; }
+.ws-recent-nav { display: inline-flex; align-items: center; gap: 0.3rem; }
+.ws-recent-nav-btn {
+  display: grid; width: 1.75rem; height: 1.75rem; place-items: center;
+  border: 1px solid var(--notion-border); border-radius: 999px;
+  background: var(--notion-surface); color: var(--notion-muted);
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease, opacity 120ms ease;
+}
+.ws-recent-nav-btn:hover:not(:disabled) { border-color: var(--notion-border-strong); background: var(--notion-hover); color: var(--notion-text); }
+.ws-recent-nav-btn:focus-visible { outline: 2px solid var(--nf-accent-line); outline-offset: 1px; }
+.ws-recent-nav-btn:disabled { opacity: 0.32; cursor: default; }
+.notes-recent-list {
+  display: flex; gap: 0.65rem; margin: 0 -0.25rem 1.25rem; padding: 0.25rem 0.25rem 0.5rem; list-style: none; overflow-x: auto;
+  scroll-snap-type: x proximity; scrollbar-width: none;
+  mask-image: linear-gradient(to right, transparent, #000 0.35rem, #000 calc(100% - 1.5rem), transparent);
+}
+.notes-recent-list::-webkit-scrollbar { display: none; }
+.notes-recent-list li { flex: none; scroll-snap-align: start; }
 
 @media (min-width: 640px) {
   .notes-sidebar-home { display: flex; }
@@ -3733,28 +3757,14 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
   }
   .ws-home-header { padding-top: 2.4rem; margin-bottom: 1.35rem; }
   .notes-home-hero { display: block; margin-bottom: 0.5rem; }
-  .ws-recent-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin: 0 0.2rem 0.75rem; }
-  .ws-recent-head .notes-home-section { margin: 0; }
-  .ws-recent-nav { display: inline-flex; align-items: center; gap: 0.3rem; }
-  .ws-recent-nav-btn {
-    display: grid; width: 1.75rem; height: 1.75rem; place-items: center;
-    border: 1px solid var(--notion-border); border-radius: 999px;
-    background: var(--notion-surface); color: var(--notion-muted);
-    transition: background 120ms ease, border-color 120ms ease, color 120ms ease, opacity 120ms ease;
-  }
-  .ws-recent-nav-btn:hover:not(:disabled) { border-color: var(--notion-border-strong); background: var(--notion-hover); color: var(--notion-text); }
-  .ws-recent-nav-btn:focus-visible { outline: 2px solid var(--nf-accent-line); outline-offset: 1px; }
-  .ws-recent-nav-btn:disabled { opacity: 0.32; cursor: default; }
+  .ws-recent-head { margin: 0 0.2rem 0.75rem; }
   .notes-recent-list {
-    display: flex; gap: 0.85rem; margin: 0 -0.5rem 2rem; padding: 0.25rem 0.5rem 0.5rem; list-style: none; overflow-x: auto;
-    scroll-snap-type: x proximity; scrollbar-width: none;
+    gap: 0.85rem; margin: 0 -0.5rem 2rem; padding: 0.25rem 0.5rem 0.5rem;
     mask-image: linear-gradient(to right, transparent, #000 0.5rem, #000 calc(100% - 2rem), transparent);
   }
-  .notes-recent-list::-webkit-scrollbar { display: none; }
-  .notes-recent-list li { flex: none; scroll-snap-align: start; }
 }
 .notes-recent-card {
-  position: relative; display: flex; width: 12.75rem; height: 9.25rem; flex-direction: column; overflow: hidden; padding: 0 0.875rem 0.75rem; text-align: start;
+  position: relative; display: flex; width: 10.5rem; height: 8.25rem; flex-direction: column; overflow: hidden; padding: 0 0.75rem 0.65rem; text-align: start;
   border: 1px solid var(--notion-border); border-radius: 0.95rem; background: var(--notion-surface); box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), box-shadow 160ms ease, border-color 160ms ease;
 }
@@ -3765,58 +3775,65 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
   .notes-recent-card.is-whiteboard:hover:not(:disabled) { border-color: var(--kind-whiteboard-border); }
 }
 .notes-recent-card:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: 2px; }
+.notes-recent-cover {
+  position: relative; display: flex; flex: none; height: 2.75rem; margin: 0 -0.75rem;
+  align-items: flex-start; justify-content: flex-end; padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--notion-border); background: var(--notion-sidebar); overflow: hidden;
+}
+.notes-recent-cover.is-note {
+  background: linear-gradient(135deg, var(--kind-note-soft) 0%, color-mix(in srgb, var(--notion-sidebar) 88%, transparent) 100%);
+}
+.notes-recent-cover.is-slides {
+  background: linear-gradient(135deg, var(--kind-slides-soft) 0%, color-mix(in srgb, var(--notion-sidebar) 88%, transparent) 100%);
+}
+.notes-recent-cover.is-whiteboard {
+  background: linear-gradient(135deg, var(--kind-whiteboard-soft) 0%, color-mix(in srgb, var(--notion-sidebar) 88%, transparent) 100%);
+}
+.notes-recent-cover-image {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none;
+}
+.notes-recent-motif { position: absolute; inset: 0; pointer-events: none; }
+.notes-recent-cover.is-note .notes-recent-motif {
+  background-image: linear-gradient(to bottom, rgba(37, 99, 235, 0.1) 2px, transparent 2px);
+  background-size: 62% 10px;
+  background-position: 14px 12px;
+  background-repeat: repeat-y;
+  opacity: 0.6;
+}
+.notes-recent-cover.is-slides .notes-recent-motif::before {
+  content: ""; position: absolute; inset-block: 10px; inset-inline-start: 14px; width: 52px;
+  border: 1.5px solid rgba(217, 119, 6, 0.22); border-radius: 4px;
+  background: rgba(255, 255, 255, 0.35);
+}
+.notes-recent-cover.is-whiteboard .notes-recent-motif {
+  background-image: radial-gradient(rgba(124, 58, 237, 0.22) 1px, transparent 1px);
+  background-size: 10px 10px;
+}
+.notes-recent-kind-pill {
+  position: relative; z-index: 1; padding: 0.1rem 0.42rem; border-radius: 999px;
+  background: color-mix(in srgb, var(--notion-surface) 88%, transparent);
+  border: 1px solid var(--notion-border); backdrop-filter: blur(4px);
+  font-size: 0.65rem; font-weight: 600; line-height: 1.25; color: var(--notion-muted);
+}
+.notes-recent-kind-pill.is-note { color: var(--kind-note); }
+.notes-recent-kind-pill.is-slides { color: var(--kind-slides-text); }
+.notes-recent-kind-pill.is-whiteboard { color: var(--kind-whiteboard); }
+.notes-recent-icon {
+  position: relative; z-index: 1; display: grid; width: 1.9rem; height: 1.9rem; flex: none; place-items: center;
+  margin-top: -0.95rem; border-radius: 0.55rem; border: 1px solid var(--notion-border);
+  background: var(--notion-surface); box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
+  font-size: 1.05rem; line-height: 1; color: var(--notion-muted);
+}
+.notes-recent-name {
+  display: -webkit-box; margin-top: 0.4rem; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  font-size: 0.84375rem; font-weight: 600; line-height: 1.32; color: var(--nf-ink); overflow-wrap: anywhere;
+}
+.notes-recent-date { margin-top: auto; font-size: 0.71875rem; font-variant-numeric: tabular-nums; color: var(--notion-faint); }
 @media (min-width: 640px) {
-  .notes-recent-cover {
-    position: relative; display: flex; flex: none; height: 3.35rem; margin: 0 -0.875rem;
-    align-items: flex-start; justify-content: flex-end; padding: 0.45rem 0.55rem;
-    border-bottom: 1px solid var(--notion-border); background: var(--notion-sidebar); overflow: hidden;
-  }
-  .notes-recent-cover.is-note {
-    background: linear-gradient(135deg, var(--kind-note-soft) 0%, color-mix(in srgb, var(--notion-sidebar) 88%, transparent) 100%);
-  }
-  .notes-recent-cover.is-slides {
-    background: linear-gradient(135deg, var(--kind-slides-soft) 0%, color-mix(in srgb, var(--notion-sidebar) 88%, transparent) 100%);
-  }
-  .notes-recent-cover.is-whiteboard {
-    background: linear-gradient(135deg, var(--kind-whiteboard-soft) 0%, color-mix(in srgb, var(--notion-sidebar) 88%, transparent) 100%);
-  }
-  .notes-recent-motif { position: absolute; inset: 0; pointer-events: none; }
-  .notes-recent-cover.is-note .notes-recent-motif {
-    background-image: linear-gradient(to bottom, rgba(37, 99, 235, 0.1) 2px, transparent 2px);
-    background-size: 62% 10px;
-    background-position: 14px 12px;
-    background-repeat: repeat-y;
-    opacity: 0.6;
-  }
-  .notes-recent-cover.is-slides .notes-recent-motif::before {
-    content: ""; position: absolute; inset-block: 10px; inset-inline-start: 14px; width: 52px;
-    border: 1.5px solid rgba(217, 119, 6, 0.22); border-radius: 4px;
-    background: rgba(255, 255, 255, 0.35);
-  }
-  .notes-recent-cover.is-whiteboard .notes-recent-motif {
-    background-image: radial-gradient(rgba(124, 58, 237, 0.22) 1px, transparent 1px);
-    background-size: 10px 10px;
-  }
-  .notes-recent-kind-pill {
-    position: relative; z-index: 1; padding: 0.1rem 0.42rem; border-radius: 999px;
-    background: color-mix(in srgb, var(--notion-surface) 84%, transparent);
-    border: 1px solid var(--notion-border); backdrop-filter: blur(4px);
-    font-size: 0.65rem; font-weight: 600; line-height: 1.25; color: var(--notion-muted);
-  }
-  .notes-recent-kind-pill.is-note { color: var(--kind-note); }
-  .notes-recent-kind-pill.is-slides { color: var(--kind-slides-text); }
-  .notes-recent-kind-pill.is-whiteboard { color: var(--kind-whiteboard); }
-  .notes-recent-icon {
-    position: relative; z-index: 1; display: grid; width: 2.1rem; height: 2.1rem; flex: none; place-items: center;
-    margin-top: -1.1rem; border-radius: 0.6rem; border: 1px solid var(--notion-border);
-    background: var(--notion-surface); box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
-    font-size: 1.15rem; line-height: 1; color: var(--notion-muted);
-  }
-  .notes-recent-name {
-    display: -webkit-box; margin-top: 0.5rem; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
-    font-size: 0.875rem; font-weight: 600; line-height: 1.35; color: var(--nf-ink); overflow-wrap: anywhere;
-  }
-  .notes-recent-date { margin-top: auto; font-size: 0.71875rem; font-variant-numeric: tabular-nums; color: var(--notion-faint); }
+  .notes-recent-card { width: 12.75rem; height: 9.25rem; padding: 0 0.875rem 0.75rem; }
+  .notes-recent-cover { height: 3.35rem; margin: 0 -0.875rem; padding: 0.45rem 0.55rem; }
+  .notes-recent-icon { width: 2.1rem; height: 2.1rem; margin-top: -1.1rem; border-radius: 0.6rem; font-size: 1.15rem; }
+  .notes-recent-name { margin-top: 0.5rem; font-size: 0.875rem; line-height: 1.35; }
 }
 /* サイドバーが常に出る幅では、ホームの中の Chat / Notes 切り替えは要らない（それより狭いとサイドバーはドロワーになる）。 */
 @media (min-width: 1024px) {
@@ -3836,6 +3853,10 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 .chat-recent ul { display: flex; gap: 0.5rem; overflow-x: auto; padding: 0.25rem 0.2rem; scrollbar-width: thin; }
 .chat-recent li { position: relative; flex: none; }
 .chat-recent .notes-recent-card { width: 9.5rem; height: auto; min-height: 6.25rem; padding: 0.625rem 0.75rem; gap: 0.25rem; }
+.chat-recent .notes-recent-card.has-cover { padding-top: 0; }
+.chat-recent-cover { position: relative; flex: none; height: 2rem; margin: 0 -0.75rem 0.2rem; border-bottom: 1px solid var(--notion-border); overflow: hidden; background: var(--notion-sidebar); }
+.chat-recent .notes-recent-card.has-cover .chat-recent-icon { position: relative; z-index: 1; margin-top: -0.95rem; border: 1px solid var(--notion-border); background: var(--notion-surface); }
+.chat-recent li.has-cover .chat-recent-open { background: color-mix(in srgb, var(--notion-surface) 84%, transparent); border: 1px solid var(--notion-border); backdrop-filter: blur(4px); width: 1.65rem; height: 1.65rem; inset-block-start: 0.35rem; inset-inline-end: 0.35rem; }
 .chat-recent .notes-recent-card[aria-pressed="true"] { border-color: var(--nf-accent-line); background: var(--nf-accent-soft); }
 .chat-recent .notes-recent-card:disabled { opacity: 0.55; }
 .chat-recent-icon { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 0.5rem; background: var(--notion-hover); color: var(--notion-muted); }
@@ -3898,6 +3919,9 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
   [dir="rtl"] .sidebar-row-actions {
     background: linear-gradient(270deg, transparent, var(--row-bg) 1.05rem);
   }
+}
+[dir="rtl"] .notes-recent-list {
+  mask-image: linear-gradient(to left, transparent, #000 0.35rem, #000 calc(100% - 1.5rem), transparent);
 }
 @media (min-width: 640px) {
   [dir="rtl"] .notes-recent-list {
@@ -4438,8 +4462,8 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 }
 .notes-share-footer { display: flex; justify-content: flex-end; padding-top: 0.4rem; border-top: 1px solid var(--notion-border); }
 
-/* 公開ノート閲覧ページ（/s/:token）。 */
-.public-note-shell { min-height: 100dvh; background: var(--notion-bg); color: var(--notion-text); display: flex; flex-direction: column; }
+/* 公開ノート閲覧ページ（/s/:token）。アプリ本体は body がスクロールしない作りなので、ここで自前のスクロール領域を持つ。 */
+.public-note-shell { position: relative; height: 100dvh; overflow-x: hidden; overflow-y: auto; scroll-padding-top: 3rem; background: var(--notion-bg); color: var(--notion-text); display: flex; flex-direction: column; }
 /* ブロック・文字の色（BlockNote の色名。public-note-view.tsx の colorStyle が var() で使う）。ライトは Notion の色、
    ダークは下の :root[data-theme="dark"] .public-note-shell でエディターと同じ色にする。 */
 .public-note-shell {
@@ -4456,7 +4480,7 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
   --public-note-callout-bg: #f1f1ef;
 }
 .public-note-topbar {
-  position: sticky; top: 0; z-index: 20; display: flex; height: 3rem; align-items: center; justify-content: space-between; gap: 0.75rem;
+  position: sticky; top: 0; z-index: 20; display: flex; flex: none; height: 3rem; align-items: center; justify-content: space-between; gap: 0.75rem;
   padding: 0 1rem; border-bottom: 1px solid var(--notion-border); background: rgba(255, 255, 255, 0.92); backdrop-filter: blur(8px);
 }
 .public-note-breadcrumbs { display: flex; min-width: 0; flex: 1; align-items: center; gap: 0.15rem; overflow: hidden; }
@@ -4474,7 +4498,7 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
   font-size: 0.8125rem; font-weight: 500; color: var(--notion-muted); text-decoration: none;
 }
 @media (hover: hover) { .public-note-brand:hover { background: var(--notion-hover); color: var(--notion-text); } }
-.public-note-main { flex: 1; padding-bottom: 5rem; }
+.public-note-main { flex: 1 0 auto; padding-bottom: 5rem; }
 .public-note-icon { display: inline-flex; align-items: center; justify-content: center; cursor: default; }
 .public-note-title { margin: 0; font-weight: 700; word-break: break-word; }
 .public-note-body { display: flex; flex-direction: column; gap: 0.3rem; font-size: 1rem; line-height: 1.65; }
@@ -4575,7 +4599,7 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 .public-note-subpage-icon { display: inline-flex; width: 1.25rem; justify-content: center; flex: none; color: var(--notion-muted); }
 .public-note-subpage-arrow { flex: none; color: var(--notion-faint); }
 .public-note-unavailable {
-  min-height: 100dvh; display: grid; place-items: center; padding: 1.5rem; background: var(--notion-bg);
+  height: 100dvh; overflow-y: auto; display: grid; place-items: center; padding: 1.5rem; background: var(--notion-bg);
 }
 .public-note-unavailable-card {
   display: flex; max-width: 24rem; flex-direction: column; align-items: center; gap: 0.75rem; text-align: center;
@@ -4636,3 +4660,336 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 .whiteboard-thumbnail { border-radius: 10px; background: var(--notion-hover); padding: 12px; }
 .whiteboard-thumbnail-image svg { display: block; width: 100%; height: auto; max-height: 52vh; }
 .whiteboard-thumbnail:not([data-state="ready"]) .whiteboard-thumbnail-image { display: none; }
+
+/* ページ内目次ブロック（/table of contents、src/components/note-toc.tsx）と公開ページの目次。 */
+.notes-toc, .public-note-toc { padding: 4px 0; }
+.public-note-toc { color: var(--notion-muted); }
+.notes-toc-list, .public-note-toc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.notes-toc-link, .public-note-toc-link {
+  display: inline-block; max-width: 100%; text-align: start; padding: 3px 6px; border-radius: 4px;
+  color: inherit; text-decoration: underline;
+  text-decoration-color: rgba(var(--notion-ink-rgb), 0.22); text-underline-offset: 3px;
+  font-size: 14px; line-height: 1.5; background: transparent; cursor: pointer;
+}
+.notes-block-editor .bn-block-content[data-content-type="tableOfContents"]:not([data-text-color]) .notes-toc-link {
+  color: var(--notes-muted);
+}
+.notes-toc-item[data-level="1"] .notes-toc-link,
+.public-note-toc-item[data-level="1"] .public-note-toc-link { font-weight: 500; }
+@media (hover: hover) {
+  .notes-toc-link:hover, .public-note-toc-link:hover {
+    background: var(--notes-hover, var(--notion-hover));
+    text-decoration-color: currentColor;
+  }
+  .notes-block-editor .bn-block-content[data-content-type="tableOfContents"]:not([data-text-color]) .notes-toc-link:hover,
+  .public-note-toc:not([style*="color:"]) .public-note-toc-link:hover {
+    color: var(--notes-text, var(--notion-text));
+  }
+}
+.notes-toc-link:focus-visible, .public-note-toc-link:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: 1px; }
+.notes-toc-empty { margin: 0; padding: 4px 6px; color: var(--notes-faint, var(--notion-faint)); font-size: 13px; line-height: 1.5; }
+.public-note-h1, .public-note-h2, .public-note-h3 { scroll-margin-top: 64px; }
+
+/* 画面右端のミニ目次（src/components/note-floating-toc.tsx）。狭い画面・全幅表示では非表示にする。 */
+.notes-floating-toc {
+  position: fixed; inset-block-start: 48%; inset-inline-end: 18px; transform: translateY(-50%); z-index: 20;
+  display: flex; align-items: center; justify-content: flex-end;
+}
+.notes-floating-toc-bars {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 7px; padding: 10px 6px;
+  background: transparent; border-radius: 6px; cursor: pointer;
+}
+.notes-floating-toc-bars:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: 2px; }
+.notes-floating-toc-bar {
+  display: block; height: 2px; border-radius: 999px;
+  background: rgba(var(--notion-ink-rgb), 0.18); transition: background-color 140ms ease, width 140ms ease;
+}
+.notes-floating-toc-bar[data-level="1"] { width: 16px; }
+.notes-floating-toc-bar[data-level="2"] { width: 12px; }
+.notes-floating-toc-bar[data-level="3"] { width: 8px; }
+.notes-floating-toc-bar.is-active { width: 20px; background: var(--notes-text); }
+.notes-floating-toc-panel {
+  position: absolute; inset-block-start: 50%; inset-inline-end: 0;
+  transform: translateY(calc(-50% + 2px));
+  width: 248px; max-height: min(60vh, 420px); overflow-y: auto; overscroll-behavior: contain;
+  padding: 8px; border-radius: 10px; background: var(--notion-bg);
+  border: 1px solid var(--notion-border); box-shadow: var(--notes-menu-shadow);
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity 140ms ease, transform 140ms ease, visibility 140ms ease;
+}
+.notes-floating-toc:hover .notes-floating-toc-panel,
+.notes-floating-toc:focus-within .notes-floating-toc-panel,
+.notes-floating-toc.is-open .notes-floating-toc-panel {
+  opacity: 1; visibility: visible; pointer-events: auto; transform: translateY(-50%);
+}
+.notes-floating-toc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.notes-floating-toc-link {
+  display: block; width: 100%; text-align: start; padding: 5px 8px; border-radius: 6px;
+  color: var(--notes-muted); font-size: 13px; line-height: 1.4;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.notes-floating-toc-link.is-active { color: var(--notes-text); font-weight: 600; background: var(--notes-hover); }
+@media (hover: hover) {
+  .notes-floating-toc-link:hover { color: var(--notes-text); background: var(--notes-hover); }
+}
+.notes-floating-toc-link:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: -1px; }
+@media (max-width: 1239px) {
+  .notes-floating-toc { display: none; }
+}
+@media (max-width: 1479px) {
+  .notes-workspace.is-full-width .notes-floating-toc { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .notes-floating-toc-bar, .notes-floating-toc-panel { transition: none; }
+}
+
+/* ===== ノート：Notion 風ブロック範囲選択・移動・フローティングバー ===== */
+.notes-workspace:focus {
+  outline: none;
+}
+.notes-workspace.is-marquee-selecting,
+.notes-workspace.is-marquee-selecting * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+body.notes-block-dragging,
+body.notes-block-dragging * {
+  cursor: grabbing !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+.notes-marquee-box {
+  position: fixed;
+  z-index: 44;
+  pointer-events: none;
+  border-radius: 3px;
+  border: 1px solid rgba(35, 131, 226, 0.48);
+  background: rgba(35, 131, 226, 0.14);
+}
+:root[data-theme="dark"] .notes-marquee-box {
+  border-color: rgba(59, 130, 246, 0.55);
+  background: rgba(59, 130, 246, 0.22);
+}
+.notes-block-editor .bn-block-outer[data-block-selected="true"] {
+  position: relative;
+}
+.notes-block-editor .bn-block-outer[data-block-selected="true"]::after {
+  content: "";
+  position: absolute;
+  inset: -1px -4px;
+  border-radius: 5px;
+  background: rgba(35, 131, 226, 0.15);
+  pointer-events: none;
+  z-index: 1;
+}
+:root[data-theme="dark"] .notes-block-editor .bn-block-outer[data-block-selected="true"]::after {
+  background: rgba(59, 130, 246, 0.24);
+}
+.notes-block-bar {
+  position: fixed;
+  z-index: 35;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: calc(100vw - 24px);
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid var(--notion-border-strong);
+  background: var(--notion-surface);
+  color: var(--notion-text);
+  box-shadow: rgba(15, 15, 15, 0.08) 0 0 0 1px, rgba(15, 15, 15, 0.14) 0 6px 20px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  animation: motion-fade-in 120ms ease-out both;
+}
+:root[data-theme="dark"] .notes-block-bar {
+  box-shadow: var(--notes-menu-shadow);
+}
+.notes-block-bar-ai {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding-inline: 8px 10px;
+  border-radius: 7px;
+  background: var(--nf-accent-soft);
+  color: var(--nf-accent);
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color 120ms ease;
+}
+.notes-block-bar-ai:hover {
+  background: rgba(37, 99, 235, 0.16);
+}
+.notes-block-bar-count {
+  padding-inline: 7px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--notion-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.notes-block-bar-sep {
+  width: 1px;
+  height: 18px;
+  margin-inline: 2px;
+  background: var(--notion-border);
+  flex: none;
+}
+.notes-block-bar-group {
+  position: relative;
+  display: inline-flex;
+}
+.notes-block-bar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  min-width: 28px;
+  padding-inline: 7px;
+  border-radius: 6px;
+  color: var(--notion-text);
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.notes-block-bar-btn:hover,
+.notes-block-bar-btn.is-active {
+  background: var(--notion-hover);
+}
+.notes-block-bar-btn.is-danger:hover {
+  background: var(--nf-error-bg);
+  color: var(--nf-error-text);
+}
+.notes-block-bar-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  inset-inline-start: 0;
+  z-index: 36;
+  min-width: 210px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid var(--notion-border-strong);
+  background: var(--notion-surface);
+  box-shadow: var(--notion-shadow);
+}
+.notes-block-bar-popover.is-colors {
+  width: 236px;
+  padding: 8px;
+}
+.notes-block-bar-menu-item {
+  display: flex;
+  width: 100%;
+  min-height: 28px;
+  align-items: center;
+  gap: 8px;
+  padding-inline: 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  text-align: start;
+  color: var(--notion-text);
+}
+.notes-block-bar-menu-item:hover {
+  background: var(--notion-hover);
+}
+.notes-block-bar-label {
+  margin-bottom: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--notion-muted);
+}
+.notes-block-bar-label:not(:first-child) {
+  margin-top: 8px;
+}
+.notes-block-bar-swatches {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+}
+.notes-block-bar-swatch {
+  display: grid;
+  height: 26px;
+  place-items: center;
+  border-radius: 5px;
+  border: 1px solid var(--notion-border);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--notion-text);
+}
+.notes-block-bar-swatch:hover {
+  border-color: var(--notion-border-strong);
+}
+.notes-block-bar-swatch.is-selected {
+  outline: 2px solid var(--nf-accent);
+  outline-offset: -1px;
+}
+.notes-drop-indicator {
+  position: fixed;
+  z-index: 45;
+  pointer-events: none;
+  background: var(--nf-accent);
+  border-radius: 999px;
+}
+.notes-drop-indicator.is-horizontal {
+  height: 3px;
+}
+.notes-drop-indicator.is-vertical {
+  width: 3px;
+}
+.notes-drop-indicator::before {
+  content: "";
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--nf-accent);
+  box-shadow: 0 0 0 2px var(--notion-bg);
+}
+.notes-drop-indicator.is-horizontal::before {
+  inset-inline-start: -3px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.notes-drop-indicator.is-vertical::before {
+  top: -3px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.notes-block-drag-ghost {
+  position: fixed;
+  z-index: 46;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 260px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--nf-accent-line);
+  background: var(--notion-surface);
+  color: var(--notion-text);
+  box-shadow: var(--notion-shadow);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  opacity: 0.94;
+}
+.notes-block-drag-ghost-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.notes-block-drag-ghost-count {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--nf-accent);
+  color: var(--nf-on-ink);
+  font-size: 11px;
+  font-weight: 600;
+}
+@media (prefers-reduced-motion: reduce) {
+  .notes-block-bar { animation: none; }
+}

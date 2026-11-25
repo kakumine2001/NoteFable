@@ -31,6 +31,9 @@ const COPIED_MS = 2000;
 function DrawDiagramDialog({ jobKey, notice, embedded }: { jobKey: string; notice?: string; embedded: boolean }) {
   const t = useT();
   const ref = useRef<HTMLDialogElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const retryRef = useRef<HTMLButtonElement>(null);
+  const openRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
   const job = useDiagramJob(jobKey);
   const [copied, setCopied] = useState(false);
@@ -78,6 +81,13 @@ function DrawDiagramDialog({ jobKey, notice, embedded }: { jobKey: string; notic
   const done = !notice && job?.status === "done" ? job : null;
   const failed = !notice && job?.status === "error" ? job : null;
   const source = failed?.source ?? null;
+  // React 19 は DOM の autofocus 属性を出さず commitMount で .focus() を呼ぶため、showModal() より前に空振りする。
+  // リトライ時に Try again が消えたあとも含め、主ボタンが変わるたびに showModal() 後の effect で明示的にフォーカスする。
+  const focusTarget = done && canOpen ? "open" : failed ? "retry" : "close";
+  useEffect(() => {
+    const button = focusTarget === "open" ? openRef.current : focusTarget === "retry" ? retryRef.current : closeRef.current;
+    button?.focus();
+  }, [focusTarget]);
   // 上限に当たった：ウェブではログイン（未ログイン）・アップグレード（無料会員）の案内を窓の中に出す（ノートの AI パネルの送信と同じ）。
   // アプリの WebView では、案内を出せるアプリに任せる（ウェブのログイン画面や Stripe を WebView で開かない）。理由の文はどちらでも出す。
   const limit = failed?.limit ?? null;
@@ -112,22 +122,22 @@ function DrawDiagramDialog({ jobKey, notice, embedded }: { jobKey: string; notic
     {/* クリップボードに書けなかったときは、原文を選んでコピーできるように出す。 */}
     {source && copyFailed && <>
       <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{t("Could not copy. Select the text and copy it instead.")}</p>
-      <textarea readOnly value={source} aria-label={t("Copy diagram source")} className="notes-dialog-input h-32 resize-y font-mono"
+      <textarea readOnly dir="ltr" value={source} aria-label={t("Copy diagram source")} className="notes-dialog-input h-32 resize-y font-mono"
         onFocus={(event) => event.currentTarget.select()} />
     </>}
     <span role="status" aria-live="polite" className="sr-only">{copied ? t("Copied") : ""}</span>
     <div className="mt-5 flex flex-wrap justify-end gap-2">
-      <button type="button" className="notion-button" autoFocus={!failed && !(done && canOpen)} onClick={close}>{t("Close")}</button>
+      <button ref={closeRef} type="button" className="notion-button" onClick={close}>{t("Close")}</button>
       {source && (
         <button type="button" className="notion-button inline-flex items-center gap-1" onClick={() => void copySource(source)}>
           {copied ? <Check size={15} aria-hidden="true" /> : <Copy size={15} aria-hidden="true" />}{copied ? t("Copied") : t("Copy diagram source")}
         </button>
       )}
       {failed && (
-        <button type="button" autoFocus className="notion-button notion-button-primary" onClick={retry}>{t("Try again")}</button>
+        <button ref={retryRef} type="button" className="notion-button notion-button-primary" onClick={retry}>{t("Try again")}</button>
       )}
       {done && canOpen && (
-        <button type="button" autoFocus className="notion-button notion-button-primary inline-flex items-center gap-1" onClick={() => openPage(done.page.id)}>
+        <button ref={openRef} type="button" className="notion-button notion-button-primary inline-flex items-center gap-1" onClick={() => openPage(done.page.id)}>
           {t("Open whiteboard")}<ArrowUpRight size={15} aria-hidden="true" />
         </button>
       )}

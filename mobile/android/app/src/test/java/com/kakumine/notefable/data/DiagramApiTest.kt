@@ -266,5 +266,49 @@ class DiagramApiTest {
         advanceUntilIdle()
         assertEquals(listOf("save", "save"), order)
         assertEquals(1, backend.calls.size)
+        // 已有任务时重开不重做保存（断网 / 保存冲突也能重开）。
+        val reopened = store.startWhenReady(DiagramSource.Note("n1"), null) {
+            order += "should-not-run"
+            false
+        }
+        assertEquals("note:n1", reopened)
+        assertEquals(listOf("save", "save"), order)
+    }
+
+    @Test
+    fun `startWhenReady deduplicates concurrent prepares, drops stale generations, and keeps usage limit tier`() = runTest {
+        val backend = FakeBackend().apply {
+            fail = ApiException.from(429, """{"error":"Daily limit reached.","code":"usage_limit","tier":"guest","kind":"chat"}""")
+        }
+        val store = DiagramStore(backend, this, ids())
+        val gate = CompletableDeferred<Boolean>()
+        var prepares = 0
+        val first = launch {
+            val key = store.startWhenReady(DiagramSource.Note("n1"), null) {
+                prepares++
+                gate.await()
+            }
+            assertEquals("note:n1", key)
+        }
+        val second = launch {
+            val key = store.startWhenReady(DiagramSource.Note("n1"), null) {
+                prepares++
+                true
+            }
+            assertNull(key)
+        }
+        advanceUntilIdle()
+        assertEquals(1, prepares)
+        gate.complete(true)
+        first.join()
+        second.join()
+        advanceUntilIdle()
+        val failed = store.jobs.value["note:n1"] as DiagramJob.Failed
+        assertEquals("guest", failed.usageLimitTier)
+        // 准备期间换身份：不开启任务。
+        val genBefore = store.currentGeneration
+        store.clear()
+        assertNull(store.startWhenReady(DiagramSource.Note("n2"), null, expectedGeneration = genBefore) { true })
+        assertEquals(1, backend.calls.size)
     }
 }

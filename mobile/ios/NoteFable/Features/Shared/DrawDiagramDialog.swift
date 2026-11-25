@@ -57,6 +57,8 @@ private struct DrawDiagramDialogBody: View {
     @Environment(AppRouter.self) private var router
     /// 每复制一次源码加一，2 秒后归零（按钮这时显示“已复制”）；连续点时重新计时。
     @State private var copiedTick = 0
+    /// 使用次数上限的登录提示被关闭。
+    @State private var limitClosed = false
 
     init(source: DiagramSource) {
         self.source = source
@@ -65,46 +67,69 @@ private struct DrawDiagramDialogBody: View {
     var body: some View {
         let job = app.diagrams.job(source)
 
-        HStack(spacing: 8) {
-            LucideIcon(Lucide.workflow, size: 18, color: Sm.text)
-            Text(L("diagram_draw"))
-                .font(.nf(16, weight: 600))
-                .nfLineHeight(24, fontSize: 16)
-                .foregroundStyle(Sm.text)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-
-        statusText(job)
-            .padding(.top, 12)
-
-        if case let .failed(failure) = job {
-            NFDialogError(app.systemText.localize(failure.message))
-            if let mermaid = failure.source {
-                copySourceButton(mermaid)
-                    .padding(.top, 8)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                LucideIcon(Lucide.workflow, size: 18, color: Sm.text)
+                Text(L("diagram_draw"))
+                    .font(.nf(16, weight: 600))
+                    .nfLineHeight(24, fontSize: 16)
+                    .foregroundStyle(Sm.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
             }
-        }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-        NFDialogButtons {
-            NotionButton(L("close")) { router.closeDiagram() }
-            switch job {
-            case let .done(page, _)?:
-                // 网页：先打开白板，再关窗口。
-                NotionButton(L("diagram_open"), kind: .primary, trailingIcon: Lucide.arrowUpRight) {
-                    router.openDrawnDiagram(page)
+            statusText(job)
+                .padding(.top, 12)
+
+            if case let .failed(failure) = job {
+                NFDialogError(app.systemText.localize(failure.message))
+                if !limitClosed,
+                   failure.usageLimitTier == "guest",
+                   app.account.state.configured,
+                   app.account.state.user == nil {
+                    GuestLimitPrompt(
+                        usage: UsageLimitInfo(tier: "guest", kind: "chat"),
+                        attachmentsLost: false,
+                        onClose: { limitClosed = true }
+                    )
+                    .padding(.top, 12)
                 }
-            case .failed?:
-                NotionButton(L("try_again"), kind: .primary) { router.retryDiagram(source) }
-            case nil:
-                // 任务不在了（进行中换了身份，结果没留下）：可以重新开始。
-                NotionButton(L("diagram_draw"), kind: .primary) { router.drawDiagram(source) }
-            case .working?:
-                EmptyView()
             }
+
+            DiagramButtonsFlow(spacing: 8, lineSpacing: 8) {
+                NotionButton(L("close")) { router.closeDiagram() }
+                switch job {
+                case let .done(page, _)?:
+                    // 网页：先打开白板，再关窗口。
+                    NotionButton(L("diagram_open"), kind: .primary, trailingIcon: Lucide.arrowUpRight) {
+                        router.openDrawnDiagram(page)
+                    }
+                case let .failed(failure)?:
+                    if let mermaid = failure.source {
+                        copySourceButton(mermaid)
+                    }
+                    NotionButton(L("try_again"), kind: .primary) {
+                        copiedTick = 0
+                        limitClosed = false
+                        router.retryDiagram(source)
+                    }
+                case .working?, nil:
+                    EmptyView()
+                }
+            }
+            .padding(.top, 20)
         }
-        .onChange(of: job) { _, next in announce(next) }
+        .onAppear {
+            if job == nil { router.closeDiagram() }
+        }
+        .onChange(of: job) { _, next in
+            if next == nil {
+                router.closeDiagram()
+                return
+            }
+            announce(next)
+        }
         .task(id: copiedTick) {
             guard copiedTick > 0 else { return }
             try? await Task.sleep(nanoseconds: 2_000_000_000)
@@ -150,7 +175,6 @@ private struct DrawDiagramDialogBody: View {
         let copied = copiedTick > 0
         return NotionButton(
             copied ? L("answer_copied") : L("diagram_copy_source"),
-            kind: .quiet,
             icon: copied ? Lucide.check : Lucide.copy
         ) {
             UIPasteboard.general.string = mermaid
@@ -173,5 +197,66 @@ private struct DrawDiagramDialogBody: View {
             return
         }
         UIAccessibility.post(notification: .announcement, argument: text)
+    }
+}
+
+/// 靠右对齐的换行按钮行（网页 `flex flex-wrap justify-end gap-2`、Android `FlowRow(Alignment.End)`）。
+private struct DiagramButtonsFlow: Layout {
+    var spacing: CGFloat = 8
+    var lineSpacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        let layout = arrange(width: maxWidth, subviews: subviews)
+        let width = maxWidth.isFinite ? maxWidth : layout.widest
+        return CGSize(width: width, height: layout.height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let layout = arrange(width: bounds.width, subviews: subviews)
+        var y = bounds.minY
+        for row in layout.rows {
+            var x = bounds.maxX - row.width
+            for item in row.items {
+                subviews[item.index].place(
+                    at: CGPoint(x: x, y: y + (row.height - item.size.height) / 2),
+                    anchor: .topLeading,
+                    proposal: ProposedViewSize(width: item.size.width, height: item.size.height)
+                )
+                x += item.size.width + spacing
+            }
+            y += row.height + lineSpacing
+        }
+    }
+
+    private struct Row {
+        var items: [(index: Int, size: CGSize)] = []
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+    }
+
+    private func arrange(width: CGFloat, subviews: Subviews) -> (rows: [Row], widest: CGFloat, height: CGFloat) {
+        let bounded = width.isFinite
+        let limit = bounded ? max(0, width) : CGFloat.greatestFiniteMagnitude
+        var rows: [Row] = []
+        var current = Row()
+        for (index, subview) in subviews.enumerated() {
+            var size = subview.sizeThatFits(ProposedViewSize(width: bounded ? limit : nil, height: nil))
+            if bounded { size.width = min(size.width, limit) }
+            let nextWidth = current.items.isEmpty ? size.width : current.width + spacing + size.width
+            if !current.items.isEmpty, nextWidth > limit {
+                rows.append(current)
+                current = Row()
+            }
+            current.items.append((index, size))
+            current.width = current.items.count == 1 ? size.width : current.width + spacing + size.width
+            current.height = max(current.height, size.height)
+        }
+        if !current.items.isEmpty { rows.append(current) }
+        let widest = rows.map(\.width).max() ?? 0
+        let totalHeight = rows.enumerated().reduce(CGFloat(0)) { sum, entry in
+            sum + entry.element.height + (entry.offset > 0 ? lineSpacing : 0)
+        }
+        return (rows, widest, totalHeight)
     }
 }

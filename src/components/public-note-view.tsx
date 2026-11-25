@@ -18,6 +18,7 @@ import { isUploadedNoteIcon, noteIconText } from "@/lib/note-icon";
 import type { ResolvedPublicShare } from "@/lib/note-share-server";
 import { validColumnWidth } from "@/lib/note-columns";
 import { blocksHaveMath } from "@/lib/note-text";
+import { extractTocHeadings, type TocHeading } from "@/lib/note-toc";
 
 // BlockNote のカラー名（テキスト色・背景色）。色そのものは globals.css の --public-note-<色>-text / -bg で、
 // ライトは Notion の色、ダークはエディター（BlockNote のダーク）と同じ色になる。
@@ -66,10 +67,16 @@ type RenderBlock = {
 // 数式の TeX を KaTeX の HTML にする（描けない時は空文字）。
 type MathRenderer = (latex: string, displayMode: boolean) => string;
 
+// 公開ページで多数の目次ブロックが並んでも HTML サイズが膨らみすぎないよう、1 ページあたりの描画上限を設ける。
+const MAX_PUBLIC_TOC_LINKS = 1000;
+
 type RenderContext = {
   labels: { copy: string; copied: string; download: string };
   // 数式のあるページだけ、サーバーで読み込んだ KaTeX で描く関数が入る（数式の無いページは null）。
   math: MathRenderer | null;
+  tocHeadings: TocHeading[];
+  tocLabel: string;
+  tocRemainingLinks: { count: number };
 };
 
 // 同じページの同じ式は 1 回だけ描く（公開ページはリクエストごとにサーバーで描くため）。
@@ -223,13 +230,14 @@ function renderBlock(block: RenderBlock, numberIndex: number, ctx: RenderContext
     case "heading": {
       const level = props.level === 1 || props.level === 2 || props.level === 3 ? props.level : 1;
       const inline = renderInline(block.content, ctx.math);
+      const headingId = `heading-${block.id}`;
       const headingEl =
         level === 1 ? (
-          <h1 className="public-note-h1">{inline}</h1>
+          <h1 id={headingId} className="public-note-h1">{inline}</h1>
         ) : level === 2 ? (
-          <h2 className="public-note-h2">{inline}</h2>
+          <h2 id={headingId} className="public-note-h2">{inline}</h2>
         ) : (
-          <h3 className="public-note-h3">{inline}</h3>
+          <h3 id={headingId} className="public-note-h3">{inline}</h3>
         );
       if (props.isToggleable) {
         return (
@@ -425,6 +433,34 @@ function renderBlock(block: RenderBlock, numberIndex: number, ctx: RenderContext
         </div>
       );
     }
+    case "tableOfContents": {
+      const items = ctx.tocHeadings;
+      if (!items.length || ctx.tocRemainingLinks.count <= 0) {
+        return childrenNode ? <div key={block.id} className="public-note-block">{childrenNode}</div> : null;
+      }
+      const visible = items.slice(0, ctx.tocRemainingLinks.count);
+      ctx.tocRemainingLinks.count -= visible.length;
+      const minLevel = visible.reduce((min, h) => Math.min(min, h.level), 3);
+      return (
+        <div key={block.id} className="public-note-block">
+          <nav className="public-note-toc" style={colors} aria-label={ctx.tocLabel}>
+            <ul className="public-note-toc-list">
+              {visible.map((item) => (
+                <li
+                  key={item.id}
+                  className="public-note-toc-item"
+                  data-level={item.level}
+                  style={{ paddingInlineStart: `${(item.level - minLevel) * 14}px` }}
+                >
+                  <a href={`#heading-${item.id}`} className="public-note-toc-link">{item.text}</a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+          {childrenNode}
+        </div>
+      );
+    }
     case "mathBlock": {
       // ブロックの数式。エディターと同じく中央寄せ・長い式は式の中で横スクロール、RTL のページでも左から右。
       // 空の数式（エディターでは入力の案内）は閲覧者には出さない。
@@ -473,6 +509,7 @@ export async function PublicNoteView({ data, locale }: { data: ResolvedPublicSha
   );
   const katex = blocksHaveMath(blocks) ? await loadKatex() : null;
   const math = katex ? mathRenderer(katex) : null;
+  const tocHeadings = extractTocHeadings(blocks);
 
   const pageClass = [
     page.fullWidth ? "is-full-width" : "",
@@ -506,7 +543,13 @@ export async function PublicNoteView({ data, locale }: { data: ResolvedPublicSha
         </div>
 
         <article className="notes-column notes-body public-note-body">
-          {renderBlockList(blocks, { labels: { copy: t("Copy"), copied: t("Copied"), download: t("Download") }, math })}
+          {renderBlockList(blocks, {
+            labels: { copy: t("Copy"), copied: t("Copied"), download: t("Download") },
+            math,
+            tocHeadings,
+            tocLabel: t("Table of contents"),
+            tocRemainingLinks: { count: MAX_PUBLIC_TOC_LINKS },
+          })}
         </article>
 
         {children.length > 0 ? (

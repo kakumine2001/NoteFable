@@ -15,6 +15,10 @@ export const hi: Record<string, string> = {
   "A recovered draft differs from the latest note. Save a copy or load the latest version.": "रिकवर किया गया ड्राफ़्ट नवीनतम नोट से अलग है। इसकी कॉपी सेव करें या नवीनतम वर्ज़न लोड करें।",
   "AI chat and notes in one place: ask a question, keep the answer as a note in your workspace, and find it again later.": "AI चैट और नोट्स एक ही जगह: सवाल पूछें, जवाब को नोट के रूप में अपने वर्कस्पेस में रखें, और बाद में आसानी से फिर ढूँढ लें।",
   "AI chat and notes, in one place": "AI चैट और नोट्स, एक ही जगह",
+  "Add headings to create a table of contents.": "विषय-सूची बनाने के लिए शीर्षक जोड़ें।",
+  "Page title": "पृष्ठ शीर्षक",
+  "Rename page": "पृष्ठ का नाम बदलें",
+  "Table of contents": "विषय-सूची",
   "Visit website": "वेबसाइट पर जाएँ",
   "Account": "खाता",
   "Actions": "कार्रवाइयाँ",
@@ -1181,4 +1185,7 @@ export const hi: Record<string, string> = {
   "Branches on both sides": "दोनों तरफ़ शाखाएँ",
   "Branches on the right": "दाईं ओर शाखाएँ",
   "New topic": "नया विषय",
+  "1 block": "1 ब्लॉक",
+  "{count} blocks": "{count} ब्लॉक",
+  "Block selection actions": "ब्लॉक चयन क्रियाएँ",
 };

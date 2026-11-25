@@ -1,17 +1,26 @@
 package com.kakumine.notefable.ui
 
 import android.content.ClipData
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -21,11 +30,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -70,6 +82,8 @@ fun DrawDiagramDialog(
     jobKey: String,
     model: String?,
     store: DiagramStore,
+    account: AccountUiState,
+    onSignIn: () -> Unit,
     onOpenPage: (NotePageSummary) -> Unit,
     onClose: () -> Unit,
 ) {
@@ -87,6 +101,8 @@ fun DrawDiagramDialog(
     val scope = rememberCoroutineScope()
     // 复制了源码后 2 秒内按钮显示"已复制"（和回答的复制键一样）。
     var copiedTick by remember { mutableIntStateOf(0) }
+    var copyFailed by remember { mutableStateOf(false) }
+    var limitClosed by remember { mutableStateOf(false) }
     LaunchedEffect(copiedTick) {
         if (copiedTick > 0) {
             delay(2000)
@@ -123,6 +139,43 @@ fun DrawDiagramDialog(
                 system.localize(job.message), color = DiagramError, fontSize = 14.sp, lineHeight = 20.sp,
                 modifier = Modifier.padding(top = 8.dp).semantics { liveRegion = LiveRegionMode.Assertive },
             )
+            if (!limitClosed) {
+                when {
+                    job.usageLimitTier == "guest" && account.configured && account.user == null -> {
+                        GuestLimitPrompt(
+                            kind = "chat",
+                            attachmentsLost = false,
+                            onSignIn = onSignIn,
+                            onClose = { limitClosed = true },
+                            modifier = Modifier.padding(top = 12.dp),
+                        )
+                    }
+                    job.usageLimitTier == "member" && account.user != null -> {
+                        Box(Modifier.padding(top = 12.dp)) {
+                            UpgradeLimitPrompt(kind = "chat", onClose = { limitClosed = true })
+                        }
+                    }
+                }
+            }
+            val mermaid = job.mermaid
+            if (mermaid != null && copyFailed) {
+                Text(
+                    stringResource(R.string.answer_copy_failed), color = DiagramError, fontSize = 14.sp, lineHeight = 20.sp,
+                    modifier = Modifier.padding(top = 8.dp).semantics { liveRegion = LiveRegionMode.Assertive },
+                )
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                    SelectionContainer {
+                        Box(
+                            Modifier.fillMaxWidth().padding(top = 8.dp).heightIn(max = 128.dp)
+                                .border(1.dp, Sm.Border, RoundedCornerShape(6.dp))
+                                .verticalScroll(rememberScrollState())
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                        ) {
+                            Text(mermaid, color = Sm.Text, fontSize = 13.sp, lineHeight = 18.sp, fontFamily = FontFamily.Monospace)
+                        }
+                    }
+                }
+            }
         }
         FlowRow(
             Modifier.fillMaxWidth().padding(top = 20.dp),
@@ -143,6 +196,7 @@ fun DrawDiagramDialog(
                     if (mermaid != null) {
                         NotionButton(
                             stringResource(if (copiedTick > 0) R.string.answer_copied else R.string.diagram_copy_source),
+                            leadingIcon = if (copiedTick > 0) Lucide.Check else Lucide.Copy,
                             onClick = {
                                 scope.launch {
                                     val ok = try {
@@ -153,12 +207,22 @@ fun DrawDiagramDialog(
                                     } catch (_: Throwable) {
                                         false
                                     }
+                                    copyFailed = !ok
                                     if (ok) copiedTick++
                                 }
                             },
                         )
                     }
-                    NotionButton(stringResource(R.string.try_again), onClick = { store.retry(jobKey, model) }, primary = true)
+                    NotionButton(
+                        stringResource(R.string.try_again),
+                        onClick = {
+                            copiedTick = 0
+                            copyFailed = false
+                            limitClosed = false
+                            store.retry(jobKey, model)
+                        },
+                        primary = true,
+                    )
                 }
                 is DiagramJob.Working -> Unit
             }

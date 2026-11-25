@@ -432,4 +432,19 @@ describe("numbered blocksToMarkdown", () => {
     expect(blocksToMarkdown(blocks, 0, { n: 0 })).toBe("[1] - one\n  [2] \n[3] ---");
     expect(flattenBlocks(blocks).map((block) => block.id)).toEqual(["a", "b", "c"]);
   });
+
+  it("round-trips [TOC] blocks and escapes literal [TOC] paragraphs", () => {
+    const tocBlocks = [
+      { id: "t1", type: "tableOfContents", props: {}, children: [] },
+      { id: "h1", type: "heading", props: { level: 1 }, content: [{ type: "text", text: "Title", styles: {} }], children: [] },
+      { id: "p1", type: "paragraph", props: {}, content: [{ type: "text", text: "[TOC]", styles: {} }], children: [] },
+    ];
+    const md = blocksToMarkdown(tocBlocks);
+    expect(md).toBe("[TOC]\n# Title\n\\[TOC\\]");
+    const parsed = markdownToBlocks(md);
+    expect(parsed.map((b) => b.type)).toEqual(["tableOfContents", "heading", "paragraph"]);
+    expect(parsed[2].content).toEqual([{ type: "text", text: "[TOC]", styles: {} }]);
+    expect(markdownToBlocks("[toc]")[0].type).toBe("tableOfContents");
+    expect(markdownToBlocks("\\[TOC]")[0].type).toBe("paragraph");
+  });
 });

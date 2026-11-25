@@ -13,7 +13,7 @@ import { noteStorage } from "@/lib/page-ai/storage";
 // ツール名（propose_note_edit・propose_note_create）は会話の履歴に残っているので、変えない。
 
 // 本文の Markdown の書き方（編集と新規で同じ）。
-const MARKDOWN_FORMAT = "each non-empty line becomes one block; # to ### headings, - bullets, 1. numbered items, - [ ] tasks, > quotes, code fences, --- dividers, '▸ text' toggles ('# ▸ text' is a toggle heading; indent the hidden content by 2 spaces below it), '> [!💡] text' callouts (any single emoji), GFM tables (a '| a | b |' header row, a '| --- | --- |' line, then rows; the whole table is one block, so replace it as a whole), and block math ('$$' on its own lines around LaTeX); indent nested list items by 2 spaces; **bold**, *italic*, ~~strike~~, `code`, `$inline math$`, [text](https://url)";
+const MARKDOWN_FORMAT = "each non-empty line becomes one block; # to ### headings, - bullets, 1. numbered items, - [ ] tasks, > quotes, code fences, --- dividers, [TOC] table of contents, '▸ text' toggles ('# ▸ text' is a toggle heading; indent the hidden content by 2 spaces below it), '> [!💡] text' callouts (any single emoji), GFM tables (a '| a | b |' header row, a '| --- | --- |' line, then rows; the whole table is one block, so replace it as a whole), and block math ('$$' on its own lines around LaTeX); indent nested list items by 2 spaces; **bold**, *italic*, ~~strike~~, `code`, `$inline math$`, [text](https://url)";
 
 const EDIT_TOOL = {
   name: "propose_note_edit",

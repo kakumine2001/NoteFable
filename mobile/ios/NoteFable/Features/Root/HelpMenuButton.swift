@@ -11,12 +11,15 @@ struct HelpMenuButton: View {
     @State private var menuOpen = false
     @State private var languageOpen = false
     @State private var themeOpen = false
+    private let glassStyle: Bool
 
-    init() {}
+    init(glassStyle: Bool = false) {
+        self.glassStyle = glassStyle
+    }
 
     var body: some View {
         let open = menuOpen || languageOpen || themeOpen
-        Button {
+        let toggleAction = {
             if languageOpen {
                 languageOpen = false
             } else if themeOpen {
@@ -24,12 +27,26 @@ struct HelpMenuButton: View {
             } else {
                 menuOpen.toggle()
             }
-        } label: {
-            LucideIcon(Lucide.circleHelp, size: 17, color: open ? Sm.text : Sm.faint)
-                .frame(width: 44, height: 44)
         }
-        .buttonStyle(.pressable(background: open ? Sm.hover : .clear, cornerRadius: 6.4))
-        .accessibilityLabel(L("help"))
+        Group {
+            if glassStyle {
+                NFGlassIconButton(
+                    Lucide.circleHelp,
+                    label: L("help"),
+                    size: 40,
+                    iconSize: 17,
+                    color: open ? Sm.text : Sm.muted,
+                    action: toggleAction
+                )
+            } else {
+                Button(action: toggleAction) {
+                    LucideIcon(Lucide.circleHelp, size: 17, color: open ? Sm.text : Sm.faint)
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.pressable(background: open ? Sm.hover : .clear, cornerRadius: 6.4))
+                .accessibilityLabel(L("help"))
+            }
+        }
         .actionsMenu(isPresented: $menuOpen, alignment: .trailing, placement: .above, label: L("help")) {
             HelpMenuContent(
                 guest: isGuest,

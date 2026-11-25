@@ -7,9 +7,10 @@ import { recentPages } from "@/lib/notes-home-text";
 import { MAX_MESSAGE_NOTES, type AttachedPage } from "@/types/chat";
 import { NoteIcon } from "@/components/note-icon";
 import { PageKindIcon } from "@/components/page-kind-icon";
+import { NOTE_COVERS, coverImageUrl, isPresetCover } from "@/lib/note-document";
 import { pageKindOf } from "@/lib/page-kinds";
 
-type RecentNote = AttachedPage & { updatedAt: string };
+type RecentNote = AttachedPage & { cover?: string | null; coverPosition?: number | null; updatedAt: string };
 
 export function ChatRecentNotes({ selected, disabled, lastEditor, onToggle, onOpen, onViewAll }: {
   selected: AttachedPage[];
@@ -53,14 +54,23 @@ export function ChatRecentNotes({ selected, disabled, lastEditor, onToggle, onOp
       <h2 id="chat-recent-title">{t("Recently edited")}</h2>
       <button type="button" className="chat-recent-all" onClick={onViewAll}>{t("All notes")}<ChevronRight size={14} className="rtl-mirror" aria-hidden="true" /></button>
     </header>
-    <ul>{pages.map(({ id, kind, title, icon }) => {
+    <ul>{pages.map(({ id, kind, title, icon, cover, coverPosition }) => {
       const attached = selected.some((page) => page.id === id);
       const name = title || t("Untitled");
       const resolvedKind = pageKindOf({ kind });
-      return <li key={id}>
-        <button type="button" className="notes-recent-card" aria-pressed={attached}
+      const preset = isPresetCover(cover) ? NOTE_COVERS[cover] : null;
+      const imageUrl = coverImageUrl(cover);
+      const hasCover = Boolean(preset || imageUrl);
+      return <li key={id} className={hasCover ? "has-cover" : undefined}>
+        <button type="button" className={`notes-recent-card${hasCover ? " has-cover" : ""}`} aria-pressed={attached}
           disabled={disabled || (!attached && selected.length >= MAX_MESSAGE_NOTES)}
           onClick={() => onToggle({ id, kind, title, icon })}>
+          {hasCover && (
+            <span className="chat-recent-cover" style={preset ? { background: preset } : undefined} aria-hidden="true">
+              {/* eslint-disable-next-line @next/next/no-img-element -- 所有者確認付き API から返す private 画像のため next/image の最適化は使わない */}
+              {imageUrl ? <img src={imageUrl} alt="" draggable={false} loading="lazy" className="notes-recent-cover-image" style={{ objectPosition: `center ${coverPosition ?? 50}%` }} /> : null}
+            </span>
+          )}
           <span aria-hidden="true" className={`chat-recent-icon${icon ? "" : ` is-${resolvedKind}`}`}><NoteIcon icon={icon} fallback={<PageKindIcon kind={resolvedKind} size={17} />} /></span>
           <span className="chat-recent-title">{name}</span>
           <span className="chat-recent-action">{attached && <Check size={12} aria-hidden="true" />}<span>{attached ? t("Attached") : t("Attach")}</span></span>

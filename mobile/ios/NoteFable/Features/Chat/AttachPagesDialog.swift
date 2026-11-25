@@ -92,7 +92,7 @@ private struct AttachPagesDialogBody: View {
     }
 
     private func card(maxHeight: CGFloat) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 8)
+        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
         return VStack(alignment: .leading, spacing: 0) {
             Text(L("attach_pages"))
                 .font(.nf(16, weight: 600))
@@ -114,16 +114,12 @@ private struct AttachPagesDialogBody: View {
                     if footerHeight != size.height { footerHeight = size.height }
                 }
         }
-        // 卡片上的空白处不算"点外面"（和 EmojiPicker 一样明确接住，不靠遮罩和卡片的层叠顺序）。
-        .background { shape.fill(Sm.surface).onTapGesture {} }
+        .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: Sm.panelRing)
+        // 卡片上的空白处不算"点外面"。
+        .contentShape(shape)
+        .onTapGesture {}
         .clipShape(shape)
-        // --notion-shadow：0 4px 14px rgba(15,15,15,.12) + 外侧 1px 的细环 rgba(15,15,15,.05)。
-        .overlay {
-            RoundedRectangle(cornerRadius: 8.5)
-                .stroke(Sm.panelRing, lineWidth: 1)
-                .padding(-0.5)
-        }
-        .shadow(color: Sm.panelShadow, radius: 7, x: 0, y: 4)
+        .shadow(color: Sm.panelShadow, radius: 10, x: 0, y: 4)
         .accessibilityAddTraits(.isModal)
     }
 

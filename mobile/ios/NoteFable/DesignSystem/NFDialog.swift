@@ -112,7 +112,7 @@ struct NFDialogLayer: View {
     }
 
     private var card: some View {
-        let shape = RoundedRectangle(cornerRadius: 8)
+        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
         // 卡片最高到“可用高度 − 38”，再高就在里面滚动。
         return FittingScrollView(maxHeight: max(120, metrics.availableHeight - 38)) {
             VStack(alignment: .leading, spacing: 0) {
@@ -123,15 +123,9 @@ struct NFDialogLayer: View {
             .padding(24)
         }
         .frame(width: max(0, min(metrics.size.width - 48, 400)))
-        .background(Sm.surface, in: shape)
+        .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: Sm.panelRing)
         .clipShape(shape)
-        // --notion-shadow：0 4px 14px rgba(15,15,15,.12) + 外侧 1px 的细环 rgba(15,15,15,.05)。
-        .overlay {
-            RoundedRectangle(cornerRadius: 8.5)
-                .stroke(Sm.panelRing, lineWidth: 1)
-                .padding(-0.5)
-        }
-        .shadow(color: Sm.panelShadow, radius: 7, x: 0, y: 4)
+        .shadow(color: Sm.panelShadow, radius: 10, x: 0, y: 4)
         .accessibilityAddTraits(.isModal)
     }
 }
@@ -283,7 +277,8 @@ struct NFDialogTextField: View {
             .submitLabel(.done)
             .onSubmit(onSubmit)
             .onChange(of: text) { _, value in
-                if value.count > maxLength { text = String(value.prefix(maxLength)) }
+                let clipped = Self.clipUtf16(value, maxLength: maxLength)
+                if clipped != value { text = clipped }
             }
             // 网页的内边距 8.8×11.2 在 1px 描边里面，这里描边画在框内，所以各加 1。
             .padding(.horizontal, 12.2)
@@ -303,5 +298,19 @@ struct NFDialogTextField: View {
                 try? await Task.sleep(nanoseconds: 80_000_000)
                 focused = true
             }
+    }
+
+    /// 服务端按 JS 字符串长度（UTF-16 码元）校验，避免含 emoji / 代理对的标题超过 200 码元却未被截断，同时不拆分完整字符。
+    private static func clipUtf16(_ value: String, maxLength: Int) -> String {
+        guard value.utf16.count > maxLength else { return value }
+        var end = value.startIndex
+        var used = 0
+        for ch in value {
+            let cost = ch.utf16.count
+            if used + cost > maxLength { break }
+            used += cost
+            end = value.index(after: end)
+        }
+        return String(value[..<end])
     }
 }

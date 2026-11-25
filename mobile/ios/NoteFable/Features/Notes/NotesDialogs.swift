@@ -10,6 +10,7 @@ enum NotesDialogState: Identifiable, Equatable {
     case move(pageId: String)
     case newGroup
     case renameGroup(NoteGroupSummary)
+    case renamePage(NotePageSummary)
     case deleteGroup(NoteGroupSummary)
     case trashNote(NotePageSummary)
     /// kind：幻灯片是公开树的叶子，没有“包含子页面”（网页 note-share-dialog.tsx 的 kind）。
@@ -20,6 +21,7 @@ enum NotesDialogState: Identifiable, Equatable {
         case .move(let pageId): return "move:" + pageId
         case .newGroup: return "new-group"
         case .renameGroup(let group): return "rename-group:" + group.id
+        case .renamePage(let page): return "rename-page:" + page.id
         case .deleteGroup(let group): return "delete-group:" + group.id
         case .trashNote(let page): return "trash-note:" + page.id
         case .share(let pageId, _): return "share:" + pageId
@@ -119,6 +121,12 @@ private struct NotesDialogContent: View {
                 title: L("rename_project"), initial: group.name, submitLabel: L("save"), busy: $busy, close: close,
                 onSubmit: { name in await notes.renameGroup(group.id, name: name) }
             )
+        case .renamePage(let page):
+            GroupNameDialog(
+                title: L("pg_rename_page"), initial: page.title, submitLabel: L("save"),
+                placeholder: L("pg_page_title"), maxLength: 200, busy: $busy, close: close,
+                onSubmit: { title in await notes.renamePage(page.id, title: title) }
+            )
         case .deleteGroup(let group):
             NotesConfirmDialog(
                 title: L("delete_project_title"),
@@ -153,6 +161,8 @@ private struct NotesDialogContent: View {
 private struct GroupNameDialog: View {
     private let title: String
     private let submitLabel: String
+    private let placeholder: String
+    private let maxLength: Int
     private let close: () -> Void
     private let onSubmit: @MainActor (String) async -> Bool
     @Binding private var busy: Bool
@@ -165,12 +175,16 @@ private struct GroupNameDialog: View {
         title: String,
         initial: String,
         submitLabel: String,
+        placeholder: String = L("project_name"),
+        maxLength: Int = 60,
         busy: Binding<Bool>,
         close: @escaping () -> Void,
         onSubmit: @escaping @MainActor (String) async -> Bool
     ) {
         self.title = title
         self.submitLabel = submitLabel
+        self.placeholder = placeholder
+        self.maxLength = maxLength
         self.close = close
         self.onSubmit = onSubmit
         self._busy = busy
@@ -194,7 +208,7 @@ private struct GroupNameDialog: View {
 
     var body: some View {
         NFDialogTitle(title)
-        NFDialogTextField(text: $name, label: L("project_name"), placeholder: L("project_name"), maxLength: 60) { submit() }
+        NFDialogTextField(text: $name, label: placeholder, placeholder: placeholder, maxLength: maxLength) { submit() }
         if tried, let error = app.notes.state.groupError {
             NFDialogError(notesErrorText(error, app.systemText))
         }

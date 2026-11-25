@@ -121,6 +121,11 @@ func filterNoteMoveTargets(_ targets: [NoteMoveTarget], _ filter: String) -> [No
     return targets.filter { $0.page.title.lowercased().contains(query) }.map { NoteMoveTarget(page: $0.page, depth: 0) }
 }
 
+/// 首页「最近编辑」的卡片列表（网页 notes-home-text.ts 的 recentPages）：按更新时间倒序取前几篇。
+func recentHomePages(_ pages: [NotePageSummary], limit: Int = 8) -> [NotePageSummary] {
+    pages.sorted { $0.updatedAt > $1.updatedAt }.prefix(limit).map { $0 }
+}
+
 /// 项目选项打不打勾：子页面不在任何项目的最上层，所以项目都不打勾（网页 !page.parentId）。[groupId] 为 nil 是"无项目"。
 func noteMoveGroupChecked(_ page: NotePageSummary, groupId: String?) -> Bool {
     page.parentId == nil && page.groupId == groupId

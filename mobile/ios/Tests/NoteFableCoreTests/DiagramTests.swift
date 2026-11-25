@@ -77,10 +77,10 @@ final class DiagramApiTests: XCTestCase {
         XCTAssertEqual(failure(404, #"{"error":"Message not found."}"#), DiagramFailure(message: "Message not found."))
         XCTAssertEqual(failure(404, #"{"error":"This diagram was moved to the trash."}"#), DiagramFailure(message: "This diagram was moved to the trash."))
         XCTAssertEqual(failure(413, #"{"error":"Note content exceeds 1 MiB."}"#), DiagramFailure(message: "Note content exceeds 1 MiB."))
-        // 上限（429）：和「整理成笔记」一样显示服务端的说明（iOS 没有升级提示）。
+        // 上限（429）：保留服务端说明与档位（游客用于在窗口内显示原生登录入口）。
         XCTAssertEqual(
             failure(429, #"{"error":"Daily limit reached.","code":"usage_limit","tier":"guest","kind":"chat"}"#),
-            DiagramFailure(message: "Daily limit reached.")
+            DiagramFailure(message: "Daily limit reached.", usageLimitTier: "guest")
         )
         XCTAssertEqual(failure(422, #"{"error":"Something else."}"#), DiagramFailure(message: "Something else."))
         XCTAssertEqual(failure(502, #"{"error":"Could not draw a diagram. Try again."}"#), DiagramFailure(message: DIAGRAM_FAILED))
@@ -255,6 +255,8 @@ final class DiagramApiTests: XCTestCase {
         let saved = await vm.flushBeforeServerRead("a")
         XCTAssertTrue(saved)
         XCTAssertEqual(flushes, 2)
+        // 重试保存成功后清掉旧的"草稿未保存"提示。
+        XCTAssertNil(vm.state.notice)
     }
 
     @MainActor
@@ -408,11 +410,28 @@ final class DiagramRouterTests: XCTestCase {
         let requestId = try XCTUnwrap(request.json?["clientRequestId"]?.stringValue)
         XCTAssertTrue((8...64).contains(requestId.count))
         XCTAssertTrue(requestId.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") })
-        guard case let .done(page, partial)? = environment.diagrams.job(source) else {
+        guard case let .done(_, partial)? = environment.diagrams.job(source) else {
             return XCTFail("expected a finished job")
         }
         XCTAssertFalse(partial)
 
+        // 已有任务时再点笔记菜单直接重开窗口，不重做保存（断网 / 保存冲突也能重开）。
+        environment.notes.flushEditor = {
+            flushes += 1
+            return FlushResult(false)
+        }
+        await router.drawDiagramFromNote("n1").value
+        XCTAssertEqual(flushes, 2)
+        XCTAssertEqual(router.diagramSource, source)
+        guard case let .done(page, _)? = environment.diagrams.job(source) else {
+            return XCTFail("expected a finished job")
+        }
+
+        // 恢复可保存状态，再测试"打开白板"（切走当前笔记前会先 flush）。
+        environment.notes.flushEditor = {
+            flushes += 1
+            return FlushResult(true)
+        }
         // 打开白板：放进列表、展开那篇笔记、打开白板，窗口关掉并忘掉任务。
         router.openDrawnDiagram(page)
         XCTAssertNil(router.diagramSource)
