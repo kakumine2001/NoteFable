@@ -1819,8 +1819,10 @@ export default function Home() {
           setSplitSelection((current) => current ?? activeSplitSelection);
         }
       }
-      if (selectionUpload) releaseSelectionPreview();
-      const droppedSelectionId = selectionUpload?.id;
+      // 上限で断られた送信はどこにも保存されていないので、選区画像は発言から外して片付ける（次の送信で撮り直す）。
+      // それ以外の失敗では、ほかの添付と同じく発言に残す（サーバーが保存済みのこともあり、プレビューも表示中）。
+      const droppedSelectionId = limited ? selectionUpload?.id : undefined;
+      if (droppedSelectionId) releaseSelectionPreview();
       updateCachedMessages(requestSessionKey, (current) =>
         current.map((message) =>
           message.id === localUserMessage.id && (limited || droppedSelectionId)

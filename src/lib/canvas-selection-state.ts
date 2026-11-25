@@ -28,7 +28,8 @@ export function applyExplicitSelection(
     noteId,
     explicit: selection,
     live: sameNote ? current.live : null,
-    dismissedLiveKey: null,
+    // 外した（送った）キャンバス上の選択は、別の対象を明示的に聞いても戻さない。選び直すまで外したまま。
+    dismissedLiveKey: sameNote ? current.dismissedLiveKey : null,
     signal: (sameNote ? current.signal : 0) + 1,
   };
 }

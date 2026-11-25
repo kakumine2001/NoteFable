@@ -112,6 +112,7 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   const exportingRef = useRef(false);
   useLayoutEffect(() => { exportingRef.current = Boolean(exporting); }, [exporting]);
   const captureBusyRef = useRef(false);
+  const captureJobRef = useRef<Promise<Blob | null> | null>(null);
   const [notesOpen, setNotesOpen] = useState(true);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const commandsRef = useRef<TextCommands | null>(null);
@@ -168,7 +169,7 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     return async () => {
       if (exportingRef.current || captureBusyRef.current) return null;
       captureBusyRef.current = true;
-      try {
+      const job = (async () => {
         const latestDeck = deckRef.current;
         const liveSlide = latestDeck.slides.find((slide) => slide.id === targetSlideId) ?? fallbackSnapshot;
         if (!liveSlide) return null;
@@ -176,8 +177,14 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
         const targetElementIds = wantedIds.filter((id) => liveSlide.elements.some((el) => el.id === id));
         if (wantedIds.length > 0 && !targetElementIds.length) return null;
         return await captureSlideSelectionPng(capture, { ...liveSlide, elements: liveSlide.elements.map((el) => ({ ...el })) }, liveTheme, targetElementIds);
+      })();
+      // 書き出しはこの撮影が終わるのを待ってから始める（runExport）。
+      captureJobRef.current = job;
+      try {
+        return await job;
       } finally {
         captureBusyRef.current = false;
+        if (captureJobRef.current === job) captureJobRef.current = null;
       }
     };
   }, [capture]);
@@ -413,14 +420,19 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
 
   // ---- 書き出し・放映 ----
   const runExport = async (format: ExportFormat) => {
-    if (exporting || captureBusyRef.current) return;
+    if (exporting || exportingRef.current) return;
     // PDF・PNG は隠した枚を入れない。見せる枚が無ければ空のファイルを作らない。
     if (!deck.slides.length || (format !== "pptx" && !deck.slides.some((slide) => !slide.hidden))) { setNotice(t("This deck has no slides to show.")); return; }
     // 書き出しを始めた時点のページの番号。読み込みを待つ間にアプリが別のページへ切り替えたら、前のページのファイルを渡さない。
     const exportEpoch = getNativeExportEpoch();
+    // 新しい選区の撮影を始めさせない（ref は次の描画を待たずにすぐ立てる）。
+    exportingRef.current = true;
     setExporting(format);
     setNotice("");
     try {
+      // AI パネルへ送る選区の画像を撮っている途中なら、終わるのを待ってから書き出す（黙って何もしないことがないように）。
+      const pendingCapture = captureJobRef.current;
+      if (pendingCapture) await pendingCapture.catch(() => null);
       const { exportDeckFiles } = await import("@/lib/slides/export-files");
       const result = await exportDeckFiles(deck, title, format, capture, exportEpoch);
       if (result === "cancelled" || exportEpoch !== getNativeExportEpoch()) return;

@@ -36,6 +36,21 @@ describe("canvas-selection-state", () => {
     expect(resolveActiveSelection(state, "board-1")).toEqual({ ids: ["el-2"], text: "other" });
   });
 
+  it("keeps a removed live selection removed after asking about a different target explicitly", () => {
+    let state = applyLiveSelection(null, "slide-1", { ids: ["el-x"], text: "X" });
+    state = clearActiveSelection(state, "slide-1");
+    // スライドの右クリックメニューから枚全体（S）を明示的に聞いて送る。
+    state = applyExplicitSelection(state, "slide-1", { ids: ["s1"], text: "Whole slide" });
+    expect(resolveActiveSelection(state, "slide-1")).toEqual({ ids: ["s1"], text: "Whole slide" });
+    state = clearActiveSelection(state, "slide-1", { ids: ["s1"], text: "Whole slide" });
+    // 外した要素 X は次の発言に戻ってこない。
+    expect(resolveActiveSelection(state, "slide-1")).toBeNull();
+    // 選び直せば添付される。
+    state = applyLiveSelection(state, "slide-1", null);
+    state = applyLiveSelection(state, "slide-1", { ids: ["el-x"], text: "X" });
+    expect(resolveActiveSelection(state, "slide-1")).toEqual({ ids: ["el-x"], text: "X" });
+  });
+
   it("re-attaches a dismissed live selection when Ask AI is explicitly clicked", () => {
     let state = applyLiveSelection(null, "board-1", { ids: ["el-1"], text: "test" });
     state = clearActiveSelection(state, "board-1");
