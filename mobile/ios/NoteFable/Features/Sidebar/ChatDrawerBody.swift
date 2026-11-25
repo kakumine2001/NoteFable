@@ -196,11 +196,9 @@ private struct ChatDrawerList: View, Equatable {
         }
     }
 
-    /// 项目行的“＋”：成功才切回聊天并关抽屉；失败时原因显示在 PROJECTS 下面。
+    /// 项目行的“＋”：在笔记工作区时先保存打开的笔记，成功后再建聊天、切换标签并关抽屉。
     private func newChat(in projectId: String) {
-        Task {
-            _ = await router.openNewChat(inProject: projectId)
-        }
+        router.openNewChat(inProject: projectId)
     }
 
     /// 菜单里选了一项：打开对应的对话框。每个对话框有自己的 `SidebarActionRunner`（一次只跑一个操作，请求进行中不能关）。

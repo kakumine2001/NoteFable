@@ -126,24 +126,29 @@ private struct NFGlassBackgroundModifier<S: InsettableShape>: ViewModifier {
     @ViewBuilder
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
-            if useSolidChrome {
-                content
-                    .background(solidFill, in: shape)
-                    .overlay { shape.strokeBorder(stroke, lineWidth: 1).allowsHitTesting(false) }
-                    .glassEffect(.identity, in: shape)
-            } else {
-                content.glassEffect(resolvedGlass, in: shape)
-            }
-        } else if useSolidChrome {
+            // Keep content in a single structural branch so toggling Reduce Transparency
+            // preserves child state (e.g. an open emoji picker's search text and scroll position).
             content
-                .background(solidFill, in: shape)
-                .overlay { shape.strokeBorder(stroke, lineWidth: 1).allowsHitTesting(false) }
+                .background(useSolidChrome ? solidFill : .clear, in: shape)
+                .overlay {
+                    shape
+                        .strokeBorder(useSolidChrome ? stroke : .clear, lineWidth: 1)
+                        .allowsHitTesting(false)
+                }
+                .glassEffect(useSolidChrome ? .identity : resolvedGlass, in: shape)
         } else {
             content
-                .background(style == .clear ? .ultraThinMaterial : .regularMaterial, in: shape)
-                .overlay {
-                    if let tint {
-                        shape.fill(tint).allowsHitTesting(false)
+                .background {
+                    if useSolidChrome {
+                        shape.fill(solidFill)
+                    } else {
+                        shape
+                            .fill(style == .clear ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(.regularMaterial))
+                            .overlay {
+                                if let tint {
+                                    shape.fill(tint)
+                                }
+                            }
                     }
                 }
                 .overlay { shape.strokeBorder(stroke, lineWidth: 1).allowsHitTesting(false) }

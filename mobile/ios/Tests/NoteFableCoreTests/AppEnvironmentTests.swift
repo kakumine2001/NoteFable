@@ -264,8 +264,7 @@ final class AppEnvironmentTests: XCTestCase {
         router.openDrawer()
         router.selectTab(.workspace)
         XCTAssertFalse(router.drawerOpen)
-        XCTAssertEqual(router.selectedTab, .workspace)
-        await eventually { environment.notes.state.workspace == .notes }
+        await eventually { environment.notes.state.workspace == .notes && router.selectedTab == .workspace }
 
         router.openSearch()
         XCTAssertEqual(router.selectedTab, .search)
@@ -274,6 +273,25 @@ final class AppEnvironmentTests: XCTestCase {
 
         router.openNewChat()
         await eventually { environment.notes.state.workspace == .chat && router.selectedTab == .chat }
+    }
+
+    func testProjectNewChatFromOpenNoteSavesBeforeCreatingChat() async throws {
+        let environment = try makeEnvironment()
+        let router = AppRouter(app: environment)
+        router.selectTab(.workspace)
+        await eventually { environment.notes.state.workspace == .notes && router.selectedTab == .workspace }
+
+        environment.notes.openNote("n1", title: "Draft", icon: nil, kind: .note)
+        await eventually { environment.notes.state.open?.id == "n1" }
+        environment.notes.flushEditor = { FlushResult(false, draftKept: true) }
+
+        let beforeSessions = log.count("/api/sessions")
+        router.openDrawer()
+        router.openNewChat(inProject: "proj1")
+        await eventually { environment.notes.state.notice?.kind == .unsavedDraft }
+        XCTAssertEqual(log.count("/api/sessions"), beforeSessions)
+        XCTAssertEqual(environment.notes.state.workspace, .notes)
+        XCTAssertEqual(router.selectedTab, .workspace)
     }
 
     // MARK: - 系统分享

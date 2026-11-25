@@ -46,7 +46,7 @@ final class AppRouter {
     func openDrawer() { drawerOpen = true }
     func closeDrawer() { drawerOpen = false }
 
-    /// 切换底部标签页（必要时先保存当前打开的笔记，再同步 `NotesViewModel.workspace`）。
+    /// 切换底部标签页（必要时先保存当前打开的笔记，等工作区真正切换完成后再更新选中标签）。
     func selectTab(_ tab: AppTab) {
         drawerOpen = false
         switch tab {
@@ -56,15 +56,17 @@ final class AppRouter {
             if app.notes.state.workspace == .chat {
                 selectedTab = .chat
             } else {
-                if app.notes.state.open == nil { selectedTab = .chat }
                 app.notes.setWorkspace(.chat) { [weak self] in
                     self?.selectedTab = .chat
                 }
             }
         case .workspace:
-            selectedTab = .workspace
-            if app.notes.state.workspace != .notes {
-                app.notes.setWorkspace(.notes)
+            if app.notes.state.workspace == .notes {
+                selectedTab = .workspace
+            } else {
+                app.notes.setWorkspace(.notes) { [weak self] in
+                    self?.selectedTab = .workspace
+                }
             }
         }
     }
@@ -87,25 +89,24 @@ final class AppRouter {
         if app.notes.state.workspace == .chat {
             startNew()
         } else {
-            if app.notes.state.open == nil { selectedTab = .chat }
             app.notes.setWorkspace(.chat, then: startNew)
         }
     }
 
-    /// 在项目里新建聊天；成功后切到聊天标签页并关抽屉。
-    func openNewChat(inProject projectId: String) async -> Bool {
-        let created = await app.sidebar.newChatInProject(projectId)
-        guard created else { return false }
-        drawerOpen = false
-        if app.notes.state.workspace == .chat {
-            selectedTab = .chat
-        } else {
-            if app.notes.state.open == nil { selectedTab = .chat }
-            app.notes.setWorkspace(.chat) { [weak self] in
+    /// 在项目里新建聊天；在笔记工作区时先保存打开的笔记并切换工作区，成功后才创建会话与关抽屉。
+    func openNewChat(inProject projectId: String) {
+        let createAndSwitch: @MainActor () -> Void = { [weak self, app] in
+            Task { @MainActor in
+                guard await app.sidebar.newChatInProject(projectId) else { return }
                 self?.selectedTab = .chat
+                self?.drawerOpen = false
             }
         }
-        return true
+        if app.notes.state.workspace == .chat {
+            createAndSwitch()
+        } else {
+            app.notes.setWorkspace(.chat, then: createAndSwitch)
+        }
     }
 
     /// 在工作区新建页面并切到工作区标签页。
@@ -137,7 +138,6 @@ final class AppRouter {
     /// 外部链接（Universal Link、笔记里点到的聊天链接）：先关掉抽屉，再切到聊天工作区与标签页。
     func openLink(_ link: ChatLink) {
         dismissOverlays()
-        if app.notes.state.open == nil { selectedTab = .chat }
         app.notes.setWorkspace(.chat) { [weak self, app] in
             self?.selectedTab = .chat
             switch link {

@@ -45,6 +45,12 @@ struct RootView: View {
                 if router.selectedTab != .search { router.selectedTab = .workspace }
             }
         }
+        // 在搜索标签切走失败（草稿未能保存）时回到工作区展示编辑器内的保存失败提示。
+        .onChange(of: app.notes.state.notice) { _, notice in
+            if notice?.kind == .unsavedDraft && router.selectedTab == .search {
+                router.selectedTab = .workspace
+            }
+        }
         // 登录 / 退出后：旧身份的窗口关掉，常驻 WebView 与其缓存一并销毁。
         .onChange(of: app.identityGeneration) { _, _ in
             noteEditorPool.destroy()
@@ -285,7 +291,6 @@ private struct AppDrawer<Panel: View, Content: View>: View {
         GeometryReader { proxy in
             let width = min(Self.maxWidth, proxy.size.width * 0.84)
             let rtl = layoutDirection == .rightToLeft
-            let dir: CGFloat = rtl ? -1 : 1
             let maskInset = -max(0, 1 - shown * 20) * 120
             ZStack(alignment: .leading) {
                 panel
@@ -296,7 +301,8 @@ private struct AppDrawer<Panel: View, Content: View>: View {
                             .contentShape(Rectangle())
                             .ignoresSafeArea()
                     }
-                    .offset(x: -dir * (1 - shown) * 28)
+                    // SwiftUI 在 RTL 下自动镜像 offset(x:)，不要再乘方向系数。
+                    .offset(x: -(1 - shown) * 28)
                     .opacity(shown > 0.01 ? 1 : 0)
                     .simultaneousGesture(closeGesture(width: width, rtl: rtl))
                     .allowsHitTesting(shown > 0.5)
@@ -321,8 +327,8 @@ private struct AppDrawer<Panel: View, Content: View>: View {
                         RoundedRectangle(cornerRadius: shown * 32, style: .continuous)
                             .padding(maskInset)
                     }
-                    .shadow(color: Color.black.opacity(0.16 * shown), radius: 18 * shown, x: -dir * 4 * shown, y: 0)
-                    .offset(x: dir * shown * width)
+                    .shadow(color: Color.black.opacity(0.16 * shown), radius: 18 * shown, x: 0, y: 0)
+                    .offset(x: shown * width)
                     .simultaneousGesture(
                         openGesture(width: width, containerWidth: proxy.size.width, rtl: rtl),
                         including: edgeOpens ? .all : .subviews
