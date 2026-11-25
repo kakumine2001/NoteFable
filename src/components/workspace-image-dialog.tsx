@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, LoaderCircle, RefreshCw, Sparkles } from "lucide-react";
+import { Check, Flag, LoaderCircle, RefreshCw, Sparkles } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { GuestLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
 import { useT } from "@/components/i18n-provider";
@@ -14,7 +14,7 @@ import { useBackToClose } from "@/lib/use-back-to-close";
 import { StorageLimitError, UsageLimitError } from "@/lib/usage-plans";
 
 // ワークスペース（ノート・ホワイトボード・スライド）共通の AI 画像生成ダイアログ。
-// 生成中・失敗（入力を保持して再試行可能）・成功プレビューからの挿入（または差し替え）までを一貫した UI で扱う。
+// 生成中・失敗（入力を保持して再試行可能）・成功プレビューからの挿入（または差し替え）・不適切な生成画像の通報までを一貫した UI で扱う。
 export function WorkspaceImageDialog({
   pageId,
   pageKind,
@@ -44,8 +44,17 @@ export function WorkspaceImageDialog({
   const [error, setError] = useState("");
   const [usageLimit, setUsageLimit] = useState<UsageLimitError | null>(null);
   const [preview, setPreview] = useState<PageImage | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [reportState, setReportState] = useState<"idle" | "sending" | "sent">("idle");
+  const [reportError, setReportError] = useState("");
   const limitHitRef = useRef(Boolean(prompt));
+  const previewRef = useRef<PageImage | null>(preview);
   const dialogMountedRef = useKeepDraftOnLeave(draftScope, () => (limitHitRef.current ? prompt : null), { persistent: embedded });
+
+  useEffect(() => {
+    previewRef.current = preview;
+  }, [preview]);
 
   useEffect(() => {
     if (dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal();
@@ -74,17 +83,27 @@ export function WorkspaceImageDialog({
     setBusy(true);
     setError("");
     setUsageLimit(null);
+    setReportOpen(false);
+    setReportError("");
     try {
       const image = await generatePageImage(trimmed, size);
       if (!dialogMountedRef.current) return;
       limitHitRef.current = false;
       savePendingDraft(draftScope, "", { persistent: embedded });
+      previewRef.current = image;
       setPreview(image);
+      setReportState("idle");
+      setReportReason("");
     } catch (caught) {
       if (caught instanceof StorageLimitError) {
         limitHitRef.current = true;
         savePendingDraft(draftScope, prompt, { persistent: embedded });
-        onClose();
+        // すでに生成済みのプレビューがあるなら閉じずに残し、そのまま挿入できるようにする。
+        if (previewRef.current) {
+          setError(caught.message);
+        } else {
+          onClose();
+        }
       } else if (caught instanceof UsageLimitError) {
         limitHitRef.current = true;
         if (!dialogMountedRef.current) {
@@ -108,6 +127,32 @@ export function WorkspaceImageDialog({
     }
   }
 
+  async function submitReport() {
+    if (!preview || reportState === "sending") return;
+    setReportState("sending");
+    setReportError("");
+    try {
+      const response = await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pageId,
+          imageUrl: preview.url,
+          prompt: preview.prompt ?? prompt.trim(),
+          reason: reportReason.trim(),
+        }),
+      });
+      const data = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) throw new Error(data?.error || t("Could not send the report."));
+      if (dialogMountedRef.current) setReportState("sent");
+    } catch (caught) {
+      if (dialogMountedRef.current) {
+        setReportState("idle");
+        setReportError(caught instanceof Error ? caught.message : t("Could not send the report."));
+      }
+    }
+  }
+
   function confirmInsert() {
     if (!preview || busy) return;
     limitHitRef.current = false;
@@ -124,6 +169,10 @@ export function WorkspaceImageDialog({
       onCancel={(event) => {
         event.preventDefault();
         if (!busy) onClose();
+      }}
+      onKeyDown={(event) => {
+        // ダイアログ内の Delete や矢印キーなどが背後のスライド・ノートエディターのショートカットへ伝播しないように止める。
+        if (event.key !== "Escape") event.stopPropagation();
       }}
       aria-label={t("Generate an image")}
       className="notes-dialog ws-image-dialog"
@@ -174,10 +223,48 @@ export function WorkspaceImageDialog({
       )}
 
       {!busy && preview && (
-        <div className="ws-image-stage is-ready">
-          {/* eslint-disable-next-line @next/next/no-img-element -- 自分の note-files へ保存した直後の生成画像プレビュー。 */}
-          <img src={preview.url} alt={preview.prompt || t("Generated image")} className="ws-image-preview" />
-        </div>
+        <>
+          <div className="ws-image-stage is-ready">
+            {/* eslint-disable-next-line @next/next/no-img-element -- 自分の note-files へ保存した直後の生成画像プレビュー。 */}
+            <img src={preview.url} alt={preview.prompt || t("Generated image")} className="ws-image-preview" />
+          </div>
+          <div className="ws-image-preview-meta">
+            {reportState === "sent" ? (
+              <span className="ws-image-report-sent" role="status">{t("Report sent")} · {t("Thanks. We’ll review this image.")}</span>
+            ) : (
+              <button
+                type="button"
+                className="ws-image-report-link"
+                aria-expanded={reportOpen}
+                onClick={() => { setReportOpen((open) => !open); setReportError(""); }}
+              >
+                <Flag size={13} aria-hidden="true" />
+                <span>{t("Report image")}</span>
+              </button>
+            )}
+          </div>
+          {reportOpen && reportState !== "sent" && (
+            <form
+              className="ws-image-report-box"
+              onSubmit={(event) => { event.preventDefault(); void submitReport(); }}
+            >
+              <p className="ws-image-report-hint">{t("Tell us what’s wrong with this AI-generated image (optional).")}</p>
+              <textarea
+                className="notes-dialog-input ws-image-report-input"
+                rows={2}
+                maxLength={1000}
+                value={reportReason}
+                aria-label={t("Reason")}
+                onChange={(event) => setReportReason(event.target.value)}
+              />
+              {reportError && <p role="alert" className="ws-image-error">{localizeSystemText(reportError, t)}</p>}
+              <div className="ws-image-report-actions">
+                <button type="button" className="notion-button" disabled={reportState === "sending"} onClick={() => setReportOpen(false)}>{t("Cancel")}</button>
+                <button type="submit" className="notion-button notion-button-primary" disabled={reportState === "sending"}>{t("Send report")}</button>
+              </div>
+            </form>
+          )}
+        </>
       )}
 
       {/* メールログインの入力フォームを画像生成フォームに入れ子にしないよう、上限の案内は form の外に出す。 */}

@@ -550,6 +550,7 @@ function NoteFormattingToolbar() {
 type NoteEditorProps = {
   blocks: NoteContent["blocks"]; onChange: (blocks: NoteContent["blocks"]) => void; editable: boolean;
   embedded?: boolean;
+  generateImageSignal?: number;
   editorRef: Ref<NoteEditorHandle>; onFocusTitle: () => void; onAskAi?: (selection: PageSelection) => void;
   onSelectionChange?: (selection: PageSelection | null) => void;
   workspaceRef?: RefObject<HTMLDivElement | null>;
@@ -637,7 +638,7 @@ function useMentionPages(given: MentionPage[] | undefined, blocks: NoteContent["
   return { pages: given ?? fetched, loadPages };
 }
 
-function NoteEditorBody({ blocks, onChange, editable, embedded = false, editorRef, onFocusTitle, onAskAi, onSelectionChange, workspaceRef, base, pages: givenPages, currentPageId, onOpenPage, pageMentions = true }: NoteEditorProps & { base: Dictionary }) {
+function NoteEditorBody({ blocks, onChange, editable, embedded = false, generateImageSignal = 0, editorRef, onFocusTitle, onAskAi, onSelectionChange, workspaceRef, base, pages: givenPages, currentPageId, onOpenPage, pageMentions = true }: NoteEditorProps & { base: Dictionary }) {
   const { t, dir, locale } = useI18n();
   const { resolved: resolvedTheme } = useTheme();
   const { pages, loadPages } = useMentionPages(givenPages, blocks);
@@ -756,6 +757,13 @@ function NoteEditorBody({ blocks, onChange, editable, embedded = false, editorRe
     editor.setTextCursorPosition(last, "end");
   }
   const [imageGenTarget, setImageGenTarget] = useState<{ kind: "new"; anchorBlockId: string | null } | { kind: "block"; blockId: string } | null>(null);
+  // 初期値を 0 にすることで、動的読み込み中に AI パネルから送られた要求もマウント直後に開ける。
+  const [dismissedGenerateSignal, setDismissedGenerateSignal] = useState(0);
+  const activeImageGenTarget = useMemo<{ kind: "new"; anchorBlockId: string | null } | { kind: "block"; blockId: string } | null>(() => {
+    if (imageGenTarget && (imageGenTarget.kind === "new" || imageGenTarget.kind === "block")) return imageGenTarget;
+    if (editable && generateImageSignal > dismissedGenerateSignal) return { kind: "new", anchorBlockId: null };
+    return null;
+  }, [imageGenTarget, editable, generateImageSignal, dismissedGenerateSignal]);
 
   const openImageGenerator = useCallback((anchorBlockId?: string | null) => {
     if (!editable) return;
@@ -773,17 +781,17 @@ function NoteEditorBody({ blocks, onChange, editable, embedded = false, editorRe
   }, [editable]);
 
   const insertGeneratedImage = useCallback((image: PageImage) => {
-    if (!editable || !imageGenTarget) return;
+    if (!editable || !activeImageGenTarget) return;
     const imageProps = { url: image.url, name: image.name };
-    if (imageGenTarget.kind === "block") {
-      const target = editor.getBlock(imageGenTarget.blockId);
+    if (activeImageGenTarget.kind === "block") {
+      const target = editor.getBlock(activeImageGenTarget.blockId);
       if (target && target.type === "image") {
         editor.updateBlock(target, { props: imageProps });
         editor.focus();
         return;
       }
     }
-    const anchor = imageGenTarget.kind === "new" && imageGenTarget.anchorBlockId ? editor.getBlock(imageGenTarget.anchorBlockId) : undefined;
+    const anchor = activeImageGenTarget.kind === "new" && activeImageGenTarget.anchorBlockId ? editor.getBlock(activeImageGenTarget.anchorBlockId) : undefined;
     const emptyParagraph = anchor && anchor.type === "paragraph" && anchor.content.length === 0 && anchor.children.length === 0;
     let placedId: string;
     if (emptyParagraph) {
@@ -803,7 +811,7 @@ function NoteEditorBody({ blocks, onChange, editable, embedded = false, editorRe
     } else {
       editor.focus();
     }
-  }, [editable, editor, imageGenTarget]);
+  }, [editable, editor, activeImageGenTarget]);
 
   useImperativeHandle(editorRef, () => ({ focusStart, focusEnd, openImageGenerator }));
 
@@ -899,7 +907,7 @@ function NoteEditorBody({ blocks, onChange, editable, embedded = false, editorRe
     event.stopPropagation();
   }
 
-  const imageGenBlock = imageGenTarget?.kind === "block" ? editor.getBlock(imageGenTarget.blockId) : undefined;
+  const imageGenBlock = activeImageGenTarget?.kind === "block" ? editor.getBlock(activeImageGenTarget.blockId) : undefined;
   const imageGenMode: "insert" | "replace" = imageGenBlock?.type === "image" && Boolean(imageGenBlock.props.url) ? "replace" : "insert";
 
   return <NoteMentionContext.Provider value={mentionContext}><NoteAskAiContext.Provider value={onAskAi ?? null}><NoteImageGenContext.Provider value={editable ? openImageGenForBlock : null}><BlockSelectionContext.Provider value={blockSelectionCtx}><div ref={editorWrapRef} className="notes-block-editor" onClickCapture={onClickCapture} onKeyDownCapture={onKeyDown} onMouseMove={trackCodeHover} onFocus={trackCodeHover} onMouseLeave={() => setCodeHover(null)}>
@@ -992,14 +1000,14 @@ function NoteEditorBody({ blocks, onChange, editable, embedded = false, editorRe
     </button>}
     <button type="button" className="notes-editor-tail" tabIndex={-1} aria-label={t("Continue writing at end of note")} disabled={!editable} onClick={() => { if (!blockSelection.didMarqueeDragRef.current) focusEnd(); }} />
     <NoteBlockSelectionOverlay {...blockSelection.overlayProps} />
-    {imageGenTarget && (imageGenTarget.kind === "new" || imageGenTarget.kind === "block") && editable && (
+    {activeImageGenTarget && editable && (
       <WorkspaceImageDialog
         pageId={currentPageId ?? "note"}
         pageKind="note"
         embedded={embedded}
         mode={imageGenMode}
         onInsert={insertGeneratedImage}
-        onClose={() => setImageGenTarget(null)}
+        onClose={() => { setImageGenTarget(null); setDismissedGenerateSignal(generateImageSignal); }}
       />
     )}
   </div></BlockSelectionContext.Provider></NoteImageGenContext.Provider></NoteAskAiContext.Provider></NoteMentionContext.Provider>;

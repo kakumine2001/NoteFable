@@ -161,7 +161,12 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   const [aiAsk, setAiAsk] = useState<CanvasAiSelectionState | null>(null);
   // ホワイトボード・スライドのエディターが空けた AI ボタンの置き場所（CanvasEditorProps.aiSlot の目印）。
   const [aiAnchor, setAiAnchor] = useState<HTMLElement | null>(null);
-  const [generateImageSignal, setGenerateImageSignal] = useState(0);
+  const [generateImageRequest, setGenerateImageRequest] = useState<{ pageId: string; signal: number } | null>(null);
+  const pageGenerateImageSignal = generateImageRequest && generateImageRequest.pageId === activeId ? generateImageRequest.signal : 0;
+  const requestPageImageGeneration = useCallback(() => {
+    if (!activeId) return;
+    setGenerateImageRequest((current) => ({ pageId: activeId, signal: (current?.signal ?? 0) + 1 }));
+  }, [activeId]);
   const aiSelection = resolveActiveSelection(aiAsk, activeId);
   const aiOpenSignal = aiAsk && aiAsk.noteId === activeId ? aiAsk.signal : 0;
   const handleCanvasSelectionChange = useCallback((selection: PageSelection | null) => {
@@ -260,7 +265,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
           onSelectionChange={split ? undefined : handleCanvasSelectionChange}
           // 分割表示では AI ボタンを出さないので、置き場所も作らない。
           aiSlot={split ? undefined : <span ref={setAiAnchor} className="page-ai-anchor" aria-hidden="true" />}
-          generateImageSignal={generateImageSignal} />
+          generateImageSignal={pageGenerateImageSignal} />
       </div> : <>
         {(!!active.error || !!notes.backupError) && <div className="notes-column pt-6"><NoteSaveWarnings notes={notes} /></div>}
         <CanvasPagePlaceholder key={`${activeId}:${notes.editorEpoch}`} kind={activeKind} title={active.content.title} icon={active.content.icon} data={active.page.data} />
@@ -271,7 +276,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
         onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={async () => { await flushCanvasEditors(); return active.flush(); }} embedded={embedded}
         selection={aiSelection} onClearSelection={(sent) => setAiAsk((current) => clearActiveSelection(current, activeId, sent))}
         openSignal={aiOpenSignal} hidden={split} anchor={CanvasEditor && !split ? aiAnchor : null}
-        onGenerateImage={CanvasEditor && editable ? () => setGenerateImageSignal((count) => count + 1) : undefined} />
+        onGenerateImage={CanvasEditor && editable ? requestPageImageGeneration : undefined} />
     </>
     : active && activeId && !listMode ? <>
       <NotePageHeader key={`header:${activeId}`} content={active.content} editable={editable} titleRef={titleRef}
@@ -286,6 +291,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
         <NoteSaveWarnings notes={notes} />
         <NoteEditor key={`${activeId}:${notes.editorEpoch}:${locale}`} blocks={active.content.blocks} editable={editable}
           embedded={embedded}
+          generateImageSignal={pageGenerateImageSignal}
           workspaceRef={rootRef}
           // 埋め込み（/note-embed）は一覧を持たないので、エディターが自分で読む。メンションを押したらアプリに開いてもらう。
           // 一覧の読み込み中（まだ空）は「不明」として渡さない。空の一覧を渡すと、すべてのメンションが「開けない」表示になる。
@@ -312,7 +318,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
       <PageAssistant key={activeId} pageId={activeId} pageTitle={active.content.title} model={model} reasoning={reasoning}
         onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={() => active.flush()} embedded={embedded}
         selection={aiSelection} onClearSelection={(sent) => setAiAsk((current) => clearActiveSelection(current, activeId, sent))} openSignal={aiOpenSignal} hidden={split}
-        onGenerateImage={editable ? () => editorRef.current?.openImageGenerator() : undefined} />
+        onGenerateImage={editable ? requestPageImageGeneration : undefined} />
       <NotePresentationBridge
         key={`present:${activeId}`}
         title={active.content.title}

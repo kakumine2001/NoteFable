@@ -179,7 +179,8 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [linkDialog, setLinkDialog] = useState<{ mode: "link" | "card"; url?: string } | null>(null);
   const [generateImageOpen, setGenerateImageOpen] = useState(false);
-  const [dismissedGenerateSignal, setDismissedGenerateSignal] = useState(generateImageSignal);
+  // 初期値を 0 にすることで、動的読み込み中に AI パネルから送られた要求もマウント直後に開ける。
+  const [dismissedGenerateSignal, setDismissedGenerateSignal] = useState(0);
   const showGenerateImageDialog = editable && (generateImageOpen || generateImageSignal > dismissedGenerateSignal);
   const [sceneVersion, setSceneVersion] = useState("0");
   const [contentHidden, setContentHidden] = useState(false);
@@ -938,10 +939,11 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
       fileId,
       status: "saved",
     }]);
+    const insertedId = created.find((element) => element.type === "image")?.id ?? imageId;
     api.setActiveTool({ type: "selection" });
     api.updateScene({
       elements: [...api.getSceneElementsIncludingDeleted(), ...created],
-      appState: { selectedElementIds: { [imageId]: true } },
+      appState: { selectedElementIds: { [insertedId]: true } },
       captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     });
     lastSignature.current = null;

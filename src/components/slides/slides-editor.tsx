@@ -53,7 +53,7 @@ const MERGE_MS = 1500;
 
 function isTypingTarget(target: EventTarget | null) {
   const element = target as HTMLElement | null;
-  return !!element && (element.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName));
+  return !!element && (element.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName) || Boolean(element.closest("dialog")));
 }
 
 const MOD = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
@@ -106,7 +106,8 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   const [formatTick, setFormatTick] = useState(0);
   const [presenting, setPresenting] = useState<{ startId: string | null } | null>(null);
   const [dialog, setDialog] = useState<{ kind: "chat" | "generate"; target: string | null } | { kind: "report"; target: string } | null>(null);
-  const [dismissedGenerateSignal, setDismissedGenerateSignal] = useState(generateImageSignal);
+  // 初期値を 0 にすることで、動的読み込み中に AI パネルから送られた最初の要求もマウント直後に受け取れる。
+  const [dismissedGenerateSignal, setDismissedGenerateSignal] = useState(0);
   const activeDialog = dialog ?? (editable && generateImageSignal > dismissedGenerateSignal ? { kind: "generate" as const, target: null } : null);
   const closeDialog = useCallback(() => {
     setDialog(null);

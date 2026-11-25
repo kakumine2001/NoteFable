@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findReportedAnswer, findReportedPage, findReportedProposal, pageReportEmail, parseReport, proposalReportEmail, reportEmail, sendReport, slideImageReportEmail } from "@/lib/answer-report";
+import { findReportedAnswer, findReportedPage, findReportedPageImage, findReportedProposal, pageImageReportEmail, pageReportEmail, parseReport, proposalReportEmail, reportEmail, sendReport, slideImageReportEmail } from "@/lib/answer-report";
 import { readCanvasData } from "@/lib/canvas-store";
 import { parseNoteFileUrl } from "@/lib/note-file-keys";
 import { normalizeDeck } from "@/lib/slides/model";
@@ -38,6 +38,11 @@ export async function POST(request: NextRequest) {
     const page = await findReportedPage(user.id, target.id);
     if (!page) return NextResponse.json({ error: msg("This content is no longer available.") }, { status: 404 });
     email = pageReportEmail({ userId: user.id, signedIn, page, reason });
+  } else if (target.kind === "pageImage") {
+    // ワークスペース（ノート・ホワイトボード・スライド）の AI 生成画像：自分のページと自分の note-files にある画像だけ。
+    const image = await findReportedPageImage(user.id, target.pageId, target.imageUrl);
+    if (!image) return NextResponse.json({ error: msg("This image is no longer available.") }, { status: 404 });
+    email = pageImageReportEmail({ userId: user.id, signedIn, pageId: image.pageId, pageKind: image.pageKind, prompt: target.prompt, path: image.path, reason });
   } else {
     // スライドの AI で作った画像：自分の（ゴミ箱に無い）スライドの中の、AI で作った印のある画像だけ。
     const deck = normalizeDeck(await readCanvasData(user.id, target.pageId));

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PageImage } from "@/lib/page-images";
+import { StorageLimitError } from "@/lib/usage-plans";
 
 const hooks = vi.hoisted(() => ({
   values: [] as unknown[],
@@ -151,5 +152,51 @@ describe("WorkspaceImageDialog", () => {
     expect(afterTextarea?.props?.value).toBe("Architecture diagram");
     const alert = findNode(errorTree, (el) => el.props?.role === "alert");
     expect(collectText(alert)).toContain("Could not create the image. Try again.");
+  });
+
+  it("keeps the existing preview when regenerating hits the storage limit and allows reporting the preview", async () => {
+    const generated: PageImage = {
+      url: "/api/pages/files?key=note-files%2Fu1%2Fpic2.png&name=ai-image.png",
+      name: "ai-image.png",
+      width: 1024,
+      height: 1024,
+      mimeType: "image/png",
+      prompt: "Mountain lake",
+    };
+    hooks.generatePageImage
+      .mockResolvedValueOnce(generated)
+      .mockRejectedValueOnce(new StorageLimitError("Storage is full.", "member", 500, 500));
+
+    const onInsert = vi.fn();
+    const onClose = vi.fn();
+    const render = () => {
+      hooks.index = 0;
+      return WorkspaceImageDialog({
+        pageId: "wb1",
+        pageKind: "whiteboard",
+        onInsert,
+        onClose,
+      });
+    };
+
+    const initialTree = render();
+    const textarea = findNode(initialTree, (el) => el.type === "textarea");
+    (textarea?.props?.onChange as (e: { target: { value: string } }) => void)({ target: { value: "Mountain lake" } });
+
+    const withPrompt = render();
+    const form = findNode(withPrompt, (el) => el.type === "form");
+    await (form?.props?.onSubmit as (e: { preventDefault: () => void }) => Promise<void>)({ preventDefault: vi.fn() });
+
+    const previewTree = render();
+    expect(findNode(previewTree, (el) => el.type === "button" && collectText(el.props?.children).includes("Report image"))).not.toBeNull();
+
+    // Regenerate hits storage limit -> dialog stays open with the previous preview still insertable.
+    const retryForm = findNode(previewTree, (el) => el.type === "form");
+    await (retryForm?.props?.onSubmit as (e: { preventDefault: () => void }) => Promise<void>)({ preventDefault: vi.fn() });
+
+    expect(onClose).not.toHaveBeenCalled();
+    const afterRetry = render();
+    expect(findNode(afterRetry, (el) => el.type === "img")?.props?.src).toBe(generated.url);
+    expect(collectText(findNode(afterRetry, (el) => el.props?.role === "alert"))).toContain("Storage is full.");
   });
 });
