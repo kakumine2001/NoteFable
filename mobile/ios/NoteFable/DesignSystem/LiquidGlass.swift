@@ -50,15 +50,19 @@ extension View {
         ))
     }
 
-    /// Groups nearby Liquid Glass chrome in a `GlassEffectContainer` on iOS 26+; passthrough on iOS 17–18.
-    /// Wrapped view helper is `NFGlassContainer`.
+    /// Floats `content` over this view's `edge`: `safeAreaBar` on iOS 26+ (insets the safe area and extends the scroll
+    /// edge effect of scroll views under it), `safeAreaInset` on iOS 17–18. `systemBar: false` keeps `safeAreaInset`
+    /// on iOS 26+ too (kill switch: no scroll edge effect). The branch is fixed per process and call site.
+    /// It does not add a `GlassEffectContainer`: callers wrap the bar's glass in one `NFGlassContainer`.
+    /// Most bars want `nfFloatingHeader` (GlassChrome.swift), which adds the backdrop for the material / solid paths.
     func nfFloatingBar<Bar: View>(
         edge: VerticalEdge,
         alignment: HorizontalAlignment = .center,
         spacing: CGFloat? = 0,
+        systemBar: Bool = true,
         @ViewBuilder content: @escaping () -> Bar
     ) -> some View {
-        modifier(NFFloatingBarModifier(edge: edge, alignment: alignment, spacing: spacing, bar: content))
+        modifier(NFFloatingBarModifier(edge: edge, alignment: alignment, spacing: spacing, systemBar: systemBar, bar: content))
     }
 
     /// Hides or shows the bottom tab bar across iOS 17+, including the iOS 26 Reduce Transparency workaround (FORUM 828566).
@@ -172,14 +176,17 @@ private struct NFGlassBackgroundModifier<S: InsettableShape>: ViewModifier {
 
 /// Circular floating button rendered with interactive Liquid Glass on iOS 26+, frosted material on iOS 17–18,
 /// and solid surface under Reduce Transparency.
+/// The glyph defaults to the path's primary ink (`.primary` on native glass, `Sm.text` otherwise); pass `color` for
+/// a fixed colour. On native glass there is no extra press shrink (interactive glass bounces itself) and no custom shadow.
 struct NFGlassIconButton: View {
     private let icon: [String]
     private let label: String
     private let size: CGFloat
     private let iconSize: CGFloat
     private let strokeWidth: CGFloat
-    private let color: Color
+    private let color: Color?
     private let solidFill: Color
+    private let stroke: Color
     private let action: () -> Void
 
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -192,8 +199,9 @@ struct NFGlassIconButton: View {
         size: CGFloat = 40,
         iconSize: CGFloat = 18,
         strokeWidth: CGFloat = 2,
-        color: Color = Sm.text,
+        color: Color? = nil,
         solidFill: Color = Sm.surface,
+        stroke: Color = Sm.borderStrong,
         action: @escaping () -> Void
     ) {
         self.icon = icon
@@ -203,29 +211,26 @@ struct NFGlassIconButton: View {
         self.strokeWidth = strokeWidth
         self.color = color
         self.solidFill = solidFill
+        self.stroke = stroke
         self.action = action
     }
 
-    private var useSolidChrome: Bool {
-        reduceTransparency || forceSolidChrome
-    }
-
     var body: some View {
+        let path = NFChromePath.resolve(reduceTransparency: reduceTransparency, forceSolid: forceSolidChrome)
+        let resolved = color ?? path.primaryInk
         Button(action: action) {
-            LucideIcon(icon, size: iconSize, strokeWidth: strokeWidth, color: isEnabled ? color : Sm.faint)
+            LucideIcon(icon, size: iconSize, strokeWidth: strokeWidth, color: isEnabled ? resolved : Sm.faint)
                 .frame(width: size, height: size)
-                .nfGlassBackground(.interactive, in: Circle(), solidFill: solidFill, stroke: Sm.borderStrong)
+                .nfGlassBackground(.interactive, in: Circle(), solidFill: solidFill, stroke: stroke)
         }
-        .buttonStyle(.pressable(pressedBackground: nil, cornerRadius: size / 2, scale: 0.96, disabledOpacity: 0.6))
-        .shadow(color: shadowColor, radius: 6, x: 0, y: 2)
+        .buttonStyle(.pressable(
+            pressedBackground: nil,
+            cornerRadius: size / 2,
+            scale: path == .native ? 1 : 0.96,
+            disabledOpacity: 0.6
+        ))
+        .nfChromeShadow(NFChromeMetrics.controlShadow, radius: 6, y: 2)
         .accessibilityLabel(label)
-    }
-
-    private var shadowColor: Color {
-        if #available(iOS 26.0, *), !useSolidChrome {
-            return .clear
-        }
-        return Color(light: 0x140F172A, dark: 0x4D000000)
     }
 }
 
@@ -235,11 +240,18 @@ private struct NFFloatingBarModifier<Bar: View>: ViewModifier {
     let edge: VerticalEdge
     let alignment: HorizontalAlignment
     let spacing: CGFloat?
+    let systemBar: Bool
     @ViewBuilder let bar: () -> Bar
 
     func body(content: Content) -> some View {
+        // Nested, never `#available` combined with another condition: the outer branch is fixed for the process,
+        // the inner one for the call site (`systemBar` is a constant there).
         if #available(iOS 26.0, *) {
-            content.safeAreaBar(edge: edge, alignment: alignment, spacing: spacing, content: bar)
+            if systemBar {
+                content.safeAreaBar(edge: edge, alignment: alignment, spacing: spacing, content: bar)
+            } else {
+                content.safeAreaInset(edge: edge, alignment: alignment, spacing: spacing ?? 0, content: bar)
+            }
         } else {
             content.safeAreaInset(edge: edge, alignment: alignment, spacing: spacing ?? 0, content: bar)
         }
