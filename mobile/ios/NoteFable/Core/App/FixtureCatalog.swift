@@ -744,7 +744,8 @@ struct FixtureCatalog: Sendable {
     private func recentPagesPayload() -> JSONValue {
         [
             "pages": [
-                ["id": .string(IDs.tripPage), "kind": "note", "title": "Kyoto trip plan", "icon": "🗺️", "updatedAt": .string(iso(-300))],
+                // One page with a cover, so the screenshot shows covered and uncovered cards side by side (#204).
+                ["id": .string(IDs.tripPage), "kind": "note", "title": "Kyoto trip plan", "icon": "🗺️", "cover": "gradient-mint", "updatedAt": .string(iso(-300))],
                 ["id": .string(IDs.glassPage), "kind": "note", "title": "Liquid Glass checklist", "icon": "🫧", "updatedAt": .string(iso(-10800))],
                 ["id": .string(IDs.roadmapPage), "kind": "slides", "title": "Q4 roadmap", "icon": .null, "updatedAt": .string(iso(-4 * 86400))],
                 ["id": .string(IDs.boardPage), "kind": "whiteboard", "title": "Navigation sketch", "icon": .null, "updatedAt": .string(iso(-6 * 86400))],
