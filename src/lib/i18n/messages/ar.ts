@@ -1148,4 +1148,6 @@ export const ar: Record<string, string> = {
   "File": "ملف",
   "Only the first {max} slides are shown ({total} total).": "تُعرض أول {max} شريحة فقط (من إجمالي {total}).",
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "تتجاوز هذه الملاحظة حد {max} شريحة. هل تريد حفظ أول {max} شريحة فقط؟",
+  "Group & organize": "تجميع وتنظيم",
+  "Could not attach the selection screenshot this time.": "تعذّر إرفاق لقطة التحديد هذه المرة.",
 };

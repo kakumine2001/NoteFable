@@ -1148,4 +1148,6 @@ export const ru: Record<string, string> = {
   "File": "Файл",
   "Only the first {max} slides are shown ({total} total).": "Показаны только первые {max} слайдов (всего {total}).",
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "Эта заметка превышает лимит в {max} слайдов. Сохранить только первые {max} слайдов?",
+  "Group & organize": "Сгруппировать и упорядочить",
+  "Could not attach the selection screenshot this time.": "В этот раз не удалось прикрепить снимок выделения.",
 };

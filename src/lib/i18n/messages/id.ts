@@ -1148,4 +1148,6 @@ export const id: Record<string, string> = {
   "File": "Berkas",
   "Only the first {max} slides are shown ({total} total).": "Hanya {max} slide pertama yang ditampilkan ({total} total).",
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "Catatan ini melebihi batas {max} slide. Simpan hanya {max} slide pertama?",
+  "Group & organize": "Kelompokkan & rapikan",
+  "Could not attach the selection screenshot this time.": "Tangkapan layar pilihan tidak dapat dilampirkan kali ini.",
 };

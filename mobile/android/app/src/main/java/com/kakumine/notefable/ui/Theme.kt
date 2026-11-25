@@ -52,7 +52,11 @@ data class SmPalette(
     val composerShadow: Color, // --nf-composer-shadow 的主阴影
     val ring: Color,           // --notion-shadow 里那一圈 0 0 0 1px
     val scrim: Color?,         // 深色时对话框 / 底部面板的遮罩（.notes-dialog::backdrop、.model-sheet-backdrop）；浅色各处用自己的值
-    val activeRow: Color,      // 侧栏选中行的卡片底色（浅色白面，深色 #22242c）
+    val activeRow: Color,      // 侧栏选中行的卡片底色（浅色白面，深色 #242732）
+    val sectionTitle: Color,   // --sidebar-section-ink：侧栏高对比度分区标题
+    val tabMuted: Color,       // --sidebar-tab-muted：侧栏未激活标签 / 搜索与工具行文字
+    val countBg: Color,        // --sidebar-count-bg：侧栏计数胶囊和默认图标徽章底色
+    val countText: Color,      // --sidebar-count-text：侧栏计数胶囊文字
     val kindNote: Color,       // --kind-note
     val kindNoteSoft: Color,   // --kind-note-soft
     val kindNoteBorder: Color, // --kind-note-border
@@ -96,6 +100,10 @@ val LightSmPalette = SmPalette(
     ring = Color(0x0F0F172A),           // rgba(15,23,42,.06)
     scrim = null,
     activeRow = Color.White,
+    sectionTitle = Color(0xD61C202A),   // rgba(28,32,42,.84)
+    tabMuted = Color(0xB81C202A),       // rgba(28,32,42,.72)
+    countBg = Color(0x131C202A),        // rgba(28,32,42,.075)
+    countText = Color(0xBD1C202A),      // rgba(28,32,42,.74)
     kindNote = Color(0xFF2563EB),
     kindNoteSoft = Color(0x172563EB),
     kindNoteBorder = Color(0x332563EB),
@@ -138,7 +146,11 @@ val DarkSmPalette = SmPalette(
     composerShadow = Color(0x70000000), // rgba(0,0,0,.44)
     ring = Color(0x14FFFFFF),           // rgba(255,255,255,.08)
     scrim = Color(0x8F000000),          // rgba(0,0,0,.56)
-    activeRow = Color(0xFF22242C),
+    activeRow = Color(0xFF242732),
+    sectionTitle = Color(0xE0ECEDF0),   // rgba(236,237,240,.88)
+    tabMuted = Color(0xBDECEDF0),       // rgba(236,237,240,.74)
+    countBg = Color(0x17FFFFFF),        // rgba(255,255,255,.09)
+    countText = Color(0xC7ECEDF0),      // rgba(236,237,240,.78)
     kindNote = Color(0xFF60A5FA),
     kindNoteSoft = Color(0x2460A5FA),
     kindNoteBorder = Color(0x4760A5FA),
@@ -188,6 +200,10 @@ object Sm {
     val ComposerShadow: Color get() = palette.composerShadow
     val Ring: Color get() = palette.ring
     val ActiveRow: Color get() = palette.activeRow
+    val SectionTitle: Color get() = palette.sectionTitle
+    val TabMuted: Color get() = palette.tabMuted
+    val CountBg: Color get() = palette.countBg
+    val CountText: Color get() = palette.countText
     val KindNote: Color get() = palette.kindNote
     val KindNoteSoft: Color get() = palette.kindNoteSoft
     val KindNoteBorder: Color get() = palette.kindNoteBorder

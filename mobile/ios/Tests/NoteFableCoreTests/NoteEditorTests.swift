@@ -236,6 +236,19 @@ final class NoteEditorTests: XCTestCase {
         bridge.postMessage(#"{"type":"storageLimit","tier":"guest","used":104857600,"limit":104857600}"#)
         XCTAssertEqual(vm.state.storageLimit, StorageLimitInfo(tier: "guest", used: 104_857_600, limit: 104_857_600))
 
+        // 使用上限の案内も開いている編集器・同じページのものだけを受け取り、容量の案内とは排他にする。
+        vm.onEditorMessage("b", .usageLimit(tier: "guest", kind: "chat"))
+        XCTAssertNil(vm.state.usageLimit)
+        bridge.postMessage(#"{"type":"usageLimit","tier":"member","kind":"image","pageId":"other"}"#)
+        XCTAssertNil(vm.state.usageLimit)
+        bridge.postMessage(#"{"type":"usageLimit","tier":"member","kind":"image","pageId":"a"}"#)
+        XCTAssertEqual(vm.state.usageLimit, UsageLimitInfo(tier: "member", kind: "image"))
+        XCTAssertNil(vm.state.storageLimit)
+        vm.dismissUsageLimit()
+        XCTAssertNil(vm.state.usageLimit)
+        bridge.postMessage(#"{"type":"usageLimit","tier":"guest","kind":"chat"}"#)
+        XCTAssertEqual(vm.state.usageLimit, UsageLimitInfo(tier: "guest", kind: "chat"))
+
         // 草稿留在 WebView 里：第一次提示并留下，第二次放行。
         vm.closeNote()
         await notesSettle()
@@ -254,6 +267,7 @@ final class NoteEditorTests: XCTestCase {
         XCTAssertNil(vm.state.open)
         // 編集器を閉じたら案内も消える（次に開いたノートに出さない）。
         XCTAssertNil(vm.state.storageLimit)
+        XCTAssertNil(vm.state.usageLimit)
 
         // 编辑器关掉后不再经它保存。
         vm.registerEditor(nil)

@@ -10,6 +10,7 @@ import { dispatchSlidesCommand } from "@/lib/native-bridge";
 import { recentPages } from "@/lib/notes-home-text";
 import type { useNotePages } from "@/lib/use-note-pages";
 import { pageSettingsOf, type NotePageSummary } from "@/types/notes";
+import type { PageSelection } from "@/lib/page-ai/types";
 import { NoteIcon } from "@/components/note-icon";
 import { PageKindIcon } from "@/components/page-kind-icon";
 
@@ -24,7 +25,7 @@ type SplitNotePaneProps = {
   onMoveNote: (id: string) => void;
   onExportNote: (id: string) => void;
   onTrashNote: (id: string) => void;
-  onAskSelectionInChat: (text: string) => void;
+  onAskSelectionInChat: (selection: PageSelection) => void;
   onClose: () => void;
 };
 

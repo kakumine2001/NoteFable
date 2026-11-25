@@ -1148,4 +1148,6 @@ export const de: Record<string, string> = {
   "File": "Datei",
   "Only the first {max} slides are shown ({total} total).": "Es werden nur die ersten {max} Folien angezeigt ({total} insgesamt).",
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "Diese Notiz überschreitet das Limit von {max} Folien. Nur die ersten {max} Folien speichern?",
+  "Group & organize": "Gruppieren und ordnen",
+  "Could not attach the selection screenshot this time.": "Der Screenshot der Auswahl konnte diesmal nicht angehängt werden.",
 };

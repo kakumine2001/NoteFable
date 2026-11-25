@@ -53,6 +53,8 @@ export type Message = {
   storageLimit?: boolean;
   // DB の message ID、または送信直後の楽観表示で作る一時 ID。
   id: string;
+  // 楽観表示からサーバー保存済み ID へ差し替えた後も React のコンポーネント実体を維持するためのキー（画面専用）。
+  renderKey?: string;
   // USER は右側の吹き出し、ASSISTANT は Markdown 表示として描画する。
   role: "USER" | "ASSISTANT";
   // メッセージ本文。画像生成アシスタントでは空文字になることがある。

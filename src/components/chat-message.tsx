@@ -117,6 +117,13 @@ export const ChatMessage = memo(function ChatMessage({
     !message.failed &&
     !message.isGeneratingImage &&
     message.content.trim().length > 0;
+  // 生成中に操作行と同じ高さをあらかじめ確保し、完了してボタンが出た瞬間に本文が上へ跳ねるのを防ぐ。
+  const shouldReserveAnswerActions =
+    message.role === "ASSISTANT" &&
+    isGenerating &&
+    !message.failed &&
+    !message.isGeneratingImage &&
+    message.content.trim().length > 0;
   // 操作行が出ない AI の出力（画像だけの回答、sessionId の無いノートの AI アシスタント）にも「報告」だけは出す（Google Play の AI 生成コンテンツのポリシー）。
   const shouldShowReportOnly =
     message.role === "ASSISTANT" &&
@@ -241,6 +248,9 @@ export const ChatMessage = memo(function ChatMessage({
         {shouldShowAnswerActions && sessionId && (
           <AnswerActions messageId={message.id} content={message.content} sessionId={sessionId} conversationTitle={conversationTitle}
             versions={message.versions} actions={actions} />
+        )}
+        {shouldReserveAnswerActions && (
+          <div className="answer-actions answer-actions-placeholder" aria-hidden="true" />
         )}
         {/* 操作行の出ない回答（本文の無い回答）にも、別の版があれば切り替えだけは出す。 */}
         {message.role === "ASSISTANT" && !shouldShowAnswerActions && !isGenerating && message.versions && actions && (

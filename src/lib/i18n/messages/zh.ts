@@ -1157,4 +1157,6 @@ export const zh: Record<string, string> = {
   "File": "文件",
   "Only the first {max} slides are shown ({total} total).": "仅显示前 {max} 页幻灯片（共 {total} 页）。",
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "此笔记超过 {max} 页幻灯片上限。仅保存前 {max} 页吗？",
+  "Group & organize": "归类整理",
+  "Could not attach the selection screenshot this time.": "本次未能附上选区截图。",
 };

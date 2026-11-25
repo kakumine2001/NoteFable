@@ -214,6 +214,160 @@ describe("themes", () => {
   });
 });
 
+import { slidesContextText, slidesSelectionIds } from "@/lib/slides/ai-context";
+import { generateSlideImage } from "@/lib/slides/images";
+import { captureSlideSelectionPng, MAX_SLIDE_SELECTION_SIDE, scaledSlideDimensions, slideSelectionCropRect } from "@/lib/slides/selection-capture";
+import { UsageLimitError } from "@/lib/usage-plans";
+
+describe("slides AI context and selection capture", () => {
+  const sampleDeck: Deck = {
+    format: 1,
+    theme: { id: "simple", mode: "light" },
+    slides: [
+      {
+        id: "s1",
+        layout: "bullets",
+        section: "Intro",
+        notes: "Private speaker notes for slide 1",
+        elements: [
+          {
+            id: "el1",
+            type: "text",
+            x: 100,
+            y: 120,
+            w: 400,
+            h: 200,
+            rotation: 0,
+            doc: richDocFromText("Heading One"),
+            style: { font: "heading", size: 48, color: "heading", align: "left", valign: "top", lineHeight: 1.2, bold: true, italic: false },
+            fill: null,
+            autoHeight: false,
+          },
+          {
+            id: "el2",
+            type: "whiteboard",
+            x: 600,
+            y: 200,
+            w: 500,
+            h: 300,
+            rotation: 0,
+            src: FILE,
+            pageId: "wb_1",
+            frameId: "fr_1",
+            frameName: "Architecture",
+          },
+        ],
+      },
+    ],
+  };
+
+  it("omits speaker notes when only individual elements are selected unless includeNotes is true", () => {
+    const elOnly = slidesContextText(sampleDeck, { slideIds: ["s1"], elementIds: ["el1"] });
+    expect(elOnly).toContain("Heading One");
+    expect(elOnly).not.toContain("Private speaker notes");
+
+    const elWithNotes = slidesContextText(sampleDeck, { slideIds: ["s1"], elementIds: ["el1"] }, { includeNotes: true });
+    expect(elWithNotes).toContain("Notes: Private speaker notes for slide 1");
+
+    const wholeSlide = slidesContextText(sampleDeck, { slideIds: ["s1"], elementIds: [] });
+    expect(wholeSlide).toContain("Heading One");
+    expect(wholeSlide).toContain("[Whiteboard frame: Architecture]");
+    expect(wholeSlide).toContain("Notes: Private speaker notes for slide 1");
+
+    const localized = slidesContextText(sampleDeck, { slideIds: ["s1"], elementIds: [] }, {
+      t: (key, vars) => ({
+        "Slide {number}": `スライド ${vars?.number}`,
+        "Section {number}": `セクション ${vars?.number}`,
+        "Bullets": "箇条書き",
+        "Whiteboard frame": "ホワイトボードの枠",
+        "Speaker notes": "発表者ノート",
+      }[key] ?? key),
+    });
+    expect(localized).toContain("スライド 1 (箇条書き, Intro):");
+    expect(localized).toContain("[ホワイトボードの枠: Architecture]");
+    expect(localized).toContain("発表者ノート: Private speaker notes for slide 1");
+
+    const untitledSection = slidesContextText(
+      { ...sampleDeck, slides: [{ ...sampleDeck.slides[0], section: undefined }] },
+      { slideIds: ["s1"], elementIds: [] },
+      {
+        t: (key, vars) => ({
+          "Slide {number}": `スライド ${vars?.number}`,
+          "Section {number}": `セクション ${vars?.number}`,
+          "Bullets": "箇条書き",
+        }[key] ?? key),
+      },
+    );
+    expect(untitledSection).toContain("スライド 1 (箇条書き, セクション 1):");
+  });
+
+  it("produces read_note-aligned selectionIds (element IDs when selected, otherwise slide IDs)", () => {
+    expect(slidesSelectionIds(sampleDeck, { slideIds: ["s1"], elementIds: ["el1"] })).toEqual(["el1"]);
+    expect(slidesSelectionIds(sampleDeck, { slideIds: ["s1"], elementIds: [] })).toEqual(["s1"]);
+  });
+
+  it("computes bounded crop rects for selected elements and caps long edge to 1568 px", () => {
+    expect(slideSelectionCropRect(sampleDeck.slides[0], [])).toBeNull();
+    expect(slideSelectionCropRect(sampleDeck.slides[0], ["el1"], 32)).toEqual({ x: 68, y: 88, w: 464, h: 264 });
+    expect(scaledSlideDimensions(1920, 1080)).toEqual({ width: MAX_SLIDE_SELECTION_SIDE, height: 882 });
+    expect(scaledSlideDimensions(464, 264)).toEqual({ width: 464, height: 264 });
+  });
+
+  it("returns null without rendering full slide when selected elements are off-slide, and settles cleanly on capture rejection or timeout", async () => {
+    const offSlide: Slide = {
+      id: "s_off",
+      layout: "blank",
+      elements: [
+        { id: "off1", type: "text", x: 3000, y: 2000, w: 200, h: 100, rotation: 0, doc: richDocFromText("Off-slide"), style: { font: "body", size: 24, color: "text", align: "left", valign: "top", bold: false, italic: false, lineHeight: 1.2 }, fill: null, autoHeight: false },
+      ],
+    };
+    let rendered = 0;
+    let doneCount = 0;
+    const theme = resolveTheme(sampleDeck.theme);
+    const capture = {
+      renderSlide: async () => { rendered += 1; return {} as HTMLElement; },
+      renderNotesPage: async () => ({} as HTMLElement),
+      done: () => { doneCount += 1; },
+    };
+    // Off-slide element selection must NOT fall back to rendering the whole slide.
+    expect(await captureSlideSelectionPng(capture, offSlide, theme, ["off1"])).toBeNull();
+    expect(rendered).toBe(0);
+
+    // Rejected capture (e.g. editor unmounted while settling) resolves cleanly to null and runs done().
+    const rejectedCapture = {
+      renderSlide: async () => Promise.reject(new Error("Slide capture cancelled")),
+      renderNotesPage: async () => ({} as HTMLElement),
+      done: () => { doneCount += 1; },
+    };
+    expect(await captureSlideSelectionPng(rejectedCapture, sampleDeck.slides[0], theme, [])).toBeNull();
+    expect(doneCount).toBe(1);
+
+    // Hung capture settles via timeout and runs done().
+    const hungCapture = {
+      renderSlide: () => new Promise<HTMLElement>(() => {}),
+      renderNotesPage: async () => ({} as HTMLElement),
+      done: () => { doneCount += 1; },
+    };
+    expect(await captureSlideSelectionPng(hungCapture, sampleDeck.slides[0], theme, [], 25)).toBeNull();
+    expect(doneCount).toBe(2);
+  });
+
+  it("throws UsageLimitError when /api/pages/images returns 429 usage_limit", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => new Response(
+      JSON.stringify({ error: "You've used today's free image generations. Sign in for more, or try again tomorrow.", code: "usage_limit", tier: "guest", kind: "image" }),
+      { status: 429, headers: { "Content-Type": "application/json" } },
+    )) as typeof fetch;
+    try {
+      await expect(generateSlideImage("lighthouse", "1536x1024")).rejects.toSatisfy(
+        (err: unknown) => err instanceof UsageLimitError && err.tier === "guest" && err.kind === "image",
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
 describe("cross-review fixes", () => {
   it("keeps a slide in its own row when it is dropped onto itself", () => {
     const start = deck([slide("s1", { section: "Intro" }), slide("s2", { section: "Agenda" }), slide("s3")]);

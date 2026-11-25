@@ -1148,4 +1148,6 @@ export const ptBR: Record<string, string> = {
   "File": "Arquivo",
   "Only the first {max} slides are shown ({total} total).": "Somente os primeiros {max} slides são exibidos ({total} no total).",
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "Esta nota excede o limite de {max} slides. Salvar somente os primeiros {max} slides?",
+  "Group & organize": "Agrupar e organizar",
+  "Could not attach the selection screenshot this time.": "Não foi possível anexar a captura da seleção desta vez.",
 };

@@ -1148,4 +1148,6 @@ export const vi: Record<string, string> = {
   "File": "Tệp",
   "Only the first {max} slides are shown ({total} total).": "Chỉ hiển thị {max} trang chiếu đầu tiên (tổng {total} trang).",
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "Ghi chú này vượt quá giới hạn {max} trang chiếu. Chỉ lưu {max} trang chiếu đầu tiên?",
+  "Group & organize": "Phân nhóm & sắp xếp",
+  "Could not attach the selection screenshot this time.": "Lần này không thể đính kèm ảnh chụp vùng chọn.",
 };

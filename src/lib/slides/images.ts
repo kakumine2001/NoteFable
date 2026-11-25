@@ -1,6 +1,6 @@
 import { msg } from "@/lib/i18n/translate";
 import { storageLimitFromUpload } from "@/lib/storage-limit-client";
-import { MAX_STORED_FILE_BYTES } from "@/lib/usage-plans";
+import { MAX_STORED_FILE_BYTES, usageLimitErrorFrom } from "@/lib/usage-plans";
 
 // スライドの画像（画面側）：note-files へのアップロード、チャットの画像の取り込み、AI での生成。どれも自分の note-files の URL を返す。
 // 容量の上限で断られたときは、ノートと同じく画面に案内を出す（storage-limit-client.ts）。
@@ -54,6 +54,8 @@ export type GenerateSize = "1536x1024" | "1024x1024" | "1024x1536";
 export async function generateSlideImage(prompt: string, size: GenerateSize): Promise<SlideImage> {
   const response = await fetch("/api/pages/images", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt, size }) });
   const data = await readJson(response);
+  const usage = usageLimitErrorFrom(response.status, data);
+  if (usage) throw usage;
   const storage = storageLimitFromUpload(response.status, data);
   if (storage) throw storage;
   if (!response.ok || !data?.url) throw new Error(data?.error || msg("Could not create the image. Try again."));

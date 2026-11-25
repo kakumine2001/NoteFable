@@ -91,6 +91,7 @@ export type WhiteboardChromeProps = {
   onFitToContent: () => void;
   onCanvasBackground: (color: string) => void;
   onPenMode: (penMode: boolean) => void;
+  onAskAi?: () => void;
   minimapOpen: boolean;
   onToggleMinimap: () => void;
   // 表示中の範囲に図形が 1 つも無いとき「内容に戻る」を出す。
@@ -109,7 +110,7 @@ export function WhiteboardChrome(props: WhiteboardChromeProps) {
     <WhiteboardMenu {...props} />
     {editable && <WhiteboardToolbar {...props} />}
     {editable && (ui.selectedCount > 0 || isDrawingTool(ui.tool)) && !ui.editingText && <WhiteboardStylePanel ui={ui} drawMode={props.drawMode} compact={compact} theme={props.theme}
-      actions={props.actions} onLink={props.onLink} onOpenLink={props.onOpenLink} />}
+      actions={props.actions} onLink={props.onLink} onOpenLink={props.onOpenLink} onAskAi={props.onAskAi} />}
     {editable && ui.editingText && <WhiteboardStylePanel ui={ui} drawMode={props.drawMode} compact={compact} theme={props.theme} actions={props.actions} onLink={props.onLink} onOpenLink={props.onOpenLink} textOnly />}
     <WhiteboardZoomBar {...props} />
     {props.minimapOpen && props.minimap}

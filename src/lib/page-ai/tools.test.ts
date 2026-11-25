@@ -120,24 +120,41 @@ describe("page tools", () => {
     expect(result.content).toContain("[Truncated");
   });
 
-  it("shows a whiteboard or slide deck as read-only text with the IDs of its elements and slides, and says it cannot be edited", async () => {
+  it("shows a whiteboard or slide deck as structured read-only content with IDs, and says it cannot be edited", async () => {
     mocks.findFirst.mockResolvedValue({ id: "w1", kind: "whiteboard", title: "Plan", version: 2, blocks: [], updatedAt, canvas: { segments: [{ id: "e1", text: "Goal" }, { id: "e2", text: "Risks" }] } });
+    mocks.canvas.mockResolvedValue({
+      data: {
+        elements: [
+          { id: "f1", type: "frame", name: "Roadmap" },
+          { id: "e1", type: "rectangle", frameId: "f1" },
+          { id: "t1", type: "text", containerId: "e1", text: "Goal", frameId: "f1" },
+          { id: "e2", type: "stickynote", text: "Risks" },
+          { id: "a1", type: "arrow", startBinding: { elementId: "e1" }, endBinding: { elementId: "e2" } },
+        ],
+      },
+    });
     const board = await runPageTool("read_note", { noteId: "w1" }, ctx);
     expect(board.isError).toBeUndefined();
     expect(board.content).toContain("kind: whiteboard");
     expect(board.content).toContain("This page is a whiteboard, not a note.");
-    expect(board.content).toContain("- (id: e1) Goal\n- (id: e2) Risks");
+    expect(board.content).toContain("## Frame: Roadmap (id: f1)");
+    expect(board.content).toContain('- rectangle (id: e1): "Goal"');
+    expect(board.content).not.toContain("(id: t1)");
+    expect(board.content).toContain("- arrow (id: a1): e1 -> e2");
     expect(board.content).not.toMatch(/\[\d+\]/);
-    // ホワイトボードは取り出した文字だけで読み、本体（大きい）は読まない。
-    expect(mocks.canvas).not.toHaveBeenCalled();
+    // ホワイトボードも構造化読み取りのため本体を読む。
+    expect(mocks.canvas).toHaveBeenCalledWith(expect.objectContaining({ where: { noteId: "w1", note: { userId: "mine", deletedAt: null } } }));
 
-    // スライドは本体の並び順で数え、文字の無いスライドも番号に入れる（番号が実際のスライドと合う）。
+    // スライドは本体の並び順と構造で読み、文字の無いスライドも番号に入れる（番号が実際のスライドと合う）。
+    mocks.canvas.mockClear();
     mocks.findFirst.mockResolvedValue({ id: "s1", kind: "slides", title: "Deck", version: 1, blocks: [], updatedAt, canvas: { segments: [{ id: "a", text: "Intro" }, { id: "c", text: "Summary" }] } });
     mocks.canvas.mockResolvedValue({ data: { slides: [{ id: "a" }, { id: "b", hidden: true }, { id: "c" }] } });
     const deck = await runPageTool("read_note", { noteId: "s1" }, ctx);
     expect(mocks.canvas).toHaveBeenCalledWith(expect.objectContaining({ where: { noteId: "s1", note: { userId: "mine", deletedAt: null } } }));
     expect(deck.content).toContain("This page is a slide deck, not a note.");
-    expect(deck.content).toContain("Slide 1 (id: a): Intro\nSlide 2 (id: b) [hidden]: (no text)\nSlide 3 (id: c): Summary");
+    expect(deck.content).toContain("## Slide 1 (id: a, layout: blank)\n- Intro");
+    expect(deck.content).toContain("## Slide 2 (id: b, layout: blank) [hidden]\n(no text)");
+    expect(deck.content).toContain("## Slide 3 (id: c, layout: blank)\n- Summary");
     mocks.findFirst.mockResolvedValue({ id: "s2", kind: "slides", title: "Empty", version: 0, blocks: [], updatedAt, canvas: null });
     mocks.canvas.mockResolvedValue(null);
     expect((await runPageTool("read_note", { noteId: "s2" }, ctx)).content).toContain("(This page has no text.)");

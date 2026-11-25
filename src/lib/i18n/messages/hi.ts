@@ -1148,4 +1148,6 @@ export const hi: Record<string, string> = {
   "File": "फ़ाइल",
   "Only the first {max} slides are shown ({total} total).": "केवल पहली {max} स्लाइड दिखाई गई हैं (कुल {total})।",
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "यह नोट {max} स्लाइड की सीमा से अधिक है। क्या केवल पहली {max} स्लाइड सहेजें?",
+  "Group & organize": "समूह बनाएं और व्यवस्थित करें",
+  "Could not attach the selection screenshot this time.": "इस बार चयन का स्क्रीनशॉट संलग्न नहीं किया जा सका।",
 };

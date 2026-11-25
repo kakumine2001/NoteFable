@@ -1148,4 +1148,6 @@ export const tr: Record<string, string> = {
   "File": "Dosya",
   "Only the first {max} slides are shown ({total} total).": "Yalnızca ilk {max} slayt gösteriliyor (toplam {total}).",
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "Bu not {max} slayt sınırını aşıyor. Yalnızca ilk {max} slayt kaydedilsin mi?",
+  "Group & organize": "Grupla ve düzenle",
+  "Could not attach the selection screenshot this time.": "Bu sefer seçimin ekran görüntüsü eklenemedi.",
 };

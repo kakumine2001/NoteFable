@@ -2,7 +2,7 @@
 
 import { ArrowLeft, X } from "lucide-react";
 import { signIn } from "next-auth/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { GoogleLogo } from "@/components/google-logo";
 import { useI18n, useT } from "@/components/i18n-provider";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
@@ -28,12 +28,12 @@ export function useGoogleSignIn() {
 
 // 「ログイン」ボタン。押すとログイン方法を選ぶ窓が開く（主流のサービスと同じ: Google で続ける / メールで続ける）。
 // onBeforeSignIn: ログインのためにページを離れる・読み直す直前に呼ぶ（送れなかった本文を預けるなど）。
-export function SignInButton({ className = "", onBeforeSignIn }: { className?: string; onBeforeSignIn?: () => void }) {
+export function SignInButton({ className = "", onBeforeSignIn, icon }: { className?: string; onBeforeSignIn?: () => void; icon?: ReactNode }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button type="button" className={`signin-open-button ${className}`} onClick={() => setOpen(true)}>{t("Sign in")}</button>
+      <button type="button" className={`signin-open-button ${className}`} onClick={() => setOpen(true)}>{icon}<span>{t("Sign in")}</span></button>
       {open && <SignInDialog onClose={() => setOpen(false)} onBeforeSignIn={onBeforeSignIn} />}
     </>
   );

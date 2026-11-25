@@ -1,7 +1,8 @@
 "use client";
 
-import { HardDrive, Sparkles, X } from "lucide-react";
+import { HardDrive, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { AppIcon } from "@/components/app-icon";
 import { SignInButton } from "@/components/sign-in-dialog";
 import { useI18n, useT } from "@/components/i18n-provider";
 import { useAccount } from "@/lib/account-store";
@@ -26,7 +27,7 @@ export function GuestLimitPrompt({ kind, onClose, onBeforeSignIn, attachmentsLos
   const limits = USAGE_LIMITS.member;
   return (
     <section className="guest-limit-prompt notion-page-column mb-3" role="status" aria-live="polite">
-      <span className="guest-limit-icon" aria-hidden="true"><Sparkles size={18} strokeWidth={2.1} /></span>
+      <span className="guest-limit-icon is-mascot" aria-hidden="true"><AppIcon size={22} /></span>
       <div className="min-w-0 flex-1">
         <p className="guest-limit-title">
           {kind === "image" ? t("You've used your free images") : t("You've used today's free messages")}
@@ -79,7 +80,7 @@ export function UpgradePrompt({ kind, onClose, onBeforeUpgrade, attachmentsLost 
   const trialDays = account.trialDays ?? 0;
   return (
     <section className="guest-limit-prompt notion-page-column mb-3" role="status" aria-live="polite">
-      <span className="guest-limit-icon" aria-hidden="true"><Sparkles size={18} strokeWidth={2.1} /></span>
+      <span className="guest-limit-icon is-mascot" aria-hidden="true"><AppIcon size={22} /></span>
       <div className="min-w-0 flex-1">
         <p className="guest-limit-title">
           {kind === "image" ? t("You've used your free images") : t("You've used today's free messages")}
@@ -198,7 +199,7 @@ export function BillingReturnNotice() {
   const limits = USAGE_LIMITS.pro;
   return (
     <section className="guest-limit-prompt notion-page-column mb-3" role="status" aria-live="polite">
-      <span className="guest-limit-icon" aria-hidden="true"><Sparkles size={18} strokeWidth={2.1} /></span>
+      <span className="guest-limit-icon is-mascot" aria-hidden="true"><AppIcon size={22} /></span>
       <div className="min-w-0 flex-1">
         <p className="guest-limit-title">{state === "pro" ? t("Welcome to NoteFable Pro") : t("Thanks for subscribing")}</p>
         <p className="guest-limit-body">

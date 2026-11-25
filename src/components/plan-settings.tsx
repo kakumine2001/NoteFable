@@ -1,7 +1,8 @@
 "use client";
 
-import { CreditCard, LoaderCircle, Sparkles } from "lucide-react";
+import { CreditCard, LoaderCircle } from "lucide-react";
 import { useEffect, useId, useState } from "react";
+import { AppIcon } from "@/components/app-icon";
 import { useI18n } from "@/components/i18n-provider";
 import { goToBilling, loadPlan, type PlanInfo } from "@/lib/billing-client";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
@@ -101,7 +102,7 @@ export function PlanSettings() {
         {plan.storage && <p className="project-settings-help">{t("Files you delete free up space about a week later. Files in Trash or in version history still count.")}</p>}
         {!pro && plan.billing && (
           <div className="settings-plan-offer">
-            <p className="settings-plan-offer-title"><Sparkles size={15} aria-hidden="true" />{t("NoteFable Pro · ¥{price}/month", { price: plan.priceJpy })}</p>
+            <p className="settings-plan-offer-title"><AppIcon size={17} />{t("NoteFable Pro · ¥{price}/month", { price: plan.priceJpy })}</p>
             <p className="project-settings-help">{t("{chat} messages and {image} image generations a month, and {storage} of storage. Cancel anytime.", { chat: USAGE_LIMITS.pro.chat.toLocaleString(tag), image: USAGE_LIMITS.pro.image, storage: formatStorageSize(STORAGE_LIMITS.pro, tag) })}</p>
             {plan.trialDays > 0 && <p className="project-settings-help">{t("Free for {days} days, then ¥{price}/month. Cancel before the trial ends and you won't be charged.", { days: plan.trialDays, price: plan.priceJpy })}</p>}
             <button type="button" className="signin-open-button settings-plan-upgrade" disabled={busy} onClick={() => void open("checkout")}>

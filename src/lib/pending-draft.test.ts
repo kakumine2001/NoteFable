@@ -1,18 +1,23 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { keepRejectedDraft, savePendingDraft, takePendingDraft } from "./pending-draft";
+import { keepRejectedDraft, savePendingDraft, takePendingDraft, takePendingDraftSelection } from "./pending-draft";
 
 function stubStorage() {
-  const store = new Map<string, string>();
-  vi.stubGlobal("window", { sessionStorage: {
+  const session = new Map<string, string>();
+  const local = new Map<string, string>();
+  const make = (store: Map<string, string>) => ({
     getItem: (key: string) => store.get(key) ?? null,
     setItem: (key: string, value: string) => void store.set(key, value),
     removeItem: (key: string) => void store.delete(key),
-  } });
-  return store;
+  });
+  vi.stubGlobal("window", { sessionStorage: make(session), localStorage: make(local) });
+  return { session, local };
 }
 
 describe("pending draft", () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
 
   it("hands the saved text back once per scope", () => {
     stubStorage();
@@ -24,25 +29,67 @@ describe("pending draft", () => {
   });
 
   it("clears the slot for blank text and survives unavailable storage", () => {
-    const store = stubStorage();
+    const { session, local } = stubStorage();
     savePendingDraft("chat", "x");
     savePendingDraft("chat", "  ");
-    expect(store.size).toBe(0);
-    vi.stubGlobal("window", { get sessionStorage(): Storage { throw new Error("blocked"); } });
+    expect(session.size).toBe(0);
+    savePendingDraft("note:1", "y", { persistent: true });
+    expect(local.size).toBe(1);
+    savePendingDraft("note:1", "  ", { persistent: true });
+    expect(local.size).toBe(0);
+    vi.stubGlobal("window", { get sessionStorage(): Storage { throw new Error("blocked"); }, get localStorage(): Storage { throw new Error("blocked"); } });
     expect(() => savePendingDraft("chat", "x")).not.toThrow();
+    expect(() => savePendingDraft("chat", "x", { persistent: true })).not.toThrow();
     expect(takePendingDraft("chat")).toBe("");
+  });
+
+  it("persists rejected native WebView drafts in localStorage across sessionStorage resets and expires stale entries", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-24T12:00:00Z"));
+    const { session, local } = stubStorage();
+    savePendingDraft("note:p1", "keep me across sign-in", { persistent: true });
+    expect(session.size).toBe(0);
+    expect(local.size).toBe(1);
+    // Simulate WebView destruction/recreation: sessionStorage is wiped, localStorage survives.
+    session.clear();
+    expect(takePendingDraft("note:p1")).toBe("keep me across sign-in");
+    expect(takePendingDraft("note:p1")).toBe("");
+
+    savePendingDraft("slides-image:p1", "expired prompt", { persistent: true });
+    vi.advanceTimersByTime(3 * 60 * 60 * 1000);
+    expect(takePendingDraft("slides-image:p1")).toBe("");
+  });
+
+  it("persists and restores selection IDs alongside rejected drafts across session resets and clears them with blank text", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-24T12:00:00Z"));
+    const { session, local } = stubStorage();
+    savePendingDraft("note:wb1", "What does this connect to?", { persistent: true, selectionIds: ["arrow-1", "shape-2", "arrow-1"] });
+    session.clear();
+    expect(takePendingDraft("note:wb1")).toBe("What does this connect to?");
+    expect(takePendingDraftSelection("note:wb1")).toEqual(["arrow-1", "shape-2"]);
+    expect(takePendingDraftSelection("note:wb1")).toEqual([]);
+
+    savePendingDraft("note:wb2", "draft", { persistent: true, selectionIds: ["el-1"] });
+    savePendingDraft("note:wb2", "   ", { persistent: true });
+    expect(local.size).toBe(0);
+    expect(takePendingDraftSelection("note:wb2")).toEqual([]);
   });
 });
 
 describe("keepRejectedDraft", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("puts the rejected text ahead of a draft saved earlier", () => {
+  it("puts the rejected text ahead of a draft saved earlier (including persistent storage)", () => {
     stubStorage();
     savePendingDraft("note:1", "typed later");
     keepRejectedDraft("note:1", "rejected ");
     expect(takePendingDraft("note:1")).toBe("rejected\n\ntyped later");
     keepRejectedDraft("chat", "only");
     expect(takePendingDraft("chat")).toBe("only");
+
+    savePendingDraft("note:2", "later", { persistent: true });
+    keepRejectedDraft("note:2", "first", { persistent: true });
+    expect(takePendingDraft("note:2")).toBe("first\n\nlater");
   });
 });

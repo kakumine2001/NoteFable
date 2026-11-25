@@ -581,6 +581,9 @@ enum EmbedMessage: Equatable, Sendable {
     /// 笔记里的图片、文件、封面或图标因为文件存储空间不够上传失败（used / limit 是字节）。App 在编辑器上方显示提示。
     /// 只有 bootstrap 里声明了 `canShowStorageLimit()` 的 App 才会收到。
     case storageLimit(tier: String, used: Int, limit: Int)
+    /// 笔记编辑器里的 AI 面板或幻灯片生图撞到使用次数上限（429 usage_limit）。App 在编辑器上方显示提示。
+    /// 只有 bootstrap 里声明了 `canShowUsageLimit()` 的 App 才会收到。[pageId] 是发生上限的源页面 ID（用于过滤切页后晚到的旧响应）。
+    case usageLimit(tier: String, kind: String, pageId: String? = nil)
     /// 白板在用画画的工具（画笔、图形…，不是移动画布的手）。Android 这期间让开屏幕边缘的返回手势；
     /// iOS 在白板页一直关着边缘手势（[PageKind.capturesEdgeSwipes]），收下不用。
     case drawing(active: Bool)
@@ -621,6 +624,11 @@ enum EmbedMessage: Equatable, Sendable {
             case "storageLimit":
                 guard let tier = try text(fields["tier"]), let used = fields["used"]?.intValue, let limit = fields["limit"]?.intValue else { return nil }
                 return .storageLimit(tier: tier, used: used, limit: limit)
+            case "usageLimit":
+                guard let tier = fields["tier"]?.stringValue, ["guest", "member", "pro"].contains(tier),
+                      let kind = fields["kind"]?.stringValue, ["chat", "image"].contains(kind) else { return nil }
+                let pageId = fields["pageId"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines)
+                return .usageLimit(tier: tier, kind: kind, pageId: pageId?.isEmpty == false ? pageId : nil)
             case "presentation":
                 guard let state = try text(fields["state"]), ["start", "slide", "end"].contains(state) else { return nil }
                 return .presentation(state: state, index: fields["index"]?.intValue ?? 0, count: fields["count"]?.intValue ?? 0)

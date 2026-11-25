@@ -1148,4 +1148,6 @@ export const th: Record<string, string> = {
   "File": "ไฟล์",
   "Only the first {max} slides are shown ({total} total).": "แสดงเฉพาะ {max} สไลด์แรก (ทั้งหมด {total} สไลด์)",
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "โน้ตนี้เกินขีดจำกัด {max} สไลด์ ต้องการบันทึกเฉพาะ {max} สไลด์แรกหรือไม่?",
+  "Group & organize": "จัดกลุ่มและจัดระเบียบ",
+  "Could not attach the selection screenshot this time.": "ไม่สามารถแนบภาพหน้าจอส่วนที่เลือกได้ในครั้งนี้",
 };
