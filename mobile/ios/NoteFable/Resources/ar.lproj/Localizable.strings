@@ -321,6 +321,15 @@
 "not_now" = "ليس الآن";
 "scroll_to_bottom" = "التمرير إلى الأسفل";
 
+/* strings_diagram.xml */
+"diagram_draw" = "ارسمه كمخطط";
+"diagram_working" = "جارٍ رسم المخطط…";
+"diagram_description" = "يحوّل الذكاء الاصطناعي هذا المحتوى إلى مخطط قابل للتعديل على سبورة جديدة. يُحتسب كرسالة دردشة واحدة.";
+"diagram_done" = "المخطط جاهز.";
+"diagram_open" = "فتح السبورة";
+"diagram_partial" = "كان المحتوى طويلًا جدًا، لذلك رُسم الجزء الأول فقط.";
+"diagram_copy_source" = "نسخ مصدر المخطط";
+
 /* strings_emoji.xml */
 "em_emoji" = "رموز تعبيرية";
 "em_random" = "عشوائي";

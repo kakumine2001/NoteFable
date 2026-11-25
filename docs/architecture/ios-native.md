@@ -26,6 +26,7 @@ iOS 客户端是 Android 客户端（[android-native.md](android-native.md)）�
   - 界面在 `Features/Chat/Answer/ProposalCard.swift`：按钮行待确认是“应用 / 放弃”，已应用是“打开笔记 / 打开页面” + “撤销”，撤销过的编辑提案还能打开，撤销过的新建提案写“这个页面已移到回收站。”。缩略图改前、改后并排（最高 176，红 / 绿边框），地址只给提案的主人，只收 `/api/proposals/<id>/image?change=<n>&side=before|after` 这一种写法（`Activity.isProposalImagePath`，Android 同），经 `RemoteImageLoader` 带 App 的 Cookie 读，读到之前按 16:9 留底色。撤销中和网页一样算已处理：徽章还是“已应用”，不显示“应用 / 放弃”，编辑提案的“打开…”还在（新建的页面要进回收站，不给）。
   - 报告 AI 内容：`Core/API/ReportApi.swift` 的 `ReportTarget`（回答 `messageId`、提案 `proposalId`、页面 `pageId`，请求体里只放一个）、`Core/Account/ReportModel.swift`、`Features/Chat/Answer/ReportDialog.swift`（`.reportDialog(_:isPresented:)`；标题和说明回答是 `report_title` / `report_help`，提案和页面是 `report_ai_content` / `report_ai_help`）。卡片标题行最右的旗子报告这个提案；页面“…”菜单在 `NotePageSummary.aiUpdatedAt` 不是 nil 时有“报告 AI 内容”（`notePageReportable`）。编辑器里网页的 AI 面板应用的修改不经原生，所以这一项要等笔记列表下次刷新（回到列表、重新打开）才出现。
   - 单元测试：`ActivityTests`（新字段、对象、缩略图地址、旧提案的默认值）、`ProposalCopyTests`、`ProposalStoreTests`（撤销、状态优先级、undo 和报告的请求体）、`AccountModelsTests`（报告提案 / 页面）、`NotesApiTests`（`aiUpdatedAt`）、`NotesViewModelTests` / `AppEnvironmentTests`（移进回收站的页面）。卡片、报告窗口和菜单项只经过语法检查和 CI 编译，没在模拟器或真机上看过。
+- 画成图（#153，规则见 [chat-flow.md](chat-flow.md#画成图draw-as-diagram)）：接口和任务在 `Core/API/DiagramApi.swift`（`DiagramApi` 发 `POST /api/pages/diagram`，超时和「整理成笔记」一样 320 秒；422 `diagram_invalid` 的 Mermaid 原文用 `DiagramInvalidError` 带出来；`DiagramStore` 按 `DiagramSource.key` 存任务，每个任务一个 UUID 当 `clientRequestId`，重试沿用，`forgetFinished` / `clearJobs` 忘掉；建好后 `created()` 让 `AppEnvironment` 刷新笔记列表）。导航在 `AppRouter`：`drawDiagram`（回答“…”菜单，`AnswerActions` 里只给已入库的回答）、`drawDiagramFromNote`（笔记“…”菜单，`NotePageMenuActions.onDrawDiagram`，只给笔记；先 `NotesViewModel.flushBeforeServerRead`，存不上提示 `err_save_draft`、不开始）、`retryDiagram`、`closeDiagram`、`openDrawnDiagram`（`NotesViewModel.showCreatedPage` 先放进列表并展开父笔记，再打开白板）。进度窗口 `Features/Shared/DrawDiagramDialog.swift` 挂在 `RootView`（`router.diagramSource`），图标 `Lucide.workflow`。单元测试 `DiagramTests`（请求的形、错误显示、一个素材一个任务、重试同一个 ID、关窗口忘掉、换身份不留结果、先保存再开始、打开白板）和 `SVGPathDataTests` 的图标路径。窗口和菜单项只经过语法检查和 CI 编译，没在模拟器或真机上看过。
 
 **功能规则不在本文重复**：后台生成、附件、使用上限、回答导出、笔记、搜索跳转、头像等规则以 [android-native.md](android-native.md) 为准，本文只写 iOS 特有的结构和差异。改了其中一端的行为，另一端和网页要在同一个任务里一起改（见 `AGENTS.md`）。
 
@@ -35,7 +36,7 @@ iOS 客户端是 Android 客户端（[android-native.md](android-native.md)）�
 
 | 部分 | 验证方式 | 状态 |
 | --- | --- | --- |
-| `Core/`（网络、接口、解析、ViewModel） | Linux 容器里 `swift test`，以及 CI 的 macOS `swift test` | 720 多项单元测试通过（大部分移植自 Android 的单元测试） |
+| `Core/`（网络、接口、解析、ViewModel） | Linux 容器里 `swift test`，以及 CI 的 macOS `swift test` | 740 多项单元测试通过（大部分移植自 Android 的单元测试） |
 | `DesignSystem/`、`Features/`、`App/`（SwiftUI / UIKit） | CI 的模拟器无签名构建（`ios-pr.yml`） | 能编译；界面效果、手势、键盘、WebView 交互未经人工验证 |
 
 Google 登录：Google Cloud 里给 `com.kakumine.notefable` 登记的 iOS OAuth 客户端是 `NoteFable-iOS`，客户端 ID 写在 `Config/NoteFable.xcconfig` 的 `GOOGLE_IOS_CLIENT_ID` / `GOOGLE_IOS_REVERSED_CLIENT_ID`（不是密钥，会打进安装包；留空时登录窗口只有邮箱验证码）。服务端校验的 audience 仍是 Web 客户端 ID（`serverClientID`）。

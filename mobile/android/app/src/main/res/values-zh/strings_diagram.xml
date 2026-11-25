@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="diagram_draw">画成图</string>
+    <string name="diagram_working">正在画图…</string>
+    <string name="diagram_description">AI 会把这些内容画成可编辑的图，放进一个新白板。计入 1 次聊天额度。</string>
+    <string name="diagram_done">图画好了。</string>
+    <string name="diagram_open">打开白板</string>
+    <string name="diagram_partial">材料太长，只画了前面的部分。</string>
+    <string name="diagram_copy_source">复制图的源码</string>
+</resources>

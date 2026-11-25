@@ -1138,4 +1138,11 @@ export const hi: Record<string, string> = {
   "Empty page": "खाली पेज",
   "Proposed page edit": "पेज संपादन का सुझाव",
   "Applied automatically": "अपने आप लागू किया गया",
+  "Draw as diagram": "डायग्राम बनाएं",
+  "Drawing a diagram…": "डायग्राम बनाया जा रहा है…",
+  "AI turns this into an editable diagram on a new whiteboard. This counts as 1 chat message.": "AI इसे एक नए व्हाइटबोर्ड पर बदलने योग्य डायग्राम में बदल देता है। इसे 1 चैट संदेश गिना जाता है।",
+  "The diagram is ready.": "डायग्राम तैयार है।",
+  "Open whiteboard": "व्हाइटबोर्ड खोलें",
+  "Part of the material was too long, so only the first part was drawn.": "सामग्री बहुत लंबी थी, इसलिए केवल पहला हिस्सा बनाया गया।",
+  "Copy diagram source": "डायग्राम का सोर्स कॉपी करें",
 };

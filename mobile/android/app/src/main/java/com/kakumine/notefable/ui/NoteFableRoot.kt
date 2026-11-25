@@ -37,6 +37,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -181,14 +182,26 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     val closeDrawer: () -> Unit = { scope.launch { drawerState.close() } }
     // 「整理成笔记」窗口开着的聊天（网页 createPageSessionId）。
     var createPageSessionId by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
+    // 「画成图」窗口开着的任务（DiagramSource.key）。任务本身在 App 级的 DiagramStore 里，进程重建后没了，窗口随之关掉。
+    var diagramKey by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
+    val diagrams = remember(app) { app.diagrams() }
+    // 菜单选「画成图」时用当时选着的模型（和「整理成笔记」一样）。
+    val currentModel by rememberUpdatedState(state.selectedModel?.id)
+    val drawAnswerDiagram = remember(diagrams) {
+        AnswerDiagramLauncher { sessionId, messageId ->
+            diagramKey = diagrams.start(com.kakumine.notefable.data.DiagramSource.Answer(sessionId, messageId), currentModel)
+        }
+    }
     val onIdentityChanged = {
         noteEmbedHost.destroy()
         viewModel.onIdentityChanged()
         notesViewModel.onIdentityChanged()
         sidebarViewModel.onIdentityChanged()
-        // 旧身份整理好的笔记打不开了（网页登录 / 退出会重新加载页面）。
+        // 旧身份整理好的笔记、画好的白板打不开了（网页登录 / 退出会重新加载页面）。
         createPageSessionId = null
         app.answerExports().clearPageJobs()
+        diagramKey = null
+        diagrams.clear()
     }
 
     // 返回键：先关抽屉；笔记编辑页自己处理（先交给网页关面板，再保存后回列表）；笔记列表回到聊天；最后退出 App。
@@ -368,6 +381,10 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
         LaunchedEffect(app) {
             app.answerExports().created.collect { notesViewModel.refresh() }
         }
+        // 「画成图」画好了白板（窗口关着、在后台画完也一样）：同样刷新笔记列表。
+        LaunchedEffect(diagrams) {
+            diagrams.created.collect { notesViewModel.refresh() }
+        }
         LaunchedEffect(app, noteEmbedHost) {
             app.proposals.changes.collect { change ->
                 notesViewModel.onPagesTrashed(change.trashed)
@@ -407,7 +424,12 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
             recent
         } else emptyList()
         when {
-            notes.workspace == Workspace.Chat -> androidx.compose.runtime.CompositionLocalProvider(LocalOpenNote provides notesViewModel::openNoteFromLink, LocalAnswerSessionId provides state.activeSessionId, LocalConversationDownloader provides conversationDownloader) { ChatScreen(
+            notes.workspace == Workspace.Chat -> androidx.compose.runtime.CompositionLocalProvider(
+                LocalOpenNote provides notesViewModel::openNoteFromLink,
+                LocalAnswerSessionId provides state.activeSessionId,
+                LocalConversationDownloader provides conversationDownloader,
+                LocalAnswerDiagram provides drawAnswerDiagram,
+            ) { ChatScreen(
                 state = state,
                 // 草稿在 ViewModel 里：切到笔记时 ChatScreen 离开组合，回来时文字还在。
                 input = viewModel.draft,
@@ -505,6 +527,15 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         onMove = { dialog = NotesDialogState.Move(open.id) },
                         onExport = { exportNote(open.id) },
                         onTrash = { notes.pages.firstOrNull { it.id == open.id }?.let { dialog = NotesDialogState.TrashNote(it) } },
+                        // 画成图：先让编辑器存上（服务端读已保存的内容），存不上就提示、不开始；存上了开始（或重开同一篇的任务）并打开窗口。
+                        onDrawDiagram = {
+                            val pageId = open.id
+                            scope.launch {
+                                diagrams.startWhenReady(com.kakumine.notefable.data.DiagramSource.Note(pageId), currentModel) {
+                                    notesViewModel.saveBeforeDiagram(pageId)
+                                }?.let { diagramKey = it }
+                            }
+                        },
                     ),
                     onShare = { dialog = NotesDialogState.Share(open.id, notes.pages.firstOrNull { it.id == open.id }?.kind ?: open.kind) },
                     prompt = noteStorageLimit?.takeIf { it.first == open.editor }?.let { (_, limit) ->
@@ -552,6 +583,18 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                 store = app.answerExports(),
                 onOpenPage = { id, title -> notesViewModel.openNote(id, title) },
                 onClose = { createPageSessionId = null },
+            )
+        }
+    }
+
+    diagramKey?.let { key ->
+        androidx.compose.runtime.key(key) {
+            DrawDiagramDialog(
+                jobKey = key,
+                model = state.selectedModel?.id,
+                store = diagrams,
+                onOpenPage = notesViewModel::openCreatedPage,
+                onClose = { diagramKey = null },
             )
         }
     }

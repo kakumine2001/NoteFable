@@ -19,6 +19,8 @@ final class AppRouter {
     var signInOpen = false
     /// 「整理成笔记」窗口开着的聊天（网页 createPageSessionId）。
     var createPageSessionId: String?
+    /// 「画成图」窗口显示的素材（状态在 `app.diagrams`）。
+    var diagramSource: DiagramSource?
 
     private var linkTask: Task<Void, Never>?
     private var shareTask: Task<Void, Never>?
@@ -128,9 +130,51 @@ final class AppRouter {
         }
     }
 
-    /// 登录 / 退出后：旧身份整理好的笔记打不开了（网页登录 / 退出会重新加载页面）。
+    // MARK: - 画成图
+
+    /// 回答"…"菜单的「画成图」：马上开始（不先确认）并打开进度窗口。同一素材已有任务时只是重新打开窗口，不再发一次。
+    /// 模型用聊天里选着的（和「整理成笔记」相同）。返回开始的任务（已有任务时是 nil）。
+    @discardableResult
+    func drawDiagram(_ source: DiagramSource) -> Task<Void, Never>? {
+        let task = app.diagrams.start(source, model: app.chat.state.selectedModel?.id)
+        diagramSource = source
+        return task
+    }
+
+    /// 笔记"…"菜单的「画成图」：服务端读的是已保存的正文，先让网页保存；存不上就提示（编辑页顶栏下面）、不开始。
+    /// 返回的任务在保存、开始的任务都结束后结束（界面不用等它）。
+    @discardableResult
+    func drawDiagramFromNote(_ pageId: String) -> Task<Void, Never> {
+        let notes = app.notes
+        return Task { [weak self] in
+            guard await notes.flushBeforeServerRead(pageId) else { return }
+            await self?.drawDiagram(.note(pageId: pageId))?.value
+        }
+    }
+
+    /// 失败后的"重试"：同一个 clientRequestId。
+    @discardableResult
+    func retryDiagram(_ source: DiagramSource) -> Task<Void, Never>? {
+        app.diagrams.retry(source, model: app.chat.state.selectedModel?.id)
+    }
+
+    /// 关窗口（"关闭"、点遮罩、打开白板之后）：已结束的任务忘掉，之后再点是新的任务；进行中的留着。
+    func closeDiagram() {
+        if let source = diagramSource { app.diagrams.forgetFinished(source) }
+        diagramSource = nil
+    }
+
+    /// 完成后的"打开白板"：新白板先放进列表（从笔记来的展开父页面），打开它，再关窗口（网页：先打开再关）。
+    func openDrawnDiagram(_ page: NotePageSummary) {
+        app.notes.showCreatedPage(page)
+        openNote(page.id, title: page.title, icon: page.icon, kind: page.kind)
+        closeDiagram()
+    }
+
+    /// 登录 / 退出后：旧身份整理好的笔记、画好的白板打不开了（网页登录 / 退出会重新加载页面）。
     func onIdentityChanged() {
         createPageSessionId = nil
+        diagramSource = nil
         // 检索面板里还是旧身份的结果。
         searchOpen = false
     }

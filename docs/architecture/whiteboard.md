@@ -59,6 +59,17 @@
 - 用绘图工具（抓手以外）时发 `{type:"drawing", active}`，App 据此在屏幕两侧各排除 200dp 高的系统返回手势（Android 每条边的上限；宽至少 32dp，系统的返回手势区更宽时按它）；白板页上 App 的侧栏滑动和 iOS 的边缘返回都关闭（只用顶栏的返回）。
 - 导出文件：App 声明 `canSaveFile()` 时，网页发 `fileStart {id, name, mime, size}` → `fileChunk {id, index, data}`（base64，每块原始 512 KiB）×n → `fileEnd {id}`（中途失败发 `fileAbort`），App 写临时文件后让用户选保存位置。旧版 App 提示“请更新应用”。超过 App 能收的 64 MiB（`MAX_APP_FILE_BYTES`，和两端的 `ExportFileAssembler` 一致）时不发送，提示文件太大。各端的实现见 [android-native.md](android-native.md)、[ios-native.md](ios-native.md)。
 
+## 画成图（AI 把回答或笔记画成可编辑的图，#153）
+
+入口、额度和请求见 [chat-flow.md](chat-flow.md#画成图draw-as-diagram)；这里写图怎么变成白板的元素。
+
+- **全部在服务端转换，一次建页。** 模型只写 Mermaid（`src/lib/whiteboard/diagram.ts` 的 `DIAGRAM_INSTRUCTIONS`），坐标由程序算，转换成功后才用 `createCanvasPage` 建页（白板正文里不存“待转换”的状态），所以网页和 App 打开的是同一份内容。
+- **8 种图走 Mermaid 转换器。** 流程图、时序图、状态图、类图、ER 图、时间线、甘特图、象限图由 MIT 授权的 `@excalidraw/mermaid-to-excalidraw`（`3.6.0`，用不依赖 DOM 的 Pele 排版，不依赖 `mermaid` 包）转成形状和箭头的草稿，再由 `@excalidraw/element`（和编辑器同一个钉死的快照版本）的 `convertToExcalidrawElements` 变成真正的元素：形状里的文字是绑在形状上的 `text`（`containerId`），箭头两端用 `startBinding` / `endBinding` 绑在形状上（拖动形状时箭头跟着走）。然后统一成“整洁”的样式（`roughness: 0`、字体 Nunito），只留 http / https / mailto 的链接，去掉会被保存校验拒绝的字符（NUL、单独的代理对、以 `data:` 开头的文字），经 `sceneToStored` 变成保存的形。
+- **服务端的最小“浏览器”。** 这两个包要用 `DOMParser`（读 Pele 画出的 SVG）、canvas 量字宽、`textarea` 还原字符实体，`@excalidraw/element` 还会读 `window`。`src/lib/whiteboard/server-dom.ts` 在 `globalThis` 上放只读的 `document` / `window` / `DOMParser`，**只在转换的异步流程里（`AsyncLocalStorage`）有值**，其他请求和代码看到的仍是 `undefined`（`typeof document === "undefined"` 不变）；`DOMParser` 来自 `linkedom`（ISC），量字宽用 `text-measure.ts` 的估算（中日韩、全角和表情 1em，其他 0.6em，偏宽，不会挤出形状）。`@excalidraw/element` 的字宽也设成同一个估算（`setCustomTextMetricsProvider`）。
+- **转不了的图让模型重写一次。** 只能变成图片的类型（饼图等，转换器会退回一张 SVG 图片，白板也不收内嵌图片）、语法错误、超过 3,000 个元素，都抛 `DiagramSourceError`，路由把错误交给模型重写一次（同一次额度）；还不行就退还额度，返回 Mermaid 原文让用户复制。
+- **思维导图用自己的引擎**（`src/lib/whiteboard/mindmap/`，纯 TS，服务端和浏览器共用，之后的思维导图模式和学习模板也用它）：Mermaid 的 `mindmap` 转换器只会给一张图片，所以 `parse.ts` 自己读缩进和节点形状（`root((…))`、`[…]`、`(…)` 等；`::icon`、`:::class`、`%%` 注释跳过；根之后同级的节点当作根的子节点），`model.ts` 限制最多 400 个节点、10 层、每个节点 200 字（宽度优先保留，超出的整枝丢掉并标记 `partial`），`layout.ts` 做确定性的排版（同一棵树在服务端和浏览器排出一样的位置：文字用估算宽度折行，节点是圆角矩形，子节点在父节点外侧竖排、父节点在子节点的竖直中央；根的子节点 ≥ 4 个时左右分开，按高度从上往下切成两半），`elements.ts` 生成元素草稿：节点是带文字的圆角矩形（根和第一层填色、更深只描边，第一层按枝换色），父子之间是没有箭头的 S 形箭头线，两端绑在节点上。
+- **思维导图的标记**放在元素的 `customData.notefableMindmap`：节点 `{ v: 1, role: "node", tree, parent, order, direction?, collapsed? }`（`tree` 是根节点的元素 ID，`parent` 是父节点的元素 ID，根为 null；`order` 是兄弟里的顺序；`direction` 只在根上：`right` / `both`），连线 `{ v: 1, role: "edge", tree, parent, child }`。所以生成元素时不重新生成 ID（`regenerateIds: false`）。公开链接的 scene 照旧去掉 `customData`（只留页面卡片的标记）。折叠不能用 `isDeleted`（保存时会被删掉），留给之后的思维导图模式按 `collapsed` 过滤。
+
 ## 给 AI（#153）留的口
 
 - `WhiteboardEditorHandle.selectionContext()`：当前选中元素的 ID 和其中的文字（绑定文字算到容器上）。
@@ -67,4 +78,4 @@
 
 ## 测试
 
-`src/lib/whiteboard/*.test.ts`（保存形的转换、精简、链接、公开地址、显示请求、导出文件名、框的顺序与 PDF 分页、PDF 写入器）、`src/lib/export-file.test.ts`（分块发送）、`src/app/s/[token]/file/route.test.ts`（公开图片只放行引用的文件）、`src/lib/note-share-server.test.ts`（白板可以公开；幻灯片也能公开，是分享树的叶子）。编辑器本身（Excalidraw）在浏览器里验证。
+`src/lib/whiteboard/*.test.ts`（保存形的转换、精简、链接、公开地址、显示请求、导出文件名、框的顺序与 PDF 分页、PDF 写入器、画成图的 9 种图转换与清理：`diagram.test.ts`）、`src/lib/whiteboard/mindmap/mindmap.test.ts`（思维导图的解析、上限、排版不重叠、标记）、`src/lib/export-file.test.ts`（分块发送）、`src/app/s/[token]/file/route.test.ts`（公开图片只放行引用的文件）、`src/lib/note-share-server.test.ts`（白板可以公开；幻灯片也能公开，是分享树的叶子）。编辑器本身（Excalidraw）在浏览器里验证。

@@ -321,6 +321,15 @@
 "not_now" = "Nanti saja";
 "scroll_to_bottom" = "Gulir ke bawah";
 
+/* strings_diagram.xml */
+"diagram_draw" = "Gambar sebagai diagram";
+"diagram_working" = "Menggambar diagram…";
+"diagram_description" = "AI mengubah ini menjadi diagram yang bisa diedit di papan tulis baru. Ini dihitung sebagai 1 pesan chat.";
+"diagram_done" = "Diagram sudah siap.";
+"diagram_open" = "Buka papan tulis";
+"diagram_partial" = "Materinya terlalu panjang, jadi hanya bagian awal yang digambar.";
+"diagram_copy_source" = "Salin kode diagram";
+
 /* strings_emoji.xml */
 "em_emoji" = "Emoji";
 "em_random" = "Acak";

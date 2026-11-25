@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/components/i18n-provider";
+import { DrawDiagramHost } from "@/components/draw-diagram-dialog";
 import { NoteHistoryDialog } from "@/components/note-history-dialog";
 import { NotesWorkspace } from "@/components/notes-workspace";
 import { useModels } from "@/components/models-provider";
@@ -15,6 +16,7 @@ import { cancelCanvasReveal, revealNoteBlock } from "@/lib/search-reveal";
 import { cancelWhiteboardReveal, requestWhiteboardReveal } from "@/lib/whiteboard/reveal";
 import { flushCanvasEditors } from "@/lib/canvas-flush";
 import { cancelNativeExports } from "@/lib/export-file";
+import { closeDiagramDialog } from "@/lib/draw-diagram-jobs";
 import { afterSheetHistory } from "@/lib/use-back-to-close";
 
 const noop = () => {};
@@ -151,6 +153,8 @@ export function NoteEmbed() {
       cancelReveals(revealAbortRef);
       cancelNativeExports();
       setHistoryOpen(false);
+      // 「画成図」の窓は隠すだけ（要求と結果は残り、同じノートでもう一度選ぶと開き直す）。
+      closeDiagramDialog();
       sent.current = { readyId: "", meta: "", state: "", goneId: "" };
       expectedPageRef.current = id;
       urlPageRef.current = id;
@@ -175,6 +179,7 @@ export function NoteEmbed() {
       cancelReveals(revealAbortRef);
       cancelNativeExports();
       setHistoryOpen(false);
+      closeDiagramDialog();
       revealRef.current = null;
       expectedPageRef.current = null;
       urlPageRef.current = null;
@@ -268,6 +273,8 @@ export function NoteEmbed() {
         <NoteHistoryDialog key={activeId} noteId={activeId} getVersion={() => active.version} flush={async () => { await flushCanvasEditors(); return active.flush(); }}
           onRestored={() => setHistoryOpen(false)} onClose={() => setHistoryOpen(false)} />
       )}
+      {/* AI パネルの「画成図」の窓。「Open whiteboard」はアプリにページを開いてもらう（WebView の中では移動しない）。 */}
+      <DrawDiagramHost embedded />
     </main>
   );
 }

@@ -63,8 +63,12 @@ class NotePageMenuActions(
     val onTrash: () -> Unit,
     /** 幻灯片的放映和导出（网页 `window.notefableEmbed.slides` 的 JSON 命令）。只有编辑页传入，幻灯片才显示这几项。 */
     val onSlides: ((String) -> Unit)? = null,
+    /** 「画成图」（#153）：只给笔记（不给白板、幻灯片）。先存好这篇再开始，窗口在 NoteFableRoot。 */
+    val onDrawDiagram: (() -> Unit)? = null,
 ) {
-    fun withSlides(handler: (String) -> Unit) = NotePageMenuActions(error, busy, onSettings, onFavorite, onDuplicate, onAddInside, onMove, onExport, onTrash, handler)
+    fun withSlides(handler: (String) -> Unit) = NotePageMenuActions(
+        error, busy, onSettings, onFavorite, onDuplicate, onAddInside, onMove, onExport, onTrash, onSlides = handler, onDrawDiagram = onDrawDiagram,
+    )
 }
 
 private val MenuDivider: Color get() = Sm.Border
@@ -72,7 +76,8 @@ private val MenuDivider: Color get() = Sm.Border
 // 网页上部栏的"…"（.notes-page-menu = .chat-actions-menu 宽 248）：
 // "Style" 小标题（12/500 灰，内边距 5.6/12/2.4）；三个字体按钮（三等分、间距 4、外边距 4/8/5.6；每个上下 6.4、圆角 6.4；
 // "Ag" 22、标签 12 灰，选中的蓝色）；分隔线（上下 4.8、左右 8）；Small text / Full width / Lock page 三个开关（右侧 26×14 的开关）；
-// 分隔线；收藏、复制、添加子页面、移动到、导出 Markdown（Download 16）、报告 AI 内容（Flag 16）；分隔线；移到回收站（红字）。
+// 分隔线；收藏、复制、添加子页面、画成图（Workflow 16，只有笔记）、移动到、导出 Markdown（Download 16）、报告 AI 内容（Flag 16）；
+// 分隔线；移到回收站（红字）。
 // 项目按页面类型出（[PageKindFeatures]，网页 PAGE_KIND_FEATURES）：白板、幻灯片没有 Style 到 Full width 这一段和导出 Markdown，
 // 从 Lock page 开始（服务端也拒绝这些操作）。"报告 AI 内容"只给 AI 写过内容的页面（aiUpdatedAt 有值，Google Play 的 AI 生成内容政策）。
 @Composable
@@ -137,6 +142,10 @@ fun NotePageMenuButton(page: NotePageSummary, actions: NotePageMenuActions) {
                 onClick = run { actions.onFavorite(!favorite) })
             MenuItem(stringResource(R.string.pg_duplicate), Lucide.Copy, onClick = run(actions.onDuplicate))
             MenuItem(stringResource(R.string.pg_add_page_inside), Lucide.FilePlus2, onClick = run(actions.onAddInside))
+            val drawDiagram = actions.onDrawDiagram
+            if (drawDiagram != null && page.kind == com.kakumine.notefable.data.PageKind.Note) {
+                MenuItem(stringResource(R.string.diagram_draw), Lucide.Workflow, onClick = run(drawDiagram))
+            }
             MenuItem(stringResource(R.string.pg_move_to), Lucide.FolderInput, onClick = run(actions.onMove))
             if (features.markdownExport) MenuItem(stringResource(R.string.export_markdown), Lucide.Download, onClick = run(actions.onExport))
             if (page.aiUpdatedAt != null) MenuItem(stringResource(R.string.report_ai_content), FlagIcon, onClick = run { reporting = true })

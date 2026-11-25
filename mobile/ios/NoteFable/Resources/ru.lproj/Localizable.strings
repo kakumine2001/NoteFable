@@ -321,6 +321,15 @@
 "not_now" = "Не сейчас";
 "scroll_to_bottom" = "Прокрутить вниз";
 
+/* strings_diagram.xml */
+"diagram_draw" = "Нарисовать схему";
+"diagram_working" = "Рисуем схему…";
+"diagram_description" = "ИИ превратит это в редактируемую схему на новой доске. Это считается как 1 сообщение в чате.";
+"diagram_done" = "Схема готова.";
+"diagram_open" = "Открыть доску";
+"diagram_partial" = "Материал слишком длинный, поэтому нарисована только первая часть.";
+"diagram_copy_source" = "Скопировать исходный код схемы";
+
 /* strings_emoji.xml */
 "em_emoji" = "Эмодзи";
 "em_random" = "Случайно";

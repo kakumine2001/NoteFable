@@ -262,4 +262,8 @@ export const itServer: Record<string, string> = {
   "Created page “{title}”": "Pagina “{title}” creata",
   "Preview failed": "Anteprima non riuscita",
   "Previewed “{title}”": "Anteprima di “{title}”",
+  "Could not draw a diagram. Try again.": "Impossibile disegnare il diagramma. Riprova.",
+  "Could not turn this into an editable diagram.": "Impossibile convertirlo in un diagramma modificabile.",
+  "There is nothing to draw yet.": "Non c’è ancora niente da disegnare.",
+  "This diagram was moved to the trash.": "Questo diagramma è stato spostato nel Cestino.",
 };

@@ -318,6 +318,15 @@ private fun AnswerMenu(state: AnswerMoreState, save: AnswerSave?, onSave: () -> 
                     openNote(save.pageId)
                 }
             }
+            // 画成图（#153）：服务端读的是已保存的回答，所以只给已换成服务端 ID 的回答；只在主聊天里（NoteFableRoot 提供）。
+            // 选了就开始，窗口里显示进度；同一条回答已有任务时重开那个任务。
+            val drawDiagram = LocalAnswerDiagram.current
+            if (drawDiagram != null && turn != null && !state.messageId.startsWith("local-")) {
+                MenuEntry(stringResource(R.string.diagram_draw), Lucide.Workflow) {
+                    close()
+                    drawDiagram.draw(state.sessionId, state.messageId)
+                }
+            }
             MenuEntry(
                 text = stringResource(if (state.downloading) R.string.downloading else R.string.answer_download_conversation),
                 icon = Lucide.Download,

@@ -1138,4 +1138,11 @@ export const ar: Record<string, string> = {
   "Empty page": "صفحة فارغة",
   "Proposed page edit": "تعديل مقترح للصفحة",
   "Applied automatically": "طُبّق تلقائيًا",
+  "Draw as diagram": "ارسمه كمخطط",
+  "Drawing a diagram…": "جارٍ رسم المخطط…",
+  "AI turns this into an editable diagram on a new whiteboard. This counts as 1 chat message.": "يحوّل الذكاء الاصطناعي هذا المحتوى إلى مخطط قابل للتعديل على سبورة جديدة. يُحتسب كرسالة دردشة واحدة.",
+  "The diagram is ready.": "المخطط جاهز.",
+  "Open whiteboard": "فتح السبورة",
+  "Part of the material was too long, so only the first part was drawn.": "كان المحتوى طويلًا جدًا، لذلك رُسم الجزء الأول فقط.",
+  "Copy diagram source": "نسخ مصدر المخطط",
 };

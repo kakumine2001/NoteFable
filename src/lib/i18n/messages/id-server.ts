@@ -262,4 +262,8 @@ export const idServer: Record<string, string> = {
   "Created page “{title}”": "Halaman “{title}” dibuat",
   "Preview failed": "Pratinjau gagal",
   "Previewed “{title}”": "Pratinjau “{title}” dilihat",
+  "Could not draw a diagram. Try again.": "Tidak dapat menggambar diagram. Coba lagi.",
+  "Could not turn this into an editable diagram.": "Tidak dapat mengubahnya menjadi diagram yang bisa diedit.",
+  "There is nothing to draw yet.": "Belum ada yang bisa digambar.",
+  "This diagram was moved to the trash.": "Diagram ini sudah dipindahkan ke Sampah.",
 };

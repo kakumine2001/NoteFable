@@ -54,6 +54,8 @@ final class AppEnvironment {
     let proposals: ProposalStore
     /// 回答的"存到笔记"、"整理成笔记"、下载对话。
     let answerExports: AnswerExportStore
+    /// 回答 / 笔记的「画成图」（按素材的任务，窗口关掉也继续）。
+    let diagrams: DiagramStore
     /// 最近使用的表情。
     let recentEmoji: RecentEmojiStore
 
@@ -201,6 +203,7 @@ final class AppEnvironment {
         proposals = ProposalStore(backend: proposalApi)
         let answerExports = AnswerExportStore(backend: exportApi)
         self.answerExports = answerExports
+        diagrams = DiagramStore(backend: DiagramApi(http: api.http))
         recentEmoji = UserDefaultsRecentEmojiStore(defaults: defaults)
 
         // ---- ViewModel（各自的 Factory）----
@@ -276,8 +279,9 @@ final class AppEnvironment {
         chat.onIdentityChanged()
         notes.onIdentityChanged()
         sidebar.onIdentityChanged()
-        // 旧身份整理好的笔记打不开了（网页登录 / 退出会重新加载页面）。
+        // 旧身份整理好的笔记、画好的白板打不开了（网页登录 / 退出会重新加载页面）。
         answerExports.clearPageJobs()
+        diagrams.clearJobs()
         // 图片按归属校验：旧身份读到的不留给新身份，还在路上的回来也不存。
         imageGeneration += 1
         imageCache.removeAll()
@@ -327,7 +331,7 @@ final class AppEnvironment {
     // MARK: - App 级的事件（NoteFableRoot.kt 里不画界面的 LaunchedEffect）
 
     /// App 启动后调一次（多调无妨）：
-    /// - 回答"存到笔记" / 「整理成笔记」建好了笔记 → 刷新笔记列表（网页 notefable:page-created）；
+    /// - 回答"存到笔记" / 「整理成笔记」建好了笔记、「画成图」建好了白板 → 刷新笔记列表（网页 notefable:page-created）；
     /// - 应用 / 撤销了提案 → 刷新笔记列表；改动的页面正开在编辑器里时把新版本交给网页编辑器（不然下次保存会 409）；
     ///   撤销新建提案时，移进回收站的页面从列表里拿掉，开着的关掉；
     /// - 界面语言跟着账号上的语言走（AccountLocaleSync，整个 App 只这一处，界面不用再做）；
@@ -337,10 +341,14 @@ final class AppEnvironment {
         started = true
         // 先开始听再起任务：start() 之后马上发出的事件也收得到。
         let created = answerExports.created()
+        let diagramsCreated = diagrams.created()
         let changes = proposals.changes()
         listeners = [
             Task { [weak self] in
                 for await _ in created { self?.notes.refresh() }
+            },
+            Task { [weak self] in
+                for await _ in diagramsCreated { self?.notes.refresh() }
             },
             Task { [weak self] in
                 for await change in changes { self?.onProposalChange(change) }

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 画成图（#153）：回答和笔记菜单的「画成图」与进度对话框。网页 draw-diagram-dialog.tsx 的原句，译文取自 src/lib/i18n/messages/{zh,ja}.ts。values / values-zh / values-ja 三份的键一一对应。 -->
+<resources>
+    <string name="diagram_draw">Draw as diagram</string>
+    <string name="diagram_working">Drawing a diagram…</string>
+    <string name="diagram_description">AI turns this into an editable diagram on a new whiteboard. This counts as 1 chat message.</string>
+    <string name="diagram_done">The diagram is ready.</string>
+    <string name="diagram_open">Open whiteboard</string>
+    <string name="diagram_partial">Part of the material was too long, so only the first part was drawn.</string>
+    <string name="diagram_copy_source">Copy diagram source</string>
+</resources>

@@ -2,8 +2,8 @@ import SwiftUI
 
 // 笔记顶栏的“…”（网页 note-page-menu.tsx 的 .notes-page-menu = .chat-actions-menu 宽 248；Android ui/NotePageMenu.kt）：
 // “Style”小标题（12 / 500 灰）；三个字体按钮（三等分、间距 4、外边距 4 / 8 / 5.6；每个上下 6.4、圆角 6.4；“Ag”22、标签 12 灰，选中的蓝色）；
-// 分隔线；Small text / Full width / Lock page 三个开关；分隔线；收藏、复制、添加子页面、移动到、导出 Markdown、报告 AI 内容；
-// 分隔线；移到回收站（红字）。
+// 分隔线；Small text / Full width / Lock page 三个开关；分隔线；收藏、复制、添加子页面、画成图（Workflow，只给笔记）、移动到、
+// 导出 Markdown、报告 AI 内容；分隔线；移到回收站（红字）。
 // 项目按页面类型出（`PageKindFeatures`，网页 PAGE_KIND_FEATURES）：白板、幻灯片没有 Style 到 Full width 这一段和导出 Markdown，
 // 从 Lock page 开始（服务端也拒绝这些操作）。"报告 AI 内容"（Flag 16）只给 AI 写过的页面（`aiUpdatedAt`，`notePageReportable`），
 // 打开和回答同一个报告窗口（`reportDialog`，对象是这个页面）。
@@ -143,6 +143,9 @@ private struct NotePageMenuContent: View {
         )
         ActionsMenuItem(L("pg_duplicate"), icon: Lucide.copy, action: run(actions.onDuplicate))
         ActionsMenuItem(L("pg_add_page_inside"), icon: Lucide.filePlus2, action: run(actions.onAddInside))
+        if notePageDrawable(page), let onDrawDiagram = actions.onDrawDiagram {
+            ActionsMenuItem(L("diagram_draw"), icon: Lucide.workflow, action: run(onDrawDiagram))
+        }
         ActionsMenuItem(L("pg_move_to"), icon: Lucide.folderInput, action: run(actions.onMove))
         if page.kind.features.markdownExport {
             ActionsMenuItem(L("export_markdown"), icon: Lucide.download, action: run(actions.onExport))

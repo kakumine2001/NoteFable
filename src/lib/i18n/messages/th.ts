@@ -1138,4 +1138,11 @@ export const th: Record<string, string> = {
   "Empty page": "หน้าว่าง",
   "Proposed page edit": "ข้อเสนอการแก้ไขหน้า",
   "Applied automatically": "นำไปใช้อัตโนมัติแล้ว",
+  "Draw as diagram": "วาดเป็นไดอะแกรม",
+  "Drawing a diagram…": "กำลังวาดไดอะแกรม…",
+  "AI turns this into an editable diagram on a new whiteboard. This counts as 1 chat message.": "AI จะแปลงเนื้อหานี้เป็นไดอะแกรมที่แก้ไขได้บนไวท์บอร์ดใหม่ นับเป็นข้อความแชต 1 ครั้ง",
+  "The diagram is ready.": "ไดอะแกรมพร้อมแล้ว",
+  "Open whiteboard": "เปิดไวท์บอร์ด",
+  "Part of the material was too long, so only the first part was drawn.": "เนื้อหายาวเกินไป จึงวาดเฉพาะส่วนแรก",
+  "Copy diagram source": "คัดลอกซอร์สของไดอะแกรม",
 };

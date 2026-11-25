@@ -321,6 +321,15 @@
 "not_now" = "Để sau";
 "scroll_to_bottom" = "Cuộn xuống cuối";
 
+/* strings_diagram.xml */
+"diagram_draw" = "Vẽ thành sơ đồ";
+"diagram_working" = "Đang vẽ sơ đồ…";
+"diagram_description" = "AI sẽ biến nội dung này thành sơ đồ có thể chỉnh sửa trên một bảng trắng mới. Tính là 1 tin nhắn chat.";
+"diagram_done" = "Sơ đồ đã xong.";
+"diagram_open" = "Mở bảng trắng";
+"diagram_partial" = "Tài liệu quá dài nên chỉ vẽ phần đầu.";
+"diagram_copy_source" = "Sao chép mã nguồn sơ đồ";
+
 /* strings_emoji.xml */
 "em_emoji" = "Biểu tượng cảm xúc";
 "em_random" = "Ngẫu nhiên";

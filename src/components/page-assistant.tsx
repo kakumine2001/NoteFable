@@ -38,6 +38,7 @@ import { ProposalHostContext, type ProposalHost } from "@/components/page-propos
 import { PAGE_KIND_FEATURES, type PageKind } from "@/lib/page-kinds";
 import { isSelectionId, MAX_SELECTION_IDS, type PageSelection } from "@/lib/page-ai/types";
 import { loadAutoApply, saveAutoApply } from "@/lib/ai-auto-apply";
+import { drawNoteDiagram } from "@/lib/draw-diagram-jobs";
 
 type QuickAction = { label: string; prompt: string };
 
@@ -834,6 +835,9 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
               {actions.map((action) => (
                 <button key={action.label} type="button" className="note-ai-chip" disabled={busy || loadingChat} onClick={() => void send(action.prompt, t(action.label))}>{t(action.label)}</button>
               ))}
+              {/* 「画成図」はチャットへの頼み事ではない：ノートを保存してから、ノートの「…」と同じ要求と窓（DrawDiagramHost）を使う。 */}
+              {pageKind === "note" && <button type="button" className="note-ai-chip" disabled={busy || loadingChat}
+                onClick={() => void drawNoteDiagram(noteId, model, flush)}>{t("Draw as diagram")}</button>}
             </div>}
           </div>
         ) : <ProposalHostContext.Provider value={proposalHost}>{messages.map((message) => (

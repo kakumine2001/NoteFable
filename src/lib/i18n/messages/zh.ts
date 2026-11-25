@@ -1147,4 +1147,11 @@ export const zh: Record<string, string> = {
   "Empty page": "空白页面",
   "Proposed page edit": "页面修改建议",
   "Applied automatically": "已自动应用",
+  "Draw as diagram": "画成图",
+  "Drawing a diagram…": "正在画图…",
+  "AI turns this into an editable diagram on a new whiteboard. This counts as 1 chat message.": "AI 会把这些内容画成可编辑的图，放进一个新白板。计入 1 次聊天额度。",
+  "The diagram is ready.": "图画好了。",
+  "Open whiteboard": "打开白板",
+  "Part of the material was too long, so only the first part was drawn.": "材料太长，只画了前面的部分。",
+  "Copy diagram source": "复制图的源码",
 };

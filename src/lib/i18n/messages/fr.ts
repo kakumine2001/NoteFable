@@ -1138,4 +1138,11 @@ export const fr: Record<string, string> = {
   "Empty page": "Page vide",
   "Proposed page edit": "Modification de page proposée",
   "Applied automatically": "Appliqué automatiquement",
+  "Draw as diagram": "Dessiner un diagramme",
+  "Drawing a diagram…": "Dessin du diagramme…",
+  "AI turns this into an editable diagram on a new whiteboard. This counts as 1 chat message.": "L’IA transforme ce contenu en diagramme modifiable sur un nouveau tableau blanc. Cela compte pour 1 message de chat.",
+  "The diagram is ready.": "Le diagramme est prêt.",
+  "Open whiteboard": "Ouvrir le tableau blanc",
+  "Part of the material was too long, so only the first part was drawn.": "Le contenu était trop long : seule la première partie a été dessinée.",
+  "Copy diagram source": "Copier le code du diagramme",
 };

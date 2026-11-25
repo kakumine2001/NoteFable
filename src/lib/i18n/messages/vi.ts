@@ -1138,4 +1138,11 @@ export const vi: Record<string, string> = {
   "Empty page": "Trang trống",
   "Proposed page edit": "Đề xuất chỉnh sửa trang",
   "Applied automatically": "Đã tự động áp dụng",
+  "Draw as diagram": "Vẽ thành sơ đồ",
+  "Drawing a diagram…": "Đang vẽ sơ đồ…",
+  "AI turns this into an editable diagram on a new whiteboard. This counts as 1 chat message.": "AI sẽ biến nội dung này thành sơ đồ có thể chỉnh sửa trên một bảng trắng mới. Tính là 1 tin nhắn chat.",
+  "The diagram is ready.": "Sơ đồ đã xong.",
+  "Open whiteboard": "Mở bảng trắng",
+  "Part of the material was too long, so only the first part was drawn.": "Tài liệu quá dài nên chỉ vẽ phần đầu.",
+  "Copy diagram source": "Sao chép mã nguồn sơ đồ",
 };

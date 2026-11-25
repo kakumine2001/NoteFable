@@ -23,6 +23,8 @@ export type TurnActions = {
   showVersion: (messageId: string) => void;
   // ここまでの会話を新しいチャットに複製する。
   branch: (messageId: string) => void;
+  // 保存済みの回答を、いま選んでいるモデルで図にして新しいホワイトボードに置く（「画成図」）。
+  drawDiagram: (sessionId: string, messageId: string) => void;
 };
 
 // 「‹ 2/3 ›」。編集した発言・再生成した回答の版を行き来する。

@@ -262,4 +262,8 @@ export const arServer: Record<string, string> = {
   "Created page “{title}”": "أُنشئت الصفحة «{title}»",
   "Preview failed": "تعذر إنشاء المعاينة",
   "Previewed “{title}”": "تمت معاينة «{title}»",
+  "Could not draw a diagram. Try again.": "تعذّر رسم المخطط. حاول مرة أخرى.",
+  "Could not turn this into an editable diagram.": "تعذّر تحويله إلى مخطط قابل للتعديل.",
+  "There is nothing to draw yet.": "لا يوجد ما يمكن رسمه بعد.",
+  "This diagram was moved to the trash.": "نُقل هذا المخطط إلى سلة المهملات.",
 };

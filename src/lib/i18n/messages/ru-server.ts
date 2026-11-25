@@ -262,4 +262,8 @@ export const ruServer: Record<string, string> = {
   "Created page “{title}”": "Создана страница «{title}»",
   "Preview failed": "Не удалось создать превью",
   "Previewed “{title}”": "Просмотрено превью «{title}»",
+  "Could not draw a diagram. Try again.": "Не удалось нарисовать схему. Попробуйте ещё раз.",
+  "Could not turn this into an editable diagram.": "Не удалось превратить это в редактируемую схему.",
+  "There is nothing to draw yet.": "Пока нечего рисовать.",
+  "This diagram was moved to the trash.": "Эта схема перемещена в корзину.",
 };

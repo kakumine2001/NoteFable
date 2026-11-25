@@ -262,4 +262,8 @@ export const ptBRServer: Record<string, string> = {
   "Created page “{title}”": "Página “{title}” criada",
   "Preview failed": "Falha na pré-visualização",
   "Previewed “{title}”": "Pré-visualização de “{title}”",
+  "Could not draw a diagram. Try again.": "Não foi possível desenhar o diagrama. Tente novamente.",
+  "Could not turn this into an editable diagram.": "Não foi possível converter em um diagrama editável.",
+  "There is nothing to draw yet.": "Ainda não há nada para desenhar.",
+  "This diagram was moved to the trash.": "Este diagrama foi movido para a Lixeira.",
 };

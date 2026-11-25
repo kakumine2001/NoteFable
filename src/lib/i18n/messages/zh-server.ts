@@ -262,4 +262,8 @@ export const zhServer: Record<string, string> = {
   "Created page “{title}”": "已创建页面“{title}”",
   "Preview failed": "无法生成预览",
   "Previewed “{title}”": "已预览“{title}”",
+  "Could not draw a diagram. Try again.": "没能画成图，请重试。",
+  "Could not turn this into an editable diagram.": "没能把它转换成可编辑的图。",
+  "There is nothing to draw yet.": "还没有可以画的内容。",
+  "This diagram was moved to the trash.": "这张图已移到回收站。",
 };

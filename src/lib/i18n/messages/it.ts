@@ -1138,4 +1138,11 @@ export const it: Record<string, string> = {
   "Empty page": "Pagina vuota",
   "Proposed page edit": "Modifica della pagina proposta",
   "Applied automatically": "Applicata automaticamente",
+  "Draw as diagram": "Disegna come diagramma",
+  "Drawing a diagram…": "Disegno del diagramma…",
+  "AI turns this into an editable diagram on a new whiteboard. This counts as 1 chat message.": "L’IA trasforma questo contenuto in un diagramma modificabile su una nuova lavagna. Conta come 1 messaggio di chat.",
+  "The diagram is ready.": "Il diagramma è pronto.",
+  "Open whiteboard": "Apri lavagna",
+  "Part of the material was too long, so only the first part was drawn.": "Il materiale era troppo lungo, quindi è stata disegnata solo la prima parte.",
+  "Copy diagram source": "Copia il codice del diagramma",
 };

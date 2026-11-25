@@ -321,6 +321,15 @@
 "not_now" = "Pas maintenant";
 "scroll_to_bottom" = "Aller en bas";
 
+/* strings_diagram.xml */
+"diagram_draw" = "Dessiner un diagramme";
+"diagram_working" = "Dessin du diagramme…";
+"diagram_description" = "L’IA transforme ce contenu en diagramme modifiable sur un nouveau tableau blanc. Cela compte pour 1 message de chat.";
+"diagram_done" = "Le diagramme est prêt.";
+"diagram_open" = "Ouvrir le tableau blanc";
+"diagram_partial" = "Le contenu était trop long : seule la première partie a été dessinée.";
+"diagram_copy_source" = "Copier le code du diagramme";
+
 /* strings_emoji.xml */
 "em_emoji" = "Émoji";
 "em_random" = "Aléatoire";

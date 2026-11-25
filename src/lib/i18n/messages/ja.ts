@@ -1139,4 +1139,11 @@ export const ja: Record<string, string> = {
   "Empty page": "空のページ",
   "Proposed page edit": "ページの編集案",
   "Applied automatically": "自動で適用済み",
+  "Draw as diagram": "図にする",
+  "Drawing a diagram…": "図を描いています…",
+  "AI turns this into an editable diagram on a new whiteboard. This counts as 1 chat message.": "AI がこの内容を編集できる図にして、新しいホワイトボードに描きます。チャット 1 回分として数えます。",
+  "The diagram is ready.": "図ができました。",
+  "Open whiteboard": "ホワイトボードを開く",
+  "Part of the material was too long, so only the first part was drawn.": "材料が長いため、前半だけを図にしました。",
+  "Copy diagram source": "図のソースをコピー",
 };

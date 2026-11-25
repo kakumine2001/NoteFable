@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpRight, Check, Copy, Download, Ellipsis, FilePlus2, Flag, GitBranch, LoaderCircle, RefreshCw } from "lucide-react";
+import { ArrowUpRight, Check, Copy, Download, Ellipsis, FilePlus2, Flag, GitBranch, LoaderCircle, RefreshCw, Workflow } from "lucide-react";
 import { useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import "@/components/answer-actions.css";
 import { answerConversationUrl, answerFileName, answerToNoteContent, conversationToMarkdownFile, type AnswerSource, type ConversationMessage } from "@/lib/answer-export";
@@ -11,6 +11,8 @@ import { localizeSystemText, msg } from "@/lib/i18n/translate";
 import { TurnBusyContext, VersionNav, type TurnActions } from "@/components/turn-actions";
 import type { MessageVersions } from "@/lib/chat-branches";
 import { isSavedMessageId } from "@/lib/chat-message-sync";
+import { useDiagramJob } from "@/components/draw-diagram-dialog";
+import { diagramKey } from "@/lib/draw-diagram-jobs";
 export { isSavedMessageId };
 type Props = {
   messageId: string;
@@ -228,6 +230,9 @@ export function AnswerActions({ messageId, content, sessionId, conversationTitle
   const busy = useContext(TurnBusyContext);
   const key = `${sessionId}\n${messageId}`;
   const save = useSyncExternalStore(subscribe, () => saves.get(key), () => undefined);
+  // 「画成図」の要求（保存済みの回答で、メインのチャットのときだけ）。作成中はメニューの項目にも出す。
+  const canDraw = !!actions && isSavedMessageId(messageId);
+  const diagram = useDiagramJob(canDraw ? diagramKey({ type: "answer", sessionId, messageId }) : null);
   // 押した直後だけアイコンを ✓ にする操作と、スクリーンリーダー向けの通知。
   const [done, setDone] = useState<"copy" | "download" | null>(null);
   const [status, setStatus] = useState("");
@@ -355,6 +360,12 @@ export function AnswerActions({ messageId, content, sessionId, conversationTitle
           href={`/?view=pages&page=${encodeURIComponent(save.pageId)}`} onClick={event => openNote(event, save.pageId)}>
           <ArrowUpRight size={16} aria-hidden="true" />{t("Open saved page")}
         </a>}
+        {/* 押したらすぐ始め、進み具合の窓を開く。進行中なら同じ要求の窓を開き直す（二重に作らない）。 */}
+        {canDraw && <button type="button" role="menuitem" className="chat-menu-item" aria-busy={diagram?.status === "working"}
+          onClick={() => { closeMenu(); actions?.drawDiagram(sessionId, messageId); }}>
+          {diagram?.status === "working" ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <Workflow size={16} aria-hidden="true" />}
+          {diagram?.status === "working" ? t("Drawing a diagram…") : t("Draw as diagram")}
+        </button>}
         <button type="button" role="menuitem" className="chat-menu-item" aria-disabled={downloading} aria-busy={downloading} onClick={() => void download()}>
           {downloading ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <Download size={16} aria-hidden="true" />}
           {downloading ? t("Downloading…") : t("Download conversation")}

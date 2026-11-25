@@ -62,6 +62,12 @@ enum Lucide {
         "M15 14h5a1 1 0 0 1 1 1v5a1 1 0 0 1 -1 1h-5a1 1 0 0 1 -1 -1v-5a1 1 0 0 1 1 -1Z",
         "M4 14h5a1 1 0 0 1 1 1v5a1 1 0 0 1 -1 1h-5a1 1 0 0 1 -1 -1v-5a1 1 0 0 1 1 -1Z",
     ]
+    // 「画成图」（回答和笔记"…"菜单、进度窗口的标题；lucide-react 1.16.0 Workflow，两个 rx=2 的 rect 换成等价 path）。
+    static let workflow: [String] = [
+        "M5 3h4a2 2 0 0 1 2 2v4a2 2 0 0 1 -2 2h-4a2 2 0 0 1 -2 -2v-4a2 2 0 0 1 2 -2Z",
+        "M7 11v4a2 2 0 0 0 2 2h4",
+        "M15 13h4a2 2 0 0 1 2 2v4a2 2 0 0 1 -2 2h-4a2 2 0 0 1 -2 -2v-4a2 2 0 0 1 2 -2Z",
+    ]
     // 「整理成笔记」（网页 page.tsx / create-page-dialog.tsx 的 FilePlus）。
     static let filePlus: [String] = [
         "M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z",

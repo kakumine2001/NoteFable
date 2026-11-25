@@ -3,7 +3,8 @@ import Foundation
 /// 笔记顶栏"…"菜单的操作（网页 note-page-menu.tsx；Android ui/NotePageMenu.kt）。菜单本身在界面层。
 /// 选了操作先关菜单再执行（和网页 run() 一样，不和对话框、换页叠在一起）；字体和开关留在菜单里。
 /// 出哪些项按页面类型（[PageKindFeatures]）：字体、小字号、全宽（typography）和导出 Markdown（markdownExport）只给笔记，
-/// 锁定、收藏、复制、添加子页面、移动到、移到回收站所有类型都有；"报告 AI 内容"只给 AI 写过的页面（[notePageReportable]），
+/// 锁定、收藏、复制、添加子页面、移动到、移到回收站所有类型都有；「画成图」只给笔记（[notePageDrawable]）；
+/// "报告 AI 内容"只给 AI 写过的页面（[notePageReportable]），
 /// 它的窗口由菜单按钮自己开（网页 NotePageMenu 的 reporting），不经这里。
 @MainActor
 struct NotePageMenuActions {
@@ -19,6 +20,8 @@ struct NotePageMenuActions {
     var onTrash: () -> Void
     /// 幻灯片的放映和导出（网页 `window.notefableEmbed.slides` 的 JSON 命令）。nil 时不显示。
     var onSlides: ((String) -> Void)? = nil
+    /// 「画成图」（放在"添加子页面"后面，只给笔记，[notePageDrawable]）。nil 时不显示。
+    var onDrawDiagram: (() -> Void)? = nil
 }
 
 /// 菜单 "Style" 一栏的字体：[key] 是 NotePageSummary.font 的值，[label] 是文案的键。
@@ -70,6 +73,11 @@ enum NotePageToggle: CaseIterable, Sendable {
 /// 收藏项的文案键：已收藏是 "Remove from Favorites"，否则 "Add to Favorites"。
 func notePageFavoriteLabel(_ page: NotePageSummary) -> String {
     page.favoritedAt != nil ? "pg_remove_from_favorites" : "pg_add_to_favorites"
+}
+
+/// 菜单里有「画成图」：只给笔记（服务端只读笔记的正文；白板、幻灯片没有这一项）。
+func notePageDrawable(_ page: NotePageSummary) -> Bool {
+    page.kind == .note
 }
 
 /// 菜单里有"报告 AI 内容"：AI 写过这个页面的内容（`aiUpdatedAt` 不是 nil；应用商店对 AI 生成内容的要求）。

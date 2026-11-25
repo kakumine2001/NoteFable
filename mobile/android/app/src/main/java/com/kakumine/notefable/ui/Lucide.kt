@@ -84,6 +84,12 @@ object Lucide {
         "M9 15h6",
         "M12 18v-6",
     )
+    // 「画成图」（网页回答 / 笔记菜单的 Workflow，lucide-react 1.16.0；两个 rx 2 的 rect 换成等价的 path）。
+    val Workflow = listOf(
+        "M5 3h4a2 2 0 0 1 2 2v4a2 2 0 0 1 -2 2h-4a2 2 0 0 1 -2 -2v-4a2 2 0 0 1 2 -2Z",
+        "M7 11v4a2 2 0 0 0 2 2h4",
+        "M15 13h4a2 2 0 0 1 2 2v4a2 2 0 0 1 -2 2h-4a2 2 0 0 1 -2 -2v-4a2 2 0 0 1 2 -2Z",
+    )
     private const val FolderOutline =
         "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"
     val Folder = listOf(FolderOutline)

@@ -241,6 +241,7 @@ struct NoteEditorScreen: View {
     /// “…”菜单各项的动作（Android NoteFableRoot.kt 里传给 NoteEditorScreen 的 NotePageMenuActions）。
     private func menuActions(_ state: NotesUiState) -> NotePageMenuActions {
         let notes = app.notes
+        let router = self.router
         let id = open.id
         let dialogBinding = $dialog
         return NotePageMenuActions(
@@ -262,7 +263,9 @@ struct NoteEditorScreen: View {
                 }
             },
             // 幻灯片的放映和导出（网页做，导出的文件再交回 App 保存）。
-            onSlides: { command in notes.slidesCommand(command) }
+            onSlides: { command in notes.slidesCommand(command) },
+            // 「画成图」：先让网页保存（服务端读已保存的正文），存不上就在顶栏下面提示、不开始；进度窗口挂在根上。
+            onDrawDiagram: { _ = router.drawDiagramFromNote(id) }
         )
     }
 }

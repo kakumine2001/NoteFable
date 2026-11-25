@@ -321,6 +321,15 @@
 "not_now" = "अभी नहीं";
 "scroll_to_bottom" = "सबसे नीचे जाएँ";
 
+/* strings_diagram.xml */
+"diagram_draw" = "डायग्राम बनाएं";
+"diagram_working" = "डायग्राम बनाया जा रहा है…";
+"diagram_description" = "AI इसे एक नए व्हाइटबोर्ड पर बदलने योग्य डायग्राम में बदल देता है। इसे 1 चैट संदेश गिना जाता है।";
+"diagram_done" = "डायग्राम तैयार है।";
+"diagram_open" = "व्हाइटबोर्ड खोलें";
+"diagram_partial" = "सामग्री बहुत लंबी थी, इसलिए केवल पहला हिस्सा बनाया गया।";
+"diagram_copy_source" = "डायग्राम का सोर्स कॉपी करें";
+
 /* strings_emoji.xml */
 "em_emoji" = "इमोजी";
 "em_random" = "रैंडम";

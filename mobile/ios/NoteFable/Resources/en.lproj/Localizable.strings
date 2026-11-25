@@ -321,6 +321,15 @@
 "not_now" = "Not now";
 "scroll_to_bottom" = "Scroll to bottom";
 
+/* strings_diagram.xml */
+"diagram_draw" = "Draw as diagram";
+"diagram_working" = "Drawing a diagram…";
+"diagram_description" = "AI turns this into an editable diagram on a new whiteboard. This counts as 1 chat message.";
+"diagram_done" = "The diagram is ready.";
+"diagram_open" = "Open whiteboard";
+"diagram_partial" = "Part of the material was too long, so only the first part was drawn.";
+"diagram_copy_source" = "Copy diagram source";
+
 /* strings_emoji.xml */
 "em_emoji" = "Emoji";
 "em_random" = "Random";

@@ -176,6 +176,10 @@ mobile/android/
 
 网页 `create-page-dialog.tsx`（规则见 [chat-flow.md](chat-flow.md)）：输入栏“＋”抽屉（`AttachSheet`）末尾的 “整理成笔记” 一行（`Lucide.FilePlus`，副标题 `R.string.create_page_title`），已保存且有消息的聊天才显示；当前聊天在发送（含上传附件）时置灰不可点。窗口是 `ui/CreatePageDialog.kt`（`.notes-dialog`）：说明 → 进行中（转圈 + 可以关掉的说明）→ 完成（“已在笔记中创建…”，省略了一部分时多一句）+“打开笔记”；失败显示服务端原句（429 / 400 / 413）、“Session not found.”（404）或通用句，经系统文词典翻译，可以重试。请求是 `ExportApi.createPageFromChat`（`POST /api/sessions/:id/page {model, savedOn}`，单独的客户端不设读超时、总时限 320 秒）。状态按聊天放在 App 级的 `AnswerExportStore.pageJobs`：关掉窗口照常生成，重开时进行中的照样显示、不会重复建；关窗口时忘掉已结束的结果；完成后通过 `created` 刷新笔记列表；登录 / 退出时清空。
 
+## 画成图
+
+网页 `draw-diagram-dialog.tsx`（#153，规则见 [chat-flow.md](chat-flow.md#画成图draw-as-diagram)）。入口有两个，图标都是 `Lucide.Workflow`：回答“…”菜单里“存到笔记 / 打开已存的笔记”后面的“画成图”（只给已换成服务端 ID 的回答，`local-N` 没有；只在主聊天里，由 NoteFableRoot 经 `LocalAnswerDiagram` 提供，笔记 AI 面板的聊天在 WebView 里，走网页自己的按钮）；笔记顶栏“…”里“添加子页面”后面的“画成图”（`NotePageMenuActions.onDrawDiagram`，只给笔记，不给白板 / 幻灯片）。笔记的入口先让编辑器保存（`NotesViewModel.saveBeforeDiagram`，服务端读已保存的正文），存不上就在顶栏下提示“保存失败，草稿已保留”、不开始；不用笔记列表的 `busy`，画图期间别的操作照常能用。选了就开始（不再确认），打开 `ui/DrawDiagramDialog.kt`（`.notes-dialog`）：说明（会画成新白板、算 1 条聊天额度）+ 转圈“正在画图…”，可以关掉；完成显示“图画好了。”（素材太长时多一句）和“打开白板”（`NotesViewModel.openCreatedPage`：先放进列表，从笔记来的展开父页面，再打开）；失败显示服务端原句（400 / 404 / 413 / 422 / 429，经系统文词典翻译）或通用句“Could not draw a diagram. Try again.”，可以重试，转换不了（422）时还有“复制图的源码”（复制 Mermaid 原文，之后显示“已复制”）。请求是 `DiagramApi.drawDiagram`（`POST /api/pages/diagram`，`{source, messageId | pageId, model, clientRequestId}`，单独的客户端不设读超时、总时限 320 秒；模型是聊天里选着的，和整理成笔记一样）。任务按素材（`answer:会话ID\n消息ID` / `note:笔记ID`）放在 App 级的 `DiagramStore`：每个任务生成一个 `clientRequestId`，重试沿用（上次其实建好了时服务端返回那一页、不再扣次数）；关掉窗口照常画，同一份素材再选回到同一个任务；关掉已结束的窗口就忘掉它，之后再选是新任务；完成后经 `created` 刷新笔记列表；登录 / 退出时清掉已结束的结果，进行中的等它结束后丢掉结果。使用上限（429）只显示服务端原句（登录 / 升级提示另做）。
+
 ## 输入栏与使用上限
 
 - **上限（429 `usage_limit`）**：和网页 `page.tsx` 的 `UsageLimitError` 分支一样，被拒的原文和附件放回输入栏（`ChatViewModel.restoreRejected`）：等待期间又写了字就把原文放前面、空一行接上（`mergeRejectedDraft`），附件排在新加的前面；已发出的提问气泡去掉本机图片预览（变成文件标签）。草稿在 ViewModel 里（`SavedStateHandle`），登录、退出后仍在；附件和网页一样不跨登录保留（网页登录会重载页面），所以 `onIdentityChanged` 清掉待发送附件。

@@ -317,6 +317,29 @@ final class SVGPathDataTests: XCTestCase {
         }
     }
 
+    func testDrawAsDiagramIconKeepsLucidesRoundedRects() {
+        // Lucide.swift 的 workflow（「画成图」的图标）：两个 rect（8×8、rx=2）换成的 path 和中间的连线。
+        let workflow = [
+            "M5 3h4a2 2 0 0 1 2 2v4a2 2 0 0 1 -2 2h-4a2 2 0 0 1 -2 -2v-4a2 2 0 0 1 2 -2Z",
+            "M7 11v4a2 2 0 0 0 2 2h4",
+            "M15 13h4a2 2 0 0 1 2 2v4a2 2 0 0 1 -2 2h-4a2 2 0 0 1 -2 -2v-4a2 2 0 0 1 2 -2Z",
+        ]
+        for path in workflow {
+            XCTAssertTrue(SVGPathData.isValid(path), path)
+        }
+        // rect x=3 y=3 / x=13 y=13，width=height=8：经过的点框住各自的方块，最后回到起点。
+        for (path, origin) in [(workflow[0], 3.0), (workflow[2], 13.0)] {
+            let rect = endPoints(SVGPathData.parse(path))
+            XCTAssertEqual(rect.map(\.x).min() ?? .nan, origin, accuracy: 1e-9)
+            XCTAssertEqual(rect.map(\.x).max() ?? .nan, origin + 8, accuracy: 1e-9)
+            XCTAssertEqual(rect.map(\.y).min() ?? .nan, origin, accuracy: 1e-9)
+            XCTAssertEqual(rect.map(\.y).max() ?? .nan, origin + 8, accuracy: 1e-9)
+            XCTAssertEqual(rect.first, rect.last)
+        }
+        // 连线从上面方块的底边（7,11）到下面方块的左边（13,17）。
+        XCTAssertEqual(lastPoint(SVGPathData.parse(workflow[1])), Point(x: 13, y: 17))
+    }
+
     // MARK: 辅助
 
     private struct Point: Equatable {

@@ -321,6 +321,15 @@
 "not_now" = "以後再說";
 "scroll_to_bottom" = "滾動到底部";
 
+/* strings_diagram.xml */
+"diagram_draw" = "畫成圖";
+"diagram_working" = "正在畫圖…";
+"diagram_description" = "AI 會把這些內容畫成可編輯的圖，放進一個新白板。計入 1 次聊天額度。";
+"diagram_done" = "圖畫好了。";
+"diagram_open" = "開啟白板";
+"diagram_partial" = "材料太長，只畫了前面的部分。";
+"diagram_copy_source" = "複製圖的原始碼";
+
 /* strings_emoji.xml */
 "em_emoji" = "表情";
 "em_random" = "隨機";

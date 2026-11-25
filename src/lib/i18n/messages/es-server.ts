@@ -262,4 +262,8 @@ export const esServer: Record<string, string> = {
   "Created page “{title}”": "Página “{title}” creada",
   "Preview failed": "No se pudo generar la vista previa",
   "Previewed “{title}”": "Vista previa de “{title}”",
+  "Could not draw a diagram. Try again.": "No se pudo dibujar el diagrama. Inténtalo de nuevo.",
+  "Could not turn this into an editable diagram.": "No se pudo convertir en un diagrama editable.",
+  "There is nothing to draw yet.": "Todavía no hay nada que dibujar.",
+  "This diagram was moved to the trash.": "Este diagrama se movió a la papelera.",
 };

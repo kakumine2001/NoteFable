@@ -1138,4 +1138,11 @@ export const ptBR: Record<string, string> = {
   "Empty page": "Página vazia",
   "Proposed page edit": "Edição de página proposta",
   "Applied automatically": "Aplicado automaticamente",
+  "Draw as diagram": "Desenhar como diagrama",
+  "Drawing a diagram…": "Desenhando um diagrama…",
+  "AI turns this into an editable diagram on a new whiteboard. This counts as 1 chat message.": "A IA transforma isto em um diagrama editável em um novo quadro branco. Conta como 1 mensagem de chat.",
+  "The diagram is ready.": "O diagrama está pronto.",
+  "Open whiteboard": "Abrir quadro branco",
+  "Part of the material was too long, so only the first part was drawn.": "O material era longo demais, então só a primeira parte foi desenhada.",
+  "Copy diagram source": "Copiar o código do diagrama",
 };

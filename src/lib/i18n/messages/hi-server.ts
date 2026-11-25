@@ -262,4 +262,8 @@ export const hiServer: Record<string, string> = {
   "Created page “{title}”": "पेज “{title}” बनाया",
   "Preview failed": "पूर्वावलोकन विफल",
   "Previewed “{title}”": "“{title}” का पूर्वावलोकन देखा",
+  "Could not draw a diagram. Try again.": "डायग्राम नहीं बनाया जा सका। फिर से कोशिश करें।",
+  "Could not turn this into an editable diagram.": "इसे बदलने योग्य डायग्राम में नहीं बदला जा सका।",
+  "There is nothing to draw yet.": "अभी बनाने के लिए कुछ नहीं है।",
+  "This diagram was moved to the trash.": "यह डायग्राम ट्रैश में भेज दिया गया है।",
 };
