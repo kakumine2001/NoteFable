@@ -162,7 +162,7 @@ set_variant_environment() {
 
 wait_for_ready_idx() {
   local log=$1 idx=$2
-  local deadline=$((SECONDS + 60))
+  local deadline=$((SECONDS + 90))
   while (( SECONDS < deadline )); do
     if grep -qE "^NF_FIXTURE_READY idx=${idx}( |$)" "$log" 2>/dev/null; then
       return 0

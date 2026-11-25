@@ -112,7 +112,7 @@ final class FixtureLaunch {
     }
 
     func apply(app: AppEnvironment, router: AppRouter) async {
-        let baseDeadline = Date().addingTimeInterval(15)
+        let baseDeadline = Date().addingTimeInterval(30)
         let baseReady = await poll(until: baseDeadline) {
             app.account.state.loaded && !app.chat.state.sessionsLoading && !app.chat.state.models.isEmpty
         }
@@ -123,7 +123,7 @@ final class FixtureLaunch {
                 ScreenshotHooks.setScene(target)
             }
 
-            let sceneDeadline = Date().addingTimeInterval(15)
+            let sceneDeadline = Date().addingTimeInterval((target == .editor || target == .pageMenu) ? 45 : 30)
             var sceneReady = baseReady
             if baseReady {
                 sceneReady = await prepareScene(target, app: app, router: router, deadline: sceneDeadline)
