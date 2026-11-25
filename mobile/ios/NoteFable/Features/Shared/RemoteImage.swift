@@ -31,6 +31,7 @@ enum RemoteImageLoader {
                 guard let bytes = try? await app.fetchData(path) else { return nil }
                 data = bytes
             case .external(let url):
+                if ScreenshotHooks.isActive { return nil }
                 guard let bytes = await fetchExternal(url) else { return nil }
                 data = bytes
             case .unsupported:

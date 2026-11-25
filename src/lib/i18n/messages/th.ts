@@ -1154,4 +1154,7 @@ export const th: Record<string, string> = {
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "โน้ตนี้เกินขีดจำกัด {max} สไลด์ ต้องการบันทึกเฉพาะ {max} สไลด์แรกหรือไม่?",
   "Group & organize": "จัดกลุ่มและจัดระเบียบ",
   "Could not attach the selection screenshot this time.": "ไม่สามารถแนบภาพหน้าจอส่วนที่เลือกได้ในครั้งนี้",
+  "1 block": "1 บล็อก",
+  "{count} blocks": "{count} บล็อก",
+  "Block selection actions": "การดำเนินการสำหรับบล็อกที่เลือก",
 };

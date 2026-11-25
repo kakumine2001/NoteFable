@@ -64,7 +64,7 @@
 
 沿用笔记的分享（“Share” → 发布到网页，`/s/:token`）。幻灯片是分享树的**叶子**（`leafKind`，`src/lib/note-share-server.ts`）：只公开这套幻灯片本身，下面的子页面永远不公开（分享对话框也不显示“包含子页面”）；作为笔记的子页面时，可以在那个笔记的分享里打开它，但它下面的页面仍然不可达。
 
-公开页面（`PublicSlidesView`）一页一页大图显示、下面是缩略图，可以全屏放映（同样的键位），只读。服务端先过 `publicDeck`：去掉隐藏页、演讲者备注和 AI 图片的说明；图片地址改成 `/s/:token/file?…`，该路由对幻灯片只放行公开页面引用的图片（`publicDeckFilePaths`）；公式在服务端用 KaTeX 预先渲染，浏览器不加载 KaTeX。
+公开页面（`PublicSlidesView`）一页一页大图显示、下面是缩略图，可以全屏放映（同样的键位），只读。由于外层 `body` 锁定 `overflow: hidden`，`.public-slides-shell` 在自身 `100dvh` 容器内纵向滚动，矮屏或横屏时也能滑到下方缩略图条。服务端先过 `publicDeck`：去掉隐藏页、演讲者备注和 AI 图片的说明；图片地址改成 `/s/:token/file?…`，该路由对幻灯片只放行公开页面引用的图片（`publicDeckFilePaths`）；公式在服务端用 KaTeX 预先渲染，浏览器不加载 KaTeX。
 
 ## 原生应用（Android / iOS）
 

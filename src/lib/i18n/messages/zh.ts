@@ -1163,4 +1163,7 @@ export const zh: Record<string, string> = {
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "此笔记超过 {max} 页幻灯片上限。仅保存前 {max} 页吗？",
   "Group & organize": "归类整理",
   "Could not attach the selection screenshot this time.": "本次未能附上选区截图。",
+  "1 block": "1 个块",
+  "{count} blocks": "{count} 个块",
+  "Block selection actions": "块选择操作",
 };

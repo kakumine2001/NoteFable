@@ -4,10 +4,10 @@
 
 ## 定位
 
-iOS 客户端是 Android 客户端（[android-native.md](android-native.md)）的对照移植，两端是同一套行为：
+iOS 客户端是 Android 客户端（[android-native.md](android-native.md)）的对照移植，两端是同一套行为（界面外壳按下面第二条走 iOS 原生）：
 
 - 只通过服务器 API 工作（REST + SSE，默认主机 `https://app.notefable.com`），不改后端。模型列表来自 `GET /api/models`，读不到时用和 Android 共用的 `models.json`。
-- 界面是网页手机视口（412×915）的复刻：尺寸、颜色、文案、动效时长都取自网页和 Android 代码里记的测量值（1pt = 1 CSS px），不自创设计。浅色、深色两套颜色分别取自网页的 `:root` 和 `:root[data-theme="dark"]`。
+- 界面按三端分界（[android-native.md](android-native.md#三端一致与原生分界)）：功能范围、入口、17 种语言的文案和术语、数据与编辑器能力、品牌色和角色形象与网页 / Android 相同；材质、导航容器、手势、动效、弹层呈现按 iOS 原生。外壳正按 #195 分阶段升级为 iOS 26 的 Liquid Glass（当前代码仍为原自绘外壳，Phase 0 仅落地规则与 CI 模拟器截图基建）：计划包含底部悬浮系统 Tab 栏（聊天 / 工作区 / 搜索，进编辑页时收起）、跟手圆角抽屉、悬浮玻璃顶栏与输入栏、以及系统 `.sheet` 底部弹层；iOS 17–18 退回系统毛玻璃（Tab 不做可滑动透镜折射），系统开启“降低透明度”时退回实色底。后续各 Phase 改完的部分会同步写进下文各节。外壳以外的内容（消息、列表、卡片、对话框里的排版、字号、间距）仍取网页和 Android 代码里记的测量值（1pt = 1 CSS px），不自创设计。浅色、深色两套颜色分别取自网页的 `:root` 和 `:root[data-theme="dark"]`；玻璃只当底，不改品牌色。
 - 聊天、侧栏、搜索、笔记列表、设置是原生界面；笔记编辑器和 Android 一样用 WebView（`WKWebView`）加载 `/note-embed`；桥消息（`EmbedMessage`）与 Android 相同，`openPage`（页面提及被点）走 `NotesViewModel.openNoteFromLink`。原生 → 网页的调用是 `Core/Notes/NoteEditor.swift` 的 `NoteEmbedScripts`（经 `NoteEditorBridge` ← `NoteEditorController` 执行）：`window.notefableEmbed` 的 `flush(requestId)` / `openHistory()` / `pageUpdated(page)` / `pageSettings(page)` / `appIcon(icon)` / `language(code)` / `theme(value)` / `reveal(id)`，约定见 `src/lib/native-bridge.ts`。页面图标是上传图片时（`Core/Models/Notes.swift` 的 `NoteIcons`），`NFIconTile` / `NoteIconGlyph` 用 `RemoteImage` 带 App 的 Cookie 读 `/api/pages/covers?key=`，和表情一样大、圆角 3；原生的图标选择器还只能选表情（**上传图片图标尚未实现**，编辑器里网页的选择器可以上传）。
 - 编辑器里的分栏（`columnList` / `column`，见 [notes-flow.md](notes-flow.md)）由内嵌的网页编辑器处理，App 不读块的结构；手机宽度下栏竖着排，不能拖动调宽。
 - 页面类型（笔记 / 白板 / 幻灯片）的行为和 Android 相同，规则见 [android-native.md](android-native.md) 的“页面类型”一条和 [notes-flow.md](notes-flow.md) 的“页面类型”。对应的代码：`Core/Models/Notes.swift` 的 `PageKind`（缺字段、null、不认识或不是字符串的值都按笔记）和 `PageKindTable`（`features` 是网页 `PAGE_KIND_FEATURES` 那张表：`GET /api/pages` 的 `kinds` 一到就换成它，之前用安装包里与 Android 共用的 `page-kinds.json`）、`pageKindLabel`，`OpenNote.kind`（`ready` 带来时以它为准），菜单的开关 `NotePageToggle.visible(for:)`，检索结果的类型名 `SearchHit.kindLabel`；默认图标 `pageKindIcon`（`DesignSystem/Lucide.swift` 的 `Lucide.shapes` / `Lucide.presentation`），经 `NFIconTile` 的 `fallback` 和 `NoteIconGlyph` 的 `kind`。单元测试：`PageKindTests`，`NotesViewModelTests` 和 `SVGPathDataTests` 里的类型 / 图标路径各一条。图标、“…”菜单、分享按钮、检索的类型名这些界面改动只经过语法检查和 CI 编译，没在模拟器或真机上看过。
@@ -27,25 +27,25 @@ iOS 客户端是 Android 客户端（[android-native.md](android-native.md)）�
   - 报告 AI 内容：`Core/API/ReportApi.swift` 的 `ReportTarget`（回答 `messageId`、提案 `proposalId`、页面 `pageId`，请求体里只放一个）、`Core/Account/ReportModel.swift`、`Features/Chat/Answer/ReportDialog.swift`（`.reportDialog(_:isPresented:)`；标题和说明回答是 `report_title` / `report_help`，提案和页面是 `report_ai_content` / `report_ai_help`）。卡片标题行最右的旗子报告这个提案；页面“…”菜单在 `NotePageSummary.aiUpdatedAt` 不是 nil 时有“报告 AI 内容”（`notePageReportable`）。编辑器里网页的 AI 面板应用的修改不经原生，所以这一项要等笔记列表下次刷新（回到列表、重新打开）才出现。
   - 单元测试：`ActivityTests`（新字段、对象、缩略图地址、旧提案的默认值）、`ProposalCopyTests`、`ProposalStoreTests`（撤销、状态优先级、undo 和报告的请求体）、`AccountModelsTests`（报告提案 / 页面）、`NotesApiTests`（`aiUpdatedAt`）、`NotesViewModelTests` / `AppEnvironmentTests`（移进回收站的页面）。卡片、报告窗口和菜单项只经过语法检查和 CI 编译，没在模拟器或真机上看过。
 
-**功能规则不在本文重复**：后台生成、附件、使用上限、回答导出、笔记、搜索跳转、头像等规则以 [android-native.md](android-native.md) 为准，本文只写 iOS 特有的结构和差异。改了其中一端的行为，另一端和网页要在同一个任务里一起改（见 `AGENTS.md`）。
+**功能规则不在本文重复**：后台生成、附件、使用上限、回答导出、笔记、搜索跳转、头像等规则以 [android-native.md](android-native.md) 为准，本文只写 iOS 特有的结构和差异。改了三端必须一致的部分（功能范围、入口、文案和术语、数据与编辑器能力、品牌色和角色形象），另一端和网页要在同一个任务里一起改；只改 iOS 的原生部分（材质、导航容器、手势、动效、弹层呈现）时不动 Android 和网页（见 `AGENTS.md`）。
 
 ## 现状
 
-代码写完并通过了能做的检查，**还没有在真机或模拟器上运行过**：
+代码通过了能做的检查；第一个 TestFlight 构建 2026-11-24 已装到真机（[ios.md](ios.md)），界面还没有逐项验收：
 
 | 部分 | 验证方式 | 状态 |
 | --- | --- | --- |
-| `Core/`（网络、接口、解析、ViewModel） | Linux 容器里 `swift test`，以及 CI 的 macOS `swift test` | 720 多项单元测试通过（大部分移植自 Android 的单元测试） |
-| `DesignSystem/`、`Features/`、`App/`（SwiftUI / UIKit） | CI 的模拟器无签名构建（`ios-pr.yml`） | 能编译；界面效果、手势、键盘、WebView 交互未经人工验证 |
+| `Core/`（网络、接口、解析、ViewModel） | Linux 容器里 `swift test`，以及 CI 的 macOS `swift test` | 730 多项单元测试通过（大部分移植自 Android 的单元测试） |
+| `DesignSystem/`、`Features/`、`App/`（SwiftUI / UIKit） | CI 的模拟器无签名构建与模拟器截图（`ios-pr.yml`：iOS 26 / iOS 18 / iOS 27 × 浅色 / 深色、阿拉伯语 RTL 与“降低透明度”） | 能编译，截图供人工验收；手势、键盘、WebView 交互需在真机（TestFlight）上验 |
 
 Google 登录：Google Cloud 里给 `com.kakumine.notefable` 登记的 iOS OAuth 客户端是 `NoteFable-iOS`，客户端 ID 写在 `Config/NoteFable.xcconfig` 的 `GOOGLE_IOS_CLIENT_ID` / `GOOGLE_IOS_REVERSED_CLIENT_ID`（不是密钥，会打进安装包；留空时登录窗口只有邮箱验证码）。服务端校验的 audience 仍是 Web 客户端 ID（`serverClientID`）。
 
 上线前还缺：
 
-- **真机验证**。第一次装机后要按 [android-native.md](android-native.md) 的各节逐项对照网页检查，预计会有一批界面细节要修。
-- **Sign in with Apple**。App Store 审核规则 4.8 要求提供第三方登录（Google）的 App 同时提供一个等价的隐私登录方式；现在只有 Google 和邮箱验证码。上架前要么加 Sign in with Apple（后端要支持 Apple 账号关联，属于认证改动），要么确认邮箱验证码登录满足该条。
+- **真机验证**。TestFlight 构建已能装到 iPhone；按 [android-native.md](android-native.md) 的各节核对三端必须一致的部分（功能、入口、文案、数据与编辑器能力、品牌色和角色形象），外壳手感待 #195 在 iOS 26+ 的 iPhone 上按验收标准实测（Tab 栏按住滑动与折射、顶栏按压高光、抽屉跟手、输入框随键盘不跳；浅色 / 深色 / 降低透明度下可读）。预计会有一批细节要修。
+- **Sign in with Apple**。App Store 审核规则 4.8 要求提供第三方登录（Google）的 App 同时提供一个等价的隐私登录方式；现在只有 Google 和邮箱验证码。上架前要么加 Sign in with Apple（后端要支持 Apple 账号关联，属于认证改动），要么确认邮箱验证码登录满足该条。这是上架阻塞项，和 #195 的界面升级分开、独立并行推进（认证改动按 `AGENTS.md` 的 xhigh 评审；是否三端同步加由所有者决定）。
 - **购买**。iOS 没有接 App Store 内购，设置里的方案卡片只读（显示方案和用量，没有购买 / 管理按钮），已登录的免费用户撞到上限时也没有升级提示。
-- **通用链接**。`Support/NoteFable.entitlements` 声明了 `applinks:app.notefable.com`，但网站还没有提供 `/.well-known/apple-app-site-association`，所以点网页链接暂时不会打开 App。
+- **通用链接**。`Support/NoteFable.entitlements` 声明了 `applinks:app.notefable.com`，但网站还没有提供 `/.well-known/apple-app-site-association`，所以点网页链接暂时不会打开 App。这也是上架阻塞项，和 #195 分开、单独推进（网站提供该文件属于服务端改动）。
 
 ## 结构
 

@@ -1,6 +1,7 @@
 // このファイルは scripts/generate-zh-hant.ts が zh.ts と zh-server.ts から作る。直接編集しない。
 export const zhHant: Record<string, string> = {
   "+{count} more": "另有 {count} 項",
+  "1 block": "1 個塊",
   "1 day": "1 天",
   "1 day left": "剩餘 1 天",
   "1 emoji found. Use the up and down arrow keys to navigate.": "找到 1 個表情，使用上下方向鍵瀏覽。",
@@ -146,6 +147,7 @@ export const zhHant: Record<string, string> = {
   "Black screen": "黑屏",
   "Blank": "空白",
   "Block equation": "塊級公式",
+  "Block selection actions": "塊選擇操作",
   "Blue": "藍色",
   "Body font": "正文字型",
   "Bold": "粗體",
@@ -1392,6 +1394,7 @@ export const zhHant: Record<string, string> = {
   "{chat} messages and {image} image generations a month, and {storage} of storage. Cancel anytime.": "每月 {chat} 條訊息、生成 {image} 張圖片，以及 {storage} 儲存空間。隨時可以取消。",
   "{color} background": "{color}背景",
   "{content}\n\nRequest failed: {detail}": "{content}\n\n請求失敗：{detail}",
+  "{count} blocks": "{count} 個塊",
   "{count} columns": "{count} 欄",
   "{count} days ago": "{count} 天前",
   "{count} days left": "剩餘 {count} 天",

@@ -1155,4 +1155,7 @@ export const ja: Record<string, string> = {
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "このノートはスライドの上限（{max} 枚）を超えています。先頭の {max} 枚だけを保存しますか？",
   "Group & organize": "分類・整理",
   "Could not attach the selection screenshot this time.": "今回は選択範囲のスクリーンショットを添付できませんでした。",
+  "1 block": "1 ブロック",
+  "{count} blocks": "{count} ブロック",
+  "Block selection actions": "ブロック選択の操作",
 };

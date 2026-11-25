@@ -254,3 +254,38 @@ describe("public note colors", { timeout: 30_000 }, () => {
     expect(dark["--public-note-callout-bg"]).toBe("rgba(255, 255, 255, 0.05)");
   });
 });
+
+describe("public share scrolling", () => {
+  it("gives public note, unavailable, and slides views a 100dvh scroll container because body hides overflow", () => {
+    const globals = readFileSync(fileURLToPath(new URL("../app/globals.css", import.meta.url)), "utf8");
+    const slidesCss = readFileSync(fileURLToPath(new URL("./slides/slides.css", import.meta.url)), "utf8");
+
+    expect(declarations(globals, /body/).overflow).toBe("hidden");
+
+    const noteShell = declarations(globals, /\.public-note-shell/);
+    expect(noteShell.height).toBe("100dvh");
+    expect(noteShell["overflow-y"]).toBe("auto");
+    expect(noteShell["scroll-padding-top"]).toBe("3rem");
+
+    const topbar = declarations(globals, /\.public-note-topbar/);
+    expect(topbar.position).toBe("sticky");
+    expect(topbar.top).toBe("0");
+    expect(topbar.flex).toBe("none");
+
+    expect(declarations(globals, /\.public-note-main/).flex).toBe("1 0 auto");
+
+    const unavailable = declarations(globals, /\.public-note-unavailable/);
+    expect(unavailable.height).toBe("100dvh");
+    expect(unavailable["overflow-y"]).toBe("auto");
+
+    const whiteboardShell = declarations(globals, /\.public-whiteboard-shell/);
+    expect(whiteboardShell.height).toBe("100dvh");
+    expect(whiteboardShell.overflow).toBe("hidden");
+    expect(globals.lastIndexOf(".public-whiteboard-shell")).toBeGreaterThan(globals.lastIndexOf(".public-note-shell"));
+
+    const slidesShell = declarations(slidesCss, /\.public-slides-shell/);
+    expect(slidesShell.height).toBe("100dvh");
+    expect(slidesShell["overflow-y"]).toBe("auto");
+    expect(declarations(slidesCss, /\.public-slides-topbar/).flex).toBe("none");
+  });
+});

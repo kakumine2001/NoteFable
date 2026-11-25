@@ -1154,4 +1154,7 @@ export const ar: Record<string, string> = {
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "تتجاوز هذه الملاحظة حد {max} شريحة. هل تريد حفظ أول {max} شريحة فقط؟",
   "Group & organize": "تجميع وتنظيم",
   "Could not attach the selection screenshot this time.": "تعذّر إرفاق لقطة التحديد هذه المرة.",
+  "1 block": "كتلة واحدة",
+  "{count} blocks": "{count} كتل",
+  "Block selection actions": "إجراءات تحديد الكتل",
 };
