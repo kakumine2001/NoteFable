@@ -509,6 +509,10 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                             is EmbedMessage.Missing -> notesViewModel.onEditorMissing(editor)
                             EmbedMessage.Trashed -> notesViewModel.onEditorTrashed(editor)
                             is EmbedMessage.OpenPage -> notesViewModel.openNoteFromLink(message.id)
+                            // 反向链接里的聊天：和搜索结果一样，先保存笔记、切到聊天，再打开（有发言就滚到那里）。
+                            is EmbedMessage.OpenChat -> openChatLink(
+                                com.kakumine.notefable.data.ChatLink.Open(message.id, message.messageId), viewModel, notesViewModel,
+                            )
                             EmbedMessage.PagesChanged -> Unit // 由 NoteEmbedHost.onPagesChanged 处理（停靠或切页中也不丢）
                             is EmbedMessage.StorageLimit -> if (notesViewModel.state.value.open?.editor == editor) {
                                 noteUsageLimit = null

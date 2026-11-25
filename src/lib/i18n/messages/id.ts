@@ -19,6 +19,7 @@ export const id: Record<string, string> = {
   "Page title": "Judul halaman",
   "Rename page": "Ganti nama halaman",
   "Table of contents": "Daftar isi",
+  "Backlinks": "Tautan balik",
   "Visit website": "Kunjungi situs web",
   "Account": "Akun",
   "Actions": "Tindakan",

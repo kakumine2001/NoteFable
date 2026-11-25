@@ -391,6 +391,8 @@ final class NotesViewModel {
         case .missing: onEditorMissing(editor)
         case .trashed: onEditorTrashed(editor)
         case .openPage(let id): openNoteFromLink(id)
+        // 打开聊天要切标签页，由界面层（NoteEditorWebView）交给 AppRouter.openChat，不会走到这里。
+        case .openChat: break
         case .pagesChanged: refresh()
         case .storageLimit(let tier, let used, let limit):
             // 已经关掉或换走的编辑器晚到的消息不收。

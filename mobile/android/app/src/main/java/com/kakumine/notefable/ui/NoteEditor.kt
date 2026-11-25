@@ -178,6 +178,10 @@ class NoteEmbedBridge(
     @JavascriptInterface
     fun canOpenPage(): Boolean = true
 
+    /** 网页据此在笔记下方的反向链接里列出聊天，点了发 `openChat`；旧版 App 没有这个方法，网页就不列聊天。 */
+    @JavascriptInterface
+    fun canOpenChat(): Boolean = true
+
     /** 网页据此把"存储空间不够"交给 App 显示（`storageLimit` 消息）；旧版 App 没有这个方法，网页就在编辑器里只说明原因。 */
     @JavascriptInterface
     fun canShowStorageLimit(): Boolean = true

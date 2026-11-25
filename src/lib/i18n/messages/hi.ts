@@ -19,6 +19,7 @@ export const hi: Record<string, string> = {
   "Page title": "पृष्ठ शीर्षक",
   "Rename page": "पृष्ठ का नाम बदलें",
   "Table of contents": "विषय-सूची",
+  "Backlinks": "बैकलिंक",
   "Visit website": "वेबसाइट पर जाएँ",
   "Account": "खाता",
   "Actions": "कार्रवाइयाँ",

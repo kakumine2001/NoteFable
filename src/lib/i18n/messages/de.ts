@@ -19,6 +19,7 @@ export const de: Record<string, string> = {
   "Page title": "Seitentitel",
   "Rename page": "Seite umbenennen",
   "Table of contents": "Inhaltsverzeichnis",
+  "Backlinks": "Rückverweise",
   "Visit website": "Website besuchen",
   "Account": "Konto",
   "Actions": "Aktionen",

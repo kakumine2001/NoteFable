@@ -19,6 +19,7 @@ export const vi: Record<string, string> = {
   "Page title": "Tiêu đề trang",
   "Rename page": "Đổi tên trang",
   "Table of contents": "Mục lục",
+  "Backlinks": "Liên kết ngược",
   "Visit website": "Truy cập trang web",
   "Account": "Tài khoản",
   "Actions": "Thao tác",

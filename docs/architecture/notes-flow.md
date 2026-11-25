@@ -113,6 +113,16 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 - **复制（Duplicate）。** 先保存这篇及其子页面未保存的编辑，再由 `POST /api/pages/:id/duplicate` 在一个事务里复制整棵子树（最多 100 篇，超过返回 400）：标题、图标、封面、正文、页面设置和项目照抄，最上位的标题加 “ (1)”，收藏、历史和 AI 对话不复制；复制件排在原页面的后面，响应带回全部页面的新 `position`。
 - **Trash。** 移入 Trash 时整棵子树用同一个 `deletedAt` 一起移入（响应的 `ids` 是全部被移入的页面）。Trash 列表只显示每批的最上位页面；复原时把同一时刻一起移入的子孙一起复原（中间隔着另一时刻移入的页面时，那之下的不复原），父页面仍在 Trash 或已被删除时复原到最上位，父页面还在时跟随父页面当前的项目。永久删除一篇时，Trash 里它的子孙一起删除。
 
+## 反向链接（#189）
+
+笔记正文的最下面（编辑器之后、分隔线之下）列出这篇页面的反向链接（`src/components/note-backlinks.tsx` 的 `NoteBacklinksSection`，网页 `/app`、分屏和 `/note-embed` 共用），两组：
+
+- **页面**：本人未进 Trash 的页面里指向这一篇的：笔记正文里的 `@` 页面提及，或正文里指向本站 `?view=pages&page=<id>` 的链接（与编辑器“原地打开”的判断相同：同源、`view=pages`），以及白板里链接到这一篇的元素或页面卡片（`customData.notefablePage`）。幻灯片没有页面链接。不含这一篇自己。点一下原地打开（网页走 `onOpen`，内嵌页发 `openPage`）。
+- **聊天**：在这篇页面的 AI 面板里开始的会话（`Session.noteId`），和在发言里用“＋添加页面”附上过这一篇的会话（`MessageNote`，只看 `active` 的发言）。点一下切到 Chats 打开那段会话；从附件来的会话滚到最近一条附上这一篇的发言（`messageId`），从 AI 面板来的会话打开到末尾。分屏里在左边的聊天打开。
+
+两组都按最近更新排序，各最多 50 条，先显示 5 条，其余用 “+{count} more” 展开；两组都空（或读不到）时整块不显示。按 Ctrl / ⌘ / Shift 点击时照常交给浏览器（新标签页）。`/note-embed` 只在 App 声明 `canOpenPage()` 时列页面、声明 `canOpenChat()` 时列聊天，点了发 `openPage` / `openChat`，不让 WebView 跳转。白板和幻灯片页面是整屏画布，下面没有正文区，不显示这一块（它们作为链接的来源仍会出现在别的笔记的列表里）；公开分享页（`/s/:token`）也不显示。
+
+数据来自 `GET /api/pages/:id/backlinks`（`src/lib/note-backlinks-server.ts`）：不建索引表，打开页面时在数据库里现查（与搜索一样走本人页面的 JSON），只把含这个页面 ID 的链接和白板元素带回，再用与编辑器相同的规则（`src/lib/note-backlinks.ts`）确认。所以没有新的写入路径，页面改了标题、进了 Trash 都立即反映。打开着的页面在别的页面保存完成（`notefable:page-saved`，`useNotePages` 每次保存成功后派发）、被 AI 改写（`notefable:page-updated`）或有页面进 Trash 时，延迟 400ms 重读一次：在 A 里写了 `@B` 马上打开 B，A 的保存一落地 B 的列表就会出现 A。
 ## 接口
 
 | 路径 | 行为 |
@@ -124,6 +134,7 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 | `POST /api/pages/diagram` | “Draw as diagram”（画成图）：`{ source: "answer", messageId } \| { source: "note", pageId }`、`model?`、`clientRequestId`。AI 把回答或笔记画成 Mermaid，服务端转成可编辑的白板元素，新建白板（从笔记来的是它的子页面，`aiUpdatedAt` 设为现在），201 `{ page, partial? }`；同一个 `clientRequestId` 再来时返回已建的页面（200，不计数）。计入聊天额度，规则见 [chat-flow.md](chat-flow.md#画成图draw-as-diagram) |
 | `POST /api/pages/from-answer` | Android / iOS 原生 App 的 “Save to page”：`{ markdown, sessionId, messageId?, savedOn? }`，服务端核对会话归属后用 `answerToNoteContent` 生成块，经 `validateNoteContent` 与 `createNotePage`（同 `POST /api/pages`）新建，201 `{ page }` |
 | `GET /api/pages/:id` | 读取拥有的页面（Trash 里的笔记返回 404）。白板 / 幻灯片的 `page` 另带本体 `data` |
+| `GET /api/pages/:id/backlinks` | 反向链接（见“反向链接”）：`{ pages: [{ id, kind, title, icon }], chats: [{ id, title, icon, messageId }] }`，都按最近更新排序、各最多 50 条；`messageId` 是最近一条附上这一篇的发言（只在 AI 面板里开始的会话为 `null`）。`Cache-Control: no-store`；不是本人的或在 Trash 里返回 404 |
 | `PATCH /api/pages/:id` | 原子保存 `{ title, icon, cover, coverPosition, blocks, version }`，版本递增；同一事务内按需先写一份 `AUTO` 历史（见“编辑历史与恢复”）。Trash 里的笔记返回 404。白板 / 幻灯片收 `{ title, icon?, data?, version }`，只回 `{ version, page }`（见“页面类型”） |
 | `DELETE /api/pages/:id` | **移入 Trash**（软删除）：给这篇和全部子页面写同一个 `deletedAt`，响应 `{ ok: true, ids }`；不是永久删除。成功后顺带尽力清理本人超期的 Trash 笔记 |
 | `GET /api/pages/trash` | 返回 `{ pages: NoteTrashItem[] }`（`id`、`kind`、`title`、`icon`、`deletedAt`、`purgeAt`），最近放入的在前。先清理本人超期的笔记再列出；`Cache-Control: no-store` |
@@ -263,6 +274,7 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 | `{type:"saveState", state}` | 保存状态变化：`saved` / `unsaved`（等待输入停止，网页显示 Saving…）/ `saving` / `error`（Not saved）/ `conflict` |
 | `{type:"missing", id?}` | 没有 `page` 参数，或页面不存在、不属于本人、在 Trash 里（404）；编辑中保存返回 404（别处已移入 Trash 或彻底删除）时也发，本地草稿保留。`id` 是找不到的那一篇（没有 `page` 参数时不带）：常驻 WebView 切页时，App 只认这次要打开的那一篇的 missing，上一篇晚到的不会关掉新的一篇（旧网页不带 `id`，App 照旧接受） |
 | `{type:"openPage", id}` | 正文里的页面提及被点了。App 用"从链接打开笔记"的同一入口（`openNoteFromLink`）打开那一页：先 flush、切到列表、刷新后笔记在就打开 |
+| `{type:"openChat", id, messageId?}` | 笔记下方反向链接里的聊天被点了。App 和搜索结果一样打开那段会话（先 flush、切到聊天，有 `messageId` 就滚到那条发言）。只在 App 声明了 `window.NoteFableNative.canOpenChat()` 时发；旧版 App 的内嵌页不列聊天 |
 | `{type:"pagesChanged"}` | 网页新建了页面（笔记 AI 面板的“画成图”画好了白板）。App 刷新笔记列表（`refresh()`）；不认识的旧版 App 忽略 |
 | `{type:"flushed", requestId, ok, kept?}` | 对 `flush(requestId)` 的回复；`ok` 为 false 时带 `kept` |
 | `{type:"storageLimit", tier, used, limit}` | 编辑器里的图片、文件、封面、图标或 AI 面板的附件因存储空间不够被拒绝（`used` / `limit` 是字节）。只在 App 声明了 `window.NoteFableNative.canShowStorageLimit()` 时发；App 在编辑器上方显示与聊天相同的存储提示（登录 / 升级）。没有这个方法的旧版 App 不收到，网页在编辑器里只说明原因 |

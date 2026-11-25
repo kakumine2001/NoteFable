@@ -616,6 +616,9 @@ enum EmbedMessage: Equatable, Sendable {
     case trashed
     /// 笔记里的页面提及被点了：打开那一页（和回答里的笔记链接一样走 openNoteFromLink）。
     case openPage(id: String)
+    /// 笔记下方反向链接里的聊天被点了：打开那段聊天（和搜索结果一样走 AppRouter.openChat），[messageId] 是附上这篇笔记的发言。
+    /// 只有 bootstrap 里声明了 `canOpenChat()` 的 App 才会收到。
+    case openChat(id: String, messageId: String? = nil)
     /// 网页那边新建了页面（笔记 AI 面板的「画成图」画好的白板）：刷新笔记列表。
     case pagesChanged
     /// [kept]：没保存成功，但草稿已存在 WebView 里、之后会重试（不是冲突）。这时可以先离开。
@@ -665,6 +668,10 @@ enum EmbedMessage: Equatable, Sendable {
             case "openPage":
                 guard let id = try text(fields["id"]), !id.isEmpty else { return nil }
                 return .openPage(id: id)
+            case "openChat":
+                guard let id = fields["id"]?.stringValue, !id.isEmpty else { return nil }
+                let messageId = fields["messageId"]?.stringValue
+                return .openChat(id: id, messageId: messageId?.isEmpty == false ? messageId : nil)
             case "pagesChanged":
                 return .pagesChanged
             case "storageLimit":

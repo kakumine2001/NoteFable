@@ -2642,7 +2642,8 @@ export default function Home() {
 
         <div className={workspaceView === "pages" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
           {/* 分割表示の間は右側のペインが同じノートを開く。隠れたこちらにも編集画面を作ると、同じブロックが 2 つでき、検索結果の強調が見えない方に当たる。 */}
-          {!splitActive && <NotesWorkspace notes={notes} listMode={notesList} model={model} reasoning={reasoning} onModelChange={changeModel} onReasoningChange={changeReasoning} onOpen={openNote} onCreate={(request) => createNote(request)} onImport={(files) => void importMarkdownFiles(files)} onWorkspaceChange={changeWorkspace} />}
+          {!splitActive && <NotesWorkspace notes={notes} listMode={notesList} model={model} reasoning={reasoning} onModelChange={changeModel} onReasoningChange={changeReasoning} onOpen={openNote}
+            onOpenChat={(id, messageId) => void openChatFromLink(id, messageId)} onCreate={(request) => createNote(request)} onImport={(files) => void importMarkdownFiles(files)} onWorkspaceChange={changeWorkspace} />}
         </div>
 
         <div className={workspaceView === "chat" ? `notion-chat-workspace${emptyState ? " is-empty" : ""}` : "hidden"}
@@ -3018,6 +3019,7 @@ export default function Home() {
             model={model}
             reasoning={reasoning}
             onSelectNote={(id) => openNoteInSplit(id)}
+            onOpenChat={(id, messageId) => void openChatFromLink(id, messageId)}
             onCreateNote={createNoteInSplit}
             onOpenFullView={(id) => openNoteFullView(id)}
             onOpenHistory={(id) => setHistoryNoteId(id)}

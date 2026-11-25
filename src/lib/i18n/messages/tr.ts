@@ -19,6 +19,7 @@ export const tr: Record<string, string> = {
   "Page title": "Sayfa başlığı",
   "Rename page": "Sayfayı yeniden adlandır",
   "Table of contents": "İçindekiler",
+  "Backlinks": "Geri bağlantılar",
   "Visit website": "Web sitesini ziyaret et",
   "Account": "Hesap",
   "Actions": "İşlemler",

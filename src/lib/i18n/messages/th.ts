@@ -19,6 +19,7 @@ export const th: Record<string, string> = {
   "Page title": "ชื่อหน้า",
   "Rename page": "เปลี่ยนชื่อหน้า",
   "Table of contents": "สารบัญ",
+  "Backlinks": "ลิงก์ย้อนกลับ",
   "Visit website": "เยี่ยมชมเว็บไซต์",
   "Account": "บัญชี",
   "Actions": "การทำงาน",
