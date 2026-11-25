@@ -158,7 +158,11 @@ final class AppRouter {
         let generation = diagramIdentityGeneration
         let notes = app.notes
         return Task { [weak self] in
-            defer { self?.flushingDiagramPages.remove(pageId) }
+            defer {
+                if let self, self.diagramIdentityGeneration == generation {
+                    self.flushingDiagramPages.remove(pageId)
+                }
+            }
             guard await notes.flushBeforeServerRead(pageId) else { return }
             guard let self, self.diagramIdentityGeneration == generation else { return }
             await self.drawDiagram(source)?.value

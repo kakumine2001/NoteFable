@@ -202,7 +202,7 @@ class DiagramStore(
         val ready = try {
             prepare()
         } finally {
-            preparing.remove(key)
+            if (expectedGeneration == generation) preparing.remove(key)
         }
         if (!ready || expectedGeneration != generation) return null
         return start(source, model)
