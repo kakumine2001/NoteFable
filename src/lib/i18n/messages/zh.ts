@@ -1,10 +1,14 @@
 // 英文界面文案为键；{name} 等占位符由 createTranslator 插入。
 export const zh: Record<string, string> = {
+  "Add headings to create a table of contents.": "添加标题即可生成目录。",
+  "Page title": "页面标题",
+  "Rename page": "重命名页面",
   "Settings": "设置",
   "Custom instructions": "自定义指令",
   "Share anything about yourself or how you like answers, and it applies to every chat.": "写下你的情况或喜欢的回答方式，所有聊天都会参考。",
   "For example:\n- Answer in plain, casual language\n- Lead with the conclusion and keep it short\n- If you’re not sure, say so instead of guessing": "例如：\n- 用轻松自然的语气回答\n- 先说结论，尽量简短\n- 不确定就直接说，不要瞎猜",
   "Could not change language. Please try again.": "无法切换语言，请重试。",
+  "Table of contents": "目录",
   "Trash request failed. Please try again.": "回收站请求失败，请重试。",
   "Recently used": "最近使用",
   "Smileys & people": "表情与人物",
@@ -1166,4 +1170,7 @@ export const zh: Record<string, string> = {
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "此笔记超过 {max} 页幻灯片上限。仅保存前 {max} 页吗？",
   "Group & organize": "归类整理",
   "Could not attach the selection screenshot this time.": "本次未能附上选区截图。",
+  "1 block": "1 个块",
+  "{count} blocks": "{count} 个块",
+  "Block selection actions": "块选择操作",
 };

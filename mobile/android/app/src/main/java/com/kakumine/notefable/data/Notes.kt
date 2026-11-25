@@ -124,6 +124,8 @@ data class NotePageSummary(
     val id: String,
     val title: String = "",
     val icon: String? = null,
+    val cover: String? = null,
+    val coverPosition: Int? = null,
     val version: Int = 0,
     /** 所属项目；null 是"未分组"。子页面和最上层的祖先在同一个项目。 */
     val groupId: String? = null,
@@ -299,6 +301,7 @@ interface NotesBackend {
     suspend fun createGroup(name: String): NoteGroupSummary
     suspend fun renameGroup(id: String, name: String): NoteGroupSummary
     suspend fun deleteGroup(id: String)
+    suspend fun renameNote(id: String, title: String, version: Int): NoteIconWrite = error("unused")
 
     suspend fun trash(): List<NoteTrashItem>
     /** 复原；一起移进回收站的子页面也回来。返回所有复原的页面（第一篇是这一篇）。 */
@@ -345,6 +348,33 @@ object NoteIcons {
     fun text(icon: String?): String? = icon?.takeIf { imagePath(it) == null }
 }
 
+/**
+ * 笔记封面（网页 src/lib/note-document.ts 的 NOTE_COVERS 和 uploadedCoverPath）：
+ * 12 种预设渐变 / 纯色，或上传到 `/api/pages/covers?key=` 的图片。
+ */
+object NoteCovers {
+    data class Preset(val startArgb: Long, val endArgb: Long)
+
+    val presets: Map<String, Preset> = mapOf(
+        "gradient-sunset" to Preset(0xFFF6D365, 0xFFFDA085),
+        "gradient-peach" to Preset(0xFFFFECD2, 0xFFFCB69F),
+        "gradient-mint" to Preset(0xFFD4FC79, 0xFF96E6A1),
+        "gradient-ocean" to Preset(0xFF89F7FE, 0xFF66A6FF),
+        "gradient-lavender" to Preset(0xFFE0C3FC, 0xFF8EC5FC),
+        "gradient-night" to Preset(0xFF30CFD0, 0xFF330867),
+        "solid-red" to Preset(0xFFE16259, 0xFFE16259),
+        "solid-yellow" to Preset(0xFFDFAB01, 0xFFDFAB01),
+        "solid-green" to Preset(0xFF4DAB9A, 0xFF4DAB9A),
+        "solid-blue" to Preset(0xFF529CCA, 0xFF529CCA),
+        "solid-purple" to Preset(0xFF9A6DD7, 0xFF9A6DD7),
+        "solid-beige" to Preset(0xFFE9E5E3, 0xFFE9E5E3),
+    )
+
+    fun preset(cover: String?): Preset? = cover?.let(presets::get)
+
+    fun imagePath(cover: String?): String? = NoteIcons.imagePath(cover)
+}
+
 /** 回收站里保留的天数，与 src/types/notes.ts 的 TRASH_RETENTION_DAYS 相同。 */
 const val TRASH_RETENTION_DAYS = 30
 
@@ -353,9 +383,9 @@ const val TRASH_RETENTION_DAYS = 30
  * 约定见 src/lib/native-bridge.ts 和 docs/architecture/android-native.md；两边要一起改。
  */
 sealed interface EmbedMessage {
-    /** [kind]：网页读到的页面类型；旧网页不发时是 null（这时不改 App 这边已知的类型）。 */
-    data class Ready(val id: String, val title: String, val icon: String?, val kind: PageKind? = null) : EmbedMessage
-    data class Meta(val title: String, val icon: String?) : EmbedMessage
+    /** [kind]：网页读到的页面类型；旧网页不发时是 null（这时不改 App 这边已知的类型）。[version]：打开时的页面版本号。 */
+    data class Ready(val id: String, val title: String, val icon: String?, val kind: PageKind? = null, val version: Int? = null) : EmbedMessage
+    data class Meta(val title: String, val icon: String?, val version: Int? = null) : EmbedMessage
     data class SaveState(val state: String) : EmbedMessage
     data class Missing(val id: String? = null) : EmbedMessage
     data object Trashed : EmbedMessage
@@ -406,9 +436,10 @@ sealed interface EmbedMessage {
                 "ready" -> {
                     val page = obj["page"]?.jsonObject ?: return@runCatching null
                     val kind = (page["kind"] as? JsonPrimitive)?.takeIf { it.isString }?.content?.let(PageKind::of)
-                    Ready(page.str("id") ?: return@runCatching null, page.str("title").orEmpty(), page.str("icon"), kind)
+                    val version = page.number("version")?.takeIf { it in 0..Int.MAX_VALUE }?.toInt()
+                    Ready(page.str("id") ?: return@runCatching null, page.str("title").orEmpty(), page.str("icon"), kind, version)
                 }
-                "meta" -> Meta(obj.str("title").orEmpty(), obj.str("icon"))
+                "meta" -> Meta(obj.str("title").orEmpty(), obj.str("icon"), obj.number("version")?.takeIf { it in 0..Int.MAX_VALUE }?.toInt())
                 "saveState" -> SaveState(obj.str("state") ?: return@runCatching null)
                 "missing" -> Missing(obj.str("id")?.takeIf { it.isNotBlank() })
                 "trashed" -> Trashed

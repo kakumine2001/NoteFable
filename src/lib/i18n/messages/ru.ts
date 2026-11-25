@@ -15,6 +15,10 @@ export const ru: Record<string, string> = {
   "A recovered draft differs from the latest note. Save a copy or load the latest version.": "Восстановленный черновик отличается от последней версии заметки. Сохраните копию или загрузите актуальную версию.",
   "AI chat and notes in one place: ask a question, keep the answer as a note in your workspace, and find it again later.": "Чат с ИИ и заметки в одном месте: задайте вопрос, сохраните ответ как заметку в «Пространстве» и легко найдите его позже.",
   "AI chat and notes, in one place": "Чат с ИИ и заметки в одном месте",
+  "Add headings to create a table of contents.": "Добавьте заголовки, чтобы создать оглавление.",
+  "Page title": "Название страницы",
+  "Rename page": "Переименовать страницу",
+  "Table of contents": "Оглавление",
   "Visit website": "Перейти на сайт",
   "Account": "Аккаунт",
   "Actions": "Действия",
@@ -1157,4 +1161,7 @@ export const ru: Record<string, string> = {
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "Эта заметка превышает лимит в {max} слайдов. Сохранить только первые {max} слайдов?",
   "Group & organize": "Сгруппировать и упорядочить",
   "Could not attach the selection screenshot this time.": "В этот раз не удалось прикрепить снимок выделения.",
+  "1 block": "1 блок",
+  "{count} blocks": "Блоков: {count}",
+  "Block selection actions": "Действия с выбранными блоками",
 };

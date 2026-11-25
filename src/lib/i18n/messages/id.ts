@@ -15,6 +15,10 @@ export const id: Record<string, string> = {
   "A recovered draft differs from the latest note. Save a copy or load the latest version.": "Draf yang dipulihkan berbeda dari catatan terbaru. Simpan salinan atau muat versi terbaru.",
   "AI chat and notes in one place: ask a question, keep the answer as a note in your workspace, and find it again later.": "Chat AI dan catatan di satu tempat: ajukan pertanyaan, simpan jawabannya sebagai catatan di Ruang kerja, lalu temukan lagi nanti.",
   "AI chat and notes, in one place": "Chat AI dan catatan, di satu tempat",
+  "Add headings to create a table of contents.": "Tambahkan judul untuk membuat daftar isi.",
+  "Page title": "Judul halaman",
+  "Rename page": "Ganti nama halaman",
+  "Table of contents": "Daftar isi",
   "Visit website": "Kunjungi situs web",
   "Account": "Akun",
   "Actions": "Tindakan",
@@ -1157,4 +1161,7 @@ export const id: Record<string, string> = {
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "Catatan ini melebihi batas {max} slide. Simpan hanya {max} slide pertama?",
   "Group & organize": "Kelompokkan & rapikan",
   "Could not attach the selection screenshot this time.": "Tangkapan layar pilihan tidak dapat dilampirkan kali ini.",
+  "1 block": "1 blok",
+  "{count} blocks": "{count} blok",
+  "Block selection actions": "Tindakan pilihan blok",
 };

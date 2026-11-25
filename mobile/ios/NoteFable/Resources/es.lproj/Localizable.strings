@@ -426,6 +426,8 @@
 "pg_search_pages" = "Buscar páginas";
 "pg_no_matching_pages" = "No hay páginas coincidentes.";
 "pg_subpages_to_trash" = "Sus subpáginas se moverán a la papelera junto con ella.";
+"pg_rename_page" = "Cambiar nombre de la página";
+"pg_page_title" = "Título de la página";
 
 /* strings_personal.xml */
 "appearance" = "Apariencia";

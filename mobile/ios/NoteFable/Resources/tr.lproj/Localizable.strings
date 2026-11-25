@@ -426,6 +426,8 @@
 "pg_search_pages" = "Sayfalarda ara";
 "pg_no_matching_pages" = "Eşleşen sayfa yok.";
 "pg_subpages_to_trash" = "Alt sayfaları da onunla birlikte Çöp Kutusu'na taşınır.";
+"pg_rename_page" = "Sayfayı yeniden adlandır";
+"pg_page_title" = "Sayfa başlığı";
 
 /* strings_personal.xml */
 "appearance" = "Görünüm";

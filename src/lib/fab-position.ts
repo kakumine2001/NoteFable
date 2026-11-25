@@ -26,6 +26,45 @@ export function panelPlacement(position: FabPosition, size: number, panelWidth: 
     : { right, top: top + size + gap, bottom: "auto" as const, maxHeight: Math.max(0, position.bottom - gap - edge) };
 }
 
+export type BubblePlacement = {
+  side: "left" | "right";
+  style: { left?: number; right?: number; bottom: number; maxWidth: number };
+};
+
+// 選択中にマスコットの横へ出す「Ask NoteFable」吹き出しの位置。画面中央側へ向けて出す。
+export function bubblePlacement(
+  fab: FabPosition | null,
+  fabSize: number,
+  viewportWidth: number,
+  viewportHeight: number,
+  dir: "ltr" | "rtl",
+  phone: boolean,
+): BubblePlacement {
+  const edge = phone ? 16 : 20;
+  const raw = fab ?? (dir === "rtl"
+    ? { right: Math.max(FAB_MARGIN, viewportWidth - edge - fabSize), bottom: edge }
+    : { right: edge, bottom: edge });
+  const pos = clampFabPosition(raw, fabSize, viewportWidth, viewportHeight);
+  const fabCenterX = viewportWidth - pos.right - fabSize / 2;
+  const side: "left" | "right" = fabCenterX >= viewportWidth / 2 ? "left" : "right";
+  const bottom = Math.min(Math.max(pos.bottom + fabSize / 2, 24), Math.max(24, viewportHeight - 24));
+  const gap = 12;
+  if (side === "left") {
+    const right = pos.right + fabSize + gap;
+    const available = viewportWidth - right - 12;
+    return {
+      side,
+      style: { right, bottom, maxWidth: Math.max(150, Math.min(280, available - 16)) },
+    };
+  }
+  const left = viewportWidth - pos.right + gap;
+  const available = pos.right - gap - 12;
+  return {
+    side,
+    style: { left, bottom, maxWidth: Math.max(150, Math.min(280, available - 16)) },
+  };
+}
+
 // エディターが用意した置き場所（目印の要素の画面上の四角）に、ボタンを重ねる位置。目印が描かれていない（大きさ 0）なら null。
 export function anchorFabPosition(rect: { right: number; bottom: number; width: number; height: number }, viewportWidth: number, viewportHeight: number): FabPosition | null {
   if (!rect.width && !rect.height) return null;

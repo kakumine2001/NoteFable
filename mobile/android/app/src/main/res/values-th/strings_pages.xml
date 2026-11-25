@@ -25,4 +25,6 @@
     <string name="pg_search_pages">ค้นหาหน้า</string>
     <string name="pg_no_matching_pages">ไม่พบหน้าที่ตรงกัน</string>
     <string name="pg_subpages_to_trash">หน้าย่อยภายในจะถูกย้ายไปที่ถังขยะพร้อมกันด้วย</string>
+    <string name="pg_rename_page">เปลี่ยนชื่อหน้า</string>
+    <string name="pg_page_title">ชื่อหน้า</string>
 </resources>

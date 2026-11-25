@@ -15,6 +15,10 @@ export const vi: Record<string, string> = {
   "A recovered draft differs from the latest note. Save a copy or load the latest version.": "Bản nháp khôi phục khác với ghi chú mới nhất. Hãy lưu thành bản sao hoặc tải phiên bản mới nhất.",
   "AI chat and notes in one place: ask a question, keep the answer as a note in your workspace, and find it again later.": "Trò chuyện AI và ghi chú ở cùng một nơi: đặt câu hỏi, lưu câu trả lời thành ghi chú trong Không gian và tìm lại bất cứ khi nào cần.",
   "AI chat and notes, in one place": "Trò chuyện AI và ghi chú, tất cả ở một nơi",
+  "Add headings to create a table of contents.": "Thêm tiêu đề để tạo mục lục.",
+  "Page title": "Tiêu đề trang",
+  "Rename page": "Đổi tên trang",
+  "Table of contents": "Mục lục",
   "Visit website": "Truy cập trang web",
   "Account": "Tài khoản",
   "Actions": "Thao tác",
@@ -1157,4 +1161,7 @@ export const vi: Record<string, string> = {
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "Ghi chú này vượt quá giới hạn {max} trang chiếu. Chỉ lưu {max} trang chiếu đầu tiên?",
   "Group & organize": "Phân nhóm & sắp xếp",
   "Could not attach the selection screenshot this time.": "Lần này không thể đính kèm ảnh chụp vùng chọn.",
+  "1 block": "1 khối",
+  "{count} blocks": "{count} khối",
+  "Block selection actions": "Thao tác chọn khối",
 };

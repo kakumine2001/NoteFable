@@ -15,6 +15,10 @@ export const ptBR: Record<string, string> = {
   "A recovered draft differs from the latest note. Save a copy or load the latest version.": "Um rascunho recuperado difere da nota mais recente. Salve uma cópia ou carregue a versão mais recente.",
   "AI chat and notes in one place: ask a question, keep the answer as a note in your workspace, and find it again later.": "Chat com IA e notas em um só lugar: faça uma pergunta, salve a resposta como nota no seu Espaço e encontre tudo depois.",
   "AI chat and notes, in one place": "Chat com IA e notas, em um só lugar",
+  "Add headings to create a table of contents.": "Adicione títulos para criar um sumário.",
+  "Page title": "Título da página",
+  "Rename page": "Renomear página",
+  "Table of contents": "Sumário",
   "Visit website": "Visitar o site",
   "Account": "Conta",
   "Actions": "Ações",
@@ -1157,4 +1161,7 @@ export const ptBR: Record<string, string> = {
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "Esta nota excede o limite de {max} slides. Salvar somente os primeiros {max} slides?",
   "Group & organize": "Agrupar e organizar",
   "Could not attach the selection screenshot this time.": "Não foi possível anexar a captura da seleção desta vez.",
+  "1 block": "1 bloco",
+  "{count} blocks": "{count} blocos",
+  "Block selection actions": "Ações da seleção de blocos",
 };

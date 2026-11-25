@@ -25,4 +25,6 @@
     <string name="pg_search_pages">搜索页面</string>
     <string name="pg_no_matching_pages">没有匹配的页面。</string>
     <string name="pg_subpages_to_trash">其中的子页面也会一起移入回收站。</string>
+    <string name="pg_rename_page">重命名页面</string>
+    <string name="pg_page_title">页面标题</string>
 </resources>

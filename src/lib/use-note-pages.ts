@@ -214,14 +214,17 @@ export function useNotePages(
             favoritedAt: page.favoritedAt ?? null, fullWidth: page.fullWidth, smallText: page.smallText, font: page.font, locked: page.locked,
             shareEnabled: page.shareEnabled, shareExpiresAt: page.shareExpiresAt ?? null,
           };
-      if (existing.title === page.title && existing.icon === page.icon && existing.version === page.version && existing.updatedAt === page.updatedAt
+      const nextCover = page.cover !== undefined ? page.cover : existing.cover;
+      const nextCoverPosition = page.cover !== undefined ? (page.coverPosition ?? null) : existing.coverPosition;
+      if (existing.title === page.title && existing.icon === page.icon && existing.cover === nextCover && existing.coverPosition === nextCoverPosition
+        && existing.version === page.version && existing.updatedAt === page.updatedAt
         && existing.favoritedAt === meta.favoritedAt && existing.fullWidth === meta.fullWidth && existing.smallText === meta.smallText && existing.font === meta.font && existing.locked === meta.locked
         && existing.shareEnabled === meta.shareEnabled && existing.shareExpiresAt === meta.shareExpiresAt) return current;
       // 所属グループ・親・位置は移動と並べ替えの操作だけが決める（並べ替えの最中に届いた古い値で戻さない）。
       // 種類は変わらない。種類を持たない応答で消さない。
       // AI が書いた目印（aiUpdatedAt）も、持たない応答で消さない。
       return current.map((entry) => entry.id === page.id ? {
-        ...page, ...meta, kind: page.kind ?? entry.kind, groupId: entry.groupId, position: entry.position, parentId: entry.parentId,
+        ...page, ...meta, cover: nextCover, coverPosition: nextCoverPosition, kind: page.kind ?? entry.kind, groupId: entry.groupId, position: entry.position, parentId: entry.parentId,
         aiUpdatedAt: page.aiUpdatedAt !== undefined ? page.aiUpdatedAt : entry.aiUpdatedAt,
       } : entry);
     });
@@ -267,7 +270,13 @@ export function useNotePages(
       if (queues.current.get(page.id) === queue) upsertSummary(data.page, { since: started });
       return data.page;
     }, () => {
-      upsertSummary({ ...queue.page, title: queue.content.title.trim() || "Untitled", icon: queue.content.icon }, { local: true });
+      upsertSummary({
+        ...queue.page,
+        title: queue.content.title.trim() || "Untitled",
+        icon: queue.content.icon,
+        cover: queue.content.cover,
+        coverPosition: queue.content.coverPosition,
+      }, { local: true });
       try {
         if (!queue.dirty) { localStorage.removeItem(draftKey); writtenDraft = null; }
         else if (!isCanvasKind(kind) || writtenDraft?.content !== queue.content || writtenDraft.version !== queue.version) {
@@ -335,7 +344,13 @@ export function useNotePages(
       setActive(queue);
       // 先読みしたページは先読み開始時点以降のローカル変更がなければ新しい設定（ロック等）を反映し、既存キューは裏の再照合で合わせる。
       upsertSummary(
-        { ...queue.page, title: queue.content.title.trim() || "Untitled", icon: queue.content.icon },
+        {
+          ...queue.page,
+          title: queue.content.title.trim() || "Untitled",
+          icon: queue.content.icon,
+          cover: queue.content.cover,
+          coverPosition: queue.content.coverPosition,
+        },
         prefetchedEntry ? { since: prefetchedEntry.startedMeta } : { local: true },
       );
       syncPageUrl(id, historyMode);
@@ -364,7 +379,13 @@ export function useNotePages(
             void currentQueue.flush();
           }
           if (latestPage.version >= currentQueue.version) {
-            upsertSummary({ ...latestPage, title: currentQueue.content.title.trim() || "Untitled", icon: currentQueue.content.icon }, { since: startedMeta });
+            upsertSummary({
+              ...latestPage,
+              title: currentQueue.content.title.trim() || "Untitled",
+              icon: currentQueue.content.icon,
+              cover: currentQueue.content.cover,
+              coverPosition: currentQueue.content.coverPosition,
+            }, { since: startedMeta });
           }
         }).catch((caught) => {
           const gone = caught instanceof NoteSaveError && caught.status === 404;
@@ -455,7 +476,13 @@ export function useNotePages(
       setActiveId(id);
       displayedId.current = id;
       setActive(queue);
-      upsertSummary({ ...latestPage, title: queue.content.title.trim() || "Untitled", icon: queue.content.icon }, { since: startedMeta });
+      upsertSummary({
+        ...latestPage,
+        title: queue.content.title.trim() || "Untitled",
+        icon: queue.content.icon,
+        cover: queue.content.cover,
+        coverPosition: queue.content.coverPosition,
+      }, { since: startedMeta });
       syncPageUrl(id, historyMode);
       return true;
     } catch (caught) {
@@ -890,6 +917,30 @@ export function useNotePages(
     return true;
   });
 
+  // サイドバーからタイトルを変える。開いている・キャッシュにあるノートは自動保存に載せ、無いページは専用の API で書く。
+  const renamePage = (id: string, title: string) => groupAction(async () => {
+    const normalized = title.replace(/\r?\n/g, " ").trim();
+    if (!normalized) return false;
+    const queue = (id === activeId ? active : undefined) ?? queues.current.get(id);
+    if (queue && (!isCanvasKind(pageKindOf(queue.page)) || pageKindFeatures(pageKindOf(queue.page)).editor)) {
+      if (queue.gone) return false;
+      if (queue.status === "conflict") throw new Error(queue.error || msg("This note was changed in another tab."));
+      queue.edit({ ...queue.content, title: normalized });
+      return true;
+    }
+    const version = queue?.version ?? pagesRef.current.find((entry) => entry.id === id)?.version ?? 0;
+    try {
+      const { page } = await pageRequest(`/api/pages/${encodeURIComponent(id)}/title`, "PUT", { title: normalized, version });
+      window.dispatchEvent(new CustomEvent<NotePage>("notefable:page-updated", { detail: page }));
+      return true;
+    } catch (caught) {
+      if (caught instanceof NoteSaveError && caught.status === 409 && caught.latest) {
+        window.dispatchEvent(new CustomEvent<NotePage>("notefable:page-updated", { detail: caught.latest }));
+      }
+      throw caught;
+    }
+  });
+
   async function reorder(move:ReorderRequest) {
     if(reorderBusy.current) throw new Error(msg("Wait for the previous move to finish."));
     reorderBusy.current=true;
@@ -1020,5 +1071,5 @@ export function useNotePages(
     if (displayedId.current === queue.page.id) setEditorEpoch((value) => value + 1);
   }
 
-  return { pages, groups, groupError, reorder, createGroup, renameGroup, deleteGroup, moveNote, moveToPage, setFavorite, updateSettings, applyShareMeta: applyMeta, flushSubtree, duplicate, changeIcon, exportPage, importMarkdown, checkImportFiles, ensureListLoaded, activeId, active, loading, listLoading, openingId, busy, error, actionError, dismissActionError: () => setActionError(""), backupError, editorEpoch, select, prefetch, cancelPrefetch, hasCached, cancelPending, deactivate, setPageShown, create, remove, load, loadLatest };
+  return { pages, groups, groupError, reorder, createGroup, renameGroup, deleteGroup, moveNote, moveToPage, setFavorite, updateSettings, applyShareMeta: applyMeta, flushSubtree, duplicate, changeIcon, renamePage, exportPage, importMarkdown, checkImportFiles, ensureListLoaded, activeId, active, loading, listLoading, openingId, busy, error, actionError, dismissActionError: () => setActionError(""), backupError, editorEpoch, select, prefetch, cancelPrefetch, hasCached, cancelPending, deactivate, setPageShown, create, remove, load, loadLatest };
 }

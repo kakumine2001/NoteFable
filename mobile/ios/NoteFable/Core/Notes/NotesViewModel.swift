@@ -378,11 +378,11 @@ final class NotesViewModel {
     /// 界面收到编辑器 [editor]（[OpenNote.editor]）发来的消息时调用。flushed 由 [NoteEmbedBridge] 自己处理。
     func onEditorMessage(_ editor: String, _ message: EmbedMessage) {
         switch message {
-        case .ready(let id, let title, let icon, let kind):
+        case .ready(let id, let title, let icon, let kind, let version):
             // 网页（重新）载入后不在放映：WebView 重载时收不到 end，这里把放映状态清掉（否则一直横屏、没有顶栏）。
             if state.open?.editor == editor, state.presenting { update { $0.presenting = false } }
-            onEditorReady(editor, pageId: id, title: title, icon: icon, kind: kind)
-        case .meta(let title, let icon): onEditorMeta(editor, title: title, icon: icon)
+            onEditorReady(editor, pageId: id, title: title, icon: icon, kind: kind, version: version)
+        case .meta(let title, let icon, let version): onEditorMeta(editor, title: title, icon: icon, version: version)
         case .saveState(let state): onEditorSaveState(editor, state)
         case .missing: onEditorMissing(editor)
         case .trashed: onEditorTrashed(editor)
@@ -491,7 +491,7 @@ final class NotesViewModel {
     /// 编辑器读好了页面 [pageId]。和打开着的不是同一页时，是冲突后"另存为新笔记"换到了副本：
     /// 打开着的笔记换成副本（WebView 不重新加载），原来那篇的列表项不动，重读列表把副本加进来。
     /// [kind] 是网页读到的页面类型（旧网页不发时是 nil，不改已知的类型）：从检索结果打开、列表里还没有这一篇时先按笔记显示，这里改对。
-    func onEditorReady(_ editor: String, pageId: String, title: String, icon: String?, kind: PageKind? = nil) {
+    func onEditorReady(_ editor: String, pageId: String, title: String, icon: String?, kind: PageKind? = nil, version: Int? = nil) {
         if let open = state.open, open.editor == editor, open.id != pageId {
             update {
                 $0.open = OpenNote(pageId, title, icon, editor: open.editor, kind: kind ?? open.kind)
@@ -512,10 +512,10 @@ final class NotesViewModel {
                 }
             }
         }
-        onEditorMeta(editor, title: title, icon: icon)
+        onEditorMeta(editor, title: title, icon: icon, version: version)
     }
 
-    func onEditorMeta(_ editor: String, title: String, icon: String?) {
+    func onEditorMeta(_ editor: String, title: String, icon: String?, version: Int? = nil) {
         let id = pageOf(editor)
         update { state in
             if var open = state.open, open.id == id {
@@ -529,6 +529,7 @@ final class NotesViewModel {
                     var next = page
                     next.title = title
                     next.icon = icon
+                    if let version, version > next.version { next.version = version }
                     return next
                 }
             }
@@ -663,6 +664,40 @@ final class NotesViewModel {
                         return next
                     }
                 }
+            }, value: true)
+        } ?? false
+    }
+
+    /// 从侧栏或收藏栏直接重命名页面；当前正打开它时先保存草稿，再通知 WebView 同步标题和版本号。
+    @discardableResult
+    func renamePage(_ pageId: String, title: String) async -> Bool {
+        let normalized = title.replacingOccurrences(of: "\\r?\\n", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if normalized.isEmpty { return false }
+        let owner = identity
+        update { $0.groupError = nil }
+        if state.open?.id == pageId, !(await flushOpen()).ok {
+            if owner == identity { update { $0.groupError = NotesError(.unsavedDraft) } }
+            return false
+        }
+        guard owner == identity else { return false }
+        let version = state.pages.first { $0.id == pageId }?.version ?? 0
+        return await groupAction { [self] in
+            let written = try await backend.renameNote(id: pageId, title: normalized, version: version)
+            let page = written.page
+            return Applied(apply: {
+                self.update { state in
+                    state.pages = state.pages.map { current in
+                        guard current.id == pageId else { return current }
+                        var next = current
+                        next.title = page.title
+                        next.version = page.version
+                        if !page.updatedAt.isEmpty { next.updatedAt = page.updatedAt }
+                        return next
+                    }
+                    if state.open?.id == pageId { state.open?.title = page.title }
+                }
+                if let json = written.json { self.notifyPageUpdated?(pageId, json) }
             }, value: true)
         } ?? false
     }

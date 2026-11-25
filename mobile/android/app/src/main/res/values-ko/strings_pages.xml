@@ -25,4 +25,6 @@
     <string name="pg_search_pages">페이지 검색</string>
     <string name="pg_no_matching_pages">일치하는 페이지가 없어요.</string>
     <string name="pg_subpages_to_trash">하위 페이지도 함께 휴지통으로 이동합니다.</string>
+    <string name="pg_rename_page">페이지 이름 바꾸기</string>
+    <string name="pg_page_title">페이지 제목</string>
 </resources>

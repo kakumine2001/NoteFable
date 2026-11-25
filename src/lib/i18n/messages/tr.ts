@@ -15,6 +15,10 @@ export const tr: Record<string, string> = {
   "A recovered draft differs from the latest note. Save a copy or load the latest version.": "Kurtarılan taslak en son nottan farklı. Bir kopya kaydedin veya en son sürümü yükleyin.",
   "AI chat and notes in one place: ask a question, keep the answer as a note in your workspace, and find it again later.": "Yapay zekâ sohbeti ve notlar tek bir yerde: soru sorun, yanıtı Çalışma alanınızda not olarak saklayın ve daha sonra kolayca yeniden bulun.",
   "AI chat and notes, in one place": "Yapay zekâ sohbeti ve notlar, tek bir yerde",
+  "Add headings to create a table of contents.": "İçindekiler tablosu oluşturmak için başlıklar ekleyin.",
+  "Page title": "Sayfa başlığı",
+  "Rename page": "Sayfayı yeniden adlandır",
+  "Table of contents": "İçindekiler",
   "Visit website": "Web sitesini ziyaret et",
   "Account": "Hesap",
   "Actions": "İşlemler",
@@ -1157,4 +1161,7 @@ export const tr: Record<string, string> = {
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "Bu not {max} slayt sınırını aşıyor. Yalnızca ilk {max} slayt kaydedilsin mi?",
   "Group & organize": "Grupla ve düzenle",
   "Could not attach the selection screenshot this time.": "Bu sefer seçimin ekran görüntüsü eklenemedi.",
+  "1 block": "1 blok",
+  "{count} blocks": "{count} blok",
+  "Block selection actions": "Blok seçimi eylemleri",
 };

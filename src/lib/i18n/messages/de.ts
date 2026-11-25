@@ -15,6 +15,10 @@ export const de: Record<string, string> = {
   "A recovered draft differs from the latest note. Save a copy or load the latest version.": "Ein wiederhergestellter Entwurf weicht von der neuesten Notiz ab. Speichere eine Kopie oder lade die neueste Version.",
   "AI chat and notes in one place: ask a question, keep the answer as a note in your workspace, and find it again later.": "KI-Chat und Notizen an einem Ort: Stell eine Frage, halt die Antwort als Notiz in deinem Arbeitsbereich fest und finde sie später jederzeit wieder.",
   "AI chat and notes, in one place": "KI-Chat und Notizen an einem Ort",
+  "Add headings to create a table of contents.": "Füge Überschriften hinzu, um ein Inhaltsverzeichnis zu erstellen.",
+  "Page title": "Seitentitel",
+  "Rename page": "Seite umbenennen",
+  "Table of contents": "Inhaltsverzeichnis",
   "Visit website": "Website besuchen",
   "Account": "Konto",
   "Actions": "Aktionen",
@@ -1157,4 +1161,7 @@ export const de: Record<string, string> = {
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "Diese Notiz überschreitet das Limit von {max} Folien. Nur die ersten {max} Folien speichern?",
   "Group & organize": "Gruppieren und ordnen",
   "Could not attach the selection screenshot this time.": "Der Screenshot der Auswahl konnte diesmal nicht angehängt werden.",
+  "1 block": "1 Block",
+  "{count} blocks": "{count} Blöcke",
+  "Block selection actions": "Aktionen für Blockauswahl",
 };

@@ -426,6 +426,8 @@
 "pg_search_pages" = "Search pages";
 "pg_no_matching_pages" = "No matching pages.";
 "pg_subpages_to_trash" = "Its sub-pages move to Trash with it.";
+"pg_rename_page" = "Rename page";
+"pg_page_title" = "Page title";
 
 /* strings_personal.xml */
 "appearance" = "Appearance";

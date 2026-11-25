@@ -262,6 +262,7 @@ function blockHasVisibleContent(block: RawBlock): boolean {
   const props = propsOf(block);
   const children = childrenOf(block);
   if (block.type === "divider") return false;
+  if (block.type === "tableOfContents") return children.some(blockHasVisibleContent);
   if (block.type === COLUMN_LIST || block.type === COLUMN) return children.some(blockHasVisibleContent);
   if (block.type === "mathBlock") return cleanStr(props.latex, MAX_MATH_LATEX).trim().length > 0 || children.some(blockHasVisibleContent);
   if (block.type === "image") return Boolean(safeImageSrc(props.url)) || children.some(blockHasVisibleContent);
@@ -537,7 +538,7 @@ function childrenToRichBlocks(children: RawBlock[], depth: number, labels: Resol
           if (line) out.push(paragraphNode([{ type: "text", text: cleanStr(line) }]));
         }
       }
-    } else if (child.type !== "divider") {
+    } else if (child.type !== "divider" && child.type !== "tableOfContents") {
       const prefix = blockPrefix(child);
       const inline = inlineToRich(child.content);
       const full: RichInline[] = child.type === "quote"
@@ -1035,6 +1036,11 @@ function blocksToFlowItems(blocks: RawBlock[], boxWidth: number, maxItemHeight: 
 
       case "divider": {
         out.push({ kind: "rule", height: 28 });
+        break;
+      }
+
+      case "tableOfContents": {
+        if (children.length) out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight, labels));
         break;
       }
 

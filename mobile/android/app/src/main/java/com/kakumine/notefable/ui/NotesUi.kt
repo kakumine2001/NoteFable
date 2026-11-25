@@ -45,6 +45,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -57,8 +58,10 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -313,6 +316,10 @@ fun NotesDrawerBody(
     onToggleSection: (PageKind) -> Unit = {},
     /** Favorites 行右侧的"从收藏中移除"。 */
     onUnfavorite: (NotePageSummary) -> Unit = {},
+    /** 侧栏 / 收藏行改页面标题。 */
+    onRenamePage: (NotePageSummary) -> Unit = {},
+    /** 侧栏 "..." 菜单里的收藏 / 取消收藏。 */
+    onToggleFavorite: (NotePageSummary) -> Unit = {},
     /** 回收站上面的 "Import Markdown"（网页 notes-sidebar：打开文件选择器）。 */
     onImport: () -> Unit = {},
 ) {
@@ -320,7 +327,7 @@ fun NotesDrawerBody(
     val scroll = rememberScrollState()
     val drag = remember(scroll) { DragState(scroll) }
     val rowDrag = NoteRowDrag(drag, state, busy, reorder, NoteListSurface.Drawer)
-    val tree = NoteTreeActions(state, onOpen, onMove, onTrash, onChangeIcon, onToggleExpanded, onCreateInside)
+    val tree = NoteTreeActions(state, onOpen, onMove, onTrash, onChangeIcon, onToggleExpanded, onCreateInside, onRenamePage, onToggleFavorite)
     val kinds = state.kinds
     val sections = state.sections
     // 分区里最上层的行只接受同一分区的页面放在前后（网页 data-drop-kind）；别处的行什么都接受。
@@ -371,7 +378,7 @@ fun NotesDrawerBody(
                     Spacer(Modifier.width(6.dp))
                     CountPill(favorites.size)
                 }
-                favorites.forEach { page -> key("fav-" + page.id) { FavoriteRow(page, state.open?.id == page.id, busy, onOpen, onUnfavorite) } }
+                favorites.forEach { page -> key("fav-" + page.id) { FavoriteRow(page, state.open?.id == page.id, busy, onOpen, onUnfavorite, onRenamePage) } }
             }
             // "Projects" 分区标题（徽章 + 高对比标题 + 数量胶囊 + 右侧 40 的"新项目"按钮）。
             Column(Modifier.fillMaxWidth().sidebarSectionTopDivider(favorites.isNotEmpty())) {
@@ -599,6 +606,8 @@ private class NoteTreeActions(
     val onChangeIcon: (NotePageSummary, String?) -> Unit,
     val onToggle: (String) -> Unit,
     val onCreateInside: (NotePageSummary, PageKind) -> Unit,
+    val onRename: (NotePageSummary) -> Unit,
+    val onToggleFavorite: (NotePageSummary) -> Unit,
 ) {
     val openAncestors: Set<String> = state.open?.let { open -> state.ancestors(open.id).mapTo(HashSet()) { it.id } } ?: emptySet()
     fun isOpen(id: String, hasChildren: Boolean) = id in state.expanded || (hasChildren && id in openAncestors)
@@ -611,7 +620,8 @@ private fun NoteTree(page: NotePageSummary, busy: Boolean, rowDrag: NoteRowDrag,
     val kids = tree.state.children(page.id)
     val open = tree.isOpen(page.id, kids.isNotEmpty())
     NoteRow(page, tree.state.open?.id == page.id, busy, rowDrag, tree.onOpen, tree.onMove, tree.onTrash, tree.onChangeIcon,
-        open = open, onToggle = { tree.onToggle(page.id) }, onCreateInside = { kind -> tree.onCreateInside(page, kind) })
+        open = open, onToggle = { tree.onToggle(page.id) }, onCreateInside = { kind -> tree.onCreateInside(page, kind) },
+        onRename = tree.onRename, onToggleFavorite = tree.onToggleFavorite)
     if (open) {
         Column(
             Modifier.padding(start = 12.dp).fillMaxWidth()
@@ -632,9 +642,16 @@ private fun NoteTree(page: NotePageSummary, busy: Boolean, rowDrag: NoteRowDrag,
 }
 
 // Favorites 的行（网页 notes-sidebar 的收藏行）：高 42；图标区 28（左距 4，语义色页面类型图标 15）；标题 14；
-// 右侧"从收藏中移除"小按钮（StarOff 14）。当前打开的行浮起圆角卡。
+// 非锁定时右侧重命名按钮（Pencil 13），最右"从收藏中移除"小按钮（StarOff 14）。当前打开的行浮起圆角卡。
 @Composable
-private fun FavoriteRow(page: NotePageSummary, active: Boolean, busy: Boolean, onOpen: (String) -> Unit, onUnfavorite: (NotePageSummary) -> Unit) {
+private fun FavoriteRow(
+    page: NotePageSummary,
+    active: Boolean,
+    busy: Boolean,
+    onOpen: (String) -> Unit,
+    onUnfavorite: (NotePageSummary) -> Unit,
+    onRename: (NotePageSummary) -> Unit,
+) {
     val shape = RoundedCornerShape(8.dp)
     Row(
         Modifier.fillMaxWidth().heightIn(min = 42.dp)
@@ -646,6 +663,9 @@ private fun FavoriteRow(page: NotePageSummary, active: Boolean, busy: Boolean, o
         Box(Modifier.padding(start = 4.dp).size(28.dp), Alignment.Center) { NoteIcon(page.icon, 15.sp, 15.dp, pageKindColor(page.kind), page.kind) }
         Text(page.title, modifier = Modifier.weight(1f).padding(start = 4.dp, end = 8.dp), color = if (active) Sm.Ink else Sm.Text,
             fontSize = 14.sp, lineHeight = 20.sp, fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (!page.locked) {
+            RowAction(Lucide.Pencil, 13.dp, stringResource(R.string.rename_name, page.title), enabled = !busy) { onRename(page) }
+        }
         RowAction(Lucide.StarOff, 14.dp, stringResource(R.string.pg_remove_title_from_favorites, page.title), enabled = !busy) { onUnfavorite(page) }
     }
 }
@@ -663,6 +683,8 @@ private fun NoteRow(
     open: Boolean = false,
     onToggle: () -> Unit = {},
     onCreateInside: (PageKind) -> Unit = {},
+    onRename: (NotePageSummary) -> Unit = {},
+    onToggleFavorite: (NotePageSummary) -> Unit = {},
 ) {
     val drag = rowDrag.drag
     val target = drag.target as? DropTarget.Row
@@ -671,6 +693,8 @@ private fun NoteRow(
     val reorderError = rowDrag.errorFor(page.id)
     val rowShape = RoundedCornerShape(8.dp)
     val iconTint = pageKindColor(page.kind)
+    var moreBounds by remember { mutableStateOf<IntRect?>(null) }
+    var menuAnchor by remember { mutableStateOf<IntRect?>(null) }
     DisposableEffect(page.id) { onDispose { drag.rows.remove(page.id) } }
     Box {
         Row(
@@ -718,8 +742,37 @@ private fun NoteRow(
                 )
                 val insideLabel = stringResource(R.string.pg_add_page_inside_title, page.title)
                 NewPageMenuAnchor(rowDrag.state.kinds, insideLabel, onCreateInside) { open -> RowAction(Lucide.Plus, 14.dp, insideLabel, enabled = !busy, onClick = open) }
-                RowAction(Lucide.FolderInput, 14.dp, stringResource(R.string.move_title_to_project, page.title), enabled = !busy) { onMove(page) }
-                RowAction(Lucide.Trash2, 14.dp, stringResource(R.string.move_title_to_trash, page.title), enabled = !busy) { onTrash(page) }
+                RowAction(
+                    Lucide.Ellipsis, 14.dp, stringResource(R.string.sb_actions_for_title, page.title), enabled = !busy,
+                    modifier = Modifier.onGloballyPositioned {
+                        val b = it.boundsInWindow()
+                        moreBounds = IntRect(b.left.roundToInt(), b.top.roundToInt(), b.right.roundToInt(), b.bottom.roundToInt())
+                    },
+                ) { menuAnchor = moreBounds }
+            }
+        }
+        menuAnchor?.let { anchor ->
+            val fav = page.favoritedAt != null
+            ActionsMenu(anchor, stringResource(R.string.sb_actions_for_title, page.title), { menuAnchor = null }, animated = true) {
+                if (!page.locked) {
+                    MenuItem(stringResource(R.string.sb_rename), Lucide.Pencil) {
+                        menuAnchor = null
+                        onRename(page)
+                    }
+                }
+                MenuItem(stringResource(if (fav) R.string.pg_remove_from_favorites else R.string.pg_add_to_favorites), if (fav) Lucide.StarOff else Lucide.Star) {
+                    menuAnchor = null
+                    onToggleFavorite(page)
+                }
+                MenuItem(stringResource(R.string.pg_move_to), Lucide.FolderInput) {
+                    menuAnchor = null
+                    onMove(page)
+                }
+                Box(Modifier.padding(horizontal = 8.dp, vertical = 4.8.dp).fillMaxWidth().height(1.dp).background(Sm.Border))
+                MenuItem(stringResource(R.string.move_to_trash), Lucide.Trash2, danger = true) {
+                    menuAnchor = null
+                    onTrash(page)
+                }
             }
         }
         if (reorderError != null) ReorderErrorPopup(reorderFailureText(reorderError), rowDrag.reorder.onDismissError)
@@ -758,9 +811,9 @@ private fun RowAction(icon: List<String>, iconSize: Dp, description: String, onC
     RowAction(icon, iconSize, description, enabled = true, onClick = onClick)
 
 @Composable
-private fun RowAction(icon: List<String>, iconSize: Dp, description: String, enabled: Boolean, onClick: () -> Unit) {
+private fun RowAction(icon: List<String>, iconSize: Dp, description: String, enabled: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
-        Modifier.padding(end = 3.2.dp).size(25.6.dp).clip(RoundedCornerShape(4.dp))
+        modifier.padding(end = 3.2.dp).size(25.6.dp).clip(RoundedCornerShape(4.dp))
             .clickable(enabled = enabled, onClick = onClick)
             .semantics { contentDescription = description; role = Role.Button },
         Alignment.Center,
@@ -922,6 +975,12 @@ private fun NotesHomeList(
     // Studio Quick-Create Deck（移动端纵向堆叠卡片，每种页面类型一张）
     CreateDeckCards(kinds, busy, onCreate, Modifier.padding(bottom = 18.dp))
 
+    // 最近编辑（网页 notes-recent-list）：显示封面、图标、标题和日期
+    val recent = remember(state.pages) { state.pages.sortedByDescending { it.updatedAt }.take(8) }
+    if (recent.isNotEmpty()) {
+        RecentNotesCarousel(recent, busy, multiKind, onOpen, Modifier.padding(bottom = 18.dp))
+    }
+
     // 类型筛选栏（All | Notes | Slides | Whiteboards）
     if (multiKind) {
         KindFilterBar(kinds, activeFilter, onSelect = { kindFilter = it }, modifier = Modifier.padding(bottom = 14.dp))
@@ -999,6 +1058,117 @@ private fun NotesHomeList(
 
     if (activeFilter != null && visibleFavorites.isEmpty() && visibleGroups.isEmpty() && visibleSections.isEmpty()) {
         HomeEmptyCard(stringResource(R.string.sb_no_notes_match))
+    }
+}
+
+@Composable
+internal fun NoteCoverBanner(
+    cover: String?,
+    coverPosition: Int?,
+    kind: PageKind,
+    modifier: Modifier = Modifier,
+) {
+    val preset = remember(cover) { com.kakumine.notefable.data.NoteCovers.preset(cover) }
+    val image = remember(cover) { com.kakumine.notefable.data.NoteCovers.imagePath(cover) }
+    val bgModifier = when {
+        preset != null && preset.startArgb == preset.endArgb -> Modifier.background(Color(preset.startArgb))
+        preset != null -> Modifier.background(
+            Brush.linearGradient(
+                colors = listOf(Color(preset.startArgb), Color(preset.endArgb)),
+                start = Offset.Zero,
+                end = Offset(400f, 400f),
+            ),
+        )
+        else -> Modifier.background(
+            Brush.linearGradient(
+                colors = listOf(pageKindSoft(kind), Sm.Sidebar),
+                start = Offset.Zero,
+                end = Offset(400f, 400f),
+            ),
+        )
+    }
+    Box(modifier.then(bgModifier)) {
+        if (image != null) {
+            val verticalBias = (((coverPosition ?: 50).coerceIn(0, 100) - 50) / 50f)
+            coil3.compose.AsyncImage(
+                model = com.kakumine.notefable.BuildConfig.BASE_URL.trimEnd('/') + image,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                alignment = BiasAlignment(0f, verticalBias),
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun RecentNotesCarousel(
+    recent: List<NotePageSummary>,
+    busy: Boolean,
+    multiKind: Boolean,
+    onOpen: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier.fillMaxWidth()) {
+        Row(
+            Modifier.padding(start = 4.dp, end = 4.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            LucideIcon(Lucide.Clock3, 14.dp, Sm.Muted)
+            Text(stringResource(R.string.recently_edited), color = Sm.Muted, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold)
+        }
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            recent.forEach { page ->
+                key(page.id) {
+                    val shape = RoundedCornerShape(14.dp)
+                    val iconShape = RoundedCornerShape(9.dp)
+                    val title = page.title.ifEmpty { stringResource(R.string.sb_untitled) }
+                    Column(
+                        Modifier.width(168.dp).height(132.dp)
+                            .shadow(1.dp, shape, ambientColor = Color(0x0A0F172A), spotColor = Color(0x0A0F172A))
+                            .clip(shape).background(Sm.Surface).border(1.dp, Sm.Border, shape)
+                            .clickable(enabled = !busy, role = Role.Button) { onOpen(page.id) }
+                            .alpha(if (busy) 0.55f else 1f),
+                    ) {
+                        Box(Modifier.fillMaxWidth().height(44.dp)) {
+                            NoteCoverBanner(page.cover, page.coverPosition, page.kind, Modifier.fillMaxSize())
+                            Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(1.dp).background(Sm.Border))
+                            if (multiKind) {
+                                Box(
+                                    Modifier.align(Alignment.TopEnd).padding(6.dp)
+                                        .clip(CircleShape).background(Sm.Surface.copy(alpha = 0.88f)).border(1.dp, Sm.Border, CircleShape)
+                                        .padding(horizontal = 6.dp, vertical = 1.5.dp),
+                                ) {
+                                    Text(stringResource(pageKindLabel(page.kind)), color = pageKindTextColor(page.kind), fontSize = 10.5.sp, lineHeight = 13.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
+                        Column(Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, bottom = 10.dp)) {
+                            Box(
+                                Modifier.offset(y = (-14).dp).size(30.dp)
+                                    .shadow(2.dp, iconShape, ambientColor = Color(0x120F172A), spotColor = Color(0x120F172A))
+                                    .clip(iconShape).background(Sm.Surface).border(1.dp, Sm.Border, iconShape),
+                                Alignment.Center,
+                            ) {
+                                NoteIcon(page.icon, 16.sp, 15.dp, pageKindColor(page.kind), page.kind)
+                            }
+                            Text(
+                                title,
+                                color = Sm.Ink, fontSize = 13.5.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.offset(y = (-8).dp),
+                            )
+                            Spacer(Modifier.weight(1f))
+                            Text(shortDate(page.updatedAt), color = Faint, fontSize = 11.5.sp, lineHeight = 14.sp)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1405,13 +1575,15 @@ private fun DialogButtons(content: @Composable () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(top = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) { content() }
 }
 
-/** 新建 / 重命名项目（网页 GroupNameDialog）。[onSubmit] 成功返回 true 时关闭。 */
+/** 新建 / 重命名项目或页面（网页 GroupNameDialog / RenamePageDialog）。[onSubmit] 成功返回 true 时关闭。 */
 @Composable
 fun GroupNameDialog(
     title: String,
     initial: String,
     submitLabel: String,
     error: NotesError?,
+    placeholder: String = stringResource(R.string.project_name),
+    maxLength: Int = 60,
     onSubmit: suspend (String) -> Boolean,
     onClose: () -> Unit,
 ) {
@@ -1431,7 +1603,7 @@ fun GroupNameDialog(
     }
     NotesDialog(onClose) {
         DialogTitle(title)
-        DialogInput(name, { name = it }, stringResource(R.string.project_name), ::submit)
+        DialogInput(name, { name = it }, placeholder, ::submit, maxLength = maxLength)
         if (tried) DialogError(error)
         DialogButtons {
             NotionButton(stringResource(R.string.cancel), onClick = onClose)

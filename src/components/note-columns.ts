@@ -57,9 +57,10 @@ const ColumnNode = Node.create({
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyEditor = BlockNoteEditor<any, any, any>;
 type Side = "left" | "right";
-// ドロップ先: 段の外のブロックなら、そのブロックと運んだブロックで新しい段組みを作る。段の中のブロックなら、その段の隣に段を足す。
+// 段組み: 段の外のブロックなら、そのブロックと運んだブロックで新しい段組みを作る。段の中のブロックなら、その段の隣に段を足す。
 // side は画面上の左右（縦線の位置）、before は文書の順で前に置くか（右から左に書く言語では左右が逆になる）。
 type SideTarget = { side: Side; before: boolean; blockId: string; cursorPos: number };
+export type ColumnSideDropTarget = SideTarget & { rect: { left: number; top: number; height: number } };
 
 const isRtl = (element: Element) => getComputedStyle(element).direction === "rtl";
 
@@ -74,19 +75,23 @@ const SIDE_ZONE_RATIO = 0.2;
 // 左の端に触れただけ（ハンドルからドラッグを始めた直後や、エディターの外から押し戻された座標）では段にしない。
 const LEFT_EDGE_GAP = 8;
 
-function sideDropTarget(view: EditorView, event: DragEvent): SideTarget | null {
-  if (!view.editable || !view.dragging) return null;
-  // ブロックを丸ごとつかんだドラッグだけ（文字の選択を運ぶときは、選んでいない文字を巻き込まないよう通常のドロップにする）。
-  if (view.dragging.slice.openStart !== 0 || view.dragging.slice.openEnd !== 0) return null;
+function resolveSideDropTarget(
+  view: EditorView,
+  clientX: number,
+  clientY: number,
+  isExcluded: (blockPos: number, columnPos: number, columnNode: PMNode | null, listPos: number, listNode: PMNode | null) => boolean,
+  countEmptied: (listPos: number, listNode: PMNode) => number,
+): ColumnSideDropTarget | null {
+  if (!view.editable) return null;
   const editorRect = view.dom.getBoundingClientRect();
-  const x = Math.min(Math.max(event.clientX, editorRect.left + 1), editorRect.right - 1);
-  const hit = view.dom.ownerDocument.elementFromPoint(x, event.clientY);
+  const x = Math.min(Math.max(clientX, editorRect.left + 1), editorRect.right - 1);
+  const hit = view.dom.ownerDocument.elementFromPoint(x, clientY);
   let element = hit instanceof Element && view.dom.contains(hit) ? hit.closest<HTMLElement>('[data-node-type="blockContainer"]') : null;
   // 段の余白（ブロックの外）の上なら、その高さにある段の中のブロックを対象にする（細い段でも左右に置ける）。
   const column = !element && hit instanceof Element && view.dom.contains(hit) ? hit.closest<HTMLElement>(`[data-node-type="${COLUMN}"]`) : null;
   if (column) {
     const blocks = Array.from(column.querySelectorAll<HTMLElement>(':scope > [data-node-type="blockOuter"] > [data-node-type="blockContainer"]'));
-    element = blocks.find((block) => { const rect = block.getBoundingClientRect(); return event.clientY >= rect.top && event.clientY <= rect.bottom; }) ?? null;
+    element = blocks.find((block) => { const rect = block.getBoundingClientRect(); return clientY >= rect.top && clientY <= rect.bottom; }) ?? null;
   }
   const id = element?.getAttribute("data-id");
   if (!id) return null;
@@ -101,36 +106,92 @@ function sideDropTarget(view: EditorView, event: DragEvent): SideTarget | null {
   const inColumn = $pos.parent.type.name === COLUMN;
   const blockPos = $pos.pos;
   const columnPos = inColumn ? $pos.before($pos.depth) : -1;
-  // 運んでいるブロック自身の上や、運ぶブロックしかない段の横には置けない。
-  const { from, to } = view.state.selection;
-  if (inColumn) {
-    // 段の数の上限。同じ段組みの別の段を丸ごと運ぶときは、その段が消えるので数は増えない。
-    const list = $pos.node($pos.depth - 1);
-    let offset = $pos.before($pos.depth - 1) + 1;
-    let emptied = 0;
-    list.forEach((column) => {
-      if (dragStartedIn(view) && from <= offset + 1 && to >= offset + column.nodeSize - 1) emptied = 1;
-      offset += column.nodeSize;
-    });
-    if (list.childCount - emptied >= MAX_COLUMNS) return null;
+  const columnNode = inColumn ? $pos.parent : null;
+  const listPos = inColumn ? $pos.before($pos.depth - 1) : -1;
+  const listNode = inColumn ? $pos.node($pos.depth - 1) : null;
+
+  if (inColumn && listNode) {
+    const emptied = countEmptied(listPos, listNode);
+    if (listNode.childCount - emptied >= MAX_COLUMNS) return null;
   }
-  if (blockPos >= from && blockPos < to) return null;
-  if (inColumn) {
-    const column = $pos.parent;
-    if (from <= columnPos + 1 && to >= columnPos + column.nodeSize - 1) return null;
-  }
+  if (isExcluded(blockPos, columnPos, columnNode, listPos, listNode)) return null;
 
   const cursorPos = inColumn ? columnPos : blockPos;
   const dom = view.nodeDOM(cursorPos);
   if (!(dom instanceof HTMLElement)) return null;
   const rect = dom.getBoundingClientRect();
   const zone = Math.min(SIDE_ZONE_MAX, rect.width * SIDE_ZONE_RATIO);
-  const side: Side | null = event.clientX > rect.right - zone ? "right"
-    : event.clientX >= rect.left + LEFT_EDGE_GAP && event.clientX < rect.left + zone ? "left" : null;
+  const side: Side | null = clientX > rect.right - zone ? "right"
+    : clientX >= rect.left + LEFT_EDGE_GAP && clientX < rect.left + zone ? "left" : null;
   if (!side) return null;
   const blockId = block.attrs.id;
   const before = (side === "left") !== isRtl(dom);
-  return typeof blockId === "string" ? { side, before, blockId, cursorPos } : null;
+  return typeof blockId === "string"
+    ? { side, before, blockId, cursorPos, rect: { left: side === "left" ? rect.left : rect.right, top: rect.top, height: rect.height } }
+    : null;
+}
+
+function sideDropTarget(view: EditorView, event: DragEvent): SideTarget | null {
+  if (!view.editable || !view.dragging) return null;
+  // ブロックを丸ごとつかんだドラッグだけ（文字の選択を運ぶときは、選んでいない文字を巻き込まないよう通常のドロップにする）。
+  if (view.dragging.slice.openStart !== 0 || view.dragging.slice.openEnd !== 0) return null;
+  const { from, to } = view.state.selection;
+  return resolveSideDropTarget(
+    view,
+    event.clientX,
+    event.clientY,
+    (blockPos, columnPos, columnNode) => {
+      if (blockPos >= from && blockPos < to) return true;
+      if (columnNode && from <= columnPos + 1 && to >= columnPos + columnNode.nodeSize - 1) return true;
+      return false;
+    },
+    (listPos, listNode) => {
+      let offset = listPos + 1;
+      let emptied = 0;
+      listNode.forEach((column) => {
+        if (dragStartedIn(view) && from <= offset + 1 && to >= offset + column.nodeSize - 1) emptied = 1;
+        offset += column.nodeSize;
+      });
+      return emptied;
+    },
+  );
+}
+
+function columnHasRemainingBlock(columnNode: PMNode, excludedIds: ReadonlySet<string>): boolean {
+  for (let i = 0; i < columnNode.childCount; i++) {
+    const child = columnNode.child(i);
+    if (child.type.name === "blockContainer" && !excludedIds.has(String(child.attrs.id ?? ""))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function findColumnSideTarget(
+  view: EditorView,
+  clientX: number,
+  clientY: number,
+  excludedIds: ReadonlySet<string>,
+): ColumnSideDropTarget | null {
+  return resolveSideDropTarget(
+    view,
+    clientX,
+    clientY,
+    (blockPos, _columnPos, columnNode) => {
+      const block = view.state.doc.nodeAt(blockPos);
+      const id = block?.attrs.id;
+      if (typeof id === "string" && excludedIds.has(id)) return true;
+      if (columnNode && !columnHasRemainingBlock(columnNode, excludedIds)) return true;
+      return false;
+    },
+    (_listPos, listNode) => {
+      let emptied = 0;
+      listNode.forEach((column) => {
+        if (!columnHasRemainingBlock(column, excludedIds)) emptied += 1;
+      });
+      return emptied;
+    },
+  );
 }
 
 // ドラッグ中の線: 左右に置けるときは縦線（BlockNote の DropCursor が描く）。
@@ -150,6 +211,71 @@ function withoutIds(blocks: JsonBlock[]): JsonBlock[] {
   });
 }
 
+function collectJsonIds(blocks: readonly JsonBlock[]): string[] {
+  return blocks.map((b) => b.id).filter((id): id is string => typeof id === "string" && id.length > 0);
+}
+
+function collectAllBlockIds(blocks: readonly JsonBlock[]): string[] {
+  const ids: string[] = [];
+  const visit = (list: readonly JsonBlock[]) => {
+    for (const block of list) {
+      if (typeof block.id === "string" && block.id.length > 0) ids.push(block.id);
+      if (block.children?.length) visit(block.children);
+    }
+  };
+  visit(blocks);
+  return ids;
+}
+
+// 複数カラムをまたいだ一括削除では先の columnList collapse が後ろの Pos をずらすため、文書逆順で 1 件ずつ削除する。
+export function removeBlocksSafely(editor: AnyEditor, ids: readonly string[]) {
+  if (!ids.length) return;
+  const targetSet = new Set(ids);
+  const docIds = collectAllBlockIds(editor.document as unknown as JsonBlock[]);
+  const ordered = docIds.filter((id) => targetSet.has(id));
+  const extras = ids.filter((id) => !ordered.includes(id));
+  for (const id of [...extras, ...ordered].reverse()) {
+    if (editor.getBlock(id)) editor.removeBlocks([id]);
+  }
+}
+
+export function moveBlocksBeside(
+  editor: AnyEditor,
+  dragged: JsonBlock[],
+  targetBlockId: string,
+  before: boolean,
+  removeOriginal = true,
+): string[] {
+  if (!dragged.length) return [];
+  const unwrapped = unwrapColumns(dragged);
+  const moving = removeOriginal ? structuredClone(unwrapped) : withoutIds(unwrapped);
+  let insertedIds: string[] = [];
+  editor.transact(() => {
+    if (removeOriginal) {
+      const toRemove = dragged.map((block) => block.id).filter((id): id is string => typeof id === "string");
+      removeBlocksSafely(editor, toRemove);
+    }
+    const targetBlock = editor.getBlock(targetBlockId);
+    if (!targetBlock) return;
+    const parent = editor.getParentBlock(targetBlockId);
+    if (parent?.type === COLUMN) {
+      const list = editor.getParentBlock(parent.id);
+      const columns = (list?.children ?? []) as JsonBlock[];
+      const widths = columns.map((column) => Number(column.props?.width)).filter(validColumnWidth);
+      const width = widths.length ? Math.max(MIN_COLUMN_WIDTH, widths.reduce((sum, value) => sum + value, 0) / widths.length) : 1;
+      const [inserted] = editor.insertBlocks([{ type: COLUMN, props: { width }, children: moving } as never], parent.id, before ? "before" : "after");
+      insertedIds = collectJsonIds(((inserted as unknown as JsonBlock | undefined)?.children) ?? []);
+    } else {
+      const own = { type: COLUMN, props: { width: 1 }, children: [targetBlock] };
+      const added = { type: COLUMN, props: { width: 1 }, children: moving };
+      const { insertedBlocks } = editor.replaceBlocks([targetBlockId], [{ type: COLUMN_LIST, children: before ? [added, own] : [own, added] } as never]);
+      const list = insertedBlocks[0] as unknown as JsonBlock | undefined;
+      insertedIds = collectJsonIds(list?.children?.[before ? 0 : 1]?.children ?? []);
+    }
+  });
+  return insertedIds;
+}
+
 function dropBeside(editor: AnyEditor, view: EditorView, target: SideTarget, moved: boolean) {
   const slice = view.dragging?.slice;
   if (!slice) return false;
@@ -159,28 +285,7 @@ function dropBeside(editor: AnyEditor, view: EditorView, target: SideTarget, mov
   // 先に新しい位置へ（新しい ID で）入れてから元を外す。先に外すと、元の段が空になって段組みごと片付けられ、
   // 置き先の段組みが消えたり崩れたりする。外した後で元の段が空になれば core が片付ける。
   const local = moved && dragStartedIn(view) && dragged.every((block) => block.id && editor.getBlock(block.id));
-  const moving = withoutIds(unwrapColumns(dragged));
-  let firstMoved: string | undefined;
-  editor.transact(() => {
-    const targetBlock = editor.getBlock(target.blockId);
-    if (!targetBlock) return;
-    const parent = editor.getParentBlock(target.blockId);
-    if (parent?.type === COLUMN) {
-      const list = editor.getParentBlock(parent.id);
-      const columns = (list?.children ?? []) as JsonBlock[];
-      const widths = columns.map((column) => Number(column.props?.width)).filter(validColumnWidth);
-      const width = widths.length ? Math.max(MIN_COLUMN_WIDTH, widths.reduce((sum, value) => sum + value, 0) / widths.length) : 1;
-      const [inserted] = editor.insertBlocks([{ type: COLUMN, props: { width }, children: moving } as never], parent.id, target.before ? "before" : "after");
-      firstMoved = (inserted?.children?.[0] as JsonBlock | undefined)?.id;
-    } else {
-      const own = { type: COLUMN, props: { width: 1 }, children: [targetBlock] };
-      const added = { type: COLUMN, props: { width: 1 }, children: moving };
-      const { insertedBlocks } = editor.replaceBlocks([target.blockId], [{ type: COLUMN_LIST, children: target.before ? [added, own] : [own, added] } as never]);
-      const list = insertedBlocks[0] as unknown as JsonBlock | undefined;
-      firstMoved = list?.children?.[target.before ? 0 : 1]?.children?.[0]?.id;
-    }
-    if (local) editor.removeBlocks(dragged.map((block) => block.id!).filter((id) => editor.getBlock(id)));
-  });
+  const [firstMoved] = moveBlocksBeside(editor, dragged, target.blockId, target.before, local);
   // 運んだ先頭のブロックにキャレットを置く（文字を持たないブロックなら何もしない）。
   if (firstMoved) { try { editor.setTextCursorPosition(firstMoved, "end"); } catch { /* 表・画像など */ } }
   return true;

@@ -15,6 +15,8 @@ export type NotePageSummary = {
   position?: number;
   title: string;
   icon: string | null;
+  cover?: string | null;
+  coverPosition?: number | null;
   version: number;
   // 所属グループの ID。グループなしは null。サブページは最上位の祖先と同じグループ。
   groupId: string | null;

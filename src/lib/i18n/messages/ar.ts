@@ -15,6 +15,10 @@ export const ar: Record<string, string> = {
   "A recovered draft differs from the latest note. Save a copy or load the latest version.": "تختلف المسودة المستعادة عن أحدث نسخة من الملاحظة. احفظ نسخة جديدة أو حمّل أحدث إصدار.",
   "AI chat and notes in one place: ask a question, keep the answer as a note in your workspace, and find it again later.": "محادثات الذكاء الاصطناعي والملاحظات في مكان واحد: اطرح سؤالاً، واحتفظ بالإجابة كملاحظة في مساحة العمل، واعثر عليها لاحقاً بسهولة.",
   "AI chat and notes, in one place": "محادثات الذكاء الاصطناعي والملاحظات في مكان واحد",
+  "Add headings to create a table of contents.": "أضف عناوين لإنشاء جدول محتويات.",
+  "Page title": "عنوان الصفحة",
+  "Rename page": "إعادة تسمية الصفحة",
+  "Table of contents": "جدول المحتويات",
   "Visit website": "زيارة الموقع الإلكتروني",
   "Account": "الحساب",
   "Actions": "الإجراءات",
@@ -1157,4 +1161,7 @@ export const ar: Record<string, string> = {
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "تتجاوز هذه الملاحظة حد {max} شريحة. هل تريد حفظ أول {max} شريحة فقط؟",
   "Group & organize": "تجميع وتنظيم",
   "Could not attach the selection screenshot this time.": "تعذّر إرفاق لقطة التحديد هذه المرة.",
+  "1 block": "كتلة واحدة",
+  "{count} blocks": "{count} كتل",
+  "Block selection actions": "إجراءات تحديد الكتل",
 };

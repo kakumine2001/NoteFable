@@ -15,6 +15,10 @@ export const th: Record<string, string> = {
   "A recovered draft differs from the latest note. Save a copy or load the latest version.": "ฉบับร่างที่กู้คืนมาไม่ตรงกับโน้ตล่าสุด กรุณาบันทึกเป็นสำเนาหรือโหลดเวอร์ชันล่าสุด",
   "AI chat and notes in one place: ask a question, keep the answer as a note in your workspace, and find it again later.": "รวมแชท AI และโน้ตไว้ในที่เดียว ถามคำถาม เก็บคำตอบเป็นโน้ตในพื้นที่ทำงาน แล้วกลับมาค้นเจอได้ทุกเมื่อ",
   "AI chat and notes, in one place": "แชท AI และโน้ต รวมไว้ในที่เดียว",
+  "Add headings to create a table of contents.": "เพิ่มหัวข้อเพื่อสร้างสารบัญ",
+  "Page title": "ชื่อหน้า",
+  "Rename page": "เปลี่ยนชื่อหน้า",
+  "Table of contents": "สารบัญ",
   "Visit website": "เยี่ยมชมเว็บไซต์",
   "Account": "บัญชี",
   "Actions": "การทำงาน",
@@ -1157,4 +1161,7 @@ export const th: Record<string, string> = {
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "โน้ตนี้เกินขีดจำกัด {max} สไลด์ ต้องการบันทึกเฉพาะ {max} สไลด์แรกหรือไม่?",
   "Group & organize": "จัดกลุ่มและจัดระเบียบ",
   "Could not attach the selection screenshot this time.": "ไม่สามารถแนบภาพหน้าจอส่วนที่เลือกได้ในครั้งนี้",
+  "1 block": "1 บล็อก",
+  "{count} blocks": "{count} บล็อก",
+  "Block selection actions": "การดำเนินการสำหรับบล็อกที่เลือก",
 };

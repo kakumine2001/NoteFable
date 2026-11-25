@@ -68,29 +68,42 @@ private struct ChatRecentNoteCard: View {
     var body: some View {
         let title = page.title.isEmpty ? L("sb_untitled") : page.title
         let shape = RoundedRectangle(cornerRadius: 14.4)
+        let hasCover = NoteCovers.preset(page.cover) != nil || NoteCovers.imagePath(page.cover) != nil
         Button(action: onToggle) {
-            VStack(alignment: .leading, spacing: 4) {
-                Group {
-                    NoteIconGlyph(page.icon, emojiSize: 16, iconSize: 17, color: pageKindColor(page.kind), kind: page.kind)
+            VStack(alignment: .leading, spacing: 0) {
+                if hasCover {
+                    NoteCoverBanner(cover: page.cover, coverPosition: page.coverPosition, kind: page.kind)
+                        .frame(height: 32)
+                        .overlay(alignment: .bottom) { NFDivider() }
                 }
-                .frame(width: 32, height: 32)
-                .background(page.icon != nil ? Sm.hover : pageKindSoft(page.kind), in: RoundedRectangle(cornerRadius: 8))
-                Text(title)
-                    .font(.nf(14, weight: 600))
-                    .nfLineHeight(21, fontSize: 14)
-                    .foregroundStyle(Sm.text)
-                    .lineLimit(1)
-                HStack(spacing: 4) {
-                    if attached { LucideIcon(Lucide.check, size: 12, color: Sm.muted) }
-                    Text(L(attached ? "note_attached" : "attach_pages_submit"))
-                        .font(.nf(12))
-                        .nfLineHeight(18, fontSize: 12)
-                        .foregroundStyle(Sm.muted)
+                VStack(alignment: .leading, spacing: 4) {
+                    Group {
+                        NoteIconGlyph(page.icon, emojiSize: 16, iconSize: 17, color: pageKindColor(page.kind), kind: page.kind)
+                    }
+                    .frame(width: 32, height: 32)
+                    .background(hasCover ? Sm.surface : (page.icon != nil ? Sm.hover : pageKindSoft(page.kind)), in: RoundedRectangle(cornerRadius: 8))
+                    .overlay {
+                        if hasCover { RoundedRectangle(cornerRadius: 8).strokeBorder(Sm.border, lineWidth: 1) }
+                    }
+                    .padding(.top, hasCover ? -16 : 0)
+                    Text(title)
+                        .font(.nf(14, weight: 600))
+                        .nfLineHeight(21, fontSize: 14)
+                        .foregroundStyle(Sm.text)
                         .lineLimit(1)
+                    HStack(spacing: 4) {
+                        if attached { LucideIcon(Lucide.check, size: 12, color: Sm.muted) }
+                        Text(L(attached ? "note_attached" : "attach_pages_submit"))
+                            .font(.nf(12))
+                            .nfLineHeight(18, fontSize: 12)
+                            .foregroundStyle(Sm.muted)
+                            .lineLimit(1)
+                    }
                 }
+                .padding(.horizontal, 13)
+                .padding(.top, hasCover ? 0 : 11)
+                .padding(.bottom, 11)
             }
-            .padding(.horizontal, 13)
-            .padding(.vertical, 11)
             .frame(width: 152, alignment: .leading)
             .frame(minHeight: 101, alignment: .top)
             .background {
@@ -100,6 +113,7 @@ private struct ChatRecentNoteCard: View {
                     .overlay { shape.fill(attached ? Sm.accentSoft : Color.clear) }
             }
             .overlay { shape.strokeBorder(attached ? Sm.accentLine : Sm.border, lineWidth: 1) }
+            .clipShape(shape)
             .contentShape(shape)
         }
         .buttonStyle(.pressable(pressedBackground: nil, cornerRadius: 14.4, disabledOpacity: 0.55))
@@ -107,11 +121,23 @@ private struct ChatRecentNoteCard: View {
         .accessibilityLabel(title)
         .accessibilityAddTraits(attached ? .isSelected : [])
         .overlay(alignment: .topTrailing) {
-            NFIconButton(
-                Lucide.arrowUpRight, label: L("open_note_title", title), size: 48, iconSize: 16, cornerRadius: 12,
-                action: onOpen
-            )
-            .padding(1)
+            if hasCover {
+                Button(action: onOpen) {
+                    LucideIcon(Lucide.arrowUpRight, size: 14, color: Sm.muted)
+                        .frame(width: 26, height: 26)
+                        .background(Sm.surface.opacity(0.86), in: Circle())
+                        .overlay { Circle().strokeBorder(Sm.border, lineWidth: 1) }
+                }
+                .buttonStyle(.pressable(cornerRadius: 13))
+                .accessibilityLabel(L("open_note_title", title))
+                .padding(5)
+            } else {
+                NFIconButton(
+                    Lucide.arrowUpRight, label: L("open_note_title", title), size: 48, iconSize: 16, cornerRadius: 12,
+                    action: onOpen
+                )
+                .padding(1)
+            }
         }
     }
 }

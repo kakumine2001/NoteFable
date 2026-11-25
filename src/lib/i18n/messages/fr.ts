@@ -15,6 +15,10 @@ export const fr: Record<string, string> = {
   "A recovered draft differs from the latest note. Save a copy or load the latest version.": "Un brouillon récupéré diffère de la dernière version de la note. Enregistrez une copie ou chargez la dernière version.",
   "AI chat and notes in one place: ask a question, keep the answer as a note in your workspace, and find it again later.": "Discussions IA et notes au même endroit : posez une question, gardez la réponse sous forme de note dans votre Espace et retrouvez-la plus tard.",
   "AI chat and notes, in one place": "Discussions IA et notes, au même endroit",
+  "Add headings to create a table of contents.": "Ajoutez des titres pour créer une table des matières.",
+  "Page title": "Titre de la page",
+  "Rename page": "Renommer la page",
+  "Table of contents": "Table des matières",
   "Visit website": "Visiter le site web",
   "Account": "Compte",
   "Actions": "Actions",
@@ -1157,4 +1161,7 @@ export const fr: Record<string, string> = {
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "Cette note dépasse la limite de {max} diapositives. Enregistrer uniquement les {max} premières diapositives ?",
   "Group & organize": "Regrouper et organiser",
   "Could not attach the selection screenshot this time.": "Impossible de joindre la capture de la sélection cette fois.",
+  "1 block": "1 bloc",
+  "{count} blocks": "{count} blocs",
+  "Block selection actions": "Actions de sélection de blocs",
 };

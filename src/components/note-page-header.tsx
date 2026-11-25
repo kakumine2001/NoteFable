@@ -3,7 +3,7 @@
 import { ImageIcon, Smile, Upload } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type Ref } from "react";
 import { EmojiPopover, Popover, randomOf, usePickerBackToClose } from "@/components/emoji-picker";
-import { MAX_COVER_BYTES, NOTE_COVERS, isPresetCover, uploadedCoverPath, type NoteCover } from "@/lib/note-document";
+import { MAX_COVER_BYTES, NOTE_COVERS, coverImageUrl, isPresetCover, type NoteCover } from "@/lib/note-document";
 import type { NoteContent } from "@/types/notes";
 import { useT } from "@/components/i18n-provider";
 import { msg } from "@/lib/i18n/translate";
@@ -17,10 +17,7 @@ const COVER_LABELS: Record<NoteCover, string> = {
 };
 const COVER_KEYS = Object.keys(NOTE_COVERS) as NoteCover[];
 
-export function coverImageUrl(cover: string | null) {
-  const upload = uploadedCoverPath(cover);
-  return upload ? `/api/pages/covers?key=${encodeURIComponent(upload.path)}` : null;
-}
+export { coverImageUrl };
 
 export function NotePageHeader({ content, editable, titleRef, onPatch, onTitleKeyDown }: {
   content: NoteContent;

@@ -36,7 +36,7 @@ function escapeText(text: string) {
 // 行頭がブロック記号に見える段落は、記号を退避して段落のまま戻るようにする。
 function escapeBlockStart(text: string) {
   if (/^\d+[.)](\s|$)/.test(text)) return text.replace(/^(\d+)([.)])/, "$1\\$2");
-  return /^(#{1,6}(\s|$)|[-+](\s|$)|>|\||▸(\s|$)|`{3}|(-{3,}|_{3,})$)/.test(text) ? `\\${text}` : text;
+  return /^(#{1,6}(\s|$)|[-+](\s|$)|>|\||▸(\s|$)|`{3}|(-{3,}|_{3,})$|\[toc\]$)/i.test(text) ? `\\${text}` : text;
 }
 
 // ---- 行内の数式 ----
@@ -387,6 +387,8 @@ export function blocksToMarkdown(blocks: unknown, depth = 0, counter?: { n: numb
       lines.push(`${indent}${fence}`);
     } else if (block.type === "divider") {
       lines.push(`${indent}${label}---`);
+    } else if (block.type === "tableOfContents") {
+      lines.push(`${indent}${label}[TOC]`);
     } else if (block.type === "mathBlock") {
       // ブロックの数式は $$ だけの行で囲む。中に $$ を含む行がある時は ```math 囲みにして衝突を避ける。
       const latex = typeof props.latex === "string" ? props.latex.replace(/\r\n?/g, "\n").trim() : "";
@@ -838,6 +840,8 @@ export function markdownToBlocks(markdown: string): NewBlock[] {
     let match: RegExpExecArray | null;
     if (/^(-{3,}|\*{3,}|_{3,})$/.test(text)) {
       add("divider", {});
+    } else if (/^\[toc\]$/i.test(text)) {
+      add("tableOfContents", {});
     } else if ((match = /^(#{1,6})(?:\s+(.*))?$/.exec(text))) {
       const toggle = /^▸(?:\s+(.*))?$/.exec(match[2] ?? "");
       add("heading", { level: Math.min(match[1].length, 3), ...(toggle ? { isToggleable: true } : {}) }, parseInline(toggle ? toggle[1] ?? "" : match[2] ?? ""));

@@ -25,4 +25,6 @@
     <string name="pg_search_pages">Rechercher des pages</string>
     <string name="pg_no_matching_pages">Aucune page correspondante.</string>
     <string name="pg_subpages_to_trash">Ses sous-pages seront déplacées dans la corbeille avec elle.</string>
+    <string name="pg_rename_page">Renommer la page</string>
+    <string name="pg_page_title">Titre de la page</string>
 </resources>

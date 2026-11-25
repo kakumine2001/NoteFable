@@ -25,4 +25,6 @@
     <string name="pg_search_pages">ページを検索</string>
     <string name="pg_no_matching_pages">一致するページはありません。</string>
     <string name="pg_subpages_to_trash">中のサブページも一緒にゴミ箱へ移動します。</string>
+    <string name="pg_rename_page">ページ名を変更</string>
+    <string name="pg_page_title">ページタイトル</string>
 </resources>

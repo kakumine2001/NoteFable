@@ -426,6 +426,8 @@
 "pg_search_pages" = "ページを検索";
 "pg_no_matching_pages" = "一致するページはありません。";
 "pg_subpages_to_trash" = "中のサブページも一緒にゴミ箱へ移動します。";
+"pg_rename_page" = "ページ名を変更";
+"pg_page_title" = "ページタイトル";
 
 /* strings_personal.xml */
 "appearance" = "外観";
