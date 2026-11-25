@@ -109,10 +109,12 @@ final class AppRouter {
         }
     }
 
-    /// 在工作区新建页面并切到工作区标签页。
+    /// 在工作区新建页面（同步由 `NotesViewModel.createNote` 切入工作区，保证标签与工作区一致）。
     func createNote(parentId: String? = nil, kind: PageKind = .note, groupId: String? = nil) {
         dismissOverlays()
-        selectedTab = .workspace
+        if app.notes.state.workspace == .notes {
+            selectedTab = .workspace
+        }
         app.notes.createNote(parentId: parentId, kind: kind, groupId: groupId)
     }
 

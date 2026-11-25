@@ -45,9 +45,9 @@ struct RootView: View {
                 if router.selectedTab != .search { router.selectedTab = .workspace }
             }
         }
-        // 在搜索标签切走失败（草稿未能保存）时回到工作区展示编辑器内的保存失败提示。
-        .onChange(of: app.notes.state.notice) { _, notice in
-            if notice?.kind == .unsavedDraft && router.selectedTab == .search {
+        // 在搜索标签切走失败（草稿未能保存，包含重复触发的失败）时回到工作区展示编辑器内的保存失败提示。
+        .onChange(of: app.notes.leaveBlockedCount) { _, _ in
+            if router.selectedTab == .search {
                 router.selectedTab = .workspace
             }
         }
@@ -265,13 +265,13 @@ private struct AppDrawer<Panel: View, Content: View>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// 露出来的比例：0 = 收起，1 = 全开。
     @State private var shown: CGFloat = 0
-    /// 这次手势在做什么（一次拖动只判断一次）。
-    @State private var drag: DragMode?
+    /// 这次手势在做什么（开启与关闭手势各用独立状态，避免打开抽屉后在遮罩上滑动时互相抢占）。
+    @State private var openDrag: DragState?
+    @State private var closeDrag: DragState?
     @GestureState private var touching = false
 
-    private enum DragMode {
-        case opening
-        case closing
+    private enum DragState {
+        case active
         case ignored
     }
 
@@ -331,7 +331,7 @@ private struct AppDrawer<Panel: View, Content: View>: View {
                     .offset(x: shown * width)
                     .simultaneousGesture(
                         openGesture(width: width, containerWidth: proxy.size.width, rtl: rtl),
-                        including: edgeOpens ? .all : .subviews
+                        including: (edgeOpens && !isOpen) ? .all : .subviews
                     )
                     .accessibilityHidden(shown > 0)
             }
@@ -339,14 +339,20 @@ private struct AppDrawer<Panel: View, Content: View>: View {
             .background { Sm.sidebar.ignoresSafeArea() }
         }
         .onChange(of: isOpen, initial: true) { _, open in
-            if open { hideKeyboard() }
+            if open {
+                openDrag = nil
+                hideKeyboard()
+            } else {
+                closeDrag = nil
+            }
             settle(open: open, animation: open ? NFMotion.easeOut(NFMotion.base) : NFMotion.easeOut(0.2))
         }
         .onChange(of: touching) { _, active in
             guard !active else { return }
             Task { @MainActor in
-                guard drag != nil, !touching else { return }
-                drag = nil
+                guard !touching, openDrag != nil || closeDrag != nil else { return }
+                openDrag = nil
+                closeDrag = nil
                 settle(open: isOpen, animation: NFMotion.spring(0.34))
             }
         }
@@ -380,20 +386,20 @@ private struct AppDrawer<Panel: View, Content: View>: View {
         DragGesture(minimumDistance: 10, coordinateSpace: .global)
             .updating($touching) { _, state, _ in state = true }
             .onChanged { value in
-                if drag == nil {
+                if openDrag == nil {
                     let fromEdge = rtl ? containerWidth - value.startLocation.x : value.startLocation.x
                     let begins = edgeOpens && !isOpen && shown == 0 && fromEdge <= Self.edgeWidth
                         && isHorizontal(value) && inward(value, rtl: rtl) > 0 && !ReorderDragSession.isActive
-                    drag = begins ? .opening : .ignored
+                    openDrag = begins ? .active : .ignored
                     if begins { hideKeyboard() }
                 }
-                guard drag == .opening else { return }
+                guard openDrag == .active else { return }
                 shown = min(1, max(0, inward(value, rtl: rtl) / width))
             }
             .onEnded { value in
-                let mode = drag
-                drag = nil
-                guard mode == .opening else { return }
+                let state = openDrag
+                openDrag = nil
+                guard state == .active else { return }
                 let offset = max(0, inward(value, rtl: rtl))
                 let flicked = inwardVelocity(value, rtl: rtl) > 500 && offset > 24
                 finish(open: offset > width * 0.33 || flicked)
@@ -404,22 +410,22 @@ private struct AppDrawer<Panel: View, Content: View>: View {
         DragGesture(minimumDistance: 10, coordinateSpace: .global)
             .updating($touching) { _, state, _ in state = true }
             .onChanged { value in
-                if drag == nil {
+                if closeDrag == nil {
                     let begins = isOpen && isHorizontal(value) && inward(value, rtl: rtl) < 0 && !ReorderDragSession.isActive
-                    drag = begins ? .closing : .ignored
+                    closeDrag = begins ? .active : .ignored
                 }
-                guard drag == .closing else { return }
+                guard closeDrag == .active else { return }
                 if ReorderDragSession.isActive {
-                    drag = .ignored
+                    closeDrag = .ignored
                     shown = 1
                     return
                 }
                 shown = min(1, max(0, 1 + inward(value, rtl: rtl) / width))
             }
             .onEnded { value in
-                let mode = drag
-                drag = nil
-                guard mode == .closing else { return }
+                let state = closeDrag
+                closeDrag = nil
+                guard state == .active else { return }
                 let offset = max(0, -inward(value, rtl: rtl))
                 let flicked = -inwardVelocity(value, rtl: rtl) > 500 && offset > 24
                 finish(open: !(offset > width * 0.33 || flicked))

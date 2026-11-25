@@ -59,40 +59,78 @@ extension EnvironmentValues {
 
 @MainActor
 @Observable
-final class NFOverlayCenter {
-    @ObservationIgnored private var storage: [NFOverlayID: NFOverlayItem] = [:]
-    private(set) var ids: [NFOverlayID] = []
+final class NFOverlaySlot: Identifiable {
+    let id: NFOverlayID
+    @ObservationIgnored var item: NFOverlayItem
     private(set) var revision: Int = 0
 
-    func upsert(_ item: NFOverlayItem) {
-        storage[item.id] = item
-        if !ids.contains(item.id) {
-            ids.append(item.id)
-        }
-        revision &+= 1
+    init(item: NFOverlayItem) {
+        self.id = item.id
+        self.item = item
     }
 
-    /// 在 `body` 重绘期间安全刷新闭包与环境快照（只写 `@ObservationIgnored` 的 storage，不触发状态变更）。
+    func bump() {
+        revision &+= 1
+    }
+}
+
+@MainActor
+@Observable
+final class NFOverlayCenter {
+    @ObservationIgnored private var slots: [NFOverlayID: NFOverlaySlot] = [:]
+    @ObservationIgnored private var pendingPublishIds: Set<NFOverlayID> = []
+    @ObservationIgnored private var publishTask: Task<Void, Never>?
+    private(set) var ids: [NFOverlayID] = []
+    private(set) var orderRevision: Int = 0
+
+    func upsert(_ item: NFOverlayItem) {
+        if let slot = slots[item.id] {
+            let levelChanged = slot.item.kind.level != item.kind.level
+            slot.item = item
+            slot.bump()
+            if levelChanged { orderRevision &+= 1 }
+        } else {
+            slots[item.id] = NFOverlaySlot(item: item)
+            ids.append(item.id)
+            orderRevision &+= 1
+        }
+        pendingPublishIds.remove(item.id)
+    }
+
+    /// 在 `body` 重绘期间写入最新闭包与环境快照，并在本轮视图求值结束后异步递增对应槽位的 `revision`，
+    /// 使已打开的浮层（如切换语言后的设置面板）保留状态的同时立即拿到新环境。
     func updateStoredContent(_ item: NFOverlayItem) {
-        guard storage[item.id] != nil else { return }
-        storage[item.id] = item
+        guard let slot = slots[item.id] else { return }
+        slot.item = item
+        pendingPublishIds.insert(item.id)
+        guard publishTask == nil else { return }
+        publishTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.publishTask = nil
+            let dirty = self.pendingPublishIds
+            self.pendingPublishIds.removeAll()
+            for id in dirty {
+                self.slots[id]?.bump()
+            }
+        }
     }
 
     func remove(_ id: NFOverlayID) {
-        let existed = storage.removeValue(forKey: id) != nil
+        pendingPublishIds.remove(id)
+        let existed = slots.removeValue(forKey: id) != nil
         if let index = ids.firstIndex(of: id) {
             ids.remove(at: index)
         }
         if existed {
-            revision &+= 1
+            orderRevision &+= 1
         }
     }
 
-    var orderedItems: [NFOverlayItem] {
-        _ = revision
-        return ids.compactMap { storage[$0] }
+    var orderedSlots: [NFOverlaySlot] {
+        _ = orderRevision
+        return ids.compactMap { slots[$0] }
             .enumerated()
-            .sorted { ($0.element.kind.level, $0.offset) < ($1.element.kind.level, $1.offset) }
+            .sorted { ($0.element.item.kind.level, $0.offset) < ($1.element.item.kind.level, $1.offset) }
             .map(\.element)
     }
 }
@@ -284,7 +322,7 @@ private struct NFOverlayStack: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        let items = center.orderedItems
+        let slots = center.orderedSlots
         let keyboardTop = KeyboardObserver.shared.top
         GeometryReader { proxy in
             let metrics = NFOverlayMetrics(
@@ -292,19 +330,31 @@ private struct NFOverlayStack: View {
                 keyboardInset: max(0, proxy.frame(in: .global).maxY - keyboardTop)
             )
             ZStack {
-                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                    NFOverlayLayer(item: item, metrics: metrics, zBase: Double(index))
-                        .environment(\.nfDismiss, NFDismissAction(action: item.dismiss))
-                        // 先放回声明处的环境，再在上面盖本层的关闭动作（离内容近的修饰符优先）。
-                        .environment(\.self, item.environment)
+                ForEach(Array(slots.enumerated()), id: \.element.id) { index, slot in
+                    NFOverlaySlotView(slot: slot, metrics: metrics, zBase: Double(index))
                 }
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
             // 各层的进场 / 退场各有自己的时长（见各层的 transition），这里只负责让增减带上动画。
-            .animation(reduceMotion ? nil : NFMotion.cssEaseOut(0.2), value: items.map(\.id))
+            .animation(reduceMotion ? nil : NFMotion.cssEaseOut(0.2), value: slots.map(\.id))
         }
         // 键盘由 metrics.keyboardInset 处理，不让系统再顶一次。
         .ignoresSafeArea(.keyboard)
+    }
+}
+
+private struct NFOverlaySlotView: View {
+    let slot: NFOverlaySlot
+    let metrics: NFOverlayMetrics
+    let zBase: Double
+
+    var body: some View {
+        let _ = slot.revision
+        let item = slot.item
+        NFOverlayLayer(item: item, metrics: metrics, zBase: zBase)
+            .environment(\.nfDismiss, NFDismissAction(action: item.dismiss))
+            // 先放回声明处的环境，再在上面盖本层的关闭动作（离内容近的修饰符优先）。
+            .environment(\.self, item.environment)
     }
 }
 

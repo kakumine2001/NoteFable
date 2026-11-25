@@ -292,6 +292,13 @@ final class AppEnvironmentTests: XCTestCase {
         XCTAssertEqual(log.count("/api/sessions"), beforeSessions)
         XCTAssertEqual(environment.notes.state.workspace, .notes)
         XCTAssertEqual(router.selectedTab, .workspace)
+        XCTAssertGreaterThan(environment.notes.leaveBlockedCount, 0)
+
+        let prevBlocked = environment.notes.leaveBlockedCount
+        environment.notes.flushEditor = { FlushResult(false) }
+        router.selectTab(.chat)
+        await eventually { environment.notes.leaveBlockedCount == prevBlocked + 1 }
+        XCTAssertEqual(environment.notes.state.workspace, .notes)
     }
 
     // MARK: - 系统分享
