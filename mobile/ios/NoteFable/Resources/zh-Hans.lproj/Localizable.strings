@@ -417,6 +417,8 @@
 "pg_search_pages" = "搜索页面";
 "pg_no_matching_pages" = "没有匹配的页面。";
 "pg_subpages_to_trash" = "其中的子页面也会一起移入回收站。";
+"pg_rename_page" = "重命名页面";
+"pg_page_title" = "页面标题";
 
 /* strings_personal.xml */
 "appearance" = "外观";

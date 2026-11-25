@@ -7,7 +7,7 @@ import type { NoteContent } from "@/types/notes";
 import { MAX_STORED_FILE_BYTES } from "@/lib/usage-plans";
 import { msg, fmt } from "@/lib/i18n/translate";
 
-export const NOTE_BLOCK_TYPES = ["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "toggleListItem", "quote", "callout", "codeBlock", "divider", "table", "image", "file", "mathBlock", "columnList", "column"] as const;
+export const NOTE_BLOCK_TYPES = ["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "toggleListItem", "quote", "callout", "codeBlock", "divider", "tableOfContents", "table", "image", "file", "mathBlock", "columnList", "column"] as const;
 export const MAX_NOTE_BYTES = 1024 * 1024;
 // 数式（TeX）1 つのソースの長さの上限。ブロックの数式も行内の数式も同じ。
 export const MAX_MATH_LATEX = 10_000;
@@ -39,6 +39,11 @@ export const MAX_COVER_BYTES = MAX_STORED_FILE_BYTES;
 export function uploadedCoverPath(cover: unknown) {
   const match = typeof cover === "string" ? cover.match(UPLOAD_COVER) : null;
   return match ? { path: match[1], ownerId: match[2] } : null;
+}
+
+export function coverImageUrl(cover: string | null | undefined) {
+  const upload = uploadedCoverPath(cover);
+  return upload ? `/api/pages/covers?key=${encodeURIComponent(upload.path)}` : null;
 }
 
 export function isPresetCover(cover: unknown): cover is NoteCover {
@@ -162,6 +167,8 @@ export function validateNoteContent(value: unknown): NoteContent {
       if (!validProps) return false;
       if (block.type === "divider") {
         if (block.content !== undefined || Object.keys(props).length) return false;
+      } else if (block.type === "tableOfContents") {
+        if (block.content !== undefined || Object.keys(props).some((key) => key !== "backgroundColor" && key !== "textColor")) return false;
       } else if (block.type === "table") {
         // 表は子ブロックを持たない。
         if (!validTable(block.content) || (block.children !== undefined && !(Array.isArray(block.children) && !block.children.length))) return false;

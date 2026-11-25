@@ -5,6 +5,7 @@ import com.kakumine.notefable.data.ExportedNote
 import com.kakumine.notefable.data.ImportCandidate
 import com.kakumine.notefable.data.ImportMarkdownFile
 import com.kakumine.notefable.data.NoteImport
+import com.kakumine.notefable.data.NoteIconWrite
 import com.kakumine.notefable.data.NoteGroupSummary
 import com.kakumine.notefable.data.NotePageSummary
 import com.kakumine.notefable.data.NoteTrashItem
@@ -138,6 +139,15 @@ class NotesViewModelTest {
         }
         override suspend fun createGroup(name: String): NoteGroupSummary { calls += "group:$name"; maybeFail(); hold("group"); return NoteGroupSummary("g2", name, 1) }
         override suspend fun renameGroup(id: String, name: String): NoteGroupSummary { calls += "rename:$id:$name"; maybeFail(); return NoteGroupSummary(id, name) }
+        override suspend fun renameNote(id: String, title: String): NoteIconWrite {
+            calls += "renamePage:$id:$title"; maybeFail()
+            val index = pages.indexOfFirst { it.id == id }
+            val current = if (index >= 0) pages[index] else NotePageSummary(id, title, null)
+            val updated = current.copy(title = title, version = current.version + 1)
+            if (index >= 0) pages[index] = updated
+            val json = """{"id":"$id","title":${Json.encodeToString(kotlinx.serialization.serializer<String>(), title)},"version":${updated.version}}"""
+            return NoteIconWrite(updated, json)
+        }
         override suspend fun deleteGroup(id: String) { calls += "deleteGroup:$id"; maybeFail() }
         override suspend fun trash(): List<NoteTrashItem> { calls += "trashList"; maybeFail(); return trashed.toList() }
         override suspend fun restoreNote(id: String): List<NotePageSummary> {
@@ -1292,5 +1302,29 @@ class NotesViewModelTest {
         vm.onPagesTrashed(listOf("b"))
 
         assertEquals(listOf(setOf("a"), setOf("b")), notified)
+    }
+
+    @Test
+    fun `renaming a page saves the open draft first and updates the list, open title and warm webview cache`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        val warmUpdated = mutableListOf<Pair<String, String>>()
+        vm.notifyPageUpdated = { id, json -> warmUpdated += id to json }
+        vm.openNote("a")
+        advanceUntilIdle()
+
+        vm.flushEditor = { FlushResult(false) }
+        assertFalse(vm.renamePage("a", "Renamed page"))
+        assertEquals(NotesError(NotesError.Kind.UnsavedDraft), vm.state.value.groupError)
+        assertFalse("renamePage:a:Renamed page" in backend.calls)
+
+        vm.flushEditor = { FlushResult(true) }
+        assertTrue(vm.renamePage("a", "  Renamed\npage  "))
+        assertNull(vm.state.value.groupError)
+        val updated = vm.state.value.pages.first { it.id == "a" }
+        assertEquals("Renamed page", updated.title)
+        assertEquals(1, updated.version)
+        assertEquals("Renamed page", vm.state.value.open?.title)
+        assertEquals(listOf("a"), warmUpdated.map { it.first })
     }
 }

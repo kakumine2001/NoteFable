@@ -1,12 +1,13 @@
 "use client";
 
-import { ChevronDown, ChevronRight, Folder, FolderInput, House, PanelLeftClose, Pencil, Plus, Search, Star, StarOff, Trash2, Upload } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ChevronDown, ChevronRight, Ellipsis, Folder, FolderInput, House, PanelLeftClose, Pencil, Plus, Search, Star, StarOff, Trash2, Upload } from "lucide-react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { AnswerMenu } from "@/components/answer-actions";
 import { FloatingEmojiPopover, floatingPositionFor, usePickerBackToClose, type FloatingPosition } from "@/components/emoji-picker";
 import { ReorderRowButton } from "@/components/reorder-row-button";
 import type { ReorderRequest } from "@/lib/list-order";
 import { SidebarFooter } from "@/components/sidebar-footer";
-import { ConfirmDialog, GroupNameDialog, MoveNoteDialog } from "@/components/note-group-dialogs";
+import { ConfirmDialog, GroupNameDialog, MoveNoteDialog, RenamePageDialog } from "@/components/note-group-dialogs";
 import { NoteTrashDialog } from "@/components/note-trash-dialog";
 import { NoteFableLogo } from "@/components/app-icon";
 import { WorkspaceNav, type WorkspaceView } from "@/components/workspace-nav";
@@ -39,6 +40,7 @@ type GroupActions = {
   onMoveNote: (pageId: string, groupId: string | null) => Promise<unknown>;
   // 行のアイコンから変える。失敗したら null。
   onChangeIcon: (pageId: string, icon: string | null) => Promise<unknown>;
+  onRenamePage: (pageId: string, title: string) => Promise<unknown>;
   onCreateGroup: (name: string) => Promise<NoteGroupSummary | null>;
   onRenameGroup: (id: string, name: string) => Promise<unknown>;
   onDeleteGroup: (id: string) => Promise<unknown>;
@@ -46,7 +48,7 @@ type GroupActions = {
   onFavorite: (pageId: string, favorite: boolean) => Promise<unknown>;
 };
 
-export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, onImport, onSearch, onSelect, onPrefetch, onCancelPrefetch, onDelete, onClose, onWorkspaceChange, groups, groupError, onMoveNote, onChangeIcon, onCreateGroup, onRenameGroup, onDeleteGroup, onReorder, onMoveToPage, onFavorite }: {
+export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, onImport, onSearch, onSelect, onPrefetch, onCancelPrefetch, onDelete, onClose, onWorkspaceChange, groups, groupError, onMoveNote, onChangeIcon, onRenamePage, onCreateGroup, onRenameGroup, onDeleteGroup, onReorder, onMoveToPage, onFavorite }: {
   pages: NotePageSummary[]; activeId: string | null; busy: boolean;
   // Notes のホーム（最近のノートと一覧）を出しているか、とホームへ戻る操作。
   home: boolean; onHome: () => void;
@@ -54,11 +56,14 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
   onWorkspaceChange: (view: WorkspaceView) => void; onCreate: (request?: NewPageRequest) => void; onImport: (files: File[]) => void; onSearch: () => void; onSelect: (id: string) => void; onPrefetch?: (id: string, immediate?: boolean) => void; onCancelPrefetch?: (id?: string) => void; onDelete: (id: string) => Promise<unknown>; onClose: () => void;
 } & GroupActions) {
   const t = useT();
+  const rowMenuId = useId();
   const importInputRef = useRef<HTMLInputElement>(null);
   const [deleting, setDeleting] = useState<NotePageSummary | null>(null);
   // ゴミ箱の小窓。復元したノートは "notefable:page-created" で一覧に戻るので、開閉の状態だけここで持つ。
   const [trashOpen, setTrashOpen] = useState(false);
   const [moving, setMoving] = useState<NotePageSummary | null>(null);
+  const [renamingPage, setRenamingPage] = useState<NotePageSummary | null>(null);
+  const [rowMenu, setRowMenu] = useState<{ page: NotePageSummary; anchor: DOMRect; trigger: HTMLButtonElement; focusLast: boolean } | null>(null);
   const [naming, setNaming] = useState<{ mode: "create" } | { mode: "rename"; group: NoteGroupSummary } | null>(null);
   const [deletingGroup, setDeletingGroup] = useState<NoteGroupSummary | null>(null);
   // 折りたたみの状態は端末に覚えておく。この側のパネルは Notes に切り替えた後にだけ作られるので、初期値で読んでもサーバー描画とずれない。
@@ -133,9 +138,11 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
       </div>}
     </div>;
   };
-  const row = (page: NotePageSummary, open = false) => (
+  const row = (page: NotePageSummary, open = false) => {
+    const menuOpen = rowMenu?.page.id === page.id;
+    return (
     // data-page-kind はこのページが並ぶ分区（拖動したときに放せる分区）、data-drop-kind は分区の最上位の行（同じ分区のページだけを前後に放せる）。
-    <div key={page.id} className={`notion-session-row vt-row group ${activeId === page.id ? "is-active" : ""}`} style={rowName(`nrow-${page.id}`)} data-order-id={page.id} data-order-scope="note"
+    <div key={page.id} className={`notion-session-row vt-row group${activeId === page.id ? " is-active" : ""}${menuOpen ? " is-menu-open" : ""}`} style={rowName(`nrow-${page.id}`)} data-order-id={page.id} data-order-scope="note"
       data-page-kind={sectionKindOf(page, kinds)} data-drop-kind={sectionOf.get(page.id)?.kind}>
       <button type="button" className="notes-row-toggle" aria-expanded={open} onClick={() => toggleExpanded(page.id, !open)}
         aria-label={open ? t("Collapse {title}", { title: page.title }) : t("Expand {title}", { title: page.title })}>
@@ -162,13 +169,23 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
         <span className="truncate text-[13.5px] leading-5">{page.title}</span>
       </ReorderRowButton>
       <span className="sidebar-row-actions">
+        <button type="button" disabled={busy} className="notion-row-action"
+          aria-label={t("Actions for {title}", { title: page.title })} title={t("Page options")}
+          aria-haspopup="menu" aria-expanded={menuOpen} aria-controls={menuOpen ? rowMenuId : undefined}
+          onClick={(event) => setRowMenu({ page, anchor: event.currentTarget.getBoundingClientRect(), trigger: event.currentTarget, focusLast: false })}
+          onKeyDown={(event) => {
+            if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+            event.preventDefault();
+            setRowMenu({ page, anchor: event.currentTarget.getBoundingClientRect(), trigger: event.currentTarget, focusLast: event.key === "ArrowUp" });
+          }}>
+          <Ellipsis size={14} />
+        </button>
         <NewPageButton kinds={kinds} busy={busy} onCreate={(kind) => create({ kind, parentId: page.id })} className="notion-row-action"
           label={t("Add a page inside {title}", { title: page.title })} title={t("Add a page inside")} menuLabel={t("Add a page inside {title}", { title: page.title })}><Plus size={14} /></NewPageButton>
-        <button type="button" disabled={busy} onClick={() => setMoving(page)} className="notion-row-action notes-move-action" aria-label={t("Move {title} to a project", { title: page.title })} title={t("Move to project")}><FolderInput size={13.5} /></button>
-        <button type="button" disabled={busy} onClick={() => setDeleting(page)} className="notion-row-action is-danger" aria-label={t("Move {title} to Trash", { title: page.title })} title={t("Move to Trash")}><Trash2 size={13.5} /></button>
       </span>
     </div>
-  );
+    );
+  };
 
   return (
     <aside className="notion-sidebar" data-reorder-list>
@@ -208,6 +225,9 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
               <span className="truncate text-[13.5px] leading-5">{page.title}</span>
             </button>
             <span className="sidebar-row-actions">
+              {page.locked !== true && (
+                <button type="button" disabled={busy} onClick={() => setRenamingPage(page)} className="notion-row-action" aria-label={t("Rename {name}", { name: page.title })} title={t("Rename")}><Pencil size={13} /></button>
+              )}
               <button type="button" disabled={busy} onClick={() => void onFavorite(page.id, false)} className="notion-row-action" aria-label={t("Remove {title} from Favorites", { title: page.title })} title={t("Remove from Favorites")}><StarOff size={13.5} /></button>
             </span>
           </div>)}
@@ -298,6 +318,34 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
       {moving && <MoveNoteDialog page={pages.find((page) => page.id === moving.id) ?? moving} groups={groups} error={groupError}
         onMove={onMoveNote} onCreateGroup={onCreateGroup} onClose={() => setMoving(null)} pages={pages}
         onMoveToPage={async (pageId, parentId) => { const ok = await onMoveToPage(pageId, parentId); if (ok) expand(parentId); return ok; }} />}
+      {renamingPage && <RenamePageDialog page={pages.find((page) => page.id === renamingPage.id) ?? renamingPage} error={groupError}
+        onClose={() => setRenamingPage(null)}
+        onSubmit={async (title) => Boolean(await onRenamePage(renamingPage.id, title))} />}
+      {rowMenu && (() => {
+        const target = pages.find((page) => page.id === rowMenu.page.id) ?? rowMenu.page;
+        const closeMenu = () => setRowMenu(null);
+        return (
+          <AnswerMenu id={rowMenuId} label={t("Actions for {title}", { title: target.title })} className="chat-row-menu"
+            anchor={rowMenu.anchor} trigger={rowMenu.trigger} focusLast={rowMenu.focusLast} onClose={closeMenu}>
+            {target.locked !== true && (
+              <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { closeMenu(); setRenamingPage(target); }}>
+                <Pencil size={15} aria-hidden="true" />{t("Rename")}
+              </button>
+            )}
+            <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { closeMenu(); void onFavorite(target.id, !target.favoritedAt); }}>
+              {target.favoritedAt ? <StarOff size={15} aria-hidden="true" /> : <Star size={15} aria-hidden="true" />}
+              {target.favoritedAt ? t("Remove from Favorites") : t("Add to Favorites")}
+            </button>
+            <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { closeMenu(); setMoving(target); }}>
+              <FolderInput size={15} aria-hidden="true" />{t("Move to")}
+            </button>
+            <hr className="chat-menu-divider" />
+            <button type="button" role="menuitem" className="chat-menu-item is-danger" onClick={() => { closeMenu(); setDeleting(target); }}>
+              <Trash2 size={15} aria-hidden="true" />{t("Move to Trash")}
+            </button>
+          </AnswerMenu>
+        );
+      })()}
       {naming && <GroupNameDialog title={naming.mode === "create" ? t("New project") : t("Rename project")} initial={naming.mode === "rename" ? naming.group.name : ""}
         submitLabel={naming.mode === "create" ? t("Create") : t("Save")} error={groupError} onClose={() => setNaming(null)}
         onSubmit={async (name) => naming.mode === "create" ? Boolean(await onCreateGroup(name)) : Boolean(await onRenameGroup(naming.group.id, name))} />}

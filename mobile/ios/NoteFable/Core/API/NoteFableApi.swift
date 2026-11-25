@@ -346,6 +346,14 @@ final class NoteFableApi: ChatBackend, AccountBackend, NotesBackend, @unchecked 
         let _: JsonObjectResponse = try await http.send(try http.request("DELETE", "/api/pages/groups/\(segment(id))"))
     }
 
+    func renameNote(id: String, title: String) async throws -> NoteIconWrite {
+        let body: JSONValue = ["title": .string(title)]
+        let response = try await sendForObject(try http.request("PUT", "/api/pages/\(segment(id))/title", json: body))
+        guard let pageJson = response["page"], case .object = pageJson else { throw URLError(.cannotParseResponse) }
+        let page = try NoteFableJson.decodeFromJsonElement(NotePageSummary.self, pageJson)
+        return NoteIconWrite(page: page, json: pageJson.encodedString())
+    }
+
     func trash() async throws -> [NoteTrashItem] {
         try await http.getJson("/api/pages/trash", as: TrashResponse.self).pages
     }

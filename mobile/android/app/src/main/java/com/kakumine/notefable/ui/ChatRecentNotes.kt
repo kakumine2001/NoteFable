@@ -56,34 +56,60 @@ internal fun ChatRecentNotes(
                 val attached = selected.any { it.id == page.id }
                 val canToggle = enabled && (attached || selected.size < MAX_MESSAGE_NOTES)
                 val shape = RoundedCornerShape(14.4.dp)
+                val hasCover = com.kakumine.notefable.data.NoteCovers.preset(page.cover) != null || com.kakumine.notefable.data.NoteCovers.imagePath(page.cover) != null
                 Box {
                     Column(
                         Modifier.width(152.dp).heightIn(min = 101.dp).alpha(if (canToggle) 1f else .55f)
-                            .shadow(1.dp, shape).background(Sm.Surface)
+                            .shadow(1.dp, shape).clip(shape).background(Sm.Surface)
                             .background(if (attached) Sm.AccentSoft else Color.Transparent)
                             .border(1.dp, if (attached) Sm.AccentLine else Sm.Border, shape)
                             .toggleable(value = attached, enabled = canToggle, role = Role.Checkbox) {
                                 onToggle(ChatProjectNote(page.id, page.title, page.icon, page.kind))
-                            }.padding(horizontal = 13.dp, vertical = 11.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                            },
                     ) {
-                        val iconBg = if (page.icon != null) Sm.Hover else pageKindSoft(page.kind)
-                        Box(Modifier.size(32.dp).background(iconBg, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
-                            NoteIcon(page.icon, 16.sp, 17.dp, pageKindColor(page.kind), page.kind)
+                        if (hasCover) {
+                            Box(Modifier.fillMaxWidth().height(32.dp)) {
+                                NoteCoverBanner(page.cover, page.coverPosition, page.kind, Modifier.fillMaxSize())
+                                Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(1.dp).background(Sm.Border))
+                            }
                         }
-                        Text(title, color = Sm.Text, fontSize = 14.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            if (attached) LucideIcon(Lucide.Check, 12.dp, Sm.Muted)
-                            Text(stringResource(if (attached) R.string.note_attached else R.string.attach_pages_submit),
-                                color = Sm.Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                        Column(
+                            Modifier.fillMaxWidth().padding(start = 13.dp, end = 13.dp, top = if (hasCover) 0.dp else 11.dp, bottom = 11.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            val iconBg = if (hasCover) Sm.Surface else if (page.icon != null) Sm.Hover else pageKindSoft(page.kind)
+                            val iconMod = if (hasCover) Modifier.offset(y = (-16).dp).size(32.dp).clip(RoundedCornerShape(8.dp)).background(iconBg).border(1.dp, Sm.Border, RoundedCornerShape(8.dp))
+                            else Modifier.size(32.dp).background(iconBg, RoundedCornerShape(8.dp))
+                            Box(iconMod, contentAlignment = Alignment.Center) {
+                                NoteIcon(page.icon, 16.sp, 17.dp, pageKindColor(page.kind), page.kind)
+                            }
+                            Text(title, color = Sm.Text, fontSize = 14.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = if (hasCover) Modifier.offset(y = (-12).dp) else Modifier)
+                            Row(
+                                modifier = if (hasCover) Modifier.offset(y = (-12).dp) else Modifier,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                if (attached) LucideIcon(Lucide.Check, 12.dp, Sm.Muted)
+                                Text(stringResource(if (attached) R.string.note_attached else R.string.attach_pages_submit),
+                                    color = Sm.Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                            }
                         }
                     }
                     val openLabel = stringResource(R.string.open_note_title, title)
-                    Box(Modifier.align(Alignment.TopEnd).padding(1.dp).size(48.dp).clip(RoundedCornerShape(12.dp))
-                        .clickable(role = Role.Button) { onOpen(page.id) }.semantics { contentDescription = openLabel },
-                        contentAlignment = Alignment.Center) {
-                        LucideIcon(Lucide.ArrowUpRight, 16.dp, Sm.Muted)
+                    if (hasCover) {
+                        Box(Modifier.align(Alignment.TopEnd).padding(5.dp).size(26.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(Sm.Surface.copy(alpha = 0.86f)).border(1.dp, Sm.Border, androidx.compose.foundation.shape.CircleShape)
+                            .clickable(role = Role.Button) { onOpen(page.id) }.semantics { contentDescription = openLabel },
+                            contentAlignment = Alignment.Center) {
+                            LucideIcon(Lucide.ArrowUpRight, 14.dp, Sm.Muted)
+                        }
+                    } else {
+                        Box(Modifier.align(Alignment.TopEnd).padding(1.dp).size(48.dp).clip(RoundedCornerShape(12.dp))
+                            .clickable(role = Role.Button) { onOpen(page.id) }.semantics { contentDescription = openLabel },
+                            contentAlignment = Alignment.Center) {
+                            LucideIcon(Lucide.ArrowUpRight, 16.dp, Sm.Muted)
+                        }
                     }
                 }
             }

@@ -187,10 +187,44 @@ enum NoteIcons {
     }
 }
 
+/// 笔记封面（网页 src/lib/note-document.ts 的 NOTE_COVERS 和 uploadedCoverPath）：
+/// 12 种预设渐变 / 纯色，或上传到 `/api/pages/covers?key=` 的图片。
+enum NoteCovers {
+    struct Preset: Equatable, Sendable {
+        let startArgb: UInt32
+        let endArgb: UInt32
+    }
+
+    static let presets: [String: Preset] = [
+        "gradient-sunset": Preset(startArgb: 0xFFF6D365, endArgb: 0xFFFDA085),
+        "gradient-peach": Preset(startArgb: 0xFFFFECD2, endArgb: 0xFFFCB69F),
+        "gradient-mint": Preset(startArgb: 0xFFD4FC79, endArgb: 0xFF96E6A1),
+        "gradient-ocean": Preset(startArgb: 0xFF89F7FE, endArgb: 0xFF66A6FF),
+        "gradient-lavender": Preset(startArgb: 0xFFE0C3FC, endArgb: 0xFF8EC5FC),
+        "gradient-night": Preset(startArgb: 0xFF30CFD0, endArgb: 0xFF330867),
+        "solid-red": Preset(startArgb: 0xFFE16259, endArgb: 0xFFE16259),
+        "solid-yellow": Preset(startArgb: 0xFFDFAB01, endArgb: 0xFFDFAB01),
+        "solid-green": Preset(startArgb: 0xFF4DAB9A, endArgb: 0xFF4DAB9A),
+        "solid-blue": Preset(startArgb: 0xFF529CCA, endArgb: 0xFF529CCA),
+        "solid-purple": Preset(startArgb: 0xFF9A6DD7, endArgb: 0xFF9A6DD7),
+        "solid-beige": Preset(startArgb: 0xFFE9E5E3, endArgb: 0xFFE9E5E3),
+    ]
+
+    static func preset(_ cover: String?) -> Preset? {
+        cover.flatMap { presets[$0] }
+    }
+
+    static func imagePath(_ cover: String?) -> String? {
+        NoteIcons.imagePath(cover)
+    }
+}
+
 struct NotePageSummary: Encodable, Equatable, Sendable, Identifiable {
     var id: String
     var title: String = ""
     var icon: String? = nil
+    var cover: String? = nil
+    var coverPosition: Int? = nil
     var version: Int = 0
     /// 所属项目；nil 是"未分组"。子页面和最上层的祖先在同一个项目。
     var groupId: String? = nil
@@ -232,7 +266,8 @@ extension NotePageSummary: Decodable {
     init(from decoder: Decoder) throws {
         let f = try DtoFields(decoder)
         self.init(
-            id: try f.req("id"), title: try f.or("title", ""), icon: try f.opt("icon"), version: try f.or("version", 0),
+            id: try f.req("id"), title: try f.or("title", ""), icon: try f.opt("icon"),
+            cover: try f.opt("cover"), coverPosition: try f.opt("coverPosition"), version: try f.or("version", 0),
             groupId: try f.opt("groupId"), position: try f.or("position", 0), createdAt: try f.or("createdAt", ""),
             updatedAt: try f.or("updatedAt", ""), parentId: try f.opt("parentId"), favoritedAt: try f.opt("favoritedAt"),
             fullWidth: try f.or("fullWidth", false), smallText: try f.or("smallText", false),
@@ -507,6 +542,7 @@ protocol NotesBackend {
     func createGroup(name: String) async throws -> NoteGroupSummary
     func renameGroup(id: String, name: String) async throws -> NoteGroupSummary
     func deleteGroup(id: String) async throws
+    func renameNote(id: String, title: String) async throws -> NoteIconWrite
 
     func trash() async throws -> [NoteTrashItem]
     /// 复原；一起移进回收站的子页面也回来。返回所有复原的页面（第一篇是这一篇）。
@@ -535,6 +571,10 @@ protocol NotesBackend {
 extension NotesBackend {
     func createNote() async throws -> NotePageSummary {
         try await createNote(parentId: nil, kind: .note, groupId: nil)
+    }
+
+    func renameNote(id: String, title: String) async throws -> NoteIconWrite {
+        fatalError("unused")
     }
 
     func getShare(id: String) async throws -> NoteShareState {

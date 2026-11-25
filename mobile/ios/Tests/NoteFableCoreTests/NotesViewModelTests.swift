@@ -1062,4 +1062,39 @@ final class NotesViewModelTests: XCTestCase {
 
         XCTAssertEqual(notified, [Set(["a"]), Set(["b"])])
     }
+
+    @MainActor
+    func testRenamingAPageFlushesOpenDraftUpdatesListOpenTitleAndWarmCache() async {
+        let backend = NotesTestBackend()
+        let vm = await notesVm(backend)
+        var warmUpdated: [(String, String)] = []
+        vm.notifyPageUpdated = { warmUpdated.append(($0, $1)) }
+        vm.openNote("a")
+        await notesSettle()
+
+        vm.flushEditor = { FlushResult(false) }
+        let blocked = await vm.renamePage("a", title: "New Title")
+        XCTAssertFalse(blocked)
+        XCTAssertEqual(vm.state.groupError?.kind, .unsavedDraft)
+        XCTAssertFalse(backend.calls.contains("renamePage:a:New Title"))
+
+        vm.flushEditor = { FlushResult(true) }
+        let ok = await vm.renamePage("a", title: "  New\nTitle  ")
+        XCTAssertTrue(ok)
+        XCTAssertNil(vm.state.groupError)
+        XCTAssertEqual(page(vm, "a")?.title, "New Title")
+        XCTAssertEqual(page(vm, "a")?.version, 1)
+        XCTAssertEqual(vm.state.open?.title, "New Title")
+        XCTAssertEqual(warmUpdated.map(\.0), ["a"])
+    }
+
+    func testRecentHomePagesSortsByUpdatedAtAndLimitsCount() {
+        let pages = [
+            NotePageSummary(id: "1", title: "Old", updatedAt: "2026-11-01T00:00:00Z"),
+            NotePageSummary(id: "2", title: "Newer", cover: "gradient-mint", updatedAt: "2026-11-10T00:00:00Z"),
+            NotePageSummary(id: "3", title: "Newest", cover: "solid-blue", updatedAt: "2026-11-20T00:00:00Z"),
+        ]
+        let recent = recentHomePages(pages, limit: 2)
+        XCTAssertEqual(recent.map(\.id), ["3", "2"])
+    }
 }

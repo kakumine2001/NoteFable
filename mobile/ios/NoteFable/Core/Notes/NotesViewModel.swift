@@ -666,6 +666,38 @@ final class NotesViewModel {
         } ?? false
     }
 
+    /// 从侧栏或收藏栏直接重命名页面；当前正打开它时先保存草稿，再通知 WebView 同步标题和版本号。
+    @discardableResult
+    func renamePage(_ pageId: String, title: String) async -> Bool {
+        let normalized = title.replacingOccurrences(of: "\\r?\\n", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if normalized.isEmpty { return false }
+        let owner = identity
+        update { $0.groupError = nil }
+        if state.open?.id == pageId, !(await flushOpen()).ok {
+            if owner == identity { update { $0.groupError = NotesError(.unsavedDraft) } }
+            return false
+        }
+        guard owner == identity else { return false }
+        return await groupAction { [self] in
+            let written = try await backend.renameNote(id: pageId, title: normalized)
+            let page = written.page
+            return Applied(apply: {
+                self.update { state in
+                    state.pages = state.pages.map { current in
+                        guard current.id == pageId else { return current }
+                        var next = current
+                        next.title = page.title
+                        next.version = page.version
+                        return next
+                    }
+                    if state.open?.id == pageId { state.open?.title = page.title }
+                }
+                if let json = written.json { self.notifyPageUpdated?(pageId, json) }
+            }, value: true)
+        } ?? false
+    }
+
     /// 项目删掉后，里面的笔记保留，变成未分组。
     func deleteGroup(_ id: String) async -> Bool {
         await groupAction { [self] in

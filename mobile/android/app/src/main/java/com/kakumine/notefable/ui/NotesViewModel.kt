@@ -650,6 +650,32 @@ class NotesViewModel(
         Pair({ _state.update { s -> s.copy(groups = s.groups.map { if (it.id == id) it.copy(name = group.name) else it }) } }, true)
     } ?: false
 
+    /** 从侧栏或收藏栏直接重命名页面；当前正打开它时先冲洗未保存草稿，再通知常驻 WebView 同步标题和版本号。 */
+    suspend fun renamePage(pageId: String, title: String): Boolean {
+        val normalized = title.replace(Regex("\\r?\\n"), " ").trim()
+        if (normalized.isEmpty()) return false
+        val owner = identity
+        _state.update { it.copy(groupError = null) }
+        if (_state.value.open?.id == pageId && !flushOpen().ok) {
+            if (owner == identity) _state.update { it.copy(groupError = NotesError(NotesError.Kind.UnsavedDraft)) }
+            return false
+        }
+        if (owner != identity) return false
+        return groupAction {
+            val written = backend.renameNote(pageId, normalized)
+            val page = written.page
+            Pair({
+                _state.update { s ->
+                    s.copy(
+                        pages = s.pages.map { if (it.id == pageId) it.copy(title = page.title, version = page.version) else it },
+                        open = s.open?.let { if (it.id == pageId) it.copy(title = page.title) else it },
+                    )
+                }
+                written.json?.let { json -> notifyPageUpdated?.invoke(pageId, json) }
+            }, true)
+        } ?: false
+    }
+
     /** 项目删掉后，里面的笔记保留，变成未分组。 */
     suspend fun deleteGroup(id: String): Boolean = groupAction {
         backend.deleteGroup(id)

@@ -25,4 +25,6 @@
     <string name="pg_search_pages">Tìm kiếm trang</string>
     <string name="pg_no_matching_pages">Không có trang nào khớp.</string>
     <string name="pg_subpages_to_trash">Các trang con bên trong cũng sẽ được chuyển vào Thùng rác.</string>
+    <string name="pg_rename_page">Đổi tên trang</string>
+    <string name="pg_page_title">Tiêu đề trang</string>
 </resources>

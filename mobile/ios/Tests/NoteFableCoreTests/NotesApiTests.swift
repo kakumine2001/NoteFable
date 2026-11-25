@@ -129,4 +129,30 @@ final class NotesApiTests: XCTestCase {
         XCTAssertNil(NoteIcons.text(key))
         XCTAssertEqual(NoteIcons.text("📄"), "📄")
     }
+
+    func testRenamesPageAndDecodesCoverFields() async throws {
+        let server = FakeTransport()
+        server.enqueue(#"{"pages":[{"id":"r","title":"Plan","cover":"gradient-ocean","coverPosition":40}]}"#)
+        server.enqueue(#"{"page":{"id":"r","title":"Renamed plan","version":5,"cover":"gradient-ocean","coverPosition":40}}"#)
+        let api = makeApi(server)
+        let recent = try await api.recentNotes()
+        XCTAssertEqual(recent[0].cover, "gradient-ocean")
+        XCTAssertEqual(recent[0].coverPosition, 40)
+        XCTAssertNotNil(NoteCovers.preset(recent[0].cover))
+        XCTAssertEqual(
+            NoteCovers.imagePath("upload:page-covers/user1/0e111e3a-9e25-4944-ade7-b460580fa921.png"),
+            "/api/pages/covers?key=page-covers%2Fuser1%2F0e111e3a-9e25-4944-ade7-b460580fa921.png"
+        )
+
+        let written = try await api.renameNote(id: "r", title: "Renamed plan")
+        XCTAssertEqual(written.page.title, "Renamed plan")
+        XCTAssertEqual(written.page.version, 5)
+        XCTAssertEqual(JSONValue.parse(written.json ?? "")?["title"]?.stringValue, "Renamed plan")
+
+        _ = server.next()
+        let renameReq = server.next()
+        XCTAssertEqual(renameReq.method, "PUT")
+        XCTAssertEqual(renameReq.path, "/api/pages/r/title")
+        XCTAssertEqual(renameReq.json?["title"]?.stringValue, "Renamed plan")
+    }
 }

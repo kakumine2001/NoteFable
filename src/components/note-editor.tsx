@@ -5,7 +5,7 @@ import { codeBlockOptions, syntaxHighlighter } from "@blocknote/code-block";
 import { BlockNoteView } from "@blocknote/ariakit";
 import { SideMenuExtension, SuggestionMenu, filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from "@blocknote/core/extensions";
 import { BasicTextStyleButton, BlockColorsItem, ColorStyleButton, CreateLinkButton, DragHandleButton, DragHandleMenu, FileCaptionButton, FileDeleteButton, FileDownloadButton, FilePanel, FilePanelController, FilePreviewButton, FileRenameButton, FormattingToolbar, FormattingToolbarController, SideMenu, SideMenuController, SuggestionMenuController, TableCellMergeButton, TableColumnHeaderItem, TableRowHeaderItem, getDefaultReactSlashMenuItems, useBlockNoteEditor, useComponentsContext, useCreateBlockNote, useDictionary, useEditorState, useExtensionState, usePortalElement, type DefaultReactSuggestionItem, type FilePanelProps, type SuggestionMenuProps } from "@blocknote/react";
-import { CalendarDays, Check, CheckSquare, ChevronRight, Code2, Columns2, Columns3, Columns4, Copy, Heading1, Lightbulb, Loader2, Radical, Sigma, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Table, Text, Type, Upload } from "lucide-react";
+import { CalendarDays, Check, CheckSquare, ChevronRight, Code2, Columns2, Columns3, Columns4, Copy, Heading1, Lightbulb, ListTree, Loader2, Radical, Sigma, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Table, Text, Type, Upload } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref } from "react";
 import "@blocknote/ariakit/style.css";
 import { AppIcon } from "@/components/app-icon";
@@ -17,6 +17,7 @@ import { normalizeQuote } from "@/lib/chat-quote";
 import { useTheme } from "@/lib/theme";
 import { createCalloutBlockSpec } from "@/components/note-callout";
 import { canInsertColumns, columnListSpec, columnSpec, computeColumnDropPosition, insertColumns } from "@/components/note-columns";
+import { createTocBlockSpec } from "@/components/note-toc";
 import { NoteIcon } from "@/components/note-icon";
 import { NoteMentionContext, createMentionSpec, formatNoteDate, type MentionPage } from "@/components/note-mention";
 import { dateMention, isNoteDate, localDate, notePageIdFromUrl, pageMention } from "@/lib/note-mention";
@@ -76,6 +77,7 @@ const schema = BlockNoteSchema.create({
     // 言語選択とシンタックスハイライト付きのコードブロック。未指定は Plain Text。
     codeBlock: createCodeBlockSpec({ defaultLanguage: "text", supportedLanguages: SAFE_CODE_LANGUAGES, indentLineWithTab: true }),
     divider: defaultBlockSpecs.divider,
+    tableOfContents: createTocBlockSpec(),
     table: defaultBlockSpecs.table,
     // Notion の /image /file に相当。アップロードしたものだけを置ける（外部 URL の埋め込みは受け付けない）。
     image: defaultBlockSpecs.image,
@@ -165,6 +167,7 @@ const SLASH_LOOK: Record<string, { icon: ReactNode; hint?: string }> = {
   code_block: { icon: <Code2 size={18} />, hint: "```" },
   quote: { icon: <Quote size={18} />, hint: '"' },
   divider: { icon: <Minus size={18} />, hint: "---" },
+  table_of_contents: { icon: <ListTree size={18} /> },
   math_block: { icon: <Sigma size={18} />, hint: "$$" },
   math_inline: { icon: <Radical size={18} />, hint: "$" },
   columns_2: { icon: <Columns2 size={18} /> },
@@ -764,13 +767,18 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, o
             },
           },
         ];
+        const tocItem: SlashItem = {
+          key: "table_of_contents", title: t("Table of contents"), group: t("Basic blocks"),
+          aliases: ["toc", "table of contents", "outline", "contents", "headings", "目录", "大纲", "目次", "목차"],
+          onItemClick: () => { insertOrUpdateBlockForSlashMenu(editor, { type: "tableOfContents" }); },
+        };
         // 段組み（Notion の 2 columns など）。段の中ではさらに段を作れないので出さない。
         const columnItems: SlashItem[] = canInsertColumns(editor) ? [2, 3, 4].map((count) => ({
           key: `columns_${count}`, title: t("{count} columns", { count }), group: t("Basic blocks"),
           aliases: ["columns", "column", "layout", `${count} columns`, `${count}col`, "分栏", "分列", "段組み", "カラム", "列"],
           onItemClick: () => insertColumns(editor, count),
         })) : [];
-        const blockItems = [...textItems, ...mathItems, ...columnItems, ...defaults.filter((item) => !NOTE_TEXT_BLOCKS.some((target) => target.key === item.key))];
+        const blockItems = [...textItems, tocItem, ...mathItems, ...columnItems, ...defaults.filter((item) => !NOTE_TEXT_BLOCKS.some((target) => target.key === item.key))];
         // 一覧が長くなるので、色と操作のコマンド（Notion の /red、/blue background、/duplicate、/delete）は文字を打った時だけ候補に出す。
         return filterSuggestionItems(query.trim() ? [...blockItems, ...commandItems(editor, t)] : blockItems, query);
       }} />

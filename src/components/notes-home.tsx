@@ -12,6 +12,7 @@ import { useI18n } from "@/components/i18n-provider";
 import { greetingFor, recentPages, relativeTime } from "@/lib/notes-home-text";
 import { NoteIcon } from "@/components/note-icon";
 import { PageKindIcon } from "@/components/page-kind-icon";
+import { NOTE_COVERS, coverImageUrl, isPresetCover } from "@/lib/note-document";
 import { creatablePageKinds, PAGE_KIND_LABELS, PAGE_KIND_NEW_LABELS, PAGE_KIND_SECTION_LABELS, pageKindOf, type PageKind } from "@/lib/page-kinds";
 import { sectionKindOf, workspaceSections, type NewPageRequest } from "@/lib/workspace-sections";
 
@@ -206,14 +207,19 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onPrefetch,
             <ul ref={recentListRef} className="notes-recent-list" onScroll={updateRecentScroll}>
               {recent.map((page) => {
                 const kind = pageKindOf(page);
+                const preset = isPresetCover(page.cover) ? NOTE_COVERS[page.cover] : null;
+                const imageUrl = coverImageUrl(page.cover);
+                const hasCover = Boolean(preset || imageUrl);
                 return <li key={page.id}>
                   <button type="button" className={`notes-recent-card is-${kind}`} disabled={busy} onClick={() => onOpen(page.id)}
                     onPointerEnter={(event) => { if (event.pointerType !== "touch") onPrefetch?.(page.id, false); }}
                     onPointerLeave={() => onCancelPrefetch?.(page.id)}
                     onPointerDown={(event) => { if (event.pointerType !== "touch" && event.button === 0) onPrefetch?.(page.id, true); }}
                     onFocus={() => onPrefetch?.(page.id, true)}>
-                    <span className={`notes-recent-cover is-${kind}`} aria-hidden="true">
-                      <span className="notes-recent-motif" />
+                    <span className={`notes-recent-cover is-${kind}${hasCover ? " has-cover" : ""}`} style={preset ? { background: preset } : undefined} aria-hidden="true">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- 所有者確認付き API から返す private 画像のため next/image の最適化は使わない */}
+                      {imageUrl ? <img src={imageUrl} alt="" draggable={false} loading="lazy" className="notes-recent-cover-image" style={{ objectPosition: `center ${page.coverPosition ?? 50}%` }} /> : null}
+                      {!hasCover && <span className="notes-recent-motif" />}
                       {multiKind && <span className={`notes-recent-kind-pill is-${kind}`}>{t(PAGE_KIND_LABELS[kind])}</span>}
                     </span>
                     <span className={`notes-recent-icon${page.icon ? " has-custom" : ` is-${kind}`}`} aria-hidden="true">
