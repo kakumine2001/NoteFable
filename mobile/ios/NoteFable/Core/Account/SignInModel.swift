@@ -118,7 +118,10 @@ final class SignInDialogModel {
     func apple(request: @escaping @MainActor (String) async throws -> (code: String, name: String?)?) {
         guard !locked else { return }
         account.clearSignInFailed()
-        account.signInWithApple(request: request, beforeIdentityChange: beforeIdentityChange, onSignedIn: onSignedIn)
+        account.signInWithApple(request: request, beforeIdentityChange: beforeIdentityChange) { [onSignedIn, onClose] in
+            onSignedIn()
+            onClose()
+        }
     }
 
     var appleSignInFailed: Bool { account.state.signInFailed }

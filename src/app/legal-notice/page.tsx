@@ -72,7 +72,7 @@ export default function LegalNoticePage() {
           上限や利用できる AI モデルは、サービスの運営上の理由で変更することがあります。
         </Row>
         <Row term="動作環境">
-          最新版の主要ブラウザ（Chrome、Safari、Edge、Firefox）。Android アプリは Android 8.0 以上。
+          最新版の主要ブラウザ（Chrome、Safari、Edge、Firefox）。Android アプリは Android 8.0 以上。iOS アプリは iOS 17 以上。
         </Row>
       </dl>
       <p className="text-sm text-[var(--notion-muted)] [&_a]:text-[var(--notion-blue)] [&_a]:underline">

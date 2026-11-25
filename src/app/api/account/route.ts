@@ -1,7 +1,7 @@
 import { after, NextResponse, type NextRequest } from "next/server";
 import { appleStoreProduct } from "@/lib/apple-app-store";
 import { isAppleLoginConfigured } from "@/lib/apple-identity-config";
-import { revokeAppleLogin } from "@/lib/native-apple-login";
+import { lockAppleIdentity, revokeAppleLogin } from "@/lib/native-apple-login";
 import { deleteAccount } from "@/lib/account-deletion";
 import { cancelCustomerBilling, isBillingConfigured, isTrialEligible } from "@/lib/billing";
 import { PRO_TRIAL_DAYS } from "@/lib/usage-plans";
@@ -120,6 +120,8 @@ export async function DELETE(request: NextRequest) {
   let deleted;
   try {
     deleted = await withUserBillingLock(row.id, async (tx) => {
+      const appleSub = row.appleSub;
+      if (appleSub) await lockAppleIdentity(tx, appleSub);
       const billing = await tx.user.findUnique({ where: { id: row.id }, select: { stripeCustomerId: true, googlePurchaseToken: true, appleSub: true, appleRefreshToken: true } });
       if (billing?.stripeCustomerId || billing?.googlePurchaseToken) {
         try {

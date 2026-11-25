@@ -2,7 +2,8 @@ import { createSign } from "crypto";
 import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from "jose";
 import { optionalEnv } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
-import { applePurchasePending, isProStatus, readOwner, subscriptionAction, withUserBillingLock, writeSubscription, type SubscriptionOwner, type SubscriptionUpdate } from "@/lib/subscription-state";
+import { refreshAppleBillingOwner } from "@/lib/apple-app-store";
+import { applePurchasePending, isProStatus, readOwner, subscriptionAction, withUserBillingLock, writeSubscription, type BillingTx, type SubscriptionOwner, type SubscriptionUpdate } from "@/lib/subscription-state";
 
 // Android アプリの Google Play 購読（Play Billing）。アプリが購入トークンを POST /api/billing/google に送り、
 // サーバーが Google Play Developer API で確かめて、承認（acknowledge）し、行に写す。更新・解約などは
@@ -226,6 +227,19 @@ async function stopDuplicate(purchaseToken: string, subscription: PlaySubscripti
   if (!isPending(subscription) && isProStatus(playStatus(subscription).status)) await revoke(purchaseToken, playStatus(subscription).productId);
 }
 
+export async function blockApplePurchaseForPlay(tx: BillingTx, userId: string, token: string) {
+  const owner = await readOwner(tx, { id: userId });
+  if (!owner) return true;
+  const subscription = await fetchPlaySubscription(token).catch((error: unknown) => {
+    if (error instanceof GooglePlayError && (error.status === 404 || error.status === 410)) return null;
+    throw error;
+  });
+  if (!subscription) return false;
+  const update = playUpdate(owner, token, subscription);
+  if (subscriptionAction(owner, update) === "write") await writeSubscription(tx, owner, update);
+  return isProStatus(update.status) || renews(subscription) || update.status === "incomplete";
+}
+
 export type ClaimResult = "subscribed" | "pending" | "already-subscribed" | "not-yours" | "not-active";
 
 // アプリからの報告: この利用者が買った購読を確かめて承認し、行に写す。利用者のロックの中で、行を読み直してから。
@@ -234,8 +248,9 @@ export type ClaimResult = "subscribed" | "pending" | "already-subscribed" | "not
 export async function claimPlayPurchase(userId: string, purchaseToken: string): Promise<ClaimResult> {
   let toAcknowledge: string | null = null;
   const result = await withUserBillingLock(userId, async (tx): Promise<ClaimResult> => {
-    const owner = await readOwner(tx, { id: userId });
-    if (!owner) return "not-yours";
+    const snapshot = await readOwner(tx, { id: userId });
+    if (!snapshot) return "not-yours";
+    const owner = await refreshAppleBillingOwner(tx, snapshot);
     const subscription = await fetchPlaySubscription(purchaseToken);
     // この利用者のものと確かめられる購入だけを受け付ける: 購入に付けた利用者 ID が一致するか、
     // このトークン（または前のトークン）がすでにこの利用者に記録されている。ID が無い購入を、ほかの利用者が名乗れないように。
@@ -281,8 +296,9 @@ export async function syncPlayPurchase(purchaseToken: string) {
   }
   let toAcknowledge: string | null = null;
   const id = await withUserBillingLock(owner.id, async (tx) => {
-    const current = await readOwner(tx, { id: owner.id });
-    if (!current) return null;
+    const snapshot = await readOwner(tx, { id: owner.id });
+    if (!snapshot) return null;
+    const current = await refreshAppleBillingOwner(tx, snapshot);
     // ロックを取ってから読み直す（待っている間に状態が変わっていても、最新の状態を書く）。
     const subscription = await fetchPlaySubscription(purchaseToken);
     const view = asCurrentOwner(current, purchaseToken, subscription);

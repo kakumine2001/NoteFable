@@ -28,13 +28,13 @@ describe("App Store entitlement", () => {
   it("reserves one Apple checkout and only releases the matching reservation", async () => {
     const accountToken = "be5a8eb3-eed9-43bf-b63a-f719539a6c09";
     user.findUnique.mockResolvedValueOnce({ plan: "FREE", appleAppAccountToken: accountToken });
-    const prepared = await prepareApplePurchase("owner");
+    const prepared = await prepareApplePurchase("owner", async () => false);
     expect(prepared).toEqual({ token: accountToken, reservation: expect.any(String) });
     if (!prepared || !("reservation" in prepared) || !prepared.reservation) throw new Error("Missing reservation");
     const reservation = new Date(prepared.reservation);
     expect(reservation.getTime()).toBeGreaterThan(Date.now() + 24 * 60 * 60 * 1000);
     user.findUnique.mockResolvedValueOnce({ plan: "FREE", appleAppAccountToken: accountToken, applePurchaseHoldUntil: reservation });
-    expect(await prepareApplePurchase("owner")).toEqual({ pending: true });
+    expect(await prepareApplePurchase("owner", async () => false)).toEqual({ pending: true });
     await releaseApplePurchase("owner", reservation);
     expect(user.updateMany).toHaveBeenCalledWith({
       where: { id: "owner", applePurchaseHoldUntil: reservation },

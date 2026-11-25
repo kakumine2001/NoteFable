@@ -21,19 +21,22 @@ export async function GET(request: Request) {
   const googlePlay = isGooglePlayConfigured();
   const refresh = new URL(request.url).searchParams.get("refresh") === "1";
   const refreshStripe = refresh && configured && Boolean(user.stripeCustomerId);
-  const refreshPlay = refresh && googlePlay && Boolean(user.googlePurchaseToken);
+  const refreshPlayToken = refresh && googlePlay ? user.googlePurchaseToken : null;
   const appStoreProduct = appleStoreProduct();
   const refreshApple = Boolean(appStoreProduct && user.appleOriginalTransactionId && (refresh || appleStatusNeedsRefresh(user)));
-  if (refreshStripe || refreshPlay || refreshApple) {
-    try {
-      if (refreshStripe) await refreshCustomer(user);
-      if (refreshPlay && user.googlePurchaseToken) await syncPlayPurchase(user.googlePurchaseToken);
-      if (refreshApple) await syncApplePurchase(user);
-      row = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
-    } catch (error) {
-      // 取り直せなくても、いま分かっている状態を返す（Webhook があとで追いつく）。
-      console.warn("Failed to refresh subscription", error instanceof Error ? error.message : error);
+  if (refreshStripe || refreshPlayToken || refreshApple) {
+    const refreshers = [
+      refreshStripe ? () => refreshCustomer(user) : null,
+      refreshPlayToken ? () => syncPlayPurchase(refreshPlayToken) : null,
+      refreshApple ? () => syncApplePurchase(user) : null,
+    ];
+    for (const refreshProvider of refreshers) {
+      if (!refreshProvider) continue;
+      await refreshProvider().catch((error: unknown) => {
+        console.warn("Failed to refresh subscription", error instanceof Error ? error.name : "unknown");
+      });
     }
+    row = await prisma.user.findUnique({ where: { id: user.id } }) ?? user;
   }
 
   const [summary, storage] = await Promise.all([usageSummary(row), storageSummary(row)]);

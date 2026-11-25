@@ -310,6 +310,7 @@ let LOCALE_UNKNOWN = "?"
 struct AccountUser: Encodable, Equatable, Sendable {
     var name: String? = nil
     var googleName: String? = nil
+    var appleProfile: Bool? = nil
     var email: String? = nil
     var image: String? = nil
     var displayName: String? = nil
@@ -324,7 +325,7 @@ extension AccountUser: Decodable {
     init(from decoder: Decoder) throws {
         let f = try DtoFields(decoder)
         self.init(
-            name: try f.opt("name"), googleName: try f.opt("googleName"), email: try f.opt("email"), image: try f.opt("image"),
+            name: try f.opt("name"), googleName: try f.opt("googleName"), appleProfile: try f.opt("appleProfile"), email: try f.opt("email"), image: try f.opt("image"),
             displayName: try f.opt("displayName"), icon: try f.opt("icon"), avatarUrl: try f.opt("avatarUrl"),
             locale: f.has("locale") ? try f.opt("locale") : LOCALE_UNKNOWN
         )

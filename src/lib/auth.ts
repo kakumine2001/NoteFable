@@ -128,9 +128,9 @@ function isUniqueViolation(error: unknown) {
 }
 
 // いま使っている端末の匿名の行。まだどのアカウントにも紐付いていなければ、ログインした人がこのデータを引き継ぐ。
-export async function currentDeviceUser() {
+export async function currentDeviceUser(db: Pick<typeof prisma, "user"> = prisma) {
   const deviceId = await ensureAnonymousDeviceId();
-  return prisma.user.upsert({ where: { deviceId }, update: {}, create: { deviceId } });
+  return db.user.upsert({ where: { deviceId }, update: {}, create: { deviceId } });
 }
 
 async function getOrCreateGoogleUser(identity: GoogleIdentity): Promise<Awaited<ReturnType<typeof currentDeviceUser>>> {
@@ -296,13 +296,13 @@ async function anonymousUser() {
 }
 
 // 画面に出すアカウントのプロフィール（Google の名前・写真、メールログインならアドレスだけ）。未ログインなら null。
-export async function currentAccountProfile(): Promise<{ name: string | null; email: string | null; image: string | null } | null> {
+export async function currentAccountProfile(): Promise<{ name: string | null; email: string | null; image: string | null; appleProfile?: true } | null> {
   const identity = await getAccountIdentity();
   if (!identity) return null;
   if (identity.kind === "email") return { name: null, email: identity.email, image: null };
   if (identity.kind === "apple") {
     const user = await findAppleSessionUser(identity);
-    return user && { name: user.name, email: user.email, image: null };
+    return user && { name: user.name, email: user.email, image: null, appleProfile: true };
   }
   return { name: identity.name, email: identity.email, image: identity.image };
 }

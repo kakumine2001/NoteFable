@@ -831,6 +831,8 @@ struct FixtureCatalog: Sendable {
         [
             "billing": true,
             "googlePlay": false,
+            "appStoreProduct": "notefable.fixture.pro.monthly",
+            "appStorePurchase": true,
             "productId": .null,
             "accountId": "fx-user-1",
             "provider": .null,

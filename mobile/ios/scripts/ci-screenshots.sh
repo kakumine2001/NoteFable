@@ -2,7 +2,7 @@
 # Fixture-mode screenshots of the Debug simulator build across iOS majors and UI variants.
 # Usage: ci-screenshots.sh <NoteFable.app> <out-dir>
 #        ci-screenshots.sh --boot-only   (CI: boot the simulators ahead of time, leave them running, capture nothing)
-# Env: NF_IOS_MAJORS, NF_VARIANTS, NF_SCENES
+# Env: NF_IOS_MAJORS, NF_VARIANTS, NF_SCENES, NF_DEVICE_FAMILY
 # Written for macOS /bin/bash (bash 3.2): no mapfile, no associative arrays, no ${var,,}, no sort -V.
 set -euo pipefail
 
@@ -18,10 +18,15 @@ fi
 
 read -r -a MAJORS   <<<"${NF_IOS_MAJORS:-26 18}"
 read -r -a VARIANTS <<<"${NF_VARIANTS:-light dark ar rt}"
-DEFAULT_SCENES="chat-empty chat chat-streaming drawer workspace editor page-menu search model-sheet attach-sheet settings sign-in"
+DEFAULT_SCENES="chat-empty chat chat-streaming drawer workspace editor page-menu search model-sheet attach-sheet settings settings-plan sign-in"
 read -r -a SCENES   <<<"${NF_SCENES:-$DEFAULT_SCENES}"
 
-DEVICES=("iPhone 17 Pro" "iPhone 18 Pro" "iPhone 16 Pro" "iPhone 17" "iPhone 16")
+DEVICE_FAMILY="${NF_DEVICE_FAMILY:-iPhone}"
+case "$DEVICE_FAMILY" in
+  iPhone) DEVICES=("iPhone 17 Pro" "iPhone 18 Pro" "iPhone 16 Pro" "iPhone 17" "iPhone 16") ;;
+  iPad) DEVICES=("iPad Air 11-inch (M4)" "iPad Air 11-inch (M3)" "iPad Pro 11-inch (M5)" "iPad Pro 11-inch (M4)") ;;
+  *) echo "::error::Unsupported simulator family: $DEVICE_FAMILY"; exit 1 ;;
+esac
 USER_DEVELOPER_DIR="${DEVELOPER_DIR:-}"
 BUNDLE_ID=""
 if (( ! BOOT_ONLY )); then
@@ -113,7 +118,7 @@ devicetype_for() {
       return 0
     fi
   done
-  picked=$(awk -F'\t' '$1 ~ /iPhone/ { print $2; exit }' <<<"$supported")
+  picked=$(awk -F'\t' -v family="$DEVICE_FAMILY" 'index($1, family) == 1 { print $2; exit }' <<<"$supported")
   if [[ -n "$picked" ]]; then
     printf '%s\n' "$picked"
     return 0
@@ -131,7 +136,7 @@ find_or_create_device() {
       | select(.isAvailable and ((.name | contains("Duo")) or (.deviceTypeIdentifier | contains("Duo")) | not))
       | "\(.name)\t\(.udid)"')
     # "NoteFable iOS <major>" is the simulator an earlier --boot-only run had to create.
-    for name in "NoteFable iOS ${major}" "${DEVICES[@]}"; do
+    for name in "NoteFable ${DEVICE_FAMILY} ${major}" "${DEVICES[@]}"; do
       udid=$(awk -F'\t' -v n="$name" '$1 == n { print $2; exit }' <<<"$available")
       if [[ -n "$udid" ]]; then
         printf 'existing\t%s\t%s\n' "$udid" "$name"
@@ -283,7 +288,7 @@ run_batch() {
 declare -a SIGNED_IN_BATCH=()
 declare -a GUEST_BATCH=()
 if [[ -z "${NF_SCENES:-}" ]]; then
-  SIGNED_IN_BATCH=(chat-empty chat model-sheet attach-sheet drawer search settings workspace editor page-menu chat-streaming)
+  SIGNED_IN_BATCH=(chat-empty chat model-sheet attach-sheet drawer search settings settings-plan workspace editor page-menu chat-streaming)
   GUEST_BATCH=(sign-in)
 else
   for s in "${SCENES[@]}"; do
@@ -359,7 +364,7 @@ for major in "${MAJORS[@]}"; do
   fi
 
   device_info=$(find_or_create_device "$major" "$runtime") || {
-    echo "::error::No iPhone device type supports ${runtime}."
+    echo "::error::No ${DEVICE_FAMILY} device type supports ${runtime}."
     failed=1
     continue
   }
@@ -467,7 +472,7 @@ variants_order = ['light', 'dark', 'ar', 'ar-app', 'rt']
 scenes_order = [
     'chat-empty', 'chat', 'chat-streaming', 'drawer', 'workspace',
     'editor', 'page-menu', 'search', 'model-sheet', 'attach-sheet',
-    'settings', 'sign-in',
+    'settings', 'settings-plan', 'sign-in',
 ]
 
 parts = [

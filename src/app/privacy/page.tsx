@@ -23,10 +23,10 @@ export default function PrivacyPage() {
           <li>
             <strong>A device identifier.</strong> When you use the app, we create a random identifier and store it in a signed,
             HTTP-only cookie named <code>notefable_device</code> (valid for one year). Your chats and Workspace content are saved under this identifier.
-            If you clear your cookies, you lose access to that data in that browser unless you signed in with Google.
+            If you clear your cookies, you lose access to that data in that browser if you were using NoteFable without signing in.
             When you sign in with Google, the sign-in also sets an HTTP-only session cookie (about 30 days) that holds your Google account ID, email,
             name and profile-picture link, plus a few short-lived cookies used only to complete the sign-in. The Android app uses one more HTTP-only
-            cookie, valid for 5 minutes, while it signs you in.
+            cookie, valid for 5 minutes, while it signs you in. Apple sign-in on iOS also uses a 5-minute challenge cookie and a signed session cookie that identifies your Apple account.
             The web app (app.notefable.com) also sets a cookie named <code>notefable_app</code> for notefable.com and its subdomains
             (valid for about 13 months). It only records that this browser has used the web app, so notefable.com can take you straight back to it;
             it contains no identifier.
@@ -60,8 +60,8 @@ export default function PrivacyPage() {
             was made from and where it is stored. We keep the email only as long as we need it for the review.
           </li>
           <li>
-            <strong>The Android app.</strong> The app stores the same cookies on your phone and sends the same data as the website. It reads only the photos
-            and files you pick, and photos you take with your camera app; it does not read your contacts, location or advertising ID, and it contains no ads
+            <strong>The Android and iOS apps.</strong> The apps store the same cookies on your phone and send the same data as the website. They read only the photos
+            and files you pick, and photos you take with your camera app. They do not read your contacts, location or advertising ID, and they contain no ads
             or third-party analytics. Images you save go to your photo gallery.
           </li>
           <li>
@@ -147,7 +147,7 @@ export default function PrivacyPage() {
           until we remove them. Signing out does not delete anything.
         </p>
         <p>
-          <strong>Deleting your account.</strong> When signed in, open <em>Settings → Account → Delete account</em> on the website or in the Android app. This immediately and
+          <strong>Deleting your account.</strong> When signed in, open <em>Settings → Account → Delete account</em> on the website or in the Android or iOS app. This immediately and
           permanently deletes your account and everything in it: chats, messages, notes, note history, projects, uploaded and generated images, files, your profile
           and settings. It also ends a Pro subscription bought on the website immediately, deletes your customer record at Stripe, and stops a Google Play subscription from renewing. Apple subscriptions are managed in the App Store. We request revocation of Apple sign-in authorization during deletion. If Apple is unavailable, you can revoke access in your Apple Account settings. Payment providers retain payment records as the law requires. Database backups that may still contain it are overwritten within 30 days. To keep other signed-in devices from re-creating the account, we keep a one-way hash of linked sign-in identifiers (not the ID or address itself) for 400 days. If you cannot sign in, email
           {" "}<a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a> from the account’s address and we will delete it within 30 days.

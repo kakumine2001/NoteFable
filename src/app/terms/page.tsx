@@ -15,7 +15,7 @@ export default function TermsPage() {
       <LegalSection title="1. Agreement">
         <p>
           These terms apply to your use of NoteFable at <a href="https://notefable.com">notefable.com</a>
-          {" "}and its Android app. By using NoteFable you agree to them and to the <Link href="/privacy">Privacy Policy</Link>. If you do not agree, please do not use it.
+          {" "}and in its Android and iOS apps. By using NoteFable you agree to them and to the <Link href="/privacy">Privacy Policy</Link>. If you do not agree, please do not use it.
         </p>
       </LegalSection>
 

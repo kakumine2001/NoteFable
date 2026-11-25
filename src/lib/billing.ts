@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { refreshAppleBillingOwner } from "@/lib/apple-app-store";
 import { optionalEnv } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 import { PRO_TRIAL_DAYS } from "@/lib/usage-plans";
@@ -81,8 +82,9 @@ function customerIdOf(subscription: Stripe.Subscription) {
 // 購読を持ち主の行に写す。ロックの中で、持ち主を読み直してから。
 // 別の購読（Google Play も含む）が PRO の間にもう 1 つ課金の続く Stripe の購読ができていたら、二重課金なのでその新しい方を止める。
 async function applySubscription(tx: BillingTx, userId: string, subscription: Stripe.Subscription) {
-  const owner = await readOwner(tx, { id: userId });
-  if (!owner) return null;
+  const snapshot = await readOwner(tx, { id: userId });
+  if (!snapshot) return null;
+  const owner = await refreshAppleBillingOwner(tx, snapshot);
   const period = subscriptionPeriod(subscription);
   const update = {
     provider: "stripe" as const,

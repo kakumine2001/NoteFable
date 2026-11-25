@@ -16,7 +16,7 @@ NoteFable 的收费只有一种：月额订阅 **Pro**，每月 ¥300（税込�
 - 图片有两层上限：月（账期）总量和每日张数，任何一层满了就拒绝，提示句会说明是今天的还是本月的。每日上限让用户每天都能用，月总量控制成本（一张图约 ¥4–8，是聊天的几十倍）。设置的“方案”里 Pro 显示两条图片生成用量（本期 / 今日），免费方案平时只显示今日图片生成（后台仍执行月总量上限，触顶时补显示满额的本月条）。
 - 同一网络的未登录用户另有共同上限：聊天 100 / 天，图片 30 / 月（未登录清 Cookie 就是新用户，图片靠这个上限兜底；登录后不受限）。网络按 IPv4 地址或 IPv6 的前 64 位计（`networkAddress`），在自己的 /64 里换地址逃不掉；换 IP（代理）仍然逃得掉，没有全站的未登录总量上限。
 - 免费的月用量（40 × 31 = 1,240 条）低于 Pro，测试会检查。
-- **文件存储**是这个用户放在文件仓库里的全部文件的合计（聊天附件图片、生成的图片、笔记的图片和文件、封面和页面图标、头像、设置里的图标；1 MB = 1 MiB，界面写作 MB / GB）。工作区上传（笔记文件、封面、图标，以及将来白板 / 幻灯片的图片）单个最多 4 MB，聊天附件仍是单个 20 MB。放不下时新的上传（和图片生成）被拒绝：413 `{ error, code: "storage_limit", tier, used, limit }`，三端显示用量和原因，游客另有登录按钮、免费用户另有 Pro 升级按钮（网页 Stripe、Android Play；iOS 没有内购，只说明原因）；服务端的句子不提升级。已有的文件不受影响。删掉的文件在不再被引用约一周后才释放空间（编辑历史、Trash 里的笔记仍算引用）。设置的“方案”页显示“存储”用量条（`GET /api/billing` 的 `storage: { used, limit }`，字节）。成本参考：Vercel Blob 按存储量和操作次数计费，Pro 的 10 GB 存满时主要是存储费；清理任务每天的 `list()` 次数很少（[database.md](database.md#storedfile)）。
+- **文件存储**是这个用户放在文件仓库里的全部文件的合计（聊天附件图片、生成的图片、笔记的图片和文件、封面和页面图标、头像、设置里的图标；1 MB = 1 MiB，界面写作 MB / GB）。工作区上传（笔记文件、封面、图标，以及将来白板 / 幻灯片的图片）单个最多 4 MB，聊天附件仍是单个 20 MB。放不下时新的上传（和图片生成）被拒绝：413 `{ error, code: "storage_limit", tier, used, limit }`，三端显示用量和原因，游客另有登录按钮、免费用户另有 Pro 升级按钮（网页 Stripe、Android Play；iOS App Store）；服务端的句子不提升级。已有的文件不受影响。删掉的文件在不再被引用约一周后才释放空间（编辑历史、Trash 里的笔记仍算引用）。设置的“方案”页显示“存储”用量条（`GET /api/billing` 的 `storage: { used, limit }`，字节）。成本参考：Vercel Blob 按存储量和操作次数计费，Pro 的 10 GB 存满时主要是存储费；清理任务每天的 `list()` 次数很少（[database.md](database.md#storedfile)）。
 
 ### 定价依据（2026-11 查价）
 
@@ -31,7 +31,7 @@ NoteFable 的收费只有一种：月额订阅 **Pro**，每月 ¥300（税込�
 ## iOS
 
 - App Store Connect 的订阅组为 NoteFable Pro，月付商品 ID 为 `com.kakumine.notefable.pro.monthly`。商品价格在 App Store Connect 的各店面配置，App 通过 StoreKit 显示当地价格。首次内购需随 App 版本送审。
-- App 在发起购买前请求服务端检查已有权益并取得此账号专用的随机 UUID。StoreKit 把 UUID 和 App Store 交易绑定。恢复购买只能恢复原来的 NoteFable 账号。待批准期间会暂缓其他渠道发起订阅，取消购买或确认成交可提前解除等候。
+- App 在发起购买前请求服务端检查已有权益并取得此账号专用的随机 UUID。StoreKit 把 UUID 和 App Store 交易绑定。恢复购买按 Apple 签名中记录的账号识别；没有账号标记的续订只能恢复已绑定的原始交易。Apple 明确签名将一次重新购买绑定到另一个账号时，原始交易跟随此次购买。待批准期间会暂缓其他渠道发起订阅，取消购买或确认成交可提前解除等候。
 - 服务端验证 Apple 签名、产品、环境、交易和账号绑定，在账号账务锁内查询 Apple 的最新订阅状态。App 交付成功后才结束 StoreKit 交易。签名通知 v2 使用 `/api/billing/apple/notify`，续费、退款、撤销和宽限期同步到共用权益。
 - App Store 订阅由 Apple 管理。删除 NoteFable 账号之前提供 App Store 订阅管理入口，用户可以在那里取消续费。
 
@@ -39,7 +39,7 @@ NoteFable 的收费只有一种：月额订阅 **Pro**，每月 ¥300（税込�
 
 第一次订阅 Pro 的用户先免费用 30 天（`PRO_TRIAL_DAYS`），要先登记付款方式，到期自动开始按月扣费；试用期间解约不扣费，Pro 用到试用结束。每个账号一次。
 
-- **资格**：`isTrialEligible`（`src/lib/billing.ts`）= 用户行的 `subscriptionStatus` 为 null（两种来源都没订阅过；订阅过一次这个字段就一直留着）。`GET /api/billing` 返回 `trialDays`（有资格是 30，否则 0）；`GET /api/account` 只在 Stripe 计费已配置且有资格时返回 30（否则 0）。界面据此把按钮写成“开始 30 天免费试用”并加一行“前 30 天免费，之后每月 ¥300。试用结束前取消就不会扣费。”
+- **资格**：`isTrialEligible`（`src/lib/billing.ts`）= 用户行的 `subscriptionStatus` 为 null（各来源都没订阅过；订阅过一次这个字段就一直留着）。`GET /api/billing` 返回 `trialDays`（有资格是 30，否则 0）；`GET /api/account` 只在 Stripe 计费已配置且有资格时返回 30（否则 0）。界面据此把按钮写成“开始 30 天免费试用”并加一行“前 30 天免费，之后每月 ¥300。试用结束前取消就不会扣费。”
 - **网页（Stripe）**：建 Checkout Session 时，有资格且这个 Stripe 客户没有任何过往订阅，就在 `subscription_data` 里加 `trial_period_days` 和 `trial_settings.end_behavior.missing_payment_method = cancel`。Checkout 默认要求登记付款方式，并在页面上显示“30 天免费，之后每月 ¥300”。试用中的订阅状态是 `trialing`（算 Pro），账期就是试用期，月上限按它计；设置里显示“免费试用将于…结束，之后 Pro 每月 ¥300”。
 - **Android（Google Play）**：试用是 Play Console 里基础方案 `monthly` 上的“免费试用”优惠（30 天）。资格必须选“新客户获取”（Play 保证每个 Google 账号只给一次）；不要选“开发者指定”：那种优惠 Play 不检查资格，服务端也不核对购买用的是哪个 offer，改过的客户端就能反复试用。App 读商品时，服务端说有资格（`trialDays > 0`）就优先选第一阶段价格为 0 的 offer，试用天数取自这个阶段的计费周期（`isoPeriodDays`）；没有这种 offer（Console 里没建，或 Play 判断这个 Google 账号没资格）就照常显示“升级到 Pro”。服务端说没资格时只用不带试用的基础方案。Play 的试用期间状态是 `ACTIVE`。
 - 已知的漏洞，暂时接受：删除账号后重新注册、或换一个邮箱注册，同一张卡可以再试用一次（不按卡去重）；试用结束时扣款失败的订阅在 Stripe 重试期间是 `past_due`，仍算 Pro 并拿到新一期的额度。后者靠 Stripe 后台把重试期设短（Billing → 订阅与邮件）来限制。用量出现这类滥用时再做按卡指纹去重。
@@ -86,7 +86,7 @@ Google Play 要求 App 内的数字订阅走 Play 结算，不能引导去网页
 2. **报告**：买到后 App 把购买令牌发到 `POST /api/billing/google`。服务端用 Play Developer API（`purchases.subscriptionsv2.get`）核对：令牌上的 `obfuscatedExternalAccountId`（Play 商店里重新购买时是原购买的）必须是当前用户；没有这个 ID 时，只认已经记录在当前用户上的令牌（或它的前一个令牌）；令牌也不能已被别的用户用过。有效就确认（acknowledge）并写入，返回 Pro。付款还在处理（`PENDING`）时返回 202。网页（Stripe）已经是 Pro 时不确认这笔购买，Google 3 天后自动退款，返回 409。App 打开设置时会把没报告成功的购买（还没确认的）再报告一次。
 3. **RTDN**：Play 的 Real-time developer notifications 经 Pub/Sub push 到 `POST /api/billing/google/notify`。Pub/Sub 在 `Authorization` 里带一个用推送服务账号签名的 Google ID 令牌（OIDC），服务端校验签名、发行者、audience（这个地址）和发送者邮箱（`GOOGLE_PLAY_PUSH_SERVICE_ACCOUNT`），不在地址里放口令（`verifyPushToken`）。只取通知里的购买令牌，状态每次向 Google 重新读取（`syncPlayPurchase`）；按令牌、被替换的旧令牌（`linkedPurchaseToken`）、再按 `accountId` 找用户。App 没报告到的有效购买在这里确认。持有者已删除时停止续费。失败返回 500 让 Pub/Sub 重发。
 4. **状态对应**：`ACTIVE`（未到期）→ `active`（已到期则 `canceled`）；`CANCELED`（已取消续费）到期前仍是 `active`，`subscriptionCancelAt` = 到期时间；`IN_GRACE_PERIOD` → `past_due`（仍是 Pro）；`ON_HOLD` → `unpaid`、`PAUSED` → `paused`、`PENDING` → `incomplete`、`PENDING_PURCHASE_CANCELED` → `incomplete_expired`、`EXPIRED` → `canceled`（都不是 Pro）。Play 不返回账期开始日：第一次按到期前一个月计，之后同一份订阅只在真正续费（状态为 ACTIVE 且到期时间往后推了一天以上）时把上一期的到期时间作为新的开始日；宽限期里 Google 每天延长到期时间，这时开始日不变（否则月上限的计数会被重置）。
-5. **管理**：Play 买的 Pro 在网页和 Android App 的设置里都显示“在 Google Play 上管理订阅”，打开 Play 的订阅页面。网页（Stripe）买的订阅在 Android App 里没有管理入口；iOS 端方案卡片为只读，两种来源均不显示购买或管理按钮。
+5. **管理**：Play 买的 Pro 在网页和 Android App 的设置里都显示“在 Google Play 上管理订阅”，打开 Play 的订阅页面。网页（Stripe）买的订阅在 Android App 里没有管理入口。iOS 可通过 App Store 购买与管理自己的订阅；其他渠道的已有权益同样可用。
 6. **删除账号**：先停止 Play 订阅的续费（`purchases.subscriptions.cancel`，已付的期限内 Google 侧仍有效，之后不再扣费），失败就不删除。
 
 并发：同一个用户的所有计费处理（结账、Stripe / Play 的同步、购买报告、删除账号）都在按用户的 Postgres advisory lock 里一次只做一个（`withUserBillingLock`，锁里重新读用户行，库操作走同一个事务连接）。所以并发的通知不会用旧状态盖掉新状态；两个页面同时结账，后一个会先让前一个的页面过期再检查订阅；等着结账的请求在删号之后拿到锁时，读不到用户行就放弃。

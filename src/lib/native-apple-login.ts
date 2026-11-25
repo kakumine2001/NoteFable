@@ -1,9 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createRemoteJWKSet, EncryptJWT, errors, importPKCS8, jwtDecrypt, jwtVerify, SignJWT } from "jose";
 import { appleIdentityConfig, IOS_BUNDLE_ID } from "@/lib/apple-identity-config";
+import { Prisma } from "@/generated/prisma/client";
+import { deletedAccountKey } from "@/lib/deleted-accounts";
 import { currentDeviceUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { withUserBillingLock } from "@/lib/subscription-state";
+import type { BillingTx } from "@/lib/subscription-state";
 
 const issuer = "https://appleid.apple.com";
 const keys = createRemoteJWKSet(new URL(`${issuer}/auth/keys`));
@@ -53,34 +55,36 @@ export async function exchangeAppleCode(code: string, nonce: string, name: strin
   };
 }
 
-export async function saveAppleAccount(identity: NonNullable<Awaited<ReturnType<typeof exchangeAppleCode>>>) {
-  const { appleSub, appleRefreshToken, appleAuthorizedAt, name, email } = identity;
-  const where = { appleSub };
-  const updateExisting = (id: string) => withUserBillingLock(id, async (tx) => {
-    const updated = await tx.user.updateMany({
-      where: { id, appleSub, OR: [{ appleRevokedAt: null }, { appleRevokedAt: { lt: appleAuthorizedAt } }] },
-      data: { appleRefreshToken, appleAuthorizedAt, ...(name ? { name } : {}), ...(email ? { email } : {}) },
-    });
-    return updated.count === 1;
-  });
-  const existing = await prisma.user.findUnique({ where, select: { id: true } });
-  if (existing) return updateExisting(existing.id);
+export async function lockAppleIdentity(tx: BillingTx, appleSub: string) {
+  await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`notefable-auth:apple:${appleSub}`}))`);
+}
 
-  // Apple 邮箱可能是转发地址；仅按 Apple 的稳定账号 ID 识别，不按邮箱合并。
-  const device = await currentDeviceUser();
-  try {
-    const claimed = await prisma.user.updateMany({
+export async function saveAppleAccount(identity: NonNullable<Awaited<ReturnType<typeof exchangeAppleCode>>>, startedAt: number) {
+  const { appleSub, appleRefreshToken, appleAuthorizedAt, name, email } = identity;
+  return prisma.$transaction(async (tx) => {
+    // Account deletion takes the same lock before writing the tombstone.
+    await lockAppleIdentity(tx, appleSub);
+    const deletion = await tx.deletedAccount.findUnique({ where: { key: deletedAccountKey({ kind: "apple", sub: appleSub }) } });
+    if (deletion && deletion.deletedAt.getTime() >= startedAt) return false;
+
+    const existing = await tx.user.findUnique({ where: { appleSub }, select: { id: true } });
+    if (existing) {
+      const updated = await tx.user.updateMany({
+        where: { id: existing.id, appleSub, OR: [{ appleRevokedAt: null }, { appleRevokedAt: { lt: appleAuthorizedAt } }] },
+        data: { appleRefreshToken, appleAuthorizedAt, ...(name ? { name } : {}), ...(email ? { email } : {}) },
+      });
+      return updated.count === 1;
+    }
+
+    // Apple 邮箱可能是转发地址；仅按 Apple 的稳定账号 ID 识别，不按邮箱合并。
+    const device = await currentDeviceUser(tx);
+    const claimed = await tx.user.updateMany({
       where: { id: device.id, appleSub: null, googleSub: null, verifiedEmail: null },
       data: identity,
     });
-    if (claimed.count) return true;
-    await prisma.user.create({ data: { deviceId: randomUUID(), ...identity } });
+    if (!claimed.count) await tx.user.create({ data: { deviceId: randomUUID(), ...identity } });
     return true;
-  } catch (error) {
-    if ((error as { code?: string }).code !== "P2002") throw error;
-    const winner = await prisma.user.findUnique({ where, select: { id: true } });
-    return winner ? updateExisting(winner.id) : false;
-  }
+  }, { maxWait: 15_000, timeout: 60_000 });
 }
 
 export async function syncAppleIdentityEvent(token: string) {

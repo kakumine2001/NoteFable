@@ -16,6 +16,7 @@ enum ScreenshotScene: String, CaseIterable, Sendable {
     case modelSheet = "model-sheet"
     case attachSheet = "attach-sheet"
     case settings
+    case settingsPlan = "settings-plan"
     case signIn = "sign-in"
 }
 

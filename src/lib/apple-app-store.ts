@@ -4,10 +4,9 @@ import {
   VerificationException, VerificationStatus, type JWSTransactionDecodedPayload,
 } from "@apple/app-store-server-library";
 import { IOS_BUNDLE_ID } from "@/lib/apple-identity-config";
-import { blockApplePurchaseForStripe } from "@/lib/billing";
 import { optionalEnv } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
-import { applePurchasePending, isProStatus, readOwner, subscriptionAction, withUserBillingLock, writeSubscription } from "@/lib/subscription-state";
+import { applePurchasePending, isProStatus, readOwner, subscriptionAction, withAppleBillingLocks, withUserBillingLock, writeSubscription, type BillingTx, type SubscriptionOwner } from "@/lib/subscription-state";
 
 export const APPLE_MANAGE_URL = "https://apps.apple.com/account/subscriptions";
 
@@ -68,12 +67,21 @@ export function applePlanStatus(status: number | undefined, periodEnd: Date, now
   return "canceled";
 }
 
-export async function prepareApplePurchase(userId: string) {
+type OtherBilling = {
+  id: string;
+  stripeCustomerId: string | null;
+  googlePurchaseToken: string | null;
+  subscriptionProvider: string | null;
+  subscriptionStatus: string | null;
+};
+type CheckOtherBilling = (tx: BillingTx, user: OtherBilling) => Promise<boolean>;
+
+export async function prepareApplePurchase(userId: string, checkOtherBilling: CheckOtherBilling) {
   return withUserBillingLock(userId, async (tx) => {
-    const user = await tx.user.findUnique({ where: { id: userId }, select: { plan: true, appleAppAccountToken: true, stripeCustomerId: true, applePurchaseHoldUntil: true } });
+    const user = await tx.user.findUnique({ where: { id: userId }, select: { id: true, plan: true, appleAppAccountToken: true, stripeCustomerId: true, googlePurchaseToken: true, subscriptionProvider: true, subscriptionStatus: true, applePurchaseHoldUntil: true } });
     if (!user || user.plan === "PRO") return null;
     if (applePurchasePending(user)) return { pending: true } as const;
-    if (user.stripeCustomerId && await blockApplePurchaseForStripe(tx, userId, user.stripeCustomerId)) return null;
+    if (await checkOtherBilling(tx, user)) return null;
     const token = user.appleAppAccountToken ?? randomUUID();
     // Ask to Buy may complete after the app closes. Reserve slightly longer than its 24-hour approval window.
     const holdUntil = new Date(Date.now() + 25 * 60 * 60 * 1000);
@@ -91,7 +99,7 @@ export async function releaseApplePurchase(userId: string, reservation: Date) {
   });
 }
 
-async function currentSubscription(originalId: string, token: string, environment: StoreEnvironment) {
+async function currentSubscription(originalId: string, token: string, environment: StoreEnvironment, knownBinding: boolean) {
   const { client, verifier, product } = store(environment);
   const result = await client.getAllSubscriptionStatuses(originalId);
   const item = result.data?.flatMap((group) => group.lastTransactions ?? [])
@@ -101,9 +109,10 @@ async function currentSubscription(originalId: string, token: string, environmen
     verifier.verifyAndDecodeTransaction(item.signedTransactionInfo),
     verifier.verifyAndDecodeRenewalInfo(item.signedRenewalInfo),
   ]);
+  const reportedToken = transaction.appAccountToken?.toLowerCase();
   if (transaction.productId !== product || transaction.originalTransactionId !== originalId ||
-      transaction.appAccountToken?.toLowerCase() !== token || renewal.originalTransactionId !== originalId ||
-      !transaction.purchaseDate || !transaction.expiresDate) return null;
+      renewal.originalTransactionId !== originalId || !transaction.purchaseDate || !transaction.expiresDate) return null;
+  if (reportedToken ? reportedToken !== token : !knownBinding) return "different-account" as const;
   const graceEnd = item.status === Status.BILLING_GRACE_PERIOD ? renewal.gracePeriodExpiresDate : undefined;
   const periodEnd = new Date(graceEnd ?? transaction.expiresDate);
   const status = transaction.revocationDate ? "canceled" : applePlanStatus(item.status, periodEnd);
@@ -120,14 +129,32 @@ async function currentSubscription(originalId: string, token: string, environmen
 type ApplePurchaseResult = "subscribed" | "inactive" | "conflict" | "not-yours";
 
 async function sync(userId: string, token: string, originalId: string): Promise<ApplePurchaseResult> {
-  return withUserBillingLock(userId, async (tx) => {
+  return withAppleBillingLocks(originalId, userId, async (tx, previousUserId) => {
     const row = await tx.user.findUnique({ where: { id: userId }, select: { appleAppAccountToken: true } });
     if (token !== row?.appleAppAccountToken) return "not-yours";
     const owner = await readOwner(tx, { id: userId });
     if (!owner) return "not-yours";
-    const update = await currentSubscription(originalId, token, appleStoreEnvironment(userId));
-    if (!update) return "not-yours";
+    const environment = appleStoreEnvironment(userId);
+    const update = await currentSubscription(originalId, token, environment, owner.appleOriginalTransactionId === originalId);
+    if (!update || update === "different-account") return "not-yours";
     const action = subscriptionAction(owner, update);
+    const canRecordBinding = action === "write" || (action === "duplicate" && !owner.appleOriginalTransactionId && owner.subscriptionProvider !== "apple");
+    if (previousUserId && canRecordBinding && isProStatus(update.status)) {
+      if (appleStoreEnvironment(previousUserId) !== environment) return "not-yours";
+      const previous = await readOwner(tx, { id: previousUserId });
+      if (previous?.appleOriginalTransactionId === originalId) {
+        await tx.user.update({
+          where: { id: previousUserId },
+          data: {
+            appleOriginalTransactionId: null,
+            ...(previous.subscriptionProvider === "apple" ? {
+              plan: "FREE", subscriptionStatus: "canceled", subscriptionPeriodStart: null,
+              subscriptionPeriodEnd: null, subscriptionCancelAt: null,
+            } : {}),
+          },
+        });
+      }
+    }
     if (isProStatus(update.status) && owner.applePurchaseHoldUntil) {
       await tx.user.update({ where: { id: userId }, data: { applePurchaseHoldUntil: null } });
     }
@@ -146,10 +173,13 @@ async function sync(userId: string, token: string, originalId: string): Promise<
 async function syncTransaction(transaction: JWSTransactionDecodedPayload, environment: StoreEnvironment, userId?: string) {
   const token = transaction.appAccountToken?.toLowerCase();
   const originalId = transaction.originalTransactionId;
-  if (!token || !originalId || transaction.productId !== appleStoreProduct()) return "not-yours";
-  const owner = await prisma.user.findUnique({ where: { appleAppAccountToken: token }, select: { id: true } });
-  if (!owner || appleStoreEnvironment(owner.id) !== environment || (userId && userId !== owner.id)) return "not-yours";
-  return sync(owner.id, token, originalId);
+  if (!originalId || transaction.productId !== appleStoreProduct()) return "not-yours";
+  const owner = await prisma.user.findUnique({
+    where: token ? { appleAppAccountToken: token } : { appleOriginalTransactionId: originalId },
+    select: { id: true, appleAppAccountToken: true },
+  });
+  if (!owner?.appleAppAccountToken || appleStoreEnvironment(owner.id) !== environment || (userId && userId !== owner.id)) return "not-yours";
+  return sync(owner.id, owner.appleAppAccountToken, originalId);
 }
 
 export async function claimApplePurchase(userId: string, jws: string) {
@@ -167,12 +197,32 @@ export async function syncAppleNotification(signedPayload: string, sandbox: bool
 
 export type AppleBillingOwner = { id: string; appleAppAccountToken: string | null; appleOriginalTransactionId: string | null; subscriptionProvider?: string | null; subscriptionStatus?: string | null; subscriptionPeriodEnd?: Date | null };
 
-export function appleStatusNeedsRefresh(user: AppleBillingOwner) {
+export function appleStatusNeedsRefresh(user: Pick<AppleBillingOwner, "appleOriginalTransactionId" | "subscriptionProvider" | "subscriptionStatus" | "subscriptionPeriodEnd">) {
   return Boolean(user.appleOriginalTransactionId && user.subscriptionProvider === "apple" && isProStatus(user.subscriptionStatus) && (user.subscriptionPeriodEnd?.getTime() ?? 0) <= Date.now());
+}
+
+export async function refreshAppleBillingOwner(tx: BillingTx, owner: SubscriptionOwner) {
+  if (!owner.appleOriginalTransactionId || !appleStatusNeedsRefresh({ ...owner, appleOriginalTransactionId: owner.appleOriginalTransactionId })) return owner;
+  const row = await tx.user.findUnique({ where: { id: owner.id }, select: { appleAppAccountToken: true } });
+  if (!row?.appleAppAccountToken) return owner;
+  const update = await currentSubscription(owner.appleOriginalTransactionId, row.appleAppAccountToken, appleStoreEnvironment(owner.id), true);
+  if (!update) throw new Error("Could not reconcile the App Store subscription.");
+  const resolved = update === "different-account"
+    ? { provider: "apple" as const, appleOriginalTransactionId: owner.appleOriginalTransactionId, status: "canceled", periodStart: null, periodEnd: null, cancelAt: null }
+    : update;
+  await writeSubscription(tx, owner, resolved);
+  return { ...owner, subscriptionStatus: resolved.status, subscriptionPeriodStart: resolved.periodStart, subscriptionPeriodEnd: resolved.periodEnd };
 }
 
 export async function syncApplePurchase(user: AppleBillingOwner) {
   if (user.appleAppAccountToken && user.appleOriginalTransactionId) {
-    await sync(user.id, user.appleAppAccountToken, user.appleOriginalTransactionId);
+    if (appleStatusNeedsRefresh(user)) {
+      await withUserBillingLock(user.id, async (tx) => {
+        const owner = await readOwner(tx, { id: user.id });
+        if (owner) await refreshAppleBillingOwner(tx, owner);
+      });
+    } else {
+      await sync(user.id, user.appleAppAccountToken, user.appleOriginalTransactionId);
+    }
   }
 }
