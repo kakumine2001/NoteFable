@@ -17,7 +17,7 @@ else
 fi
 
 read -r -a MAJORS   <<<"${NF_IOS_MAJORS:-26 18}"
-read -r -a VARIANTS <<<"${NF_VARIANTS:-light dark ar ar-app rt}"
+read -r -a VARIANTS <<<"${NF_VARIANTS:-light dark ar rt}"
 DEFAULT_SCENES="chat-empty chat chat-streaming drawer workspace editor page-menu search model-sheet attach-sheet settings sign-in"
 read -r -a SCENES   <<<"${NF_SCENES:-$DEFAULT_SCENES}"
 
@@ -295,6 +295,40 @@ else
   done
 fi
 
+# Without NF_SCENES, only light takes every scene: the other variants take the scenes where they differ visibly.
+# "ar-app" (system English + in-app Arabic) looks the same as "ar", so it only runs when NF_VARIANTS names it.
+# NF_ALL_SCENES=1 takes every scene in every variant.
+variant_scenes() {
+  if [[ -n "${NF_SCENES:-}" || "${NF_ALL_SCENES:-0}" == "1" ]]; then
+    return 0
+  fi
+  case "$1" in
+    dark)      echo "chat drawer workspace editor model-sheet settings" ;;
+    ar|ar-app) echo "chat drawer workspace settings" ;;
+    rt)        echo "chat drawer model-sheet" ;;
+  esac
+}
+
+# Sets V_SIGNED_IN / V_GUEST to the batches for one variant, keeping the batch order.
+declare -a V_SIGNED_IN=()
+declare -a V_GUEST=()
+select_variant_batches() {
+  local only s
+  only=$(variant_scenes "$1")
+  V_SIGNED_IN=()
+  V_GUEST=()
+  if [[ ${#SIGNED_IN_BATCH[@]} -gt 0 ]]; then
+    for s in "${SIGNED_IN_BATCH[@]}"; do
+      if [[ -z "$only" || " $only " == *" $s "* ]]; then V_SIGNED_IN+=("$s"); fi
+    done
+  fi
+  if [[ ${#GUEST_BATCH[@]} -gt 0 ]]; then
+    for s in "${GUEST_BATCH[@]}"; do
+      if [[ -z "$only" || " $only " == *" $s "* ]]; then V_GUEST+=("$s"); fi
+    done
+  fi
+}
+
 for major in "${MAJORS[@]}"; do
   selection=$(select_xcode_for_major "$major")
   if [[ -z "$selection" ]]; then
@@ -351,12 +385,13 @@ for major in "${MAJORS[@]}"; do
   for variant in "${VARIANTS[@]}"; do
     mkdir -p "$OUT/ios${major}/${variant}"
     set_variant_environment "$udid" "$variant"
+    select_variant_batches "$variant"
 
     rt_ok=1
     rt_rebooted=0
-    if [[ ${#SIGNED_IN_BATCH[@]} -gt 0 ]]; then
+    if [[ ${#V_SIGNED_IN[@]} -gt 0 ]]; then
       rc=0
-      run_batch "$udid" "$major" "$variant" "signed-in" "1" "${SIGNED_IN_BATCH[@]}" || rc=$?
+      run_batch "$udid" "$major" "$variant" "signed-in" "1" "${V_SIGNED_IN[@]}" || rc=$?
       if [[ "$rc" -eq 2 ]]; then
         echo "Rebooting iOS ${major} simulator so Reduce Transparency preference propagates..."
         xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
@@ -364,16 +399,16 @@ for major in "${MAJORS[@]}"; do
         set_variant_environment "$udid" "$variant"
         rt_rebooted=1
         rc=0
-        run_batch "$udid" "$major" "$variant" "signed-in" "0" "${SIGNED_IN_BATCH[@]}" || rc=$?
+        run_batch "$udid" "$major" "$variant" "signed-in" "0" "${V_SIGNED_IN[@]}" || rc=$?
       fi
       if [[ "$rc" -eq 3 ]]; then
         rt_ok=0
       fi
     fi
 
-    if [[ "$rt_ok" -eq 1 && ${#GUEST_BATCH[@]} -gt 0 ]]; then
+    if [[ "$rt_ok" -eq 1 && ${#V_GUEST[@]} -gt 0 ]]; then
       rc=0
-      run_batch "$udid" "$major" "$variant" "guest" "$((1 - rt_rebooted))" "${GUEST_BATCH[@]}" || rc=$?
+      run_batch "$udid" "$major" "$variant" "guest" "$((1 - rt_rebooted))" "${V_GUEST[@]}" || rc=$?
       if [[ "$rc" -eq 2 ]]; then
         echo "Rebooting iOS ${major} simulator so Reduce Transparency preference propagates..."
         xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
@@ -381,7 +416,7 @@ for major in "${MAJORS[@]}"; do
         set_variant_environment "$udid" "$variant"
         rt_rebooted=1
         rc=0
-        run_batch "$udid" "$major" "$variant" "guest" "0" "${GUEST_BATCH[@]}" || rc=$?
+        run_batch "$udid" "$major" "$variant" "guest" "0" "${V_GUEST[@]}" || rc=$?
       fi
     fi
 
