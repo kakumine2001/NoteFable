@@ -115,7 +115,8 @@ private struct AccountProfileRow: View {
             .frame(height: glassStyle ? 40 : 44)
             .modifier(AccountProfileBackground(glassStyle: glassStyle))
         }
-        .buttonStyle(.pressable(cornerRadius: glassStyle ? 20 : 4.8, scale: glassStyle ? 0.97 : 1))
+        // 玻璃胶囊是可交互玻璃，按下时自己有反馈：不再叠一层灰底（和上面的玻璃“登录”按钮一样）。
+        .buttonStyle(.pressable(pressedBackground: glassStyle ? nil : Sm.hover, cornerRadius: glassStyle ? 20 : 4.8, scale: glassStyle ? 0.97 : 1))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(name + " · " + L("acct_settings"))
         .accessibilityAddTraits(.isButton)
