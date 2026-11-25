@@ -1150,4 +1150,7 @@ export const ko: Record<string, string> = {
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "이 노트는 슬라이드 제한({max}개)을 초과합니다. 처음 {max}개 슬라이드만 저장할까요?",
   "Group & organize": "분류 및 정리",
   "Could not attach the selection screenshot this time.": "이번에는 선택 영역 스크린샷을 첨부하지 못했습니다.",
+  "1 block": "1개 블록",
+  "{count} blocks": "{count}개 블록",
+  "Block selection actions": "블록 선택 작업",
 };

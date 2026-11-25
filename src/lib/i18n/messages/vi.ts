@@ -1150,4 +1150,7 @@ export const vi: Record<string, string> = {
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "Ghi chú này vượt quá giới hạn {max} trang chiếu. Chỉ lưu {max} trang chiếu đầu tiên?",
   "Group & organize": "Phân nhóm & sắp xếp",
   "Could not attach the selection screenshot this time.": "Lần này không thể đính kèm ảnh chụp vùng chọn.",
+  "1 block": "1 khối",
+  "{count} blocks": "{count} khối",
+  "Block selection actions": "Thao tác chọn khối",
 };

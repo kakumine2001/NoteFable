@@ -1150,4 +1150,7 @@ export const es: Record<string, string> = {
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "Esta nota supera el límite de {max} diapositivas. ¿Guardar solo las primeras {max} diapositivas?",
   "Group & organize": "Agrupar y organizar",
   "Could not attach the selection screenshot this time.": "No se pudo adjuntar la captura de la selección esta vez.",
+  "1 block": "1 bloque",
+  "{count} blocks": "{count} bloques",
+  "Block selection actions": "Acciones de selección de bloques",
 };

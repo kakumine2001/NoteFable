@@ -1150,4 +1150,7 @@ export const hi: Record<string, string> = {
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "यह नोट {max} स्लाइड की सीमा से अधिक है। क्या केवल पहली {max} स्लाइड सहेजें?",
   "Group & organize": "समूह बनाएं और व्यवस्थित करें",
   "Could not attach the selection screenshot this time.": "इस बार चयन का स्क्रीनशॉट संलग्न नहीं किया जा सका।",
+  "1 block": "1 ब्लॉक",
+  "{count} blocks": "{count} ब्लॉक",
+  "Block selection actions": "ब्लॉक चयन क्रियाएँ",
 };
