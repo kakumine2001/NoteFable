@@ -2,7 +2,8 @@
 # Fixture-mode screenshots of the Debug simulator build across iOS majors and UI variants.
 # Usage: ci-screenshots.sh <NoteFable.app> <out-dir>
 #        ci-screenshots.sh --boot-only   (CI: boot the simulators ahead of time, leave them running, capture nothing)
-# Env: NF_IOS_MAJORS, NF_VARIANTS, NF_SCENES
+# Env: NF_IOS_MAJORS, NF_VARIANTS, NF_SCENES, NF_ALL_SCENES
+# Every READY line must report the chrome path the app took (glass=native on iOS 26+, material below, solid for rt).
 # Written for macOS /bin/bash (bash 3.2): no mapfile, no associative arrays, no ${var,,}, no sort -V.
 set -euo pipefail
 
@@ -17,8 +18,8 @@ else
 fi
 
 read -r -a MAJORS   <<<"${NF_IOS_MAJORS:-26 18}"
-read -r -a VARIANTS <<<"${NF_VARIANTS:-light dark ar rt}"
-DEFAULT_SCENES="chat-empty chat chat-streaming drawer workspace editor page-menu search model-sheet attach-sheet settings sign-in"
+read -r -a VARIANTS <<<"${NF_VARIANTS:-light dark ar ar-app rt}"
+DEFAULT_SCENES="chat-empty chat chat-scrolled chat-menu emoji-picker toast chat-streaming drawer workspace editor page-menu search search-scrolled model-sheet attach-sheet settings settings-page sign-in"
 read -r -a SCENES   <<<"${NF_SCENES:-$DEFAULT_SCENES}"
 
 DEVICES=("iPhone 17 Pro" "iPhone 18 Pro" "iPhone 16 Pro" "iPhone 17" "iPhone 16")
@@ -190,7 +191,16 @@ run_batch() {
   local udid=$1 major=$2 variant=$3 account=$4 probe_rt=$5
   shift 5
   local -a batch=("$@")
-  local csv="" s idx=0 log ack_dir app_data ready_line png
+  local csv="" s idx=0 log ack_dir app_data ready_line png expected_glass
+
+  # The chrome path every scene must report: Liquid Glass on iOS 26+, system materials below, solid under rt.
+  expected_glass=native
+  if [[ "$major" -lt 26 ]]; then
+    expected_glass=material
+  fi
+  if [[ "$variant" == "rt" ]]; then
+    expected_glass=solid
+  fi
 
   for s in "${batch[@]}"; do
     if [[ -z "$csv" ]]; then csv="$s"; else csv="${csv},${s}"; fi
@@ -257,6 +267,11 @@ run_batch() {
 
     printf 'ios%s\t%s\t%s\t%s\n' "$major" "$variant" "$s" "$ready_line" >>"$ready_summary_file"
 
+    if [[ "$ready_line" != *" glass=${expected_glass}"* ]]; then
+      echo "::error::ios${major} ${variant} ${s}: expected glass=${expected_glass} (${ready_line})"
+      failed=1
+    fi
+
     if [[ "$ready_line" == *"timeout=true"* ]]; then
       echo "::error::ios${major} ${variant} ${s} timed out waiting for readiness: ${ready_line}"
       failed=1
@@ -283,7 +298,9 @@ run_batch() {
 declare -a SIGNED_IN_BATCH=()
 declare -a GUEST_BATCH=()
 if [[ -z "${NF_SCENES:-}" ]]; then
-  SIGNED_IN_BATCH=(chat-empty chat model-sheet attach-sheet drawer search settings workspace editor page-menu chat-streaming)
+  # One app process walks this order (FixtureLaunch.resetBefore handles each transition).
+  # chat-streaming stays last: its stream never ends, so any later scene would start mid-send.
+  SIGNED_IN_BATCH=(chat-empty chat chat-scrolled chat-menu emoji-picker toast model-sheet attach-sheet drawer search search-scrolled settings settings-page workspace editor page-menu chat-streaming)
   GUEST_BATCH=(sign-in)
 else
   for s in "${SCENES[@]}"; do
@@ -295,17 +312,20 @@ else
   done
 fi
 
-# Without NF_SCENES, only light takes every scene: the other variants take the scenes where they differ visibly.
-# "ar-app" (system English + in-app Arabic) looks the same as "ar", so it only runs when NF_VARIANTS names it.
-# NF_ALL_SCENES=1 takes every scene in every variant.
+# Without NF_SCENES, only light takes every scene: the other variants take the scenes where they differ visibly
+# (content scrolled under the floating glass bars, glass menus and pickers, the toast over the composer).
+# "ar-app" (system English + in-app Arabic) mirrors the layout through the app's own window sync, not the system
+# language, so it keeps a few chrome scenes. rt must start with a signed-in scene: the Reduce Transparency probe
+# runs on the first READY line. NF_ALL_SCENES=1 takes every scene in every variant.
 variant_scenes() {
   if [[ -n "${NF_SCENES:-}" || "${NF_ALL_SCENES:-0}" == "1" ]]; then
     return 0
   fi
   case "$1" in
-    dark)      echo "chat drawer workspace editor model-sheet settings" ;;
-    ar|ar-app) echo "chat drawer workspace settings" ;;
-    rt)        echo "chat drawer model-sheet" ;;
+    dark)   echo "chat chat-scrolled chat-menu emoji-picker model-sheet drawer search-scrolled settings settings-page workspace editor" ;;
+    ar)     echo "chat chat-scrolled chat-menu drawer search-scrolled settings workspace" ;;
+    ar-app) echo "chat chat-menu model-sheet drawer" ;;
+    rt)     echo "chat chat-scrolled toast model-sheet drawer search-scrolled settings-page" ;;
   esac
 }
 
@@ -465,10 +485,24 @@ if os.path.exists(ready_file):
 majors = sorted([d for d in os.listdir(out_dir) if d.startswith('ios') and os.path.isdir(os.path.join(out_dir, d))])
 variants_order = ['light', 'dark', 'ar', 'ar-app', 'rt']
 scenes_order = [
-    'chat-empty', 'chat', 'chat-streaming', 'drawer', 'workspace',
-    'editor', 'page-menu', 'search', 'model-sheet', 'attach-sheet',
-    'settings', 'sign-in',
+    'chat-empty', 'chat', 'chat-scrolled', 'chat-menu', 'emoji-picker', 'toast',
+    'chat-streaming', 'drawer', 'workspace', 'editor', 'page-menu',
+    'search', 'search-scrolled', 'model-sheet', 'attach-sheet',
+    'settings', 'settings-page', 'sign-in',
 ]
+
+def scene_rows(major):
+    # Known scenes in a fixed order, then any other scene captured for this runtime (never drop a PNG silently).
+    known = set(scenes_order)
+    extra = set()
+    for path in glob.glob(os.path.join(out_dir, major, '*', '*.png')):
+        name = os.path.basename(path)[:-len('.png')]
+        for suffix in ('-TIMEOUT', '-MISSING'):
+            if name.endswith(suffix):
+                name = name[:-len(suffix)]
+        if name not in known:
+            extra.add(name)
+    return scenes_order + sorted(extra)
 
 parts = [
     '<!doctype html><html lang="en"><head><meta charset="utf-8">',
@@ -497,7 +531,7 @@ for major in majors:
     for v in present_variants:
         parts.append(f'<th>{html.escape(v)}</th>')
     parts.append('</tr></thead><tbody>')
-    for s in scenes_order:
+    for s in scene_rows(major):
         parts.append(f'<tr><th class="scene">{html.escape(s)}</th>')
         for v in present_variants:
             rel = f'{major}/{v}/{s}.png'
