@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anchorAncestors, anchorFabPosition, clampFabPosition, FAB_MARGIN, panelPlacement } from "@/lib/fab-position";
+import { anchorAncestors, anchorFabPosition, bubblePlacement, clampFabPosition, FAB_MARGIN, panelPlacement } from "@/lib/fab-position";
 
 describe("clampFabPosition", () => {
   it("keeps a position that is already inside the viewport", () => {
@@ -58,5 +58,30 @@ describe("panelPlacement", () => {
 
   it("keeps the panel on screen when the button is at the left edge", () => {
     expect(panelPlacement({ right: 1144, bottom: 20 }, 48, 416, 1200, 800).right).toBe(1200 - 416 - 20);
+  });
+});
+
+describe("bubblePlacement", () => {
+  it("places the bubble to the left of a bottom-right FAB", () => {
+    const res = bubblePlacement(null, 52, 1200, 800, "ltr", false);
+    expect(res.side).toBe("left");
+    expect(res.style.right).toBe(20 + 52 + 12);
+    expect(res.style.bottom).toBe(20 + 26);
+    expect(res.style.maxWidth).toBe(280);
+  });
+
+  it("flips the bubble to the right when the FAB is dragged to the left half or defaults to RTL", () => {
+    const draggedLeft = bubblePlacement({ right: 1050, bottom: 120 }, 52, 1200, 800, "ltr", false);
+    expect(draggedLeft.side).toBe("right");
+    expect(draggedLeft.style.left).toBe(1200 - 1050 + 12);
+
+    const rtlDefault = bubblePlacement(null, 52, 1200, 800, "rtl", false);
+    expect(rtlDefault.side).toBe("right");
+  });
+
+  it("clamps maxWidth on narrow phone viewports", () => {
+    const phone = bubblePlacement(null, 56, 375, 812, "ltr", true);
+    expect(phone.side).toBe("left");
+    expect(phone.style.maxWidth).toBe(375 - (16 + 56 + 12) - 12 - 16);
   });
 });

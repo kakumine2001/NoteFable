@@ -1150,4 +1150,7 @@ export const tr: Record<string, string> = {
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "Bu not {max} slayt sınırını aşıyor. Yalnızca ilk {max} slayt kaydedilsin mi?",
   "Group & organize": "Grupla ve düzenle",
   "Could not attach the selection screenshot this time.": "Bu sefer seçimin ekran görüntüsü eklenemedi.",
+  "1 block": "1 blok",
+  "{count} blocks": "{count} blok",
+  "Block selection actions": "Blok seçimi eylemleri",
 };

@@ -1150,4 +1150,7 @@ export const id: Record<string, string> = {
   "This note exceeds the {max}-slide limit. Save only the first {max} slides?": "Catatan ini melebihi batas {max} slide. Simpan hanya {max} slide pertama?",
   "Group & organize": "Kelompokkan & rapikan",
   "Could not attach the selection screenshot this time.": "Tangkapan layar pilihan tidak dapat dilampirkan kali ini.",
+  "1 block": "1 blok",
+  "{count} blocks": "{count} blok",
+  "Block selection actions": "Tindakan pilihan blok",
 };
