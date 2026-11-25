@@ -60,4 +60,13 @@ describe("public whiteboards", () => {
     expect(JSON.stringify(scene)).not.toContain("/api/pages/files");
     expect(scene.appState).toEqual({ viewBackgroundColor: "#ffffff" });
   });
+
+  it("keeps collapsed mind map branches out of public scenes", () => {
+    const stash = [{ id: "hidden", type: "rectangle", customData: { notefableMindmap: { v: 1, role: "node", tree: "root", parent: "root", order: 0 } } }, { id: "hidden-t", type: "text", text: "secret" }];
+    const scene = publicWhiteboardScene({
+      elements: [{ id: "root", type: "rectangle", customData: { notefableMindmap: { v: 1, role: "node", tree: "root", parent: null, order: 0, collapsed: true, stash } } }],
+    }, "token", "page");
+    expect(JSON.stringify(scene)).not.toContain("secret");
+    expect(scene.elements[0].customData).toBeUndefined();
+  });
 });

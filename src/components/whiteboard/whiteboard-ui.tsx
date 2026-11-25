@@ -12,7 +12,9 @@ import { PageKindIcon } from "@/components/page-kind-icon";
 import { FloatingEmojiPopover, floatingPositionFor, usePickerBackToClose, type FloatingPosition } from "@/components/emoji-picker";
 import { msg } from "@/lib/i18n/translate";
 import type { WhiteboardActions } from "@/lib/whiteboard/excalidraw-bridge";
-import { WhiteboardStylePanel, type WhiteboardStyle } from "@/components/whiteboard/whiteboard-style-panel";
+import { WhiteboardStylePanel, type WhiteboardMindmapPanel, type WhiteboardStyle } from "@/components/whiteboard/whiteboard-style-panel";
+import { TEMPLATE_ICONS, TEMPLATE_NAMES } from "@/components/whiteboard/whiteboard-mindmap";
+import { WHITEBOARD_TEMPLATES, type WhiteboardTemplate } from "@/lib/whiteboard/templates";
 import type { MentionPage } from "@/components/note-mention";
 
 // ホワイトボードの自前の画面（ツールバー・見た目のパネル・拡大縮小・メニュー・題名）。Excalidraw の既定の画面（ui={false} で消している）の代わり。
@@ -34,6 +36,8 @@ export type WhiteboardUiState = {
   tool: string;
   toolLocked: boolean;
   selectedCount: number;
+  // 白板に何も無い。
+  empty: boolean;
   selectedTypes: string[];
   groupSelected: boolean;
   allLocked: boolean;
@@ -92,6 +96,9 @@ export type WhiteboardChromeProps = {
   onCanvasBackground: (color: string) => void;
   onPenMode: (penMode: boolean) => void;
   onAskAi?: () => void;
+  onInsertTemplate: (template: WhiteboardTemplate) => void;
+  // 思考マップの節を 1 つ選んでいるときの操作（見た目のパネルに出す）。
+  mindmap: WhiteboardMindmapPanel | null;
   minimapOpen: boolean;
   onToggleMinimap: () => void;
   // 表示中の範囲に図形が 1 つも無いとき「内容に戻る」を出す。
@@ -110,7 +117,7 @@ export function WhiteboardChrome(props: WhiteboardChromeProps) {
     <WhiteboardMenu {...props} />
     {editable && <WhiteboardToolbar {...props} />}
     {editable && (ui.selectedCount > 0 || isDrawingTool(ui.tool)) && !ui.editingText && <WhiteboardStylePanel ui={ui} drawMode={props.drawMode} compact={compact} theme={props.theme}
-      actions={props.actions} onLink={props.onLink} onOpenLink={props.onOpenLink} onAskAi={props.onAskAi} />}
+      actions={props.actions} onLink={props.onLink} onOpenLink={props.onOpenLink} onAskAi={props.onAskAi} mindmap={props.mindmap} />}
     {editable && ui.editingText && <WhiteboardStylePanel ui={ui} drawMode={props.drawMode} compact={compact} theme={props.theme} actions={props.actions} onLink={props.onLink} onOpenLink={props.onOpenLink} textOnly />}
     <WhiteboardZoomBar {...props} />
     {props.minimapOpen && props.minimap}
@@ -151,7 +158,7 @@ function ToolButton({ tool, active, onSelect, label }: { tool: WhiteboardTool; a
   </button>;
 }
 
-function WhiteboardToolbar({ ui, drawMode, compact, onSelectTool, onLink, onInsertPageCard, onImportPdf }: WhiteboardChromeProps) {
+function WhiteboardToolbar({ ui, drawMode, compact, onSelectTool, onLink, onInsertPageCard, onImportPdf, onInsertTemplate }: WhiteboardChromeProps) {
   const t = useT();
   const active = activeToolOf(ui, drawMode);
   const [shape, setShape] = useState<WhiteboardTool>("rectangle");
@@ -193,6 +200,11 @@ function WhiteboardToolbar({ ui, drawMode, compact, onSelectTool, onLink, onInse
         <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onInsertPageCard(); }}><PageKindIcon kind="note" size={18} /><span className="flex-1">{t("Link to a page")}</span></button>
         {ui.selectedCount > 0 && <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onLink(); }}><Link2 size={18} /><span className="flex-1">{t("Add link")}</span></button>}
         <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onImportPdf(); }}><FileUp size={18} /><span className="flex-1">{t("Import PDF")}</span></button>
+        <hr className="chat-menu-divider" />
+        <div className="notes-menu-label">{t("Templates")}</div>
+        {WHITEBOARD_TEMPLATES.map((template) => <button key={template} type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onInsertTemplate(template); }}>
+          {TEMPLATE_ICONS[template]}<span className="flex-1">{t(TEMPLATE_NAMES[template])}</span>
+        </button>)}
       </>}
     </AnswerMenu>}
   </div>;

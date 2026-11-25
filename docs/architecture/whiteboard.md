@@ -68,7 +68,16 @@
 - **服务端的最小“浏览器”。** 这两个包要用 `DOMParser`（读 Pele 画出的 SVG）、canvas 量字宽、`textarea` 还原字符实体，`@excalidraw/element` 还会读 `window`。`src/lib/whiteboard/server-dom.ts` 在 `globalThis` 上放只读的 `document` / `window` / `DOMParser`，**只在转换的异步流程里（`AsyncLocalStorage`）有值**，其他请求和代码看到的仍是 `undefined`（`typeof document === "undefined"` 不变）；`DOMParser` 来自 `linkedom`（ISC），量字宽用 `text-measure.ts` 的估算（中日韩、全角和表情 1em，其他 0.6em，偏宽，不会挤出形状）。`@excalidraw/element` 的字宽也设成同一个估算（`setCustomTextMetricsProvider`）。
 - **转不了的图让模型重写一次。** 只能变成图片的类型（饼图等，转换器会退回一张 SVG 图片，白板也不收内嵌图片）、语法错误、超过 3,000 个元素，都抛 `DiagramSourceError`，路由把错误交给模型重写一次（同一次额度）；还不行就退还额度，返回 Mermaid 原文让用户复制。
 - **思维导图用自己的引擎**（`src/lib/whiteboard/mindmap/`，纯 TS，服务端和浏览器共用，之后的思维导图模式和学习模板也用它）：Mermaid 的 `mindmap` 转换器只会给一张图片，所以 `parse.ts` 自己读缩进和节点形状（`root((…))`、`[…]`、`(…)` 等；`::icon`、`:::class`、`%%` 注释跳过；根之后同级的节点当作根的子节点），`model.ts` 限制最多 400 个节点、10 层、每个节点 200 字（宽度优先保留，超出的整枝丢掉并标记 `partial`），`layout.ts` 做确定性的排版（同一棵树在服务端和浏览器排出一样的位置：文字用估算宽度折行，节点是圆角矩形，子节点在父节点外侧竖排、父节点在子节点的竖直中央；根的子节点 ≥ 4 个时左右分开，按高度从上往下切成两半），`elements.ts` 生成元素草稿：节点是带文字的圆角矩形（根和第一层填色、更深只描边，第一层按枝换色），父子之间是没有箭头的 S 形箭头线，两端绑在节点上。
-- **思维导图的标记**放在元素的 `customData.notefableMindmap`：节点 `{ v: 1, role: "node", tree, parent, order, direction?, collapsed? }`（`tree` 是根节点的元素 ID，`parent` 是父节点的元素 ID，根为 null；`order` 是兄弟里的顺序；`direction` 只在根上：`right` / `both`），连线 `{ v: 1, role: "edge", tree, parent, child }`。所以生成元素时不重新生成 ID（`regenerateIds: false`）。公开链接的 scene 照旧去掉 `customData`（只留页面卡片的标记）。折叠不能用 `isDeleted`（保存时会被删掉），留给之后的思维导图模式按 `collapsed` 过滤。
+- **思维导图的标记**放在元素的 `customData.notefableMindmap`：节点 `{ v: 1, role: "node", tree, parent, order, direction?, collapsed? }`（`tree` 是根节点的元素 ID，`parent` 是父节点的元素 ID，根为 null；`order` 是兄弟里的顺序；`direction` 只在根上：`right` / `both`），连线 `{ v: 1, role: "edge", tree, parent, child }`。所以生成元素时不重新生成 ID（`regenerateIds: false`）。公开链接的 scene 照旧去掉 `customData`（只留页面卡片的标记）。折叠不能用 `isDeleted`（保存时会被删掉），做法见下面的“思维导图模式”。
+
+## 思维导图模式与学习模板（#154 WE1 / WE2）
+
+- **同一套树引擎**：画成图的思维导图、手动的思维导图和学习模板里的思维导图都用 `src/lib/whiteboard/mindmap/`（纯 TS，有测试）。`editing.ts` 读白板上的树（`readMindmapTrees`：按 `customData.notefableMindmap` 的 `parent` / `order` 还原；父节点找不到或成环的节点当作独立的根），每个操作返回要改的元素（`patches`）、新加的元素草稿（`added`）和展开时放回的元素（`restored`）；编辑器的 `applyMindmapChange`（`whiteboard-mindmap.tsx`）把它们连同受影响的树的重新排版（`relayoutMindmap`：根不动，按节点现在的大小排，补上缺的连线、删掉两端不全的连线）和连线绑定（`bindMindmapEdges`：连线两端节点的 `boundElements` 记上这条线，拖动节点时线跟着走）合成**一次** `updateScene`，所以每个结构操作撤销一次就回去。
+- **操作**：选中一个节点后，节点上方浮出小按钮（加子节点、加同级、折叠），左侧属性栏多一组“思维导图”（同样的按钮 + 分支方向：只在右侧 / 两侧，作用于整棵树）。键盘：Tab 加子节点、Enter 加同级（根上是加子节点）、F2 编辑文字、Delete / Backspace 连子孙一起删（选中的只有思维导图的节点、节点文字和连线时；混着别的图形就交给 Excalidraw 的删除）。这些键在 Excalidraw 之前接住（容器上的捕获阶段监听；Excalidraw 的 Tab 是切换图形种类，Enter 是编辑文字）。新节点的文字是“新主题”，加完立刻进入编辑并全选（直接打字就替换），开始编辑走 Excalidraw 内部的 `App.text.startTextEditing`（`excalidraw-bridge.ts` 的 `editText`，升级时重测）。
+- **自动排版的时机**：结构操作之后；拖动或改大小结束时（拖动的单个非根节点的中心落在另一个节点上，就改挂到那个节点下面，不能挂到自己或自己的子孙下面；落在空白处就弹回原位；拖动根节点时整棵树跟着过去）；节点文字编辑结束时（节点宽度按文字重新算，和画成图用同一个估算 `mindmapNodeBox`，折行和高度用 Excalidraw 自己的测量，再重排整棵树）。排版后的位置不变时不动场景，不多出撤销记录。
+- **折叠**不用 `isDeleted`（保存时会丢掉）：子孙（节点、节点文字、连线）从白板上拿掉，原样存进被折叠节点的 `customData.notefableMindmap.stash`，展开时用同样的 ID 放回（只放回白板能存的元素种类）；嵌套折叠时内层的存货平铺进外层，不嵌套。因为不在白板上，折叠的分支不会出现在导出、小地图和公开链接里（公开的 scene 本来就去掉 `customData`，测试覆盖）；它们的文字照样进搜索和 AI 读取（算在被折叠的节点上）。白板上被折叠的节点外侧显示“+N”（隐藏的主题数），点它展开；锁定的白板只显示不能点。
+- **复制**（Ctrl+D、Alt 拖动、粘贴）：Excalidraw 的 `onDuplicate` 里改写副本的标记（`remapMindmapDuplicates`）：父节点一起复制的节点挂到新的父节点下，没带父节点的成为新树的根；两端都复制了的连线才保留标记。被折叠的存货不复制。
+- **学习模板**（`src/lib/whiteboard/templates.ts`，纯函数，文字由编辑器按当前语言传入，17 种语言）：思维导图、康奈尔笔记、时间线、韦恩图、对比表。思维导图之外的模板放在一个框里（框名是模板名），整体可以拖。入口：空白板中央的“从模板开始”（画了东西就消失，关掉后本次打开不再出现），以及工具栏“更多工具”里的“模板”。插入到当前视野中央并选中（框或思维导图的根）。网页和 App 的 WebView 共用，原生不另做界面。
 
 ## 给 AI（#153）留的口
 
@@ -78,4 +87,4 @@
 
 ## 测试
 
-`src/lib/whiteboard/*.test.ts`（保存形的转换、精简、链接、公开地址、显示请求、导出文件名、框的顺序与 PDF 分页、PDF 写入器、画成图的 9 种图转换与清理：`diagram.test.ts`）、`src/lib/whiteboard/mindmap/mindmap.test.ts`（思维导图的解析、上限、排版不重叠、标记）、`src/lib/export-file.test.ts`（分块发送）、`src/app/s/[token]/file/route.test.ts`（公开图片只放行引用的文件）、`src/lib/note-share-server.test.ts`（白板可以公开；幻灯片也能公开，是分享树的叶子）。编辑器本身（Excalidraw）在浏览器里验证。
+`src/lib/whiteboard/*.test.ts`（保存形的转换、精简、链接、公开地址、显示请求、导出文件名、框的顺序与 PDF 分页、PDF 写入器、画成图的 9 种图转换与清理：`diagram.test.ts`）、`src/lib/whiteboard/mindmap/mindmap.test.ts`（思维导图的解析、上限、排版不重叠、标记）、`src/lib/whiteboard/mindmap/editing.test.ts`（加节点、连子孙删除、改挂、折叠与展开、方向、复制、连线绑定、拖放目标）、`src/lib/whiteboard/templates.test.ts`（5 种模板）、`src/lib/export-file.test.ts`（分块发送）、`src/app/s/[token]/file/route.test.ts`（公开图片只放行引用的文件）、`src/lib/note-share-server.test.ts`（白板可以公开；幻灯片也能公开，是分享树的叶子）。编辑器本身（Excalidraw）在浏览器里验证。

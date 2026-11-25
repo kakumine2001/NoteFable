@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  addMindmapChild, addMindmapSibling, collapseMindmapNode, deleteMindmapNodes, expandMindmapNode, mindmapSelection, readMindmapTrees,
-  relayoutMindmap, remapMindmapDuplicates, reparentMindmapNode, setMindmapDirection, type MindmapChange, type SceneElement,
+  addMindmapChild, addMindmapSibling, bindMindmapEdges, collapsedMindmapNodes, collapseMindmapNode, deleteMindmapNodes, expandMindmapNode,
+  mindmapDropTarget, mindmapSelection, readMindmapTrees, relayoutMindmap, remapMindmapDuplicates, reparentMindmapNode, setMindmapDirection, type MindmapChange, type SceneElement,
 } from "@/lib/whiteboard/mindmap/editing";
 import { mindmapSkeletons, type MindmapSkeleton } from "@/lib/whiteboard/mindmap/elements";
 import { mindmapDataOf, type MindmapNodeData, type MindmapTreeNode } from "@/lib/whiteboard/mindmap/model";
@@ -13,7 +13,7 @@ function materialize(skeletons: MindmapSkeleton[]): SceneElement[] {
   const out: SceneElement[] = [];
   for (const skeleton of skeletons) {
     const { label, start, end, ...rest } = skeleton as MindmapSkeleton & { label?: { text: string }; start?: { id: string }; end?: { id: string } };
-    const element: SceneElement = { width: 0, height: 0, ...(rest as SceneElement) };
+    const element = { width: 0, height: 0, ...rest } as SceneElement;
     if (label) {
       const textId = `${skeleton.id}-t`;
       element.boundElements = [{ id: textId, type: "text" }];
@@ -221,5 +221,42 @@ describe("duplicating", () => {
     expect(mindmapDataOf(remapped.get("e3")!.customData)).toMatchObject({ role: "edge", tree: "d2", parent: "d2", child: "d3" });
     // 根との線は親を複製していないので、ただの矢印になる。
     expect(mindmapDataOf(remapped.get("e2")!.customData)).toBeNull();
+  });
+});
+
+describe("edge bindings", () => {
+  it("records new edges on both end nodes so the line follows the nodes", () => {
+    let { elements } = sample();
+    elements = relayoutAll(apply(elements, addMindmapChild(elements, "n2", "a3", () => "c5")));
+    const edge = live(elements).find((element) => (mindmapDataOf(element.customData) as { child?: string } | null)?.child === "c5")!;
+    const bound = apply(elements, bindMindmapEdges(elements));
+    for (const id of ["n2", "c5"]) {
+      expect(bound.find((element) => element.id === id)!.boundElements).toEqual(expect.arrayContaining([{ id: edge.id, type: "arrow" }]));
+    }
+    // 2 回目は何も変えない。
+    expect(bindMindmapEdges(bound).patches.size).toBe(0);
+  });
+});
+
+describe("drop target", () => {
+  it("finds the node under the dragged node's center but never the node itself or its descendants", () => {
+    const { elements } = sample();
+    const at = (id: string, over: string) => elements.map((element) => {
+      if (element.id !== id) return element;
+      const target = elements.find((item) => item.id === over)!;
+      return { ...element, x: target.x + target.width / 2 - element.width / 2, y: target.y + target.height / 2 - element.height / 2 };
+    });
+    expect(mindmapDropTarget(at("n5", "n3"), "n5")).toBe("n3");
+    expect(mindmapDropTarget(at("n2", "n3"), "n2")).toBeNull();
+    expect(mindmapDropTarget(elements, "n5")).toBeNull();
+  });
+});
+
+describe("collapsed nodes", () => {
+  it("lists collapsed nodes with the number of hidden topics", () => {
+    const { elements } = sample();
+    const collapsed = apply(elements, collapseMindmapNode(elements, "n2"));
+    expect(collapsedMindmapNodes(collapsed)).toEqual([expect.objectContaining({ nodeId: "n2", side: "right", hidden: 2 })]);
+    expect(collapsedMindmapNodes(elements)).toEqual([]);
   });
 });

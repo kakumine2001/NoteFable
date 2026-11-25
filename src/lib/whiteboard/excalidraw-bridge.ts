@@ -9,7 +9,15 @@ type ActionManagerLike = {
   actions: Record<string, ActionLike | undefined>;
   executeAction: (action: ActionLike, source?: "ui" | "api" | "keyboard", value?: unknown) => void;
 };
-export type ExcalidrawAppLike = { actionManager: ActionManagerLike };
+// 文字の編集を始める口（App.text.startTextEditing）。Enter キーで図形の文字を編集するときに Excalidraw 自身が呼ぶもの。
+export type StartTextEditing = (options: {
+  sceneX: number;
+  sceneY: number;
+  container?: unknown;
+  textElement?: unknown;
+  initialSelection?: { start: number; end: number };
+}) => void;
+export type ExcalidrawAppLike = { actionManager: ActionManagerLike; text?: { startTextEditing?: StartTextEditing } };
 
 type RegisterableApi = {
   registerAction: (action: never) => void;
@@ -23,6 +31,8 @@ export type WhiteboardActions = {
   run: (name: string, value?: unknown) => boolean;
   has: (name: string) => boolean;
   ready: () => boolean;
+  // 図形（container）の文字の編集を始める（思考マップの新しい節）。initialSelection で最初に選んでおく範囲。editor が無ければ false。
+  editText: (options: Parameters<StartTextEditing>[0]) => boolean;
 };
 
 // api に橋渡しの操作を登録し、container の中でキー入力を 1 回だけ起こして editor を受け取る。
@@ -60,6 +70,13 @@ export function connectWhiteboardActions(api: RegisterableApi, container: HTMLEl
     ready() {
       capture();
       return app !== null;
+    },
+    editText(options) {
+      capture();
+      const start = app?.text?.startTextEditing;
+      if (typeof start !== "function") return false;
+      start(options);
+      return true;
     },
   };
 }

@@ -47,6 +47,16 @@ export function mindmapFontSize(depth: number) {
   return pick(MINDMAP_FONT_SIZES, depth);
 }
 
+// 文字に合わせた節の大きさ（AI が作る思考マップと同じ見積もり）。paddingY は文字の上下の余白。
+// エディターは文字の編集を終えた節をこの幅にし、文字の折り返しと高さは Excalidraw の計測でそろえる。
+export function mindmapNodeBox(text: string, depth: number) {
+  const fontSize = pick(MINDMAP_FONT_SIZES, depth);
+  const lines = wrapText(text, fontSize, pick(MAX_TEXT_WIDTH, depth));
+  const width = Math.max(pick(MIN_WIDTH, depth), Math.ceil(estimateTextWidth(lines.join("\n"), fontSize) + 2 * pick(PADDING_X, depth)));
+  const height = Math.ceil(lines.length * fontSize * LINE_HEIGHT + 2 * pick(PADDING_Y, depth));
+  return { width, height, fontSize, paddingY: pick(PADDING_Y, depth) };
+}
+
 type Box = { node: MindmapTreeNode; width: number; height: number; fontSize: number; text: string; children: Box[]; depth: number; subtree: number };
 
 function measure(node: MindmapTreeNode, depth: number): Box {

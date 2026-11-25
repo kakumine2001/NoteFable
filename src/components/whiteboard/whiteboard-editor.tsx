@@ -3,6 +3,7 @@
 import { CaptureUpdateAction, convertToExcalidrawElements, Excalidraw, FONT_FAMILY, getCommonBounds, getSceneVersion, newElementWith } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI, AppState, BinaryFiles, BinaryFileData } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement, FileId, NonDeletedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import type { OnDuplicateData } from "@excalidraw/element";
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
 import "@excalidraw/excalidraw/index.css";
 import "./whiteboard.css";
@@ -30,6 +31,14 @@ import { WhiteboardLinkDialog } from "@/components/whiteboard/whiteboard-link-di
 import { excalidrawLang, useKeepDocumentLanguage } from "@/components/whiteboard/excalidraw-locale";
 import { WhiteboardMinimap } from "@/components/whiteboard/whiteboard-minimap";
 import type { MentionPage } from "@/components/note-mention";
+import { applyMindmapChange, fitMindmapNodeToText, MindmapOverlay, templateLabels, WhiteboardTemplateStart, type MindmapOverlayModel } from "@/components/whiteboard/whiteboard-mindmap";
+import {
+  addMindmapChild, addMindmapSibling, collapsedMindmapNodes, collapseMindmapNode, deleteMindmapNodes, expandMindmapNode, findMindmapNode, includesMindmapNode,
+  mindmapDropTarget, mindmapRootsOf, mindmapSelection, readMindmapTrees, remapMindmapDuplicates, reparentMindmapNode, setMindmapDirection,
+  type MindmapChange, type SceneElement,
+} from "@/lib/whiteboard/mindmap/editing";
+import { MINDMAP_DATA_KEY, mindmapDataOf, type MindmapDirection } from "@/lib/whiteboard/mindmap/model";
+import { moveSkeletons, skeletonBounds, templateSkeletons, type WhiteboardTemplate } from "@/lib/whiteboard/templates";
 
 // ホワイトボードのエディター（Excalidraw をもとに、画面は NoteFable 自身のツールバーとパネル。docs/architecture/whiteboard.md）。
 // 動的に読み込む（SSR しない）。/app のノート画面・分割表示・/note-embed（アプリの WebView）で使う。
@@ -154,6 +163,11 @@ function revealIn(target: ExcalidrawImperativeAPI, elementId: string, animation 
   return true;
 }
 
+const asScene = (elements: readonly ExcalidrawElement[]) => elements as unknown as SceneElement[];
+const noChange = (): MindmapChange => ({ patches: new Map(), added: [], restored: [] });
+const EMPTY_MINDMAP: MindmapOverlayModel = { selection: null, collapsed: [] };
+const selectedIdsOf = (appState: AppState) => Object.keys(appState.selectedElementIds ?? {}).filter((id) => appState.selectedElementIds[id]);
+
 function randomId() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID().replace(/-/g, "") : Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
@@ -234,6 +248,14 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   const lastSize = useRef("");
   // 取り込み中の PDF（閉じたらやめる）。
   const pdfAbort = useRef<AbortController | null>(null);
+  // 思考マップ：浮かべるボタンに出す様子と、ドラッグ・大きさの変更・文字の編集の終わりを見つけるための前回の様子。
+  const [mindmap, setMindmap] = useState<MindmapOverlayModel>(EMPTY_MINDMAP);
+  const mindmapKey = useRef("");
+  const [gestureActive, setGestureActive] = useState(false);
+  const gesture = useRef<{ busy: boolean; dragged: boolean; ids: string[]; editing: string | null }>({ busy: false, dragged: false, ids: [], editing: null });
+  // 終わったときにすること（エディターの API がそろってから入れる）。
+  const mindmapEvents = useRef<{ gestureEnd: (ids: string[], dragged: boolean) => void; textEnd: (textId: string) => void }>({ gestureEnd: () => {}, textEnd: () => {} });
+  const [templateStartClosed, setTemplateStartClosed] = useState(false);
 
   const signatureOf = useCallback((elements: readonly ExcalidrawElement[], appState: AppState) => {
     const persisted = [appState.viewBackgroundColor, appState.gridModeEnabled, appState.gridSize, appState.gridStep, appState.objectsSnapModeEnabled];
@@ -541,9 +563,35 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     };
   }, [onSelectionChangeProp, readUi]);
 
+  // 思考マップの様子を読む。ドラッグ・大きさの変更の終わりには置き直し（ほかの節の上で離したら親を替える）、節の文字の編集の終わりにも置き直す。
+  const readMindmap = useCallback((elements: readonly ExcalidrawElement[], appState: AppState) => {
+    const busy = Boolean(appState.selectedElementsAreBeingDragged || appState.isResizing);
+    const editing = appState.editingTextElement?.id ?? null;
+    const previous = gesture.current;
+    const ids = selectedIdsOf(appState);
+    gesture.current = {
+      busy,
+      dragged: busy && (previous.dragged || Boolean(appState.selectedElementsAreBeingDragged)),
+      ids: busy && previous.busy ? previous.ids : ids,
+      editing,
+    };
+    setGestureActive(busy);
+    if (previous.busy && !busy) queueMicrotask(() => mindmapEvents.current.gestureEnd(previous.ids, previous.dragged));
+    if (previous.editing && previous.editing !== editing) queueMicrotask(() => mindmapEvents.current.textEnd(previous.editing!));
+    if (busy) return;
+    const key = `${getSceneVersion(elements)}|${elements.length}|${[...ids].sort().join(",")}`;
+    if (key === mindmapKey.current) return;
+    mindmapKey.current = key;
+    const live = asScene(elements.filter((element) => !element.isDeleted));
+    const has = live.some((element) => element.customData && MINDMAP_DATA_KEY in element.customData);
+    const next: MindmapOverlayModel = has ? { selection: ids.length ? mindmapSelection(live, ids) : null, collapsed: collapsedMindmapNodes(live) } : EMPTY_MINDMAP;
+    setMindmap((current) => JSON.stringify(current) === JSON.stringify(next) ? current : next);
+  }, []);
+
   const handleChange = useCallback((elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
     latestScene.current = { elements, appState, files };
     readUi(elements, appState, files);
+    readMindmap(elements, appState);
     // Excalidraw 自身のエラー（大きすぎる画像など）。既定の画面を出していないので、こちらで知らせて消す。
     if (appState.errorMessage) {
       const message = appState.errorMessage;
@@ -574,7 +622,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
       if (editable) { ownEdit.current = true; touched.current = true; }
       scheduleSave();
     }
-  }, [api, editable, pageId, readUi, scheduleSave, signatureOf, startUploads, updateContentHidden]);
+  }, [api, editable, pageId, readMindmap, readUi, scheduleSave, signatureOf, startUploads, updateContentHidden]);
 
   // 開発中だけ、ブラウザーのコンソールから確かめられるよう editor の API を置く（本番のビルドには入らない）。
   useEffect(() => {
@@ -587,6 +635,138 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     if (!api) return;
     setActions(connectWhiteboardActions(api as never, containerRef.current?.querySelector(".excalidraw") as HTMLElement | null));
   }, [api]);
+
+  // ---- 思考マップのモード（子・兄弟を足す、消す、親を替える、畳む・広げる、向き。docs/architecture/whiteboard.md） ----
+  const editableRef = useRef(editable);
+  useEffect(() => { editableRef.current = editable; }, [editable]);
+  // 節の文字の編集を始める（selectAll：足したばかりの節の仮の文字を選んでおき、打てば置き換わる）。
+  const startEditingNode = useCallback((nodeId: string, selectAll = false) => {
+    requestAnimationFrame(() => {
+      if (!api || !mounted.current || !actions) return;
+      const elements = api.getSceneElements();
+      const container = elements.find((element) => element.id === nodeId);
+      if (!container) return;
+      const textId = container.boundElements?.find((item) => item.type === "text")?.id;
+      const text = textId ? elements.find((element) => element.id === textId) : undefined;
+      const length = text && "originalText" in text ? text.originalText.length : 0;
+      actions.editText({
+        sceneX: container.x + container.width / 2, sceneY: container.y + container.height / 2, container,
+        ...(text ? { textElement: text } : {}), ...(selectAll && text ? { initialSelection: { start: 0, end: length } } : {}),
+      });
+    });
+  }, [api, actions]);
+  const runMindmap = useCallback((change: MindmapChange, roots: Iterable<string> = []) => {
+    if (!api || !mounted.current || !editableRef.current) return false;
+    const applied = applyMindmapChange(api, change, roots);
+    if (applied && change.edit) startEditingNode(change.edit, true);
+    return applied !== null;
+  }, [api, startEditingNode]);
+  const mindmapAddChild = useCallback((nodeId: string) => {
+    if (api) runMindmap(addMindmapChild(asScene(api.getSceneElements()), nodeId, t("New topic")));
+  }, [api, runMindmap, t]);
+  const mindmapAddSibling = useCallback((nodeId: string) => {
+    if (api) runMindmap(addMindmapSibling(asScene(api.getSceneElements()), nodeId, t("New topic")));
+  }, [api, runMindmap, t]);
+  const mindmapToggle = useCallback((nodeId: string) => {
+    if (!api) return;
+    const elements = asScene(api.getSceneElements());
+    const found = findMindmapNode(elements, nodeId);
+    if (!found) return;
+    const change = found.node.data.collapsed ? expandMindmapNode(elements, found.node.id) : collapseMindmapNode(elements, found.node.id);
+    runMindmap({ ...change, select: found.node.id });
+  }, [api, runMindmap]);
+  const mindmapDirection = useCallback((nodeId: string, direction: MindmapDirection) => {
+    if (api) runMindmap(setMindmapDirection(asScene(api.getSceneElements()), nodeId, direction));
+  }, [api, runMindmap]);
+  // 選んでいるのが思考マップの要素（節・節の文字・線）だけなら、節を子孫ごと消して置き直す（true）。ほかの図形も選んでいれば
+  // Excalidraw の削除に任せる（false）。
+  const mindmapDeleteSelection = useCallback(() => {
+    if (!api || !editableRef.current) return false;
+    const elements = asScene(api.getSceneElements());
+    const ids = selectedIdsOf(api.getAppState());
+    if (!ids.length || !includesMindmapNode(elements, ids)) return false;
+    const trees = readMindmapTrees(elements);
+    const byId = new Map(elements.map((element) => [element.id, element]));
+    const onlyMindmap = ids.every((id) => {
+      const element = byId.get(id);
+      return !element || mindmapDataOf(element.customData) !== null || findMindmapNode(elements, id, trees) !== null;
+    });
+    if (!onlyMindmap) return false;
+    const first = ids.map((id) => findMindmapNode(elements, id, trees)).find((found) => found !== null);
+    return runMindmap({ ...deleteMindmapNodes(elements, ids), select: first?.node.parent?.id });
+  }, [api, runMindmap]);
+  const finishMindmapGesture = useCallback((ids: string[], dragged: boolean) => {
+    if (!api || !mounted.current || !editableRef.current) return;
+    const elements = asScene(api.getSceneElements());
+    if (!includesMindmapNode(elements, ids)) return;
+    const selection = mindmapSelection(elements, ids);
+    if (dragged && selection && !selection.isRoot) {
+      const target = mindmapDropTarget(elements, selection.nodeId);
+      const change = target ? reparentMindmapNode(elements, selection.nodeId, target) : null;
+      if (change) { runMindmap({ ...change, select: selection.nodeId }); return; }
+    }
+    runMindmap(noChange(), mindmapRootsOf(elements, ids));
+  }, [api, runMindmap]);
+  const finishMindmapTextEdit = useCallback((textId: string) => {
+    if (!api || !mounted.current || !editableRef.current) return;
+    const text = api.getSceneElementsIncludingDeleted().find((element) => element.id === textId) as { containerId?: string | null } | undefined;
+    if (!text?.containerId) return;
+    const elements = api.getSceneElements();
+    const found = findMindmapNode(asScene(elements), text.containerId);
+    if (!found) return;
+    // 文字に合わせて節の大きさを変え、木を置き直す。
+    runMindmap({ ...noChange(), patches: fitMindmapNodeToText(elements, found.node.id, found.node.depth) }, [found.tree.root.id]);
+  }, [api, runMindmap]);
+  useEffect(() => { mindmapEvents.current = { gestureEnd: finishMindmapGesture, textEnd: finishMindmapTextEdit }; }, [finishMindmapGesture, finishMindmapTextEdit]);
+  // キー：Tab で子、Enter で兄弟（根では子）、F2 で文字の編集、Delete で子孫ごと消す。Excalidraw より先に受ける
+  // （Excalidraw の Tab は図形の種類の切り替え、Enter は文字の編集）。
+  useEffect(() => {
+    const root = containerRef.current;
+    if (!root || !api) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!editableRef.current || event.isComposing || event.altKey || event.metaKey || event.ctrlKey) return;
+      const target = event.target as HTMLElement | null;
+      if (!target?.closest(".excalidraw") || target.closest("input, textarea, select, [contenteditable='true']")) return;
+      const appState = api.getAppState();
+      if (appState.editingTextElement || appState.newElement || appState.selectedElementsAreBeingDragged || appState.openDialog) return;
+      const ids = selectedIdsOf(appState);
+      if (!ids.length) return;
+      let handled = false;
+      if (event.key === "Delete" || event.key === "Backspace") handled = mindmapDeleteSelection();
+      else if (!event.shiftKey && (event.key === "Tab" || event.key === "Enter" || event.key === "F2")) {
+        const selection = mindmapSelection(asScene(api.getSceneElements()), ids);
+        if (selection) {
+          handled = true;
+          if (event.key === "Tab") mindmapAddChild(selection.nodeId);
+          else if (event.key === "Enter") mindmapAddSibling(selection.nodeId);
+          else startEditingNode(selection.nodeId);
+        }
+      }
+      if (handled) { event.preventDefault(); event.stopPropagation(); }
+    };
+    root.addEventListener("keydown", onKeyDown, true);
+    return () => root.removeEventListener("keydown", onKeyDown, true);
+  }, [api, mindmapAddChild, mindmapAddSibling, mindmapDeleteSelection, startEditingNode]);
+  // パネルの削除ボタンも、思考マップの節は子孫ごと消す。
+  const panelActions = useMemo<WhiteboardActions | null>(() => actions && {
+    ...actions,
+    run: (name, value) => (name === "deleteSelectedElements" && mindmapDeleteSelection()) || actions.run(name, value),
+  }, [actions, mindmapDeleteSelection]);
+  // 複製（Ctrl+D・Alt ドラッグ・貼り付け）した節の印を付け直す（親を一緒に複製しなかった節は新しい木の根になる）。
+  // 返すのは複製のすべて（返さなかった複製は作られない）。
+  const onDuplicate = useCallback((_next: readonly unknown[], _previous: readonly unknown[], data: OnDuplicateData) => {
+    const pairs = [...data.duplicateIdToOrigId].flatMap(([duplicateId, originalId]) => {
+      const from = data.originalElements.get(originalId);
+      const to = data.duplicateElements.get(duplicateId);
+      return from && to ? [{ from: from as unknown as SceneElement, to: to as unknown as SceneElement }] : [];
+    });
+    if (!pairs.some(({ from }) => mindmapDataOf(from.customData))) return;
+    const patches = remapMindmapDuplicates(pairs);
+    return [...data.duplicateElements.values()].map((element) => {
+      const values = patches.get(element.id);
+      return (values ? { ...element, ...values } : element) as unknown as ExcalidrawElement;
+    });
+  }, []);
 
   // ---- 表示位置を覚える。見えている範囲に内容が無ければ「内容に戻る」を出す。 ----
   useEffect(() => {
@@ -817,6 +997,25 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     api.selection.select(created[0].id);
   }, [api, sceneCenter, t]);
 
+  // ---- 学習テンプレート：画面の中央に置いて選ぶ（思考マップは根、ほかは枠） ----
+  const insertTemplate = useCallback((template: WhiteboardTemplate) => {
+    if (!api || !editableRef.current) return;
+    const skeletons = templateSkeletons(template, templateLabels(template, t));
+    const bounds = skeletonBounds(skeletons);
+    const center = sceneCenter();
+    const placed = moveSkeletons(skeletons, center.x - bounds.x - bounds.width / 2, center.y - bounds.y - bounds.height / 2);
+    const created = convertToExcalidrawElements(placed as never, { regenerateIds: false });
+    const pick = created.find((element) => element.type === "frame")
+      ?? created.find((element) => { const data = mindmapDataOf(element.customData); return data?.role === "node" && data.parent === null; });
+    api.updateScene({
+      elements: [...api.getSceneElementsIncludingDeleted(), ...created],
+      ...(pick ? { appState: { selectedElementIds: { [pick.id]: true } } as never } : {}),
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+    });
+    api.setActiveTool({ type: "selection" });
+    api.setViewport({ target: created, fit: "scale-down", animation: true });
+  }, [api, sceneCenter, t]);
+
   // パネルの「リンクを開く」：アプリ内のページはその場で、外部のリンクは新しいタブで。
   const openLink = useCallback((link: string) => {
     const id = pageIdFromLink(link, window.location.origin);
@@ -939,17 +1138,25 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
         // 外部のページの埋め込みは作らない（URL を貼ってもリンクになる）。公開リンクで外部のページを開かせないため。
         validateEmbeddable={false}
         onChange={handleChange}
+        onDuplicate={onDuplicate as never}
         onLinkOpen={onLinkOpen}
         imageOptions={{ maxFileSizeBytes: MAX_NOTE_FILE_BYTES, maxWidthOrHeight: 2560 }}
         autoFocus={!embedded}
       />
-      {ui && api && <WhiteboardChrome ui={ui} drawMode={drawMode} editable={editable} embedded={embedded} compact={compact} theme={theme} actions={actions}
+      {api && <MindmapOverlay api={api} model={mindmap} editable={editable} hidden={gestureActive || Boolean(ui?.editingText)}
+        onAddChild={mindmapAddChild} onAddSibling={mindmapAddSibling} onToggle={mindmapToggle} />}
+      {ui && api && editable && ui.empty && !templateStartClosed && !busy && <WhiteboardTemplateStart onPick={insertTemplate} onClose={() => setTemplateStartClosed(true)} />}
+      {ui && api && <WhiteboardChrome ui={ui} drawMode={drawMode} editable={editable} embedded={embedded} compact={compact} theme={theme} actions={panelActions}
         title={props.title} icon={props.icon} onTitleChange={props.onTitleChange} onIconChange={props.onIconChange}
         onSelectTool={selectTool} onLink={openLinkDialog} onOpenLink={openLink} onUnlock={unlockTarget} onInsertPageCard={() => setLinkDialog({ mode: "card" })}
         onExport={(format) => void runExport(format)} onImportPdf={() => pdfInputRef.current?.click()}
         onFitToContent={fitToContent} onCanvasBackground={(color) => api.updateScene({ appState: { viewBackgroundColor: color }, captureUpdate: CaptureUpdateAction.IMMEDIATELY })}
         onPenMode={(penMode) => api.updateScene({ appState: { penMode }, captureUpdate: CaptureUpdateAction.NEVER })}
         onAskAi={onAskAiProp ? askAiSelection : undefined}
+        onInsertTemplate={insertTemplate}
+        mindmap={editable && mindmap.selection ? {
+          selection: mindmap.selection, onAddChild: mindmapAddChild, onAddSibling: mindmapAddSibling, onToggle: mindmapToggle, onDirection: mindmapDirection,
+        } : null}
         minimapOpen={minimapOpen} onToggleMinimap={toggleMinimap} contentHidden={contentHidden} busy={busy} pages={props.pages} aiSlot={props.aiSlot}
         minimap={<WhiteboardMinimap api={api} version={sceneVersion} theme={theme} />} />}
       <input ref={pdfInputRef} type="file" accept="application/pdf,.pdf" className="sr-only" tabIndex={-1} aria-hidden="true"
@@ -995,6 +1202,8 @@ function deriveUiState(selected: readonly NonDeletedExcalidrawElement[], appStat
     tool: appState.activeTool.type,
     toolLocked: appState.activeTool.locked,
     selectedCount: selected.length,
+    // 白板に何も無い（「テンプレートから始める」を出す）。
+    empty: !elements.some((element) => !element.isDeleted),
     selectedTypes: [...new Set(selected.map((element) => element.type))].sort(),
     groupSelected: Object.keys(appState.selectedGroupIds ?? {}).some((id) => appState.selectedGroupIds[id]),
     allLocked: selected.length > 0 && selected.every((element) => element.locked),

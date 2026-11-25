@@ -85,7 +85,7 @@ export function readMindmapTrees(elements: readonly SceneElement[]): Map<string,
     while (cursor) {
       if (seen.has(cursor.id)) { cycle = true; break; }
       seen.add(cursor.id);
-      const next = cursor.data.parent ? nodes.get(cursor.data.parent) : undefined;
+      const next: SceneNode | undefined = cursor.data.parent ? nodes.get(cursor.data.parent) : undefined;
       cursor = next;
     }
     if (cycle) continue;
@@ -210,7 +210,8 @@ export function relayoutMindmap(elements: readonly SceneElement[], rootId: strin
     const endBinding = { ...(existing.element.endBinding as Record<string, unknown> | null ?? {}), elementId: node.id, fixedPoint: geometry.endFixedPoint, mode: "orbit" };
     const moved = Math.abs(existing.element.x - geometry.x) >= 0.5 || Math.abs(existing.element.y - geometry.y) >= 0.5
       || JSON.stringify(existing.element.points) !== JSON.stringify(geometry.points)
-      || (existing.element.startBinding as { elementId?: string } | null)?.elementId !== node.parent.id;
+      || (existing.element.startBinding as { elementId?: string } | null)?.elementId !== node.parent.id
+      || (existing.element.endBinding as { elementId?: string } | null)?.elementId !== node.id;
     if (moved) {
       patch(change, existing.element.id, {
         x: geometry.x, y: geometry.y, points: geometry.points, width: geometry.width, height: geometry.height, startBinding, endBinding,
@@ -544,4 +545,76 @@ export function mindmapRootsOf(elements: readonly SceneElement[], ids: Iterable<
     if (found) roots.add(found.tree.root.id);
   }
   return roots;
+}
+
+// ---- 線の結び付き ----
+
+// 線の両端の節が、その線を boundElements に持つようにする（節を動かすと線が付いてくる）。
+// エディターで足した線・畳みから戻した線は、節の側の記録が無い（線の結び付きは置き直しが付ける）。
+export function bindMindmapEdges(elements: readonly SceneElement[], change: MindmapChange = emptyChange()): MindmapChange {
+  const byId = new Map(elements.map((element) => [element.id, element]));
+  const missing = new Map<string, string[]>();
+  for (const { element, data } of edgesOf(elements)) {
+    for (const end of [data.parent, data.child]) {
+      const node = byId.get(end);
+      if (!node || !live(node) || node.boundElements?.some((item) => item.id === element.id)) continue;
+      if (!missing.has(end)) missing.set(end, []);
+      missing.get(end)!.push(element.id);
+    }
+  }
+  for (const [id, arrows] of missing) {
+    const node = byId.get(id)!;
+    patch(change, id, { boundElements: [...(node.boundElements ?? []), ...arrows.map((arrow) => ({ id: arrow, type: "arrow" }))] });
+  }
+  return change;
+}
+
+// ---- ドラッグで親を替える ----
+
+// ドラッグを終えた節の中心の下にある、別の節（自分と子孫は除く。重なっていれば小さい方）。無ければ null。
+export function mindmapDropTarget(elements: readonly SceneElement[], nodeId: string): string | null {
+  const trees = readMindmapTrees(elements);
+  const found = findMindmapNode(elements, nodeId, trees);
+  if (!found) return null;
+  const { element } = found.node;
+  const cx = element.x + element.width / 2;
+  const cy = element.y + element.height / 2;
+  const excluded = new Set([found.node.id, ...descendants(found.node).map((node) => node.id)]);
+  let best: { id: string; area: number } | null = null;
+  for (const tree of trees.values()) {
+    for (const node of tree.nodes.values()) {
+      if (excluded.has(node.id)) continue;
+      const box = node.element;
+      if (cx < box.x || cx > box.x + box.width || cy < box.y || cy > box.y + box.height) continue;
+      const area = box.width * box.height;
+      if (!best || area < best.area) best = { id: node.id, area };
+    }
+  }
+  return best?.id ?? null;
+}
+
+// ---- 畳んである節 ----
+
+export type CollapsedMindmapNode = {
+  nodeId: string;
+  box: { x: number; y: number; width: number; height: number };
+  side: "root" | "right" | "left";
+  // 畳んで隠している節の数。
+  hidden: number;
+};
+
+// 畳んである節（白板の上に「+N」の印を出して、押すと広げる）。
+export function collapsedMindmapNodes(elements: readonly SceneElement[]): CollapsedMindmapNode[] {
+  const out: CollapsedMindmapNode[] = [];
+  for (const tree of readMindmapTrees(elements).values()) {
+    const rootCenter = tree.root.element.x + tree.root.element.width / 2;
+    for (const node of tree.nodes.values()) {
+      if (!node.data.collapsed) continue;
+      const hidden = (node.data.stash ?? []).filter((element) => mindmapDataOf(element.customData)?.role === "node").length;
+      if (!hidden) continue;
+      const { x, y, width, height } = node.element;
+      out.push({ nodeId: node.id, box: { x, y, width, height }, side: !node.parent ? "root" : x + width / 2 < rootCenter ? "left" : "right", hidden });
+    }
+  }
+  return out;
 }

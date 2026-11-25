@@ -469,6 +469,97 @@ button.whiteboard-zoom-value:hover { background: var(--notion-hover); }
 }
 .whiteboard-minimap canvas { display: block; width: 100%; height: 100%; border-radius: 8px; }
 
+/* ---- 思考マップ：選んだ節の上の小さなボタンと、畳んだ節の「+N」（whiteboard-mindmap.tsx）。
+   位置は場面の座標から計算した left / top（キャンバスは右から左の言語でも左右を入れ替えないので、left のまま）。
+   キャンバスの上・パネルや文字の入力欄の下に出す。 ---- */
+.whiteboard-mindmap-bar {
+  position: absolute;
+  z-index: 2;
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  transform: translate(-50%, calc(-100% - 10px));
+  background: var(--wb-surface);
+  border-radius: 10px;
+  box-shadow: var(--notion-shadow);
+}
+.whiteboard-mindmap-bar.is-below { transform: translate(-50%, 10px); }
+.whiteboard-mindmap-button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: var(--notion-text);
+}
+.whiteboard-mindmap-button:hover { background: var(--notion-hover); }
+.whiteboard-mindmap-button:focus-visible,
+.whiteboard-mindmap-badge:focus-visible { outline: 2px solid var(--nf-accent-line); outline-offset: 1px; }
+.whiteboard.is-compact .whiteboard-mindmap-button { width: 38px; height: 38px; }
+.whiteboard-mindmap-badge {
+  position: absolute;
+  z-index: 2;
+  min-width: 26px;
+  height: 22px;
+  padding-inline: 7px;
+  transform: translate(8px, -50%);
+  border: 1px solid var(--notion-border-strong);
+  border-radius: 999px;
+  background: var(--wb-surface);
+  color: var(--notion-muted);
+  font: 600 11px/20px var(--font-ui);
+  text-align: center;
+  white-space: nowrap;
+}
+.whiteboard-mindmap-badge.is-left { transform: translate(calc(-100% - 8px), -50%); }
+button.whiteboard-mindmap-badge { cursor: pointer; }
+button.whiteboard-mindmap-badge:hover { background: var(--notion-hover); color: var(--notion-text); }
+.whiteboard.is-compact .whiteboard-mindmap-badge { min-width: 32px; height: 28px; line-height: 26px; }
+
+/* ---- 何も無い白板：テンプレートから始める ---- */
+.whiteboard-template-start {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 3;
+  width: min(440px, calc(100% - 32px));
+  padding: 12px;
+  transform: translate(-50%, -50%);
+  background: var(--wb-surface);
+  border-radius: var(--wb-radius);
+  box-shadow: var(--notion-shadow);
+}
+.whiteboard-template-start-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-inline-start: 4px;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.whiteboard-template-start-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+  gap: 6px;
+}
+.whiteboard-template-start-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--notion-border);
+  border-radius: 10px;
+  color: var(--notion-text);
+  font-size: 13px;
+  text-align: start;
+}
+.whiteboard-template-start-item:hover { background: var(--notion-hover); }
+.whiteboard-template-start-item:focus-visible { outline: 2px solid var(--nf-accent-line); outline-offset: 1px; }
+.whiteboard-template-start-item svg { flex: none; color: var(--kind-whiteboard); }
+
 /* ---- 右下：AI ボタン（#153）用に空けておく場所 ---- */
 .whiteboard-ai-slot {
   position: absolute;
