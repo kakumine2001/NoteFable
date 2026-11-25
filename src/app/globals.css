@@ -4438,8 +4438,8 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 }
 .notes-share-footer { display: flex; justify-content: flex-end; padding-top: 0.4rem; border-top: 1px solid var(--notion-border); }
 
-/* 公開ノート閲覧ページ（/s/:token）。 */
-.public-note-shell { min-height: 100dvh; background: var(--notion-bg); color: var(--notion-text); display: flex; flex-direction: column; }
+/* 公開ノート閲覧ページ（/s/:token）。アプリ本体は body がスクロールしない作りなので、ここで自前のスクロール領域を持つ。 */
+.public-note-shell { position: relative; height: 100dvh; overflow-x: hidden; overflow-y: auto; scroll-padding-top: 3rem; background: var(--notion-bg); color: var(--notion-text); display: flex; flex-direction: column; }
 /* ブロック・文字の色（BlockNote の色名。public-note-view.tsx の colorStyle が var() で使う）。ライトは Notion の色、
    ダークは下の :root[data-theme="dark"] .public-note-shell でエディターと同じ色にする。 */
 .public-note-shell {
@@ -4456,7 +4456,7 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
   --public-note-callout-bg: #f1f1ef;
 }
 .public-note-topbar {
-  position: sticky; top: 0; z-index: 20; display: flex; height: 3rem; align-items: center; justify-content: space-between; gap: 0.75rem;
+  position: sticky; top: 0; z-index: 20; display: flex; flex: none; height: 3rem; align-items: center; justify-content: space-between; gap: 0.75rem;
   padding: 0 1rem; border-bottom: 1px solid var(--notion-border); background: rgba(255, 255, 255, 0.92); backdrop-filter: blur(8px);
 }
 .public-note-breadcrumbs { display: flex; min-width: 0; flex: 1; align-items: center; gap: 0.15rem; overflow: hidden; }
@@ -4474,7 +4474,7 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
   font-size: 0.8125rem; font-weight: 500; color: var(--notion-muted); text-decoration: none;
 }
 @media (hover: hover) { .public-note-brand:hover { background: var(--notion-hover); color: var(--notion-text); } }
-.public-note-main { flex: 1; padding-bottom: 5rem; }
+.public-note-main { flex: 1 0 auto; padding-bottom: 5rem; }
 .public-note-icon { display: inline-flex; align-items: center; justify-content: center; cursor: default; }
 .public-note-title { margin: 0; font-weight: 700; word-break: break-word; }
 .public-note-body { display: flex; flex-direction: column; gap: 0.3rem; font-size: 1rem; line-height: 1.65; }
@@ -4575,7 +4575,7 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 .public-note-subpage-icon { display: inline-flex; width: 1.25rem; justify-content: center; flex: none; color: var(--notion-muted); }
 .public-note-subpage-arrow { flex: none; color: var(--notion-faint); }
 .public-note-unavailable {
-  min-height: 100dvh; display: grid; place-items: center; padding: 1.5rem; background: var(--notion-bg);
+  height: 100dvh; overflow-y: auto; display: grid; place-items: center; padding: 1.5rem; background: var(--notion-bg);
 }
 .public-note-unavailable-card {
   display: flex; max-width: 24rem; flex-direction: column; align-items: center; gap: 0.75rem; text-align: center;
