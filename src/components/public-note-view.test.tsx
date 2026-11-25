@@ -235,6 +235,7 @@ describe("public share scrolling", () => {
     const noteShell = declarations(globals, /\.public-note-shell/);
     expect(noteShell.height).toBe("100dvh");
     expect(noteShell["overflow-y"]).toBe("auto");
+    expect(noteShell["scroll-padding-top"]).toBe("3rem");
 
     const topbar = declarations(globals, /\.public-note-topbar/);
     expect(topbar.position).toBe("sticky");

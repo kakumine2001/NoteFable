@@ -4439,7 +4439,7 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 .notes-share-footer { display: flex; justify-content: flex-end; padding-top: 0.4rem; border-top: 1px solid var(--notion-border); }
 
 /* 公開ノート閲覧ページ（/s/:token）。アプリ本体は body がスクロールしない作りなので、ここで自前のスクロール領域を持つ。 */
-.public-note-shell { position: relative; height: 100dvh; overflow-x: hidden; overflow-y: auto; background: var(--notion-bg); color: var(--notion-text); display: flex; flex-direction: column; }
+.public-note-shell { position: relative; height: 100dvh; overflow-x: hidden; overflow-y: auto; scroll-padding-top: 3rem; background: var(--notion-bg); color: var(--notion-text); display: flex; flex-direction: column; }
 /* ブロック・文字の色（BlockNote の色名。public-note-view.tsx の colorStyle が var() で使う）。ライトは Notion の色、
    ダークは下の :root[data-theme="dark"] .public-note-shell でエディターと同じ色にする。 */
 .public-note-shell {
