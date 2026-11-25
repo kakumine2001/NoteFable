@@ -135,7 +135,7 @@ find_or_create_device() {
       (.devices[$rt] // [])[]
       | select(.isAvailable and ((.name | contains("Duo")) or (.deviceTypeIdentifier | contains("Duo")) | not))
       | "\(.name)\t\(.udid)"')
-    # "NoteFable iOS <major>" is the simulator an earlier --boot-only run had to create.
+    # "NoteFable <family> <major>" is the simulator an earlier --boot-only run had to create.
     for name in "NoteFable ${DEVICE_FAMILY} ${major}" "${DEVICES[@]}"; do
       udid=$(awk -F'\t' -v n="$name" '$1 == n { print $2; exit }' <<<"$available")
       if [[ -n "$udid" ]]; then
@@ -143,7 +143,7 @@ find_or_create_device() {
         return 0
       fi
     done
-    udid=$(awk -F'\t' '$1 ~ /iPhone/ { print $2; exit }' <<<"$available")
+    udid=$(awk -F'\t' -v family="$DEVICE_FAMILY" 'index($1, family) == 1 { print $2; exit }' <<<"$available")
     if [[ -n "$udid" ]]; then
       name=$(awk -F'\t' -v u="$udid" '$2 == u { print $1; exit }' <<<"$available")
       printf 'existing\t%s\t%s\n' "$udid" "$name"
@@ -151,7 +151,7 @@ find_or_create_device() {
     fi
   fi
   dtype=$(devicetype_for "$runtime") || return 1
-  udid=$(xcrun simctl create "NoteFable iOS ${major}" "$dtype" "$runtime")
+  udid=$(xcrun simctl create "NoteFable ${DEVICE_FAMILY} ${major}" "$dtype" "$runtime")
   printf 'created\t%s\t%s\n' "$udid" "$dtype"
 }
 
