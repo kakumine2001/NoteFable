@@ -78,6 +78,10 @@ struct RootView: View {
             set: { router.selectTab($0) }
         )
         if #available(iOS 18.0, *) {
+            let searchRole: TabRole = {
+                if #available(iOS 27.0, *) { return .prominent }
+                return .search
+            }()
             TabView(selection: tabSelection) {
                 Tab(value: AppTab.chat) {
                     ChatWorkspace()
@@ -91,8 +95,9 @@ struct RootView: View {
                 } label: {
                     Label { Text(L("note_mode")) } icon: { Image(uiImage: NFGlassTabIcons.workspace) }
                 }
-                // 显式传本地化标题，避免 role: .search 在应用内切语言时仍用系统语言。
-                Tab(value: AppTab.search, role: .search) {
+                // 显式传本地化标题，避免应用内切语言时仍用系统语言；
+                // iOS 27 起使用 .prominent，使搜索保持与 iOS 26 一致的独立圆形玻璃按钮样式。
+                Tab(value: AppTab.search, role: searchRole) {
                     SearchScreen()
                         .nfTabBarHidden(false)
                 } label: {
