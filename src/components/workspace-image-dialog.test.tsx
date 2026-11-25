@@ -154,7 +154,7 @@ describe("WorkspaceImageDialog", () => {
     expect(collectText(alert)).toContain("Could not create the image. Try again.");
   });
 
-  it("keeps the existing preview when regenerating hits the storage limit and allows reporting the preview", async () => {
+  it("keeps the existing preview and rejected prompt when regenerating hits the storage limit, and allows reporting the preview", async () => {
     const generated: PageImage = {
       url: "/api/pages/files?key=note-files%2Fu1%2Fpic2.png&name=ai-image.png",
       name: "ai-image.png",
@@ -162,6 +162,7 @@ describe("WorkspaceImageDialog", () => {
       height: 1024,
       mimeType: "image/png",
       prompt: "Mountain lake",
+      reportToken: "signed-report-token",
     };
     hooks.generatePageImage
       .mockResolvedValueOnce(generated)
@@ -190,13 +191,24 @@ describe("WorkspaceImageDialog", () => {
     const previewTree = render();
     expect(findNode(previewTree, (el) => el.type === "button" && collectText(el.props?.children).includes("Report image"))).not.toBeNull();
 
-    // Regenerate hits storage limit -> dialog stays open with the previous preview still insertable.
-    const retryForm = findNode(previewTree, (el) => el.type === "form");
+    // User edits prompt and regenerates -> hits storage limit -> dialog stays open with previous preview still insertable.
+    const editTextarea = findNode(previewTree, (el) => el.type === "textarea");
+    (editTextarea?.props?.onChange as (e: { target: { value: string } }) => void)({ target: { value: "New rejected prompt" } });
+    const editedTree = render();
+    const retryForm = findNode(editedTree, (el) => el.type === "form");
     await (retryForm?.props?.onSubmit as (e: { preventDefault: () => void }) => Promise<void>)({ preventDefault: vi.fn() });
 
     expect(onClose).not.toHaveBeenCalled();
     const afterRetry = render();
     expect(findNode(afterRetry, (el) => el.type === "img")?.props?.src).toBe(generated.url);
     expect(collectText(findNode(afterRetry, (el) => el.props?.role === "alert"))).toContain("Storage is full.");
+
+    // Inserting the older preview must NOT clear the rejected regeneration prompt draft.
+    hooks.savePendingDraft.mockClear();
+    const insertButton = findNode(afterRetry, (el) => el.type === "button" && collectText(el.props?.children).includes("Insert"));
+    (insertButton?.props?.onClick as () => void)();
+    expect(onInsert).toHaveBeenCalledWith(generated);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(hooks.savePendingDraft).not.toHaveBeenCalledWith(expect.any(String), "", expect.anything());
   });
 });

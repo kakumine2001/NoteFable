@@ -95,6 +95,7 @@ export type WhiteboardEditorProps = {
   aiSlot?: ReactNode;
   // 増えるたびに AI 画像生成ダイアログを開く（AI パネルの「＋」メニューから呼ぶ）。
   generateImageSignal?: number;
+  onConsumeGenerateImage?: () => void;
   handleRef?: Ref<WhiteboardEditorHandle>;
 };
 
@@ -163,7 +164,7 @@ function randomId() {
 }
 
 export default function WhiteboardEditor(props: WhiteboardEditorProps) {
-  const { pageId, data, generation, editable, embedded, onChange, onOpenPage, handleRef, generateImageSignal = 0 } = props;
+  const { pageId, data, generation, editable, embedded, onChange, onOpenPage, handleRef, generateImageSignal = 0, onConsumeGenerateImage } = props;
   // 開いた時の保存キューの世代。同じページ・同じ世代のエディターどうしだけで、閉じた方の画像を受け渡す
   // （最新の版を読む・版の復元で中身を置き換えた後のエディターへ、置き換える前の画像を入れない）。
   const liveKey = useMemo(() => `${pageId}:${generation ?? 0}`, [pageId, generation]);
@@ -1017,7 +1018,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
           pageKind="whiteboard"
           embedded={embedded}
           onInsert={insertGeneratedImage}
-          onClose={() => { setGenerateImageOpen(false); setDismissedGenerateSignal(generateImageSignal); }}
+          onClose={() => { setGenerateImageOpen(false); setDismissedGenerateSignal(generateImageSignal); onConsumeGenerateImage?.(); }}
         />
       )}
       {notice && <div className="whiteboard-notice" role="alert"><span>{notice.vars ? t(notice.text, notice.vars) : localizeSystemText(notice.text, t)}</span><button type="button" className="notion-button" onClick={() => setNotice(null)}>{t("Close")}</button></div>}

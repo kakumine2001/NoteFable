@@ -39,10 +39,10 @@ export async function POST(request: NextRequest) {
     if (!page) return NextResponse.json({ error: msg("This content is no longer available.") }, { status: 404 });
     email = pageReportEmail({ userId: user.id, signedIn, page, reason });
   } else if (target.kind === "pageImage") {
-    // ワークスペース（ノート・ホワイトボード・スライド）の AI 生成画像：自分のページと自分の note-files にある画像だけ。
-    const image = await findReportedPageImage(user.id, target.pageId, target.imageUrl);
+    // ワークスペース（ノート・ホワイトボード・スライド）の AI 生成画像：生成時に署名したトークンと本人のページ・ファイルを確認する。
+    const image = await findReportedPageImage(user.id, target.pageId, target.reportToken);
     if (!image) return NextResponse.json({ error: msg("This image is no longer available.") }, { status: 404 });
-    email = pageImageReportEmail({ userId: user.id, signedIn, pageId: image.pageId, pageKind: image.pageKind, prompt: target.prompt, path: image.path, reason });
+    email = pageImageReportEmail({ userId: user.id, signedIn, pageId: image.pageId, pageKind: image.pageKind, prompt: image.prompt, path: image.path, reason });
   } else {
     // スライドの AI で作った画像：自分の（ゴミ箱に無い）スライドの中の、AI で作った印のある画像だけ。
     const deck = normalizeDeck(await readCanvasData(user.id, target.pageId));

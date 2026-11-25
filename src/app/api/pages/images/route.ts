@@ -6,6 +6,7 @@ import { msg } from "@/lib/i18n/translate";
 import { noteApiError } from "@/lib/note-api";
 import sharp from "sharp";
 import { MAX_NOTE_FILE_BYTES, noteFileUrl, sniffImage } from "@/lib/note-file-keys";
+import { issuePageImageReportToken } from "@/lib/page-image-report-token";
 import { assertStorageRoom, scheduleStorageMaintenance, storeFile } from "@/lib/stored-files";
 import { clientNetworkKey, consumeUsage, refundUsage, usageLimitResponse, type UsageTicket } from "@/lib/usage-limits";
 
@@ -70,8 +71,9 @@ export async function POST(request: Request) {
     const path = `note-files/${user.id}/${randomUUID()}.${stored.extension}`;
     await storeFile(user, { path, kind: "NOTE_FILE", buffer: stored.buffer, mimeType: stored.mime }, { enforce: false });
     ticket = null;
+    const reportToken = await issuePageImageReportToken(user.id, { path, prompt });
     scheduleStorageMaintenance();
-    return NextResponse.json({ url: noteFileUrl(path, name), name, mimeType: stored.mime, size: stored.buffer.byteLength, prompt }, { status: 201, headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ url: noteFileUrl(path, name), name, mimeType: stored.mime, size: stored.buffer.byteLength, prompt, reportToken }, { status: 201, headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     await refundUsage(ticket);
     return noteApiError(error);

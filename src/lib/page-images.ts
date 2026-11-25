@@ -14,6 +14,7 @@ export type PageImage = {
   height: number;
   mimeType: string;
   prompt?: string;
+  reportToken?: string;
 };
 
 export const PAGE_IMAGE_SIZES: readonly { key: GenerateImageSize; label: string }[] = [
@@ -66,7 +67,7 @@ export async function generatePageImage(prompt: string, size: GenerateImageSize)
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ prompt, size }),
   });
-  const data = await response.json().catch(() => null) as { url?: string; name?: string; mimeType?: string; error?: string; prompt?: string } | null;
+  const data = await response.json().catch(() => null) as { url?: string; name?: string; mimeType?: string; error?: string; prompt?: string; reportToken?: string } | null;
   const usage = usageLimitErrorFrom(response.status, data);
   if (usage) throw usage;
   const storage = storageLimitFromUpload(response.status, data);
@@ -80,5 +81,6 @@ export async function generatePageImage(prompt: string, size: GenerateImageSize)
     ...dims,
     mimeType: inferImageMimeType(name, data.mimeType),
     prompt: data.prompt ?? prompt,
+    ...(typeof data.reportToken === "string" && data.reportToken ? { reportToken: data.reportToken } : {}),
   };
 }

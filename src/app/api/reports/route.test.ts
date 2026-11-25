@@ -119,12 +119,12 @@ describe("POST /api/reports", () => {
     expect(mocks.send).toHaveBeenCalledTimes(1);
   });
 
-  it("reports a generated workspace image on a note or whiteboard with ownership check", async () => {
+  it("reports a generated workspace image on a note or whiteboard using a verified report token", async () => {
     const path = "note-files/u1/00000000-0000-4000-8000-000000000001.png";
-    const imageUrl = `/api/pages/files?key=${encodeURIComponent(path)}&name=ai-image.png`;
-    mocks.findPageImage.mockResolvedValueOnce({ pageId: "n1", pageKind: "note", path });
-    expect((await POST(post({ pageId: "n1", imageUrl, prompt: "A misty forest", reason: "Inappropriate" }))).status).toBe(200);
-    expect(mocks.findPageImage).toHaveBeenCalledWith("u1", "n1", imageUrl);
+    const reportToken = "signed-report-token";
+    mocks.findPageImage.mockResolvedValueOnce({ pageId: "n1", pageKind: "note", path, prompt: "A misty forest" });
+    expect((await POST(post({ pageId: "n1", reportToken, reason: "Inappropriate" }))).status).toBe(200);
+    expect(mocks.findPageImage).toHaveBeenCalledWith("u1", "n1", reportToken);
     const email = mocks.send.mock.calls[0][0] as { subject: string; text: string };
     expect(email.subject).toContain("n1");
     expect(email.text).toContain("Page: n1 (note)");
@@ -133,8 +133,8 @@ describe("POST /api/reports", () => {
     expect(email.text).toContain("Reason: Inappropriate");
 
     mocks.findPageImage.mockResolvedValueOnce(null);
-    expect((await POST(post({ pageId: "n1", imageUrl }))).status).toBe(404);
-    expect((await POST(post({ pageId: "n1", elementId: "img1", imageUrl }))).status).toBe(400);
+    expect((await POST(post({ pageId: "n1", reportToken }))).status).toBe(404);
+    expect((await POST(post({ pageId: "n1", elementId: "img1", reportToken }))).status).toBe(400);
   });
 
   it("rejects bad bodies, other sites and too many reports", async () => {

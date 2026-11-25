@@ -59,7 +59,7 @@ function isTypingTarget(target: EventTarget | null) {
 const MOD = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
 
 // aiSlot: AI の面板（#150）を置く場所。単ページ編集の面の右下（スマホでは縮小図の帯の上）に重ねて出す。
-export default function SlidesEditor({ pageId, title, data, version, editable, embedded, onChange, onTitleChange, onAskAi, onSelectionChange, aiSlot, generateImageSignal = 0 }: CanvasEditorProps & { aiSlot?: ReactNode }) {
+export default function SlidesEditor({ pageId, title, data, version, editable, embedded, onChange, onTitleChange, onAskAi, onSelectionChange, aiSlot, generateImageSignal = 0, onConsumeGenerateImage }: CanvasEditorProps & { aiSlot?: ReactNode }) {
   const t = useT();
   const phone = useMediaQuery("(max-width: 640px)");
   // 作ったばかりで中身の無いスライドは、最初の 1 枚（標題）を入れて始める（作成の続き。開いただけで書き換えるのはこの時だけ）。
@@ -112,7 +112,8 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   const closeDialog = useCallback(() => {
     setDialog(null);
     setDismissedGenerateSignal(generateImageSignal);
-  }, [generateImageSignal]);
+    onConsumeGenerateImage?.();
+  }, [generateImageSignal, onConsumeGenerateImage]);
   const [menu, setMenu] = useState<{ x: number; y: number; kind: "element" | "slide"; slideId?: string } | null>(null);
   const [notice, setNotice] = useState("");
   const [exporting, setExporting] = useState<ExportFormat | null>(null);

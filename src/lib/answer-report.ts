@@ -1,19 +1,19 @@
 import { LEGAL_CONTACT_EMAIL } from "@/components/legal-page";
 import { canvasReadableText, parseCanvasSegments } from "@/lib/canvas-document";
 import { sendEmail } from "@/lib/email-login";
-import { parseNoteFileUrl } from "@/lib/note-file-keys";
 import { blocksToMarkdown } from "@/lib/note-markdown";
+import { verifyPageImageReportToken } from "@/lib/page-image-report-token";
 import { isCanvasKind, pageKindOf, type PageKind } from "@/lib/page-kinds";
 import { prisma } from "@/lib/prisma";
 
 // AI が作った内容の通報（Google Play の AI 生成コンテンツのポリシー：アプリ内で不快な AI 出力を開発者に知らせられること）。
 // 対象は 5 つ：チャットの回答（messageId）、AI の提案カード（proposalId：ページの編集・新規の案）、AI が書いたページ（pageId）、
-// スライドの AI で作った画像（pageId + elementId）、ワークスペースの画像生成プレビュー（pageId + imageUrl）。
+// スライドの AI で作った画像（pageId + elementId）、ワークスペースの画像生成プレビュー（pageId + reportToken）。
 // 通報は開発者のメールに送るだけで、データベースには残さない。
 export const MAX_REPORT_REASON = 1000;
 const MAX_ANSWER_CHARS = 20_000;
 const MAX_PROMPT_CHARS = 4_000;
-const MAX_IMAGE_URL_CHARS = 512;
+const MAX_REPORT_TOKEN_CHARS = 8_192;
 const MAX_PAGE_PROPOSALS = 20;
 
 export type ReportTarget =
@@ -21,33 +21,31 @@ export type ReportTarget =
   | { kind: "proposal"; id: string }
   | { kind: "page"; id: string }
   | { kind: "slideImage"; pageId: string; elementId: string }
-  | { kind: "pageImage"; pageId: string; imageUrl: string; prompt: string };
+  | { kind: "pageImage"; pageId: string; reportToken: string };
 export type ReportInput = { target: ReportTarget; reason: string };
 
 const validId = (value: unknown, max: number): value is string => typeof value === "string" && value.length > 0 && value.length <= max;
 
 // 本文の形。通報する対象（messageId・proposalId・pageId のどれか 1 つ。pageId に elementId を添えるとスライドの画像、
-// imageUrl を添えるとワークスペースで生成した画像）と、任意の理由。
+// reportToken を添えるとワークスペースで生成した画像）と、任意の理由。
 export function parseReport(body: unknown): { ok: true; data: ReportInput } | { ok: false } {
   if (!body || typeof body !== "object") return { ok: false };
-  const { messageId, proposalId, pageId, elementId, imageUrl, prompt, reason } = body as Record<string, unknown>;
+  const { messageId, proposalId, pageId, elementId, reportToken, reason } = body as Record<string, unknown>;
   const targets = ([["answer", messageId], ["proposal", proposalId], ["page", pageId]] as const).filter(([, id]) => id !== undefined);
   if (targets.length !== 1) return { ok: false };
   const [kind, id] = targets[0];
   if (reason !== undefined && typeof reason !== "string") return { ok: false };
   const text = (reason ?? "").trim();
   if (text.length > MAX_REPORT_REASON) return { ok: false };
-  if (elementId !== undefined && imageUrl !== undefined) return { ok: false };
+  if (elementId !== undefined && reportToken !== undefined) return { ok: false };
   if (elementId !== undefined) {
     // 画像の要素はスライドのページと一緒にだけ。
     if (kind !== "page" || !validId(id, 64) || !validId(elementId, 120)) return { ok: false };
     return { ok: true, data: { target: { kind: "slideImage", pageId: id, elementId }, reason: text } };
   }
-  if (imageUrl !== undefined) {
-    if (kind !== "page" || !validId(id, 64) || !validId(imageUrl, MAX_IMAGE_URL_CHARS)) return { ok: false };
-    if (prompt !== undefined && typeof prompt !== "string") return { ok: false };
-    const cleanPrompt = (prompt ?? "").trim().slice(0, MAX_PROMPT_CHARS);
-    return { ok: true, data: { target: { kind: "pageImage", pageId: id, imageUrl, prompt: cleanPrompt }, reason: text } };
+  if (reportToken !== undefined) {
+    if (kind !== "page" || !validId(id, 64) || !validId(reportToken, MAX_REPORT_TOKEN_CHARS)) return { ok: false };
+    return { ok: true, data: { target: { kind: "pageImage", pageId: id, reportToken }, reason: text } };
   }
   if (!validId(id, 100)) return { ok: false };
   return { ok: true, data: { target: { kind, id }, reason: text } };
@@ -178,16 +176,16 @@ export function pageImageReportEmail(report: { userId: string; signedIn: boolean
   return { subject: `[NoteFable] Reported generated image ${plain(report.pageId)}`, text: lines.join("\n") };
 }
 
-// 自分のページと自分の note-files に保存された生成画像であることを確かめる。見つからなければ null。
-export async function findReportedPageImage(userId: string, pageId: string, imageUrl: string) {
-  const parsed = parseNoteFileUrl(imageUrl);
-  if (!parsed || parsed === "empty") return null;
+// 署名付きトークンで /api/pages/images が生成した本人所有の画像とプロンプトであることを検証し、自分のページと保存済みファイルも確認する。
+export async function findReportedPageImage(userId: string, pageId: string, reportToken: string) {
+  const verified = await verifyPageImageReportToken(reportToken, userId);
+  if (!verified) return null;
   const [page, stored] = await Promise.all([
     prisma.notePage.findFirst({ where: { id: pageId, userId, deletedAt: null }, select: { id: true, kind: true } }),
-    prisma.storedFile.findFirst({ where: { path: parsed.path, userId, kind: "NOTE_FILE" }, select: { path: true } }),
+    prisma.storedFile.findFirst({ where: { path: verified.path, userId, kind: "NOTE_FILE" }, select: { path: true } }),
   ]);
   if (!page || !stored) return null;
-  return { pageId: page.id, pageKind: pageKindOf(page), path: stored.path };
+  return { pageId: page.id, pageKind: pageKindOf(page), path: stored.path, prompt: verified.prompt };
 }
 
 // 自分のチャットの AI の回答だけを通報できる。見つからなければ null。

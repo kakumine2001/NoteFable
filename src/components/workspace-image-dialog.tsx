@@ -128,7 +128,8 @@ export function WorkspaceImageDialog({
   }
 
   async function submitReport() {
-    if (!preview || reportState === "sending") return;
+    if (!preview?.reportToken || reportState === "sending") return;
+    const targetUrl = preview.url;
     setReportState("sending");
     setReportError("");
     try {
@@ -137,16 +138,16 @@ export function WorkspaceImageDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           pageId,
-          imageUrl: preview.url,
-          prompt: preview.prompt ?? prompt.trim(),
+          reportToken: preview.reportToken,
           reason: reportReason.trim(),
         }),
       });
       const data = await response.json().catch(() => null) as { error?: string } | null;
       if (!response.ok) throw new Error(data?.error || t("Could not send the report."));
-      if (dialogMountedRef.current) setReportState("sent");
+      // 再生成で別のプレビューに切り替わった後に届いた旧応答は無視する。
+      if (dialogMountedRef.current && previewRef.current?.url === targetUrl) setReportState("sent");
     } catch (caught) {
-      if (dialogMountedRef.current) {
+      if (dialogMountedRef.current && previewRef.current?.url === targetUrl) {
         setReportState("idle");
         setReportError(caught instanceof Error ? caught.message : t("Could not send the report."));
       }
@@ -155,8 +156,10 @@ export function WorkspaceImageDialog({
 
   function confirmInsert() {
     if (!preview || busy) return;
-    limitHitRef.current = false;
-    savePendingDraft(draftScope, "", { persistent: embedded });
+    // 再生成で上限に達した未生成プロンプトがある場合は、前のプレビューを挿入しても下書きを消さず保持する。
+    if (!limitHitRef.current) {
+      savePendingDraft(draftScope, "", { persistent: embedded });
+    }
     onInsert(preview);
     onClose();
   }
@@ -228,7 +231,7 @@ export function WorkspaceImageDialog({
             {/* eslint-disable-next-line @next/next/no-img-element -- 自分の note-files へ保存した直後の生成画像プレビュー。 */}
             <img src={preview.url} alt={preview.prompt || t("Generated image")} className="ws-image-preview" />
           </div>
-          <div className="ws-image-preview-meta">
+          {preview.reportToken && <div className="ws-image-preview-meta">
             {reportState === "sent" ? (
               <span className="ws-image-report-sent" role="status">{t("Report sent")} · {t("Thanks. We’ll review this image.")}</span>
             ) : (
@@ -242,7 +245,7 @@ export function WorkspaceImageDialog({
                 <span>{t("Report image")}</span>
               </button>
             )}
-          </div>
+          </div>}
           {reportOpen && reportState !== "sent" && (
             <form
               className="ws-image-report-box"

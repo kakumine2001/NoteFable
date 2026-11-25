@@ -167,6 +167,10 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
     if (!activeId) return;
     setGenerateImageRequest((current) => ({ pageId: activeId, signal: (current?.signal ?? 0) + 1 }));
   }, [activeId]);
+  const consumePageImageGeneration = useCallback(() => {
+    if (!activeId) return;
+    setGenerateImageRequest((current) => (current?.pageId === activeId ? null : current));
+  }, [activeId]);
   const aiSelection = resolveActiveSelection(aiAsk, activeId);
   const aiOpenSignal = aiAsk && aiAsk.noteId === activeId ? aiAsk.signal : 0;
   const handleCanvasSelectionChange = useCallback((selection: PageSelection | null) => {
@@ -265,7 +269,8 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
           onSelectionChange={split ? undefined : handleCanvasSelectionChange}
           // 分割表示では AI ボタンを出さないので、置き場所も作らない。
           aiSlot={split ? undefined : <span ref={setAiAnchor} className="page-ai-anchor" aria-hidden="true" />}
-          generateImageSignal={pageGenerateImageSignal} />
+          generateImageSignal={pageGenerateImageSignal}
+          onConsumeGenerateImage={consumePageImageGeneration} />
       </div> : <>
         {(!!active.error || !!notes.backupError) && <div className="notes-column pt-6"><NoteSaveWarnings notes={notes} /></div>}
         <CanvasPagePlaceholder key={`${activeId}:${notes.editorEpoch}`} kind={activeKind} title={active.content.title} icon={active.content.icon} data={active.page.data} />
@@ -292,6 +297,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
         <NoteEditor key={`${activeId}:${notes.editorEpoch}:${locale}`} blocks={active.content.blocks} editable={editable}
           embedded={embedded}
           generateImageSignal={pageGenerateImageSignal}
+          onConsumeGenerateImage={consumePageImageGeneration}
           workspaceRef={rootRef}
           // 埋め込み（/note-embed）は一覧を持たないので、エディターが自分で読む。メンションを押したらアプリに開いてもらう。
           // 一覧の読み込み中（まだ空）は「不明」として渡さない。空の一覧を渡すと、すべてのメンションが「開けない」表示になる。

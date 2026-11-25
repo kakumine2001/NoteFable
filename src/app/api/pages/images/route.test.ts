@@ -66,6 +66,8 @@ describe("POST /api/pages/images", () => {
       mimeType: "image/png",
       prompt: "A calm lighthouse",
     });
+    expect(typeof json.reportToken).toBe("string");
+    expect(json.reportToken.length).toBeGreaterThan(20);
     expect(json.url).toContain("/api/pages/files?key=note-files%2Fuser-1%2F");
     expect(mocks.createImageApiGeneration).toHaveBeenCalledWith("A calm lighthouse", "1024x1024", "auto");
     expect(mocks.storeFile).toHaveBeenCalledWith(

@@ -551,6 +551,7 @@ type NoteEditorProps = {
   blocks: NoteContent["blocks"]; onChange: (blocks: NoteContent["blocks"]) => void; editable: boolean;
   embedded?: boolean;
   generateImageSignal?: number;
+  onConsumeGenerateImage?: () => void;
   editorRef: Ref<NoteEditorHandle>; onFocusTitle: () => void; onAskAi?: (selection: PageSelection) => void;
   onSelectionChange?: (selection: PageSelection | null) => void;
   workspaceRef?: RefObject<HTMLDivElement | null>;
@@ -638,7 +639,7 @@ function useMentionPages(given: MentionPage[] | undefined, blocks: NoteContent["
   return { pages: given ?? fetched, loadPages };
 }
 
-function NoteEditorBody({ blocks, onChange, editable, embedded = false, generateImageSignal = 0, editorRef, onFocusTitle, onAskAi, onSelectionChange, workspaceRef, base, pages: givenPages, currentPageId, onOpenPage, pageMentions = true }: NoteEditorProps & { base: Dictionary }) {
+function NoteEditorBody({ blocks, onChange, editable, embedded = false, generateImageSignal = 0, onConsumeGenerateImage, editorRef, onFocusTitle, onAskAi, onSelectionChange, workspaceRef, base, pages: givenPages, currentPageId, onOpenPage, pageMentions = true }: NoteEditorProps & { base: Dictionary }) {
   const { t, dir, locale } = useI18n();
   const { resolved: resolvedTheme } = useTheme();
   const { pages, loadPages } = useMentionPages(givenPages, blocks);
@@ -1007,7 +1008,7 @@ function NoteEditorBody({ blocks, onChange, editable, embedded = false, generate
         embedded={embedded}
         mode={imageGenMode}
         onInsert={insertGeneratedImage}
-        onClose={() => { setImageGenTarget(null); setDismissedGenerateSignal(generateImageSignal); }}
+        onClose={() => { setImageGenTarget(null); setDismissedGenerateSignal(generateImageSignal); onConsumeGenerateImage?.(); }}
       />
     )}
   </div></BlockSelectionContext.Provider></NoteImageGenContext.Provider></NoteAskAiContext.Provider></NoteMentionContext.Provider>;
