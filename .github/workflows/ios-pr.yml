@@ -1,7 +1,8 @@
 name: iOS PR checks
 
 # 没有 Mac 时，这是唯一能真正编译 iOS App 的地方：版本校验 + Core 单元测试 + 模拟器构建（不签名）。
-# macOS 机器按高倍率计费：版本校验先在 Linux 上快速运行，仅在存在 mobile/ios/project.yml 且校验通过时才启动 macOS。
+# 版本校验先在 Linux 上快速运行，通过后 Core 单元测试与模拟器构建在两台 macOS 上并行。
+# 模拟器截图默认不跑：给 PR 加上 ios-screenshots 标签后才跑（标签在每次运行时现查，后加标签的话推一次或重跑本检查）。
 on:
   pull_request:
     # No "edited": a title or body edit would cancel a running check. After retargeting a PR to main, push or reopen it.
@@ -18,6 +19,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: ios-pr-checks-${{ github.event.pull_request.number }}
@@ -30,7 +32,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       has_project: ${{ steps.detect.outputs.has_project }}
-      ui_changed: ${{ steps.detect.outputs.ui_changed }}
+      screenshots: ${{ steps.detect.outputs.screenshots }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -44,26 +46,44 @@ jobs:
         run: python3 -m unittest discover -s scripts/release -p 'test_ios_testflight_*.py' -v
       - name: Validate iOS version
         run: bash scripts/release/ios-version.sh
-      - name: Check iOS project presence
+      - name: Check iOS project presence and screenshot label
         id: detect
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
+          set -euo pipefail
           if [[ -f mobile/ios/project.yml ]]; then
             echo 'has_project=true' >> "$GITHUB_OUTPUT"
           else
             echo 'has_project=false' >> "$GITHUB_OUTPUT"
           fi
-          if git rev-parse --verify HEAD^1 >/dev/null 2>&1; then
-            if git diff --quiet HEAD^1 HEAD -- mobile/ios/NoteFable mobile/ios/Support mobile/ios/project.yml mobile/ios/scripts/ci-screenshots.sh mobile/android/app/src/main/assets .github/workflows/ios-pr.yml; then
-              echo 'ui_changed=false' >> "$GITHUB_OUTPUT"
-            else
-              echo 'ui_changed=true' >> "$GITHUB_OUTPUT"
-            fi
+          # Read the labels live (not from the event payload) so a rerun sees a label added after the push.
+          labels=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.labels[].name')
+          if grep -qxF 'ios-screenshots' <<<"$labels"; then
+            echo 'screenshots=true' >> "$GITHUB_OUTPUT"
           else
-            echo 'ui_changed=true' >> "$GITHUB_OUTPUT"
+            echo 'screenshots=false' >> "$GITHUB_OUTPUT"
+            echo 'Simulator screenshots skipped: add the `ios-screenshots` label to the PR, then push or rerun this check.' >> "$GITHUB_STEP_SUMMARY"
           fi
 
+  core-tests:
+    name: iOS Core unit tests
+    needs: version
+    if: needs.version.outputs.has_project == 'true'
+    runs-on: xcode-27
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Core unit tests
+        working-directory: mobile/ios
+        # A hung test would otherwise run until the job timeout: the script stops it and prints where it is stuck.
+        run: bash scripts/ci-core-tests.sh
+
   ios:
-    name: iOS tests and simulator build
+    name: iOS simulator build
     needs: version
     if: needs.version.outputs.has_project == 'true'
     runs-on: xcode-27
@@ -82,10 +102,6 @@ jobs:
             echo "::error::Xcode ${major:-unknown} found; Xcode 27 or later is required."
             exit 1
           fi
-      - name: Core unit tests
-        working-directory: mobile/ios
-        # A hung test would otherwise run until the job timeout: the script stops it and prints where it is stuck.
-        run: bash scripts/ci-core-tests.sh
       - name: Generate Xcode project
         working-directory: mobile/ios
         run: |
@@ -110,7 +126,7 @@ jobs:
           (( xcode_rc == 0 ))
           grep -Eq '^\*\* BUILD SUCCEEDED \*\*$' build.log
       - name: Package the simulator app for screenshots
-        if: needs.version.outputs.ui_changed == 'true'
+        if: needs.version.outputs.screenshots == 'true'
         working-directory: mobile/ios
         run: |
           set -euo pipefail
@@ -124,7 +140,7 @@ jobs:
           codesign --force --deep --sign - --timestamp=none "$app"
           tar -C "$(dirname "$app")" -czf "$RUNNER_TEMP/NoteFable-sim.tgz" NoteFable.app
       - name: Upload the simulator app
-        if: needs.version.outputs.ui_changed == 'true'
+        if: needs.version.outputs.screenshots == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: NoteFable-sim.tgz
@@ -138,7 +154,8 @@ jobs:
         run: |
           if [ -f build.log ]; then grep -E "error:" build.log | sed "s#$PWD/##" | sort -u | head -n 400; fi
       - name: Upload build log
-        if: always()
+        # Not always(): after a cancel (a newer push) the upload would hold up the next run.
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
           name: ios-build-log
@@ -148,10 +165,14 @@ jobs:
 
   ios-screenshots:
     name: iOS screenshots (${{ matrix.label }})
-    needs: [version, ios]
-    if: needs.version.outputs.ui_changed == 'true'
+    # Not "needs: ios": a cold simulator boot takes 2-6 minutes, so it runs while the app is still building.
+    needs: version
+    if: needs.version.outputs.has_project == 'true' && needs.version.outputs.screenshots == 'true'
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 20
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      actions: read
     strategy:
       fail-fast: false
       matrix:
@@ -173,15 +194,41 @@ jobs:
         with:
           persist-credentials: false
           sparse-checkout: mobile/ios/scripts
-      - uses: actions/download-artifact@v8
-        with:
-          name: NoteFable-sim.tgz
-          path: ${{ runner.temp }}/app
       - name: Keep production unreachable (simulator apps use the host resolver)
         run: |
           printf '0.0.0.0 %s\n' app.notefable.com notefable.com www.notefable.com | sudo tee -a /etc/hosts >/dev/null
           sudo dscacheutil -flushcache
           sudo killall -HUP mDNSResponder || true
+      - name: Start booting the simulator in the background
+        env:
+          NF_IOS_MAJORS: ${{ matrix.majors }}
+        # Output goes to a file: a background process holding the step's output pipe would keep the step open.
+        run: |
+          nohup bash mobile/ios/scripts/ci-screenshots.sh --boot-only >"$RUNNER_TEMP/boot.log" 2>&1 &
+          echo $! >"$RUNNER_TEMP/boot.pid"
+      - name: Wait for the simulator build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_JOB: iOS simulator build
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 1500))
+          while (( SECONDS < deadline )); do
+            conclusion=$(gh api --paginate \
+              "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}/jobs" \
+              --jq ".jobs[] | select(.name == \"${BUILD_JOB}\") | .conclusion // \"\"" | tail -n 1) || conclusion=""
+            case "$conclusion" in
+              success) exit 0 ;;
+              "") sleep 10 ;;
+              *) echo "::error::${BUILD_JOB} ended with '${conclusion}': nothing to screenshot."; exit 1 ;;
+            esac
+          done
+          echo "::error::Timed out waiting for ${BUILD_JOB}."
+          exit 1
+      - uses: actions/download-artifact@v8
+        with:
+          name: NoteFable-sim.tgz
+          path: ${{ runner.temp }}/app
       - name: Unpack simulator app
         run: |
           tar -xzf "$RUNNER_TEMP/app/NoteFable-sim.tgz" -C "$RUNNER_TEMP/app"
@@ -189,9 +236,15 @@ jobs:
       - name: Capture fixture screenshots
         env:
           NF_IOS_MAJORS: ${{ matrix.majors }}
-        run: bash mobile/ios/scripts/ci-screenshots.sh "$RUNNER_TEMP/app/NoteFable.app" "$RUNNER_TEMP/shots"
+        run: |
+          # Let the background boot finish first; if it failed, the capture run boots again and reports the error.
+          pid=$(cat "$RUNNER_TEMP/boot.pid")
+          while kill -0 "$pid" 2>/dev/null; do sleep 1; done
+          cat "$RUNNER_TEMP/boot.log" || true
+          bash mobile/ios/scripts/ci-screenshots.sh "$RUNNER_TEMP/app/NoteFable.app" "$RUNNER_TEMP/shots"
       - name: Upload screenshots
-        if: always()
+        # Not always(): after a cancel (a newer push) the upload would hold up the next run.
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
