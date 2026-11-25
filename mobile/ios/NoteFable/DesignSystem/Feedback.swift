@@ -103,39 +103,143 @@ enum Toast {
 }
 
 extension View {
-    /// 在根视图上装一次：提示条画在最上面，并把 `ToastCenter` 放进环境。放在 `.nfOverlayHost()` 外面（后面），提示条才在对话框之上。
-    ///
-    /// ```swift
-    /// RootView()
-    ///     .nfOverlayHost()
-    ///     .toastHost()
-    /// ```
-    func toastHost(_ center: ToastCenter = .shared) -> some View {
-        modifier(ToastHostModifier(center: center))
+    /// 在根视图上装一次：通过不拦截触摸的独立 `UIWindow` 在系统 `.sheet` 与悬浮底栏之上渲染提示条，并把 `ToastCenter` 放进环境。
+    func toastHost(_ center: ToastCenter = .shared, tabBarVisible: Bool = false) -> some View {
+        modifier(ToastHostModifier(center: center, tabBarVisible: tabBarVisible))
     }
 }
 
 private struct ToastHostModifier: ViewModifier {
     let center: ToastCenter
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let tabBarVisible: Bool
+    @State private var controller = ToastWindowController()
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.layoutDirection) private var layoutDirection
+    @Environment(\.locale) private var locale
+    @Environment(\.nfForceSolidChrome) private var forceSolidChrome
 
     func body(content: Content) -> some View {
+        let env = ToastOverlayEnvironment(
+            colorScheme: colorScheme,
+            layoutDirection: layoutDirection,
+            locale: locale,
+            forceSolidChrome: forceSolidChrome,
+            tabBarVisible: tabBarVisible
+        )
         content
             .environment(center)
-            .overlay(alignment: .bottom) {
-                ZStack {
-                    if let message = center.current {
-                        ToastBubble(text: message.text)
-                            .id(message.id)
-                            .transition(reduceMotion ? AnyTransition.opacity : AnyTransition.nfRise(offsetY: 16))
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 16)
-                .animation(reduceMotion ? nil : NFMotion.emphasized(0.2), value: center.current)
-                // 提示条不挡下面的操作。
-                .allowsHitTesting(false)
+            .onAppear {
+                controller.sync(center: center, env: env)
             }
+            .onChange(of: env) { _, next in
+                controller.sync(center: center, env: next)
+            }
+            .onChange(of: center.current) { _, _ in
+                controller.sync(center: center, env: env)
+            }
+            .onDisappear {
+                controller.teardown()
+            }
+    }
+}
+
+private struct ToastOverlayEnvironment: Equatable {
+    let colorScheme: ColorScheme
+    let layoutDirection: LayoutDirection
+    let locale: Locale
+    let forceSolidChrome: Bool
+    let tabBarVisible: Bool
+}
+
+private final class ToastOverlayWindow: UIWindow {
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        nil
+    }
+}
+
+@MainActor
+private final class ToastWindowController {
+    private var window: ToastOverlayWindow?
+    private var hosting: UIHostingController<ToastOverlayRootView>?
+
+    func sync(center: ToastCenter, env: ToastOverlayEnvironment) {
+        guard let scene = activeWindowScene() else { return }
+        let rootView = ToastOverlayRootView(center: center, env: env)
+        if let existingWindow = window, existingWindow.windowScene === scene, let hosting {
+            hosting.rootView = rootView
+            applyTraits(to: existingWindow, hosting: hosting, env: env)
+            if existingWindow.isHidden { existingWindow.isHidden = false }
+            return
+        }
+        teardown()
+        let host = UIHostingController(rootView: rootView)
+        host.view.backgroundColor = .clear
+        let overlay = ToastOverlayWindow(windowScene: scene)
+        overlay.windowLevel = .normal + 10
+        overlay.backgroundColor = .clear
+        overlay.isUserInteractionEnabled = false
+        overlay.rootViewController = host
+        applyTraits(to: overlay, hosting: host, env: env)
+        overlay.isHidden = false
+        self.window = overlay
+        self.hosting = host
+    }
+
+    func teardown() {
+        window?.isHidden = true
+        window?.rootViewController = nil
+        window = nil
+        hosting = nil
+    }
+
+    private func applyTraits(to overlay: UIWindow, hosting: UIHostingController<ToastOverlayRootView>, env: ToastOverlayEnvironment) {
+        let style: UIUserInterfaceStyle = (env.colorScheme == .dark) ? .dark : .light
+        let attr: UISemanticContentAttribute = (env.layoutDirection == .rightToLeft) ? .forceRightToLeft : .forceLeftToRight
+        let dir: UITraitEnvironmentLayoutDirection = (env.layoutDirection == .rightToLeft) ? .rightToLeft : .leftToRight
+        overlay.overrideUserInterfaceStyle = style
+        overlay.semanticContentAttribute = attr
+        hosting.overrideUserInterfaceStyle = style
+        hosting.view.semanticContentAttribute = attr
+        hosting.traitOverrides.layoutDirection = dir
+    }
+
+    private func activeWindowScene() -> UIWindowScene? {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        return scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+    }
+}
+
+private struct ToastOverlayRootView: View {
+    let center: ToastCenter
+    let env: ToastOverlayEnvironment
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        let keyboardTop = KeyboardObserver.shared.top
+        GeometryReader { proxy in
+            let keyboardInset = max(0, proxy.frame(in: .global).maxY - keyboardTop)
+            let bottomPadding: CGFloat = keyboardInset > 0
+                ? keyboardInset + 12
+                : (env.tabBarVisible ? 84 : 16)
+            ZStack(alignment: .bottom) {
+                Color.clear
+                if let message = center.current {
+                    ToastBubble(text: message.text)
+                        .id(message.id)
+                        .transition(reduceMotion ? AnyTransition.opacity : AnyTransition.nfRise(offsetY: 16))
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, bottomPadding)
+                }
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .animation(reduceMotion ? nil : NFMotion.emphasized(0.2), value: center.current)
+        }
+        .ignoresSafeArea(.keyboard)
+        .allowsHitTesting(false)
+        .environment(\.colorScheme, env.colorScheme)
+        .environment(\.layoutDirection, env.layoutDirection)
+        .environment(\.locale, env.locale)
+        .environment(\.nfForceSolidChrome, env.forceSolidChrome)
     }
 }
 
@@ -143,20 +247,20 @@ private struct ToastBubble: View {
     let text: String
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 14)
+        let shape = Capsule()
         Text(text)
             .font(.nf(14, weight: 500))
-            .foregroundStyle(Sm.onInk)
+            .foregroundStyle(Sm.text)
             .multilineTextAlignment(.center)
             .lineLimit(4)
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 18)
             .padding(.vertical, 12)
             .frame(minHeight: 44)
             .frame(maxWidth: 400)
             .fixedSize(horizontal: false, vertical: true)
-            .background(Sm.ink, in: shape)
-            // .settings-unsaved：0 8px 28px rgba(12,23,48,.28)。
-            .shadow(color: Color(argb: 0x470C1730), radius: 14, x: 0, y: 8)
+            .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: Sm.borderStrong)
+            .clipShape(shape)
+            .shadow(color: Sm.panelShadow, radius: 12, x: 0, y: 6)
             .accessibilityHidden(true)
     }
 }

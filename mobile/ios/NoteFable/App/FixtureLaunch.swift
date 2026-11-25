@@ -151,14 +151,10 @@ final class FixtureLaunch {
     ) async {
         if previous == .modelSheet || previous == .attachSheet || previous == .pageMenu {
             ScreenshotHooks.dismissOverlays()
-            try? await Task.sleep(for: .milliseconds(350))
+            try? await Task.sleep(for: .milliseconds(450))
         }
         if router.drawerOpen {
             router.closeDrawer()
-            try? await Task.sleep(for: .milliseconds(350))
-        }
-        if router.searchOpen {
-            router.searchOpen = false
             try? await Task.sleep(for: .milliseconds(350))
         }
         if router.settingsOpen {
@@ -170,11 +166,11 @@ final class FixtureLaunch {
             try? await Task.sleep(for: .milliseconds(350))
         }
         let targetUsesNotes = (target == .workspace || target == .editor || target == .pageMenu)
-        if app.notes.state.workspace == .notes && !targetUsesNotes {
-            app.notes.setWorkspace(.chat)
+        if !targetUsesNotes && target != .search && router.selectedTab != .chat {
+            router.selectTab(.chat)
             let leaveDeadline = Date().addingTimeInterval(5)
             _ = await poll(until: leaveDeadline) {
-                app.notes.state.workspace == .chat && app.notes.state.open == nil
+                app.notes.state.workspace == .chat && app.notes.state.open == nil && router.selectedTab == .chat
             }
         }
     }
@@ -187,34 +183,42 @@ final class FixtureLaunch {
     ) async -> Bool {
         switch target {
         case .chatEmpty:
+            router.selectTab(.chat)
             if app.chat.state.activeSessionId != nil {
                 app.chat.newChat()
             }
-            return app.chat.state.activeSessionId == nil && app.chat.state.messages.isEmpty
+            return router.selectedTab == .chat && app.chat.state.activeSessionId == nil && app.chat.state.messages.isEmpty
 
         case .chat:
+            router.selectTab(.chat)
             app.chat.openSession(FixtureCatalog.IDs.kyotoSession)
             return await poll(until: deadline) {
-                app.chat.state.activeSessionId == FixtureCatalog.IDs.kyotoSession
+                router.selectedTab == .chat
+                    && app.chat.state.activeSessionId == FixtureCatalog.IDs.kyotoSession
                     && !app.chat.state.messagesLoading
                     && !app.chat.state.messages.isEmpty
             }
 
         case .chatStreaming:
+            router.selectTab(.chat)
             app.chat.newChat()
             app.chat.send("Compare Liquid Glass and earlier blur materials on iOS.")
             return await poll(until: deadline) {
-                app.chat.state.sending && app.chat.state.messages.contains {
-                    $0.role == .assistant && !$0.content.isEmpty
-                }
+                router.selectedTab == .chat
+                    && app.chat.state.sending
+                    && app.chat.state.messages.contains {
+                        $0.role == .assistant && !$0.content.isEmpty
+                    }
             }
 
         case .drawer:
+            router.selectTab(.chat)
             if app.chat.state.activeSessionId != FixtureCatalog.IDs.kyotoSession || app.chat.state.messages.isEmpty {
                 app.chat.openSession(FixtureCatalog.IDs.kyotoSession)
             }
             let chatLoaded = await poll(until: deadline) {
-                app.chat.state.activeSessionId == FixtureCatalog.IDs.kyotoSession
+                router.selectedTab == .chat
+                    && app.chat.state.activeSessionId == FixtureCatalog.IDs.kyotoSession
                     && !app.chat.state.messagesLoading
                     && !app.chat.state.messages.isEmpty
             }
@@ -222,13 +226,13 @@ final class FixtureLaunch {
             return chatLoaded && router.drawerOpen
 
         case .workspace:
-            if app.notes.state.workspace != .notes {
-                app.notes.setWorkspace(.notes)
-            } else if app.notes.state.open != nil {
+            router.selectTab(.workspace)
+            if app.notes.state.open != nil {
                 app.notes.closeNote()
             }
             return await poll(until: deadline) {
-                app.notes.state.workspace == .notes
+                router.selectedTab == .workspace
+                    && app.notes.state.workspace == .notes
                     && app.notes.state.open == nil
                     && app.notes.state.loaded
                     && !app.notes.state.pages.isEmpty
@@ -243,13 +247,16 @@ final class FixtureLaunch {
             }
             router.openNote(FixtureCatalog.IDs.tripPage, title: "Kyoto trip plan", icon: "🗺️", kind: .note)
             let editorLoaded = await poll(until: deadline) {
-                app.notes.state.open?.id == FixtureCatalog.IDs.tripPage
+                router.selectedTab == .workspace
+                    && app.notes.state.open?.id == FixtureCatalog.IDs.tripPage
                     && app.notes.state.saveState == "saved"
             }
             return listLoaded && editorLoaded
 
         case .pageMenu:
-            if app.notes.state.open?.id == FixtureCatalog.IDs.tripPage && app.notes.state.saveState == "saved" {
+            if router.selectedTab == .workspace
+                && app.notes.state.open?.id == FixtureCatalog.IDs.tripPage
+                && app.notes.state.saveState == "saved" {
                 return await poll(until: deadline) {
                     app.notes.state.open?.id == FixtureCatalog.IDs.tripPage
                         && app.notes.state.saveState == "saved"
@@ -264,7 +271,8 @@ final class FixtureLaunch {
             }
             router.openNote(FixtureCatalog.IDs.tripPage, title: "Kyoto trip plan", icon: "🗺️", kind: .note)
             let menuReady = await poll(until: deadline) {
-                app.notes.state.open?.id == FixtureCatalog.IDs.tripPage
+                router.selectedTab == .workspace
+                    && app.notes.state.open?.id == FixtureCatalog.IDs.tripPage
                     && app.notes.state.saveState == "saved"
                     && ScreenshotHooks.isReady(.pageMenu)
             }
@@ -273,25 +281,29 @@ final class FixtureLaunch {
         case .search:
             router.openSearch()
             return await poll(until: deadline) {
-                router.searchOpen && ScreenshotHooks.isReady(.search)
+                router.selectedTab == .search && ScreenshotHooks.isReady(.search)
             }
 
         case .modelSheet:
+            router.selectTab(.chat)
             if app.chat.state.activeSessionId != FixtureCatalog.IDs.kyotoSession || app.chat.state.messages.isEmpty {
                 app.chat.openSession(FixtureCatalog.IDs.kyotoSession)
             }
             return await poll(until: deadline) {
-                app.chat.state.activeSessionId == FixtureCatalog.IDs.kyotoSession
+                router.selectedTab == .chat
+                    && app.chat.state.activeSessionId == FixtureCatalog.IDs.kyotoSession
                     && !app.chat.state.messages.isEmpty
                     && ScreenshotHooks.isReady(.modelSheet)
             }
 
         case .attachSheet:
+            router.selectTab(.chat)
             if app.chat.state.activeSessionId != FixtureCatalog.IDs.kyotoSession || app.chat.state.messages.isEmpty {
                 app.chat.openSession(FixtureCatalog.IDs.kyotoSession)
             }
             return await poll(until: deadline) {
-                app.chat.state.activeSessionId == FixtureCatalog.IDs.kyotoSession
+                router.selectedTab == .chat
+                    && app.chat.state.activeSessionId == FixtureCatalog.IDs.kyotoSession
                     && !app.chat.state.messages.isEmpty
                     && ScreenshotHooks.isReady(.attachSheet)
             }

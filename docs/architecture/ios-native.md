@@ -7,7 +7,7 @@
 iOS 客户端是 Android 客户端（[android-native.md](android-native.md)）的对照移植，两端是同一套行为（界面外壳按下面第二条走 iOS 原生）：
 
 - 只通过服务器 API 工作（REST + SSE，默认主机 `https://app.notefable.com`），不改后端。模型列表来自 `GET /api/models`，读不到时用和 Android 共用的 `models.json`。
-- 界面按三端分界（[android-native.md](android-native.md#三端一致与原生分界)）：功能范围、入口、17 种语言的文案和术语、数据与编辑器能力、品牌色和角色形象与网页 / Android 相同；材质、导航容器、手势、动效、弹层呈现按 iOS 原生。外壳正按 #195 分阶段升级为 iOS 26 的 Liquid Glass（当前代码仍为原自绘外壳，Phase 0 仅落地规则与 CI 模拟器截图基建）：计划包含底部悬浮系统 Tab 栏（聊天 / 工作区 / 搜索，进编辑页时收起）、跟手圆角抽屉、悬浮玻璃顶栏与输入栏、以及系统 `.sheet` 底部弹层；iOS 17–18 退回系统毛玻璃（Tab 不做可滑动透镜折射），系统开启“降低透明度”时退回实色底。后续各 Phase 改完的部分会同步写进下文各节。外壳以外的内容（消息、列表、卡片、对话框里的排版、字号、间距）仍取网页和 Android 代码里记的测量值（1pt = 1 CSS px），不自创设计。浅色、深色两套颜色分别取自网页的 `:root` 和 `:root[data-theme="dark"]`；玻璃只当底，不改品牌色。
+- 界面按三端分界（[android-native.md](android-native.md#三端一致与原生分界)）：功能范围、入口、17 种语言的文案和术语、数据与编辑器能力、品牌色和角色形象与网页 / Android 相同；材质、导航容器、手势、动效、弹层呈现按 iOS 原生。外壳正按 #195 分阶段升级为 iOS 26 的 Liquid Glass：Phase 0 已落地规则与 CI 模拟器截图基建；**Phase 1** 已落地 `DesignSystem/LiquidGlass.swift` 兼容层（iOS 26+ 使用 `.glassEffect(_:in:)` / `GlassEffectContainer` / `.safeAreaBar(edge:)`，iOS 17–18 退回 `.regularMaterial` / `.ultraThinMaterial` + `.safeAreaInset(edge:)`，“降低透明度”及调试开关 `nfForceSolidChrome` 通过 `Glass.identity` 保持视图身份并退回实色底）、双层原生导航（底部 3 标签 `TabView`：聊天 / 工作区 / 搜索，iOS 26 用 `role: .search`、iOS 27 用 `role: .prominent` 保持独立圆形玻璃按钮样式，编辑页和幻灯片放映中收起并附带 iOS 26 降低透明度下的 `UITabBarController` 显隐修复；交互式行首推入圆角合并抽屉，同时呈现聊天与工作区目录并配备底部悬浮玻璃操作栏；合并后去掉了顶栏与侧栏重复搜索入口和 `WorkspaceSwitch`）、以及系统 `.sheet` 底部弹层（模型 / 附件 / 回收站，利用 `onDismiss` 衔接后续弹窗）、跨 `TabView` 的 `@Observable NFOverlayCenter` 浮层宿主、不拦截触摸的独立 `UIWindow` 提示条，以及应用内切换阿拉伯语时的 UIKit 窗口级 `semanticContentAttribute` 同步（`AppDrawer`、`LucideShape` 保持 `.fixed` 避免双重镜像）。Phase 2–3 将继续完成聊天悬浮玻璃顶栏/输入栏、工作区筛选与编辑器玻璃控件。外壳以外的内容（消息、列表、卡片、对话框里的排版、字号、间距）仍取网页和 Android 代码里记的测量值（1pt = 1 CSS px），不自创设计。浅色、深色两套颜色分别取自网页的 `:root` 和 `:root[data-theme="dark"]`；玻璃只当底，不改品牌色。
 - 聊天、侧栏、搜索、笔记列表、设置是原生界面；笔记编辑器和 Android 一样用 WebView（`WKWebView`）加载 `/note-embed`；桥消息（`EmbedMessage`）与 Android 相同，`openPage`（页面提及被点）走 `NotesViewModel.openNoteFromLink`。原生 → 网页的调用是 `Core/Notes/NoteEditor.swift` 的 `NoteEmbedScripts`（经 `NoteEditorBridge` ← `NoteEditorController` 执行）：`window.notefableEmbed` 的 `flush(requestId)` / `openHistory()` / `pageUpdated(page)` / `pageSettings(page)` / `appIcon(icon)` / `language(code)` / `theme(value)` / `reveal(id)`，约定见 `src/lib/native-bridge.ts`。页面图标是上传图片时（`Core/Models/Notes.swift` 的 `NoteIcons`），`NFIconTile` / `NoteIconGlyph` 用 `RemoteImage` 带 App 的 Cookie 读 `/api/pages/covers?key=`，和表情一样大、圆角 3；原生的图标选择器还只能选表情（**上传图片图标尚未实现**，编辑器里网页的选择器可以上传）。
 - 编辑器里的分栏（`columnList` / `column`，见 [notes-flow.md](notes-flow.md)）由内嵌的网页编辑器处理，App 不读块的结构；手机宽度下栏竖着排，不能拖动调宽。
 - 页面类型（笔记 / 白板 / 幻灯片）的行为和 Android 相同，规则见 [android-native.md](android-native.md) 的“页面类型”一条和 [notes-flow.md](notes-flow.md) 的“页面类型”。对应的代码：`Core/Models/Notes.swift` 的 `PageKind`（缺字段、null、不认识或不是字符串的值都按笔记）和 `PageKindTable`（`features` 是网页 `PAGE_KIND_FEATURES` 那张表：`GET /api/pages` 的 `kinds` 一到就换成它，之前用安装包里与 Android 共用的 `page-kinds.json`）、`pageKindLabel`，`OpenNote.kind`（`ready` 带来时以它为准），菜单的开关 `NotePageToggle.visible(for:)`，检索结果的类型名 `SearchHit.kindLabel`；默认图标 `pageKindIcon`（`DesignSystem/Lucide.swift` 的 `Lucide.shapes` / `Lucide.presentation`），经 `NFIconTile` 的 `fallback` 和 `NoteIconGlyph` 的 `kind`。单元测试：`PageKindTests`，`NotesViewModelTests` 和 `SVGPathDataTests` 里的类型 / 图标路径各一条。图标、“…”菜单、分享按钮、检索的类型名这些界面改动只经过语法检查和 CI 编译，没在模拟器或真机上看过。
@@ -70,14 +70,14 @@ mobile/ios/
 - **Core 只 import Foundation**（加 `Observation` 和 swift-markdown，以及按 `#if canImport` 条件导入的 `CoreGraphics` / `FoundationNetworking`），所以能在没有 Mac 的机器上用 Linux 的 Swift 编译和测试。SwiftUI、UIKit、WebKit、Photos、GoogleSignIn 只出现在 `DesignSystem/`、`Features/`、`App/`。Core 需要平台能力的地方留接口，由界面层装上：Google 登录（`AppEnvironment.requestGoogleIdToken` ← `GoogleSignInBridge`）、表情字形判断（`emojiGlyphSupported` ← `EmojiGlyphs`）、笔记编辑器（`NoteEditorBridge` ← `NoteEditorWebView`）。
 - **Core 的源码直接编进 App 模块**（不是单独的包），所以类型都是 internal；`Package.swift` 只是为了测试把同一批文件当成一个库来编译。
 - **ViewModel** 是 `@MainActor @Observable final class`，状态是一个值类型（`ChatUiState`、`NotesUiState`…），依赖从初始化参数注入，时间用注入的 sleep / clock，所以测试不真等。
-- **依赖装配**在 `Core/App/AppEnvironment.swift`（接口、ViewModel、各种 Store 都在这里创建一次），**导航**在 `Core/App/AppRouter.swift`（抽屉、搜索、设置、登录、打开笔记 / 聊天、处理外部链接）。界面只从环境里取这两个对象：
+- **依赖装配**在 `Core/App/AppEnvironment.swift`（接口、ViewModel、各种 Store 都在这里创建一次），**导航**在 `Core/App/AppRouter.swift`（抽屉、`selectedTab: AppTab`、设置、登录、打开笔记 / 聊天、处理外部链接）。界面只从环境里取这两个对象：
 
   ```swift
   @Environment(AppEnvironment.self) private var app
   @Environment(AppRouter.self) private var router
   ```
 
-- **浮层**（对话框、菜单、底部抽屉、面板、提示）都画在根视图的 `.nfOverlayHost().toastHost()` 上，不用系统的 `.sheet` / `.alert`，这样外观和网页一致。层级是 面板 < 底部抽屉 < 对话框 < 菜单 < 提示。
+- **浮层与底部弹层**：模型、附件、回收站使用包装在 `.nfSheet` 里的系统 `.sheet`（Fitted 与 Medium/Large detent，iOS 26+ 保留系统 Liquid Glass，iOS 17–18 使用 `.regularMaterial`，降低透明度时使用实色底）；对话框、操作菜单、表情选择器、全屏面板（设置 / 登录 / 添加页面 / 项目设置）带 `.nfGlassBackground` 注册到根视图及各层 `.nfOverlayHost()` 的 `@Observable NFOverlayCenter`（用 `.global` 几何坐标跨越 `TabView` 边界，面板 < 对话框 < 菜单）；提示条（`ToastHostModifier`）画在不拦截触摸的独立 `ToastOverlayWindow`（`windowLevel = .normal + 10`）上，浮在系统 `.sheet` 和底部 Tab 栏之上。
 
 ### 和 Android 的对应
 
