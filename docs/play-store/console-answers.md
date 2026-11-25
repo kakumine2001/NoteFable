@@ -8,7 +8,7 @@ Play Console → 应用内容（App content）里各个声明的填写方式。�
 
 ## 应用访问权限（App access）
 
-"所有功能都无需特殊访问权限即可使用"：不登录也能使用聊天和笔记。登录只用于同步和购买 Pro，审核员不需要测试账号。Pro 只提高使用上限，不解锁别的功能。
+"所有功能都无需特殊访问权限即可使用"：不登录也能使用聊天和工作区（笔记、白板、幻灯片）。登录只用于同步和购买 Pro，审核员不需要测试账号。Pro 只提高使用上限，不解锁别的功能。
 
 ## 广告
 
@@ -18,7 +18,7 @@ Play Console → 应用内容（App content）里各个声明的填写方式。�
 
 - 类别：参考、新闻或教育（Reference, News, or Educational）。
 - 暴力、性、粗俗语言、受管制物品、赌博：全部"否"。
-- 用户之间互动 / 分享内容：仅支持单向公开只读链接（用户可手动将自己的笔记发布为公开网页链接供他人浏览，无评论、聊天室、公开目录或多人协作）。发布后如涉及 Play Console 问卷更新，需同步核对“用户分享内容”一栏。
+- 用户之间互动 / 分享内容：仅支持单向公开只读链接（用户可手动将自己的笔记、白板或幻灯片发布为公开网页链接供他人浏览，幻灯片是放映视图；无评论、聊天室、公开目录或多人协作）。发布后如涉及 Play Console 问卷更新，需同步核对“用户分享内容”一栏。
 - 分享用户位置：否。
 - 数字商品购买：是（Pro 月额订阅，走 Google Play 结算）。
 - 应用含有 AI 生成内容：是。回答和图片由 OpenAI / Anthropic / DeepSeek 生成，经过各提供商的安全过滤；应用内可以举报回答、AI 对页面的修改提案、AI 写过的页面和幻灯片里 AI 生成的图片（见下面"AI 生成内容"）。
@@ -59,7 +59,7 @@ Play Console → 应用内容（App content）里各个声明的填写方式。�
 | 财务信息 → 购买记录（订阅状态、期间、Google Play 购买令牌） | 可选（只在购买 Pro 时） | 否 | 应用功能、账号管理 |
 | 照片和视频 → 照片 | 可选（用户自己添加的照片、头像） | 否 | 应用功能 |
 | 文件和文档 | 可选（用户添加的文件） | 否 | 应用功能 |
-| 应用活动 → 其他用户生成的内容（聊天消息、笔记、自定义指令） | 必需 | 否 | 应用功能（含通过 OpenAI 为笔记生成语义搜索向量） |
+| 应用活动 → 其他用户生成的内容（聊天消息、笔记 / 白板 / 幻灯片、自定义指令） | 必需 | 否 | 应用功能（含通过 OpenAI 为工作区页面的文字生成语义搜索向量） |
 | 应用活动 → 应用内搜索历史记录（搜索词） | 可选（使用搜索功能时） | 是（仅在当次请求中临时发给服务端与 OpenAI 完成匹配，不跨请求缓存、不落库保存） | 应用功能 |
 | 设备或其他 ID（随机的设备 Cookie） | 必需 | 否 | 应用功能、反欺诈 / 安全（匿名使用的每日额度） |
 
@@ -95,7 +95,7 @@ Google Play 的 AI 生成内容政策要求能在应用内举报冒犯性的 AI 
 
 已完成（2026-11-17）：开发者账号、创建应用（NoteFable，`com.kakumine.notefable`）、订阅商品 `notefable_pro` 的创建、RTDN 和服务端环境变量（见 [billing.md](../architecture/billing.md#配置google-play)）、商店文字和图片、隐私政策 / 服务条款 / 特商法页面里的订阅说明。
 
-已完成（2026-11-20–22）：1.0.12（versionCode 22）起在内部测试和封闭测试（Alpha 轨道）完全发布，当前 Alpha 为 1.0.14（versionCode 24）；订阅 `notefable_pro` 的基础方案 `monthly` 与 30 天免费试用 `free-trial-30d` 已启用；Play Console 的应用内容声明和商店介绍已填写；封闭测试已于 2026-11-22 通过 Testers Community 启动（15 名测试人员，16 天，见 `AGENTS.md`）。之后提高 versionCode 的 PR 合入 main 时，GitHub Actions 自动同时发布到内部测试和 Alpha（见 [android.md](../architecture/android.md#正式签名与-google-play)），不用再手动上传 AAB。
+已完成（2026-11-20–22）：1.0.12（versionCode 22）起在内部测试和封闭测试（Alpha 轨道）完全发布，仓库当前版本为 1.0.17（versionCode 27），Play 上的实际版本以 Console 为准；订阅 `notefable_pro` 的基础方案 `monthly` 与 30 天免费试用 `free-trial-30d` 已启用；Play Console 的应用内容声明和商店介绍已填写；封闭测试已于 2026-11-22 通过 Testers Community 启动（15 名测试人员，16 天，见 `AGENTS.md`）。之后提高 versionCode 的 PR 合入 main 时，GitHub Actions 自动同时发布到内部测试和 Alpha（见 [android.md](../architecture/android.md#正式签名与-google-play)），不用再手动上传 AAB。
 
 剩下的（都要在 Play Console 上由所有者操作）：
 

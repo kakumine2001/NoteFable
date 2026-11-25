@@ -21,7 +21,7 @@ export default function TermsPage() {
 
       <LegalSection title="2. The service">
         <p>
-          NoteFable is an AI study assistant: you can chat with AI models, keep notes in your Workspace, attach files and generate images. It is a personal project provided
+          NoteFable is an AI study assistant: you can chat with AI models, keep notes, slide decks and whiteboards in your Workspace, attach files and generate images. It is a personal project provided
           “as is”. It is free to use within daily and monthly limits and a storage limit for your files; a paid Pro plan raises those limits (section 3). Features, models and limits can change,
           and the service can be interrupted or stopped at any time without notice. Keep your own copy of anything important.
         </p>

@@ -25,7 +25,7 @@ Production aliases：
 
 ```text
 notefable.com                 # 正式域名（2026-11-15 购入，Vercel 管理 DNS）：介绍页、法律页面
-app.notefable.com             # 工作区（聊天与 Notes）
+app.notefable.com             # 工作区（聊天与 Workspace）
 www.notefable.com             # 308 跳转到 notefable.com
 notefable-kaku10.vercel.app
 ```

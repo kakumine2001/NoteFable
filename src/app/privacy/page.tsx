@@ -12,7 +12,7 @@ export default function PrivacyPage() {
     <LegalPage title="Privacy Policy">
       <LegalSection title="1. About NoteFable">
         <p>
-          NoteFable is a personal AI study assistant with chat and a Workspace for your notes, available at
+          NoteFable is a personal AI study assistant with chat and a Workspace for your notes, slide decks and whiteboards, available at
           {" "}<a href="https://notefable.com">notefable.com</a>. It is run by an individual developer.
           This policy explains what data NoteFable handles and why. Questions: <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a>.
         </p>
@@ -62,7 +62,7 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong>Content you create.</strong> The messages you send, the AI’s replies (with the short reasoning summary and web-search steps shown
-            alongside them), files and images you attach or generate, your Workspace content (notes, covers, images, files and groups), and any instructions you write for the AI (custom instructions in Settings and
+            alongside them), files and images you attach or generate, your Workspace content (notes, slide decks, whiteboards, covers, images, files and projects), and any instructions you write for the AI (custom instructions in Settings and
             project instructions), which are sent to the AI provider along with your messages.
             Attached documents such as PDFs and text files are kept as extracted text; images are kept as files. If you upload a profile photo, we keep
             the cropped photo (about 512×512) in file storage and delete the old file when you replace or remove it.
@@ -99,9 +99,9 @@ export default function PrivacyPage() {
             {" "}<a href="https://openai.com/policies/privacy-policy">OpenAI</a>,{" "}
             <a href="https://www.anthropic.com/legal/privacy">Anthropic</a> or{" "}
             <a href="https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html">DeepSeek</a> (DeepSeek is operated from China).
-            When the assistant looks at your notes, the note text it reads goes to that same provider; if the reply uses web search, that search also runs at
+            When the assistant looks at your Workspace pages (notes, slide decks and whiteboards), the text it reads goes to that same provider; if the reply uses web search, that search also runs at
             that provider. Image generation and image editing always go to OpenAI, whichever chat model is selected.
-            To power meaning-based note search, note titles, note text and note search queries are also sent to OpenAI to create search vectors (stored in our database and deleted when you delete the note or your account), whichever chat model is selected.
+            To power meaning-based search, page titles, the text of your notes, slide decks and whiteboards, and search queries are also sent to OpenAI to create search vectors (stored in our database and deleted when you delete the page or your account), whichever chat model is selected.
             For OpenAI chats we also send an internal account ID so OpenAI can apply its safety checks. Each provider handles the data under its own policy.
           </li>
           <li>
@@ -138,24 +138,24 @@ export default function PrivacyPage() {
 
       <LegalSection title="6. Retention and deletion">
         <p>
-          We keep your data until you delete it. You can delete a chat or a note in NoteFable. That removes it from your account in our database, including the
-          messages and note edit proposals tied to that chat. Copies of uploaded images, generated images, note files and cover images can remain in file storage
+          We keep your data until you delete it. You can delete a chat or a page (a note, slide deck or whiteboard) in NoteFable. That removes it from your account in our database, including the
+          messages and note edit proposals tied to that chat. Copies of uploaded images, generated images, page files and cover images can remain in file storage
           until we remove them. Signing out does not delete anything.
         </p>
         <p>
           <strong>Deleting your account.</strong> When signed in, open <em>Settings → Account → Delete account</em> on the website or in the Android app. This immediately and
-          permanently deletes your account and everything in it: chats, messages, notes, note history, projects, uploaded and generated images, files, your profile
+          permanently deletes your account and everything in it: chats, messages, notes, slide decks, whiteboards, page history, projects, uploaded and generated images, files, your profile
           and settings. It also ends a Pro subscription bought on the website immediately, deletes your customer record at Stripe, and stops a Google Play subscription from renewing; Stripe and Google keep their payment records (such as invoices and charges) as the law requires. Database backups that may still contain it are overwritten within 30 days. To keep other signed-in devices from re-creating the account, we keep a one-way hash of its Google account ID and email address (not the ID or address itself) for 400 days. If you cannot sign in, email
           {" "}<a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a> from the account’s address and we will delete it within 30 days.
-          Data you used without signing in is tied only to your browser or app: delete its chats and notes in NoteFable, or clear the app’s data. See
+          Data you used without signing in is tied only to your browser or app: delete its chats and Workspace pages in NoteFable, or clear the app’s data. See
           {" "}<Link href="/delete-account">notefable.com/delete-account</Link>.
         </p>
       </LegalSection>
 
       <LegalSection title="7. Security">
         <p>
-          Data is sent over HTTPS, the device cookie is signed, and each private chat and note can be read only through the browser or signed-in account that created it.
-          If you explicitly publish a note to the web, anyone with its share link can read that note (and its sub-pages, when included) until you unpublish it, it expires, or you delete it.
+          Data is sent over HTTPS, the device cookie is signed, and each private chat and page can be read only through the browser or signed-in account that created it.
+          If you explicitly publish a note, slide deck or whiteboard to the web, anyone with its share link can view that page (and its sub-pages, when included) until you unpublish it, it expires, or you delete it.
           No online service is perfectly secure, and anyone who can use your browser can use your anonymous data, so avoid using NoteFable without signing in on shared devices.
         </p>
       </LegalSection>

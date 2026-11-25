@@ -16,7 +16,7 @@
 - 一页是 1920 × 1080 的逻辑像素（16:9），显示时缩放。PPTX 里是 13.333 × 7.5 英寸（1 px = 1/144 英寸，字号 1 px = 0.5 pt）。
 - `section`：有这个字段的页开始总览的新一行（章），值是章名（可空）；第一页总在第一行。
 - `transition`：可选的简易翻页转场（`"fade"` 淡入 / `"slide"` 滑入；`"none"` 或省略时字段不写入，保持旧 Deck JSON 100% 兼容）。右侧页属性栏（`slide-inspector.tsx`）提供单页选择与“应用到全部幻灯片”（均进撤销栈）。
-- 元素共有 `id, x, y, w, h, rotation, group?, role?, opacity?`。类型：`text`（富文本 `doc` + `style`）、`shape`（15 种形状，可带文字）、`line`（箱子的对角线，`flipH` / `flipV` 定方向，两端可带箭头）、`image`（`src` 只能是本人的 `/api/pages/files?key=…`；`generated.prompt` 记着 AI 生成的说明，用于举报）、`table`（纯文字单元格，最多 50 × 20）、`whiteboard`（白板框的静态图，见下）。
+- 元素共有 `id, x, y, w, h, rotation, group?, role?, opacity?`。类型：`text`（富文本 `doc` + `style`）、`shape`（15 种形状，可带文字）、`line`（箱子的对角线，`flipH` / `flipV` 定方向，两端可带箭头）、`image`（`src` 只能是本人的 `/api/pages/files?key=…`；`generated.prompt` 记着 AI 生成的说明，用于举报）、`table`（纯文字单元格，最多 50 × 20）、`whiteboard`（白板框的静态图；数据形状已有，放入的入口要等白板端注册后才出现，见下）。
 - 颜色是主题色名（`background, surface, text, muted, heading, accent, accent2, accent3, line`）或 `#rrggbb`；换主题时用色名的元素一起变。
 - 富文本是 ProseMirror 的 JSON（`src/lib/slides/rich-text.ts`）：段落（对齐）、项目符号 / 编号列表、代码块（可选 `attrs.language`）、块级公式，行内文字带粗体、斜体、下划线、删除线、代码、链接（只允许 http / https / mailto / tel）、颜色、字号，以及行内公式（KaTeX）。
 - 读入时一律经过 `normalizeDeck`：坏值换默认值，未知元素丢掉，重复 ID 重新分配，外部图片地址清空（公开页面不会去外部取图）。搜索用的 `segments` 由服务端从所有 `text` 字段和备注里取（`extractCanvasSegments`，公式的 TeX 也算），ID 是页的 ID。
@@ -27,7 +27,7 @@
 - **页操作**：新建（选版式）、复制、删除、隐藏 / 显示、分章 / 合并章、拖动排序，可多选（Shift / Ctrl）。
 - **版式**（8 种，`src/lib/slides/layouts.ts`）：标题、章节、要点、两栏、图文、引用、全幅图片、空白。每个版式有按角色（title / subtitle / body / body2 / image / quote / attribution / caption）的占位。换版式时把角色对得上的元素移到新占位并套用尺寸和格式；对不上的有内容就留在原地变成自由元素，空的才删掉——内容不会丢。空占位只在编辑时显示提示，放映和导出不画。
 - **主题**（8 种，`src/lib/slides/themes.ts`）：标题和正文的字体组合 + 浅色 / 深色配色，一键切换整套。字体全部是 Google Fonts（SIL OFL），用 `next/font` 在构建时取入、自己分发（`slide-fonts.ts`，不 preload，只下载用到的字体）。
-- **元素**：文字框、形状、线 / 箭头、表格、图片（上传、粘贴、从聊天里选、AI 生成）、白板框。拖动、八个手柄缩放（Shift 保持比例，图片的角默认保持）、旋转（Shift 每 15 度）、吸附到页边 / 中线 / 其他元素并显示参考线、框选、对齐、等间距分布（3 个以上）、层级、组合 / 取消组合。
+- **元素**：文字框、形状、线 / 箭头、表格、图片（上传、粘贴、从聊天里选、AI 生成）、白板框（白板端还没注册选框组件，所以工具栏暂不显示这个按钮，见“与其他功能的接口”）。拖动、八个手柄缩放（Shift 保持比例，图片的角默认保持）、旋转（Shift 每 15 度）、吸附到页边 / 中线 / 其他元素并显示参考线、框选、对齐、等间距分布（3 个以上）、层级、组合 / 取消组合。
 - **文字**：ProseMirror（`text-editor.tsx`）。输入法（中日韩）组字期间不从外面替换内容。输入规则：行首 `- ` / `1. ` 列表、` ``` ` 代码块、`$…$` 行内公式、行首 `$$ ` 块级公式。编辑文字时上方出现格式栏。公式用 KaTeX，有公式的页才加载（与笔记的公式相同的延迟加载）。
 - **演讲者备注**：每页一段纯文字（最多 20,000 字符），在单页编辑下方。
 - **撤销 / 重做**：编辑器自己保存之前的本体（连续的同类操作——打字、备注、方向键移动——合并成一步）。保存交给 `NotesWorkspace` 的保存队列（`onChange(data)`）。

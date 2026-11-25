@@ -1,14 +1,14 @@
 # 原生 Android 界面（Kotlin / Compose）
 
-> 目录：`mobile/android/`。这是唯一的 Android 客户端；原来的 Capacitor 外壳已删除，原生版的应用 ID 是 `com.kakumine.notefable`。开发环境与 APK 交付规则见 [android.md](android.md)。
+> 目录：`mobile/android/`。这是唯一的 Android 客户端；原来的 Capacitor 外壳已删除，原生版的应用 ID 是 `com.kakumine.notefable`。开发环境与安装包交付（Play 的内部测试 / Alpha 轨道）见 [android.md](android.md)。
 
 ## 为什么是"混合原生"，不是全部重写
 
-结论：**聊天和导航原生化，笔记编辑器继续用 WebView**。
+结论：**聊天和导航原生化，笔记、白板和幻灯片的编辑器继续用 WebView**。
 
 - 手感差距主要出在高频、贴手的地方：流式回答的滚动与重绘、输入框与软键盘、侧边栏手势、底部抽屉、返回键。这些用 Compose 做能直接拿到原生的 120Hz 渲染、预测性返回和系统文字选择，WebView 里很难补齐。
 - 服务端已经是干净的 REST + SSE（`/api/sessions`、`/api/chat` 等），原生客户端可以直接复用，不需要改后端。
-- 笔记编辑器是 BlockNote（自定义块、图片/文件块、拖拽、历史版本）。原生重写工作量大、很难和网页保持一致，收益远低于聊天，所以保留 WebView，只把列表、导航、顶栏做成原生（见路线图）。
+- 笔记编辑器是 BlockNote（自定义块、图片/文件块、拖拽、历史版本），白板（Excalidraw）和幻灯片也是网页编辑器。原生重写工作量大、很难和网页保持一致，收益远低于聊天，所以保留 WebView，只把列表、导航、顶栏做成原生（见路线图）。
 - 全部重写会让 Android 和网页两套界面长期各自维护，并且失去"网站更新后 App 不用重新打包"这一点。聊天界面稳定后再接受这个代价，笔记编辑器不接受。
 
 ## 现状
@@ -17,7 +17,7 @@
 
 Markdown 异步解析下一段流式内容时保留上一帧，避免反复显示空白加载态；有序列表保留原文的起始编号，与网页一致。
 
-另有 Credential Manager Google 登录、退出、修改显示名和头像（照片 / 表情，见下文“账号头像”）的代码，沿用 `/api/native-auth/*` 和 `/api/account`，真实账号登录流程仍需单独验证。附件（文件选择、上传、发送）和「生成图片」模式已有，见下文“附件与图片”。笔记（列表、项目、子页面、收藏、页面菜单、回收站、拖动排序、WebView 编辑器）已有，见下文“笔记”。页面图标是上传图片时（`data/Notes.kt` 的 `NoteIcons`），所有显示笔记图标的地方（`NoteIcon`：列表、首页、回收站、移动对话框、搜索、附加页面、项目参考笔记、编辑器顶栏）用 Coil 带登录 Cookie 读 `/api/pages/covers?key=`，和表情一样大、圆角 3；原生的图标选择器还只能选表情（**上传图片图标尚未实现**，要用就在编辑器里点页面图标，那是网页的选择器）。回答的过程面板、提案卡片、代码块等见下文“回答体验”。上限时的草稿恢复与登录提示、滚动到底部按钮、粘贴图片和拍照见下文“输入栏与使用上限”。搜索、跳转到消息和聊天链接见下文“搜索与跳转”。登录入口已对齐为「登录」按钮 + 弹窗，按服务端配置提供 Google / 邮箱验证码（`ui/SignInDialog.kt`）；登录后点侧栏的账号行打开设置（`ui/SettingsDialog.kt`，两级：入口的一览 → 通用 / 个性化 / 方案 / 账号各自的页面）。发言可以添加自己的笔记（“添加页面”），输入栏“＋”抽屉可以把聊天整理成笔记（“整理成笔记”），见下文“附件与图片”和“整理成笔记”。这些是当前源码能力，不代表已安装 APK 自动获得更新；交付状态以实际构建、运行验证和 Drive 上的包为准。
+另有 Credential Manager Google 登录、退出、修改显示名和头像（照片 / 表情，见下文“账号头像”）的代码，沿用 `/api/native-auth/*` 和 `/api/account`，真实账号登录流程仍需单独验证。附件（文件选择、上传、发送）和「生成图片」模式已有，见下文“附件与图片”。笔记（列表、项目、子页面、收藏、页面菜单、回收站、拖动排序、WebView 编辑器）已有，见下文“笔记”。页面图标是上传图片时（`data/Notes.kt` 的 `NoteIcons`），所有显示笔记图标的地方（`NoteIcon`：列表、首页、回收站、移动对话框、搜索、附加页面、项目参考笔记、编辑器顶栏）用 Coil 带登录 Cookie 读 `/api/pages/covers?key=`，和表情一样大、圆角 3；原生的图标选择器还只能选表情（**上传图片图标尚未实现**，要用就在编辑器里点页面图标，那是网页的选择器）。回答的过程面板、提案卡片、代码块等见下文“回答体验”。上限时的草稿恢复与登录提示、滚动到底部按钮、粘贴图片和拍照见下文“输入栏与使用上限”。搜索、跳转到消息和聊天链接见下文“搜索与跳转”。登录入口已对齐为「登录」按钮 + 弹窗，按服务端配置提供 Google / 邮箱验证码（`ui/SignInDialog.kt`）；登录后点侧栏的账号行打开设置（`ui/SettingsDialog.kt`，两级：入口的一览 → 通用 / 个性化 / 方案 / 账号各自的页面）。发言可以添加自己的页面（“添加页面”，笔记、白板、幻灯片都行），输入栏“＋”抽屉可以把聊天整理成笔记（“整理成笔记”），见下文“附件与图片”和“整理成笔记”。这些是当前源码能力，不代表用户已安装的版本里都有；交付状态以 Play 测试轨道（内部测试 / Alpha）上发布的版本为准（[android.md](android.md)）。
 
 ## 三端一致与原生分界
 
@@ -67,7 +67,7 @@ Android 目前的界面全部按网页量的值写（下面各条和表格）；
 | 设置 | 全屏、灰底 `#F7F7F5`，两级：入口的一览 → 点了的那一栏自己的页面。顶栏最小高 64、左右 16，三列 40 \| 剩下 \| 40、间距 8：左边圆形按钮 40（白底、1px 细线、全圆角；一览上是关闭 X 18，页面上是返回 ArrowLeft 20），标题居中 17/650（一览是“设置”，页面是栏名），右边一列空着；内容左右 16、上 8、下 32；卡片白底、1px 细线、圆角 20（带内边距的 16）。一览：账号行（卡片，内边距 14×16、间距 14：头像 44、名字 17/600 墨色一行、下隔 2 邮箱 14 灰一行、ChevronRight 18 `--notion-faint`），隔 24 是四行的卡片（通用 SlidersHorizontal、个性化 PenLine、方案 CreditCard、账号 CircleUser；每行最小高 56、内边距 10×16、间距 14：图标 20 正文色、名字 16/500、ChevronRight 18；行间 1px 细线从起始边 50 处画到结束边）。页面没有栏标题：通用（语言一行：最小高 56、内边距 10×16、标题 16/500，右边选择按钮高 40、圆角 8、15 字 + ChevronsUpDown 14；图标一行 + 40 的圆形预览 + 小按钮）、个性化（自定义指令：标题 15/500、输入框最小高 240、圆角 10）、方案（“NoteFable”17/650 + 徽章，用量条高 6）、账号（个人资料：头像 56 + 间距 16 + 名字输入框高 44 圆角 8、邮箱 13 灰、编辑区圆角 10；隔 24 是退出登录 / 删除账号两行：最小高 56、图标 16 + 12 + 16/500）。换画面：滚动区 200ms `cubic-bezier(0.2, 0.8, 0.2, 1)` 淡入并横移 16（页面从结束边、一览从起始边进来，RTL 相反）。小按钮：高 40、左右 14、全圆角、1px 深描边、14/500。“未保存的更改”条：离边 16、最小高 52、圆角 14、墨色底，按钮高 40、圆角 10 | `SettingsDialog`、`SettingsNav.kt`、`SettingsParts.kt`、`LanguageSettings` |
 | 回收站 | 底部全宽面板、顶部圆角 16；头部内边距 12/12/12/16 + 下边 1px 线；"清空回收站"红字、关闭 40；说明 13/18.85 灰；行内边距 6.4×8：图标 24（表情 17）、标题 15/500、时间 12 灰；按钮高 44、15/500、左右 16，在下一行靠右 | `TrashSheet` |
 
-**有意不放的网页控件**（原生版还没有对应功能，不放不能用的入口）：笔记侧栏里正打开着的那篇笔记的图标按钮（网页点它也弹选择器，经编辑器自动保存；原生版要先给 WebView 编辑器加改图标的桥接口，现在只显示图标，在编辑器里改）。笔记编辑页没有网页以外的"更多"菜单：移到回收站和网页一样在侧栏的笔记行上。做到对应功能时再按网页补上。`/api/models` 不可用时使用安装包里的 `assets/models.json`；接口返回服务器开放的模型，资源是 `src/lib/models.ts` 的内置列表；两者都不可用时才隐藏模型按钮。
+**有意不放的网页控件**（原生版还没有对应功能，不放不能用的入口）：笔记侧栏里正打开着的那篇笔记的图标按钮（网页点它也弹选择器，经编辑器自动保存；原生版要先给 WebView 编辑器加改图标的桥接口，现在只显示图标，在编辑器里改）。做到对应功能时再按网页补上。`/api/models` 不可用时使用安装包里的 `assets/models.json`；接口返回服务器开放的模型，资源是 `src/lib/models.ts` 的内置列表；两者都不可用时才隐藏模型按钮。
 
 改动模型定义后运行 `npx tsx scripts/gen-native-models.ts` 更新打包资源；`src/lib/native-models-asset.test.ts` 检查资源与内置列表是否一致。App 里不写死模型：开放哪些由服务器的 `NOTEFABLE_MODELS` 决定。
 
@@ -80,16 +80,16 @@ mobile/android/
     auth/   GoogleIdToken（Credential Manager 取 Google ID 令牌）
     data/   NoteFableApi（各接口）、NoteFableHttp（共用的 OkHttp 客户端、JSON 请求、ApiException）、PersistentCookieJar、
             ChatStream（ChatStreamParser）、Dto、ChatBackend / AccountBackend（ViewModel 依赖的接口）、SystemText（服务端系统文的译文）、Activity（回答的过程与提案）、ProposalApi（提案的应用 / 放弃 / 撤销与状态）、ExportApi（回答存到笔记、下载对话）、ImageSaver（生成图片存相册）、Notes（笔记 DTO、NotesBackend、JS 桥消息）、ExportFileAssembler（编辑器导出文件的分块拼接）、
-            IdentityGate（身份确定前只放一个请求）、NoteFiles（笔记文件链接与下载）、AccountApi（改资料、上传头像）、
-            AppLanguage（界面语言）、AppIcon / Characters（图标与预设角色）、Attachments（附件限制）、UsageLimits、PlayBilling（Play 结算）、ReportApi（报告回答 / AI 内容）、
+            IdentityGate（身份确定前只放一个请求）、NoteFiles（笔记文件链接与下载）、NoteImport（Markdown 导入的规则）、AccountApi（改资料、上传头像）、DiagramApi（画成图）、ShareIntake（系统分享交来的内容）、
+            AppLanguage（界面语言）、AppTheme（外观）、AppIcon / AppIconSync / Characters（图标、账号上的图标同步与预设角色）、Attachments（附件限制）、UsageLimits、PlayBilling（Play 结算）、ReportApi（报告回答 / AI 内容）、
             SessionsApi / ProjectsApi（侧栏的聊天与项目）、NoteIconApi、SearchApi / SearchFold / ChatLink（搜索与聊天链接）、ChatQuote（引用追问）、MathMarkdown（公式）、EmojiCatalog（表情数据）
     ui/     ChatViewModel（状态与流式逻辑）、NotesViewModel（列表、项目、拖动排序、回收站、离开前保存）、NoteFableRoot（抽屉、模式切换）、
-            ChatScreen（顶栏、消息列表、输入栏、模型抽屉）、GuestLimitPrompt（上限登录提示）、AssistantTurn（一条回答）、AnswerMarkdown（正文、表格、公式）、AnswerActions（回答的"…"菜单）、ReportDialog（“报告回答” / “报告 AI 内容”）、ChatActivity（过程面板）、ProposalCard（页面提案卡片）、CodeBlock（代码块与高亮）、ChatSidebar（侧栏的聊天部分）、ReorderDrag（聊天和笔记列表共用的拖动排序）、
+            ChatScreen（顶栏、消息列表、输入栏、模型抽屉）、GuestLimitPrompt（上限登录提示）、StorageLimitPrompt（存储空间与编辑器里的上限提示）、ShareIntent（读系统分享的 Intent）、SegmentWidths（Chat / Workspace 切换的两键宽度）、AssistantTurn（一条回答）、AnswerMarkdown（正文、表格、公式）、AnswerActions（回答的"…"菜单）、ReportDialog（“报告回答” / “报告 AI 内容”）、ChatActivity（过程面板）、ProposalCard（页面提案卡片）、CodeBlock（代码块与高亮）、ChatSidebar（侧栏的聊天部分）、ReorderDrag（聊天和笔记列表共用的拖动排序）、
             AttachUi / AttachPagesDialog / CreatePageDialog / ChatRecentNotes（“＋”抽屉、添加页面、整理成笔记、最近编辑）、TurnActions（编辑、重新生成、版本切换、分支）、QuoteSelection（引用追问）、ChatFollow（跟随底部的规则）、
             ChatActions / ProjectSettings / SidebarViewModel / SessionIconSync（侧栏菜单、项目设置、聊天图标）、SearchScreen / SearchViewModel、EmojiPicker、
-            NotesUi（侧栏笔记部分、首页、对话框、回收站）、NotePageMenu（编辑页“…”菜单）、NoteFileDownloads、AccountUi / AccountViewModel / AvatarCropper（账号行、个人资料、头像裁剪）、SignInDialog（Google / 邮箱验证码）、
+            NotesUi（侧栏工作区部分、首页、对话框、回收站）、NotePageMenu（编辑页“…”菜单）、NoteShareDialog（公开分享）、DrawDiagramDialog（画成图的进度窗口）、NoteFileDownloads、AccountUi / AccountViewModel / AvatarCropper（账号行、个人资料、头像裁剪）、SignInDialog（Google / 邮箱验证码）、
             SettingsDialog / SettingsNav / SettingsParts（两级设置）、LanguageUi、AppIconSettings、PlanSettings（方案与购买）、DeleteAccountSection（删除账号）、HelpMenuUi（帮助菜单）、ThemeSettings（外观）、NoteMarkdownIo（笔记的 Markdown 导出 / 导入）、NoteEditor（顶栏 + WebView + JS 桥）、ExportFileSaver（编辑器导出文件的保存位置）、WhiteboardEdges（白板画图时让开两侧的返回手势）、Mascot、SystemTextUi、Lucide、Theme
-  app/src/main/assets/   models.json、system-text.json、usage-limits.json、emoji.json（都由 scripts/ 下的脚本从网页源码生成，不手改）
+  app/src/main/assets/   models.json、system-text.json、usage-limits.json、emoji.json、page-kinds.json（都由 scripts/ 下的脚本从网页源码生成，不手改）
   app/src/test/   ChatStreamParser、ChatViewModel、NotesViewModel、SidebarViewModel、SearchViewModel、AccountViewModel、SystemText、ApiException、Activity、ProposalStore、ReportApi、AppLanguage、PlayBilling、代码高亮与表格列宽、表情与图标、笔记接口与桥消息、导出文件的拼接（`ExportFileAssemblerTest`）与白板两侧的手势区（`WhiteboardEdgesTest`）、外观（`AppThemeTest`）与 Markdown 导入规则（`NoteImportTest`）等的单元测试（假后端 / MockWebServer，不联网）
 ```
 
@@ -134,7 +134,7 @@ mobile/android/
 - **阿拉伯语 RTL**：`AndroidManifest.xml` 开启 `android:supportsRtl="true"`；切到 `ar` 时 Compose `LocalLayoutDirection` 变为 `Rtl`，`ModalNavigationDrawer` 从右侧抽入；`Lucide.kt` 自动水平镜像方向性图标（返回、前进、折叠箭头、收起侧栏、移入文件夹、退出登录），过程面板与提案卡片展开箭头按方向旋转，侧栏激活蓝条、子页面竖线及浮动菜单位置随 `LayoutDirection` 镜像；阿拉伯脚本标题和标签设 `letterSpacing = 0.sp` 保护连写，代码块、独立数学公式和 6 位验证码输入框固定 `LayoutDirection.Ltr`。
 - `AccountLocaleSync` 只随账号状态变化；账号 `null` 是权威 Auto，缺字段（`LOCALE_UNKNOWN`）保持不动，未登录保留本机选择。退出 / 删除账号后清空本机偏好。
 - 资源生成：繁体由 `npx tsx scripts/gen-native-zh-hant.ts` 从 `values-zh` 生成；新增的 13 种语言由 `npx tsx scripts/gen-native-strings.ts` 从 `res/values` 与 Web 字典生成（印尼语使用 Android 标准资源目录 `values-in`，巴西葡语使用 `values-pt-rBR`）；服务端系统文由 `npx tsx scripts/gen-native-system-text.ts` 生成。
-- 验证：`native-language.test.ts`（323 份 XML（17 种语言 × 19 个文件）的格式、键集合、占位符与 `locales_config.xml` 校验）及资源一致性测试；Android 的 JUnit 由 PR 检查（`android-pr.yml`）运行；真机 RTL 手感待验证。
+- 验证：`native-language.test.ts`（340 份 XML（17 种语言 × 20 个文件）的格式、键集合、占位符与 `locales_config.xml` 校验）及资源一致性测试；Android 的 JUnit 由 PR 检查（`android-pr.yml`）运行；真机 RTL 手感待验证。
 
 ## 侧栏：置顶、聊天项目与整理
 
@@ -144,7 +144,7 @@ mobile/android/
 - 列表顺序：Pinned（有置顶时）→ PROJECTS（右侧 ＋ 新建项目）→ 各项目（可折叠，折叠状态只在内存里，和网页一样）→ CHATS。组内按置顶、position、更新时间排序（`orderedSessions`）。项目里没有聊天时显示 "No chats"，全都置顶了显示 "All chats pinned"；项目有共通指示 / 参考笔记时名称后加 ScrollText 小图标。
 - 聊天行：图标、标题（长按后拖动排序）、"更多"。行上没有单独的置顶按钮，置顶收在"更多"菜单里。"更多"菜单（从右上角 140ms 展开，系统关掉动画时不动）：置顶 / 取消置顶（点了就保存，`SidebarViewModel.setPinned`；成功关菜单，失败留着、在菜单下面显示原因，保存中不能关）、改名（最多 120 字）、移到项目（含"＋ 新项目 / 创建并移动"，建好但移动失败时项目保留）、删除（确认；删的是正在看的聊天时回到新聊天；回答生成中不能删）。项目菜单：项目设置、改名（60 字）、删除（聊天保留并移到 Chats）。返回键先关菜单和对话框；请求进行中对话框不能关（网页 run() 锁住窗口），免得结果到了本地列表却没更新。
 - 项目行的 ＋：正在看的是空的新聊天时不多建——同一项目直接用，别的项目（且没置顶）就移过来；否则 `POST /api/sessions {projectId}` 新建并打开。失败时抽屉不关，原因显示在 PROJECTS 下面（网页显示在输入栏上方，原生版输入栏属于别的批次）；下次打开抽屉时清掉。
-- 项目设置：共通指示（计数 n/4000）、参考笔记（筛选、勾选最多 `MAX_PROJECT_NOTES` 篇、已选标签、一次最多列 100 篇），保存时只发改了的字段（`projectSettingsChanges`）。加载失败和网页一样先看项目详情：详情读不到是 "Could not load the project settings."，笔记读不到是 "Could not load your notes."，服务端给了原因就用原因。
+- 项目设置：共通指示（计数 n/4000）、参考笔记（筛选、勾选最多 `MAX_PROJECT_NOTES` 篇、已选标签、一次最多列 100 篇），保存时只发改了的字段（`projectSettingsChanges`）。加载失败和网页一样先看项目详情：详情读不到是 "Could not load the project settings."，页面列表读不到是 "Could not load your pages."，服务端给了原因就用原因。
 - 拖动排序：没有单独的把手，长按标题区后拖（与网页触屏一致，开始时有一次长按触感反馈），放到别的行前 / 后走 `POST /api/sessions/reorder`（跨组时服务端顺便改项目和置顶），放到项目行或 CHATS 标签上是移进该项目并取消置顶。长按之前的滑动照常滚动列表；长按开始后拖动被吃掉，不会同时触发抽屉的横滑关闭和列表滚动；手指在列表上下边 30 以内移动时每次移动滚 12（和网页一样，手指不动就不滚）。正在移动的那一行不能拖，别的行照常能拖；排序请求同一时间只做一次，上一次没完时再排序提示 "Wait for the previous move to finish."（拖进项目走普通更新，不受这个限制，和网页一样）。折叠 / 删除后离开列表的行不再参与命中。网页的键盘上下移动在原生版没有。
 - 接口：`data/SessionsApi.kt`（PATCH / DELETE / POST `/api/sessions`、reorder）、`data/ProjectsApi.kt`（`/api/chat-projects`，参考笔记候选来自 `GET /api/pages`）。状态在 `ui/SidebarViewModel.kt`；会话列表本身仍在 `ChatViewModel`，成功后通过 `patchSessions` / `onSessionDeleted` / `openCreatedSession` 更新。打开抽屉时同时刷新会话和项目；本地改了项目列表时若有刷新在进行就再刷一次（和 `patchSessions` 一样），免得旧结果盖掉新改动；登录 / 退出后丢弃旧身份的结果。单元测试：`SidebarViewModelTest`、`SidebarApiTest`。
 
@@ -244,7 +244,7 @@ mobile/android/
 - 分区与新建（#168，网页 notes-sidebar / notes-home / new-page-button，规则见 [notes-flow.md](notes-flow.md#分区与新建168)）：能新建的类型是 `NotesUiState.kinds`（`PageKindTable.creatable`，笔记、幻灯片、白板的顺序，`editor` 为 true 的；开关关着的类型的分区和新建项完全不出现）。侧栏最上面在只能建笔记时是“新笔记”（一点就建），能建两种以上时是“新建”，点了开类型菜单（`NewPageMenuAnchor`，与聊天“…”同一外框 `ActionsMenu`，各项是类型图标 + 类型名）；项目行多一个“+”（建在该项目最上层，`POST /api/pages` 带 `groupId`）、页面行的“+”（子页面）同样先选类型。PROJECTS 下面是分区（`NotesUiState.sections`：不在项目里的最上层页面按类型分，子页面跟着父页面，开关关着的类型的页面放在笔记分区里）：标题同 PROJECTS（12 等宽大写灰字、上距 9.6），后面是 13 的折叠箭头，右侧 40 的“+”建这个类型；点标题折叠，存在 `NotesPrefs.collapsedSections`。首页：只能建笔记时和以前一样（有项目才出“No project”），能建两种以上时每个有页面的分区一个小标题（名字 + 含子页面的数量）；底部和空状态的新建按钮在能建两种以上时每种一个（类型图标，第一个深色）。拖动：分区标题的投放区键是 `section:<类型>`（`DragState.zoneContainers` 登记为无项目），分区标题和分区里最上层的行登记 `zoneAccepts` / `rowAccepts`，拖动开始时记下被拖的那篇会进的分区（`draggingTag`），`dropTargetAt` 不把别的分区当目标；项目、项目里的行、子页面的行什么都接受。检索的 Notes 标签页在能建两种以上类型时右侧多一个类型筛选（与项目筛选同一个 `FilterSelect`，`GET /api/search` 带 `kind`）。单元测试：`NotesViewModelTest` 里分区 / 按类型和项目新建 / 分区折叠三条，`PageKindTest` 里服务端的表和安装包的表两条，`ReorderDragTest`。
 - 幻灯片与笔记一键放映（规则见 [slides.md](slides.md#原生应用android--ios)）：笔记和幻灯片编辑页的“…”菜单都显示“放映”（`supportsPresentation`，复用 `R.string.slides_present`），幻灯片另外显示四种导出（PDF、带备注的 PDF、PNG、PPTX），点了经 `notefableEmbed.slides(...)` 交给网页（`NotePageMenuActions.onSlides`）。JS 桥声明 `canPresent()` / `canSaveFile()`。网页发 `presentation` start 时进入放映（`PresentationMode`：横屏 `SCREEN_ORIENTATION_SENSOR_LANDSCAPE`、隐藏系统栏（滑动临时显示）、`FLAG_KEEP_SCREEN_ON`、收起原生顶栏），end 时恢复；放映中按返回键先让网页结束放映，不离开页面；笔记放映里点击“另存为幻灯片”后会先结束放映，再经 `openPage` 刷新列表并打开新建的幻灯片。导出的文件和白板走同一条路（下面 JS 桥的“导出文件的保存”：`data/ExportFileAssembler.kt` 拼临时文件，`ui/ExportFileSaver.kt` 用 SAF `CreateDocument` 保存，Toast “File saved.” / “Could not save the file.”）。单元测试：`PageKindTest`（幻灯片的功能开关、放映和文件保存的桥消息解析）、`NoteEmbedBridgeTest`（笔记与幻灯片放映入口）。
 
-编辑器仍是网页的 BlockNote（白板是网页的白板编辑器）：编辑页的 WebView 打开 `<baseUrl>/note-embed?page=<id>&lang=<界面语言代码>&model=<id>&reasoning=<effort>&theme=<light|dark>`（网页只渲染笔记正文，没有网页的顶栏和侧栏），从检索结果打开时最后再加 `&reveal=<blockId>`（见“搜索与跳转”）。`model` / `reasoning` 是聊天里选的模型和推理强度（模型列表读到之后才带），编辑器里的 AI 助手用它们；网页按服务端的模型列表核对，列表里没有的模型不用，选不了的强度换成默认。加载前先清空 WebView 的 Cookie，再把 App 的 Cookie（`notefable_device`、Auth.js 会话）拷进 `CookieManager`，所以身份与 API 相同，退出登录后网页也不会沿用旧会话。JS 桥约定见 `src/lib/native-bridge.ts`，两边一起改：
+编辑器仍是网页的 BlockNote（白板、幻灯片是网页的白板 / 幻灯片编辑器）：编辑页的 WebView 打开 `<baseUrl>/note-embed?page=<id>&lang=<界面语言代码>&model=<id>&reasoning=<effort>&theme=<light|dark>`（网页只渲染笔记正文，没有网页的顶栏和侧栏），从检索结果打开时最后再加 `&reveal=<blockId>`（见“搜索与跳转”）。`model` / `reasoning` 是聊天里选的模型和推理强度（模型列表读到之后才带），编辑器里的 AI 助手用它们；网页按服务端的模型列表核对，列表里没有的模型不用，选不了的强度换成默认。加载前先清空 WebView 的 Cookie，再把 App 的 Cookie（`notefable_device`、Auth.js 会话）拷进 `CookieManager`，所以身份与 API 相同，退出登录后网页也不会沿用旧会话。JS 桥约定见 `src/lib/native-bridge.ts`，两边一起改：
 
 - 网页 → App：`window.NoteFableNative.postMessage(json)`，消息 `ready`（页面数据读好；带页面 id，冲突后"另存为新笔记"时网页换到副本并用副本的 id 再发一次，App 把打开的笔记换成副本，WebView 不重新加载）、`meta`（标题 / 图标变了，原生顶栏和列表即时更新）、`saveState`（`saved / saving / unsaved / error / conflict`，顶栏显示"已保存 / 正在保存… / 未保存 / 保存冲突"）、`missing`（笔记不存在或已在回收站，或编辑中保存返回 404：直接关闭并刷新列表，草稿留在 WebView）、`trashed`、`openPage`（正文里的页面提及被点了：走 `NotesViewModel.openNoteFromLink` 打开那一页；桥上的 `canOpenPage()` 返回 true，网页据此才发送）、`pagesChanged`（笔记 AI 面板的“画成图”画好了白板：刷新笔记列表）、`flushed`、`drawing`（白板在用画图工具，手掌平移以外的都算：`active` 为 true 时编辑页的 WebView 用 `ViewCompat.setSystemGestureExclusionRects` 在左右两边各让开一块 32×200dp、竖直居中的返回手势区（Android 每条边最多认 200dp，`ui/WhiteboardEdges.kt`），从边上起笔不会变成“返回”；WebView 尺寸变了（键盘、旋转）重算，`false`、不是白板、抽屉或检索盖在上面、关掉编辑器时清空；只认打开着的编辑器发来的）、`fileStart / fileChunk / fileEnd / fileAbort`（导出的文件，见下一条；桥上的 `canSaveFile()` 返回 true 网页才发，旧版 App 网页提示更新 App）。
 - 导出文件的保存（白板的 PNG / SVG / PDF，幻灯片的 PDF / PNG / PPTX，多页的 PNG 是 ZIP；网页 `src/lib/export-file.ts`，浏览器里是直接下载）：块（base64，原始字节最多 512 KiB）在 JS 线程上由 `data/ExportFileAssembler.kt` 按序号写进 `cacheDir/exports/` 的临时文件：只收这五种类型；整个最多 64 MiB 且不超过声明的大小，结束时要正好相等；序号不是下一个、base64 坏了、写不进去就作废；同一时间只拼一个，新的 `fileStart` 丢掉没拼完的；`fileAbort` 和 WebView 销毁时删掉；文件名去掉路径分隔符、控制字符和改变文字方向的字符，扩展名总是按类型（别的扩展名当成名字的一部分），最长 120 字且不超过 255 个 UTF-8 字节；编辑器拆掉（换页、退出登录、渲染进程崩溃）之后来的 `fileStart` 不收，拼好时编辑器已经拆掉就只删临时文件（不在别的画面上弹出选择器）；超过一天的残留在下次开始时清掉。`fileEnd` 拼好后到主线程，`rememberExportFileSaver`（`ui/ExportFileSaver.kt`，注册在 `NoteFableRoot`）用 SAF `CreateDocument`（类型和建议文件名按这个文件）让用户选位置，在 App 级作用域里拷进去，Toast “文件已保存。”（`export_file_saved`），拼不成或写不进去是 “无法保存文件。”（`export_file_failed`，并删掉选择器建好的空文件）；临时文件不管成败、取消都删掉。临时文件的路径存在 `rememberSaveable`，选择器开着时进程被回收，回来后照样拷。拼好时 App 在后台（系统不让后台打开选择器）就等回到前台（`ON_START`）再打开。渲染进程崩溃时清掉 `drawing` 的状态，新网页报告之前不让开两侧的返回手势。
@@ -270,7 +270,7 @@ mobile/android/
 和网页 `search-dialog.tsx` 在手机宽度下的全屏面板一致（数值在 412×915 下量，写在 `ui/SearchScreen.kt` 的注释里；文案在 `strings_search.xml`）。
 
 - 入口：聊天和笔记两边抽屉"新建"按钮下面的 Search 行（触屏不显示 Ctrl K 提示）；聊天顶栏右侧"＋"前面的搜索按钮（空白首页只有它）；笔记列表顶栏右侧、笔记编辑页顶栏版本历史前面的搜索按钮。
-- 面板：All / Chats / Notes 标签；Chats 标签页且有项目时右侧是项目筛选（当前聊天所在的项目排在最前，默认"全部项目"，选的项目没了就退回全部）。输入停 250ms 后 `GET /api/search?q=&scope=&projectId=`，条件变了就取消上一次请求、丢掉晚到的旧结果；检索中保留上一次结果并淡显（0.5）。在聊天界面时 Chats 组在前，在笔记界面时 Notes 在前。空输入 / 失败（"Try again" 重试）/ 检索中 / 无结果的文案都来自网页。每行：图标（表情或 MessageSquareText / FileText）、标题、项目名、摘录（"You: " / "NoteFable: "，附件命中时是回形针 + "in 文件名"）、日期（今年只写月日，`android.icu` 的 MMMd / yMMMd 骨架）；第一行带 hover 底色（网页手机上也是），命中词黄色底。每次打开都是空的（网页只在打开时挂载面板），返回键关闭。打开时整个面板从下方 32 处淡入上移（`model-sheet-up` 200ms ease-out）；检索中旧结果用 120ms ease 淡到 0.5，结果到了立即恢复（同 `.is-stale` 的 transition）。项目筛选的触发框和网页 `<select>` 一样按最长的选项定宽（最宽 48%），箭头在右端；**已知差异**：网页点开是浏览器自己的选择器（Android Chrome 是单选列表对话框），原生用 Material3 `DropdownMenu`（白底，当前项加粗），没有按网页量过。网页的 `<mark>` 有 1px 左右内边距和 2px 圆角，原生用文字背景色，没有这两项。
+- 面板：All / Chats / Pages 标签；Chats 标签页且有项目时右侧是项目筛选（当前聊天所在的项目排在最前，默认"全部项目"，选的项目没了就退回全部）。输入停 250ms 后 `GET /api/search?q=&scope=&projectId=`，条件变了就取消上一次请求、丢掉晚到的旧结果；检索中保留上一次结果并淡显（0.5）。在聊天界面时 Chats 组在前，在工作区界面时 Pages 在前。空输入 / 失败（"Try again" 重试）/ 检索中 / 无结果的文案都来自网页。每行：图标（表情或 MessageSquareText / FileText）、标题、项目名、摘录（"You: " / "NoteFable: "，附件命中时是回形针 + "in 文件名"）、日期（今年只写月日，`android.icu` 的 MMMd / yMMMd 骨架）；第一行带 hover 底色（网页手机上也是），命中词黄色底。每次打开都是空的（网页只在打开时挂载面板），返回键关闭。打开时整个面板从下方 32 处淡入上移（`model-sheet-up` 200ms ease-out）；检索中旧结果用 120ms ease 淡到 0.5，结果到了立即恢复（同 `.is-stale` 的 transition）。项目筛选的触发框和网页 `<select>` 一样按最长的选项定宽（最宽 48%），箭头在右端；**已知差异**：网页点开是浏览器自己的选择器（Android Chrome 是单选列表对话框），原生用 Material3 `DropdownMenu`（白底，当前项加粗），没有按网页量过。网页的 `<mark>` 有 1px 左右内边距和 2px 圆角，原生用文字背景色，没有这两项。
 - 高亮的折叠规则移植在 `data/SearchFold.kt`（`search-fold.ts` 的客户端部分）。对照用例 `app/src/test/resources/search-fold-cases.json` 由 `npx tsx scripts/gen-native-search-fold-cases.ts` 用网页实现算出（输入同 `search-fold.test.ts`），`SearchFoldParityTest` 用它核对 Kotlin 版；改了 `search-fold.ts` 要重新生成，`src/lib/native-search-fold-cases.test.ts` 会在用例过期时失败。
 - 选结果：聊天结果切到聊天并 `openSessionAt(id, messageId)`；笔记结果用结果里的标题、图标和类型打开原生笔记编辑页（列表还没读过也能开）。命中的块（`blockId`：笔记的块、白板的元素）放在 `OpenNote.reveal`，只在这个编辑器第一次加载时作为 `&reveal=` 加进 `/note-embed` 的地址（渲染进程崩溃后重新加载时不带），网页读好页面后滚到那一块（笔记）或移到那个元素（白板），和网页一样。命中的是已经开着的那一篇时不重新加载，改由 JS 桥的 `reveal(<blockId>)` 就地跳过去（`NotesViewModel.revealInEditor`）。
 - 定位到消息（`ChatUiState.reveal`）：消息读完后滚到那条消息、放在可视区中间，然后闪 2 秒（黄色底保持 1.2 秒再淡出，外圈 3px，与 `.search-reveal-flash` 一致）；消息已不存在就停在最底部；换了聊天就作废。闪的强度按开始时间算，条目滚出屏幕再回来时接着当前进度、不从头重放；2 秒后作废，从侧栏重开不再闪（网页 `clearFlash`）。`listState` 和上一段聊天共用，先等新列表量好（项数对上、可见项的 key 都是这段聊天的消息）再判断目标在不在屏幕上。定位完成前不贴底（`followAction` 的 `revealPending`，同网页 openChatFromLink 关掉 pinToBottom）；滚到目标后停止跟随底部，目标不存在时恢复跟随。

@@ -365,7 +365,7 @@ User 1 -> N StoredFile（SetNull）
 
 ### NotePage
 
-站内笔记页面，与聊天 `Session` 独立。`userId` 关联 `User`，删除用户时级联删除。`blocks` 保存 BlockNote 原生 JSON 的区块顺序、稳定 ID、文字装饰和嵌套关系；页面标题另存 `title`。`icon` 是单个 emoji，或与上传封面同样形式的 `upload:page-covers/<userId>/<uuid>.<ext>` 图片键（同样只能引用自己目录下的键、同样登记在 `StoredFile`），`cover` 是 `src/lib/note-document.ts` 中 `NOTE_COVERS` 的预设键，或 `upload:page-covers/<userId>/<uuid>.<ext>` 形式的上传图片键（不接受任意 URL）；`coverPosition` 是上传封面的纵向位置（0–100）。未设置时均为 null。上传封面路径包含所属用户 ID，服务端只允许引用自己目录下的键；上传封面和图片图标登记在 `StoredFile`（`kind = NOTE_COVER`，见下文）：上传时先建行（`releasedAt` 为当前时间）再写入存储；保存页面引用上传封面时在同一事务内把该行设为使用中（`releasedAt = null`，`claimCover`），行已不存在或已在删除中则拒绝保存。不再被引用（页面的 `cover`、页面的 `icon` 和编辑历史的 `icon` 都不引用，Trash 里的页面也算引用）7 天后由文件清理删除；与保存竞争时以同一行的锁决定结果，不会留下指向已删除图片的页面。PATCH 省略 `icon`/`cover`/`coverPosition` 时保留已保存的值，兼容旧客户端与旧草稿。
+工作区页面（笔记 / 白板 / 幻灯片，按下面的 `kind` 区分），与聊天 `Session` 独立。`userId` 关联 `User`，删除用户时级联删除。`blocks` 保存 BlockNote 原生 JSON 的区块顺序、稳定 ID、文字装饰和嵌套关系；页面标题另存 `title`。`icon` 是单个 emoji，或与上传封面同样形式的 `upload:page-covers/<userId>/<uuid>.<ext>` 图片键（同样只能引用自己目录下的键、同样登记在 `StoredFile`），`cover` 是 `src/lib/note-document.ts` 中 `NOTE_COVERS` 的预设键，或 `upload:page-covers/<userId>/<uuid>.<ext>` 形式的上传图片键（不接受任意 URL）；`coverPosition` 是上传封面的纵向位置（0–100）。未设置时均为 null。上传封面路径包含所属用户 ID，服务端只允许引用自己目录下的键；上传封面和图片图标登记在 `StoredFile`（`kind = NOTE_COVER`，见下文）：上传时先建行（`releasedAt` 为当前时间）再写入存储；保存页面引用上传封面时在同一事务内把该行设为使用中（`releasedAt = null`，`claimCover`），行已不存在或已在删除中则拒绝保存。不再被引用（页面的 `cover`、页面的 `icon` 和编辑历史的 `icon` 都不引用，Trash 里的页面也算引用）7 天后由文件清理删除；与保存竞争时以同一行的锁决定结果，不会留下指向已删除图片的页面。PATCH 省略 `icon`/`cover`/`coverPosition` 时保留已保存的值，兼容旧客户端与旧草稿。
 
 `version` 从 0 开始，每次保存原子递增。更新条件同时包含页面 ID、当前用户 ID 和预期版本；版本冲突返回 409，防止另一标签页的内容被覆盖。`(userId, updatedAt)` 索引仍保留；页面列表现按 `position` 升序、`createdAt` 降序和 `id` 降序返回。所有页面读写限制在当前用户（匿名设备或已登录账号）。具体保存和草稿恢复流程见 [notes-flow.md](notes-flow.md)。
 
@@ -438,11 +438,11 @@ User 1 -> N StoredFile（SetNull）
 
 ### NoteEmbedding
 
-笔记语义搜索的向量索引（`20261122120000_note_embeddings` 新增，`src/lib/note-embeddings.ts`）。按 `NotePage` 的标题和正文拆块（每块最多 1,000 字符、每篇最多 12 块），调用 OpenAI `/embeddings`（默认 `text-embedding-3-small`，支持 `text-embedding-3-small` / `text-embedding-3-large`，512 维）生成 L2 归一化后的小端 `Float32Array` 存入 `BYTEA`（`vector`），不依赖 `pgvector` 扩展。**索引不复制笔记正文**：只记录 `blockId` 与 `noteVersion`（生成时的 `NotePage.version`），查询时必须同时满足 `p."deletedAt" IS NULL` 与 `e."noteVersion" = p."version"`，并仅对命中的上位笔记实时读取 `NotePage.blocks` 生成摘录，确保不会泄露已删除或旧版本正文。`contentHash` 为标题与块内容的 SHA-256 前 32 位十六进制，正文未变时只更新 `noteVersion`、不调用外部接口；写入时以 `pg_advisory_xact_lock` 加锁并核对 `NotePage.version`。`(noteId, chunkIndex)` 唯一，索引 `(userId, model, dimensions)` 和 `(noteId)`；`noteId` 与 `userId` 均为 `ON DELETE CASCADE`。Trash 里的笔记保留索引行，复原后无需重建即可命中。
+工作区页面语义搜索的向量索引（`20261122120000_note_embeddings` 新增，`src/lib/note-embeddings.ts`）。按 `NotePage` 的标题和正文拆块（白板 / 幻灯片不读本体，用保存时取出的 `NoteCanvas.segments`；每块最多 1,000 字符、每篇最多 12 块），调用 OpenAI `/embeddings`（默认 `text-embedding-3-small`，支持 `text-embedding-3-small` / `text-embedding-3-large`，512 维）生成 L2 归一化后的小端 `Float32Array` 存入 `BYTEA`（`vector`），不依赖 `pgvector` 扩展。**索引不复制笔记正文**：只记录 `blockId` 与 `noteVersion`（生成时的 `NotePage.version`），查询时必须同时满足 `p."deletedAt" IS NULL` 与 `e."noteVersion" = p."version"`，并仅对命中的上位页面实时读取 `NotePage.blocks`（白板 / 幻灯片为 `NoteCanvas.segments`）生成摘录，确保不会泄露已删除或旧版本正文。`contentHash` 为标题与块内容的 SHA-256 前 32 位十六进制，正文未变时只更新 `noteVersion`、不调用外部接口；写入时以 `pg_advisory_xact_lock` 加锁并核对 `NotePage.version`。`(noteId, chunkIndex)` 唯一，索引 `(userId, model, dimensions)` 和 `(noteId)`；`noteId` 与 `userId` 均为 `ON DELETE CASCADE`。Trash 里的笔记保留索引行，复原后无需重建即可命中。
 
 ### NoteGroup
 
-Notes 的单层分组（文件夹）。`userId` 关联 `User`，删除用户时级联删除；`position` 决定排列顺序（新分组排在最后），索引 `(userId, position)`。每个用户最多 50 个分组，名称最长 60 字符。`NotePage.groupId` 可空，指向所属分组；删除分组时页面保留并把 `groupId` 置空（`SetNull`），索引 `(userId, groupId)`。移动页面到分组（`PUT /api/pages/:id/group`）会把页面脱离父页面（`parentId = null`）并同步更新整棵子树的 `groupId`，不增加 `version`。
+工作区的单层分组（界面上叫 Projects），笔记、白板、幻灯片都能放。`userId` 关联 `User`，删除用户时级联删除；`position` 决定排列顺序（新分组排在最后），索引 `(userId, position)`。每个用户最多 50 个分组，名称最长 60 字符。`NotePage.groupId` 可空，指向所属分组；删除分组时页面保留并把 `groupId` 置空（`SetNull`），索引 `(userId, groupId)`。移动页面到分组（`PUT /api/pages/:id/group`）会把页面脱离父页面（`parentId = null`）并同步更新整棵子树的 `groupId`，不增加 `version`。
 
 ### NoteRevision
 
@@ -466,7 +466,7 @@ AI 提出的页面修改或新建提案（AI 操控底座，[chat-flow.md](chat-
 
 ### ChatProject
 
-聊天的独立项目，与 Notes 分组互不影响。字段为 `id`、`userId`、`name`、`instructions`、`createdAt`，所有 API 按当前用户限定所有者。项目最多 50 个，名字最多 60 字符；删除项目时会话外键设为 null，聊天和消息保留，参考笔记的关联行（`ChatProjectNote`）级联删除但笔记本身保留。
+聊天的独立项目，与工作区的项目（`NoteGroup`）互不影响。字段为 `id`、`userId`、`name`、`instructions`、`createdAt`，所有 API 按当前用户限定所有者。项目最多 50 个，名字最多 60 字符；删除项目时会话外键设为 null，聊天和消息保留，参考笔记的关联行（`ChatProjectNote`）级联删除但笔记本身保留。
 
 `instructions`（可空 TEXT，`20261015110000_chat_project_context` 追加）是项目的共通指示，作用于项目内所有会话。服务端保存前去掉首尾空白、统一为 `\n` 换行，最多 4,000 字符（`MAX_PROJECT_INSTRUCTIONS`，定义在 `src/types/chat.ts`），除换行、回车、制表符外的控制字符被拒绝；空字符串和 `null` 都存成 `NULL`，所以“有没有指示”只看是不是 `NULL`（`hasInstructions`）。内容是用户自己的指示，原样进入聊天的系统指令（见 [chat-flow.md](chat-flow.md)），列表接口不返回正文，只有设置对话框用的详情接口返回。
 
@@ -502,7 +502,7 @@ AI 提出的页面修改或新建提案（AI 操控底座，[chat-flow.md](chat-
 
 用于按用户读取会话。`GET /api/sessions` 按 `pinned` 降序、`position` 升序、`updatedAt` 降序和 `id` 降序返回当前用户的全部会话（含在笔记 AI 面板里开始的会话，每项带 `noteId`）；`GET /api/sessions?noteId=<id>` 只返回本人在这篇笔记里开始的会话，按 `updatedAt` 降序，供面板的聊天列表使用。`noteId` 通过 `20261014210000_session_note` migration 部署（只追加可空列、索引和外键）；手动顺序见文末的列表排序说明。
 
-`icon` 可在 `POST /api/sessions` 创建会话时一并给出（新聊天在第一条消息前选的图标；不带请求体的旧调用仍然可用），之后由 `PATCH /api/sessions/[sessionId]` 修改：校验与 Notes 图标相同（`src/lib/emoji-icon.ts`，单个 emoji 或 `null`），按会话 ID 和当前用户 ID 限定所有者；修改图标时把 `updatedAt` 原样写回，保留置顶与手动顺序以及同序时的时间排序：写入条件包含读到的 `updatedAt`，若同时有回答保存使其前进则重新读取并重试（最多 3 次），仍有竞争时以保存图标为优先、不再保持排序。另外，第一条消息生成标题时 `/api/chat` 会让模型顺带选一个 emoji（见 [chat-flow.md](chat-flow.md)），只在 `icon` 仍为 `null` 时写入，同样把 `updatedAt` 原样写回（竞争时重读，最多 3 次，仍失败就不写）。新增字段通过 `20261014200000_session_icon` migration 部署。
+`icon` 可在 `POST /api/sessions` 创建会话时一并给出（新聊天在第一条消息前选的图标；不带请求体的旧调用仍然可用），之后由 `PATCH /api/sessions/[sessionId]` 修改：校验与工作区页面的图标相同（`src/lib/emoji-icon.ts`，单个 emoji 或 `null`），按会话 ID 和当前用户 ID 限定所有者；修改图标时把 `updatedAt` 原样写回，保留置顶与手动顺序以及同序时的时间排序：写入条件包含读到的 `updatedAt`，若同时有回答保存使其前进则重新读取并重试（最多 3 次），仍有竞争时以保存图标为优先、不再保持排序。另外，第一条消息生成标题时 `/api/chat` 会让模型顺带选一个 emoji（见 [chat-flow.md](chat-flow.md)），只在 `icon` 仍为 `null` 时写入，同样把 `updatedAt` 原样写回（竞争时重读，最多 3 次，仍失败就不写）。新增字段通过 `20261014200000_session_icon` migration 部署。
 
 ### Message
 
@@ -538,7 +538,7 @@ Session 1 -> N Message
 
 用户在发言时附加的笔记存在 `MessageNote`（见下），`Message` 本身不存笔记正文。
 
-`Message.content`、`Session.title` 和下面的 `Attachment.extractedText` 是跨 Chats 搜索的对象：搜索对它们做顺序扫描，没有专用索引，已存文本也不做折叠（见 [chat-flow.md](chat-flow.md#跨-chats--notes-搜索)）。
+`Message.content`、`Session.title` 和下面的 `Attachment.extractedText` 是跨 Chats 搜索的对象：搜索对它们做顺序扫描，没有专用索引，已存文本也不做折叠（见 [chat-flow.md](chat-flow.md#跨-chats--pages-搜索)）。
 
 ### MessageNote
 

@@ -17,7 +17,7 @@
 按这个顺序看：
 
 1. 本文件 — 系统有哪些组件
-2. [chat-flow.md](chat-flow.md) — 用户发一句话之后到底发生什么；也包含项目的共通指示与参考笔记、跨 Chats / Notes 搜索、回答的复制 / 保存到 Notes / Markdown 导出与会话链接、桌面端聊天与笔记分屏
+2. [chat-flow.md](chat-flow.md) — 用户发一句话之后到底发生什么；也包含项目的共通指示与参考页面、跨 Chats / Pages 搜索（关键词 + 页面语义检索）、回答的复制 / 保存为笔记 / Markdown 导出与会话链接、画成图、系统分享接收、桌面端聊天与页面分屏
 3. [image-flow.md](image-flow.md) — 图片上传、AI 生成图片、图片保存
 4. [provider-requests.md](provider-requests.md) — 三家模型的上游请求结构、工具循环与压缩续传
 5. [database.md](database.md) — Neon 里有哪些表、关系是什么
@@ -80,8 +80,8 @@ flowchart LR
 | 文件 | 作用 |
 | --- | --- |
 | `src/app/[locale]/page.tsx`、`src/components/thread-landing.tsx`、`src/app/[locale]/landing.css` | `/` 产品介绍主页（"一根线"滚动叙事）；旧的根路径会话与笔记链接保留查询参数转到 `/app` |
-| `src/app/[locale]/app/page.tsx` | `/app` 聊天与 Notes 工作区、输入框、附件、发送、图片生成模式 |
-| `src/app/[locale]/note-embed/page.tsx`、`src/components/note-embed.tsx`、`src/lib/native-bridge.ts` | Android / iOS 内嵌笔记编辑器页面与 JS 桥接约定 |
+| `src/app/[locale]/app/page.tsx` | `/app` 聊天与工作区（Workspace）、输入框、附件、发送、图片生成模式 |
+| `src/app/[locale]/note-embed/page.tsx`、`src/components/note-embed.tsx`、`src/lib/native-bridge.ts` | Android / iOS 内嵌编辑器页面（笔记 / 白板 / 幻灯片）与 JS 桥接约定 |
 | `src/lib/hosts.ts`、`src/proxy.ts`、`src/lib/i18n/routing.ts` | 介绍页（`notefable.com`）与工作区（`app.notefable.com`）分域：按主机分流、旧链接转发、共享提示 Cookie（[deployment.md](deployment.md)） |
 | `src/lib/i18n/locale.ts`、`src/app/api/i18n/route.ts` | 17 种语言注册表、RTL 方向、回退规则与按需词典接口（[i18n.md](i18n.md)） |
 | `src/app/api/chat/route.ts` | 普通聊天主流程与共享 `buildInstructions()` |
@@ -89,7 +89,7 @@ flowchart LR
 | `src/app/api/images/route.ts` | 图片生成 / 图片编辑主流程 |
 | `src/app/privacy/page.tsx`、`src/app/terms/page.tsx`、`src/app/legal-notice/page.tsx`、`src/app/delete-account/page.tsx` | 公开的隐私权政策、服务条款、特定商取引法に基づく表記（日文）与账号删除说明页 |
 | `src/app/api/sessions/*` | 会话列表、历史消息、会话图标、拖动重排、停止生成（`stop`）、版本切换（`versions`）、分支（`branch`）、导出（`export`）与整理成笔记（`page`） |
-| `src/app/api/pages/*` | 站内页面 CRUD、版本检查、分组（`groups`）、拖动重排、子页面/收藏/页面设置/复制/图标、封面与附件、原生回答保存（`from-answer`）、回收站（`trash`）、编辑历史（`revisions`）、Markdown 导出（`export`）与导入（`import`）、笔记助手的对话恢复（`assistant`） |
+| `src/app/api/pages/*` | 工作区页面 CRUD、版本检查、分组（`groups`）、拖动重排、子页面/收藏/页面设置/复制/图标、侧栏改名（`[pageId]/title`）、公开分享（`[pageId]/share`）、封面与附件（`covers`、`files`）、幻灯片用的聊天图片（`chat-images`）与 AI 生图（`images`）、画成图（`diagram`）、原生回答保存（`from-answer`）、回收站（`trash`）、编辑历史（`revisions`）、Markdown 导出（`export`）与导入（`import`）；页面 AI 面板的对话恢复走 `GET /api/sessions?noteId=` |
 | `src/lib/note-io.ts` | 笔记的 Markdown 导出格式、导入的个数 / 大小 / 扩展名上限与标题提取（[notes-flow.md](notes-flow.md#markdown-导出与导入)） |
 | `src/lib/session-messages.ts` | 读取一个会话当前显示的消息（附件、附加笔记、提案）的函数，`GET /api/sessions/:id/messages` 使用 |
 | `src/components/split-note-pane.tsx`、`src/lib/split-view.ts` | 桌面端聊天右侧的笔记面板，以及分屏开关、所开笔记和比例的本机保存（[chat-flow.md](chat-flow.md#聊天与笔记分屏)） |
@@ -98,12 +98,14 @@ flowchart LR
 | `src/lib/note-tree.ts`、`src/lib/note-tree-server.ts`、`src/lib/note-trash.ts`、`src/lib/note-revisions.ts` | 子页面树与元数据、Trash 保留期与惰性清理、编辑历史快照与裁剪 |
 | `src/components/note-trash-dialog.tsx`、`src/components/note-history-dialog.tsx`、`src/components/page-assistant.tsx`、`src/components/page-proposal.tsx` | Trash 对话框、编辑历史/恢复对话框、页面里的 AI 面板与通用提案卡片 |
 | `src/components/note-editor.tsx` | 客户端区块编辑器及允许的区块类型 |
+| `src/lib/page-kinds.ts`、`src/lib/canvas-document.ts` | 页面类型（笔记 / 白板 / 幻灯片）与各类型能用的功能表、白板 / 幻灯片本体（`NoteCanvas`）的校验和检索文字提取（[notes-flow.md](notes-flow.md#页面类型笔记--白板--幻灯片)） |
+| `src/lib/whiteboard/`、`src/components/whiteboard/` | 白板：Excalidraw 场景的保存形、编辑器与工具栏、PDF 导入与导出、公开只读视图、画成图的 Mermaid 转换与思维导图引擎（[whiteboard.md](whiteboard.md)） |
 | `src/lib/slides/`、`src/components/slides/`、`src/components/public-slides-view.tsx` | 幻灯片的数据形状与纯函数、编辑器、放映、导出和公开放映页（[slides.md](slides.md)） |
 | `src/lib/note-save-queue.ts` | 自动保存队列、重试和冲突状态 |
 | `src/lib/custom-instructions.ts`、`src/app/api/custom-instructions/route.ts`、`src/components/settings-dialog.tsx`、`src/lib/settings-navigation.ts` | 已登录用户的自定义指令与设置界面（通用/个性化/方案/账号，手机两级导航），整合个人资料（`profile-settings.tsx`）、语言、外观（`theme-settings.tsx`）、AI 角色图标（`app-icon-settings.tsx`）、方案（`plan-settings.tsx`）与退出/删号 |
 | `src/lib/characters.ts`、`src/lib/app-icon.ts` | 7 个预设 AI 角色与本机图标配置 |
-| `src/lib/chat-project-context.ts`、`src/app/api/chat-projects/*`、`src/components/chat-project-settings.tsx` | 聊天项目的共通指示与参考笔记：读取、截断、写入系统指令，及设置界面 |
-| `src/app/api/search/route.ts`、`src/lib/search.ts`、`src/lib/search-fold.ts`、`src/components/search-dialog.tsx`、`src/lib/search-reveal.ts` | 跨 Chats / Notes 关键词搜索（表记折叠、附件文本、项目过滤）、搜索面板、跳到命中的消息或块 |
+| `src/lib/chat-project-context.ts`、`src/app/api/chat-projects/*`、`src/components/chat-project-settings.tsx` | 聊天项目的共通指示与参考页面：读取、截断、写入系统指令，及设置界面 |
+| `src/app/api/search/route.ts`、`src/lib/search.ts`、`src/lib/search-fold.ts`、`src/lib/note-embeddings.ts`、`src/components/search-dialog.tsx`、`src/lib/search-reveal.ts` | 跨 Chats / Pages 搜索（表记折叠的关键词、附件文本、项目和页面类型过滤，页面另用 OpenAI 嵌入做语义检索）、搜索面板、跳到命中的消息、块或元素 |
 | `src/components/answer-actions.tsx`、`src/lib/answer-export.ts`、`src/lib/answer-export-server.ts`、`src/lib/clipboard.ts`、`src/app/api/reports/route.ts`、`src/lib/answer-report.ts` | 回答操作行与菜单（Regenerate / Branch / Copy / Save to page / Download conversation / Report answer）及 `/c/<会话>?message=` 会话链接 |
 | `src/app/api/attachments/[attachmentId]/image/route.ts` | 保存图片的受控读取入口 |
 | `src/lib/auth.ts`、`src/app/api/account/*`、`src/lib/account-deletion.ts`、`src/lib/deleted-accounts.ts` | 匿名设备 Cookie 与账号识别、个人资料与头像接口、账号删除与旧登录 Cookie 作废 |

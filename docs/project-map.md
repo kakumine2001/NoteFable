@@ -2,11 +2,11 @@
 
 > 给项目所有者自己看的总览：用大白话讲清楚 NoteFable 由哪些部分组成、怎么连在一起、怎么发布和收钱。新词第一次出现时都会先解释。细节在 [docs/architecture/](architecture/README.md)。
 > 线上同步版（带结构图）：Claude 文档「NoteFable 项目全景图」。两边内容保持一致，改一边时另一边也要改。
-> 最后核对：2026-11-22。
+> 最后核对：2026-11-25。
 
 ## 一张图看全局
 
-NoteFable 的中心是运行在 Vercel 上的服务器：介绍页在 `notefable.com`，聊天、Notes 工作区与全部 API 接口在 `app.notefable.com`。网页、安卓 App 和 iOS App 都只和它说话，它再去找数据库、文件仓库、AI 和外部服务。
+NoteFable 的中心是运行在 Vercel 上的服务器：介绍页在 `notefable.com`，聊天、工作区（Workspace：笔记、白板、幻灯片）与全部 API 接口在 `app.notefable.com`。网页、安卓 App 和 iOS App 都只和它说话，它再去找数据库、文件仓库、AI 和外部服务。
 
 ```mermaid
 flowchart LR
@@ -14,7 +14,7 @@ flowchart LR
   Android["安卓 App<br/>Google Play"] <--> Server
   iOS["iOS App<br/>TestFlight / App Store"] <--> Server
   Server["NoteFable 服务器<br/>网站代码和 app.notefable.com 接口，跑在 Vercel"]
-  Server --> DB["数据库 Neon<br/>账号、聊天、笔记、订阅"]
+  Server --> DB["数据库 Neon<br/>账号、聊天、工作区页面、订阅"]
   Server --> Blob["文件仓库 Vercel Blob<br/>图片和附件本身"]
   Server --> AI["AI<br/>OpenAI、Anthropic、DeepSeek"]
   Server -- 登录确认、发信、付款通知 --> Login["Google 登录 / Resend 发信"]
@@ -28,7 +28,7 @@ flowchart LR
 | --- | --- | --- |
 | 网站代码 | 用 Next.js（一种写网站的框架）写的，网页和服务器接口在同一套代码里 | GitHub 仓库 kakumine2001/NoteFable |
 | 服务器 | 运行网站代码的电脑，不用自己管机器 | Vercel |
-| 数据库 | 存账号、聊天、笔记、订阅状态的大表格 | Neon（PostgreSQL） |
+| 数据库 | 存账号、聊天、工作区页面（笔记、白板、幻灯片）、订阅状态的大表格 | Neon（PostgreSQL） |
 | 文件仓库 | 存图片、附件本身；数据库里只记“文件在哪” | Vercel Blob |
 | AI | 真正回答问题、生成图片的服务 | OpenAI、Anthropic、DeepSeek |
 
@@ -45,7 +45,7 @@ flowchart LR
 
 不登录也能用；登录是为了在多台设备之间同步，以及购买 Pro。
 
-- **不登录（匿名）**：第一次打开时，服务器发一个随机编号存在浏览器或 App 里（Cookie，小纸条）。聊天和笔记都挂在这个编号下，清掉 Cookie 就找不回来了。
+- **不登录（匿名）**：第一次打开时，服务器发一个随机编号存在浏览器或 App 里（Cookie，小纸条）。聊天和工作区页面都挂在这个编号下，清掉 Cookie 就找不回来了。
 - **Google 登录**：用 Google 账号证明“我是我”。
 - **邮箱验证码登录**：服务器用 Resend（发信服务）把 6 位数字发到邮箱，填对就登录。
 
@@ -63,13 +63,13 @@ Google 登录要在 Google Cloud 登记“谁可以用我的登录”，这叫 *
 
 安卓 App（`mobile/android/`，Kotlin / Compose）和 iOS App（`mobile/ios/`，Swift / SwiftUI）都是“原生 App”，不是把网页套个壳。
 
-- **数据从哪来**：App 本身不存聊天和笔记，和网页一样向 `app.notefable.com` 的接口（API，服务器开的“窗口”）要数据（`notefable.com/api/*` 返回 421），所以多端看到的是同一份。
+- **数据从哪来**：App 本身不存聊天和工作区页面，和网页一样向 `app.notefable.com` 的接口（API，服务器开的“窗口”）要数据（`notefable.com/api/*` 返回 421），所以多端看到的是同一份。
 - **界面**：照着网页的样子重新画了一遍。网页改了界面，安卓和 iOS 也要在同一次修改里一起改。
-- **笔记编辑器例外**：编辑笔记的那一页是在 App 里嵌了一个小浏览器（Android `WebView` / iOS `WKWebView`），打开工作区的 `/note-embed`。编辑器太复杂，原生重写工作量太大，各端也一定会不一致。
+- **编辑器例外**：笔记、白板和幻灯片的编辑页是在 App 里嵌了一个小浏览器（Android `WebView` / iOS `WKWebView`），打开工作区的 `/note-embed`。这些编辑器太复杂，原生重写工作量太大，各端也一定会不一致。
 - **模型列表**：能选哪些 AI 模型由服务器决定，App 每次打开时去要，不写死在 App 里。
 - **外观和 Markdown**：网页、安卓和 iOS 都能选“跟随系统 / 浅色 / 深色”（只记在当前这台设备上，不跟着账号走），也都能把一篇笔记导出成 Markdown 文件、把 Markdown 文件导入成笔记。
 - **只有网页才有的**：电脑宽度下在聊天旁边并排打开一篇笔记的“分屏”。手机屏幕放不下，所以两个 App 没有。
-- **iOS 现状**：代码已在 CI 上跑通 Core 单元测试和模拟器构建，并配有 GitHub Actions 自动上传 TestFlight 的流程；目前尚未注册 Apple Developer 账号，因此还未真机实测，也未接 App Store 内购（见 [ios.md](architecture/ios.md) 和 [ios-native.md](architecture/ios-native.md)）。
+- **iOS 现状**：代码在 CI 上跑通 Core 单元测试、模拟器构建和截图；合入调高构建号的 PR 后由 GitHub Actions 自动上传 TestFlight，构建已装到真机，界面还没逐项验收。上架前还缺 App Store 内购、Sign in with Apple（或确认邮箱验证码登录满足审核要求）和通用链接（见 [ios.md](architecture/ios.md) 和 [ios-native.md](architecture/ios-native.md)）。
 
 ## 签名（用印章来理解）
 
@@ -104,7 +104,7 @@ Drive 安装包交付当前暂停。Android 发布条件和 Play 签名规则见
 
 ## 收费
 
-Pro 每月 ¥300（含税），只提高使用上限和文件存储容量（单个文件仍是 4 MB）。第一次订阅先免费试用 30 天（要先绑定付款方式，到期自动扣费，试用期内取消不扣钱）。网页用 Stripe 收钱，App 里用 Google Play 收钱，买的是同一个 Pro。
+Pro 每月 ¥300（含税），只提高使用上限和文件存储容量（单个文件的上限不变：工作区页面里的文件 4 MB，聊天附件 20 MB）。第一次订阅先免费试用 30 天（要先绑定付款方式，到期自动扣费，试用期内取消不扣钱）。网页用 Stripe 收钱，App 里用 Google Play 收钱，买的是同一个 Pro。
 
 | 身份 | 聊天 | 生成图片 | 文件存储 |
 | --- | --- | --- | --- |
@@ -136,17 +136,17 @@ Pro 每月 ¥300（含税），只提高使用上限和文件存储容量（单�
 | Vercel | 网站运行、密钥等环境变量 | 分域（`notefable.com` / `app.notefable.com`）、Stripe 3 项、Google Play 3 项均已设置 |
 | Stripe | 网页收款 | 本人确认（KYC）完成，收款和打款有效；解约用到月底；4 个网址已填 |
 | Google Cloud | Google 登录、Play 通知的传递 | OAuth 客户端 3 个（Web + Android + iOS）；Pub/Sub 已接到 `app.notefable.com` |
-| Play Console | 上架、App 内收款 | 应用签名已启用；订阅商品 `notefable_pro`（`monthly` + 30 天免费试用）已启用；1.0.14 已发布到内部测试和 Alpha 封闭测试；通过 Testers Community 开展 16 天封闭测试（2026-11-22 启动） |
+| Play Console | 上架、App 内收款 | 应用签名已启用；订阅商品 `notefable_pro`（`monthly` + 30 天免费试用）已启用；调高 versionCode 的 PR 合入后自动发布到内部测试和 Alpha 封闭测试（仓库当前版本 1.0.17，versionCode 27；Play 上的状态以 Console 为准）；通过 Testers Community 开展 16 天封闭测试（2026-11-22 启动） |
 
 Stripe 还有 4 项没亲眼确认（商品价格、Webhook、扣款失败后的处理、网站连的是不是正式账户）。最省事的确认办法：用自己的卡真买一次 Pro，确认变成 Pro 后解约，再在 Stripe 退款。
 
 ## 上架进度
 
-网站、Stripe、签名、登录和 Play 封闭测试都已推进中；安卓侧等 14 天封闭测试满期后即可申请正式版，iOS 侧待注册 Apple Developer 账号后启用 TestFlight。
+网站、Stripe、签名、登录和 Play 封闭测试都已推进中；安卓侧等 14 天封闭测试满期后即可申请正式版；iOS 侧 TestFlight 已能自动上传并装到真机，上架前还缺内购、Sign in with Apple 和通用链接。
 
 - [x] Play Console 启用订阅 `notefable_pro`（`monthly` 与 30 天免费试用）
 - [x] 填 Play Console 的应用内容声明和商店介绍（答案在 [docs/play-store/](play-store/console-answers.md)）
-- [x] 启动 14 天封闭测试（2026-11-22 起通过 Testers Community 在 Alpha 轨道进行，当前版本 1.0.14；期间再发 2–3 次更新）
+- [x] 启动 14 天封闭测试（2026-11-22 起通过 Testers Community 在 Alpha 轨道进行；仓库当前版本 1.0.17（versionCode 27）；期间再发 2–3 次更新）
 - [ ] 从 Play 测试轨道在真机走完 Google 登录与购买/取消/删号全流程验证
 - [ ] 封闭测试满 14 天后在 Play Console 申请正式上架
 - [x] （iOS）注册 Apple Developer 账号并配置 `appstore-publish` 密钥，发 TestFlight 真机验证（2026-11-24 build 2 已装到真机）
