@@ -34,6 +34,14 @@ struct NotePageMenuButton: View {
             NotePageMenuContent(pageId: pageId, actions: actions, close: { open = false }, report: { reporting = true })
         }
         .reportDialog(.page(pageId: pageId), isPresented: $reporting)
+        .task {
+            guard ScreenshotHooks.isActive else { return }
+            try? await Task.sleep(for: .milliseconds(150))
+            if !actions.busy, ScreenshotHooks.consume(.pageMenu) {
+                open = true
+                ScreenshotHooks.markReady(.pageMenu)
+            }
+        }
     }
 }
 

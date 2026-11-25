@@ -19,6 +19,10 @@ final class URLSessionTransport: NSObject, HTTPTransport, @unchecked Sendable {
 
     override init() {
         super.init()
+        #if DEBUG
+        // Fixture 模式下绝对不能实例化真实网络传输层（防止意外连向线上）。
+        precondition(!ProcessInfo.processInfo.arguments.contains("-NFFixtures"), "URLSessionTransport must not be used in fixture mode.")
+        #endif
         let configuration = URLSessionConfiguration.ephemeral
         configuration.httpCookieStorage = nil
         configuration.httpShouldSetCookies = false

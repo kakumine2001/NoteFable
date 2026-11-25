@@ -10,6 +10,7 @@
 - 改动 `mobile/ios/**`、`mobile/android/app/src/main/assets/**`、`.github/workflows/ios-*.yml`、`scripts/release/ios-version*.sh`、`scripts/release/ios-testflight-*.py`、`scripts/release/test_ios_testflight_*.py` 或 `scripts/release/verify-merged-pr*.sh` 并向 `main` 提 PR 时运行；只改 PR 标题或描述时不触发。
 - 先在 `ubuntu-latest` 上运行合并 PR 校验脚本测试（`scripts/release/verify-merged-pr.test.sh`）、版本号校验脚本测试（`scripts/release/ios-version.test.sh`）、TestFlight 外部测试分发脚本测试（`scripts/release/test_ios_testflight_*.py`）与本次 PR 的版本号检查（`scripts/release/ios-version.sh`），避免脚本或版本号出错时白耗高倍率的 macOS 分钟数。
 - 只有校验通过且仓库存在 `mobile/ios/project.yml` 时，才启动 `xcode-27` 镜像（macOS + Xcode 27）运行 Core 的单元测试（`mobile/ios/scripts/ci-core-tests.sh`：`swift test` 加一个时限，测试挂住时打印卡住的调用栈并提前结束，不把任务时限耗完）、XcodeGen 生成工程和模拟器无签名构建。PR 检查不接触任何发布凭据。
+- **模拟器截图（`ios-screenshots`）**：当 `version` 任务检测到 PR 改动了 `mobile/ios/NoteFable`、`mobile/ios/Support`、`mobile/ios/project.yml`、`mobile/ios/scripts/ci-screenshots.sh` 或 `.github/workflows/ios-pr.yml`（`ui_changed=true`）时，`ios` 任务将构建好的 Debug `NoteFable.app` 打包为 `NoteFable-sim.tgz` 上传；随后由矩阵任务分别在 `macos-15`（iOS 26 与 iOS 18 运行时）和 `xcode-27`（iOS 27 运行时）上运行 `mobile/ios/scripts/ci-screenshots.sh`，在屏蔽生产域名的隔离环境下以 Debug fixture 模式（`-NFFixtures YES`，不接触线上接口与真实 Cookie/偏好）截取 `light`、`dark`、`ar`（系统阿拉伯语）、`ar-app`（系统英文 + 应用内阿拉伯语）与 `rt`（降低透明度 / 实色回退）5 种变体 × 12 个场景的 PNG，并生成总览页 `index.html`，分别上传为 `ios-screenshots-ios26-18` 和 `ios-screenshots-ios27`（保留 14 天）。
 
 ## 自动打包与上传 App Store Connect（TestFlight）
 
