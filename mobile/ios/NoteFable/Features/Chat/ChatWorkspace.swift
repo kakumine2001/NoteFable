@@ -92,6 +92,20 @@ struct ChatWorkspace: View {
         .attachPagesDialog(isPresented: $pagesOpen)
         .createPageDialog()
         .chatAttachmentPicker(isChoosing: $pickingFiles)
+        .onChange(of: ScreenshotHooks.dismissTick) { _, _ in
+            modelSheetOpen = false
+            attachSheetOpen = false
+        }
+        .task(id: "\(ScreenshotHooks.sceneTick)-\(!state.messages.isEmpty)-\(!state.models.isEmpty)") {
+            guard ScreenshotHooks.isActive, !state.messages.isEmpty, !state.models.isEmpty else { return }
+            if ScreenshotHooks.consume(.modelSheet) {
+                modelSheetOpen = true
+                ScreenshotHooks.markReady(.modelSheet)
+            } else if ScreenshotHooks.consume(.attachSheet) {
+                attachSheetOpen = true
+                ScreenshotHooks.markReady(.attachSheet)
+            }
+        }
     }
 
     @ViewBuilder

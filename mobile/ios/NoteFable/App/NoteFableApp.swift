@@ -13,14 +13,34 @@ struct NoteFableApp: App {
 
     @MainActor
     init() {
+        #if DEBUG
+        let fixture = FixtureLaunch.fromProcess()
+        let app = fixture?.makeEnvironment() ?? AppEnvironment()
+        #else
         let app = AppEnvironment()
+        #endif
         let router = AppRouter(app: app)
         // 画不出来的表情不进表情面板（要用 CoreText，所以在界面层接上）。
         app.emojiGlyphSupported = { emoji in EmojiGlyphs.isSupported(emoji) }
+        #if DEBUG
+        if fixture != nil {
+            // Fixture 模式完全隔离：不读取 App Group 共享目录、不安装 Google Sign-In。
+            app.hasPendingShare = { _ in false }
+            app.consumeSharePayloads = { _ in [] }
+            app.requestGoogleIdToken = { _, _ in nil }
+            app.clearGoogleSignIn = {}
+        } else {
+            // 系统「分享」：分享扩展写进 App Group 共享目录的内容，在这里检查并取走（Android 的 SEND intent）。
+            app.hasPendingShare = { id in await ShareInboxBridge.hasPending(id: id) }
+            app.consumeSharePayloads = { id in await ShareInboxBridge.consume(id: id) }
+            GoogleSignInBridge.install(into: app)
+        }
+        #else
         // 系统「分享」：分享扩展写进 App Group 共享目录的内容，在这里检查并取走（Android 的 SEND intent）。
         app.hasPendingShare = { id in await ShareInboxBridge.hasPending(id: id) }
         app.consumeSharePayloads = { id in await ShareInboxBridge.consume(id: id) }
         GoogleSignInBridge.install(into: app)
+        #endif
         app.start()
         router.start()
         _app = State(initialValue: app)
@@ -67,12 +87,18 @@ private struct NoteFableWindow: View {
             // 回到前台时系统语言可能改过（Android 的 onConfigurationChanged）：按“自动”显示着的话重新解析。
             // 同时取走分享扩展留下的、还没取的分享（扩展没能唤起 App 时的兜底）。
             .onChange(of: scenePhase) { _, phase in
-                if phase == .active {
+                if phase == .active, !ScreenshotHooks.isActive {
                     app.language.systemLanguagesChanged()
                     router.consumePendingShares()
                 }
             }
             .task {
+                #if DEBUG
+                if let fixture = FixtureLaunch.current {
+                    await fixture.apply(app: app, router: router)
+                    return
+                }
+                #endif
                 // 冷启动：上次分享扩展留下的分享。
                 router.consumePendingShares()
                 // App 开着的时候改系统语言 / 地区。

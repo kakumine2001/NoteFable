@@ -74,9 +74,19 @@ private struct SearchPanel: View {
             if !notes.state.loaded && !notes.state.loading { notes.refresh() }
         }
         .task {
+            if ScreenshotHooks.isActive {
+                if ScreenshotHooks.consume(.search), let query = ScreenshotHooks.searchQuery {
+                    model.setInput(query)
+                }
+                return
+            }
             // 等面板进了窗口再聚焦，太早设会被忽略。
             try? await Task.sleep(nanoseconds: 80_000_000)
             focused = true
+        }
+        .onChange(of: state.loaded, initial: true) { _, _ in
+            guard ScreenshotHooks.isActive, !view.groups.isEmpty else { return }
+            ScreenshotHooks.markReady(.search)
         }
     }
 
