@@ -479,6 +479,8 @@
 "storage_limit_sign_in" = "ลงชื่อเข้าใช้เพื่อรับพื้นที่จัดเก็บ %1$s";
 "storage_limit_upgrade" = "รับพื้นที่จัดเก็บ %1$s ด้วย Pro ในราคา %2$s/เดือน";
 "storage_limit_delete" = "ลบไฟล์ที่ไม่ต้องการแล้วเพื่อเพิ่มพื้นที่ว่าง";
+"plan_manage_app_store" = "จัดการการสมัครสมาชิก App Store";
+"acct_delete_app_store_notice" = "การลบบัญชี NoteFable ไม่ได้ยกเลิกการสมัครสมาชิก App Store ยกเลิกใน App Store เพื่อป้องกันการต่ออายุ";
 
 /* strings_report.xml */
 "report_answer" = "รายงานคำตอบ";
@@ -613,10 +615,8 @@
 
 /* iOS only (scripts/ios-strings.ts) */
 "ios_restore_purchases" = "กู้คืนการซื้อ";
-"ios_manage_subscriptions" = "จัดการการสมัครสมาชิก App Store";
 "ios_no_purchases" = "ไม่พบการสมัครสมาชิก App Store ที่ใช้งานอยู่";
 "ios_subscription_conflict" = "คุณมี Pro อยู่แล้ว จัดการการซื้อแยกในรายการสมัครสมาชิก App Store";
-"ios_delete_subscription_notice" = "การลบบัญชี NoteFable ไม่ได้ยกเลิกการสมัครสมาชิก App Store ยกเลิกใน App Store เพื่อป้องกันการต่ออายุ";
 "attach_source_photos" = "คลังรูปภาพ";
 "attach_source_camera" = "ถ่ายรูป";
 "attach_source_files" = "เลือกไฟล์";

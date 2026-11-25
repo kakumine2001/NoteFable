@@ -97,7 +97,9 @@ private struct NoteFableWindow: View {
             }
             .task(id: app.account.state.user != nil ? app.identityGeneration : nil) {
                 guard !ScreenshotHooks.isActive, app.account.state.user != nil else { return }
-                await AppleSubscription.observe(api: app.accountApi)
+                await AppleSubscription.observe(api: app.accountApi) {
+                    app.onAppleBillingChanged()
+                }
             }
             .task {
                 #if DEBUG

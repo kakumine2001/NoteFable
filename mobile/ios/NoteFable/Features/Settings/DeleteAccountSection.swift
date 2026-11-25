@@ -30,8 +30,8 @@ struct DeleteAccountSection: View {
                     .foregroundStyle(Sm.text)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                SettingsHelpLine(L("ios_delete_subscription_notice"))
-                NotionButton(L("ios_manage_subscriptions")) {
+                SettingsHelpLine(L("acct_delete_app_store_notice"))
+                NotionButton(L("plan_manage_app_store")) {
                     if let url = URL(string: "https://apps.apple.com/account/subscriptions") { openURL(url) }
                 }
                 .disabled(state.deleting)

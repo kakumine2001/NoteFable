@@ -4,7 +4,7 @@
 
 `Message.activity` 为可空 TEXT，保存回答前的途中经过（推理摘要、Web 搜索、Pages 工具步骤的 `ActivityStep[]` JSON，不含已另存于 `NoteProposal` 的提案）；`Message.thinkingMs` 为可空 INTEGER，保存从请求开始到首个正文增量的毫秒数。两者仅用于显示，浏览器消息接口返回（经 `parseStoredActivity` 校验），聊天历史查询不 select、不回传给模型。新增字段通过 `20261014180000_message_activity` migration 部署。
 
-iOS Apple 登录把稳定的 Apple subject 存在 `User.appleSub`，授权撤销所需的 refresh token 加密后存在 `appleRefreshToken`。App Store 购买使用独立 UUID `appleAppAccountToken` 关联用户，`appleOriginalTransactionId` 记录 Apple 的原始交易。四列可空，已有用户不需要回填。
+iOS Apple 登录把稳定的 Apple subject 存在 `User.appleSub`，授权撤销所需的 refresh token 加密后存在 `appleRefreshToken`。App Store 购买使用独立 UUID `appleAppAccountToken` 关联用户，`appleOriginalTransactionId` 记录 Apple 的原始交易。授权时间和撤销时间保护旧会话失效，待处理购买的保留期限用于防止重复订阅。新增列均可空，已有用户不需要回填。
 
 ## 实际生产数据库
 

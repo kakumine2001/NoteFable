@@ -115,6 +115,11 @@ export function PlanSettings() {
             <CreditCard size={14} aria-hidden="true" />{t("Manage subscription on Google Play")}
           </a>
         )}
+        {plan.appStoreManageUrl && (
+          <a className="settings-chip settings-plan-manage" href={plan.appStoreManageUrl} target="_blank" rel="noreferrer">
+            <CreditCard size={14} aria-hidden="true" />{t("Manage App Store Subscription")}
+          </a>
+        )}
         {plan.canManage && (pro || subscription) && (
           <button type="button" className="settings-chip settings-plan-manage" disabled={busy} onClick={() => void open("portal")}>
             <CreditCard size={14} aria-hidden="true" />{busy && pro ? t("Opening…") : t("Manage subscription")}

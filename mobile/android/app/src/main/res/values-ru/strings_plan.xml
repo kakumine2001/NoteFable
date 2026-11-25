@@ -33,4 +33,6 @@
     <string name="storage_limit_sign_in">Войдите, чтобы получить %1$s в хранилище.</string>
     <string name="storage_limit_upgrade">Получите %1$s в хранилище с подпиской Pro за %2$s/мес.</string>
     <string name="storage_limit_delete">Удалите ненужные файлы, чтобы освободить место.</string>
+    <string name="plan_manage_app_store">Управление подпиской App Store</string>
+    <string name="acct_delete_app_store_notice">Удаление аккаунта NoteFable не отменяет подписку App Store. Чтобы избежать продления, отмените её в App Store.</string>
 </resources>

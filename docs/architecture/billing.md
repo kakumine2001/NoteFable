@@ -31,7 +31,7 @@ NoteFable 的收费只有一种：月额订阅 **Pro**，每月 ¥300（税込�
 ## iOS
 
 - App Store Connect 的订阅组为 NoteFable Pro，月付商品 ID 为 `com.kakumine.notefable.pro.monthly`。商品价格在 App Store Connect 的各店面配置，App 通过 StoreKit 显示当地价格。首次内购需随 App 版本送审。
-- App 在发起购买前请求服务端检查已有权益并取得此账号专用的随机 UUID。StoreKit 把 UUID 和 App Store 交易绑定。恢复购买只能恢复原来的 NoteFable 账号。
+- App 在发起购买前请求服务端检查已有权益并取得此账号专用的随机 UUID。StoreKit 把 UUID 和 App Store 交易绑定。恢复购买只能恢复原来的 NoteFable 账号。待批准期间会暂缓其他渠道发起订阅，取消购买或确认成交可提前解除等候。
 - 服务端验证 Apple 签名、产品、环境、交易和账号绑定，在账号账务锁内查询 Apple 的最新订阅状态。App 交付成功后才结束 StoreKit 交易。签名通知 v2 使用 `/api/billing/apple/notify`，续费、退款、撤销和宽限期同步到共用权益。
 - App Store 订阅由 Apple 管理。删除 NoteFable 账号之前提供 App Store 订阅管理入口，用户可以在那里取消续费。
 

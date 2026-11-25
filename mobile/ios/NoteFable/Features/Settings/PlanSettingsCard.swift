@@ -14,6 +14,8 @@ struct PlanSettingsCard: View {
 
     @State private var product: Product?
     @State private var buying = false
+    @State private var productUnavailable = false
+    @State private var productAttempt = 0
     @State private var feedbackKey: String?
     @State private var purchaseError: String?
     @Environment(\.openURL) private var openURL
@@ -67,7 +69,7 @@ struct PlanSettingsCard: View {
 
     private func purchaseActions(_ plan: PlanInfo) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            if !plan.isPro, let product, product.id == plan.appStoreProduct {
+            if !plan.isPro, !plan.appStorePending, let product, product.id == plan.appStoreProduct {
                 SettingsHelpLine(L("plan_offer_title", product.displayPrice))
                 NotionButton(L("plan_upgrade")) { runPurchase { try await buy(product) } }
                     .disabled(buying)
@@ -82,20 +84,35 @@ struct PlanSettingsCard: View {
                     .disabled(buying)
             }
             if plan.provider == "apple" || plan.appStorePurchase {
-                NotionButton(L("ios_manage_subscriptions")) {
+                NotionButton(L("plan_manage_app_store")) {
                     openExternal("https://apps.apple.com/account/subscriptions")
                 }
             }
             if buying { ProgressView() }
-            if let feedbackKey { SettingsHelpLine(L(feedbackKey)) }
+            if !plan.isPro && productUnavailable {
+                SettingsHelpLine(app.systemText.localize("Subscriptions are not available yet."))
+                NotionButton(L("try_again")) { productAttempt += 1 }
+            }
+            if let feedbackKey {
+                SettingsHelpLine(L(feedbackKey))
+            } else if plan.appStorePending {
+                SettingsHelpLine(L("plan_pending"))
+            }
             if let purchaseError { SettingsErrorLine(purchaseError) }
         }
         .padding(.top, 8)
-        .task(id: plan.appStoreProduct) {
+        .task(id: "\(plan.appStoreProduct ?? ""):\(productAttempt)") {
             product = nil
+            productUnavailable = false
             guard let id = plan.appStoreProduct, !ScreenshotHooks.isActive else { return }
-            guard let found = try? await Product.products(for: [id]).first, !Task.isCancelled else { return }
+            let found = try? await Product.products(for: [id]).first
+            guard !Task.isCancelled else { return }
             product = found
+            productUnavailable = found == nil
+        }
+        .onChange(of: app.appleBillingGeneration) { _, _ in
+            if feedbackKey == "plan_pending" { feedbackKey = nil }
+            model.retry()
         }
     }
 
@@ -123,8 +140,10 @@ struct PlanSettingsCard: View {
 
     private func buy(_ product: Product) async throws {
         let identity = app.identityGeneration
-        let token = try await app.accountApi.prepareApplePurchase()
+        let prepared = try await app.accountApi.prepareApplePurchase()
         guard identity == app.identityGeneration else { throw CancellationError() }
+        if prepared.pending == true { feedbackKey = "plan_pending"; return }
+        guard let token = prepared.token, let reservation = prepared.reservation else { throw URLError(.cannotParseResponse) }
         switch try await product.purchase(options: [.appAccountToken(token)]) {
         case .success(let transaction):
             guard identity == app.identityGeneration else { throw CancellationError() }
@@ -132,7 +151,7 @@ struct PlanSettingsCard: View {
         case .pending:
             feedbackKey = "plan_pending"
         case .userCancelled:
-            break
+            if identity == app.identityGeneration { try await app.accountApi.releaseApplePurchase(reservation) }
         @unknown default:
             break
         }

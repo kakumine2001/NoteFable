@@ -121,7 +121,7 @@ final class AccountViewModel {
 
     private func applyAccount(_ response: AccountResponse) {
         state.loaded = true
-        state.configured = response.configured
+        state.configured = response.configured || response.apple == true
         state.googleClientId = response.googleClientId
         // 网页 SignInDialog：showGoogle = account.google !== false，showEmail = Boolean(account.email)。
         state.googleEnabled = response.google != false && requestGoogleIdToken != nil

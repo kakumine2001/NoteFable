@@ -551,6 +551,7 @@ struct PlanInfo: Encodable, Equatable, Sendable {
     var usage: [String: PlanUsage] = [:]
     var appStoreProduct: String? = nil
     var appStorePurchase: Bool = false
+    var appStorePending: Bool = false
     var googlePlay: Bool = false
     var productId: String? = nil
     var accountId: String? = nil
@@ -567,7 +568,7 @@ extension PlanInfo: Decodable {
         let f = try DtoFields(decoder)
         self.init(
             plan: try f.or("plan", "free"), subscription: try f.opt("subscription"), usage: try f.or("usage", [:]),
-            appStoreProduct: try f.opt("appStoreProduct"), appStorePurchase: try f.or("appStorePurchase", false),
+            appStoreProduct: try f.opt("appStoreProduct"), appStorePurchase: try f.or("appStorePurchase", false), appStorePending: try f.or("appStorePending", false),
             googlePlay: try f.or("googlePlay", false), productId: try f.opt("productId"), accountId: try f.opt("accountId"),
             provider: try f.opt("provider"), manageUrl: try f.opt("manageUrl"), priceJpy: try f.or("priceJpy", 0),
             trialDays: try f.or("trialDays", 0), storage: try f.opt("storage")

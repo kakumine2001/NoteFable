@@ -274,7 +274,9 @@ export async function getOrCreateUser() {
 
 async function findAppleSessionUser(identity: AppleIdentity) {
   if (await isDeletedLogin({ kind: "apple", sub: identity.sub }, identity.signedInAt)) return null;
-  return prisma.user.findUnique({ where: { appleSub: identity.sub } });
+  const user = await prisma.user.findUnique({ where: { appleSub: identity.sub } });
+  if (user?.appleRevokedAt && (!identity.signedInAt || identity.signedInAt * 1000 <= user.appleRevokedAt.getTime())) return null;
+  return user;
 }
 
 // 未ログインなら従来どおり Cookie の deviceId と DB の User を対応させる。

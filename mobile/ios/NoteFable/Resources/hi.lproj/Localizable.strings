@@ -479,6 +479,8 @@
 "storage_limit_sign_in" = "%1$s स्टोरेज पाने के लिए साइन इन करें।";
 "storage_limit_upgrade" = "%2$s/माह में Pro के साथ %1$s स्टोरेज पाएँ।";
 "storage_limit_delete" = "जगह खाली करने के लिए वे फ़ाइलें हटाएँ जिनकी अब ज़रूरत नहीं है।";
+"plan_manage_app_store" = "App Store सदस्यता प्रबंधित करें";
+"acct_delete_app_store_notice" = "NoteFable खाता मिटाने से App Store सदस्यता रद्द नहीं होती। नवीनीकरण रोकने के लिए उसे App Store में रद्द करें।";
 
 /* strings_report.xml */
 "report_answer" = "जवाब की रिपोर्ट करें";
@@ -613,10 +615,8 @@
 
 /* iOS only (scripts/ios-strings.ts) */
 "ios_restore_purchases" = "खरीदारी बहाल करें";
-"ios_manage_subscriptions" = "App Store सदस्यता प्रबंधित करें";
 "ios_no_purchases" = "कोई सक्रिय App Store सदस्यता नहीं मिली।";
 "ios_subscription_conflict" = "आपके पास पहले से Pro है। अलग खरीदारी को App Store की सदस्यताओं में प्रबंधित करें।";
-"ios_delete_subscription_notice" = "NoteFable खाता मिटाने से App Store सदस्यता रद्द नहीं होती। नवीनीकरण रोकने के लिए उसे App Store में रद्द करें।";
 "attach_source_photos" = "फ़ोटो लाइब्रेरी";
 "attach_source_camera" = "फ़ोटो लें";
 "attach_source_files" = "फ़ाइलें चुनें";

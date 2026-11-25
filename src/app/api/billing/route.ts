@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { APPLE_MANAGE_URL, appleStoreProduct, syncApplePurchase } from "@/lib/apple-app-store";
+import { APPLE_MANAGE_URL, appleStatusNeedsRefresh, appleStoreProduct, syncApplePurchase } from "@/lib/apple-app-store";
 import { signedInUser } from "@/app/api/billing/account";
 import { isBillingConfigured, isTrialEligible, isWebhookConfigured, refreshCustomer } from "@/lib/billing";
 import { googlePlayManageUrl, googlePlayProduct, isGooglePlayConfigured, syncPlayPurchase } from "@/lib/google-play-billing";
 import { msg } from "@/lib/i18n/translate";
+import { applePurchasePending } from "@/lib/subscription-state";
 import { prisma } from "@/lib/prisma";
 import { scheduleStorageMaintenance, storageSummary } from "@/lib/stored-files";
 import { usageSummary, usageTier } from "@/lib/usage-limits";
@@ -22,7 +23,7 @@ export async function GET(request: Request) {
   const refreshStripe = refresh && configured && Boolean(user.stripeCustomerId);
   const refreshPlay = refresh && googlePlay && Boolean(user.googlePurchaseToken);
   const appStoreProduct = appleStoreProduct();
-  const refreshApple = Boolean(appStoreProduct && user.appleOriginalTransactionId && (refresh || user.subscriptionProvider !== "apple" || (user.subscriptionPeriodEnd?.getTime() ?? 0) <= Date.now()));
+  const refreshApple = Boolean(appStoreProduct && user.appleOriginalTransactionId && (refresh || appleStatusNeedsRefresh(user)));
   if (refreshStripe || refreshPlay || refreshApple) {
     try {
       if (refreshStripe) await refreshCustomer(user);
@@ -40,12 +41,13 @@ export async function GET(request: Request) {
   scheduleStorageMaintenance();
   const provider = row.subscriptionProvider === "google" ? "google" : row.subscriptionProvider === "stripe" ? "stripe" : row.subscriptionProvider === "apple" ? "apple" : null;
   return NextResponse.json({
-    billing: configured,
+    billing: configured && !applePurchasePending(row),
     // Android アプリの Play Billing（GOOGLE_PLAY_*）。アプリは購入に accountId を付け、productId の商品を買う。
-    googlePlay,
+    googlePlay: googlePlay && !applePurchasePending(row),
     productId: googlePlayProduct(),
     accountId: row.id,
     appStoreProduct,
+    appStorePending: applePurchasePending(row),
     appStorePurchase: Boolean(row.appleOriginalTransactionId),
     provider,
     priceJpy: PRO_PRICE_JPY,
@@ -54,14 +56,15 @@ export async function GET(request: Request) {
     plan: usageTier(row) === "pro" ? "pro" : "free",
     // 購読がある（解約済みも含む）ときだけ。Stripe の画面で管理できるのは顧客がいるとき。
     subscription: row.subscriptionStatus ? {
-      status: row.subscriptionStatus,
+      status: provider === "apple" && row.subscriptionStatus === "trialing" ? "active" : row.subscriptionStatus,
       periodEnd: row.subscriptionPeriodEnd?.toISOString() ?? null,
       cancelAt: row.subscriptionCancelAt?.toISOString() ?? null,
     } : null,
     // Stripe の Customer Portal で管理できるか（ウェブで買った購読）。Google Play で買った購読は manageUrl（Play ストアの購読画面）で管理する。
     // 新規の申し込みを止めている（価格を外した）間も、続いている購読は解約できるようにする。
     canManage: isWebhookConfigured() && Boolean(row.stripeCustomerId) && provider !== "google" && provider !== "apple",
-    manageUrl: provider === "google" ? googlePlayManageUrl() : provider === "apple" ? APPLE_MANAGE_URL : null,
+    manageUrl: provider === "google" ? googlePlayManageUrl() : null,
+    appStoreManageUrl: row.appleOriginalTransactionId ? APPLE_MANAGE_URL : null,
     usage: summary.usage,
     // ファイル置き場の使用量と上限（バイト）。
     storage,

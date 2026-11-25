@@ -33,11 +33,16 @@ export type SubscriptionOwner = {
   appleOriginalTransactionId?: string | null;
   subscriptionPeriodStart?: Date | null;
   subscriptionPeriodEnd?: Date | null;
+  applePurchaseHoldUntil?: Date | null;
 };
+
+export function applePurchasePending(owner: { applePurchaseHoldUntil?: Date | null }, now = Date.now()) {
+  return (owner.applePurchaseHoldUntil?.getTime() ?? 0) > now;
+}
 
 export const SUBSCRIPTION_OWNER_SELECT = {
   id: true, subscriptionProvider: true, subscriptionStatus: true, stripeSubscriptionId: true, googlePurchaseToken: true,
-  appleOriginalTransactionId: true, subscriptionPeriodStart: true, subscriptionPeriodEnd: true,
+  appleOriginalTransactionId: true, applePurchaseHoldUntil: true, subscriptionPeriodStart: true, subscriptionPeriodEnd: true,
 } as const;
 
 export type SubscriptionUpdate = {

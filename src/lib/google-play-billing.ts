@@ -2,7 +2,7 @@ import { createSign } from "crypto";
 import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from "jose";
 import { optionalEnv } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
-import { isProStatus, readOwner, subscriptionAction, withUserBillingLock, writeSubscription, type SubscriptionOwner, type SubscriptionUpdate } from "@/lib/subscription-state";
+import { applePurchasePending, isProStatus, readOwner, subscriptionAction, withUserBillingLock, writeSubscription, type SubscriptionOwner, type SubscriptionUpdate } from "@/lib/subscription-state";
 
 // Android アプリの Google Play 購読（Play Billing）。アプリが購入トークンを POST /api/billing/google に送り、
 // サーバーが Google Play Developer API で確かめて、承認（acknowledge）し、行に写す。更新・解約などは
@@ -249,7 +249,7 @@ export async function claimPlayPurchase(userId: string, purchaseToken: string): 
     const update = playUpdate(owner, purchaseToken, subscription);
     if (update.status === "incomplete") return "pending";
     const action = subscriptionAction(current, update);
-    if (action === "duplicate") {
+    if (action === "duplicate" || (isProStatus(update.status) && !recorded && applePurchasePending(owner))) {
       await stopDuplicate(purchaseToken, subscription);
       return "already-subscribed";
     }
@@ -288,7 +288,10 @@ export async function syncPlayPurchase(purchaseToken: string) {
     const view = asCurrentOwner(current, purchaseToken, subscription);
     const update = playUpdate(current, purchaseToken, subscription);
     const action = subscriptionAction(view, update);
-    if (action === "duplicate") await stopDuplicate(purchaseToken, subscription);
+    if (action === "duplicate" || (isProStatus(update.status) && current.googlePurchaseToken !== purchaseToken && applePurchasePending(current))) {
+      await stopDuplicate(purchaseToken, subscription);
+      return current.id;
+    }
     if (action !== "write") return current.id;
     await writeSubscription(tx, current, update);
     // 承認されないまま 3 日経つと返金される。アプリからの報告が届かなかった購入も承認する（コミットのあとで）。

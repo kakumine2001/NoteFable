@@ -8,7 +8,7 @@ export async function POST(request: Request) {
     return new NextResponse(null, { status: 400 });
   }
   try {
-    await syncAppleNotification(body.signedPayload);
+    await syncAppleNotification(body.signedPayload, new URL(request.url).searchParams.get("environment") === "sandbox");
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     return new NextResponse(null, { status: isInvalidAppleSignature(error) ? 400 : 502 });

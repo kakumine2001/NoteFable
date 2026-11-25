@@ -2,7 +2,7 @@ import Stripe from "stripe";
 import { optionalEnv } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 import { PRO_TRIAL_DAYS } from "@/lib/usage-plans";
-import { isProStatus, readOwner, subscriptionAction, withUserBillingLock, writeSubscription, type BillingTx } from "@/lib/subscription-state";
+import { applePurchasePending, isProStatus, readOwner, subscriptionAction, withUserBillingLock, writeSubscription, type BillingTx } from "@/lib/subscription-state";
 
 export { isProStatus };
 
@@ -42,6 +42,7 @@ export function isTrialEligible(user: { subscriptionStatus: string | null }) {
 
 // 申し込みの前に、まだ課金の続く購読（どちらの購入元でも）があったときに投げる（画面には「すでに Pro」と返す）。
 export class AlreadySubscribedError extends Error {}
+export class ApplePurchasePendingError extends Error {}
 // 申し込みを待っている間にアカウントが削除された。
 export class AccountGoneError extends Error {}
 
@@ -92,7 +93,10 @@ async function applySubscription(tx: BillingTx, userId: string, subscription: St
     cancelAt: scheduledEnd(subscription, period.end),
   };
   const action = subscriptionAction(owner, update);
-  if (action === "duplicate") await stopDuplicate(subscription);
+  if (action === "duplicate" || (isProStatus(update.status) && owner.stripeSubscriptionId !== subscription.id && applePurchasePending(owner))) {
+    await stopDuplicate(subscription);
+    return owner.id;
+  }
   // 止めた 2 つ目の購読の返金が前回失敗していたら、ここでやり直す（取り消したあとは PRO でないので stale になる）。
   if (action === "stale" && subscription.metadata?.[DUPLICATE_MARK] === "1") await refundDuplicate(subscription);
   if (action === "write") await writeSubscription(tx, owner, update);
@@ -160,9 +164,10 @@ export async function createCheckoutUrl(userId: string, origin: string) {
   const result = await withUserBillingLock(userId, async (tx): Promise<{ url: string } | { conflict: true }> => {
     const row = await tx.user.findUnique({
       where: { id: userId },
-      select: { id: true, stripeCustomerId: true, verifiedEmail: true, email: true, subscriptionStatus: true },
+      select: { id: true, stripeCustomerId: true, verifiedEmail: true, email: true, subscriptionStatus: true, applePurchaseHoldUntil: true },
     });
     if (!row) throw new AccountGoneError();
+    if (applePurchasePending(row)) throw new ApplePurchasePendingError();
     if (isProStatus(row.subscriptionStatus)) return { conflict: true };
     const customer = await ensureCustomer(tx, row);
     await expireOpenCheckouts(customer);

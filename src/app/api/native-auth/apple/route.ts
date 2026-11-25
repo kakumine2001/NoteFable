@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAppleLoginConfigured } from "@/lib/apple-identity-config";
-import { loginTimestamp } from "@/lib/login-time";
 import { exchangeAppleCode, saveAppleAccount } from "@/lib/native-apple-login";
 import { attachSessionCookie, createNonce, encodeSessionCookie, isSameOrigin, isSecureRequest, NONCE_MAX_AGE, readNonce } from "@/lib/native-google-login";
 
@@ -28,10 +27,9 @@ export async function POST(request: NextRequest) {
   if (!nonce || typeof body?.code !== "string" || !body.code || body.code.length > 4096) return clear(error(400));
   const name = typeof body.name === "string" ? body.name.trim().slice(0, 100) || null : null;
   try {
-    const signedInAt = loginTimestamp();
     const identity = await exchangeAppleCode(body.code, nonce, name);
     if (!identity) return clear(error(401));
-    const cookie = await encodeSessionCookie({ appleSub: identity.appleSub, signedInAt }, secure);
+    const cookie = await encodeSessionCookie({ appleSub: identity.appleSub, signedInAt: identity.appleAuthorizedAt.getTime() / 1000 }, secure);
     if (!(await saveAppleAccount(identity))) return clear(error(409));
     return attachSessionCookie(request, clear(NextResponse.json({ ok: true })), cookie, secure);
   } catch {

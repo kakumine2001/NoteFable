@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { createRemoteJWKSet, EncryptJWT, importPKCS8, jwtDecrypt, jwtVerify, SignJWT } from "jose";
+import { createRemoteJWKSet, EncryptJWT, errors, importPKCS8, jwtDecrypt, jwtVerify, SignJWT } from "jose";
 import { appleIdentityConfig, IOS_BUNDLE_ID } from "@/lib/apple-identity-config";
 import { currentDeviceUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -49,16 +49,17 @@ export async function exchangeAppleCode(code: string, nonce: string, name: strin
     appleRefreshToken: await new EncryptJWT({ refreshToken: refresh_token })
       .setProtectedHeader({ alg: "dir", enc: "A256GCM" }).setSubject(payload.sub).encrypt(tokenKey()),
     name, email,
+    appleAuthorizedAt: new Date(Number(payload.iat) * 1000),
   };
 }
 
 export async function saveAppleAccount(identity: NonNullable<Awaited<ReturnType<typeof exchangeAppleCode>>>) {
-  const { appleSub, appleRefreshToken, name, email } = identity;
+  const { appleSub, appleRefreshToken, appleAuthorizedAt, name, email } = identity;
   const where = { appleSub };
   const updateExisting = (id: string) => withUserBillingLock(id, async (tx) => {
     const updated = await tx.user.updateMany({
-      where: { id, appleSub },
-      data: { appleRefreshToken, ...(name ? { name } : {}), ...(email ? { email } : {}) },
+      where: { id, appleSub, OR: [{ appleRevokedAt: null }, { appleRevokedAt: { lt: appleAuthorizedAt } }] },
+      data: { appleRefreshToken, appleAuthorizedAt, ...(name ? { name } : {}), ...(email ? { email } : {}) },
     });
     return updated.count === 1;
   });
@@ -80,6 +81,42 @@ export async function saveAppleAccount(identity: NonNullable<Awaited<ReturnType<
     const winner = await prisma.user.findUnique({ where, select: { id: true } });
     return winner ? updateExisting(winner.id) : false;
   }
+}
+
+export async function syncAppleIdentityEvent(token: string) {
+  let payload;
+  try {
+    ({ payload } = await jwtVerify(token, keys, {
+      issuer, audience: IOS_BUNDLE_ID, algorithms: ["RS256"], requiredClaims: ["iat", "jti"],
+    }));
+  } catch (error) {
+    if (error instanceof errors.JOSEError && error.code !== "ERR_JWKS_TIMEOUT") return false;
+    throw error;
+  }
+  let event;
+  try {
+    event = typeof payload.events === "string" ? JSON.parse(payload.events) : payload.events;
+  } catch {
+    return false;
+  }
+  if (typeof event?.sub !== "string" || !event.sub) return false;
+  if (event.type !== "consent-revoked" && event.type !== "account-deleted") return true;
+  const time = Number(event.event_time);
+  if (!Number.isSafeInteger(time) || time <= 0) return false;
+  // Apple can send event_time in seconds or milliseconds. A late delivery cannot revoke a later authorization.
+  const revokedAt = new Date(time < 10_000_000_000 ? time * 1000 : time);
+  if (!Number.isFinite(revokedAt.getTime()) || revokedAt.getTime() > Date.now() + 60_000) return false;
+  await prisma.user.updateMany({
+    where: {
+      appleSub: event.sub,
+      AND: [
+        { OR: [{ appleAuthorizedAt: null }, { appleAuthorizedAt: { lte: revokedAt } }] },
+        { OR: [{ appleRevokedAt: null }, { appleRevokedAt: { lt: revokedAt } }] },
+      ],
+    },
+    data: { appleRevokedAt: revokedAt, appleRefreshToken: null },
+  });
+  return true;
 }
 
 export async function revokeAppleLogin(appleSub: string, encryptedToken: string) {

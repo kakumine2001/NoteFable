@@ -73,6 +73,12 @@ extension AccountProfileBackend {
     }
 }
 
+struct ApplePurchasePreparation: Decodable {
+    var token: UUID?
+    var reservation: String?
+    var pending: Bool?
+}
+
 enum ApplePurchaseStatus: String, Decodable {
     case subscribed, inactive, conflict
 }
@@ -113,11 +119,14 @@ final class AccountApi: AccountProfileBackend, AppIconBackend, @unchecked Sendab
         try await http.getJson("/api/billing")
     }
 
-    func prepareApplePurchase() async throws -> UUID {
+    func prepareApplePurchase() async throws -> ApplePurchasePreparation {
         let body: JSONValue = ["prepare": .bool(true)]
-        struct Response: Decodable { let token: UUID }
-        let response: Response = try await http.send(try http.request("POST", "/api/billing/apple", json: body))
-        return response.token
+        return try await http.send(try http.request("POST", "/api/billing/apple", json: body))
+    }
+
+    func releaseApplePurchase(_ reservation: String) async throws {
+        let body: JSONValue = ["release": .string(reservation)]
+        let _: ApiError = try await http.send(try http.request("POST", "/api/billing/apple", json: body))
     }
 
     func confirmApplePurchase(_ transaction: String) async throws -> ApplePurchaseStatus {

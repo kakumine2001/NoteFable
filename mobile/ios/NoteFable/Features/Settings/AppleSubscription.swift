@@ -9,17 +9,17 @@ enum AppleSubscription {
         return status
     }
 
-    static func observe(api: AccountApi) async {
+    static func observe(api: AccountApi, changed: @escaping @MainActor @Sendable () -> Void) async {
         await withTaskGroup(of: Void.self) { tasks in
             tasks.addTask {
                 for await item in Transaction.updates {
                     if Task.isCancelled { return }
-                    _ = try? await confirm(item, api: api)
+                    if (try? await confirm(item, api: api)) != nil, !Task.isCancelled { await changed() }
                 }
             }
             for await item in Transaction.unfinished {
                 if Task.isCancelled { break }
-                _ = try? await confirm(item, api: api)
+                if (try? await confirm(item, api: api)) != nil, !Task.isCancelled { await changed() }
             }
         }
     }

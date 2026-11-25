@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { signedInUser } from "@/app/api/billing/account";
-import { appleStoreProduct, claimApplePurchase, isInvalidAppleSignature, prepareApplePurchase } from "@/lib/apple-app-store";
+import { appleStatusNeedsRefresh, appleStoreProduct, claimApplePurchase, isInvalidAppleSignature, prepareApplePurchase, releaseApplePurchase, syncApplePurchase } from "@/lib/apple-app-store";
 import { msg } from "@/lib/i18n/translate";
 import { isSameOrigin } from "@/lib/native-google-login";
 
@@ -11,11 +11,18 @@ export async function POST(request: Request) {
   if (!isSameOrigin(request.headers.get("origin"), request.headers.get("host"))) return result(403, msg("Forbidden."));
   const user = await signedInUser();
   if (!user) return result(401, msg("Sign in to upgrade."));
-  const body = await request.json().catch(() => null) as { prepare?: unknown; transaction?: unknown } | null;
+  const body = await request.json().catch(() => null) as { prepare?: unknown; transaction?: unknown; release?: unknown } | null;
   try {
     if (body?.prepare === true) {
-      const token = await prepareApplePurchase(user.id);
-      return token ? NextResponse.json({ token }) : result(409, msg("You're already subscribed to Pro."));
+      if (appleStatusNeedsRefresh(user)) await syncApplePurchase(user);
+      const prepared = await prepareApplePurchase(user.id);
+      return prepared ? NextResponse.json(prepared) : result(409, msg("You're already subscribed to Pro."));
+    }
+    if (typeof body?.release === "string") {
+      const reservation = new Date(body.release);
+      if (!Number.isFinite(reservation.getTime())) return result(400, msg("Invalid purchase."));
+      await releaseApplePurchase(user.id, reservation);
+      return NextResponse.json({ ok: true });
     }
     if (typeof body?.transaction !== "string" || !body.transaction || body.transaction.length > 24_000) {
       return result(400, msg("Invalid purchase."));

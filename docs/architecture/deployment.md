@@ -225,11 +225,12 @@ APP_STORE_IAP_KEY_ID
 APP_STORE_IAP_KEY_P8_B64
 APP_STORE_ROOT_CA_G3_B64
 APP_STORE_IAP_SANDBOX        # 仅隔离的本地 / Preview 测试环境设为 1
+APP_STORE_SANDBOX_REVIEW_USER_IDS # 可选，生产中的专用评审账号 ID，逗号分隔
 ```
 
-Apple 登录还使用已有的 `AUTH_SECRET`。在 Apple Developer 的 App ID 启用 Sign in with Apple（Primary App ID），创建该用途的专用签名密钥。内购在 App Store Connect 的 Users and Access → Integrations → In-App Purchase 创建内购专用密钥。两个私钥分别用 Base64 编码保存；TestFlight 上传使用的 App Store Connect 团队 API 密钥是第三套凭据。
+Apple 登录还使用已有的 `AUTH_SECRET`。在 Apple Developer 的 App ID 启用 Sign in with Apple（Primary App ID），创建该用途的专用签名密钥，并配置 Apple 账号变更通知 URL `https://app.notefable.com/api/native-auth/apple/notify`。内购在 App Store Connect 的 Users and Access → Integrations → In-App Purchase 创建内购专用密钥。两个私钥分别用 Base64 编码保存；TestFlight 上传使用的 App Store Connect 团队 API 密钥是第三套凭据。
 
-`APP_STORE_ROOT_CA_G3_B64` 为 [Apple PKI](https://www.apple.com/certificateauthority/) 的 Apple Root CA – G3 DER 证书的 Base64。启用内购前在 App Store Connect 配好订阅的价格、可用地区、元数据及 v2 通知。生产通知 URL 为 `https://app.notefable.com/api/billing/apple/notify`。沙盒通知指向独立测试站点，数据库必须隔离；App 的测试构建也要使用该站点（`NOTEFABLE_BASE_URL`）。沙盒交易不会在正式站发放 Pro。
+`APP_STORE_ROOT_CA_G3_B64` 为 [Apple PKI](https://www.apple.com/certificateauthority/) 的 Apple Root CA – G3 DER 证书的 Base64。启用内购前在 App Store Connect 配好订阅的价格、可用地区、元数据及 v2 通知。生产通知 URL 为 `https://app.notefable.com/api/billing/apple/notify`。常规沙盒测试指向数据库隔离的测试站点（测试构建使用其 `NOTEFABLE_BASE_URL`）。提交原版 App 审核前，另建专用评审账号，把账号 ID 加入 `APP_STORE_SANDBOX_REVIEW_USER_IDS`，并在 ASC 的沙盒通知 URL 后加 `?environment=sandbox`。生产只给明确列出的独立评审账号接收沙盒权益，正常账号只接受生产交易。评审账号不要复用于正式用户。
 
 ### Google 登录（可选）
 

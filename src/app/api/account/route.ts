@@ -23,19 +23,20 @@ export async function GET() {
     return NextResponse.json({ configured: false, user: null });
   }
   const methods = { google: isGoogleLoginConfigured(), email: isEmailLoginConfigured(), apple: isAppleLoginConfigured(), appStoreBilling: Boolean(appleStoreProduct()) };
+  const configured = methods.google || methods.email;
 
   try {
     const google = await currentAccountProfile();
     // googleClientId は公開しても問題ない値（ログイン画面の URL にも含まれる）。Android アプリの端末側ログインが使う。
     const googleClientId = methods.google ? (optionalEnv("AUTH_GOOGLE_ID") ?? null) : null;
-    if (!google) return NextResponse.json({ configured: true, ...methods, user: null, googleClientId });
+    if (!google) return NextResponse.json({ configured, ...methods, user: null, googleClientId });
     // billing: 有料プランの申し込みが使えるか（Stripe が設定済み）。
     const billing = isBillingConfigured();
 
     // 自分で決めた表示名とアイコンは利用者の行に持つ。取れなくても Google の名前と写真で表示を続ける。
     const row = await getOrCreateUser().catch(() => null);
     // 削除したアカウントの古いログイン Cookie（deleted-accounts.ts）は匿名の行になる。ログインしていない表示にする。
-    if (row && !isAccountUser(row)) return NextResponse.json({ configured: true, ...methods, user: null, googleClientId, billing });
+    if (row && !isAccountUser(row)) return NextResponse.json({ configured, ...methods, user: null, googleClientId, billing });
     // An absent locale is unknown; null is a known Auto preference.
     const user = toAccountUser({ displayName: row?.displayName ?? null, avatarIcon: row?.avatarIcon ?? null, avatarImage: row?.avatarImage ?? null, locale: row ? row.locale : undefined }, google);
     // trialDays: 無料の試用を出せる日数（初めての申し込みだけ。出せない・行を読めなかったときは 0）。
@@ -130,7 +131,12 @@ export async function DELETE(request: NextRequest) {
         }
       }
       if (billing?.appleSub && billing.appleRefreshToken) {
-        await revokeAppleLogin(billing.appleSub, billing.appleRefreshToken);
+        try {
+          await revokeAppleLogin(billing.appleSub, billing.appleRefreshToken);
+        } catch (error) {
+          // Deleting the person's NoteFable data remains available during an Apple outage.
+          console.warn("Apple sign-in authorization could not be revoked", error instanceof Error ? error.name : "unknown");
+        }
       }
       return deleteAccount({ ...row, appleSub: billing?.appleSub ?? row.appleSub }, tx);
     });
