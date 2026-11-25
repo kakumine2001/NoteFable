@@ -25,6 +25,17 @@ export const LAYOUT_IDS = ["title", "section", "bullets", "twoColumn", "imageTex
 export type LayoutId = (typeof LAYOUT_IDS)[number];
 export const isLayoutId = (value: unknown): value is LayoutId => typeof value === "string" && (LAYOUT_IDS as readonly string[]).includes(value);
 
+export const SLIDE_TRANSITIONS = ["none", "fade", "slide"] as const;
+export type SlideTransition = (typeof SLIDE_TRANSITIONS)[number];
+export const isSlideTransition = (value: unknown): value is SlideTransition => typeof value === "string" && (SLIDE_TRANSITIONS as readonly string[]).includes(value);
+
+// 放映時の切り替えアニメ用クラス。初回表示（direction === null）・「なし」・動きを減らす設定では付けない。
+export function slideTransitionClass(transition: SlideTransition | undefined, direction: "forward" | "backward" | null, reducedMotion = false): string {
+  if (reducedMotion || !direction || !transition || transition === "none") return "";
+  if (transition === "fade") return "slide-transition-fade";
+  return direction === "backward" ? "slide-transition-slide-backward" : "slide-transition-slide-forward";
+}
+
 // 版式の置き場所（プレースホルダー）の役目。版式を替えるときは役目ごとに中身を移す。
 export const ROLES = ["title", "subtitle", "body", "body2", "image", "quote", "attribution", "caption"] as const;
 export type Role = (typeof ROLES)[number];
@@ -90,6 +101,8 @@ export type Slide = {
   // あると、この枚から総覧の新しい行（章）が始まる。値は章の名前（空でもよい）。先頭の枚は名前が無くても 1 行目。
   section?: string;
   background?: ColorRef | null;
+  // 放映時の切り替え（fade / slide）。未指定と none は即座に切り替え（保存時は none を省き、古い本体と完全互換にする）。
+  transition?: SlideTransition;
   elements: SlideElement[];
 };
 export type ThemeMode = "light" | "dark";
@@ -220,6 +233,7 @@ function normalizeSlide(value: unknown, seenSlides: Set<string>, seenElements: S
   if (typeof value.notes === "string" && value.notes) slide.notes = value.notes.slice(0, MAX_SLIDE_NOTES);
   if (typeof value.section === "string") slide.section = value.section.slice(0, 200);
   if (value.background !== undefined) slide.background = optionalColor(value.background, null);
+  if (value.transition === "fade" || value.transition === "slide") slide.transition = value.transition;
   return slide;
 }
 

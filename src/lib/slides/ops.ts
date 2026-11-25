@@ -1,5 +1,5 @@
 import { createSlide } from "@/lib/slides/layouts";
-import { isColorRef, newId, normalizeElement, slideRows, slidesFromRows, type ColorRef, type Deck, type LayoutId, type Slide, type SlideElement } from "@/lib/slides/model";
+import { isColorRef, newId, normalizeElement, slideRows, slidesFromRows, type ColorRef, type Deck, type LayoutId, type Slide, type SlideElement, type SlideTransition } from "@/lib/slides/model";
 import { MAX_SLIDE_ELEMENTS, MAX_SLIDES } from "@/lib/canvas-document";
 
 // スライドの本体を変える純粋な関数（元のオブジェクトは書き換えず、新しいものを返す。取り消し・やり直しは前の値を持つだけ）。
@@ -76,6 +76,21 @@ export function setHidden(deck: Deck, ids: Set<string>, hidden: boolean): Deck {
       return rest;
     }),
   };
+}
+
+export function setTransition(deck: Deck, ids: Set<string>, transition: SlideTransition): Deck {
+  let changed = false;
+  const slides = deck.slides.map((slide) => {
+    if (!ids.has(slide.id)) return slide;
+    const current = slide.transition ?? "none";
+    if (current === transition) return slide;
+    changed = true;
+    if (transition === "fade" || transition === "slide") return { ...slide, transition };
+    const { transition: _transition, ...rest } = slide;
+    void _transition;
+    return rest;
+  });
+  return changed ? { ...deck, slides } : deck;
 }
 
 // 選んだ枚を、並びの index（動かす前の並びでの位置）の前へ移す。行の名前は行の先頭に付け直す。
@@ -210,7 +225,7 @@ export function parseClipboard(text: string): { elements: SlideElement[]; slides
     .map((element) => normalizeElement(element, newId())).filter((element): element is SlideElement => element !== null));
   const slides = (Array.isArray(payload.slides) ? payload.slides : []).slice(0, MAX_SLIDES).flatMap((raw) => {
     if (!raw || typeof raw !== "object") return [];
-    const source = raw as { elements?: unknown; background?: unknown; hidden?: unknown };
+    const source = raw as { elements?: unknown; background?: unknown; hidden?: unknown; transition?: unknown };
     const slideElements = (Array.isArray(source.elements) ? source.elements : []).slice(0, MAX_SLIDE_ELEMENTS).map((element) => normalizeElement(element, newId())).filter((element): element is SlideElement => element !== null);
     const layout = (raw as { layout?: unknown }).layout;
     const notes = (raw as { notes?: unknown }).notes;
@@ -219,6 +234,7 @@ export function parseClipboard(text: string): { elements: SlideElement[]; slides
     if (typeof notes === "string" && notes) slide.notes = notes.slice(0, 20_000);
     if (source.hidden === true) slide.hidden = true;
     if (source.background === null || isColorRef(source.background)) slide.background = source.background as ColorRef | null;
+    if (source.transition === "fade" || source.transition === "slide") slide.transition = source.transition;
     return [slide];
   });
   return { elements: cloneElements(elements), slides };

@@ -7,7 +7,11 @@ import { useT } from "@/components/i18n-provider";
 import { SlideFrame } from "@/components/slides/slide-render";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import { playerAction, type PlayerAction } from "@/lib/slides/player-keys";
-import type { Deck, Slide } from "@/lib/slides/model";
+import { slideTransitionClass, type Deck, type Slide } from "@/lib/slides/model";
+
+function prefersReducedMotion(): boolean {
+  return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
 
 // 放映：全画面で 1 枚ずつ見せる。キー（← → スペース PageUp/PageDown Home/End、Esc、数字 + Enter、B/W）、クリック・スワイプで送る。
 // パソコンでは発表者ビュー（別のウィンドウ：今の枚・次の枚・ノート・経過時間）を開ける。アプリ（WebView）では全画面・横向き・画面の常時点灯をアプリが受け持つ。
@@ -59,6 +63,8 @@ export function SlidePlayer({ deck, startId, onExit, onChange, allowPresenter = 
   const stage = useRef<HTMLDivElement>(null);
   const [currentId, setCurrentId] = useState<string | null>(() => startId ?? deck.slides.find((slide) => !slide.hidden)?.id ?? deck.slides[0]?.id ?? null);
   const [jumpedHidden, setJumpedHidden] = useState<string | null>(startId);
+  // 初回表示ではアニメーションしない。ページ送りしたときだけ対象スライドのIDと向きを記録する。
+  const [nav, setNav] = useState<{ slideId: string; direction: "forward" | "backward" } | null>(null);
   const order = useMemo(() => playOrder(deck, jumpedHidden), [deck, jumpedHidden]);
   const index = Math.max(0, order.findIndex((slide) => slide.id === currentId));
   const slide = order[index] ?? null;
@@ -78,17 +84,25 @@ export function SlidePlayer({ deck, startId, onExit, onChange, allowPresenter = 
 
   const go = useCallback((delta: number) => {
     setBlank(null);
-    const next = order[Math.max(0, Math.min(order.length - 1, index + delta))];
-    if (next) setCurrentId(next.id);
-  }, [order, index]);
+    const nextIndex = Math.max(0, Math.min(order.length - 1, index + delta));
+    const next = order[nextIndex];
+    if (next && next.id !== slide?.id) {
+      setNav({ slideId: next.id, direction: nextIndex > index ? "forward" : "backward" });
+      setCurrentId(next.id);
+    }
+  }, [order, index, slide?.id]);
   // 番号は編集画面と同じ（隠した枚も数える）。隠した枚へも飛べる。
   const goToNumber = useCallback((number: number) => {
     const target = deck.slides[number - 1];
     if (!target) return;
     setBlank(null);
+    if (target.id !== slide?.id) {
+      const currentDeckIndex = slide ? deck.slides.findIndex((entry) => entry.id === slide.id) : -1;
+      setNav({ slideId: target.id, direction: number - 1 >= currentDeckIndex ? "forward" : "backward" });
+    }
     setJumpedHidden(target.hidden ? target.id : null);
     setCurrentId(target.id);
-  }, [deck.slides]);
+  }, [deck.slides, slide]);
 
   const exit = useCallback(() => {
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
@@ -105,8 +119,20 @@ export function SlidePlayer({ deck, startId, onExit, onChange, allowPresenter = 
     switch (action.type) {
       case "next": go(1); break;
       case "previous": go(-1); break;
-      case "first": setBlank(null); setCurrentId(order[0]?.id ?? null); break;
-      case "last": setBlank(null); setCurrentId(order[order.length - 1]?.id ?? null); break;
+      case "first": {
+        setBlank(null);
+        const first = order[0];
+        if (first && first.id !== slide?.id) setNav({ slideId: first.id, direction: "backward" });
+        setCurrentId(first?.id ?? null);
+        break;
+      }
+      case "last": {
+        setBlank(null);
+        const last = order[order.length - 1];
+        if (last && last.id !== slide?.id) setNav({ slideId: last.id, direction: "forward" });
+        setCurrentId(last?.id ?? null);
+        break;
+      }
       case "blank": setBlank((current) => (current === action.color ? null : action.color)); break;
       case "digit": setDigits((current) => (current + action.digit).slice(-4)); return;
       case "jump": if (digits) goToNumber(Number(digits)); setDigits(""); return;
@@ -114,11 +140,17 @@ export function SlidePlayer({ deck, startId, onExit, onChange, allowPresenter = 
       case "exit": exit(); return;
     }
     setDigits("");
-  }, [go, order, digits, goToNumber, exit]);
+  }, [go, order, digits, goToNumber, exit, slide?.id]);
 
   useEffect(() => {
     const target = presenter ? [window, presenter] : [window];
     const onKey = (event: KeyboardEvent) => {
+      // 放映オーバーレイ（または発表者ビュー）の内側にあるボタン等にフォーカスがあるときだけ、スペース・Enter をその操作に任せる。
+      // 背後のメニューボタン等にフォーカスが残っていても、放映を邪魔しない。
+      const insidePlayer = event.target instanceof Element
+        && Boolean(root.current?.contains(event.target) || presenter?.document.body?.contains(event.target));
+      const onControl = insidePlayer && !!event.target.closest("button, a, input, textarea, select, [role='button']");
+      if (onControl && !digits.length && (event.key === " " || event.key === "Spacebar" || event.key === "Enter")) return;
       const action = playerAction(event, digits.length > 0);
       if (!action) return;
       event.preventDefault();
@@ -127,6 +159,15 @@ export function SlidePlayer({ deck, startId, onExit, onChange, allowPresenter = 
     target.forEach((win) => win.addEventListener("keydown", onKey));
     return () => target.forEach((win) => win.removeEventListener("keydown", onKey));
   }, [act, digits, presenter]);
+
+  // 放映開始時にフォーカスをオーバーレイ内へ移し、終了時に元の要素へ戻す（背後のボタン誤作動を防ぐ）。
+  useEffect(() => {
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    root.current?.focus({ preventScroll: true });
+    return () => {
+      if (previous?.isConnected) previous.focus({ preventScroll: true });
+    };
+  }, []);
 
   useEffect(() => {
     if (controlRef) controlRef.current = { next: () => go(1), previous: () => go(-1), goTo: (number) => goToNumber(number), end: exit };
@@ -195,7 +236,7 @@ export function SlidePlayer({ deck, startId, onExit, onChange, allowPresenter = 
   useEffect(() => () => { presenter?.close(); }, [presenter]);
 
   const next = order[index + 1] ?? null;
-  return <div ref={root} className={`slides-player${controlsVisible ? " show-controls" : ""}`} role="dialog" aria-modal="true" aria-label={t("Presentation")}
+  return <div ref={root} tabIndex={-1} className={`slides-player${controlsVisible ? " show-controls" : ""}`} role="dialog" aria-modal="true" aria-label={t("Presentation")}
     onPointerMove={(event) => { if (event.pointerType === "mouse") setControlsVisible(true); }}>
     {header}
     <div ref={stage} className="slides-player-stage"
@@ -213,7 +254,8 @@ export function SlidePlayer({ deck, startId, onExit, onChange, allowPresenter = 
         else go(1);
         if (event.pointerType !== "mouse") setControlsVisible(true);
       }}>
-      {slide && <SlideFrame key={slide.id} slide={slide} width={width} link className="slides-player-frame" />}
+      {slide && <SlideFrame key={slide.id} slide={slide} width={width} link
+        className={`slides-player-frame${nav?.slideId === slide.id ? ` ${slideTransitionClass(slide.transition, nav.direction, prefersReducedMotion())}` : ""}`.trim()} />}
       {!slide && <p className="slides-player-empty">{t("This deck has no slides to show.")}</p>}
       {blank && <div className={`slides-player-blank is-${blank}`} aria-label={blank === "black" ? t("Black screen") : t("White screen")} />}
       {digits && <div className="slides-player-digits" aria-live="polite">{t("Go to slide {number}", { number: digits })}</div>}

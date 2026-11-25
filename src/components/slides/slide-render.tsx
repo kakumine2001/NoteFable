@@ -100,7 +100,10 @@ function BlocksView({ blocks, theme, link }: { blocks: RichBlock[]; theme: Resol
       </p>;
     }
     if (block.type === "math_block") return <MathView key={index} latex={block.attrs.latex} display />;
-    if (block.type === "code_block") return <pre key={index} className="slide-code-block" dir="ltr"><code>{block.content?.[0]?.text ?? ""}</code></pre>;
+    if (block.type === "code_block") return <pre key={index} className="slide-code-block" dir="ltr" data-language={block.attrs?.language || undefined}>
+      {block.attrs?.language && <span className="slide-code-lang" aria-hidden="true">{block.attrs.language}</span>}
+      <code>{block.content?.[0]?.text ?? ""}</code>
+    </pre>;
     const items = block.content.map((item, itemIndex) => <li key={itemIndex}><BlocksView blocks={item.content} theme={theme} link={link} /></li>);
     return block.type === "bullet_list"
       ? <ul key={index}>{items}</ul>

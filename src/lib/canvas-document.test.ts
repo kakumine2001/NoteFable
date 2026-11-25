@@ -176,4 +176,38 @@ describe("text for search, semantic search and chat", () => {
     // 文字の無いスライドがあっても、番号は実際の何枚目か。
     expect(canvasReadableText("slides", [{ id: "a", text: "Intro", index: 0 }, { id: "c", text: "End", index: 2 }])).toBe("Slide 1: Intro\nSlide 3: End");
   });
+
+  it("validates optional slide transition strings on slide decks", () => {
+    expect(() => validateCanvasData("slides", { slides: [{ id: "s1", transition: "fade", elements: [] }] })).not.toThrow();
+    expect(() => validateCanvasData("slides", { slides: [{ id: "s1", transition: "slide", elements: [] }] })).not.toThrow();
+    expect(status(() => validateCanvasData("slides", { slides: [{ id: "s1", transition: 123, elements: [] }] }))).toBe(400);
+    expect(status(() => validateCanvasData("slides", { slides: [{ id: "s1", transition: "x".repeat(65), elements: [] }] }))).toBe(400);
+  });
+
+  it("allows literal data: URLs in slide text, code, table cells, and notes while still rejecting them in resource fields", () => {
+    const quoted = "data:image/png;base64,iVBORw0KGgo=";
+    const validDeck = {
+      slides: [{
+        id: "s1",
+        notes: quoted,
+        elements: [
+          { id: "e1", type: "text", doc: { type: "doc", content: [{ type: "code_block", content: [{ type: "text", text: quoted }] }] } },
+          { id: "e2", type: "table", rows: [{ cells: [{ text: quoted }] }] },
+        ],
+      }],
+    };
+    expect(() => validateCanvasData("slides", validDeck)).not.toThrow();
+    // 実際の画像ソース・リンク URL への data: URL 埋め込みは引き続き拒否する。
+    expect(() => validateCanvasData("slides", { slides: [{ id: "s1", elements: [{ id: "e1", type: "image", src: quoted }] }] })).toThrow("Images must be uploaded");
+    expect(() => validateCanvasData("slides", {
+      slides: [{
+        id: "s1",
+        elements: [{
+          id: "e1",
+          type: "text",
+          doc: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "img", marks: [{ type: "link", attrs: { href: quoted } }] }] }] },
+        }],
+      }],
+    })).toThrow("Images must be uploaded");
+  });
 });

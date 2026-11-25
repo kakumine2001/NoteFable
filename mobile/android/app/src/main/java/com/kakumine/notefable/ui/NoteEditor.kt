@@ -981,8 +981,8 @@ fun NoteEditorScreen(
             }
             if (page != null && menu != null) {
                 Spacer(Modifier.width(8.dp))
-                // 幻灯片的"…"菜单多出放映和导出（交给网页做，文件再交回 App 保存）。
-                NotePageMenuButton(page, if (kind == PageKind.Slides) menu.withSlides(bridge::slides) else menu)
+                // 笔记和幻灯片的"…"菜单多出放映，幻灯片还多出导出（交给网页做，文件再交回 App 保存）。
+                NotePageMenuButton(page, if (supportsPresentation(kind)) menu.withSlides(bridge::slides) else menu)
             }
         }
         if (notice != null && !presenting) {

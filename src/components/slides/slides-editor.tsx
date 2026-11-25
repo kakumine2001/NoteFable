@@ -31,7 +31,7 @@ import { applyLayout, createSlide, LAYOUTS } from "@/lib/slides/layouts";
 import { normalizeDeck, SHAPE_KINDS, slideRows, SLIDE_HEIGHT, SLIDE_WIDTH, type Deck, type ImageElement, type LayoutId, type ShapeKind, type Slide, type SlideElement } from "@/lib/slides/model";
 import {
   addElements, cloneElements, clipboardPayload, CLIPBOARD_MIME, deleteElements, deleteSlides, duplicateSlides, groupElements, insertSlides, joinRowAt, moveSlides,
-  moveSlidesToRow, parseClipboard, renameRow, reorderElements, setHidden, startRowAt, ungroupElements, updateElements, updateSlide,
+  moveSlidesToRow, parseClipboard, renameRow, reorderElements, setHidden, setTransition, startRowAt, ungroupElements, updateElements, updateSlide,
 } from "@/lib/slides/ops";
 import { richDocFromText, richDocText } from "@/lib/slides/rich-text";
 import { SHAPE_LABELS, shapePath } from "@/lib/slides/shapes";
@@ -629,6 +629,7 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
         <MenuItem icon={<StickyNote size={16} />} label={t("Export PDF with speaker notes")} onClick={() => { close(); void runExport("pdf-notes"); }} />
         <MenuItem icon={<FileImage size={16} />} label={t("Export PNG images")} onClick={() => { close(); void runExport("png"); }} />
         <MenuItem icon={<Presentation size={16} />} label={t("Export PowerPoint (PPTX)")} onClick={() => { close(); void runExport("pptx"); }} />
+        <p className="slides-menu-note">{t("Slide transitions aren’t included in PPTX export.")}</p>
       </>}
     </MenuButton>
     <div className="slides-present">
@@ -646,9 +647,11 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   const sheetOpen = phone && view === "slide" && (liveSelection.size > 0 || inspectorOpen);
   useBackToClose(sheetOpen, () => { setInspectorOpen(false); setSelection(new Set()); });
   const textCommands = editingId ? commandsRef.current : null;
-  const inspector = current && view === "slide" ? <SlideInspector slide={current} selection={liveSelection} theme={theme} editable={editable}
+  const inspector = current && view === "slide" ? <SlideInspector slide={current} slideCount={deck.slides.length} selection={liveSelection} theme={theme} editable={editable}
     onChange={(next, merge) => commitSlide(next, merge)} onReplaceImage={(id) => requestImage(id)} onReportImage={(id) => setDialog({ kind: "report", target: id })}
     onDelete={deleteSelection} onLayout={setLayout} onToggleHidden={() => commit(setHidden(deck, new Set([current.id]), !current.hidden))}
+    onTransition={(transition) => commit(setTransition(deck, new Set([current.id]), transition))}
+    onApplyTransitionAll={(transition) => commit(setTransition(deck, new Set(deck.slides.map((entry) => entry.id)), transition))}
     onAskAi={onAskAi ? () => askAi() : undefined} /> : null;
 
   return <SlideRenderRoot theme={theme} mode="view">

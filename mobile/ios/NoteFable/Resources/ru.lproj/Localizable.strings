@@ -588,6 +588,7 @@
 "slides_export_pdf_notes" = "Экспорт в PDF с заметками докладчика";
 "slides_export_png" = "Экспорт в изображения PNG";
 "slides_export_pptx" = "Экспорт в PowerPoint (PPTX)";
+"slides_export_pptx_transition_note" = "Переходы между слайдами не сохраняются при экспорте в PPTX.";
 
 /* strings_turns.xml */
 "regenerate" = "Сгенерировать заново";

@@ -6,6 +6,7 @@ import { useI18n } from "@/components/i18n-provider";
 import { NotePageMenu } from "@/components/note-page-menu";
 import { NotesWorkspace } from "@/components/notes-workspace";
 import { localizeSystemText } from "@/lib/i18n/translate";
+import { dispatchSlidesCommand } from "@/lib/native-bridge";
 import { recentPages } from "@/lib/notes-home-text";
 import type { useNotePages } from "@/lib/use-note-pages";
 import { pageSettingsOf, type NotePageSummary } from "@/types/notes";
@@ -194,6 +195,7 @@ export function SplitNotePane({
               busy={notes.busy}
               error={notes.groupError}
               onSettings={(settings) => void notes.updateSettings(activeSummary.id, settings)}
+              onPresent={() => dispatchSlidesCommand({ action: "present" })}
               onFavorite={(favorite) => void notes.setFavorite(activeSummary.id, favorite)}
               onDuplicate={() => void notes.duplicate(activeSummary.id)}
               onAddSubpage={() => onCreateNote(activeSummary.id)}

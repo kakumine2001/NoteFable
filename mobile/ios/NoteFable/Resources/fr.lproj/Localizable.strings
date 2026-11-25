@@ -588,6 +588,7 @@
 "slides_export_pdf_notes" = "Exporter en PDF avec les notes du présentateur";
 "slides_export_png" = "Exporter en images PNG";
 "slides_export_pptx" = "Exporter vers PowerPoint (PPTX)";
+"slides_export_pptx_transition_note" = "Les transitions entre diapositives ne sont pas incluses dans l’exportation PPTX.";
 
 /* strings_turns.xml */
 "regenerate" = "Régénérer";
