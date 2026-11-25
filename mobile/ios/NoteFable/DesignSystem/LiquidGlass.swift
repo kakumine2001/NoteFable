@@ -34,7 +34,7 @@ enum NFGlassStyle {
 extension View {
     /// Applies iOS 26+ Liquid Glass (`Glass.regular` / `.clear`, optionally `.interactive()`),
     /// frosted material on iOS 17–18, or opaque `solidFill` when Reduce Transparency / `nfForceSolidChrome` is active.
-    func nfGlassBackground<S: Shape>(
+    func nfGlassBackground<S: InsettableShape>(
         _ style: NFGlassStyle = .regular,
         in shape: S,
         solidFill: Color = Sm.surface,
@@ -56,7 +56,7 @@ extension View {
         edge: VerticalEdge,
         alignment: HorizontalAlignment = .center,
         spacing: CGFloat? = 0,
-        @ViewBuilder content: () -> Bar
+        @ViewBuilder content: @escaping () -> Bar
     ) -> some View {
         modifier(NFFloatingBarModifier(edge: edge, alignment: alignment, spacing: spacing, bar: content))
     }
@@ -109,7 +109,7 @@ struct NFGlassContainer<Content: View>: View {
     }
 }
 
-private struct NFGlassBackgroundModifier<S: Shape>: ViewModifier {
+private struct NFGlassBackgroundModifier<S: InsettableShape>: ViewModifier {
     let style: NFGlassStyle
     let shape: S
     let solidFill: Color
