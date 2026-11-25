@@ -204,14 +204,15 @@ internal fun ActionsMenu(anchor: IntRect, label: String, onClose: () -> Unit, wi
 
 // .chat-menu-item（手机）：最小高 44、内边距 9.6×12、圆角 6.4、图标 16 + 间距 12、14/21；危险项红字。
 @Composable
-internal fun MenuItem(text: String, icon: List<String>, danger: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
+internal fun MenuItem(text: String, icon: List<String>, danger: Boolean = false, enabled: Boolean = true, spinning: Boolean = false, onClick: () -> Unit) {
     val color = if (danger) DangerRed else Sm.Text
     Row(
         Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(6.4.dp)).clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 9.6.dp).semantics { role = Role.Button },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        LucideIcon(icon, 16.dp, color)
+        // 进行中的操作（网页 aria-busy + 转圈的 LoaderCircle）。
+        if (spinning) Spinner(16.dp, color, strokeWidth = 2f) else LucideIcon(icon, 16.dp, color)
         Spacer(Modifier.width(12.dp))
         Text(text, color = color, fontSize = 14.sp, lineHeight = 21.sp)
     }

@@ -322,7 +322,9 @@ private fun AnswerMenu(state: AnswerMoreState, save: AnswerSave?, onSave: () -> 
             // 选了就开始，窗口里显示进度；同一条回答已有任务时重开那个任务。
             val drawDiagram = LocalAnswerDiagram.current
             if (drawDiagram != null && turn != null && !state.messageId.startsWith("local-")) {
-                MenuEntry(stringResource(R.string.diagram_draw), Lucide.Workflow) {
+                val jobs by drawDiagram.jobs.collectAsState()
+                val drawing = jobs[com.kakumine.notefable.data.DiagramSource.Answer(state.sessionId, state.messageId).key] is com.kakumine.notefable.data.DiagramJob.Working
+                MenuEntry(stringResource(if (drawing) R.string.diagram_working else R.string.diagram_draw), Lucide.Workflow, spinning = drawing) {
                     close()
                     drawDiagram.draw(state.sessionId, state.messageId)
                 }

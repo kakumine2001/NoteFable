@@ -144,7 +144,10 @@ private struct NotePageMenuContent: View {
         ActionsMenuItem(L("pg_duplicate"), icon: Lucide.copy, action: run(actions.onDuplicate))
         ActionsMenuItem(L("pg_add_page_inside"), icon: Lucide.filePlus2, action: run(actions.onAddInside))
         if notePageDrawable(page), let onDrawDiagram = actions.onDrawDiagram {
-            ActionsMenuItem(L("diagram_draw"), icon: Lucide.workflow, action: run(onDrawDiagram))
+            ActionsMenuItem(
+                L(actions.drawingDiagram ? "diagram_working" : "diagram_draw"), icon: Lucide.workflow,
+                isBusy: actions.drawingDiagram, action: run(onDrawDiagram)
+            )
         }
         ActionsMenuItem(L("pg_move_to"), icon: Lucide.folderInput, action: run(actions.onMove))
         if page.kind.features.markdownExport {

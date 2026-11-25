@@ -65,9 +65,12 @@ class NotePageMenuActions(
     val onSlides: ((String) -> Unit)? = null,
     /** 「画成图」（#153）：只给笔记（不给白板、幻灯片）。先存好这篇再开始，窗口在 NoteFableRoot。 */
     val onDrawDiagram: (() -> Unit)? = null,
+    /** 这篇的「画成图」正在画（网页的菜单项显示转圈和"正在画图…"）。 */
+    val drawingDiagram: Boolean = false,
 ) {
     fun withSlides(handler: (String) -> Unit) = NotePageMenuActions(
-        error, busy, onSettings, onFavorite, onDuplicate, onAddInside, onMove, onExport, onTrash, onSlides = handler, onDrawDiagram = onDrawDiagram,
+        error, busy, onSettings, onFavorite, onDuplicate, onAddInside, onMove, onExport, onTrash, onSlides = handler,
+        onDrawDiagram = onDrawDiagram, drawingDiagram = drawingDiagram,
     )
 }
 
@@ -144,7 +147,10 @@ fun NotePageMenuButton(page: NotePageSummary, actions: NotePageMenuActions) {
             MenuItem(stringResource(R.string.pg_add_page_inside), Lucide.FilePlus2, onClick = run(actions.onAddInside))
             val drawDiagram = actions.onDrawDiagram
             if (drawDiagram != null && page.kind == com.kakumine.notefable.data.PageKind.Note) {
-                MenuItem(stringResource(R.string.diagram_draw), Lucide.Workflow, onClick = run(drawDiagram))
+                MenuItem(
+                    stringResource(if (actions.drawingDiagram) R.string.diagram_working else R.string.diagram_draw),
+                    Lucide.Workflow, spinning = actions.drawingDiagram, onClick = run(drawDiagram),
+                )
             }
             MenuItem(stringResource(R.string.pg_move_to), Lucide.FolderInput, onClick = run(actions.onMove))
             if (features.markdownExport) MenuItem(stringResource(R.string.export_markdown), Lucide.Download, onClick = run(actions.onExport))

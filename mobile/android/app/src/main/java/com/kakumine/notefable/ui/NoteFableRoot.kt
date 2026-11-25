@@ -185,11 +185,16 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     // 「画成图」窗口开着的任务（DiagramSource.key）。任务本身在 App 级的 DiagramStore 里，进程重建后没了，窗口随之关掉。
     var diagramKey by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
     val diagrams = remember(app) { app.diagrams() }
+    // 笔记"…"的「画成图」项在画的期间显示转圈（网页同）。
+    val diagramJobs by diagrams.jobs.collectAsStateWithLifecycle()
     // 菜单选「画成图」时用当时选着的模型（和「整理成笔记」一样）。
     val currentModel by rememberUpdatedState(state.selectedModel?.id)
     val drawAnswerDiagram = remember(diagrams) {
-        AnswerDiagramLauncher { sessionId, messageId ->
-            diagramKey = diagrams.start(com.kakumine.notefable.data.DiagramSource.Answer(sessionId, messageId), currentModel)
+        object : AnswerDiagramLauncher {
+            override val jobs = diagrams.jobs
+            override fun draw(sessionId: String, messageId: String) {
+                diagramKey = diagrams.start(com.kakumine.notefable.data.DiagramSource.Answer(sessionId, messageId), currentModel)
+            }
         }
     }
     val onIdentityChanged = {
@@ -492,6 +497,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                             is EmbedMessage.Missing -> notesViewModel.onEditorMissing(editor)
                             EmbedMessage.Trashed -> notesViewModel.onEditorTrashed(editor)
                             is EmbedMessage.OpenPage -> notesViewModel.openNoteFromLink(message.id)
+                            EmbedMessage.PagesChanged -> notesViewModel.refresh()
                             is EmbedMessage.StorageLimit -> if (notesViewModel.state.value.open?.editor == editor) {
                                 noteStorageLimit = editor to StorageLimitInfo(message.tier, message.used, message.limit)
                             }
@@ -536,6 +542,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                                 }?.let { diagramKey = it }
                             }
                         },
+                        drawingDiagram = diagramJobs[com.kakumine.notefable.data.DiagramSource.Note(open.id).key] is com.kakumine.notefable.data.DiagramJob.Working,
                     ),
                     onShare = { dialog = NotesDialogState.Share(open.id, notes.pages.firstOrNull { it.id == open.id }?.kind ?: open.kind) },
                     prompt = noteStorageLimit?.takeIf { it.first == open.editor }?.let { (_, limit) ->

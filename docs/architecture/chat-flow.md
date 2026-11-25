@@ -557,7 +557,7 @@ AI 的 `search_notes` 工具（`src/lib/page-ai/tools.ts`）现在与站内搜�
 
 把一条回答或一篇笔记交给 AI 画成**可以编辑的图**，放进一个新白板（#153；图怎么变成白板元素见 [whiteboard.md](whiteboard.md#画成图ai-把回答或笔记画成可编辑的图153)）。
 
-- **入口**：聊天回答的 “…” 菜单（网页、Android、iOS；只对已经入库的回答、只在主聊天里，笔记 AI 面板里的回答没有）、笔记的 “…” 菜单（只对笔记，不对白板 / 幻灯片；三端），以及网页笔记 AI 面板的快捷按钮（App 里的面板在 WebView 里，同一个按钮）。点了立即开始，不先确认；弹出进度窗口（说明会画成新白板、计入 1 次聊天额度），可以关掉，任务继续；同一条回答 / 同一篇笔记再点会回到同一个任务，不会再发一次。完成后显示 **Open whiteboard**（App 的 WebView 里经桥接 `openPage` 打开，不在 WebView 里跳转），新白板加进侧栏 / 页面列表；失败显示原因和 Try again（同一个 `clientRequestId`），转换失败（422）时还能复制 Mermaid 原文。关掉已结束的窗口就忘掉这个任务，之后再点是新的任务。笔记的入口先保存正在编辑的内容（服务端读保存的正文），保存不了就提示、不开始。
+- **入口**：聊天回答的 “…” 菜单（网页、Android、iOS；只对已经入库的回答、只在主聊天里，笔记 AI 面板里的回答没有）、笔记的 “…” 菜单（只对笔记，不对白板 / 幻灯片；三端），以及网页笔记 AI 面板的快捷按钮（App 里的面板在 WebView 里，同一个按钮）。点了立即开始，不先确认；弹出进度窗口（说明会画成新白板、计入 1 次聊天额度），可以关掉，任务继续；同一条回答 / 同一篇笔记再点会回到同一个任务，不会再发一次。完成后显示 **Open whiteboard**（App 的 WebView 里经桥接 `openPage` 打开，不在 WebView 里跳转），新白板加进侧栏 / 页面列表（App 的 WebView 里画完时发桥接消息 `pagesChanged`，App 刷新笔记列表）；画的期间菜单项显示转圈和 “Drawing a diagram…”；失败显示原因和 Try again（同一个 `clientRequestId`），转换失败（422）时还能复制 Mermaid 原文。关掉已结束的窗口就忘掉这个任务，之后再点是新的任务。笔记的入口先保存正在编辑的内容（服务端读保存的正文），保存不了就提示、不开始。
 - **服务端**（`src/app/api/pages/diagram/route.ts`，`maxDuration = 300`）：
   1. body（最多 1 MiB）是 `{ source: "answer", messageId }` 或 `{ source: "note", pageId }`，加 `model?` 与必填的 `clientRequestId`（8〜64 个 `[A-Za-z0-9_-]`，客户端每个任务生成一次、重试也用同一个），否则 400。
   2. **防重复**（`src/lib/page-ai/one-shot.ts`）：新白板的 ID 由（用户、用途、`clientRequestId`）的 SHA-256 决定（cuid 的形）。先查这个 ID：已经有了就直接 200 `{ page }`（不计数、不再生成；在 Trash 里则 404 “This diagram was moved to the trash.”）。同一个请求同时到达两次时，后建的那次主键冲突（P2002），退还它的额度并返回先建的页面。所以响应丢了重发、双击都只建一页、只扣一次，不需要新表。

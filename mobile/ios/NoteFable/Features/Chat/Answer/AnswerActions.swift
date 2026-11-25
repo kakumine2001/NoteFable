@@ -143,7 +143,8 @@ struct AnswerActions: View {
         }
         if stored {
             // 「画成图」：马上开始并打开进度窗口（窗口挂在根上，状态在 `app.diagrams`）；同一条回答已有任务时只是重新打开窗口。
-            ActionsMenuItem(L("diagram_draw"), icon: Lucide.workflow) {
+            let drawing = app.diagrams.job(.answer(sessionId: sessionId, messageId: message.id)) == .working
+            ActionsMenuItem(L(drawing ? "diagram_working" : "diagram_draw"), icon: Lucide.workflow, isBusy: drawing) {
                 menuOpen = false
                 menuError = nil
                 router.drawDiagram(.answer(sessionId: sessionId, messageId: message.id))

@@ -12,7 +12,7 @@ import { scheduleNoteEmbeddingSync } from "@/lib/note-embeddings";
 import { PAGE_SUMMARY_SELECT } from "@/lib/note-tree-server";
 import { generateOneShotText, type OneShotTurn } from "@/lib/one-shot-model";
 import { aiRequestPageId, findRequestedPage, isClientRequestId, isDuplicateCreate, isRecordId, readAnswerMaterial, readNoteMaterial } from "@/lib/page-ai/one-shot";
-import { DIAGRAM_INSTRUCTIONS, DiagramSourceError, diagramRetryPrompt, diagramToWhiteboard, parseDiagramReply } from "@/lib/whiteboard/diagram";
+import { clipTitle, DIAGRAM_INSTRUCTIONS, DiagramSourceError, diagramRetryPrompt, diagramToWhiteboard, parseDiagramReply } from "@/lib/whiteboard/diagram";
 import { clientNetworkKey, consumeUsage, refundUsage, usageLimitResponse, type UsageTicket } from "@/lib/usage-limits";
 
 export const runtime = "nodejs";
@@ -128,7 +128,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: NOT_CONVERTED, code: "diagram_invalid", source: lastSource }, { status: 422 });
     }
 
-    const pageTitle = Array.from(title || material.title).slice(0, MAX_NOTE_TITLE).join("");
+    const pageTitle = clipTitle(title || material.title, MAX_NOTE_TITLE);
     const input = validateCanvasPage("whiteboard", { title: pageTitle, icon: null, data: scene.data });
     let page;
     try {

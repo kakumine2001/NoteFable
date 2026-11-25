@@ -386,6 +386,7 @@ final class NotesViewModel {
         case .missing: onEditorMissing(editor)
         case .trashed: onEditorTrashed(editor)
         case .openPage(let id): openNoteFromLink(id)
+        case .pagesChanged: refresh()
         case .storageLimit(let tier, let used, let limit):
             // 已经关掉或换走的编辑器晚到的消息不收。
             guard state.open?.editor == editor else { break }

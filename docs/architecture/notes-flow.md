@@ -257,6 +257,7 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 | `{type:"saveState", state}` | 保存状态变化：`saved` / `unsaved`（等待输入停止，网页显示 Saving…）/ `saving` / `error`（Not saved）/ `conflict` |
 | `{type:"missing", id?}` | 没有 `page` 参数，或页面不存在、不属于本人、在 Trash 里（404）；编辑中保存返回 404（别处已移入 Trash 或彻底删除）时也发，本地草稿保留。`id` 是找不到的那一篇（没有 `page` 参数时不带）：常驻 WebView 切页时，App 只认这次要打开的那一篇的 missing，上一篇晚到的不会关掉新的一篇（旧网页不带 `id`，App 照旧接受） |
 | `{type:"openPage", id}` | 正文里的页面提及被点了。App 用"从链接打开笔记"的同一入口（`openNoteFromLink`）打开那一页：先 flush、切到列表、刷新后笔记在就打开 |
+| `{type:"pagesChanged"}` | 网页新建了页面（笔记 AI 面板的“画成图”画好了白板）。App 刷新笔记列表（`refresh()`）；不认识的旧版 App 忽略 |
 | `{type:"flushed", requestId, ok, kept?}` | 对 `flush(requestId)` 的回复；`ok` 为 false 时带 `kept` |
 | `{type:"storageLimit", tier, used, limit}` | 编辑器里的图片、文件、封面、图标或 AI 面板的附件因存储空间不够被拒绝（`used` / `limit` 是字节）。只在 App 声明了 `window.NoteFableNative.canShowStorageLimit()` 时发；App 在编辑器上方显示与聊天相同的存储提示（登录 / 升级）。没有这个方法的旧版 App 不收到，网页在编辑器里只说明原因 |
 | `{type:"drawing", active}` | 白板正在用绘图工具（抓手以外）。App 据此避开系统的边缘返回手势（Android 每条边 200dp），旧版 App 忽略 |

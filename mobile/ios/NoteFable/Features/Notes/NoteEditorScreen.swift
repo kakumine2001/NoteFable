@@ -265,7 +265,8 @@ struct NoteEditorScreen: View {
             // 幻灯片的放映和导出（网页做，导出的文件再交回 App 保存）。
             onSlides: { command in notes.slidesCommand(command) },
             // 「画成图」：先让网页保存（服务端读已保存的正文），存不上就在顶栏下面提示、不开始；进度窗口挂在根上。
-            onDrawDiagram: { _ = router.drawDiagramFromNote(id) }
+            onDrawDiagram: { _ = router.drawDiagramFromNote(id) },
+            drawingDiagram: app.diagrams.job(.note(pageId: id)) == .working
         )
     }
 }

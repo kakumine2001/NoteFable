@@ -16,6 +16,12 @@ describe("parseDiagramReply", () => {
     expect(parseDiagramReply("mindmap\n  root((X))\n    A")).toEqual({ title: null, source: "mindmap\n  root((X))\n    A" });
   });
 
+  it("clips a long title by UTF-16 length without splitting an emoji", () => {
+    const title = parseDiagramReply(`# ${"🧪".repeat(150)}\n\`\`\`mermaid\nflowchart TD\n  A --> B\n\`\`\``).title!;
+    expect(title.length).toBeLessThanOrEqual(200);
+    expect(title).toBe("🧪".repeat(100));
+  });
+
   it("rejects an empty reply", () => {
     expect(() => parseDiagramReply("# Only a title")).toThrow(DiagramSourceError);
   });
@@ -101,8 +107,9 @@ describe("diagramToWhiteboard", () => {
   });
 
   it("drops unsafe links and text that would be rejected as an embedded image", async () => {
-    const { data } = await diagramToWhiteboard("flowchart TD\n  A[\"data:image/png,abc\"] --> B\n  click B \"javascript:alert(1)\"");
+    const { data } = await diagramToWhiteboard("flowchart TD\n  A[\"data:image/png,abc\"] --> B\n  click B \"https://phish.example\"\n  click A \"javascript:alert(1)\"");
     expect(() => validateCanvasData("whiteboard", data)).not.toThrow();
-    expect(elementsOf(data).some((element) => typeof element.link === "string" && element.link.startsWith("javascript"))).toBe(false);
+    // AI の図にはリンクを付けない（http の click も）。
+    expect(elementsOf(data).every((element) => element.link === null)).toBe(true);
   });
 });

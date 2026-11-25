@@ -201,7 +201,8 @@ describe("Draw as diagram window", () => {
     bridge.canOpen = true;
     dispatchEvent.mockClear();
     click(byLabel(dialog(true), "Open whiteboard"));
-    expect(bridge.posted).toEqual([{ type: "openPage", id: WHITEBOARD.id }]);
+    // 出来たときにアプリへ一覧の読み直しを頼み、「開く」でそのページを開いてもらう。
+    expect(bridge.posted).toEqual([{ type: "pagesChanged" }, { type: "openPage", id: WHITEBOARD.id }]);
     expect(dispatchEvent).not.toHaveBeenCalled();
   });
 

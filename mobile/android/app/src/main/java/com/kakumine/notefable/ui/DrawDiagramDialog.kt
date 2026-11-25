@@ -46,7 +46,9 @@ internal fun NoteFableApp.diagrams(): DiagramStore =
     diagramStore ?: DiagramStore(DiagramApi(api.httpClient, api::absoluteUrl), scope).also { diagramStore = it }
 
 /** 回答"…"里的「画成图」：开始（或重开）这条回答的任务并打开窗口。由 NoteFableRoot 在主聊天里提供（笔记 AI 面板的聊天在网页里，没有）。 */
-internal fun interface AnswerDiagramLauncher {
+internal interface AnswerDiagramLauncher {
+    /** 进行中的任务（菜单项显示"正在画图…"）。 */
+    val jobs: kotlinx.coroutines.flow.StateFlow<Map<String, com.kakumine.notefable.data.DiagramJob>>
     fun draw(sessionId: String, messageId: String)
 }
 

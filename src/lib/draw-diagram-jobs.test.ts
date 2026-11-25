@@ -88,6 +88,15 @@ describe("draw as diagram request", () => {
     expect(event.detail).toEqual(PAGE);
   });
 
+  it("asks the app to reload its page list when running inside the app's WebView", async () => {
+    const postMessage = vi.fn();
+    vi.stubGlobal("window", { dispatchEvent, NoteFableNative: { postMessage } });
+    startDiagramJob({ type: "note", pageId: NOTE_ID }, "luna");
+    pending[0].resolve(json(201, { page: { ...PAGE, parentId: NOTE_ID } }));
+    await settle();
+    expect(postMessage).toHaveBeenCalledWith(JSON.stringify({ type: "pagesChanged" }));
+  });
+
   it("retries a failed job with the same request id and model", async () => {
     startDiagramJob(ANSWER, "luna");
     pending[0].resolve(json(502, { error: "Could not draw a diagram. Try again." }));

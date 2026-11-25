@@ -22,6 +22,8 @@ struct NotePageMenuActions {
     var onSlides: ((String) -> Void)? = nil
     /// 「画成图」（放在"添加子页面"后面，只给笔记，[notePageDrawable]）。nil 时不显示。
     var onDrawDiagram: (() -> Void)? = nil
+    /// 这篇的「画成图」正在画（网页的菜单项显示转圈和"正在画图…"）。
+    var drawingDiagram = false
 }
 
 /// 菜单 "Style" 一栏的字体：[key] 是 NotePageSummary.font 的值，[label] 是文案的键。

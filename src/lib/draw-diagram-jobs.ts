@@ -1,4 +1,5 @@
 import { msg } from "@/lib/i18n/translate";
+import { postToNative } from "@/lib/native-bridge";
 import type { NotePageSummary } from "@/types/notes";
 
 // 「画成図」（Draw as diagram）：チャットの回答かノートを、AI が編集できる図にして新しいホワイトボードに置く（POST /api/pages/diagram）。
@@ -107,6 +108,8 @@ async function run(key: string, entry: Entry) {
     if (!update(key, entry, { status: "done", page, partial: body.partial === true })) return;
     // 一覧（サイドバー・ホーム）に加える。サーバーが返すのは一覧用の形（本体を含まない）。
     window.dispatchEvent(new CustomEvent("notefable:page-created", { detail: page }));
+    // アプリの WebView（/note-embed の AI パネル）では、アプリの一覧に知らせる（ブラウザーでは何もしない）。
+    postToNative({ type: "pagesChanged" });
   } catch {
     update(key, entry, { status: "error", message: FAILED, source: null });
   }
