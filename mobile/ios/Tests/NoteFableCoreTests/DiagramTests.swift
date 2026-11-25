@@ -410,32 +410,30 @@ final class DiagramRouterTests: XCTestCase {
         let requestId = try XCTUnwrap(request.json?["clientRequestId"]?.stringValue)
         XCTAssertTrue((8...64).contains(requestId.count))
         XCTAssertTrue(requestId.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") })
-        guard case let .done(page, partial)? = environment.diagrams.job(source) else {
+        guard case let .done(_, partial)? = environment.diagrams.job(source) else {
             return XCTFail("expected a finished job")
         }
         XCTAssertFalse(partial)
 
         // 已有任务时再点笔记菜单直接重开窗口，不重做保存（断网 / 保存冲突也能重开）。
-        router.closeDiagram()
-        XCTAssertEqual(router.diagramSource, nil)
-        // 把任务留在 done 状态测试（closeDiagram 会忘掉 done，所以先开一个进行中的任务测重开）。
-        let reopenedSource = DiagramSource.note(pageId: "n1")
-        await router.drawDiagramFromNote("n1").value
-        XCTAssertEqual(flushes, 3)
         environment.notes.flushEditor = {
             flushes += 1
             return FlushResult(false)
         }
-        // 任务已完成还未关窗口时再调 drawDiagramFromNote：直接重开，不触发 flush。
         await router.drawDiagramFromNote("n1").value
-        XCTAssertEqual(flushes, 3)
-        XCTAssertEqual(router.diagramSource, reopenedSource)
-        guard case let .done(reopenedPage, _)? = environment.diagrams.job(reopenedSource) else {
+        XCTAssertEqual(flushes, 2)
+        XCTAssertEqual(router.diagramSource, source)
+        guard case let .done(page, _)? = environment.diagrams.job(source) else {
             return XCTFail("expected a finished job")
         }
 
+        // 恢复可保存状态，再测试"打开白板"（切走当前笔记前会先 flush）。
+        environment.notes.flushEditor = {
+            flushes += 1
+            return FlushResult(true)
+        }
         // 打开白板：放进列表、展开那篇笔记、打开白板，窗口关掉并忘掉任务。
-        router.openDrawnDiagram(reopenedPage)
+        router.openDrawnDiagram(page)
         XCTAssertNil(router.diagramSource)
         XCTAssertNil(environment.diagrams.job(source))
         XCTAssertTrue(environment.notes.state.expanded.contains("n1"))
