@@ -109,8 +109,8 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   const [menu, setMenu] = useState<{ x: number; y: number; kind: "element" | "slide"; slideId?: string } | null>(null);
   const [notice, setNotice] = useState("");
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
+  // 書き出し中か（runExport だけが立て・下ろす。state の再描画を待たずに選区の撮影を止めるため ref でも持つ）。
   const exportingRef = useRef(false);
-  useLayoutEffect(() => { exportingRef.current = Boolean(exporting); }, [exporting]);
   const captureBusyRef = useRef(false);
   const captureJobRef = useRef<Promise<Blob | null> | null>(null);
   const [notesOpen, setNotesOpen] = useState(true);
@@ -425,7 +425,7 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     if (!deck.slides.length || (format !== "pptx" && !deck.slides.some((slide) => !slide.hidden))) { setNotice(t("This deck has no slides to show.")); return; }
     // 書き出しを始めた時点のページの番号。読み込みを待つ間にアプリが別のページへ切り替えたら、前のページのファイルを渡さない。
     const exportEpoch = getNativeExportEpoch();
-    // 新しい選区の撮影を始めさせない（ref は次の描画を待たずにすぐ立てる）。
+    // 新しい選区の撮影を始めさせない（次の描画を待たずにすぐ立て、finally で下ろす）。
     exportingRef.current = true;
     setExporting(format);
     setNotice("");
@@ -445,7 +445,7 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
       if (exportEpoch !== getNativeExportEpoch()) return;
       setNotice(caught instanceof Error && caught.message ? caught.message : t("Could not export the slides."));
     }
-    finally { setExporting(null); }
+    finally { exportingRef.current = false; setExporting(null); }
   };
   const present = (from: "start" | "current") => {
     setEditing(null);
