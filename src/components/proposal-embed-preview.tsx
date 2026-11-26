@@ -14,15 +14,15 @@ export function ProposalEmbedPreview({ proposalId }: { proposalId: string }) {
   const [meta, setMeta] = useState<ProposalContentPayload | null>(null);
   const [notFound, setNotFound] = useState(false);
 
-  const handleLoaded = useCallback((result: { before: ProposalContentPayload | null; after: ProposalContentPayload | null }) => {
+  const handleLoaded = useCallback((result: { before: ProposalContentPayload | null; after: ProposalContentPayload | null; notFound: boolean }) => {
     const primary = result.after ?? result.before;
-    if (!primary) {
+    if (result.notFound) {
       setNotFound(true);
       setMeta(null);
       return;
     }
     setNotFound(false);
-    setMeta(primary);
+    if (primary) setMeta(primary);
   }, []);
 
   const badge = meta?.status === "applied"

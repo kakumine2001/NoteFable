@@ -557,13 +557,26 @@ export function useNotePages(
       const queue = queues.current.get(page.id);
       // 遅れて届いた古い版（自動適用の読み直しが前後したときなど）で、新しい版を古い版へ戻さない。
       if (!queue || page.version <= queue.version) return;
-      if (!queue.dirty && queue.status !== "saving") {
+      // 開いているホワイトボード等に 400ms 待ちの未提出ストローク・ドラッグがあれば、先に同期でキューへ渡してから判定する。
+      // そうしないと、エディターの再マウント時の unmount flush が古い画布を新しい版へ上書きして AI 編集を消してしまう。
+      const hasPendingEditorWork = displayedId.current === page.id && flushCanvasEditorsSync(page.id);
+      if (!hasPendingEditorWork && !queue.dirty && queue.status !== "saving") {
         // ホワイトボード・スライドで本体（data）の無い応答が届いたら、古い本体と新しい版を組み合わせない（別のタブの保存を上書きさせる）。
         // 読み直してから替える。
         if (isCanvasKind(pageKindOf(page.kind ? page : queue.page)) && page.data === undefined) {
           void pageRequest(`/api/pages/${page.id}`).then((data) => {
             const current = queues.current.get(page.id);
-            if (!current || current.dirty || current.status === "saving" || data.page.version <= current.version) return;
+            if (!current || data.page.version <= current.version) return;
+            const pendingNow = displayedId.current === page.id && flushCanvasEditorsSync(page.id);
+            if (pendingNow || current.dirty || current.status === "saving") {
+              if (current.status !== "saving") {
+                current.status = "conflict";
+                current.latest = data.page;
+                current.error = msg("This note was changed from the chat. Save a copy or load the latest version.");
+                refresh((value) => value + 1);
+              }
+              return;
+            }
             current.loadLatest(data.page);
             if (displayedId.current === page.id) setEditorEpoch((value) => value + 1);
           }).catch(() => { /* 次に開いた時に読み直す。 */ });
@@ -571,7 +584,7 @@ export function useNotePages(
         }
         queue.loadLatest(page);
         if (displayedId.current === page.id) setEditorEpoch((value) => value + 1);
-      } else {
+      } else if (queue.status !== "saving") {
         // 未保存の編集は消さず、衝突として知らせる。
         queue.status = "conflict";
         queue.latest = page;

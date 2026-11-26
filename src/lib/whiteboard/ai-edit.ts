@@ -369,6 +369,60 @@ function removeBoundRefs(el: WhiteboardElement, removedIds: ReadonlySet<string>)
   el.boundElements = filtered.length ? filtered : null;
 }
 
+const TEXT_CONTAINER_TYPES = new Set(["rectangle", "ellipse", "diamond", "stickynote", "arrow"]);
+
+function fitBoundLabel(
+  target: WhiteboardElement,
+  bound: WhiteboardElement,
+  text: string,
+  fontSize: number,
+  movedIds: Set<string>,
+  obstacles?: readonly Box[],
+) {
+  const textMeasured = measureBox("text", text || " ", fontSize);
+  bound.text = textMeasured.wrapped;
+  bound.originalText = text;
+  bound.fontSize = fontSize;
+  bound.width = textMeasured.width;
+  bound.height = textMeasured.height;
+  bound.textAlign = "center";
+  bound.verticalAlign = "middle";
+
+  if (target.type !== "arrow") {
+    const shapeKind: AiShapeType = (AI_SHAPE_TYPES as readonly string[]).includes(target.type) ? target.type as AiShapeType : "rectangle";
+    const shapeMeasured = measureBox(shapeKind, text, fontSize);
+    let grew = false;
+    const prevW = typeof target.width === "number" ? target.width : 0;
+    const prevH = typeof target.height === "number" ? target.height : 0;
+    if (shapeMeasured.width > prevW) {
+      target.width = shapeMeasured.width;
+      grew = true;
+    }
+    if (shapeMeasured.height > prevH) {
+      target.height = shapeMeasured.height;
+      grew = true;
+    }
+    if (grew) {
+      movedIds.add(target.id);
+      if (obstacles && obstacles.length && mindmapDataOf(target.customData)?.role !== "node") {
+        const grownBox = elementBounds(target);
+        if (obstacles.some((box) => boxesOverlap(grownBox, box, 12))) {
+          const pos = findFreePosition({ x: grownBox.x, y: grownBox.y }, { width: grownBox.width, height: grownBox.height }, obstacles, "right");
+          target.x = pos.x;
+          target.y = pos.y;
+        }
+      }
+    }
+    const box = elementBounds(target);
+    bound.x = Math.round(box.x + (box.width - textMeasured.width) / 2);
+    bound.y = Math.round(box.y + (box.height - textMeasured.height) / 2);
+  } else {
+    const box = elementBounds(target);
+    bound.x = Math.round(box.x + (box.width - textMeasured.width) / 2);
+    bound.y = Math.round(box.y + (box.height - textMeasured.height) / 2);
+  }
+}
+
 function bindArrowEndpoints(arrow: WhiteboardElement, from: WhiteboardElement, to: WhiteboardElement) {
   const geom = computeArrowGeometry(elementBounds(from), elementBounds(to));
   arrow.x = geom.x;
@@ -376,8 +430,8 @@ function bindArrowEndpoints(arrow: WhiteboardElement, from: WhiteboardElement, t
   arrow.width = geom.width;
   arrow.height = geom.height;
   arrow.points = geom.points;
-  arrow.startBinding = { elementId: from.id, focus: 0, gap: EDGE_GAP, fixedPoint: geom.startFixedPoint };
-  arrow.endBinding = { elementId: to.id, focus: 0, gap: EDGE_GAP, fixedPoint: geom.endFixedPoint };
+  arrow.startBinding = { elementId: from.id, fixedPoint: geom.startFixedPoint, mode: "orbit" };
+  arrow.endBinding = { elementId: to.id, fixedPoint: geom.endFixedPoint, mode: "orbit" };
   addBoundRef(from, { id: arrow.id, type: "arrow" });
   addBoundRef(to, { id: arrow.id, type: "arrow" });
 }
@@ -1104,26 +1158,18 @@ export function applyWhiteboardEdits(
             changed = true;
           }
         } else {
-          // Shape / stickynote / arrow with bound text.
+          // Only shapes, sticky notes and arrows can hold a bound text label in Excalidraw.
+          if (!TEXT_CONTAINER_TYPES.has(target.type)) {
+            throw new WhiteboardEditError(`Operation #${i + 1} (update_element): element type "${target.type}" cannot hold a bound text label.`);
+          }
           const bound = elements.find((item) => item.isDeleted !== true && item.type === "text" && item.containerId === target.id);
           const fSize = fontSizePx(op.fontSize, typeof bound?.fontSize === "number" ? bound.fontSize : target.type === "stickynote" ? 18 : 20);
+          const obstacles = liveElements()
+            .filter((el) => el.id !== target.id && el.type !== "frame" && el.type !== "arrow" && el.type !== "line" && !(el.type === "text" && el.containerId))
+            .map(elementBounds);
           if (bound) {
             if (prevText !== nextText) {
-              const shapeKind: AiShapeType = (AI_SHAPE_TYPES as readonly string[]).includes(target.type) ? target.type as AiShapeType : "rectangle";
-              const measured = measureBox(shapeKind, nextText, fSize);
-              bound.text = measured.wrapped;
-              bound.originalText = nextText;
-              bound.fontSize = fSize;
-              if (target.type !== "arrow" && target.type !== "line") {
-                if (typeof target.width === "number" && measured.width > target.width) {
-                  target.width = measured.width;
-                  movedIds.add(target.id);
-                }
-                if (typeof target.height === "number" && measured.height > target.height) {
-                  target.height = measured.height;
-                  movedIds.add(target.id);
-                }
-              }
+              fitBoundLabel(target, bound, nextText, fSize, movedIds, obstacles);
               beforeSummary.push(prevText || "(empty)");
               afterSummary.push(nextText || "(empty)");
               changed = true;
@@ -1133,8 +1179,8 @@ export function applyWhiteboardEdits(
             const [createdText] = convertSkeletons([{
               id: textId,
               type: "text",
-              x: (typeof target.x === "number" ? target.x : 0) + 10,
-              y: (typeof target.y === "number" ? target.y : 0) + 10,
+              x: typeof target.x === "number" ? target.x : 0,
+              y: typeof target.y === "number" ? target.y : 0,
               text: nextText,
               fontSize: fSize,
               fontFamily: NUNITO_FONT_FAMILY,
@@ -1145,6 +1191,7 @@ export function applyWhiteboardEdits(
             }]);
             createdText.containerId = target.id;
             if (typeof target.frameId === "string") createdText.frameId = target.frameId;
+            fitBoundLabel(target, createdText, nextText, fSize, movedIds, obstacles);
             addBoundRef(target, { id: textId, type: "text" });
             elements.push(createdText);
             beforeSummary.push("(empty)");
@@ -1197,7 +1244,24 @@ export function applyWhiteboardEdits(
           ? target
           : elements.find((item) => item.isDeleted !== true && item.type === "text" && item.containerId === target.id);
         if (textTarget && textTarget.fontSize !== px) {
-          textTarget.fontSize = px;
+          const currentText = typeof textTarget.originalText === "string" ? textTarget.originalText : typeof textTarget.text === "string" ? textTarget.text : "";
+          if (target.type === "text") {
+            const measured = measureBox("text", currentText || " ", px);
+            textTarget.fontSize = px;
+            textTarget.text = measured.wrapped;
+            textTarget.width = measured.width;
+            textTarget.height = measured.height;
+          } else {
+            const obstacles = liveElements()
+              .filter((el) => el.id !== target.id && el.type !== "frame" && el.type !== "arrow" && el.type !== "line" && !(el.type === "text" && el.containerId))
+              .map(elementBounds);
+            fitBoundLabel(target, textTarget, currentText, px, movedIds, obstacles);
+            const mm = mindmapDataOf(target.customData);
+            if (mm?.role === "node") {
+              const found = mindmapFinder(elements as unknown as SceneElement[])(target.id);
+              if (found) relayoutRoots.add(found.tree.root.id);
+            }
+          }
           afterSummary.push(`size: ${op.fontSize}`);
           changed = true;
         }
@@ -1313,6 +1377,9 @@ export function applyWhiteboardEdits(
         const el = resolveContainer(rawId.trim());
         if (!el) throw new WhiteboardEditError(`Operation #${i + 1} (set_frame): element "${rawId}" not found.`);
         if (el.type === "frame") throw new WhiteboardEditError(`Operation #${i + 1} (set_frame): cannot place frame "${rawId}" inside another frame.`);
+        if (mindmapDataOf(el.customData)?.role === "node" || mindmapDataOf(el.customData)?.role === "edge") {
+          throw new WhiteboardEditError(`Operation #${i + 1} (set_frame): mind-map elements are laid out as a tree and cannot be moved individually into or out of frames.`);
+        }
         if (!seen.has(el.id)) {
           seen.add(el.id);
           targets.push(el);
@@ -1400,6 +1467,9 @@ export function applyWhiteboardEdits(
         }
       }
       if (!targets.length) throw new WhiteboardEditError(`Operation #${i + 1} (arrange): no arrangeable elements found.`);
+      if (targets.some((el) => mindmapDataOf(el.customData)?.role === "node")) {
+        throw new WhiteboardEditError(`Operation #${i + 1} (arrange): mind-map nodes are automatically laid out as a tree and cannot be rearranged individually.`);
+      }
       if (targets.some((el) => el.locked === true)) {
         throw new WhiteboardEditError(`Operation #${i + 1} (arrange): one or more selected elements are locked.`);
       }

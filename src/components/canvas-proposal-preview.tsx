@@ -49,41 +49,51 @@ export function CanvasProposalPreview({
   proposalKind?: "proposal" | "create_proposal";
   status?: string;
   mode?: "card" | "embed";
-  onLoaded?: (result: { before: ProposalContentPayload | null; after: ProposalContentPayload | null }) => void;
+  onLoaded?: (result: { before: ProposalContentPayload | null; after: ProposalContentPayload | null; notFound: boolean }) => void;
 }) {
   const t = useT();
   const [before, setBefore] = useState<SideState>({ state: "loading" });
   const [after, setAfter] = useState<SideState>({ state: "loading" });
   const [tab, setTab] = useState<"compare" | "before" | "after">("compare");
   const [reloadTick, setReloadTick] = useState(0);
+  // 中間状態（applying 等）で不要な再取得・ちらつきを起こさないよう、確定状態が変わった時だけ再取得する。
+  const settledStatus = status === "pending" || status === "applied" || status === "discarded" || status === "undone" ? status : "stable";
 
   const load = useCallback(async (signal: AbortSignal) => {
     setBefore({ state: "loading" });
     setAfter({ state: "loading" });
-    const fetchSide = async (side: "before" | "after"): Promise<ProposalContentPayload | null> => {
-      const response = await fetch(`/api/proposals/${encodeURIComponent(proposalId)}/content?side=${side}`, {
-        cache: "no-store",
-        signal,
-      });
-      if (!response.ok) return null;
-      return (await response.json()) as ProposalContentPayload;
+    const fetchSide = async (side: "before" | "after"): Promise<{ payload: ProposalContentPayload | null; status: number }> => {
+      try {
+        const response = await fetch(`/api/proposals/${encodeURIComponent(proposalId)}/content?side=${side}`, {
+          cache: "no-store",
+          signal,
+        });
+        if (!response.ok) return { payload: null, status: response.status };
+        return { payload: (await response.json()) as ProposalContentPayload, status: response.status };
+      } catch {
+        return { payload: null, status: 0 };
+      }
     };
 
     const [beforeResult, afterResult] = await Promise.all([
-      fetchSide("before").catch(() => null),
-      fetchSide("after").catch(() => null),
+      fetchSide("before"),
+      fetchSide("after"),
     ]);
     if (signal.aborted) return;
-    setBefore(beforeResult ? { state: "loaded", payload: beforeResult } : { state: "error" });
-    setAfter(afterResult ? { state: "loaded", payload: afterResult } : { state: "error" });
-    onLoaded?.({ before: beforeResult, after: afterResult });
+    setBefore(beforeResult.payload ? { state: "loaded", payload: beforeResult.payload } : { state: "error" });
+    setAfter(afterResult.payload ? { state: "loaded", payload: afterResult.payload } : { state: "error" });
+    onLoaded?.({
+      before: beforeResult.payload,
+      after: afterResult.payload,
+      notFound: beforeResult.status === 404 && afterResult.status === 404,
+    });
   }, [proposalId, onLoaded]);
 
   useEffect(() => {
     const controller = new AbortController();
     queueMicrotask(() => { void load(controller.signal); });
     return () => controller.abort();
-  }, [load, status, reloadTick]);
+  }, [load, settledStatus, reloadTick]);
 
   const resolvedKind: CanvasKind =
     (after.state === "loaded" ? after.payload.pageKind : undefined)

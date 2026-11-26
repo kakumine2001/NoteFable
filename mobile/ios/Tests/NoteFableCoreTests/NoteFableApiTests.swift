@@ -306,7 +306,7 @@ final class NoteFableApiTests: XCTestCase {
     func testProposalPreviewURLBuildsStaticEmbedQuery() {
         let api = makeApi(FakeTransport())
         let url = api.proposalPreviewUrl(proposalId: "prop 1", lang: "ja", theme: "dark")
-        XCTAssertEqual(url, "https://app.notefable.test/note-embed?proposal=prop%201&lang=ja&theme=dark")
+        XCTAssertEqual(url, "https://notefable.test/note-embed?proposal=prop%201&lang=ja&theme=dark")
     }
 }
 

@@ -354,4 +354,57 @@ describe("applyWhiteboardEdits", () => {
       applyWhiteboardEdits(nearLimit, [{ op: "add_element", elementType: "rectangle", text: "overflow" }], seqId()),
     ).toThrow(/20,000-element/);
   });
+
+  it("rejects breaking mind-map trees in arrange and set_frame", async () => {
+    const mm = (await diagramToWhiteboard("mindmap\n  root((Root))\n    A\n      A1\n    B")).data;
+    const nodeIds = mm.elements
+      .filter((el) => (el.customData as { notefableMindmap?: { role?: string } } | undefined)?.notefableMindmap?.role === "node")
+      .map((el) => el.id);
+    expect(nodeIds.length).toBeGreaterThanOrEqual(3);
+    expect(() => applyWhiteboardEdits(mm, [{ op: "arrange", elementIds: nodeIds.slice(1), layout: "row" }], seqId())).toThrow(/mind-map/i);
+    expect(() => applyWhiteboardEdits(mm, [{ op: "set_frame", elementIds: [nodeIds[1]], frameId: null }], seqId())).toThrow(/mind-map/i);
+  });
+
+  it("refits and centers bound labels on text or fontSize updates, rejects non-container labels, and uses orbit arrow bindings", () => {
+    const created = buildStructuredWhiteboard({
+      items: [
+        { ref: "a", type: "rectangle", text: "A" },
+        { ref: "b", type: "rectangle", text: "B" },
+        { ref: "t", type: "text", text: "Free note" },
+      ],
+      connections: [{ fromRef: "a", toRef: "b" }],
+    }, seqId()).data;
+    const arrow = created.elements.find((el) => el.type === "arrow")!;
+    expect(arrow.startBinding).toMatchObject({ mode: "orbit" });
+    expect(arrow.endBinding).toMatchObject({ mode: "orbit" });
+
+    const rectA = created.elements.find((el) => el.type === "rectangle")!;
+    const freeText = created.elements.find((el) => el.type === "text" && !el.containerId)!;
+    const prevTextHeight = Number(freeText.height);
+    const updated = applyWhiteboardEdits(created, [
+      { op: "update_element", elementId: rectA.id, text: "Line one\nLine two\nLine three\nLine four", fontSize: "xl" },
+      { op: "update_element", elementId: freeText.id, fontSize: "xl" },
+    ], seqId()).data;
+
+    const nextRect = updated.elements.find((el) => el.id === rectA.id)!;
+    const nextLabel = updated.elements.find((el) => el.type === "text" && el.containerId === rectA.id)!;
+    expect(Number(nextLabel.height)).toBeGreaterThan(80);
+    const rectCenterY = Number(nextRect.y) + Number(nextRect.height) / 2;
+    const labelCenterY = Number(nextLabel.y) + Number(nextLabel.height) / 2;
+    expect(Math.abs(rectCenterY - labelCenterY)).toBeLessThanOrEqual(2);
+
+    const nextFreeText = updated.elements.find((el) => el.id === freeText.id)!;
+    expect(Number(nextFreeText.height)).toBeGreaterThan(prevTextHeight);
+
+    const withLine = {
+      ...updated,
+      elements: [
+        ...updated.elements,
+        { id: "line-1", type: "line", x: 0, y: 0, width: 100, height: 0, points: [[0, 0], [100, 0]] },
+      ],
+    };
+    expect(() =>
+      applyWhiteboardEdits(withLine, [{ op: "update_element", elementId: "line-1", text: "Not allowed" }], seqId()),
+    ).toThrow(/cannot hold a bound text label/);
+  });
 });
