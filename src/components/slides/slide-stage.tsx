@@ -5,8 +5,8 @@ import { useT } from "@/components/i18n-provider";
 import { ElementContent, elementBoxStyle, SlideSurface, textStyleCss, useSlideRender } from "@/components/slides/slide-render";
 import { SlideTextEditor, type TextCommands } from "@/components/slides/text-editor";
 import {
-  elementsBounds, expandGroups, HANDLES, intersects, lineEndpoints, lineFromEndpoints, resizeFrame, rotatedBounds, rotationFor, snapBox,
-  type Box, type Guide, type Handle,
+  applyGeometryPatches, elementsBounds, expandGroups, geometryPatch, HANDLES, intersects, lineEndpoints, lineFromEndpoints, resizeFrame, rotatedBounds, rotationFor, snapBox,
+  type Box, type GeometryPatch, type Guide, type Handle,
 } from "@/lib/slides/geometry";
 import { SLIDE_HEIGHT, SLIDE_WIDTH, type ShapeElement, type Slide, type SlideElement, type TableElement, type TextElement } from "@/lib/slides/model";
 import { richDocFromText, type RichDoc } from "@/lib/slides/rich-text";
@@ -14,6 +14,7 @@ import { resolveColor } from "@/lib/slides/themes";
 
 // 1 枚を編集する面：選ぶ・動かす・大きさを変える・回す・吸着・範囲選択・文字と表の編集。
 // 動かしている間は下書き（draft）だけを描き、指を離したときに 1 回だけ onCommit する（取り消し 1 回で戻る）。
+// 下書きは位置・大きさ・向きの差分だけ。描くときも確定するときも最新の要素に重ねるので、動かしている間に届いた AI の画像なども消えない。
 
 type Drag =
   | { kind: "move"; startX: number; startY: number; start: Map<string, SlideElement>; others: Box[]; moved: boolean }
@@ -136,10 +137,12 @@ export function SlideStage({
   const container = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.4);
-  const [draft, setDraftState] = useState<Map<string, SlideElement> | null>(null);
+  const [draft, setDraftState] = useState<Map<string, GeometryPatch> | null>(null);
   // 指を離したときに読む、いまの下書き（state の更新関数の中で保存を呼ばないため）。
-  const draftRef = useRef<Map<string, SlideElement> | null>(null);
-  const setDraft = (next: Map<string, SlideElement> | null) => { draftRef.current = next; setDraftState(next); };
+  const draftRef = useRef<Map<string, GeometryPatch> | null>(null);
+  const setDraft = (next: Map<string, GeometryPatch> | null) => { draftRef.current = next; setDraftState(next); };
+  // ドラッグを始めたときの要素（start）と、いまの形（next）から下書きを作る。
+  const draftOf = (pairs: [start: SlideElement, next: SlideElement][]) => new Map(pairs.map(([start, next]) => [start.id, geometryPatch(start, next)]));
   const [guides, setGuides] = useState<Guide[]>([]);
   const [marquee, setMarquee] = useState<Box | null>(null);
   const drag = useRef<Drag | null>(null);
@@ -164,7 +167,7 @@ export function SlideStage({
     if (stageRef) stageRef.current = { focus: () => container.current?.focus({ preventScroll: true }) };
   }, [stageRef]);
 
-  const rendered = useMemo(() => (draft ? { ...slide, elements: slide.elements.map((element) => draft.get(element.id) ?? element) } : slide), [slide, draft]);
+  const rendered = useMemo(() => (draft ? { ...slide, elements: applyGeometryPatches(slide.elements, draft) } : slide), [slide, draft]);
   const selectedElements = rendered.elements.filter((element) => selection.has(element.id));
   const units = useMemo(() => {
     const keys = new Set(selectedElements.map((element) => element.group ? `g:${element.group}` : `e:${element.id}`));
@@ -186,13 +189,9 @@ export function SlideStage({
     const pending = draftRef.current;
     setDraft(null);
     if (!current || !commit || !pending?.size || current.kind === "marquee") return;
-    const changed = [...pending.values()].some((element) => {
-      const before = slide.elements.find((entry) => entry.id === element.id);
-      return before && (before.x !== element.x || before.y !== element.y || before.w !== element.w || before.h !== element.h || before.rotation !== element.rotation
-        || (before.type === "text" && element.type === "text" && before.autoHeight !== element.autoHeight)
-        || (before.type === "line" && element.type === "line" && (before.flipH !== element.flipH || before.flipV !== element.flipV)));
-    });
-    if (changed) onCommit({ ...slide, elements: slide.elements.map((element) => pending.get(element.id) ?? element) });
+    // 最新の要素（slide）に、ドラッグで変えた値だけを重ねる。
+    const elements = applyGeometryPatches(slide.elements, pending);
+    if (elements !== slide.elements) onCommit({ ...slide, elements });
   }
 
   function onPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
@@ -281,12 +280,12 @@ export function SlideStage({
         found = snap.guides;
       }
       setGuides(found);
-      setDraft(new Map([...current.start.values()].map((element) => [element.id, { ...element, x: round(element.x + dx), y: round(element.y + dy) }])));
+      setDraft(draftOf([...current.start.values()].map((element) => [element, { ...element, x: round(element.x + dx), y: round(element.y + dy) }])));
       return;
     }
     if (current.kind === "rotate") {
       const rotation = rotationFor(current.element, point.x, point.y, event.shiftKey);
-      setDraft(new Map([[current.element.id, { ...current.element, rotation }]]));
+      setDraft(draftOf([[current.element, { ...current.element, rotation }]]));
       return;
     }
     if (current.kind === "point" && current.element.type === "line") {
@@ -301,7 +300,7 @@ export function SlideStage({
         y = fixed.y + Math.sin(angle) * length;
       }
       const box = current.end === "p1" ? lineFromEndpoints(x, y, fixed.x, fixed.y) : lineFromEndpoints(fixed.x, fixed.y, x, y);
-      setDraft(new Map([[current.element.id, { ...current.element, ...box }]]));
+      setDraft(draftOf([[current.element, { ...current.element, ...box }]]));
       return;
     }
     if (current.kind === "resize") {
@@ -314,7 +313,7 @@ export function SlideStage({
         const frameNext = resizeFrame(element, current.handle, dx, dy, keepRatio);
         // 高さを手で変えた文字枠は、中身に合わせた自動の高さをやめる。
         const fixedHeight = element.type === "text" && element.autoHeight && (current.handle.includes("n") || current.handle.includes("s")) ? { autoHeight: false } : {};
-        setDraft(new Map([[element.id, { ...element, ...frameNext, ...fixedHeight } as SlideElement]]));
+        setDraft(draftOf([[element, { ...element, ...frameNext, ...fixedHeight } as SlideElement]]));
         return;
       }
       // 複数（またはグループ）：囲む箱ごと拡大縮小する。
@@ -322,7 +321,7 @@ export function SlideStage({
       const next = resizeFrame({ ...box, rotation: 0 }, current.handle, dx, dy, event.shiftKey || corner);
       const sx = box.w ? next.w / box.w : 1;
       const sy = box.h ? next.h / box.h : 1;
-      setDraft(new Map([...current.start.values()].map((element) => [element.id, {
+      setDraft(draftOf([...current.start.values()].map((element) => [element, {
         ...element, x: round(next.x + (element.x - box.x) * sx), y: round(next.y + (element.y - box.y) * sy), w: round(element.w * sx), h: round(element.h * sy),
       }])));
     }

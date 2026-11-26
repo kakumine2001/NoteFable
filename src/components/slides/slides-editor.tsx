@@ -28,6 +28,7 @@ import { useBackToClose } from "@/lib/use-back-to-close";
 import { hasWhiteboardFrameProvider, renderWhiteboardFramePicker, subscribeWhiteboardFrameProvider } from "@/lib/slides/whiteboard-embed";
 import { applyGeneratedSlideImage, clearPendingSlideImages, pendingSlideImageTasks } from "@/lib/slides/ai-build";
 import { createImageElement, createLineElement, createShapeElement, createTableElement, createTextElement, createWhiteboardElement } from "@/lib/slides/factory";
+import { clipboardSource, editorKeyScope, inSlideList } from "@/lib/slides/editor-keys";
 import { expandGroups } from "@/lib/slides/geometry";
 import { uploadSlideImage, SLIDE_IMAGE_TYPES, type SlideImage } from "@/lib/slides/images";
 import { applyLayout, createSlide, LAYOUTS } from "@/lib/slides/layouts";
@@ -184,9 +185,9 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   // 今の枚が消えた（取り消し・別の操作）ら、近くの枚へ。
   const currentIndex = Math.max(0, deck.slides.findIndex((slide) => slide.id === currentId));
   const current: Slide | null = deck.slides[currentIndex] ?? null;
-  // 選んでいる要素のうち、今の枚に無いものは外す。
-  const liveSelection = useMemo(() => new Set([...selection].filter((id) => current?.elements.some((element) => element.id === id))), [selection, current]);
-  const editingId = editable && editing && current?.elements.some((element) => element.id === editing.id) ? editing.id : null;
+  // 選んでいる要素のうち、今の枚に無いものは外す。総覧ではスライドの面が見えないので、要素は選んでいないことにする。
+  const liveSelection = useMemo(() => new Set(view === "slide" ? [...selection].filter((id) => current?.elements.some((element) => element.id === id)) : []), [selection, current, view]);
+  const editingId = editable && view === "slide" && editing && current?.elements.some((element) => element.id === editing.id) ? editing.id : null;
 
   const commitSlide = useCallback((next: Slide, merge?: string) => {
     if (!current) return;
@@ -322,8 +323,13 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     const hide = deck.slides.some((slide) => targets.has(slide.id) && !slide.hidden);
     commit(setHidden(deck, targets, hide));
   };
+  // 総覧へ切り替えるときは要素の選択・文字の編集を外す（見えない要素に Delete などが効かないように）。
+  const showGrid = () => { setSelection(new Set()); setEditing(null); setView("grid"); };
+  // 枚を選んだら要素の選択は外す（縮小図の一覧で押したキーが、前に選んだ要素に効かないように）。
   const selectSlide = (id: string, mode: SelectMode) => {
     if (mode === "single") { openSlide(id); return; }
+    setSelection(new Set());
+    setEditing(null);
     setSelectedSlides((currentSet) => {
       if (mode === "toggle") {
         const next = new Set(currentSet);
@@ -418,16 +424,18 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
 
   // ---- クリップボード ----
   // 写すもの（選んだ要素、または縮小図の一覧で選んだ枚）を作る。cut なら消す。写すものが無ければ null。
-  const takeClipboard = (cut: boolean, slidesAllowed: boolean): { payload: string; text: string } | null => {
+  // slideContext: 縮小図の一覧（帯・総覧）か枚の右クリックのメニューから。そのときは選んだ枚だけを写し、要素の選択は見ない。
+  const takeClipboard = (cut: boolean, slideContext: boolean): { payload: string; text: string } | null => {
     if (!current || (cut && !editable)) return null;
     let payload: string | null = null;
     let text = "";
-    if (liveSelection.size) {
+    const source = clipboardSource(slideContext, liveSelection.size, selectedSlides.size);
+    if (source === "elements") {
         const elements = current.elements.filter((element) => liveSelection.has(element.id));
         payload = clipboardPayload({ elements });
         text = elements.map((element) => (element.type === "text" || element.type === "shape" ? richDocText(element.doc) : element.type === "table" ? element.rows.map((row) => row.cells.map((cell) => cell.text).join("\t")).join("\n") : "")).filter(Boolean).join("\n\n");
         if (cut) deleteSelection();
-      } else if (selectedSlides.size && slidesAllowed) {
+      } else if (source === "slides") {
         // 枚をまるごと写すのは、縮小図の一覧（帯・総覧）を操作しているときだけ（スライドの面で何も選ばずに切り取っても枚は消さない）。
         const slides = deck.slides.filter((slide) => selectedSlides.has(slide.id));
         payload = clipboardPayload({ slides });
@@ -448,7 +456,7 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     const inside = () => !!root.current && root.current.contains(document.activeElement) && !isTypingTarget(document.activeElement) && !presenting;
     const onCopy = (event: ClipboardEvent, cut: boolean) => {
       if (!inside()) return;
-      const taken = takeClipboard(cut, !!document.activeElement?.closest(".slides-filmstrip, .slides-grid"));
+      const taken = takeClipboard(cut, inSlideList(view, document.activeElement));
       if (!taken) return;
       event.preventDefault();
       event.clipboardData?.setData(CLIPBOARD_MIME, taken.payload);
@@ -556,7 +564,9 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
       return;
     }
     if (mod && key === "m") { event.preventDefault(); addSlide(); return; }
-    if (liveSelection.size && current) {
+    // 縮小図の一覧（帯・総覧）では選んだ枚に、スライドの面では選んだ要素に効かせる（一覧で押したキーが要素に効かないように）。
+    const scope = editorKeyScope(view, event.target, current ? liveSelection.size : 0);
+    if (scope === "elements" && current) {
       if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); deleteSelection(); return; }
       if (event.key === "Escape") { setSelection(new Set()); return; }
       if (mod && key === "d") { event.preventDefault(); duplicateSelection(); return; }
@@ -581,19 +591,24 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
         commitSlide(updateElements(current, liveSelection, (element) => ({ ...element, x: element.x + dx, y: element.y + dy })), "nudge");
         return;
       }
+      if (mod && key === "a") { event.preventDefault(); setSelection(new Set(current.elements.map((element) => element.id))); }
+      return;
+    }
+    if (scope === "slides") {
+      if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); deleteSelectedSlides(); return; }
+      if (mod && key === "a") { event.preventDefault(); setSelectedSlides(new Set(deck.slides.map((slide) => slide.id))); return; }
+      // Enter・スペースは押した縮小図（ボタン）に任せる。グループ・重なり順は要素だけの操作。
+      if (event.key === "Enter" || event.key === "Escape" || (mod && (key === "g" || event.code === "BracketRight" || event.code === "BracketLeft"))) return;
     }
     if (mod && key === "a" && current && view === "slide") { event.preventDefault(); setSelection(new Set(current.elements.map((element) => element.id))); return; }
-    if (!liveSelection.size) {
-      if ((event.key === "Delete" || event.key === "Backspace") && (event.target as HTMLElement).closest(".slides-filmstrip, .slides-grid")) { event.preventDefault(); deleteSelectedSlides(); return; }
-      if (mod && key === "d") { event.preventDefault(); duplicateSelectedSlides(); return; }
-      if (event.key === "PageDown" || ((event.key === "ArrowDown" || event.key === "ArrowRight") && view === "slide")) { if (deck.slides[currentIndex + 1]) { event.preventDefault(); openSlide(deck.slides[currentIndex + 1].id); } return; }
-      if (event.key === "PageUp" || ((event.key === "ArrowUp" || event.key === "ArrowLeft") && view === "slide")) { if (deck.slides[currentIndex - 1]) { event.preventDefault(); openSlide(deck.slides[currentIndex - 1].id); } return; }
-      if (!mod && view === "slide" && current) {
-        if (key === "t") { event.preventDefault(); insertElements([createTextElement()], true); return; }
-        if (key === "r") { event.preventDefault(); insertElements([createShapeElement("rect")]); return; }
-        if (key === "o") { event.preventDefault(); insertElements([createShapeElement("ellipse")]); return; }
-        if (key === "l") { event.preventDefault(); insertElements([createLineElement()]); return; }
-      }
+    if (mod && key === "d") { event.preventDefault(); duplicateSelectedSlides(); return; }
+    if (event.key === "PageDown" || ((event.key === "ArrowDown" || event.key === "ArrowRight") && view === "slide")) { if (deck.slides[currentIndex + 1]) { event.preventDefault(); openSlide(deck.slides[currentIndex + 1].id); } return; }
+    if (event.key === "PageUp" || ((event.key === "ArrowUp" || event.key === "ArrowLeft") && view === "slide")) { if (deck.slides[currentIndex - 1]) { event.preventDefault(); openSlide(deck.slides[currentIndex - 1].id); } return; }
+    if (!mod && view === "slide" && current) {
+      if (key === "t") { event.preventDefault(); insertElements([createTextElement()], true); return; }
+      if (key === "r") { event.preventDefault(); insertElements([createShapeElement("rect")]); return; }
+      if (key === "o") { event.preventDefault(); insertElements([createShapeElement("ellipse")]); return; }
+      if (key === "l") { event.preventDefault(); insertElements([createLineElement()]); return; }
     }
   }
 
@@ -621,7 +636,7 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
       onChange={(event) => onTitleChange(event.target.value || "Untitled")} /> : null}
     <div className="slides-toolbar-group" role="group" aria-label={t("View")}>
       <button type="button" className={`slides-tool${view === "slide" ? " is-active" : ""}`} aria-pressed={view === "slide"} onClick={() => setView("slide")} aria-label={t("Slide view")} title={t("Slide view")}><Presentation size={18} /></button>
-      <button type="button" className={`slides-tool${view === "grid" ? " is-active" : ""}`} aria-pressed={view === "grid"} onClick={() => { setEditing(null); setView("grid"); }} aria-label={t("Grid view")} title={t("Grid view")}><LayoutGrid size={18} /></button>
+      <button type="button" className={`slides-tool${view === "grid" ? " is-active" : ""}`} aria-pressed={view === "grid"} onClick={showGrid} aria-label={t("Grid view")} title={t("Grid view")}><LayoutGrid size={18} /></button>
     </div>
     {editable && <div className="slides-toolbar-group" role="group" aria-label={t("Insert")}>
       <MenuButton label={t("New slide")} icon={<Plus size={18} />} text={!phone && <ChevronDown size={14} aria-hidden="true" />}>

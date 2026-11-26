@@ -31,7 +31,8 @@
 - **文字**：ProseMirror（`text-editor.tsx`）。输入法（中日韩）组字期间不从外面替换内容。输入规则：行首 `- ` / `1. ` 列表、` ``` ` 代码块、`$…$` 行内公式、行首 `$$ ` 块级公式。编辑文字时上方出现格式栏。公式用 KaTeX，有公式的页才加载（与笔记的公式相同的延迟加载）。
 - **演讲者备注**：每页一段纯文字（最多 20,000 字符），在单页编辑下方。
 - **撤销 / 重做**：编辑器自己保存之前的本体（连续的同类操作——打字、备注、方向键移动——合并成一步）。保存交给 `NotesWorkspace` 的保存队列（`onChange(data)`）。
-- **快捷键**：Ctrl/⌘+Z / Shift+Z / Y 撤销重做，Ctrl/⌘+M 新页，Ctrl/⌘+D 复制，Ctrl/⌘+G / Shift+G 组合 / 取消，Ctrl/⌘+] / [（加 Shift 到最前 / 最后）层级，Delete 删除，方向键微移（Shift 大步），Enter 编辑文字，Esc 取消选择，T / R / O / L 插入文字 / 矩形 / 椭圆 / 线，Ctrl/⌘+C / X / V 复制粘贴元素或页（也能粘贴图片和纯文字），F5 从头放映、Shift+F5 从当前页放映。
+- **快捷键**：Ctrl/⌘+Z / Shift+Z / Y 撤销重做，Ctrl/⌘+M 新页，Ctrl/⌘+D 复制，Ctrl/⌘+G / Shift+G 组合 / 取消，Ctrl/⌘+] / [（加 Shift 到最前 / 最后）层级，Delete 删除，方向键微移（Shift 大步），Enter 编辑文字，Esc 取消选择，T / R / O / L 插入文字 / 矩形 / 椭圆 / 线，Ctrl/⌘+C / X / V 复制粘贴元素或页（也能粘贴图片和纯文字），F5 从头放映、Shift+F5 从当前页放映。作用对象按焦点决定（`src/lib/slides/editor-keys.ts`）：在总览或页带（缩略图列表）里，以及页的右键菜单，Delete / Ctrl/⌘+D / C / X / A 只作用于所选页，绝不落到元素选择上；在单页画面才作用于所选元素。切到总览、在缩略图上选页（含 Shift / Ctrl 多选）时清掉元素选择和文字编辑。
+- **拖动**：移动 / 缩放 / 旋转 / 线端点的草稿只记几何差分（`GeometryPatch`：x、y、w、h、rotation，文字框的 autoHeight，线的 flipH / flipV），预览和松手提交都叠到最新的元素上，拖动中送达的 AI 配图（`src`、清掉 `pendingImagePrompt`）不会被拖动开始时的旧占位覆盖。
 - **只读**：锁定的页面、Trash 里的页面和历史预览不能编辑（`editable: false`），仍可放映和导出。
 - **检索跳转**：搜索命中幻灯片时 `blockId` 是页的 ID；`revealNoteBlock` 发 `notefable:reveal-canvas-item`，编辑器打开那一页并高亮缩略图（`src/lib/search-reveal.ts` 的 `canvasItemSelector`）。
 
@@ -48,7 +49,7 @@
 - **转场动画**：全屏放映（`SlidePlayer`）与公开放映页（`PublicSlidesPlayer`）按目标页的 `transition` 播放淡入或方向感知的滑入动画（首次挂载不播放；`[dir="rtl"]` 下自动镜像滑入方向；系统开启 `prefers-reduced-motion: reduce` 时完全禁用）。
 - **笔记一键放映**：普通笔记的“…”菜单提供 **Present**（锁定页面也可放映），不写库、按需动态加载 `src/components/slides/note-present-player.tsx`（常规浏览笔记不拉入幻灯片代码与 CSS）。纯函数 `src/lib/slides/note-to-deck.ts`（`noteToDeck` / `noteToDeckResult`）把 BlockNote 块就地转为临时 `Deck`：优先按 `divider` 分页，其次按顶层 H1 分页，否则封面 + 正文；支持标题（按宽度自适应字号与高度）、列表、引用、Callout、公式（KaTeX）、代码块、表格（展开 `colspan`/`rowspan` 并对 >20 列横向分页）、站内图片、分栏与文件，单页内容超出安全高度时自动拆出续页（标题带 `(2)` 等序号）；超过 500 页上限时在放映顶栏提示并在另存前二次确认。放映顶栏提供 **Save as slide deck**（`POST /api/pages` 建同级 `kind: "slides"` 页面，派发 `notefable:page-created` 后打开新建幻灯片；原生端经 `openPage` 打开）。
 - 放映时请求 Wake Lock（屏幕常亮）；触摸设备全屏后尝试锁定横屏（浏览器不支持就算了）。
-- **演讲者视图**（桌面）：另开一个窗口，显示当前页、下一页、备注（可调字号）、已用时间和时钟，两个窗口都能用键盘翻页。
+- **演讲者视图**（桌面）：另开一个窗口，显示当前页、下一页、备注（可调字号）、已用时间和时钟，两个窗口都能用键盘翻页。焦点在放映层或演讲者视图里的按钮上时，Enter / 空格交给按钮（演讲者视图的元素属于另一个窗口，用 `nodeType` 而不是 `instanceof Element` 判断，`isPlayerControlTarget`）。
 - **手机**：竖屏时编辑器是浏览模式（缩略图带在下、设置在底部抽屉）；放映在 App 里交给原生（见下），在手机浏览器里用全屏 + 横屏锁定。
 
 ## 导出
