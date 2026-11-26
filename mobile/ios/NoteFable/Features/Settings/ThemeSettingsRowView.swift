@@ -8,6 +8,9 @@ import SwiftUI
 /// 选了就存，只存在这台设备上（`app.appTheme`），不随账号同步；整个 App（含打开着的网页编辑器）马上跟着换。
 struct ThemeSettingsRowView: View {
     @Environment(AppEnvironment.self) private var app
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.nfChromePath) private var chromePath
+    @Namespace private var themeThumb
 
     init() {}
 
@@ -39,19 +42,24 @@ struct ThemeSettingsRowView: View {
     }
 
     private func group(_ selected: ThemePreference) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 8)
         let store = app.appTheme
+        let trackFill = chromePath == .solid ? Sm.sidebar : Sm.hover
         return HStack(spacing: 2) {
             ForEach(ThemePreference.allCases, id: \.self) { option in
-                ThemeOptionButton(option: option, selected: option == selected) {
+                ThemeOptionButton(option: option, selected: option == selected, thumb: themeThumb) {
+                    Haptics.selection()
                     _ = store.save(option)
                 }
             }
         }
-        // 内边距 2 + 1px 的边（网页的 border 在内边距外面）。
         .padding(3)
-        .background(Sm.sidebar, in: shape)
-        .overlay { shape.strokeBorder(Sm.border, lineWidth: 1) }
+        .background(trackFill, in: Capsule())
+        .overlay {
+            if chromePath == .solid {
+                Capsule().strokeBorder(Sm.border, lineWidth: 1)
+            }
+        }
+        .animation(NFMotion.unlessReduced(NFMotion.spring(0.28), reduceMotion), value: selected)
         .fixedSize()
         .accessibilityElement(children: .contain)
         .accessibilityLabel(L("appearance"))
@@ -62,8 +70,9 @@ struct ThemeSettingsRowView: View {
 private struct ThemeOptionButton: View {
     let option: ThemePreference
     let selected: Bool
+    let thumb: Namespace.ID
     let action: () -> Void
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.nfChromePath) private var chromePath
 
     /// 网页 THEME_OPTIONS 的图标：Monitor / Sun / Moon。
     private var icon: [String] {
@@ -75,35 +84,39 @@ private struct ThemeOptionButton: View {
     }
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 6)
         let ink = selected ? Sm.ink : Sm.muted
+        let nativeThumb = Color(light: 0xD8FFFFFF, dark: 0x29FFFFFF)
         Button(action: action) {
             HStack(spacing: 5.6) {
                 LucideIcon(icon, size: 14, color: ink)
                 Text(L(option.labelKey))
-                    .font(.nf(13, weight: 500))
+                    .font(.nf(13, weight: selected ? 600 : 500))
                     .foregroundStyle(ink)
                     .lineLimit(1)
             }
-            .padding(.horizontal, 10.4)
+            .padding(.horizontal, 11)
             .frame(minHeight: 32)
             .background {
                 if selected {
-                    // box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 0 0 1px var(--notion-border)。
-                    shape
-                        .fill(Sm.surface)
-                        .shadow(color: Color(argb: 0x14000000), radius: 1, x: 0, y: 1)
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 6.5)
-                                .stroke(Sm.border, lineWidth: 1)
-                                .padding(-0.5)
-                        }
+                    if chromePath == .native {
+                        Capsule()
+                            .fill(nativeThumb)
+                            .matchedGeometryEffect(id: "themeThumb", in: thumb)
+                    } else {
+                        Capsule()
+                            .fill(Sm.surface)
+                            .shadow(color: Color(argb: 0x14000000), radius: 1, x: 0, y: 1)
+                            .overlay {
+                                Capsule()
+                                    .stroke(Sm.border, lineWidth: 1)
+                                    .padding(-0.5)
+                            }
+                            .matchedGeometryEffect(id: "themeThumb", in: thumb)
+                    }
                 }
             }
         }
-        .buttonStyle(.pressable(pressedBackground: nil, cornerRadius: 6, scale: 0.97))
-        // transition: background-color 120ms ease, color 120ms ease。
-        .animation(NFMotion.unlessReduced(NFMotion.cssEase(0.12), reduceMotion), value: selected)
+        .buttonStyle(.pressable(pressedBackground: nil, cornerRadius: 16, scale: 0.97))
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }

@@ -51,6 +51,7 @@ struct ChatModelSheet: View {
             VStack(spacing: 2) {
                 ForEach(state.models) { model in
                     NFOptionRow(model.label, isSelected: model.id == selected?.id, style: .sheet) {
+                        Haptics.selection()
                         app.chat.selectModel(model.id)
                     }
                 }
@@ -58,6 +59,7 @@ struct ChatModelSheet: View {
             if let selected, selected.reasoningEfforts.count > 1 {
                 SheetSectionTitle(L("reasoning"))
                 ChatReasoningGrid(efforts: selected.reasoningEfforts, current: current) { effort in
+                    Haptics.selection()
                     app.chat.selectReasoning(effort)
                 }
                 if let current {
@@ -120,28 +122,32 @@ private struct ChatReasoningGrid: View {
     }
 }
 
-/// `.model-sheet-effort`：最小高 46.4、圆角 10.4、1px 深描边、15 的字；选中时蓝底、蓝描边、白字 600。
+/// `.model-sheet-effort`：最小高 46、全圆角胶囊、15 的字；未选时玻璃弹层内柔底无重描边，选中时蓝底白字 600。
 private struct ChatReasoningChip: View {
     let title: String
     let isSelected: Bool
     let action: () -> Void
 
+    @Environment(\.nfChromePath) private var chromePath
+
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 10.4)
+        let shape = Capsule()
+        let unselectedBg = chromePath == .native ? Color.primary.opacity(0.065) : (chromePath == .material ? Sm.hover : Color.clear)
+        let stroke = isSelected ? Sm.blue : (chromePath == .solid ? Sm.borderStrong : .clear)
         Button(action: action) {
             Text(title)
                 .font(.nf(15, weight: isSelected ? 600 : 400))
                 .foregroundStyle(isSelected ? Color.white : Sm.text)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 4)
+                .padding(.horizontal, 6)
                 .frame(maxWidth: .infinity)
-                .frame(minHeight: 46.4)
-                .overlay { shape.strokeBorder(isSelected ? Sm.blue : Sm.borderStrong, lineWidth: 1) }
+                .frame(minHeight: 46)
+                .overlay { shape.strokeBorder(stroke, lineWidth: 1) }
         }
         .buttonStyle(.pressable(
-            background: isSelected ? Sm.blue : Color.clear,
+            background: isSelected ? Sm.blue : unselectedBg,
             pressedBackground: isSelected ? nil : Sm.hover,
-            cornerRadius: 10.4,
+            cornerRadius: 23,
             scale: 0.97
         ))
         .accessibilityAddTraits(isSelected ? .isSelected : [])

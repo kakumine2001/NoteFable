@@ -4,12 +4,8 @@ import SwiftUI
 /// 消息从下面滚过去。高度在任何状态下都是 56（空白、读取中、发送中、有没有标题和“…”都一样），顶部安全区不会变，列表不跳。
 /// - 行首：玻璃圆的菜单（44，图标 20），打开侧栏。
 /// - 正中：有标题时是玻璃胶囊（`ChatSessionCapsule`）：AI 角色（28，回答时跟着动）+ 聊天图标和标题 + 模型 / 推理强度，
-///   点开和输入栏模型按钮同一个模型抽屉。标题放得下时两边各留 92（行尾两键的胶囊 84 + 间距 8），胶囊真正居中；
-///   放不下时两边只让出各自按钮的宽度（`ViewThatFits`），从右到左时一样。
-/// - 行尾：一个玻璃胶囊装“新建聊天”和“…”（iOS 26 工具栏的分组）。“…”菜单只是侧栏行菜单的另一个入口：改聊天图标、
-///   置顶 / 取消置顶、改名、移到项目、删除，对话框和侧栏共用（`ChatSessionMenu`、`ChatActionDialog`）。
-/// 空白首页（没有消息）和网页一样只有菜单：不放标题、“新建聊天”（已经在新聊天里）和“…”。
-/// 玻璃都在同一个 `NFGlassContainer` 里；iOS 17–18 是系统毛玻璃，“降低透明度”时是不透明的白底加描边（`NFChromePath`）。
+///   点开和输入栏模型按钮同一个模型抽屉。标题放得下时居中对齐；放不下时只让出各自按钮的宽度。
+/// - 行尾：玻璃圆的“新建聊天”与独立圆形系统原生 Liquid Glass `Menu`“…”（放在 `GlassEffectContainer` 外，避免 FORUM 826863 收起闪烁）。
 @MainActor
 struct ChatTopBar: View {
     /// 没有消息时为 nil。
@@ -25,142 +21,118 @@ struct ChatTopBar: View {
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Namespace private var barGlass
-    @State private var menuOpen = false
-    /// 菜单里“置顶 / 取消置顶”的保存（每次打开菜单新建一个）。
-    @State private var runner: SidebarActionRunner? = nil
-    /// 菜单里选了改名 / 移到项目 / 删除后开着的对话框。
+    @Environment(\.nfChromePath) private var chromePath
     @State private var dialog: ChatDialogItem? = nil
     /// 表情选择器（菜单里的“更改聊天图标”）。
     @State private var pickingIcon = false
-
-    /// 胶囊两边各让出的宽度：行尾两键的胶囊（2 × 40 + 左右 2）加间距 8。按宽的一边留，胶囊才在整条栏的正中。
-    private static let capsuleReserve: CGFloat = NFChromeMetrics.groupItemWidth * 2 + 4 + NFChromeMetrics.gap
 
     var body: some View {
         let chat = app.chat.state
         // 截图钩子只在这段聊天的消息读完后动手。
         let messagesReady = !chat.messagesLoading && !chat.messages.isEmpty
-        let menuAvailable = showTrailing && session != nil
         let capsuleAvailable = title != nil
         let showsSidebarToggle = !router.isSidebarDockedVisible
-        NFGlassContainer(spacing: NFChromeMetrics.containerSpacing) {
-            ZStack {
-                HStack(spacing: NFChromeMetrics.gap) {
-                    if showsSidebarToggle {
+        let leadingReserve: CGFloat = showsSidebarToggle ? (NFChromeMetrics.control + NFChromeMetrics.gap) : 0
+        let trailingReserve: CGFloat = showTrailing
+            ? (NFChromeMetrics.control + (session != nil ? NFChromeMetrics.gap + NFChromeMetrics.control : 0) + NFChromeMetrics.gap)
+            : 0
+        ZStack {
+            HStack(spacing: NFChromeMetrics.gap) {
+                if showsSidebarToggle {
+                    NFGlassContainer(spacing: NFChromeMetrics.containerSpacing) {
                         NFGlassIconButton(Lucide.menu, label: L("open_menu"), size: NFChromeMetrics.control, iconSize: 20) {
                             router.openSidebar()
                         }
-                        .accessibilitySortPriority(2)
                     }
-                    Spacer(minLength: 0)
-                    if showTrailing {
-                        NFGlassGroup(glassID: "chatTrailing", namespace: barGlass) {
-                            NFGlassBarButton(Lucide.plus, label: L("new_chat")) { app.chat.newChat() }
-                            if let session {
-                                moreButton(session)
+                    .accessibilitySortPriority(2)
+                }
+                Spacer(minLength: 0)
+                if showTrailing {
+                    HStack(spacing: NFChromeMetrics.gap) {
+                        NFGlassContainer(spacing: NFChromeMetrics.containerSpacing) {
+                            NFGlassIconButton(Lucide.plus, label: L("new_chat"), size: NFChromeMetrics.control, iconSize: 20) {
+                                app.chat.newChat()
                             }
+                        }
+                        if let session {
+                            moreButton(session)
                         }
                     }
                 }
-                if let title {
-                    let leading: CGFloat = showsSidebarToggle ? (NFChromeMetrics.control + NFChromeMetrics.gap) : 0
-                    let trailing: CGFloat = showTrailing ? Self.capsuleReserve : leading
-                    // 放得下完整标题时两边让出同样的宽度，胶囊在整条栏的正中；放不下（窄窗口、长标题）时
-                    // 两边只让出各自按钮的宽度，标题多占一些再省略。
-                    ViewThatFits(in: .horizontal) {
-                        ChatSessionCapsule(title: title, icon: icon, onModelClick: onModelClick)
-                            .padding(.horizontal, max(leading, trailing))
-                        ChatSessionCapsule(title: title, icon: icon, onModelClick: onModelClick)
-                            .padding(.leading, leading)
-                            .padding(.trailing, trailing)
-                    }
-                    .emojiPicker(isPresented: $pickingIcon, current: icon) { picked in
-                        app.chat.changeIcon(picked)
-                    }
-                    // 胶囊不在了（换成新聊天）：选择器的开关也归位，下次出现时不自己弹出来。
-                    .onDisappear { pickingIcon = false }
-                    .accessibilitySortPriority(1)
-                }
             }
-            // 读屏按 菜单 → 标题胶囊 → 新建聊天 → “…” 的顺序念（胶囊叠在按钮行上面，否则会排到最后）。
-            .accessibilityElement(children: .contain)
+            if let title {
+                // 放得下完整标题时两边让出同样的宽度，胶囊在整条栏的正中；放不下（窄窗口、长标题）时
+                // 两边只让出各自按钮的宽度，标题多占一些再省略。
+                ViewThatFits(in: .horizontal) {
+                    ChatSessionCapsule(title: title, icon: icon, onModelClick: onModelClick)
+                        .padding(.horizontal, max(leadingReserve, trailingReserve))
+                    ChatSessionCapsule(title: title, icon: icon, onModelClick: onModelClick)
+                        .padding(.leading, leadingReserve)
+                        .padding(.trailing, trailingReserve)
+                }
+                .emojiPicker(isPresented: $pickingIcon, current: icon) { picked in
+                    app.chat.changeIcon(picked)
+                }
+                // 胶囊不在了（换成新聊天）：选择器的开关也归位，下次出现时不自己弹出来。
+                .onDisappear { pickingIcon = false }
+                .accessibilitySortPriority(1)
+            }
         }
+        // 读屏按 菜单 → 标题胶囊 → 新建聊天 → “…” 的顺序念（胶囊叠在按钮行上面，否则会排到最后）。
+        .accessibilityElement(children: .contain)
         .padding(.horizontal, NFChromeMetrics.sideInset)
         .frame(height: NFChromeMetrics.barHeight)
         .frame(maxWidth: .infinity)
-        // 行尾的玻璃胶囊出现 / 消失时变形进出（glassEffectID）。
         .animation(NFMotion.unlessReduced(NFMotion.cssEase(0.18), reduceMotion), value: showTrailing)
         .nfDialog(item: $dialog, dismissDisabled: dialog?.runner.busy ?? false) { item in
             ChatActionDialog(item: item)
         }
-        // 登录 / 退出后：旧身份的菜单、对话框和选择器都关掉（和侧栏一样）。
+        // 登录 / 退出后：旧身份的对话框和选择器都关掉（和侧栏一样）。
         .onChange(of: app.identityGeneration) { _, _ in
             dialog = nil
-            menuOpen = false
             pickingIcon = false
         }
         .onChange(of: ScreenshotHooks.dismissTick) { _, _ in
-            menuOpen = false
             pickingIcon = false
         }
         .task(id: "\(ScreenshotHooks.sceneTick)-\(session?.id ?? "")-\(messagesReady)") {
-            await runScreenshotHook(ready: messagesReady, menuAvailable: menuAvailable, capsuleAvailable: capsuleAvailable)
+            await runScreenshotHook(ready: messagesReady, capsuleAvailable: capsuleAvailable)
         }
     }
 
-    /// “…”：行尾胶囊里的第二个键，菜单贴着它从下方打开、行尾对齐。读屏名和侧栏行的“…”一样。
+    /// “…”：系统原生 Liquid Glass 菜单，放在 GlassEffectContainer 之外避免收起闪烁（FORUM 826863）。
     private func moreButton(_ session: SessionSummary) -> some View {
         let label = L("sb_actions_for_title", session.title)
-        return NFGlassBarButton(Lucide.moreHorizontal, label: label) {
-            openMenu()
+        return Menu {
+            ChatSessionMenuItems(
+                session: session,
+                onChangeIcon: {
+                    Task { @MainActor in pickingIcon = true }
+                },
+                onAction: { action in
+                    dialog = ChatDialogItem(action: action, runner: SidebarActionRunner(onClose: { dialog = nil }))
+                }
+            )
+        } label: {
+            LucideIcon(Lucide.moreHorizontal, size: 20, strokeWidth: 2, color: chromePath.primaryInk)
+                .frame(width: NFChromeMetrics.control, height: NFChromeMetrics.control)
+                .nfGlassBackground(.interactive, in: Circle(), solidFill: Sm.surface, stroke: Sm.borderStrong)
+                .nfChromeShadow(NFChromeMetrics.controlShadow, radius: 6, y: 2)
+                .contentShape(Circle())
         }
-        // 保存中不能关（否则服务端改了而本地列表没跟上）。
-        .actionsMenu(
-            isPresented: $menuOpen,
-            alignment: .trailing,
-            placement: .below,
-            dismissDisabled: runner?.busy ?? false,
-            label: label
-        ) {
-            ActionsMenuItem(L("em_change_chat_icon"), icon: Lucide.smile) {
-                menuOpen = false
-                // 下一轮再开选择器：菜单的关闭和选择器的打开不放在同一次 NFOverlayCenter 的更新里。
-                Task { @MainActor in pickingIcon = true }
-            }
-            .disabled(runner?.busy ?? false)
-            ActionsMenuDivider()
-            ChatSessionMenu(session: session, runner: runner) { action in
-                menuOpen = false
-                dialog = ChatDialogItem(action: action, runner: SidebarActionRunner(onClose: { dialog = nil }))
-            }
-        }
-        .onDisappear { menuOpen = false }
+        .accessibilityLabel(label)
     }
 
-    private func openMenu() {
-        runner = SidebarActionRunner(onClose: { menuOpen = false })
-        menuOpen = true
-    }
-
-    /// CI 截图：chat-menu 打开“…”菜单，emoji-picker 打开表情选择器（和 NotePageMenuButton 一样先等排版落下）。
-    private func runScreenshotHook(ready: Bool, menuAvailable: Bool, capsuleAvailable: Bool) async {
+    /// CI 截图：emoji-picker 打开表情选择器（先等排版落下）。
+    private func runScreenshotHook(ready: Bool, capsuleAvailable: Bool) async {
         guard ScreenshotHooks.isActive, ready else { return }
-        let scene = ScreenshotHooks.scene
-        if scene == .chatMenu, menuAvailable {
-            try? await Task.sleep(for: .milliseconds(150))
-            if Task.isCancelled { return }
-            if ScreenshotHooks.consume(.chatMenu) {
-                openMenu()
-                ScreenshotHooks.markReady(.chatMenu)
-            }
-        } else if scene == .emojiPicker, capsuleAvailable {
+        if ScreenshotHooks.scene == .emojiPicker, capsuleAvailable {
             try? await Task.sleep(for: .milliseconds(150))
             if Task.isCancelled { return }
             if ScreenshotHooks.consume(.emojiPicker) {
                 pickingIcon = true
-                // 等弹出框进场（120ms）；中途被取消也照样报就绪，免得等到超时。
-                try? await Task.sleep(for: .milliseconds(300))
+                // 等系统自适应 .sheet / .popover 进场动画落稳。
+                try? await Task.sleep(for: .milliseconds(450))
                 ScreenshotHooks.markReady(.emojiPicker)
             }
         }

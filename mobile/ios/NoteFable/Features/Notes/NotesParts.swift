@@ -98,57 +98,59 @@ struct NotesCountPill: View {
 
 /// 行右侧的小按钮（网页 .chat-row-action）：25.6 见方、圆角 4、灰色图标，右距 3.2。触屏上常显。
 /// 新建按钮外面的一层（网页 NewPageButton，Android `NewPageMenuAnchor`，#168）：能新建的类型（[kinds]）只有一种时
-/// [content] 的点击直接建它，两种以上时在按钮下方开类型菜单（笔记 / 幻灯片 / 白板，与"…"菜单同一外框 `actionsMenu`）。
+/// 点击直接建它，两种以上时使用系统原生 Liquid Glass 菜单（笔记 / 幻灯片 / 白板 / 用 AI 生成）。
 @MainActor
-struct NewPageMenuAnchor<Content: View>: View {
+struct NewPageMenuAnchor<LabelContent: View>: View {
     private let kinds: [PageKind]
     private let label: String
-    private let alignment: ActionsMenuAlignment
     private let onCreate: (PageKind) -> Void
     private let onGenerateSlides: (() -> Void)?
-    private let content: (@escaping () -> Void) -> Content
-    @State private var open = false
+    private let labelContent: () -> LabelContent
     @Environment(AppEnvironment.self) private var app
 
     init(
         kinds: [PageKind],
         label: String,
-        alignment: ActionsMenuAlignment = .trailing,
         onCreate: @escaping (PageKind) -> Void,
         onGenerateSlides: (() -> Void)? = nil,
-        @ViewBuilder content: @escaping (@escaping () -> Void) -> Content
+        @ViewBuilder labelContent: @escaping () -> LabelContent
     ) {
         self.kinds = kinds
         self.label = label
-        self.alignment = alignment
         self.onCreate = onCreate
         self.onGenerateSlides = onGenerateSlides
-        self.content = content
+        self.labelContent = labelContent
     }
 
     var body: some View {
-        let kinds = self.kinds
-        let onCreate = self.onCreate
         let showGenerateSlides = onGenerateSlides != nil && kinds.contains(.slides)
-        content {
-            if kinds.count > 1 || showGenerateSlides { open = true } else { onCreate(kinds.first ?? .note) }
-        }
-        .actionsMenu(isPresented: $open, alignment: alignment, label: label) {
-            ForEach(kinds, id: \.self) { kind in
-                ActionsMenuItem(L(pageKindLabel(kind)), icon: pageKindIcon(kind)) {
-                    open = false
-                    onCreate(kind)
+        if kinds.count > 1 || showGenerateSlides {
+            Menu {
+                ForEach(kinds, id: \.self) { kind in
+                    Button {
+                        onCreate(kind)
+                    } label: {
+                        NFMenuLabel(title: L(pageKindLabel(kind)), icon: pageKindIcon(kind))
+                    }
                 }
-            }
-            if showGenerateSlides, let onGenerateSlides {
-                ActionsMenuDivider()
-                ActionsMenuItem(L("slides_generate_with_ai"), leading: {
-                    AppIconView(icon: app.appIcon.icon, size: 16)
-                }) {
-                    open = false
-                    onGenerateSlides()
+                if showGenerateSlides, let onGenerateSlides {
+                    Divider()
+                    Button(action: onGenerateSlides) {
+                        NFMascotMenuLabel(title: L("slides_generate_with_ai"), icon: app.appIcon.icon)
+                    }
                 }
+            } label: {
+                labelContent()
             }
+            .accessibilityLabel(label)
+        } else {
+            Button {
+                onCreate(kinds.first ?? .note)
+            } label: {
+                labelContent()
+            }
+            .buttonStyle(.pressable(cornerRadius: 4, scale: 0.97))
+            .accessibilityLabel(label)
         }
     }
 }
@@ -163,7 +165,6 @@ struct NotesSectionHeading: View {
     let onToggle: () -> Void
     let onCreate: () -> Void
     var onGenerateSlides: (() -> Void)? = nil
-    @State private var slidesMenuOpen = false
     @Environment(AppEnvironment.self) private var app
 
     var body: some View {
@@ -191,23 +192,21 @@ struct NotesSectionHeading: View {
             .accessibilityLabel(isOpen ? L("pg_collapse_title", name) : L("pg_expand_title", name))
             if kind == .slides, let onGenerateSlides {
                 let label = L(pageKindNewLabel(kind))
-                NFIconButton(Lucide.plus, label: label, iconSize: 15, color: Sm.tabMuted) {
-                    slidesMenuOpen = true
+                Menu {
+                    Button(action: onCreate) {
+                        NFMenuLabel(title: L("ws_new_slides"), icon: Lucide.presentation)
+                    }
+                    Divider()
+                    Button(action: onGenerateSlides) {
+                        NFMascotMenuLabel(title: L("slides_generate_with_ai"), icon: app.appIcon.icon)
+                    }
+                } label: {
+                    LucideIcon(Lucide.plus, size: 15, strokeWidth: 2, color: Sm.tabMuted)
+                        .frame(width: 40, height: 40)
+                        .contentShape(Rectangle())
                 }
                 .disabled(busy)
-                .actionsMenu(isPresented: $slidesMenuOpen, alignment: .trailing, label: label) {
-                    ActionsMenuItem(L("ws_new_slides"), icon: Lucide.presentation) {
-                        slidesMenuOpen = false
-                        onCreate()
-                    }
-                    ActionsMenuDivider()
-                    ActionsMenuItem(L("slides_generate_with_ai"), leading: {
-                        AppIconView(icon: app.appIcon.icon, size: 16)
-                    }) {
-                        slidesMenuOpen = false
-                        onGenerateSlides()
-                    }
-                }
+                .accessibilityLabel(label)
             } else {
                 NFIconButton(Lucide.plus, label: L(pageKindNewLabel(kind)), iconSize: 15, color: Sm.tabMuted, action: onCreate)
                     .disabled(busy)
@@ -216,6 +215,18 @@ struct NotesSectionHeading: View {
         .padding(.leading, 6)
         .padding(.trailing, 2)
         .padding(.bottom, 3)
+    }
+}
+
+struct NoteRowActionLabel: View {
+    let icon: [String]
+    let iconSize: CGFloat
+
+    var body: some View {
+        LucideIcon(icon, size: iconSize, strokeWidth: 2, color: Sm.muted)
+            .frame(width: 25.6, height: 25.6)
+            .contentShape(Rectangle())
+            .padding(.trailing, 3.2)
     }
 }
 
@@ -363,33 +374,9 @@ struct NoteIconGlyph: View {
 }
 
 extension View {
-    /// 侧栏选中行的浮起卡片样式与行头 3pt 语义指示条（网页 .notion-session-row.is-active + ::before，Android sidebarActiveRow）。
-    /// 阴影画在 background 里的形状上不被裁剪；RTL 下 alignment: .leading 自动镜像到右侧。
-    func sidebarActiveRow(active: Bool, accent: Color, cornerRadius: CGFloat = 8) -> some View {
-        let shape = RoundedRectangle(cornerRadius: cornerRadius)
-        return self
-            .background {
-                if active {
-                    shape
-                        .fill(Sm.activeRow)
-                        .shadow(color: Color(light: 0x160F172A, dark: 0x59000000), radius: 1.5, x: 0, y: 1)
-                }
-            }
-            .overlay {
-                if active {
-                    shape.strokeBorder(Sm.borderStrong, lineWidth: 1).allowsHitTesting(false)
-                }
-            }
-            .overlay(alignment: .leading) {
-                if active {
-                    Capsule()
-                        .fill(accent)
-                        .frame(width: 3, height: 18)
-                        .padding(.leading, 2)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-                }
-            }
+    /// 侧栏选中行的浮起卡片样式与行头 3pt 语义指示条（Liquid Glass 下用无边框高亮柔光块；降低透明度 / 毛玻璃下沿用实体卡配细边框）。
+    func sidebarActiveRow(active: Bool, accent: Color, cornerRadius: CGFloat = 12) -> some View {
+        modifier(SidebarActiveRowModifier(active: active, accent: accent, cornerRadius: cornerRadius))
     }
 
     /// `.notes-group-members` / `.notes-subpages`：项目里的笔记、展开的子页面。左距 10、1px 竖线、内左距 4。
@@ -404,5 +391,44 @@ extension View {
                     .accessibilityHidden(true)
             }
             .padding(.leading, 10)
+    }
+}
+
+private struct SidebarActiveRowModifier: ViewModifier {
+    let active: Bool
+    let accent: Color
+    let cornerRadius: CGFloat
+    @Environment(\.nfChromePath) private var chromePath
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        let nativeHighlight = Color(light: 0xB8FFFFFF, dark: 0x22FFFFFF)
+        content
+            .background {
+                if active {
+                    if chromePath == .native {
+                        shape.fill(nativeHighlight)
+                    } else {
+                        shape
+                            .fill(Sm.activeRow)
+                            .shadow(color: Color(light: 0x160F172A, dark: 0x59000000), radius: 1.5, x: 0, y: 1)
+                    }
+                }
+            }
+            .overlay {
+                if active && chromePath != .native {
+                    shape.strokeBorder(Sm.borderStrong, lineWidth: 1).allowsHitTesting(false)
+                }
+            }
+            .overlay(alignment: .leading) {
+                if active {
+                    Capsule()
+                        .fill(accent)
+                        .frame(width: 3, height: 18)
+                        .padding(.leading, 2)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
     }
 }

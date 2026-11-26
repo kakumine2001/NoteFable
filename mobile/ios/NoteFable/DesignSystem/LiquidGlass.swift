@@ -90,6 +90,30 @@ extension View {
             sheetContent: content
         ))
     }
+
+    /// Presents a native `.popover` (adapting to `.sheet` on compact widths when `adaptCompactToSheet` is true)
+    /// styled with Liquid Glass on iOS 26+, Material on iOS 17–18, or opaque surface under Reduce Transparency.
+    func nfPopover<PopoverContent: View>(
+        isPresented: Binding<Bool>,
+        width: CGFloat? = nil,
+        arrowEdge: Edge = .top,
+        adaptCompactToSheet: Bool = false,
+        dismissDisabled: Bool = false,
+        contentInsets: EdgeInsets = EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8),
+        onDismiss: (() -> Void)? = nil,
+        @ViewBuilder content: @escaping () -> PopoverContent
+    ) -> some View {
+        modifier(NFPopoverModifier(
+            isPresented: isPresented,
+            width: width,
+            arrowEdge: arrowEdge,
+            adaptCompactToSheet: adaptCompactToSheet,
+            dismissDisabled: dismissDisabled,
+            contentInsets: contentInsets,
+            onDismiss: onDismiss,
+            popoverContent: content
+        ))
+    }
 }
 
 /// Groups nearby Liquid Glass controls in `GlassEffectContainer` on iOS 26+.
@@ -185,6 +209,7 @@ struct NFGlassIconButton: View {
     private let iconSize: CGFloat
     private let strokeWidth: CGFloat
     private let color: Color?
+    private let disabledColor: Color
     private let solidFill: Color
     private let stroke: Color
     private let action: () -> Void
@@ -200,6 +225,7 @@ struct NFGlassIconButton: View {
         iconSize: CGFloat = 18,
         strokeWidth: CGFloat = 2,
         color: Color? = nil,
+        disabledColor: Color = Sm.faint,
         solidFill: Color = Sm.surface,
         stroke: Color = Sm.borderStrong,
         action: @escaping () -> Void
@@ -210,6 +236,7 @@ struct NFGlassIconButton: View {
         self.iconSize = iconSize
         self.strokeWidth = strokeWidth
         self.color = color
+        self.disabledColor = disabledColor
         self.solidFill = solidFill
         self.stroke = stroke
         self.action = action
@@ -219,7 +246,7 @@ struct NFGlassIconButton: View {
         let path = NFChromePath.resolve(reduceTransparency: reduceTransparency, forceSolid: forceSolidChrome)
         let resolved = color ?? path.primaryInk
         Button(action: action) {
-            LucideIcon(icon, size: iconSize, strokeWidth: strokeWidth, color: isEnabled ? resolved : Sm.faint)
+            LucideIcon(icon, size: iconSize, strokeWidth: strokeWidth, color: isEnabled ? resolved : disabledColor)
                 .frame(width: size, height: size)
                 .nfGlassBackground(.interactive, in: Circle(), solidFill: solidFill, stroke: stroke)
         }
@@ -373,6 +400,80 @@ enum NFGlassTabIcons {
     }
 }
 
+/// Pre-rendered template UIImages & labels for native SwiftUI `Menu` actions so system iOS 26 Liquid Glass menus
+/// use consistent Lucide glyphs and the user's selected mascot icon.
+@MainActor
+enum NFMenuIcons {
+    private static var templateCache: [[String]: UIImage] = [:]
+    private static var mascotCache: [String: UIImage] = [:]
+
+    static func template(
+        _ paths: [String],
+        canvasSize: CGFloat = 20,
+        glyphSize: CGFloat = 17,
+        strokeWidth: CGFloat = 1.8
+    ) -> UIImage {
+        if let cached = templateCache[paths] { return cached }
+        let format = UIGraphicsImageRendererFormat.preferred()
+        format.opaque = false
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: canvasSize, height: canvasSize), format: format)
+        let cgPath = SVGPath.icon(paths).cgPath
+        let image = renderer.image { context in
+            let cg = context.cgContext
+            let scale = glyphSize / 24.0
+            let offset = (canvasSize - glyphSize) / 2.0
+            cg.translateBy(x: offset, y: offset)
+            cg.scaleBy(x: scale, y: scale)
+            cg.addPath(cgPath)
+            cg.setStrokeColor(UIColor.black.cgColor)
+            cg.setLineWidth(strokeWidth)
+            cg.setLineCap(.round)
+            cg.setLineJoin(.round)
+            cg.strokePath()
+        }.withRenderingMode(.alwaysTemplate)
+        let result = Lucide.rtlMirrored.contains(paths) ? image.imageFlippedForRightToLeftLayoutDirection() : image
+        templateCache[paths] = result
+        return result
+    }
+
+    static func mascot(_ icon: AppIconValue?, size: CGFloat = 18) -> UIImage {
+        let key = "\(size)|\(icon ?? "")"
+        if let cached = mascotCache[key] { return cached }
+        let renderer = ImageRenderer(content: AppIconView(icon: icon, size: size))
+        renderer.scale = max(2, UIGraphicsImageRendererFormat.preferred().scale)
+        let rendered = renderer.uiImage?.withRenderingMode(.alwaysOriginal) ?? template(Lucide.sparkles)
+        if mascotCache.count > 12 { mascotCache.removeAll() }
+        mascotCache[key] = rendered
+        return rendered
+    }
+}
+
+struct NFMenuLabel: View {
+    let title: String
+    let icon: [String]
+
+    var body: some View {
+        Label {
+            Text(title)
+        } icon: {
+            Image(uiImage: NFMenuIcons.template(icon))
+        }
+    }
+}
+
+struct NFMascotMenuLabel: View {
+    let title: String
+    let icon: AppIconValue?
+
+    var body: some View {
+        Label {
+            Text(title)
+        } icon: {
+            Image(uiImage: NFMenuIcons.mascot(icon))
+        }
+    }
+}
+
 // MARK: - Native System Sheets
 
 enum NFSheetDetents {
@@ -508,6 +609,129 @@ private struct NFSheetChromeApplier: ViewModifier {
             }
         } else {
             content.presentationBackground(useSolidChrome ? AnyShapeStyle(Sm.surface) : AnyShapeStyle(.regularMaterial))
+        }
+    }
+}
+
+// MARK: - Native Adaptive Popovers
+
+private struct NFPopoverModifier<PopoverContent: View>: ViewModifier {
+    @Binding var isPresented: Bool
+    let width: CGFloat?
+    let arrowEdge: Edge
+    let adaptCompactToSheet: Bool
+    let dismissDisabled: Bool
+    let contentInsets: EdgeInsets
+    let onDismiss: (() -> Void)?
+    let popoverContent: () -> PopoverContent
+
+    @Environment(\.layoutDirection) private var layoutDirection
+    @Environment(\.locale) private var locale
+    @Environment(\.nfForceSolidChrome) private var forceSolidChrome
+    @Environment(\.nfWindowFrame) private var windowFrame
+
+    func body(content: Content) -> some View {
+        content
+            .popover(isPresented: $isPresented, attachmentAnchor: .rect(.bounds), arrowEdge: arrowEdge) {
+                NFPopoverContainer(
+                    width: width,
+                    adaptCompactToSheet: adaptCompactToSheet,
+                    dismissDisabled: dismissDisabled,
+                    contentInsets: contentInsets,
+                    windowFrame: windowFrame,
+                    content: popoverContent
+                )
+                .environment(\.layoutDirection, layoutDirection)
+                .environment(\.locale, locale)
+                .environment(\.nfForceSolidChrome, forceSolidChrome)
+                .environment(\.nfWindowFrame, windowFrame)
+            }
+            .onChange(of: isPresented) { wasPresented, nowPresented in
+                if wasPresented && !nowPresented {
+                    onDismiss?()
+                }
+            }
+    }
+}
+
+private struct NFPopoverContainer<PopoverContent: View>: View {
+    let width: CGFloat?
+    let adaptCompactToSheet: Bool
+    let dismissDisabled: Bool
+    let contentInsets: EdgeInsets
+    let windowFrame: CGRect?
+    let content: () -> PopoverContent
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.nfForceSolidChrome) private var forceSolidChrome
+    @State private var contentHeight: CGFloat = 240
+
+    private var useSolidChrome: Bool {
+        reduceTransparency || forceSolidChrome
+    }
+
+    var body: some View {
+        popoverBody
+            .environment(\.nfDismiss, NFDismissAction(action: { dismiss() }))
+            .nfOverlayHost()
+            .interactiveDismissDisabled(dismissDisabled)
+            .modifier(NFPopoverAdaptationApplier(adaptCompactToSheet: adaptCompactToSheet))
+            .modifier(NFSheetChromeApplier(useSolidChrome: useSolidChrome))
+    }
+
+    @ViewBuilder
+    private var popoverBody: some View {
+        let maxHeight = max(240, nfWindowHeight(windowFrame) * 0.72)
+        if adaptCompactToSheet {
+            if horizontalSizeClass == .compact {
+                VStack(alignment: .leading, spacing: 0) {
+                    content()
+                }
+                .nfOverlayContentDefaults()
+                .padding(contentInsets)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    content()
+                }
+                .nfOverlayContentDefaults()
+                .padding(contentInsets)
+                .frame(width: width ?? 360, height: min(460, maxHeight), alignment: .topLeading)
+            }
+        } else {
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 0) {
+                    content()
+                }
+                .nfOverlayContentDefaults()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(contentInsets)
+                .nfOnSizeChange { size in
+                    if abs(contentHeight - size.height) > 0.5 {
+                        contentHeight = size.height
+                    }
+                }
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .frame(width: width, height: min(max(64, contentHeight), maxHeight))
+        }
+    }
+}
+
+private struct NFPopoverAdaptationApplier: ViewModifier {
+    let adaptCompactToSheet: Bool
+
+    func body(content: Content) -> some View {
+        if adaptCompactToSheet {
+            content
+                .presentationCompactAdaptation(.sheet)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        } else {
+            content
+                .presentationCompactAdaptation(.popover)
         }
     }
 }

@@ -17,7 +17,7 @@ private let emojiTopID = "nf-emoji-top"
 
 struct EmojiGrid: View {
     let catalog: EmojiCatalog
-    let height: CGFloat
+    let height: CGFloat?
     let onPick: (String) -> Void
 
     @Environment(AppEnvironment.self) private var app
@@ -31,19 +31,19 @@ struct EmojiGrid: View {
     @State private var variations: EmojiVariationTarget?
     @FocusState private var searchFocused: Bool
 
-    init(catalog: EmojiCatalog, height: CGFloat, onPick: @escaping (String) -> Void) {
+    init(catalog: EmojiCatalog, height: CGFloat? = nil, onPick: @escaping (String) -> Void) {
         self.catalog = catalog
         self.height = height
         self.onPick = onPick
     }
 
-    /// 搜索头部 70（15 + 40 + 15）+ 分类导航 60。
-    private var listHeight: CGFloat { max(0, height - 130) }
-
     var body: some View {
         GeometryReader { proxy in
             // grid auto-fill：左右各 10 之间放得下几个 34 就几个（412 宽的手机上是 10 个）。
             let columns = emojiColumns(width: proxy.size.width)
+            let effectiveHeight = height ?? max(220, proxy.size.height)
+            /// 搜索头部 70（15 + 40 + 15）+ 分类导航 60。
+            let listHeight = max(0, effectiveHeight - 130)
             ScrollViewReader { scroller in
                 VStack(spacing: 0) {
                     header(scroller)
@@ -53,9 +53,10 @@ struct EmojiGrid: View {
                         available: Set(sections.map(\.category)),
                         searching: !query.isEmpty
                     ) { category in
-                        jump(to: category, scroller)
+                        Haptics.selection()
+                        jump(to: category, listHeight: listHeight, scroller)
                     }
-                    list(columns: columns)
+                    list(columns: columns, listHeight: listHeight)
                 }
                 .onChange(of: query) { _, _ in
                     variations = nil
@@ -64,6 +65,7 @@ struct EmojiGrid: View {
             }
         }
         .frame(height: height)
+        .frame(maxHeight: height == nil ? .infinity : nil)
         .onAppear {
             recent = app.recentEmoji.load()
             rebuild()
@@ -79,6 +81,7 @@ struct EmojiGrid: View {
     }
 
     private func pick(_ unified: String) {
+        Haptics.light()
         searchFocused = false
         variations = nil
         let next = pushRecentEmoji(recent, unified)
@@ -88,7 +91,7 @@ struct EmojiGrid: View {
     }
 
     /// 点分类图标：那个分类的标题顶到最上面。标题是吸顶的，所以滚到它的第一行、让这一行正好在标题下面。
-    private func jump(to category: String, _ scroller: ScrollViewProxy) {
+    private func jump(to category: String, listHeight: CGFloat, _ scroller: ScrollViewProxy) {
         variations = nil
         let span = listHeight - emojiCellSize
         let anchor = span > 0 ? UnitPoint(x: 0.5, y: min(1, emojiHeaderHeight / span)) : UnitPoint.top
@@ -117,7 +120,7 @@ struct EmojiGrid: View {
 
     // MARK: 表情列表
 
-    private func list(columns: Int) -> some View {
+    private func list(columns: Int, listHeight: CGFloat) -> some View {
         ZStack(alignment: .top) {
             if sections.isEmpty {
                 // emoji-picker-react 的 Empty：搜索没有结果。
@@ -210,9 +213,9 @@ private struct EmojiSearchField: View {
     var focused: FocusState<Bool>.Binding
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 8)
+        let shape = Capsule()
         ZStack {
-            TextField("", text: $query, prompt: Text(L("em_search_placeholder")).foregroundStyle(EmojiPickerColors.text))
+            TextField("", text: $query, prompt: Text(L("em_search_placeholder")).foregroundStyle(EmojiPickerColors.categoryInactive))
                 .textFieldStyle(.plain)
                 .font(.nf(16))
                 .foregroundStyle(EmojiPickerColors.text)
@@ -222,23 +225,23 @@ private struct EmojiSearchField: View {
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
                 .focused(focused)
-                .padding(.horizontal, 30)
+                .padding(.horizontal, 34)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .accessibilityLabel(L("em_search_label"))
             HStack(spacing: 0) {
-                EmojiPickerIcon(icon: icons["search"], tint: EmojiPickerColors.categoryInactive, size: 20)
-                    .padding(.leading, 10)
+                EmojiPickerIcon(icon: icons["search"], tint: EmojiPickerColors.categoryInactive, size: 18)
+                    .padding(.leading, 12)
                     .allowsHitTesting(false)
                 Spacer(minLength: 0)
                 if !query.isEmpty {
                     Button {
                         query = ""
                     } label: {
-                        EmojiPickerIcon(icon: icons["clear"], tint: EmojiPickerColors.categoryInactive, size: 20)
+                        EmojiPickerIcon(icon: icons["clear"], tint: EmojiPickerColors.categoryInactive, size: 18)
                             .frame(width: 30, height: 30)
                     }
                     .buttonStyle(.pressable(cornerRadius: 15))
-                    .padding(.trailing, 10)
+                    .padding(.trailing, 8)
                     .accessibilityLabel(L("em_clear_search"))
                 }
             }
@@ -246,7 +249,7 @@ private struct EmojiSearchField: View {
         .frame(maxWidth: .infinity)
         .frame(height: 40)
         .background(EmojiPickerColors.searchBackground, in: shape)
-        .overlay { shape.strokeBorder(focused.wrappedValue ? EmojiPickerColors.highlight : EmojiPickerColors.searchBackground, lineWidth: 1) }
+        .overlay { shape.strokeBorder(focused.wrappedValue ? EmojiPickerColors.highlight : Color.clear, lineWidth: 1.5) }
         .contentShape(shape)
         .onTapGesture { focused.wrappedValue = true }
     }
@@ -350,6 +353,13 @@ private struct EmojiCategoryNav: View {
 private struct EmojiCategoryLabel: View {
     let category: String
 
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.nfForceSolidChrome) private var forceSolidChrome
+
+    private var useSolidChrome: Bool {
+        reduceTransparency || forceSolidChrome
+    }
+
     var body: some View {
         Text(emojiCategoryName(category))
             .font(.nf(16, weight: 700))
@@ -358,7 +368,7 @@ private struct EmojiCategoryLabel: View {
             .padding(.horizontal, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(height: emojiHeaderHeight)
-            .background(EmojiPickerColors.categoryLabelBackground)
+            .background(useSolidChrome ? AnyShapeStyle(EmojiPickerColors.categoryLabelBackground) : AnyShapeStyle(.ultraThinMaterial))
             .accessibilityAddTraits(.isHeader)
     }
 }
@@ -452,7 +462,7 @@ private struct EmojiCellButton: View {
     private var glyph: some View {
         Text(unifiedToEmoji(unified))
             .font(.system(size: 24))
-            .foregroundStyle(Color.black)
+            .foregroundStyle(Sm.text)
             .lineLimit(1)
             .fixedSize()
             .frame(width: emojiCellSize, height: emojiCellSize)
@@ -475,8 +485,7 @@ private struct EmojiVariationCorner: Shape {
 
 // MARK: - 肤色变体条
 
-/// 长按出现的肤色变体条（emoji-picker-react EmojiVariationPicker）：左右各缩 15、高 45、内边距 5、平均分布，
-/// 白底、1px #E7E7E7 边、圆角 3、阴影 0 2 5 .2；放在那一行上方，上方放不下就放下方。点条以外的地方关闭。
+/// 长按出现的肤色变体条：浮动 Capsule 玻璃胶囊，适配浅深色与降低透明度；放在那一行上方，上方放不下就放下方。点条以外的地方关闭。
 private struct EmojiVariationBar: View {
     let target: EmojiVariationTarget
     let onPick: (String) -> Void
@@ -484,10 +493,10 @@ private struct EmojiVariationBar: View {
 
     var body: some View {
         let options = Array(([target.item.unified] + target.item.variations).prefix(6))
-        let barHeight: CGFloat = 45
+        let barHeight: CGFloat = 46
         let above = target.cell.minY - barHeight
         let y = above >= 0 ? above : target.cell.maxY
-        let shape = RoundedRectangle(cornerRadius: 3)
+        let shape = Capsule()
         ZStack(alignment: .top) {
             Color.clear
                 .contentShape(Rectangle())
@@ -500,21 +509,23 @@ private struct EmojiVariationBar: View {
                     } label: {
                         Text(unifiedToEmoji(unified))
                             .font(.system(size: 24))
-                            .foregroundStyle(Color.black)
+                            .foregroundStyle(Sm.text)
                             .lineLimit(1)
                             .fixedSize()
                             .frame(width: emojiCellSize, height: emojiCellSize)
                     }
-                    .buttonStyle(.pressable(cornerRadius: 8))
+                    .buttonStyle(.pressable(cornerRadius: 16))
                     .frame(maxWidth: .infinity)
                     .accessibilityLabel(target.item.label)
                 }
             }
             .padding(5)
             .frame(height: barHeight)
-            .background { shape.fill(Color.white).onTapGesture {} }
-            .overlay { shape.strokeBorder(EmojiPickerColors.pickerBorder, lineWidth: 1) }
-            .shadow(color: Color(argb: 0x33000000), radius: 2.5, x: 0, y: 2)
+            .clipShape(shape)
+            .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: EmojiPickerColors.pickerBorder)
+            .contentShape(shape)
+            .onTapGesture {}
+            .nfChromeShadow(Sm.panelShadow, radius: 8, y: 4)
             .padding(.horizontal, 15)
             .offset(y: y)
         }

@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 // 回答下面的操作行（网页 answer-actions.tsx，Android `AssistantTurn.kt` 的 AnswerActions + `AnswerActions.kt`，手机 412 宽实测）：
 // 36×36 的按钮（圆角 4.8、图标 16、线宽 1.9、Muted 色、间距 2），整体往行首挪 10.4 让图标和正文的行首对齐，距正文 6.4。
 // 从行首起：版本切换「‹ 2/3 ›」（重新生成过的回答）、复制（复制后图标换成 ✓ 停 2 秒）、"…"（Ellipsis 18）。
-// "…"的菜单和侧栏菜单同一外观（`.actionsMenu`），行首对齐按钮、在按钮下 4，放不下就翻到上方：
+// "…"的菜单使用原生 `.nfPopover`（带加载状态与行内错误）：
 // 重新生成、在新聊天中分支（已经保存到服务端的回答才有；这个聊天在发送或生成时不能点）、存到笔记（保存中转圈、
 // 保存后变 ✓ 并多出"打开已保存的笔记"）、画成图（Workflow；已经保存到服务端的回答才有）、下载对话、报告回答。
 // 错误和网页一样只有一处：任何一个操作开始时清掉上一条；菜单开着时显示在菜单里，关着时显示在操作行下方。
@@ -51,14 +51,17 @@ struct AnswerActions: View {
                 ) {
                     menuError = nil
                     UIPasteboard.general.string = message.content
+                    Haptics.light()
                     copiedTick += 1
                 }
                 if let sessionId {
                     NFIconButton(Lucide.ellipsis, label: L("answer_more_options"), size: 36, iconSize: 18, strokeWidth: 1.9) {
                         menuOpen = true
                     }
-                    .actionsMenu(isPresented: $menuOpen, alignment: .leading, label: L("answer_options")) {
-                        menu(sessionId: sessionId)
+                    .nfPopover(isPresented: $menuOpen, width: 256, arrowEdge: .top, adaptCompactToSheet: false) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            menu(sessionId: sessionId)
+                        }
                     }
                 }
             }
@@ -224,6 +227,9 @@ struct AnswerActions: View {
                 let export = try await exports.exportConversation(sessionId: sessionId, date: answerLocalDate())
                 if !Task.isCancelled {
                     menuOpen = false
+                    // 等系统 .popover 收起动画结束，再弹出 UIDocumentPickerViewController（fileExporter）。
+                    try? await Task.sleep(for: .milliseconds(350))
+                    guard !Task.isCancelled else { return }
                     exportDocument = MarkdownExportDocument(text: export.markdown)
                     exportName = MarkdownExportDocument.baseName(export.fileName)
                     exporting = true

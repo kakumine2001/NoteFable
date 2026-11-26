@@ -1,7 +1,6 @@
 import SwiftUI
 
-// 悬浮输入栏。上限提示在玻璃卡外；卡内依次是错误、引用、笔记、附件、生成图片标记、输入框、控件和状态。
-// 卡片圆角 30、内边距 10。输入框和控件沿用网页在 412×915 下的尺寸；「＋」和模型按钮用普通按压样式。
+// 分体式 Liquid Glass 输入栏：左侧独立“＋”玻璃圆按钮，右侧 26pt 连续圆角 Liquid Glass 输入卡（模型胶囊与发送键在卡内底部）。
 
 @MainActor
 struct ChatComposer: View {
@@ -15,6 +14,7 @@ struct ChatComposer: View {
 
     @Environment(AppEnvironment.self) private var app
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.nfChromePath) private var chromePath
     @State private var focused = false
     @State private var columnMaxWidth: CGFloat = 760
 
@@ -27,7 +27,7 @@ struct ChatComposer: View {
             composerCard(state, uploading: uploading)
         }
         .frame(maxWidth: columnMaxWidth)
-        .padding(.horizontal, 10.4)
+        .padding(.horizontal, 12)
         .padding(.top, 8)
         .padding(.bottom, bottomPadding)
         .frame(maxWidth: .infinity)
@@ -42,41 +42,51 @@ struct ChatComposer: View {
 
     private func composerCard(_ state: ChatUiState, uploading: Bool) -> some View {
         let error = composerErrorText(filesError: state.filesError, notice: state.notice, systemText: app.systemText)
-        let shape = RoundedRectangle(cornerRadius: 30, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: 26, style: .continuous)
         let focusAnimation = NFMotion.unlessReduced(NFMotion.cssEase(0.12), reduceMotion)
         return NFGlassContainer(spacing: NFChromeMetrics.containerSpacing) {
-            VStack(alignment: .leading, spacing: 0) {
-                if let error { ComposerError(text: error) }
-                // 网页：引用在最上面，笔记在附件上面。
-                if let quote = state.quote {
-                    ChatComposerQuote(quote: quote, enabled: !uploading) { app.chat.clearQuote() }
+            HStack(alignment: .bottom, spacing: NFChromeMetrics.gap) {
+                NFGlassIconButton(
+                    Lucide.plus,
+                    label: L("attach_add"),
+                    size: NFChromeMetrics.control,
+                    iconSize: 20,
+                    strokeWidth: 2,
+                    disabledColor: Sm.muted,
+                    action: onAddClick
+                )
+                .disabled(uploading)
+
+                VStack(alignment: .leading, spacing: 0) {
+                    if let error { ComposerError(text: error) }
+                    // 网页：引用在最上面，笔记在附件上面。
+                    if let quote = state.quote {
+                        ChatComposerQuote(quote: quote, enabled: !uploading) { app.chat.clearQuote() }
+                    }
+                    if !state.attachedPages.isEmpty {
+                        PendingPages(pages: state.attachedPages, enabled: !uploading) { id in app.chat.removeAttachedPage(id) }
+                    }
+                    if !state.files.isEmpty {
+                        PendingFiles(files: state.files, enabled: !uploading) { uri in app.chat.removeFile(uri) }
+                    }
+                    inputControls(state, uploading: uploading)
+                    ComposerStatus(files: state.files, upload: state.upload)
                 }
-                if !state.attachedPages.isEmpty {
-                    PendingPages(pages: state.attachedPages, enabled: !uploading) { id in app.chat.removeAttachedPage(id) }
+                .padding(.horizontal, 12)
+                .padding(.top, 10)
+                .padding(.bottom, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .clipShape(shape)
+                .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: Sm.borderStrong)
+                .nfChromeShadow(Sm.composerShadow, radius: 14, y: 8)
+                .nfChromeShadow(Color(argb: 0x0A0C1730), radius: 1, y: 1)
+                .overlay {
+                    if chromePath == .solid {
+                        shape.strokeBorder(focused ? Sm.accentLine : .clear, lineWidth: 1)
+                            .animation(focusAnimation, value: focused)
+                            .allowsHitTesting(false)
+                    }
                 }
-                if !state.files.isEmpty {
-                    PendingFiles(files: state.files, enabled: !uploading) { uri in app.chat.removeFile(uri) }
-                }
-                inputControls(state, uploading: uploading)
-                ComposerStatus(files: state.files, upload: state.upload)
-            }
-            .padding(10)
-            .clipShape(shape)
-            .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: Sm.borderStrong)
-            .nfChromeShadow(Sm.composerShadow, radius: 14, y: 8)
-            .nfChromeShadow(Color(argb: 0x0A0C1730), radius: 1, y: 1)
-            .overlay {
-                shape.strokeBorder(focused ? Sm.accentLine : .clear, lineWidth: 1)
-                    .animation(focusAnimation, value: focused)
-                    .allowsHitTesting(false)
-            }
-            .overlay {
-                // 3pt 光圈画在卡片外侧，线的中心向外移 1.5pt。
-                RoundedRectangle(cornerRadius: 31.5, style: .continuous)
-                    .stroke(focused ? Sm.accentSoft : Color.clear, lineWidth: 3)
-                    .padding(-1.5)
-                    .animation(focusAnimation, value: focused)
-                    .allowsHitTesting(false)
             }
         }
     }
@@ -125,22 +135,16 @@ struct ChatComposer: View {
                 }
             )
             HStack(spacing: 0) {
-                // 上传附件期间不能再加；外观不变（Android 同样）。
-                NFIconButton(
-                    Lucide.plus, label: L("attach_add"), iconSize: 18, strokeWidth: 1.8, disabledColor: Sm.muted,
-                    action: onAddClick
-                )
-                .disabled(uploading)
                 if let model = state.selectedModel {
                     ChatModelPill(
                         label: model.label,
                         effort: state.selectedReasoning.map { ChatReasoningText.label($0) },
                         action: onModelClick
                     )
-                    .padding(.leading, 6)
                 }
                 Spacer(minLength: 6)
                 ChatSendButton(sending: state.sending, enabled: sendEnabled) {
+                    Haptics.light()
                     if state.sending {
                         app.chat.stop()
                     } else {
@@ -152,8 +156,7 @@ struct ChatComposer: View {
     }
 }
 
-/// 模型按钮（.codex-model-trigger，手机）：高 40、全圆角、左右 13.6、间距 6.4；玻璃卡上用半透明底。
-/// 模型名 15 / 500（放不下省略）、推理强度 15 / 500 灰、ChevronDown 16。点开模型与推理强度的抽屉。
+/// 模型按钮：高 34、全圆角胶囊、左右 12、间距 6；玻璃卡上用系统生动的柔和透明底。
 private struct ChatModelPill: View {
     let label: String
     let effort: String?
@@ -162,57 +165,68 @@ private struct ChatModelPill: View {
     @Environment(\.nfChromePath) private var chromePath
 
     var body: some View {
+        let ink = chromePath == .native ? chromePath.primaryInk : Sm.text
+        let subInk = chromePath == .native ? chromePath.secondaryInk : Sm.muted
+        let bg: Color = {
+            switch chromePath {
+            case .native: return Color.primary.opacity(0.065)
+            case .material: return Sm.hover
+            case .solid: return Sm.modelPill
+            }
+        }()
         Button(action: action) {
-            HStack(spacing: 6.4) {
+            HStack(spacing: 6) {
                 Text(label)
-                    .font(.nf(15, weight: 500))
-                    .foregroundStyle(Sm.text)
+                    .font(.nf(14, weight: 500))
+                    .foregroundStyle(ink)
                     .lineLimit(1)
                     .truncationMode(.tail)
                 if let effort {
                     Text(effort)
-                        .font(.nf(15, weight: 500))
-                        .foregroundStyle(Sm.muted)
+                        .font(.nf(14, weight: 500))
+                        .foregroundStyle(subInk)
                         .lineLimit(1)
                         .fixedSize()
                 }
-                LucideIcon(Lucide.chevronDown, size: 16, color: Sm.text)
+                LucideIcon(Lucide.chevronDown, size: 15, color: subInk)
             }
-            .padding(.horizontal, 13.6)
-            .frame(height: 40)
+            .padding(.horizontal, 12)
+            .frame(height: 34)
         }
         .buttonStyle(.pressable(
-            background: chromePath == .solid ? Sm.modelPill : Sm.hover,
+            background: bg,
             pressedBackground: chromePath == .solid ? Sm.modelPillPressed : Sm.active,
-            cornerRadius: 20,
+            cornerRadius: 17,
             scale: 0.97
         ))
     }
 }
 
-/// 发送键（.notion-send，手机）：40 的圆；可发送时墨色底白箭头（ArrowUp 24、线宽 2.1），不可发送时 .08 灰底、.36 灰箭头。
-/// 生成中换成停止键：白色实心方块（网页 lucide Square 16、填充：边长 12、圆角 1.3）。
+/// 发送键：36 的圆；可发送时墨色底白箭头，不可发送时柔和灰底。生成中换成停止键。
 private struct ChatSendButton: View {
     let sending: Bool
     let enabled: Bool
     let action: () -> Void
 
+    @Environment(\.nfChromePath) private var chromePath
+
     var body: some View {
         let foreground = enabled ? Sm.onInk : Sm.faint
+        let disabledFill = chromePath == .native ? Color.primary.opacity(0.07) : Sm.hover
         Button(action: action) {
             Group {
                 if sending {
-                    RoundedRectangle(cornerRadius: 1.3)
+                    RoundedRectangle(cornerRadius: 1.5)
                         .fill(foreground)
-                        .frame(width: 12, height: 12)
+                        .frame(width: 11, height: 11)
                 } else {
-                    LucideIcon(Lucide.arrowUp, size: 24, strokeWidth: 2.1, color: foreground)
+                    LucideIcon(Lucide.arrowUp, size: 22, strokeWidth: 2.1, color: foreground)
                 }
             }
-            .frame(width: 40, height: 40)
+            .frame(width: 36, height: 36)
         }
         .buttonStyle(.pressable(
-            background: enabled ? Sm.ink : Sm.hover, pressedBackground: Sm.inkHover, cornerRadius: 20, scale: 0.97
+            background: enabled ? Sm.ink : disabledFill, pressedBackground: Sm.inkHover, cornerRadius: 18, scale: 0.97
         ))
         .disabled(!enabled)
         .accessibilityLabel(L(sending ? "stop" : "send"))

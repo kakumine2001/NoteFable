@@ -27,148 +27,33 @@ extension View {
         removeLabel: String? = nil,
         onPick: @escaping (String?) -> Void
     ) -> some View {
-        modifier(EmojiPickerPresenter(isPresented: isPresented, current: current, removeLabel: removeLabel, onPick: onPick))
-    }
-}
-
-/// 把弹出框声明给当前最近的 `NFOverlayCenter`：用全屏面板那一层（透明底），按触发按钮的全局位置摆卡片。
-/// 进场借面板的过渡：整层从下方 4 处淡入，120ms ease-out。
-private struct EmojiPickerPresenter: ViewModifier {
-    @Binding var isPresented: Bool
-    let current: String?
-    let removeLabel: String?
-    let onPick: (String?) -> Void
-
-    @Namespace private var namespace
-    @Environment(\.self) private var environment
-    @Environment(NFOverlayCenter.self) private var center: NFOverlayCenter?
-    @State private var anchorRect: CGRect = .zero
-
-    private static let style = NFPanelStyle(background: .clear, rise: 4, animation: NFMotion.cssEaseOut(0.12))
-
-    private var currentId: NFOverlayID {
-        NFOverlayID(namespace: namespace, key: nil)
-    }
-
-    private func makeItem(globalRect: CGRect) -> NFOverlayItem {
-        let binding = $isPresented
-        let current = self.current
-        let removeLabel = self.removeLabel
-        let onPick = self.onPick
-        return NFOverlayItem(
-            id: currentId,
-            kind: .panel(Self.style),
-            dismissDisabled: false,
-            environment: environment,
-            content: {
-                AnyView(EmojiPopoverLayer(
-                    globalAnchorRect: globalRect,
-                    current: current,
-                    removeLabel: removeLabel,
-                    onPick: onPick,
-                    onClose: { binding.wrappedValue = false }
-                ))
-            },
-            dismiss: { binding.wrappedValue = false }
-        )
-    }
-
-    func body(content: Content) -> some View {
-        if isPresented {
-            center?.updateStoredContent(makeItem(globalRect: anchorRect))
-        }
-        return content
-            .onGeometryChange(for: CGRect.self) { proxy in
-                proxy.frame(in: .global)
-            } action: { rect in
-                anchorRect = rect
-                if isPresented {
-                    center?.upsert(makeItem(globalRect: rect))
-                }
-            }
-            .onChange(of: isPresented, initial: true) { _, shown in
-                if shown {
-                    center?.upsert(makeItem(globalRect: anchorRect))
-                } else {
-                    center?.remove(currentId)
-                }
-            }
-            .onChange(of: current) { _, _ in
-                if isPresented {
-                    center?.upsert(makeItem(globalRect: anchorRect))
-                }
-            }
-            .onDisappear {
-                center?.remove(currentId)
-            }
-    }
-}
-
-/// 弹出框所在的那一层：透明的底接住"点外面"，卡片按 `floatingEmojiPosition` 摆。
-private struct EmojiPopoverLayer: View {
-    let globalAnchorRect: CGRect
-    let current: String?
-    let removeLabel: String?
-    let onPick: (String?) -> Void
-    let onClose: () -> Void
-
-    @Environment(\.layoutDirection) private var layoutDirection
-
-    var body: some View {
-        GeometryReader { proxy in
-            let hostGlobal = proxy.frame(in: .global)
-            let localX = (layoutDirection == .rightToLeft)
-                ? (hostGlobal.maxX - globalAnchorRect.maxX)
-                : (globalAnchorRect.minX - hostGlobal.minX)
-            let localAnchor = CGRect(
-                x: localX,
-                y: globalAnchorRect.minY - hostGlobal.minY,
-                width: globalAnchorRect.width,
-                height: globalAnchorRect.height
+        nfPopover(
+            isPresented: isPresented,
+            width: 380,
+            arrowEdge: .top,
+            adaptCompactToSheet: true,
+            contentInsets: EdgeInsets(top: 8, leading: 0, bottom: 0, trailing: 0)
+        ) {
+            EmojiPickerBody(
+                current: current,
+                removeLabel: removeLabel,
+                onClose: { isPresented.wrappedValue = false },
+                onPick: onPick
             )
-            let size = EmojiPopoverSize.of(viewport: proxy.size)
-            let origin = floatingEmojiPosition(
-                anchor: localAnchor, viewport: proxy.size, popup: CGSize(width: size.width, height: size.height)
-            )
-            ZStack(alignment: .topLeading) {
-                Color.clear
-                    .contentShape(Rectangle())
-                    .onTapGesture { onClose() }
-                    .ignoresSafeArea()
-                    .accessibilityHidden(true)
-                card(size)
-                    .offset(x: origin.x, y: origin.y)
-            }
-        }
-    }
-
-    private func card(_ size: EmojiPopoverSize) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
-        return EmojiPickerBody(current: current, height: size.pickerHeight, removeLabel: removeLabel, onClose: onClose, onPick: onPick)
-            .frame(width: size.width)
-            // 先裁内容再上玻璃（玻璃自己的边缘和高光不被裁掉）。
-            .clipShape(shape)
-            .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: Sm.panelRing)
-            // 卡片上的空白处不算"点外面"。
-            .contentShape(shape)
-            .onTapGesture {}
-            // 网页的表情面板固定用浅色主题（Theme.LIGHT），深色外观下也是浅色的一块（和账号头像的表情页一样）：
-            // 里面的白色搜索框和分类标题条在深色下会变成浅底浅字。玻璃也在这里面，跟着取浅色；阴影在外面，照外观。
-            .environment(\.colorScheme, .light)
-            .nfChromeShadow(Sm.panelShadow, radius: 10, y: 4)
             .accessibilityElement(children: .contain)
             .accessibilityLabel(L("em_choose"))
+        }
     }
 }
 
 // MARK: - 选择器的内容
 
-/// 表情选择器的内容（网页 EmojiPickerBody）：上面一条 Emoji / Random / Remove，下面是高 `height` 的表情区。
-/// 可以放进弹出框，也可以直接放在页面里（账号头像的表情页）。
+/// 表情选择器的内容（网页 EmojiPickerBody）：上面一条 Emoji / Random / Remove，下面是自适应高度或定高 `height` 的表情区。
+/// 可以放进原生 `.nfPopover`（自动适配手机 `.sheet` 与 iPad `.popover`），也可以定高放在页面里（账号头像的表情页）。
 /// 点表情：`onPick(表情)` 再 `onClose()`；Random：只调 `onPick`；Remove：`onPick(nil)` 再 `onClose()`。
 struct EmojiPickerBody: View {
     private let current: String?
-    private let height: CGFloat
+    private let height: CGFloat?
     private let removeLabel: String?
     private let onClose: () -> Void
     private let onPick: (String?) -> Void
@@ -179,7 +64,7 @@ struct EmojiPickerBody: View {
 
     init(
         current: String?,
-        height: CGFloat,
+        height: CGFloat? = nil,
         removeLabel: String? = nil,
         onClose: @escaping () -> Void = {},
         onPick: @escaping (String?) -> Void
@@ -197,15 +82,19 @@ struct EmojiPickerBody: View {
                 current: current,
                 removeLabel: removeLabel ?? L("em_remove"),
                 onRandom: {
-                    if case .ready(let catalog) = load, let item = catalog.emojis.randomElement() { onPick(item.emoji) }
+                    if case .ready(let catalog) = load, let item = catalog.emojis.randomElement() {
+                        Haptics.selection()
+                        onPick(item.emoji)
+                    }
                 },
                 onRemove: {
+                    Haptics.light()
                     onPick(nil)
                     onClose()
                 }
             )
             content
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: height == nil ? .infinity : nil)
                 .frame(height: height)
         }
         .frame(maxWidth: .infinity)
@@ -299,7 +188,7 @@ private struct EmojiPickerBar: View {
     }
 }
 
-/// 顶部条的小按钮：高 28、左右 8、圆角 4，图标 13 + 间距 4 + 13 灰字；按下灰底。
+/// 顶部条的小胶囊按钮：高 28、左右 10，图标 13 + 间距 4 + 13 灰字；按下柔和胶囊底。
 private struct EmojiBarButton: View {
     private let title: String
     private let icon: [String]?
@@ -320,9 +209,9 @@ private struct EmojiBarButton: View {
                     .foregroundStyle(Sm.muted)
                     .lineLimit(1)
             }
-            .padding(.horizontal, 8)
+            .padding(.horizontal, 10)
             .frame(height: 28)
         }
-        .buttonStyle(.pressable(cornerRadius: 4))
+        .buttonStyle(.pressable(cornerRadius: 14))
     }
 }

@@ -362,7 +362,7 @@ private struct SettingsInstructionsField: View {
     @FocusState private var focused: Bool
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 10)
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
         // 行高 24.8：比字体自然行高多出来的部分当行距。
         let spacing: CGFloat = 24.8 - 16 * 1.193
         TextEditor(text: $text)
@@ -392,7 +392,7 @@ private struct SettingsInstructionsField: View {
             .overlay { shape.strokeBorder(focused ? Sm.blue : Sm.borderStrong, lineWidth: 1) }
             .background {
                 // 光圈画在描边外侧 3px。
-                RoundedRectangle(cornerRadius: 13)
+                RoundedRectangle(cornerRadius: 17, style: .continuous)
                     .fill(focused ? Sm.focusRing : Color.clear)
                     .padding(-3)
             }
