@@ -1136,7 +1136,7 @@ export const ar: Record<string, string> = {
   "Tell the AI how to change this page. Its changes are applied right away, and you can undo them.": "أخبر الذكاء الاصطناعي كيف يغيّر هذه الصفحة. تُطبَّق تغييراته فورًا، ويمكنك التراجع عنها.",
   "Tell the AI how to change this page. You review its proposal before anything changes.": "أخبر الذكاء الاصطناعي كيف يغيّر هذه الصفحة. ستراجع اقتراحه قبل أن يتغير أي شيء.",
   "Selected items": "العناصر المحددة",
-  "Selected items: {count}": "تم تحديد {count} من العناصر",
+  "Selected items: {count}": "العناصر المحددة: {count}",
   "Update": "تحديث",
   "Move": "نقل",
   "Reorder": "إعادة الترتيب",

@@ -350,7 +350,7 @@ DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_re
 已登录的用户可以写一段适用于自己**所有聊天**的指令（介绍自己、希望怎样回答），类似其他产品的 custom instructions。游客没有这个功能。
 
 - 存在 `User.customInstructions`，最多 4,000 字符（`MAX_CUSTOM_INSTRUCTIONS`），校验沿用项目共通指示的 `validProjectInstructions`（换行统一为 `\n`、去掉首尾空白、空白存为 null、不允许换行和制表符以外的控制字符）。
-- 接口 `GET /api/custom-instructions` 返回 `{ instructions }`，`PUT` 以 `{ instructions }` 整体替换（`""` 或 `null` 清空）。两者都先确认当前用户已登录（`isAccountUser()`，`src/lib/auth.ts`：Google 或邮箱登录的用户行），否则不看请求内容直接 401 `Sign in to use custom instructions.`；响应 `Cache-Control: no-store`。
+- 接口 `GET /api/custom-instructions` 返回 `{ instructions }`，`PUT` 以 `{ instructions }` 整体替换（`""` 或 `null` 清空）。两者都先确认当前用户已登录（`isAccountUser()`，`src/lib/auth.ts`：Google、邮箱或 Apple 登录的用户行），否则不看请求内容直接 401 `Sign in to use custom instructions.`；响应 `Cache-Control: no-store`。
 - 入口是设置对话框（`src/components/settings-dialog.tsx`，点侧栏底部登录后的账号行打开，`account-button.tsx`），分 4 个标签页（通用 / 个性化 / 方案 / 账号，手机宽度为两级导航，`src/lib/settings-navigation.ts`），汇总语言、外观（跟随系统 / 浅色 / 深色，只存本机）、AI 角色图标、自定义指令、方案用量与订阅、个人资料、退出登录和删除账号，挂在 `body` 下（侧栏会随宽度隐藏）。打开时读取自定义指令，文字变动后下方出现“未保存的更改”浮条（放弃 / 保存），保存中或未放弃修改前不能关闭（Esc、返回键、点外面都不关），免得丢失修改或保存失败无处提示；裁剪/上传头像期间禁用退出与删除账号并阻止离开。Android 为 `ui/SettingsDialog.kt`（[android-native.md](android-native.md)），iOS 为 `Features/Settings/SettingsScreen.swift`（[ios-native.md](ios-native.md)）。
 - `/api/chat` 每次发送都从刚取得的用户行读 `customInstructions`（不另查库），所以修改从下一条消息起生效；只对已登录的用户行（同一个 `isAccountUser()`）使用。`formatCustomInstructions()` 把它夹在 `=== User's custom instructions ===` 与 `=== End of user's custom instructions ===` 之间（结尾带换行，后面的项目文脉不会接在分隔行上），经**同一个** `buildInstructions()`（第 5 个参数）放在固定文字之后、项目文脉之前。它是用户自己的指示：覆盖默认的语言/语气/格式几行，当前聊天里另有要求时以聊天为准；与项目的共通指示冲突时项目优先。笔记里的 AI 助手会话同样带入。
 - 不影响标题生成（`chat-title.ts`）和图片生成，不产生 `context` 途中经过事件，也不写进 `Message`。
@@ -520,7 +520,7 @@ AI 的 `search_notes` 工具（`src/lib/page-ai/tools.ts`）现在与站内搜�
 - **分隔线。** `role="separator"`：拖动改变比例，比例是页面面板占工作区的份额，限制在 0.3–0.65（`clampSplitRatio`），默认 0.46，面板最窄 320px；双击恢复默认；聚焦后 ←/→ 每次 0.03；RTL 下方向相反。
 - **本机保存。** `localStorage` 的 `notefable:split-view:v1` 存 `{ open, pageId, ratio }`（`loadSplitPreference` / `saveSplitPreference`），只按浏览器保存，不随账号同步。`/app` 是静态页面，所以在页面显示后才读取。
 - **页面链接在右侧打开。** Chat 视图且宽度够时，`openNoteFromLink` 不切到工作区，而是在分屏里打开（分屏关着就顺便打开）：搜索结果（带 `blockId` 时照常滚到命中的块并高亮）、空对话页最近笔记卡片的 ↗，以及所有派发 `notefable:open-note` 的地方（项目参考笔记和发言附加笔记的标签、Save to page 的 “Open saved page”、Create page 的 “Open page”、画成图的 “Open whiteboard”、AI 生成幻灯片的 “Open slides”）。其他情况仍切到工作区视图。
-- **Ask NoteFable 进聊天。** 分屏的页面面板不显示页面 AI 的悬浮按钮和面板。在这里点 Ask NoteFable（笔记：选中文字后的格式工具栏、整块选区的浮动栏或 `⋮⋮` 菜单；白板 / 幻灯片：编辑器里的 Ask NoteFable），选中的文字（选区没有文字时是“标题 (N items selected)”）成为聊天输入框上方的引用条（与“引用回答追问”同一个引用条和发送格式），同时把这个页面加进这条发言的附加页面（已附加时不重复加；已满 5 个且不含它时只放引用）。之后就是一条普通的聊天发言：不带 `noteId` / `noteSelection`，AI 通过附加的页面和 Notes 工具读到内容。
+- **Ask NoteFable 进聊天。** 分屏的页面面板不显示页面 AI 的悬浮按钮和面板。在这里点 Ask NoteFable（笔记：选中文字后的格式工具栏、整块选区的浮动栏或 `⋮⋮` 菜单；白板 / 幻灯片：编辑器里的 Ask NoteFable），选中的文字（选区没有文字时是“标题 (Selected items: N)”）成为聊天输入框上方的引用条（与“引用回答追问”同一个引用条和发送格式），同时把这个页面加进这条发言的附加页面（已附加时不重复加；已满 5 个且不含它时只放引用）。之后就是一条普通的聊天发言：不带 `noteId` / `noteSelection`，AI 通过附加的页面和 Notes 工具读到内容。
 - **分屏的选区。** 笔记的整块选区、白板元素、幻灯片 / 元素还带 ID：只要该页面仍在附加页面里，请求就带 `selectionPageId` + `selectionIds`，并存到这条发言的 `MessageNote.selectionIds`（编辑 / 重新生成时沿用）。目标是白板 / 幻灯片且模型能用 Notes 工具时，`buildInstructions()` 另加一句列出选中的 ID，`read_note` 超长时优先输出它们；笔记的选区只靠引用文字。白板 / 幻灯片的选区在当前模型能看图时还会在发送时截成 `selection.png` 随附件上传（截不了或放不下时只提示，照常发送）。移除引用条会连选区一起去掉；图片生成模式只放引用。
 - **发送前保存。** 分屏打开且右侧页面有未保存的编辑时（白板先交出还没交给保存队列的变更），发送聊天消息前先 `flush()`，让 AI 读到最新的正文；保存失败不阻止发送。关闭分屏时也 flush 一次。
 

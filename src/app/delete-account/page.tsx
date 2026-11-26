@@ -29,7 +29,7 @@ export default function DeleteAccountPage() {
           <li>Your account: Google or Apple account ID, email address, name, profile photo, display name and icon, language and custom instructions.</li>
           <li>All chats and messages, attached files and their extracted text, and generated images.</li>
           <li>Everything in your Workspace: all notes, slide decks and whiteboards, their history, projects, covers, files and images, plus chat projects and AI page proposals.</li>
-          <li>Your daily usage counters and any pending email sign-in codes.</li>
+          <li>Your usage counters and any pending email sign-in codes.</li>
           <li>
             Your Pro subscription: one bought on the website ends immediately and your customer record at Stripe is deleted; a Google Play subscription stops
             renewing. To stop an App Store subscription from renewing, cancel it in your App Store subscriptions. The period already paid is not refunded. The payment providers keep their own records as the law requires.

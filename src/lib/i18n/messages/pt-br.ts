@@ -1136,7 +1136,7 @@ export const ptBR: Record<string, string> = {
   "Tell the AI how to change this page. Its changes are applied right away, and you can undo them.": "Diga à IA como alterar esta página. As alterações são aplicadas na hora, e você pode desfazê-las.",
   "Tell the AI how to change this page. You review its proposal before anything changes.": "Diga à IA como alterar esta página. Você revisa a proposta antes de qualquer mudança.",
   "Selected items": "Itens selecionados",
-  "Selected items: {count}": "{count} itens selecionados",
+  "Selected items: {count}": "Itens selecionados: {count}",
   "Update": "Atualizar",
   "Move": "Mover",
   "Reorder": "Reordenar",

@@ -1136,7 +1136,7 @@ export const hi: Record<string, string> = {
   "Tell the AI how to change this page. Its changes are applied right away, and you can undo them.": "AI को बताएँ कि इस पेज को कैसे बदलना है। उसके बदलाव तुरंत लागू होते हैं और आप उन्हें पूर्ववत कर सकते हैं।",
   "Tell the AI how to change this page. You review its proposal before anything changes.": "AI को बताएँ कि इस पेज को कैसे बदलना है। कुछ भी बदलने से पहले आप उसके सुझाव की समीक्षा करते हैं।",
   "Selected items": "चुने गए आइटम",
-  "Selected items: {count}": "{count} आइटम चुने गए",
+  "Selected items: {count}": "चुने गए आइटम: {count}",
   "Update": "अपडेट करें",
   "Move": "खिसकाएँ",
   "Reorder": "क्रम बदलें",

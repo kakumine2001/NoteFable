@@ -1136,7 +1136,7 @@ export const es: Record<string, string> = {
   "Tell the AI how to change this page. Its changes are applied right away, and you can undo them.": "Dile a la IA cómo cambiar esta página. Sus cambios se aplican al momento y puedes deshacerlos.",
   "Tell the AI how to change this page. You review its proposal before anything changes.": "Dile a la IA cómo cambiar esta página. Revisarás su propuesta antes de que cambie nada.",
   "Selected items": "Elementos seleccionados",
-  "Selected items: {count}": "{count} elementos seleccionados",
+  "Selected items: {count}": "Elementos seleccionados: {count}",
   "Update": "Actualizar",
   "Move": "Mover",
   "Reorder": "Reordenar",

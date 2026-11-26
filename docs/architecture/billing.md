@@ -12,7 +12,7 @@ NoteFable 的收费只有一种：月额订阅 **Pro**，每月 ¥300（税込�
 | member | 已登录、免费 | 40 / 天 | 20 / 月，且 5 / 天 | 500 MB |
 | pro | `User.plan = PRO` | 2,000 / 账期 | 60 / 账期，且 10 / 天 | 10 GB |
 
-- “天”是日本时间的一天；免费的“月”是日本时间的自然月；Pro 的“账期”是 Stripe 的当前计费周期（`subscriptionPeriodStart`〜`subscriptionPeriodEnd`），续费时重新计算。账期已过但续费通知还没到时，先按自然月计（不会被上一期用满的计数卡住）。Pro 和免费的月计数是不同的行（`chat:pro` / `image:pro` 与 `image:month`），所以升级时免费额度的用量不带进 Pro，回到免费时也不按旧账期算。
+- “天”是日本时间的一天；免费的“月”是日本时间的自然月；Pro 的“账期”是当前订阅（Stripe / Google Play / App Store）的计费周期（`subscriptionPeriodStart`〜`subscriptionPeriodEnd`），续费时重新计算。账期已过但续费通知还没到时，先按自然月计（不会被上一期用满的计数卡住）。Pro 和免费的月计数是不同的行（`chat:pro` / `image:pro` 与 `image:month`），所以升级时免费额度的用量不带进 Pro，回到免费时也不按旧账期算。
 - 图片有两层上限：月（账期）总量和每日张数，任何一层满了就拒绝，提示句会说明是今天的还是本月的。每日上限让用户每天都能用，月总量控制成本（一张图约 ¥4–8，是聊天的几十倍）。设置的“方案”里 Pro 显示两条图片生成用量（本期 / 今日），免费方案平时只显示今日图片生成（后台仍执行月总量上限，触顶时补显示满额的本月条）。
 - 同一网络的未登录用户另有共同上限：聊天 100 / 天，图片 30 / 月（未登录清 Cookie 就是新用户，图片靠这个上限兜底；登录后不受限）。网络按 IPv4 地址或 IPv6 的前 64 位计（`networkAddress`），在自己的 /64 里换地址逃不掉；换 IP（代理）仍然逃得掉，没有全站的未登录总量上限。
 - 免费的月用量（40 × 31 = 1,240 条）低于 Pro，测试会检查。
@@ -50,7 +50,7 @@ NoteFable 的收费只有一种：月额订阅 **Pro**，每月 ¥300（税込�
 代码在 `src/lib/billing.ts`（服务端）、`src/lib/billing-client.ts`（网页）、`src/app/api/billing/`。
 
 1. **申请**：设置的“方案”或上限提示（`UpgradePrompt`）里的“升级到 Pro” → `POST /api/billing/checkout`（同源、已登录）。在按用户的账务锁（`withUserBillingLock`）内重读用户行，没有 Stripe 客户就先建一个（幂等键 `notefable-customer-<userId>`）并写回 `stripeCustomerId`。随后**先让这个客户开着的旧 Checkout Session 过期**（避免两个页面同时付款），**再向 Stripe 列出这个客户的订阅**：有还在扣费的（`canceled`、`incomplete_expired` 以外，包括刚在过期前完成付款的）就同步它并返回 409；没有才创建 `mode: subscription` 的 Checkout Session 并返回 URL。被拒的草稿先存进 `sessionStorage`，回来后放回输入栏；附件不保留，提示里会说明。
-2. **回来**：Stripe 跳回 `/app?billing=success`。`BillingReturnNotice` 去掉地址里的参数，调 `GET /api/billing?refresh=1`：服务端向外部刷新当前用户的订阅状态并同步（有 Stripe 客户时向 Stripe 列出订阅同步；有 Google Play 购买令牌且已配置 Play 结算时也会重新同步 Play 订阅），不等 Webhook；显示“欢迎使用 Pro”或“正在确认付款”。
+2. **回来**：Stripe 跳回 `/app?billing=success`。`BillingReturnNotice` 去掉地址里的参数，调 `GET /api/billing?refresh=1`：服务端向外部刷新当前用户的订阅状态并同步（有 Stripe 客户时向 Stripe 列出订阅同步；有 Google Play 购买令牌且已配置 Play 结算时也会重新同步 Play 订阅，有 App Store 订阅且已配置时也会重新同步它），不等 Webhook；显示“欢迎使用 Pro”或“正在确认付款”。
 3. **Webhook**：`POST /api/billing/webhook` 校验 `stripe-signature` 后，对 `checkout.session.completed`、`checkout.session.async_payment_succeeded` 和 `customer.subscription.created|updated|deleted|paused|resumed`，用事件里的订阅 ID **重新向 Stripe 取订阅**再写库（`syncSubscription`），所以事件乱序或重发都只会写最新状态。同步失败返回 500，让 Stripe 重试。
 4. **状态 → 方案**：`active`、`trialing`、`past_due` 视为 Pro（`past_due` 是 Stripe 在重试扣款；后台必须设成重试用尽后取消订阅，否则会一直停在 `past_due`、一直是 Pro）；其他状态回到 FREE。用户有另一份有效订阅时，旧订阅的结束通知不会把他降回 FREE。预约解约（`cancel_at`，或 `cancel_at_period_end` 时取账期结束）期间仍是 Pro，日期存在 `subscriptionCancelAt`，设置里显示“Pro 将于…结束”。收到持有者已删除（找不到行）但还在扣费的 NoteFable 订阅（`metadata.userId`）时，直接取消它。
 5. **管理**：Pro 用户（或有过订阅的用户）在设置里点“管理订阅” → `POST /api/billing/portal` → Stripe Customer Portal（解约、换卡、收据），返回 `/app?billing=portal`。Portal 用后台的默认构成（Stripe 邮件里的“管理订阅”链接也用它），但解约方式由代码保证：打开 Portal 前（每个实例每 10 分钟最多一次）读默认构成，解约不是“在计费周期结束时取消”或被关掉时，用 API 改回（`ensurePortalCancelsAtPeriodEnd`，只改解约这一项，其他项目照后台设置）。一并把 `proration_behavior` 设成 `none`（即时解约用的按比例结算值留着时，Stripe 会拒绝改 mode）；这两个请求各自最多等 5 秒、不重试。读或改失败时照常打开 Portal，不让用户失去解约手段，1 分钟后再试。这是服务条款第 3 节和特商法标示的承诺。
@@ -80,7 +80,7 @@ Stripe 后台要做的事：
 
 ## Android（Google Play 结算）
 
-Google Play 要求 App 内的数字订阅走 Play 结算，不能引导去网页付款。所以 App 里用 Play Billing 卖同一个 Pro，网页用 Stripe；两边写进同一组 `User` 列（`subscriptionProvider` = `stripe` / `google`，`src/lib/subscription-state.ts`）。服务端的上限提示句不提“升级”，升级提示由各端界面自己显示；App 内嵌的笔记编辑页（`/note-embed`）不显示网页的 Stripe 升级提示。Play 收 15%，¥300 到手约 ¥255。
+Google Play 要求 App 内的数字订阅走 Play 结算，不能引导去网页付款。所以 App 里用 Play Billing 卖同一个 Pro，网页用 Stripe；两边写进同一组 `User` 列（`subscriptionProvider` = `stripe` / `google`，iOS 的 App Store 订阅是 `apple`；`src/lib/subscription-state.ts`）。服务端的上限提示句不提“升级”，升级提示由各端界面自己显示；App 内嵌的笔记编辑页（`/note-embed`）不显示网页的 Stripe 升级提示。Play 收 15%，¥300 到手约 ¥255。
 
 1. **购买**（`data/PlayBilling.kt`，billing-ktx 9.1.0）：设置的“方案”（`ui/PlanSettings.kt`）和上限提示（`UpgradeLimitPrompt`）在 `GET /api/billing` 的 `googlePlay` 为 true、且能读到 Play 商品时显示“升级到 Pro”，价格用 Play 返回的本地化价格。购买窗口带上 `accountId`（`setObfuscatedAccountId`，就是 `User.id`）。不是从 Play 安装的 APK（例如 Drive 发的）连不上 Play 结算，不显示购买按钮。
 2. **报告**：买到后 App 把购买令牌发到 `POST /api/billing/google`。服务端用 Play Developer API（`purchases.subscriptionsv2.get`）核对：令牌上的 `obfuscatedExternalAccountId`（Play 商店里重新购买时是原购买的）必须是当前用户；没有这个 ID 时，只认已经记录在当前用户上的令牌（或它的前一个令牌）；令牌也不能已被别的用户用过。有效就确认（acknowledge）并写入，返回 Pro。付款还在处理（`PENDING`）时返回 202。网页（Stripe）已经是 Pro 时不确认这笔购买，Google 3 天后自动退款，返回 409。App 打开设置时会把没报告成功的购买（还没确认的）再报告一次。

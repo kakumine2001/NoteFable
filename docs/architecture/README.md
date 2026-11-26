@@ -50,7 +50,7 @@ flowchart LR
     OpenAI["OpenAI APIs"]
     DeepSeek["DeepSeek API"]
     Anthropic["Anthropic Messages API"]
-    External["Stripe / Google Play / Resend"]
+    External["Stripe / Google Play / App Store / Apple 登录 / Resend"]
 
     Browser --> App
     Native --> App
@@ -113,7 +113,7 @@ flowchart LR
 | `src/lib/email-login.ts`、`src/app/api/auth/email/*`、`src/components/sign-in-dialog.tsx` | 邮箱验证码登录（发码、校验、签发同样的会话 Cookie）和登录弹窗（Google / 邮箱）；配置见 [deployment.md](deployment.md) |
 | `src/lib/native-google-login.ts`、`src/app/api/native-auth/*` | Android / iOS 原生 App 内的 Google 登录：校验端侧 ID 令牌后签发同样的会话 Cookie（见 [android.md](android.md)、[ios-native.md](ios-native.md)） |
 | `src/lib/native-apple-login.ts`、`src/app/api/native-auth/apple` | iOS 原生 App 内的 Apple 登录（服务端配置齐全后开放）；账户按 `appleSub` 单独识别（见 [ios-native.md](ios-native.md)） |
-| `src/lib/usage-plans.ts`、`src/lib/usage-limits.ts`、`src/lib/billing.ts`、`src/lib/google-play-billing.ts`、`src/lib/subscription-state.ts`、`src/app/api/billing/*` | 各档位用量上限计数、Stripe 网页订阅、Google Play 订阅与 RTDN 同步（[billing.md](billing.md)） |
+| `src/lib/usage-plans.ts`、`src/lib/usage-limits.ts`、`src/lib/billing.ts`、`src/lib/google-play-billing.ts`、`src/lib/apple-app-store.ts`、`src/lib/subscription-state.ts`、`src/app/api/billing/*` | 各档位用量上限计数、Stripe 网页订阅、Google Play 订阅与 RTDN 同步、App Store 订阅（[billing.md](billing.md)） |
 | `src/lib/models.ts`、`src/lib/model-registry.ts`、`src/app/api/models/route.ts` | 内置模型能力、推理档位与 `NOTEFABLE_MODELS` 服务端模型注册表 |
 | `src/lib/claude-image.ts` | Claude 模型图片副本压缩与尺寸控制，原图保留 |
 | `src/lib/files.ts` | 文件校验、PDF/文本抽取、图片预处理 |
@@ -139,4 +139,4 @@ Vercel Function
 
 ## 文档更新时间
 
-本轮文档与主分支代码核对：**2026-11-22**，覆盖产品定位、分域、17 语言、计费与用量、登录与删号、Notes、Android / iOS 客户端、上游请求示例和图片读取。生产数据库连接方式与本地数据库的运行核验仍为 **2026-09-16**，Neon 项目资源核验为 **2026-09-05**；文档同步不代表重新验证了所有线上功能或已交付安装包。
+本轮文档与主分支代码核对：**2026-11-27**，覆盖产品定位、分域、17 语言、计费与用量、登录与删号、工作区页面（笔记 / 白板 / 幻灯片）、Android / iOS 客户端、上游请求示例和图片读取。生产数据库连接方式与本地数据库的运行核验仍为 **2026-09-16**，Neon 项目资源核验为 **2026-09-05**；文档同步不代表重新验证了所有线上功能或已交付安装包。

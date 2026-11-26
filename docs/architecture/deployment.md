@@ -105,7 +105,7 @@ flowchart LR
     Vercel --> OpenAI["OpenAI"]
     Vercel --> DeepSeek["DeepSeek"]
     Vercel --> Anthropic["Anthropic API"]
-    Vercel --> External["Google / Stripe / Resend"]
+    Vercel --> External["Google / Apple / Stripe / Resend"]
 ```
 
 ## Build
