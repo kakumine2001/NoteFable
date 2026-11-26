@@ -206,6 +206,8 @@ class NotesApiTest {
         assertEquals(EmbedMessage.OpenChat("c1"), EmbedMessage.parse("""{"type":"openChat","id":"c1","messageId":""}"""))
         assertNull(EmbedMessage.parse("""{"type":"openChat","id":""}"""))
         assertNull(EmbedMessage.parse("""{"type":"openChat","id":5}"""))
+        assertNull(EmbedMessage.parse("""{"type":"openChat","id":"  "}"""))
+        assertEquals(EmbedMessage.OpenChat("c1"), EmbedMessage.parse("""{"type":"openChat","id":"c1","messageId":"  "}"""))
         assertEquals(EmbedMessage.PagesChanged,EmbedMessage.parse("""{"type":"pagesChanged"}"""))
         assertEquals(EmbedMessage.Flushed("r1", true), EmbedMessage.parse("""{"type":"flushed","requestId":"r1","ok":true}"""))
         assertEquals(EmbedMessage.Flushed("r2", false), EmbedMessage.parse("""{"type":"flushed","requestId":"r2","ok":false}"""))

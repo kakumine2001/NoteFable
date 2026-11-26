@@ -50,6 +50,8 @@ describe("findNoteBacklinks", () => {
     expect(sql.sql).toContain('p."id" <>');
     expect(sql.sql).toContain('"notefable"."NotePage"');
     expect(sql.sql).toContain('c."links"');
+    // Links that cannot be page links (such as public share URLs holding the id) never take a candidate slot.
+    expect(sql.sql).toContain("strpos(h, 'view=pages') > 0");
     expect(sql.sql).not.toContain('c."data"');
     expect(sql.values).toContain("me");
     expect(sql.values).toContain("target");

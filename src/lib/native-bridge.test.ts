@@ -272,13 +272,13 @@ describe("file save capability", () => {
   });
 });
 
-describe("chats changed", () => {
+describe("refresh backlinks", () => {
   it("tells the open note to re-read its backlinks", async () => {
     const { createEmbedApi } = await import("./native-bridge");
-    const chatsChanged = vi.fn();
-    const api = createEmbedApi({ flush: async () => true, openHistory: () => {}, post: () => {}, chatsChanged });
-    expect(api.chatsChanged()).toBe(true);
-    expect(chatsChanged).toHaveBeenCalledTimes(1);
+    const refreshBacklinks = vi.fn();
+    const api = createEmbedApi({ flush: async () => true, openHistory: () => {}, post: () => {}, refreshBacklinks });
+    expect(api.refreshBacklinks()).toBe(true);
+    expect(refreshBacklinks).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -609,8 +609,8 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         run(NoteEmbedScripts.slides(command))
     }
 
-    func chatsChanged() {
-        run(NoteEmbedScripts.chatsChanged)
+    func refreshBacklinks() {
+        run(NoteEmbedScripts.refreshBacklinks)
     }
 
     private func run(_ script: String) {

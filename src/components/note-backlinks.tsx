@@ -6,7 +6,6 @@ import { useT } from "@/components/i18n-provider";
 import { NoteIcon } from "@/components/note-icon";
 import { PageKindIcon } from "@/components/page-kind-icon";
 import { NOTE_CHAT_SAVED_EVENT } from "@/components/page-assistant";
-import { appHref } from "@/lib/hosts";
 import { BACKLINKS_STALE_EVENT, parseNoteBacklinks, type NoteBacklinks } from "@/lib/note-backlinks";
 import { PAGES_TRASHED_EVENT } from "@/lib/proposal-sync";
 
@@ -30,8 +29,11 @@ export function NoteBacklinksSection({ pageId, embedded = false, onOpenPage, onO
   const [data, setData] = useState<{ pageId: string; backlinks: NoteBacklinks } | null>(null);
   const [expanded, setExpanded] = useState<{ pageId: string; pages: boolean; chats: boolean }>({ pageId, pages: false, chats: false });
   const [reload, setReload] = useState(0);
+  // どちらも開けない（古いアプリの埋め込みなど）ときは何も出さないので、読みもしない。
+  const shown = Boolean(onOpenPage || onOpenChat);
 
   useEffect(() => {
+    if (!shown) return;
     const controller = new AbortController();
     fetch(`/api/pages/${encodeURIComponent(pageId)}/backlinks`, { cache: "no-store", signal: controller.signal })
       .then(async (response) => (response.ok ? parseNoteBacklinks(await response.json()) : null))
@@ -39,9 +41,10 @@ export function NoteBacklinksSection({ pageId, embedded = false, onOpenPage, onO
       .then((backlinks) => { if (!controller.signal.aborted) setData(backlinks ? { pageId, backlinks } : null); })
       .catch(() => { if (!controller.signal.aborted) setData(null); });
     return () => controller.abort();
-  }, [pageId, reload]);
+  }, [pageId, reload, shown]);
 
   useEffect(() => {
+    if (!shown) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const schedule = () => { clearTimeout(timer); timer = setTimeout(() => setReload((value) => value + 1), REFRESH_DELAY_MS); };
     // このページ自身の保存・更新では変わらない（自分へのリンクは数えない）。
@@ -63,7 +66,7 @@ export function NoteBacklinksSection({ pageId, embedded = false, onOpenPage, onO
       clearTimeout(timer);
       for (const [name, listener] of listeners) window.removeEventListener(name, listener);
     };
-  }, [pageId]);
+  }, [pageId, shown]);
 
   const backlinks = data?.pageId === pageId ? data.backlinks : null;
   const pages = onOpenPage ? backlinks?.pages ?? [] : [];
@@ -102,7 +105,7 @@ export function NoteBacklinksSection({ pageId, embedded = false, onOpenPage, onO
       <h3 className="notes-backlinks-label">{t("Chats")}</h3>
       <ul className="notes-backlinks-list">
         {shownChats.map((chat) => <li key={chat.id}>
-          <a className="notes-backlinks-item" href={appHref(`?${new URLSearchParams(chat.messageId ? { chat: chat.id, message: chat.messageId } : { chat: chat.id })}`)}
+          <a className="notes-backlinks-item" href={`/app?${new URLSearchParams(chat.messageId ? { chat: chat.id, message: chat.messageId } : { chat: chat.id })}`}
             onClick={(event) => handle(event, () => onOpenChat?.(chat.id, chat.messageId ?? undefined))}>
             <span className="notes-backlinks-icon" aria-hidden="true">{chat.icon ?? <MessageSquareText size={16} strokeWidth={1.8} />}</span>
             <span className="notes-backlinks-name">{chat.title}</span>

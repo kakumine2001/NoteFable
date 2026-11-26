@@ -16,7 +16,7 @@ final class AppRouter {
 
     /// 侧边栏抽屉。里面能给聊天改名、删除，而下面可能开着笔记：关上时让编辑器重读反向链接。
     var drawerOpen = false {
-        didSet { if oldValue, !drawerOpen { app.editorBridge?.chatsChanged() } }
+        didSet { if oldValue, !drawerOpen { app.editorBridge?.refreshBacklinks() } }
     }
     /// 当前底部标签页。
     var selectedTab: AppTab = .chat

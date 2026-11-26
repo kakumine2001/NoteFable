@@ -124,7 +124,7 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 
 数据来自 `GET /api/pages/:id/backlinks`（`src/lib/note-backlinks-server.ts`）：打开页面时在数据库里现查，不建索引表。笔记走本人页面的正文 JSON（与搜索一样），只把含这个页面 ID 的链接带回，再用与编辑器相同的规则（`notePageIdFromUrl`）确认。白板 / 幻灯片的本体很大，读它们会随页数变慢，所以每次保存时服务端把本体里的页面链接抽进 `NoteCanvas.links`（`extractCanvasLinks`，`src/lib/note-backlinks.ts`；复制页面时一并复制），查询只读这一列。页面改了标题、进了 Trash 都立即反映。
 
-打开着的页面在这些时候延迟 400ms 重读一次：别的页面保存完成或进 Trash（`notefable:backlinks-stale`，`useNotePages` 派发）、会话列表变了（发送、改名、删除，`/app` 在列表变化时派发同一事件；`notefable:note-chat-saved` 是 AI 面板）、页面被 AI 改写（`notefable:page-updated`）、新建或复原了页面（`notefable:page-created`）、别处移入 Trash（`notefable:pages-trashed`）。iOS 的合并抽屉能在笔记上面给聊天改名、删除，关上抽屉时 App 调 `notefableEmbed.chatsChanged()`。在 A 里写了 `@B` 马上打开 B，A 的保存一落地 B 的列表就会出现 A。其他标签页或其他设备上的变化要重新打开页面才反映。
+打开着的页面在这些时候延迟 400ms 重读一次：别的页面保存完成或进 Trash（`notefable:backlinks-stale`，`useNotePages` 派发）、会话列表变了（发送、改名、删除，`/app` 在列表变化时派发同一事件；`notefable:note-chat-saved` 是 AI 面板）、页面被 AI 改写（`notefable:page-updated`）、新建或复原了页面（`notefable:page-created`）、别处移入 Trash（`notefable:pages-trashed`）。原生 App 的抽屉和回收站盖在笔记上面时，里面的改动由 App 调 `notefableEmbed.refreshBacklinks()` 让编辑器重读：别的页面改名、换图标、复原（Android 与 iOS，写入成功后）、聊天改图标（iOS，写入成功后）、聊天改名和删除（iOS，抽屉关上时；Android 的抽屉只在离开笔记后列聊天）。在 A 里写了 `@B` 马上打开 B，A 的保存一落地 B 的列表就会出现 A。其他标签页或其他设备上的变化要重新打开页面才反映。
 ## 接口
 
 | 路径 | 行为 |
@@ -296,7 +296,7 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 - `openPage(request)`：原生端复用同一个常驻 `/note-embed` WebView 时，传入 `{ id, reveal?, model?, reasoning? }`（或 JSON / ID 字符串）就地切换到另一篇页面或重新打开缓存里的页面；不向历史栈压记录（`replaceState`，不污染原生返回手势），立即命中 `useNotePages` 内嵌模式最多 8 篇的 LRU 缓存并后台对账（未命中时仅拉取单页数据，不重载 HTML / JS 包）；返回 `true` 表示网页已接管，旧版服务端无此方法时返回 `false` 由原生自动回退到整页加载。
 - `close()`：原生端返回笔记列表或切到聊天、暂留常驻 WebView 热缓存时调用，卸载当前 `NotesWorkspace` 编辑器 DOM（释放 BlockNote / 白板 / 幻灯片实例与定时器），只保留轻量的网页壳与最多 8 篇的 LRU 队列缓存；未保存或保存中的队列绝不被 LRU 驱逐。
 - `pageTrashed(ids)`：原生端在列表、菜单或聊天提案撤销里把页面移入回收站时传入页面 ID 数组（即使当前未打开编辑器），从常驻 WebView 缓存中同步清除这些页面与草稿。
-- `chatsChanged()`：原生端在笔记上面改过会话（iOS 抽屉里改名、删除）后调用，打开着的笔记重读反向链接。旧版网页没有这个函数时什么都不做。
+- `refreshBacklinks()`：原生端在笔记上面改过别的页面或会话（改名、换图标、删除、从回收站复原）后调用，打开着的笔记重读反向链接。旧版网页没有这个函数时什么都不做。
 
 消息的组装与 flush 的回复在 `src/lib/native-bridge.ts`（有单元测试）；更改约定时同时修改 Android / iOS 应用端以及 [android-native.md](android-native.md) / [ios-native.md](ios-native.md)。
 

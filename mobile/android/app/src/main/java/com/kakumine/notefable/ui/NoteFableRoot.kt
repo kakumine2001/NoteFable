@@ -540,6 +540,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                             { page -> b.pageSettings(com.kakumine.notefable.data.NoteFableJson.encodeToString(com.kakumine.notefable.data.NotePageSummary.serializer(), page)) }
                         }
                         notesViewModel.revealInEditor = bridge?.let { b -> { target -> b.reveal(target) } }
+                        notesViewModel.refreshBacklinks = bridge?.let { b -> { b.refreshBacklinks() } }
                     },
                     onExportFile = saveExportFile,
                     // 抽屉或检索盖在白板上时不在画图，两侧照常能返回（关掉它们）。

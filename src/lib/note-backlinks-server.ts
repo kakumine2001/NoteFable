@@ -35,7 +35,7 @@ async function linkingPages(userId: string, pageId: string, origin: string): Pro
         ARRAY(SELECT h FROM jsonb_array_elements_text(CASE WHEN p."kind" = 'note'
             THEN jsonb_path_query_array(p."blocks", ${LINK_HREF_PATH}::jsonpath, '{}'::jsonb, true)
             ELSE COALESCE(c."links", '[]'::jsonb) END) h
-          WHERE strpos(h, ${pageId}::text) > 0) AS "hrefs"
+          WHERE strpos(h, 'view=pages') > 0 AND strpos(h, ${pageId}::text) > 0) AS "hrefs"
     ) x
     WHERE p."userId" = ${userId} AND p."deletedAt" IS NULL AND p."id" <> ${pageId}
       AND (x."mentioned" OR cardinality(x."hrefs") > 0)

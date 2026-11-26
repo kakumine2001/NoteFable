@@ -136,6 +136,8 @@ async function saveSessionIcon(sessionId: string, icon: string | null) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ icon }),
     });
+    // 一覧のアイコンは保存の前に替わるので、保存できた後にもう一度、開いているノートのバックリンクを読み直させる。
+    if (response.ok) dispatchBacklinksStale();
     return response.ok;
   } catch {
     return false;
@@ -1971,6 +1973,8 @@ export default function Home() {
         body: JSON.stringify({ messageId }),
       });
       if (!response.ok) throw new Error(readErrorMessage(await readJsonObject(response), msg("Could not switch versions. Try again.")));
+      // 表示中の版が替わると、このページを添付した発言（active）も替わる。
+      dispatchBacklinksStale();
       cancelReveal();
       if (!await refreshSessionMessages(sessionId)) throw new Error(msg("Failed to load conversation."));
     } catch (error) {

@@ -669,9 +669,10 @@ enum EmbedMessage: Equatable, Sendable {
                 guard let id = try text(fields["id"]), !id.isEmpty else { return nil }
                 return .openPage(id: id)
             case "openChat":
-                guard let id = fields["id"]?.stringValue, !id.isEmpty else { return nil }
-                let messageId = fields["messageId"]?.stringValue
-                return .openChat(id: id, messageId: messageId?.isEmpty == false ? messageId : nil)
+                // 和 Android 一样（isNotBlank）：全是空白的当作没有。
+                func filled(_ value: String?) -> String? { value?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? value : nil }
+                guard let id = filled(fields["id"]?.stringValue) else { return nil }
+                return .openChat(id: id, messageId: filled(fields["messageId"]?.stringValue))
             case "pagesChanged":
                 return .pagesChanged
             case "storageLimit":
