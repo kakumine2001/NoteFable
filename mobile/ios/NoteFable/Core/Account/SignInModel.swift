@@ -88,9 +88,11 @@ final class SignInDialogModel {
     var showEmail: Bool { account.state.emailEnabled }
     /// 两种方式都有时中间是"或"分隔线。
     var showDivider: Bool { (showGoogle || showApple) && showEmail }
-    /// Google 按钮上的字（文案键）和转圈。
+    /// Google 按钮上的字（文案键）和禁用状态。
     var googleLabelKey: String { account.state.signInFailed && !showApple ? "sign_in_failed" : "continue_google" }
     var googleBusy: Bool { state.busy || account.state.signingIn }
+    var googleSigningIn: Bool { account.state.signingInProvider == .google }
+    var appleBusy: Bool { account.state.signingInProvider == .apple }
     /// 只有邮箱时打开就聚焦邮箱输入框。
     var autoFocusEmail: Bool { !showGoogle && !showApple }
     var canSendCode: Bool { !locked && !ApiText.isBlank(state.email) }
@@ -113,6 +115,10 @@ final class SignInDialogModel {
 
     func google() {
         account.signIn(onSignedIn: onSignedIn)
+    }
+
+    func prepareAppleSignIn() {
+        account.prepareAppleSignIn()
     }
 
     func apple(request: @escaping @MainActor (String) async throws -> (code: String, name: String?)?) {
