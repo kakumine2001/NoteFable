@@ -106,8 +106,8 @@ extension View {
     /// 在根视图上装一次：通过不拦截触摸的独立 `UIWindow` 在系统 `.sheet` 与悬浮底栏之上渲染提示条，并把 `ToastCenter` 放进环境。
     /// `tabBarVisible`：底部标签栏是否显示（不显示时离底边 16）。`tab`：当前标签页；提示条放在这个标签页量到的底部遮挡
     /// （`NFBottomChrome`：标签栏 + 悬浮底栏，例如聊天的输入框）上方 8，还没量到时沿用原来的 84（见 `toastBottomClearance`）。
-    func toastHost(_ center: ToastCenter = .shared, tabBarVisible: Bool, tab: AppTab) -> some View {
-        modifier(ToastHostModifier(center: center, tabBarVisible: tabBarVisible, tab: tab))
+    func toastHost(_ center: ToastCenter = .shared, tabBarVisible: Bool, tab: AppTab, leadingInset: CGFloat = 0) -> some View {
+        modifier(ToastHostModifier(center: center, tabBarVisible: tabBarVisible, tab: tab, leadingInset: leadingInset))
     }
 }
 
@@ -115,6 +115,7 @@ private struct ToastHostModifier: ViewModifier {
     let center: ToastCenter
     let tabBarVisible: Bool
     let tab: AppTab
+    let leadingInset: CGFloat
     @State private var controller = ToastWindowController()
     @State private var windowFrame: CGRect?
     @Environment(\.colorScheme) private var colorScheme
@@ -129,7 +130,8 @@ private struct ToastHostModifier: ViewModifier {
             locale: locale,
             forceSolidChrome: forceSolidChrome,
             tabBarVisible: tabBarVisible,
-            tab: tab
+            tab: tab,
+            leadingInset: leadingInset
         )
         content
             .environment(center)
@@ -201,6 +203,8 @@ private struct ToastOverlayEnvironment: Equatable {
     let tabBarVisible: Bool
     /// 当前标签页：提示条读这个标签页的底部遮挡（`NFBottomChrome`）。
     let tab: AppTab
+    /// 宽屏常驻侧栏展开时让出侧栏宽度，使提示条在详情栏里水平居中（RTL 自动镜像到右侧）。
+    let leadingInset: CGFloat
 }
 
 private final class ToastOverlayWindow: UIWindow {
@@ -297,6 +301,7 @@ private struct ToastOverlayRootView: View {
                         .padding(.bottom, bottomPadding)
                 }
             }
+            .padding(.leading, min(env.leadingInset, max(0, proxy.size.width - 200)))
             .frame(width: proxy.size.width, height: proxy.size.height)
             .animation(reduceMotion ? nil : NFMotion.emphasized(0.2), value: center.current)
         }
