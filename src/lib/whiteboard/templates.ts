@@ -21,6 +21,8 @@ const TEXT = "#1e1e1e";
 const MUTED = "#868e96";
 const LINE = "#ced4da";
 
+// 図形に付かない中央ぞろえの文字（年表・ベン図）の下書きは、x が文字の中心（Excalidraw の変換がそう読み、width は測り直す）。
+// ここでの width は外接矩形の見積もりにだけ使う（skeletonBounds）。
 const base = { roughness: 0, strokeWidth: 1, fillStyle: "solid" as const, strokeColor: LINE, backgroundColor: "transparent" };
 
 function box(id: string, x: number, y: number, width: number, height: number, text: string, options: { fill?: string; align?: "left" | "center"; valign?: "top" | "middle"; fontSize?: number; color?: string } = {}): MindmapSkeleton {
@@ -64,8 +66,8 @@ function timeline(labels: TemplateLabels, newId: () => string): MindmapSkeleton[
     const x = 120 + index * 260;
     parts.push(
       { ...base, id: newId(), type: "ellipse", x: x - 12, y: 108, width: 24, height: 24, strokeColor: colors[index], backgroundColor: colors[index] },
-      { id: newId(), type: "text", x: x - 100, y: 40, width: 200, text: labels.timeline.event(index + 1), fontSize: 20, fontFamily: NUNITO_FONT_FAMILY, textAlign: "center", strokeColor: TEXT, roughness: 0 },
-      { id: newId(), type: "text", x: x - 100, y: 150, width: 200, text: labels.timeline.date, fontSize: 16, fontFamily: NUNITO_FONT_FAMILY, textAlign: "center", strokeColor: MUTED, roughness: 0 },
+      { id: newId(), type: "text", x, y: 40, width: 200, text: labels.timeline.event(index + 1), fontSize: 20, fontFamily: NUNITO_FONT_FAMILY, textAlign: "center", strokeColor: TEXT, roughness: 0 },
+      { id: newId(), type: "text", x, y: 150, width: 200, text: labels.timeline.date, fontSize: 16, fontFamily: NUNITO_FONT_FAMILY, textAlign: "center", strokeColor: MUTED, roughness: 0 },
     );
   }
   return [frame(newId(), labels.title, parts), ...parts];
@@ -75,9 +77,9 @@ function venn(labels: TemplateLabels, newId: () => string): MindmapSkeleton[] {
   const parts: MindmapSkeleton[] = [
     { ...base, id: newId(), type: "ellipse", x: 0, y: 0, width: 440, height: 440, strokeColor: "#1971c2", backgroundColor: "#a5d8ff", opacity: 50 },
     { ...base, id: newId(), type: "ellipse", x: 280, y: 0, width: 440, height: 440, strokeColor: "#2f9e44", backgroundColor: "#b2f2bb", opacity: 50 },
-    { id: newId(), type: "text", x: 60, y: 200, width: 180, text: labels.venn.left, fontSize: 24, fontFamily: NUNITO_FONT_FAMILY, textAlign: "center", strokeColor: TEXT, roughness: 0 },
-    { id: newId(), type: "text", x: 480, y: 200, width: 180, text: labels.venn.right, fontSize: 24, fontFamily: NUNITO_FONT_FAMILY, textAlign: "center", strokeColor: TEXT, roughness: 0 },
-    { id: newId(), type: "text", x: 290, y: 205, width: 140, text: labels.venn.both, fontSize: 20, fontFamily: NUNITO_FONT_FAMILY, textAlign: "center", strokeColor: TEXT, roughness: 0 },
+    { id: newId(), type: "text", x: 150, y: 200, width: 180, text: labels.venn.left, fontSize: 24, fontFamily: NUNITO_FONT_FAMILY, textAlign: "center", strokeColor: TEXT, roughness: 0 },
+    { id: newId(), type: "text", x: 570, y: 200, width: 180, text: labels.venn.right, fontSize: 24, fontFamily: NUNITO_FONT_FAMILY, textAlign: "center", strokeColor: TEXT, roughness: 0 },
+    { id: newId(), type: "text", x: 360, y: 205, width: 140, text: labels.venn.both, fontSize: 20, fontFamily: NUNITO_FONT_FAMILY, textAlign: "center", strokeColor: TEXT, roughness: 0 },
   ];
   return [frame(newId(), labels.title, parts), ...parts];
 }
@@ -119,7 +121,8 @@ export function templateSkeletons(template: WhiteboardTemplate, labels: Template
 // 下書きの外接矩形（画面の中央に置くため）。
 export function skeletonBounds(skeletons: readonly MindmapSkeleton[]) {
   const boxes = skeletons.map((item) => {
-    const x = item.x as number;
+    const centred = item.type === "text" && item.textAlign === "center";
+    const x = (item.x as number) - (centred ? (item.width as number) / 2 : 0);
     const y = item.y as number;
     const points = Array.isArray(item.points) ? item.points as [number, number][] : null;
     const width = points ? Math.max(...points.map((point) => point[0])) : (item.width as number | undefined) ?? 0;

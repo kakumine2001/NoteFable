@@ -1,7 +1,9 @@
+import { convertToExcalidrawElements, setCustomTextMetricsProvider } from "@excalidraw/element";
 import { describe, expect, it } from "vitest";
 import { mindmapDataOf } from "@/lib/whiteboard/mindmap/model";
 import { moveSkeletons, skeletonBounds, templateSkeletons, WHITEBOARD_TEMPLATES, type TemplateLabels } from "@/lib/whiteboard/templates";
 import { WHITEBOARD_ELEMENT_TYPES } from "@/lib/whiteboard/scene";
+import { withServerDom } from "@/lib/whiteboard/server-dom";
 
 const labels: TemplateLabels = {
   title: "T",
@@ -32,6 +34,22 @@ describe("templateSkeletons", () => {
       expect(frame.x as number).toBeLessThanOrEqual(bounds.x);
       expect((frame.x as number) + (frame.width as number)).toBeGreaterThanOrEqual(bounds.x + bounds.width);
     }
+  });
+
+  it("centres the timeline and Venn labels on their dots and regions once converted", async () => {
+    setCustomTextMetricsProvider({ getLineWidth: (text) => text.length * 10 });
+    const centres = (template: "timeline" | "venn") => withServerDom(async () => {
+      const elements = convertToExcalidrawElements(templateSkeletons(template, labels) as never, { regenerateIds: false });
+      return elements.flatMap((element) => (element.type === "text" ? [[element.originalText, element.x + element.width / 2] as const] : []));
+    });
+    const dots = templateSkeletons("timeline", labels).filter((item) => item.type === "ellipse").map((item) => (item.x as number) + (item.width as number) / 2);
+    const timeline = await centres("timeline");
+    expect(timeline.map(([, x]) => x)).toEqual(dots.flatMap((dot) => [dot, dot]));
+    // 左の円は 0–440、右の円は 280–720（重なりは 280–440）。
+    expect(Object.fromEntries(await centres("venn"))).toEqual({ A: 150, B: 570, Both: 360 });
+    // 外接矩形も中心からの幅で数える（枠が中心ぞろえの文字を含むように）。
+    const left = templateSkeletons("venn", labels).find((item) => item.type === "text")!;
+    expect(skeletonBounds([left]).x).toBe((left.x as number) - (left.width as number) / 2);
   });
 
   it("starts the mindmap template as an editable mindmap tree", () => {

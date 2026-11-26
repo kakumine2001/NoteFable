@@ -68,7 +68,7 @@ export function mindmapDataOf(customData: unknown): MindmapData | null {
 }
 
 // 畳んだ節が預かっている子孫の文字を、木の順（親 → 子、兄弟は order）に並べる。AI が読む文字に使う（白板に無いので、
-// 要素の並びからは読めない）。depth は畳んだ節の子が 1。節に付かない文字（線の文字など）は最後に depth 1 で並べる。
+// 要素の並びからは読めない）。depth は畳んだ節の子が 1。線の上の文字は線の子の節の文字として扱い、節に付かない文字は最後に depth 1 で並べる。
 export function mindmapStashOutline(nodeId: string, customData: unknown): { depth: number; text: string }[] {
   const mark = mindmapDataOf(customData);
   if (mark?.role !== "node" || !mark.stash) return [];
@@ -77,16 +77,18 @@ export function mindmapStashOutline(nodeId: string, customData: unknown): { dept
     return typeof raw === "string" ? raw.trim() : "";
   };
   const nodes = new Map<string, MindmapNodeData>();
+  const edgeChild = new Map<string, string>();
   for (const element of mark.stash) {
     const data = mindmapDataOf(element.customData);
     if (data?.role === "node") nodes.set(element.id, data);
+    else if (data?.role === "edge") edgeChild.set(element.id, data.child);
   }
   // 持ち主（付いている節、または自分）ごとの文字。
   const texts = new Map<string, string[]>();
   for (const element of mark.stash) {
     const text = textOfElement(element);
     if (!text) continue;
-    const owner = typeof element.containerId === "string" ? element.containerId : element.id;
+    const owner = typeof element.containerId === "string" ? edgeChild.get(element.containerId) ?? element.containerId : element.id;
     const list = texts.get(owner);
     if (list) list.push(text);
     else texts.set(owner, [text]);

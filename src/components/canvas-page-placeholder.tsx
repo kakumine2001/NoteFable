@@ -35,7 +35,7 @@ export function CanvasPagePlaceholder({ kind, title, icon, data }: { kind: Canva
         {segments.length ? (
           <ol className="canvas-placeholder-text">
             {segments.map((segment, index) => (
-              <li key={segment.id}>
+              <li key={`${index}:${segment.id}`}>
                 {kind === "slides" && <span className="canvas-placeholder-index" aria-hidden="true">{index + 1}</span>}
                 <span>{segment.text}</span>
               </li>

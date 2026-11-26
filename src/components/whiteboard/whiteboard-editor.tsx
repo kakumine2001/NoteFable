@@ -257,11 +257,11 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   const lastSize = useRef("");
   // 取り込み中の PDF（閉じたらやめる）。
   const pdfAbort = useRef<AbortController | null>(null);
-  // 思考マップ：浮かべるボタンに出す様子と、ドラッグ・大きさの変更・文字の編集の終わりを見つけるための前回の様子。
+  // 思考マップ：浮かべるボタンに出す様子。
   const [mindmap, setMindmap] = useState<MindmapOverlayModel>(EMPTY_MINDMAP);
   const mindmapKey = useRef("");
+  const mindmapSelected = useRef("");
   const [gestureActive, setGestureActive] = useState(false);
-  const gesture = useRef<{ busy: boolean; dragged: boolean; ids: string[]; editing: string | null }>({ busy: false, dragged: false, ids: [], editing: null });
   // 終わったときにすること（エディターの API がそろってから入れる）。
   const mindmapEvents = useRef<{ gestureEnd: (ids: string[], dragged: boolean) => void; textEnd: (textId: string) => void }>({ gestureEnd: () => {}, textEnd: () => {} });
   const [templateStartClosed, setTemplateStartClosed] = useState(false);
@@ -572,25 +572,19 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     };
   }, [onSelectionChangeProp, readUi]);
 
-  // 思考マップの様子を読む。ドラッグ・大きさの変更の終わりには置き直し（ほかの節の上で離したら親を替える）、節の文字の編集の終わりにも置き直す。
+  // 思考マップの様子を読む。
   const readMindmap = useCallback((elements: readonly ExcalidrawElement[], appState: AppState) => {
     const busy = Boolean(appState.selectedElementsAreBeingDragged || appState.isResizing);
-    const editing = appState.editingTextElement?.id ?? null;
-    const previous = gesture.current;
-    const ids = selectedIdsOf(appState);
-    gesture.current = {
-      busy,
-      dragged: busy && (previous.dragged || Boolean(appState.selectedElementsAreBeingDragged)),
-      ids: busy && previous.busy ? previous.ids : ids,
-      editing,
-    };
     setGestureActive(busy);
-    if (previous.busy && !busy) queueMicrotask(() => mindmapEvents.current.gestureEnd(previous.ids, previous.dragged));
-    if (previous.editing && previous.editing !== editing) queueMicrotask(() => mindmapEvents.current.textEnd(previous.editing!));
     if (busy) return;
-    const key = `${getSceneVersion(elements)}|${elements.length}|${[...ids].sort().join(",")}`;
+    const ids = selectedIdsOf(appState);
+    const selected = [...ids].sort().join(",");
+    // 描いている途中・文字を打っている途中は、版が 1 点・1 文字ごとに上がる。選択が同じなら読み直さず、終わってから読む。
+    if ((appState.newElement || appState.editingTextElement) && mindmapKey.current && selected === mindmapSelected.current) return;
+    const key = `${getSceneVersion(elements)}|${elements.length}|${selected}`;
     if (key === mindmapKey.current) return;
     mindmapKey.current = key;
+    mindmapSelected.current = selected;
     const live = asScene(elements.filter((element) => !element.isDeleted));
     const has = live.some((element) => element.customData && MINDMAP_DATA_KEY in element.customData);
     const next: MindmapOverlayModel = has ? { selection: ids.length ? mindmapSelection(live, ids) : null, collapsed: collapsedMindmapNodes(live) } : EMPTY_MINDMAP;
@@ -664,9 +658,9 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
       });
     });
   }, [api, actions]);
-  const runMindmap = useCallback((change: MindmapChange, roots: Iterable<string> = []) => {
+  const runMindmap = useCallback((change: MindmapChange, roots: Iterable<string> = [], options?: { capture?: boolean }) => {
     if (!api || !mounted.current || !editableRef.current) return false;
-    const applied = applyMindmapChange(api, change, roots);
+    const applied = applyMindmapChange(api, change, roots, options);
     if (applied && change.edit) startEditingNode(change.edit, true);
     return applied !== null;
   }, [api, startEditingNode]);
@@ -715,9 +709,9 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     if (dragged && selection && !selection.isRoot) {
       const target = mindmapDropTarget(elements, selection.nodeId);
       const change = target ? reparentMindmapNode(elements, selection.nodeId, target) : null;
-      if (change) { runMindmap({ ...change, select: selection.nodeId }); return; }
+      if (change) { runMindmap({ ...change, select: selection.nodeId }, [], { capture: false }); return; }
     }
-    runMindmap(noChange(), mindmapRootsOf(elements, ids));
+    runMindmap(noChange(), mindmapRootsOf(elements, ids), { capture: false });
   }, [api, runMindmap]);
   const finishMindmapTextEdit = useCallback((textId: string) => {
     if (!api || !mounted.current || !editableRef.current) return;
@@ -727,9 +721,35 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     const found = findMindmapNode(asScene(elements), text.containerId);
     if (!found) return;
     // 文字に合わせて節の大きさを変え、木を置き直す。
-    runMindmap({ ...noChange(), patches: fitMindmapNodeToText(elements, found.node.id, found.node.depth) }, [found.tree.root.id]);
+    runMindmap({ ...noChange(), patches: fitMindmapNodeToText(elements, found.node.id, found.node.depth) }, [found.tree.root.id], { capture: false });
   }, [api, runMindmap]);
   useEffect(() => { mindmapEvents.current = { gestureEnd: finishMindmapGesture, textEnd: finishMindmapTextEdit }; }, [finishMindmapGesture, finishMindmapTextEdit]);
+  // ドラッグ・大きさの変更の終わりには置き直し（ほかの節の上で離したら親を替える）、節の文字の編集の終わりにも置き直す。
+  // onStateChange は Excalidraw が取り消しの記録を作る直前に呼ばれるので、ここで待たずに場面を直すと、その操作と同じ 1 回の取り消しに
+  // まとまる（onChange の後に直すと 2 回になる）。呼ばれるのは Excalidraw の描き直しの途中なので、失敗しても投げない。
+  useEffect(() => {
+    if (!api) return;
+    const safely = (run: () => void) => {
+      try { run(); } catch (error) { console.error(error); }
+    };
+    let ids: string[] = [];
+    let dragged = false;
+    const offGesture = api.onStateChange(
+      (state: AppState) => Boolean(state.selectedElementsAreBeingDragged || state.isResizing),
+      (busy: boolean, state: AppState) => {
+        if (!busy) { safely(() => mindmapEvents.current.gestureEnd(ids, dragged)); return; }
+        ids = selectedIdsOf(state);
+        dragged = Boolean(state.selectedElementsAreBeingDragged);
+      },
+    );
+    let editing = api.getAppState().editingTextElement?.id ?? null;
+    const offText = api.onStateChange((state: AppState) => state.editingTextElement?.id ?? null, (next: string | null) => {
+      const previous = editing;
+      editing = next;
+      if (previous) safely(() => mindmapEvents.current.textEnd(previous));
+    });
+    return () => { offGesture(); offText(); };
+  }, [api]);
   // キー：Tab で子、Enter で兄弟（根では子）、F2 で文字の編集、Delete で子孫ごと消す。Excalidraw より先に受ける
   // （Excalidraw の Tab は図形の種類の切り替え、Enter は文字の編集）。
   useEffect(() => {
@@ -744,7 +764,11 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
       const ids = selectedIdsOf(appState);
       if (!ids.length) return;
       let handled = false;
-      if (event.key === "Delete" || event.key === "Backspace") handled = mindmapDeleteSelection();
+      if (event.key === "Delete" || event.key === "Backspace") {
+        // 押しっぱなしの繰り返しは受け止めるだけにする。消すと親が選ばれるので、繰り返すと木をさかのぼって全部消える
+        // （Excalidraw に回すと、選ばれた親だけが消えて子がばらばらになる）。
+        handled = event.repeat ? includesMindmapNode(asScene(api.getSceneElements()), ids) : mindmapDeleteSelection();
+      }
       else if (!event.shiftKey && (event.key === "Tab" || event.key === "Enter" || event.key === "F2")) {
         const selection = mindmapSelection(asScene(api.getSceneElements()), ids);
         if (selection) {

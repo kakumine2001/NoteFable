@@ -7,7 +7,7 @@ import { Blend, CircleMinus, GitBranchPlus, ListPlus, Milestone, Network, Notebo
 import { useEffect, useState, type ReactNode } from "react";
 import { useT } from "@/components/i18n-provider";
 import { msg } from "@/lib/i18n/translate";
-import { composeMindmapScene, type CollapsedMindmapNode, type MindmapChange, type MindmapSelection, type SceneElement } from "@/lib/whiteboard/mindmap/editing";
+import { composeMindmapScene, findMindmapNode, type CollapsedMindmapNode, type MindmapChange, type MindmapSceneTools, type MindmapSelection, type SceneElement } from "@/lib/whiteboard/mindmap/editing";
 import type { MindmapSkeleton } from "@/lib/whiteboard/mindmap/elements";
 import { mindmapNodeBox } from "@/lib/whiteboard/mindmap/layout";
 import { WHITEBOARD_TEMPLATES, type TemplateLabels, type WhiteboardTemplate } from "@/lib/whiteboard/templates";
@@ -30,21 +30,36 @@ function materialize(skeletons: readonly MindmapSkeleton[]): SceneElements {
   return convertToExcalidrawElements(stripped as never, { regenerateIds: false }) as SceneElements;
 }
 
+const sceneTools: MindmapSceneTools<SceneElement> = {
+  update: (element, values, force) => newElementWith(element as unknown as ExcalidrawElement, values as never, force) as unknown as SceneElement,
+  create: (skeletons) => materialize(skeletons) as unknown as SceneElement[],
+};
+
+// 足した節を、文字の編集を終えたときと同じ大きさ（fitMindmapNodeToText）にする。違うと、何も打たずに編集を終えても大きさが変わり、
+// 「足す」の取り消しが 1 回で済まなくなる。
+function fitAddedNode(elements: SceneElement[], nodeId: string) {
+  const found = findMindmapNode(elements, nodeId);
+  if (!found) return elements;
+  const patches = fitMindmapNodeToText(elements as unknown as ExcalidrawElement[], nodeId, found.node.depth);
+  if (!patches.size) return elements;
+  return composeMindmapScene(elements, { patches, added: [], restored: [] }, [found.tree.root.id], sceneTools)?.elements ?? elements;
+}
+
 // 思考マップの差分を場面に当て、触れた木を置き直し、線を結び付け直す。select があればその節を選ぶ。何も変わらなければ null。
-export function applyMindmapChange(api: ExcalidrawImperativeAPI, change: MindmapChange, extraRoots: Iterable<string> = []): SceneElements | null {
-  const composed = composeMindmapScene(api.getSceneElementsIncludingDeleted() as unknown as SceneElement[], change, extraRoots, {
-    update: (element, values, force) => newElementWith(element as unknown as ExcalidrawElement, values as never, force) as unknown as SceneElement,
-    create: (skeletons) => materialize(skeletons) as unknown as SceneElement[],
-  });
+// capture が false なら自分の取り消しの記録を作らず、Excalidraw がこれから作る記録（ドラッグ・大きさの変更・文字の編集）に含める。
+export function applyMindmapChange(
+  api: ExcalidrawImperativeAPI, change: MindmapChange, extraRoots: Iterable<string> = [], { capture = true }: { capture?: boolean } = {},
+): SceneElements | null {
+  const composed = composeMindmapScene(api.getSceneElementsIncludingDeleted() as unknown as SceneElement[], change, extraRoots, sceneTools);
   if (!composed) return null;
-  const next = composed.elements as unknown as SceneElements;
+  const next = (change.edit ? fitAddedNode(composed.elements, change.edit) : composed.elements) as unknown as SceneElements;
   const select = change.select && next.some((element) => element.id === change.select && !element.isDeleted) ? change.select : null;
   // 置き直しても何も動かない（ドラッグしても元の場所のまま・文字を変えても大きさが同じ）ときは場面に触れない（取り消しの記録を増やさない）。
   if (!composed.changed && !select) return null;
   api.updateScene({
     elements: next,
     ...(select ? { appState: { selectedElementIds: { [select]: true }, selectedGroupIds: {} } as never } : {}),
-    captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+    ...(capture ? { captureUpdate: CaptureUpdateAction.IMMEDIATELY } : {}),
   });
   return next;
 }
@@ -115,7 +130,7 @@ export function MindmapOverlay({ api, model, editable, hidden, onAddChild, onAdd
       const below = top.top < 108;
       return <div className={`whiteboard-mindmap-bar${below ? " is-below" : ""}`} role="toolbar" aria-label={t("Mind map")}
         style={{ left: top.left, top: below ? bottom.top : top.top }}>
-        <MindmapButton label={t("Add child")} shortcut="Tab" onClick={() => onAddChild(selection.nodeId)}><GitBranchPlus size={16} className="rtl-mirror" /></MindmapButton>
+        <MindmapButton label={t("Add child")} shortcut="Tab" onClick={() => onAddChild(selection.nodeId)}><GitBranchPlus size={16} /></MindmapButton>
         {!selection.isRoot && <MindmapButton label={t("Add sibling")} shortcut="Enter" onClick={() => onAddSibling(selection.nodeId)}><ListPlus size={16} /></MindmapButton>}
         {selection.canCollapse && <MindmapButton label={t("Collapse branch")} onClick={() => onToggle(selection.nodeId)}><CircleMinus size={16} /></MindmapButton>}
       </div>;

@@ -6,7 +6,7 @@ import {
   remapMindmapDuplicateScene, reparentMindmapNode, setMindmapDirection, type MindmapChange, type MindmapSceneTools, type SceneElement,
 } from "@/lib/whiteboard/mindmap/editing";
 import { mindmapSkeletons, type MindmapSkeleton } from "@/lib/whiteboard/mindmap/elements";
-import { mindmapDataOf, type MindmapNodeData, type MindmapTreeNode } from "@/lib/whiteboard/mindmap/model";
+import { mindmapDataOf, mindmapStashOutline, type MindmapNodeData, type MindmapTreeNode } from "@/lib/whiteboard/mindmap/model";
 
 const tree = (text: string, ...children: MindmapTreeNode[]): MindmapTreeNode => ({ text, children });
 
@@ -415,5 +415,164 @@ describe("large boards", () => {
     expect(mindmapRootsOf(shapes, ids).size).toBe(0);
     expect(deleteMindmapNodes(shapes, ids).patches.size).toBe(0);
     expect(Date.now() - started).toBeLessThan(2_000);
+  });
+});
+
+// 節（結び付いた文字ごと）を切り取って貼る・複製する：Excalidraw と同じく、複製した要素は新しい ID、預かり分は customData のまま渡る。
+function duplicateNode(elements: SceneElement[], id: string, copyId: string, newId: () => string) {
+  const pick = (elementId: string) => elements.find((element) => element.id === elementId)!;
+  const pairs = [
+    { from: pick(id), to: { ...pick(id), id: copyId, boundElements: [{ id: `${copyId}-t`, type: "text" }] } },
+    { from: pick(`${id}-t`), to: { ...pick(`${id}-t`), id: `${copyId}-t`, containerId: copyId } },
+  ];
+  const patches = remapMindmapDuplicates(pairs, newId);
+  return pairs.map(({ to }) => ({ ...to, ...(patches.get(to.id) ?? {}), isDeleted: false }) as SceneElement);
+}
+
+describe("moving or copying a collapsed node", () => {
+  // R > A > B > C。B を畳んでから A を畳む（A の預かり分に B と C がある）。
+  function collapsedTwice() {
+    counter = 0;
+    const { skeletons } = mindmapSkeletons(tree("R", tree("A", tree("B", tree("C")))), { direction: "right", newId: nextId });
+    let elements = materialize(skeletons);
+    elements = compose(elements, collapseMindmapNode(elements, "n3"));
+    return compose(elements, collapseMindmapNode(elements, "n2"));
+  }
+
+  it("keeps the hidden branch through cut, paste and expand", () => {
+    const elements = collapsedTwice();
+    let n = 0;
+    // 切り取り：元は消え、貼った節だけが預かり分を持つ。
+    const pasted = duplicateNode(elements, "n2", "p", () => `new${++n}`);
+    expect(collapsedMindmapNodes(pasted)).toEqual([expect.objectContaining({ nodeId: "p", hidden: 2 })]);
+    const outer = compose(pasted, expandMindmapNode(pasted, "p"));
+    expect(collapsedMindmapNodes(outer)).toEqual([expect.objectContaining({ hidden: 1 })]);
+    const all = compose(outer, expandMindmapNode(outer, collapsedMindmapNodes(outer)[0].nodeId));
+    const trees = readMindmapTrees(all);
+    expect([...trees.keys()]).toEqual(["p"]);
+    expect(trees.get("p")!.nodes.size).toBe(3);
+    expect(live(all).filter((element) => element.type === "text").map((element) => element.originalText).sort()).toEqual(["A", "B", "C"]);
+    // 元の ID はどこにも残らず、線は新しい節どうしを結ぶ。
+    expect(JSON.stringify(all)).not.toMatch(/"n[0-9]+(-t)?"/);
+    const edges = live(all).filter((element) => element.type === "arrow");
+    expect(edges).toHaveLength(2);
+    for (const edge of edges) {
+      const data = mindmapDataOf(edge.customData) as { parent: string; child: string; tree: string };
+      expect(data.tree).toBe("p");
+      expect(edge.startBinding).toMatchObject({ elementId: data.parent });
+      expect(edge.endBinding).toMatchObject({ elementId: data.child });
+    }
+  });
+
+  it("gives every copy its own ids for the hidden elements", () => {
+    const elements = collapsedTwice();
+    let n = 0;
+    const newId = () => `new${++n}`;
+    const ids = ["p", "q"].flatMap((copy) => nodeData(duplicateNode(elements, "n2", copy, newId), copy).stash!.map((element) => element.id));
+    const originals = nodeData(elements, "n2").stash!.map((element) => element.id);
+    expect(new Set([...ids, ...originals]).size).toBe(ids.length + originals.length);
+  });
+});
+
+describe("labelled connectors", () => {
+  // 子 child への線に文字を付ける。
+  const label = (elements: SceneElement[], child: string) => {
+    const edge = edgeOf(elements, child);
+    return [
+      ...elements.map((element) => (element.id === edge.id ? { ...element, boundElements: [{ id: `label-${child}`, type: "text" }] } : element)),
+      { id: `label-${child}`, type: "text", x: 0, y: 0, width: 10, height: 10, containerId: edge.id, text: `why ${child}`, originalText: `why ${child}` },
+    ] as SceneElement[];
+  };
+  const labels = (elements: SceneElement[]) => liveIds(elements).filter((id) => id.startsWith("label-")).sort();
+
+  it("hides the label with its branch and brings it back on expand, level by level", () => {
+    counter = 0;
+    const { skeletons } = mindmapSkeletons(tree("R", tree("A", tree("B", tree("C")))), { direction: "right", newId: nextId });
+    let elements = label(label(materialize(skeletons), "n3"), "n4");
+    elements = compose(elements, collapseMindmapNode(elements, "n3"));
+    expect(labels(elements)).toEqual(["label-n3"]);
+    elements = compose(elements, collapseMindmapNode(elements, "n2"));
+    expect(labels(elements)).toEqual([]);
+    expect(mindmapStashOutline("n2", elements.find((element) => element.id === "n2")!.customData).map((line) => `${line.depth} ${line.text}`).sort())
+      .toEqual(["1 B", "1 why n3", "2 C", "2 why n4"]);
+    elements = compose(elements, expandMindmapNode(elements, "n2"));
+    // B はまだ畳んであるので、C への線の文字は B に預け直す。
+    expect(labels(elements)).toEqual(["label-n3"]);
+    elements = compose(elements, expandMindmapNode(elements, "n3"));
+    expect(labels(elements)).toEqual(["label-n3", "label-n4"]);
+  });
+
+  it("deletes the label with the branch, and with a connector the layout removes", () => {
+    const labelled = label(label(sample().elements, "n2"), "n3");
+    expect(labels(compose(labelled, deleteMindmapNodes(labelled, ["n2"])))).toEqual([]);
+    // 節を（消しゴムなどで）消した後の置き直し。
+    const erased = labelled.map((element) => (element.id === "n3" ? { ...element, isDeleted: true } : element));
+    expect(labels(compose(erased, { patches: new Map(), added: [], restored: [] }, ["n1"]))).toEqual(["label-n2"]);
+  });
+});
+
+describe("frames", () => {
+  const frame = (id: string, x: number, y: number, width: number, height: number) => ({ id, type: "frame", x, y, width, height }) as SceneElement;
+  const none = (): MindmapChange => ({ patches: new Map(), added: [], restored: [] });
+  // 根の枠に収まる節はその枠、はみ出る節は枠の外。文字は節に、線は両端の節にそろう。
+  function expectFrames(elements: SceneElement[], box: SceneElement) {
+    const of = (id: string) => elements.find((element) => element.id === id)!.frameId ?? null;
+    for (const node of live(elements).filter((element) => mindmapDataOf(element.customData)?.role === "node")) {
+      const fits = node.x >= box.x && node.y >= box.y && node.x + node.width <= box.x + box.width && node.y + node.height <= box.y + box.height;
+      const root = (mindmapDataOf(node.customData) as MindmapNodeData).parent === null;
+      expect(of(node.id), node.id).toBe(root || fits ? box.id : null);
+      expect(of(`${node.id}-t`), `${node.id}-t`).toBe(of(node.id));
+    }
+    for (const edge of live(elements).filter((element) => element.type === "arrow")) {
+      const data = mindmapDataOf(edge.customData) as { parent: string; child: string };
+      expect(of(edge.id)).toBe(of(data.parent) === of(data.child) ? of(data.child) : null);
+    }
+  }
+  // 置き直し済みの木と、それがちょうど入る枠。
+  function framed() {
+    const { elements, rootId } = sample();
+    const placed = compose(elements, none(), [rootId]);
+    const parts = placed.filter((element) => element.type !== "arrow");
+    const x = Math.min(...parts.map((element) => element.x)) - 10;
+    const y = Math.min(...parts.map((element) => element.y)) - 10;
+    const box = frame("F", x, y, Math.max(...parts.map((element) => element.x + element.width)) - x + 10, Math.max(...parts.map((element) => element.y + element.height)) - y + 10);
+    return { box, rootId, elements: [...placed.map((element) => ({ ...element, frameId: "F" }) as SceneElement), box] };
+  }
+
+  it("takes nodes that no longer fit out of the frame, and puts new ones that fit into it", () => {
+    const { elements, box } = framed();
+    let next = elements;
+    for (const id of ["c1", "c2", "c3", "c4"]) next = compose(next, addMindmapChild(next, "n1", id, () => id));
+    expectFrames(next, box);
+    expect(live(next).some((element) => element.type === "rectangle" && element.frameId === null)).toBe(true);
+    // 大きな枠なら、足した節も線も枠に入る。
+    const big = elements.map((element) => (element.id === "F" ? frame("F", box.x - 2000, box.y - 2000, 4000, 4000) : element));
+    const grown = compose(big, addMindmapChild(big, "n2", "a3", () => "c5"));
+    expect(grown.find((element) => element.id === "c5")!.frameId).toBe("F");
+    expect(edgeOf(grown, "c5").frameId).toBe("F");
+  });
+
+  it("returns a node dropped on another frame to the root's frame", () => {
+    const { elements, box, rootId } = framed();
+    // Excalidraw がほかの枠の上で離した節にその枠の ID を付けた状態（置き直しで元の場所に戻る）。
+    const dropped = [
+      ...elements.map((element) => (element.id === "n5" || element.id === "n5-t" ? { ...element, x: 5000, y: 5000, frameId: "G" } : element)),
+      frame("G", 4900, 4900, 600, 600),
+    ];
+    const next = compose(dropped, none(), [rootId]);
+    expect(next.find((element) => element.id === "n5")!.frameId).toBe("F");
+    expectFrames(next, box);
+    // 位置が変わらなくても、枠の ID の食い違いだけで直す。
+    const stale = next.map((element) => (element.id === "n5" ? { ...element, frameId: "G" } : element));
+    expect(compose(stale, none(), [rootId]).find((element) => element.id === "n5")!.frameId).toBe("F");
+  });
+
+  it("does not restore hidden elements into a frame the mind map has left", () => {
+    const { elements, rootId } = framed();
+    const collapsed = compose(elements, collapseMindmapNode(elements, "n2"));
+    const moved = collapsed.map((element) => (element.isDeleted || element.type === "frame" ? element : { ...element, x: element.x + 3000, frameId: null }));
+    const expanded = compose(moved, expandMindmapNode(moved, "n2"));
+    expect(live(expanded).filter((element) => element.type !== "frame" && element.frameId)).toEqual([]);
+    expect(readMindmapTrees(expanded).get(rootId)!.nodes.size).toBe(5);
   });
 });

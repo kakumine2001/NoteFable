@@ -323,14 +323,14 @@ function MindmapSection({ mindmap }: { mindmap: WhiteboardMindmapPanel }) {
   const { selection } = mindmap;
   return <Section label={t("Mind map")}>
     <div className="whiteboard-actions-row" role="toolbar" aria-label={t("Mind map")}>
-      <IconAction label={`${t("Add child")} — Tab`} onClick={() => mindmap.onAddChild(selection.nodeId)}><GitBranchPlus size={15} className="rtl-mirror" /></IconAction>
+      <IconAction label={`${t("Add child")} — Tab`} onClick={() => mindmap.onAddChild(selection.nodeId)}><GitBranchPlus size={15} /></IconAction>
       {!selection.isRoot && <IconAction label={`${t("Add sibling")} — Enter`} onClick={() => mindmap.onAddSibling(selection.nodeId)}><ListPlus size={15} /></IconAction>}
       {(selection.canCollapse || (selection.collapsed && selection.hasChildren)) && <IconAction label={selection.collapsed ? t("Expand branch") : t("Collapse branch")} onClick={() => mindmap.onToggle(selection.nodeId)}>
         {selection.collapsed ? <CirclePlus size={15} /> : <CircleMinus size={15} />}
       </IconAction>}
     </div>
     <Choice options={[
-      { value: "right", label: t("Branches on the right"), icon: <MoveRight size={16} className="rtl-mirror" /> },
+      { value: "right", label: t("Branches on the right"), icon: <MoveRight size={16} /> },
       { value: "both", label: t("Branches on both sides"), icon: <ArrowLeftRight size={16} /> },
     ]}
       current={selection.direction} onPick={(value) => mindmap.onDirection(selection.nodeId, value as MindmapDirection)} />

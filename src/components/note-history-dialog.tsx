@@ -92,10 +92,10 @@ function CanvasRevisionPreview({ data, kind: given }: { data: Record<string, unk
   // ホワイトボードは絵で見せ、その下に文字を並べる。
   if (kind === "whiteboard") return <>
     <WhiteboardThumbnail data={data} />
-    {segments.length > 0 && <ol className="canvas-placeholder-text mt-4" data-page-kind={kind}>{segments.map((segment) => <li key={segment.id}><span>{segment.text}</span></li>)}</ol>}
+    {segments.length > 0 && <ol className="canvas-placeholder-text mt-4" data-page-kind={kind}>{segments.map((segment, index) => <li key={`${index}:${segment.id}`}><span>{segment.text}</span></li>)}</ol>}
   </>;
   if (!segments.length) return <p className="canvas-placeholder-empty">{t("This page has no text yet.")}</p>;
-  return <ol className="canvas-placeholder-text" data-page-kind={kind}>{segments.map((segment, index) => <li key={segment.id}>
+  return <ol className="canvas-placeholder-text" data-page-kind={kind}>{segments.map((segment, index) => <li key={`${index}:${segment.id}`}>
     {kind === "slides" && <span className="canvas-placeholder-index" aria-hidden="true">{index + 1}</span>}<span>{segment.text}</span>
   </li>)}</ol>;
 }
