@@ -479,6 +479,41 @@ final class SidebarViewModelTests: XCTestCase {
     }
 
     @MainActor
+    func testProjectSettingsConfirmUnsavedChangesBeforeClosing() async {
+        let (_, sidebar, _) = await setup([])
+        var closed = 0
+        let model = ProjectSettingsModel(project: p1, sidebar: sidebar, onClose: { closed += 1 })
+        await model.idle()
+        model.setInstructions("Be kind")
+        XCTAssertTrue(model.dirty)
+        model.close()
+        XCTAssertEqual(closed, 0, "unsaved changes: ask first")
+        XCTAssertTrue(model.confirming)
+        model.close()
+        XCTAssertEqual(model.state.attention, 2)
+        // 撤回改动：确认消失，再改一个字也不会没想关就出确认。
+        model.setInstructions("Be brief")
+        XCTAssertFalse(model.confirming)
+        XCTAssertEqual(model.state.attention, 0)
+        model.setInstructions("Be brie")
+        XCTAssertFalse(model.confirming)
+        model.close()
+        XCTAssertTrue(model.confirming)
+        model.discard()
+        XCTAssertEqual(closed, 1)
+        XCTAssertTrue(projectsApi.settingsSaves.isEmpty)
+    }
+
+    func testProjectSettingsDismissSteps() {
+        XCTAssertEqual(projectSettingsDismissStep(busy: true, dirty: true), .stay)
+        XCTAssertEqual(projectSettingsDismissStep(busy: true, dirty: false), .stay)
+        XCTAssertEqual(projectSettingsDismissStep(busy: false, dirty: true), .confirm)
+        XCTAssertEqual(projectSettingsDismissStep(busy: false, dirty: false), .close)
+        XCTAssertEqual(projectSettingsAttention(2, dirty: true), 2)
+        XCTAssertEqual(projectSettingsAttention(1, dirty: false), 0)
+    }
+
+    @MainActor
     func testProjectSettingsShowTheLoadFailureAndRetry() async {
         let (_, sidebar, _) = await setup([])
         projectsApi.notesFail = true

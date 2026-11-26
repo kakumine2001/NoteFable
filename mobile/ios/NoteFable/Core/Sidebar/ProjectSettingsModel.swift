@@ -35,6 +35,8 @@ struct ProjectSettingsState: Equatable, Sendable {
     /// 保存中：整个窗口锁住，不能关。
     var busy = false
     var error: SidebarError? = nil
+    /// 有没保存的改动时想关的次数；大于 0 且还有改动时，底栏换成“未保存的更改”（放弃 / 保存），每次想关晃一下。
+    var attention = 0
 }
 
 /// 项目设置窗口的状态（网页 ChatProjectSettings）：打开时读详情和笔记，失败可以重试；保存只发改了的字段，没改直接关。
@@ -65,6 +67,13 @@ final class ProjectSettingsModel {
     var full: Bool { state.selected.count >= MAX_PROJECT_NOTES }
     var canSave: Bool { !state.busy && state.loaded != nil }
     var canClose: Bool { !state.busy }
+    /// 读到以后改过、还没保存。
+    var dirty: Bool {
+        guard let loaded = state.loaded else { return false }
+        return projectSettingsChanges(loaded.detail, state.instructions, state.selected) != nil
+    }
+    /// 底栏换成“未保存的更改”确认（想关过、而且还有改动）。
+    var confirming: Bool { state.attention > 0 && dirty }
 
     /// 筛选后的全部笔记；界面只列前 [MAX_LISTED_NOTES] 条（[listed]），多出来时显示 "sb_showing_first_notes"。
     func matching(untitled: String) -> [ChatProjectNote] {
@@ -93,6 +102,7 @@ final class ProjectSettingsModel {
 
     func setInstructions(_ text: String) {
         state.instructions = clipInstructions(text, MAX_PROJECT_INSTRUCTIONS)
+        settleAttention()
     }
 
     func setFilter(_ text: String) {
@@ -102,6 +112,7 @@ final class ProjectSettingsModel {
     func toggle(_ note: ChatProjectNote) {
         if state.busy { return }
         state.selected = toggleProjectNote(state.selected, note)
+        settleAttention()
     }
 
     func retry() {
@@ -125,9 +136,24 @@ final class ProjectSettingsModel {
         }
     }
 
-    /// 取消 / 返回键 / 点遮罩：保存中不关（否则请求结果到了也没人更新侧栏）。
+    /// 取消 / 点遮罩：保存中不关（否则请求结果到了也没人更新侧栏）；有没保存的改动时先确认，不悄悄丢掉。
     func close() {
+        switch projectSettingsDismissStep(busy: state.busy, dirty: dirty) {
+        case .close: onClose()
+        case .confirm: state.attention += 1
+        case .stay: break
+        }
+    }
+
+    /// 确认里的“放弃”：不保存就关（保存中不关）。
+    func discard() {
         if !state.busy { onClose() }
+    }
+
+    /// 改动全撤回后，确认归零。
+    private func settleAttention() {
+        let settled = projectSettingsAttention(state.attention, dirty: dirty)
+        if settled != state.attention { state.attention = settled }
     }
 
     func idle() async {

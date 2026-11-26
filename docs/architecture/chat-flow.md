@@ -362,7 +362,7 @@ DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_re
 - **共通指示** `instructions`：最多 4,000 字符的文字，写目的、回答语言、格式等。
 - **参考笔记**（界面上叫 Reference pages）：手动选择的最多 5 个工作区页面（笔记、白板、幻灯片都行；`ChatProjectNote`，按选择顺序）。不会自动挑选。
 
-设置入口是项目菜单里的 “Project settings”（`src/components/chat-project-settings.tsx`），对话框读取 `GET /api/chat-projects/:id`（详情：`instructions` 与按选择顺序排列的活笔记 `{ id, title, icon }`；Trash 里的笔记不含）和 `GET /api/pages`，保存时 `PATCH /api/chat-projects/:id` 只发有变化的字段：`instructions`（`""` 或 `null` 清空）和 `noteIds`（整体替换，`[]` 清空）。侧栏列表 `GET /api/chat-projects` 只返回 `{ id, name, noteCount, hasInstructions }`，`noteCount` 不计 Trash 里的笔记。详细的校验见 [database.md](database.md) 的 `ChatProject` / `ChatProjectNote`。
+设置入口是项目菜单里的 “Project settings”（`src/components/chat-project-settings.tsx`），对话框读取 `GET /api/chat-projects/:id`（详情：`instructions` 与按选择顺序排列的活笔记 `{ id, title, icon }`；Trash 里的笔记不含）和 `GET /api/pages`，保存时 `PATCH /api/chat-projects/:id` 只发有变化的字段：`instructions`（`""` 或 `null` 清空）和 `noteIds`（整体替换，`[]` 清空）。侧栏列表 `GET /api/chat-projects` 只返回 `{ id, name, noteCount, hasInstructions }`，`noteCount` 不计 Trash 里的笔记。保存中 Esc / 返回 / 点外面 / “Cancel” 都不关对话框；有未保存的改动时也不直接关，而是把底栏换成 “Unsaved changes”（Discard 关掉不保存 / Save 保存），再次想关时底栏晃一下，改动全撤回后恢复成 Cancel / Save（`src/lib/project-settings-form.ts`；Android / iOS 相同）。详细的校验见 [database.md](database.md) 的 `ChatProject` / `ChatProjectNote`。
 
 ### 每次发送时怎么带入
 

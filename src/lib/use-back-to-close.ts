@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { isImeKeyEvent } from "@/lib/ime";
 
 // close が false を返したら「いまは閉じない」（シートは開いたまま）。
 type Sheet = { close: () => boolean | void; closedByBack: boolean };
@@ -94,7 +95,8 @@ function onPopState(event: PopStateEvent) {
 
 // シートが開いているときの Esc は一番上の 1 枚だけを閉じる。capture で受けて止めるので、同じ Esc でポップオーバーなどが重ねて閉じない。
 function onKeyDown(event: KeyboardEvent) {
-  if (event.key !== "Escape" || event.isComposing) return;
+  // 変換中の Esc は変換の取り消し（Safari は isComposing を立てず keyCode 229 だけを付ける）。シートは閉じない。
+  if (event.key !== "Escape" || isImeKeyEvent(event)) return;
   const top = openSheets[openSheets.length - 1];
   if (!top) return;
   event.stopPropagation();
