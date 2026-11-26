@@ -72,11 +72,13 @@
 
 ## 思维导图模式与学习模板（#154 WE1 / WE2）
 
-- **同一套树引擎**：画成图的思维导图、手动的思维导图和学习模板里的思维导图都用 `src/lib/whiteboard/mindmap/`（纯 TS，有测试）。`editing.ts` 读白板上的树（`readMindmapTrees`：按 `customData.notefableMindmap` 的 `parent` / `order` 还原；父节点找不到或成环的节点当作独立的根），每个操作返回要改的元素（`patches`）、新加的元素草稿（`added`）和展开时放回的元素（`restored`）；编辑器的 `applyMindmapChange`（`whiteboard-mindmap.tsx`）把它们连同受影响的树的重新排版（`relayoutMindmap`：根不动，按节点现在的大小排，补上缺的连线、删掉两端不全的连线）和连线绑定（`bindMindmapEdges`：连线两端节点的 `boundElements` 记上这条线，拖动节点时线跟着走）合成**一次** `updateScene`，所以每个结构操作撤销一次就回去。
+- **同一套树引擎**：画成图的思维导图、手动的思维导图和学习模板里的思维导图都用 `src/lib/whiteboard/mindmap/`（纯 TS，有测试）。`editing.ts` 读白板上的树（`readMindmapTrees`：按 `customData.notefableMindmap` 的 `parent` / `order` 还原；父节点找不到或成环的节点当作独立的根），每个操作返回要改的元素（`patches`）、新加的元素草稿（`added`）和展开时放回的元素（`restored`）；`composeMindmapScene` 把它们连同受影响的树的重新排版（`relayoutMindmaps`：根不动，按节点现在的大小排，补上缺的连线、删掉两端不全的连线；有新连线时再排一遍，让线在同一步里就绑到两端节点上）和连线绑定（`bindMindmapEdges`：连线两端节点的 `boundElements` 记上这条线，拖动节点时线跟着走）算成下一个场景，编辑器的 `applyMindmapChange`（`whiteboard-mindmap.tsx`）用**一次** `updateScene` 写入，所以每个结构操作撤销一次就回去。展开时放回的元素版本号要比折叠时删掉的那份高（撤销记录只认版本升高的元素）。按很多 ID 查节点时用一次建好的 `mindmapFinder`（上万元素的白板逐个扫会卡住）。
 - **操作**：选中一个节点后，节点上方浮出小按钮（加子节点、加同级、折叠），左侧属性栏多一组“思维导图”（同样的按钮 + 分支方向：只在右侧 / 两侧，作用于整棵树）。键盘：Tab 加子节点、Enter 加同级（根上是加子节点）、F2 编辑文字、Delete / Backspace 连子孙一起删（选中的只有思维导图的节点、节点文字和连线时；混着别的图形就交给 Excalidraw 的删除）。这些键在 Excalidraw 之前接住（容器上的捕获阶段监听；Excalidraw 的 Tab 是切换图形种类，Enter 是编辑文字）。新节点的文字是“新主题”，加完立刻进入编辑并全选（直接打字就替换），开始编辑走 Excalidraw 内部的 `App.text.startTextEditing`（`excalidraw-bridge.ts` 的 `editText`，升级时重测）。
+- **锁定的元素**：删除时锁定的节点不删，它和它下面的分支留下；父节点被删时，它成为一棵新思维导图的根（位置不动）。节点文字和连线跟着节点走（没有节点的文字、连线留不下来）。只选中锁定节点时按 Delete 什么都不删。要隐藏的内容（子孙节点、节点文字、连线）里只要有锁定的元素，这个节点就不能折叠（不显示折叠按钮）：只折一部分会把父子关系拆开。自动排版目前不看锁定状态，锁定节点所在的树重排时它仍可能被移动。
 - **自动排版的时机**：结构操作之后；拖动或改大小结束时（拖动的单个非根节点的中心落在另一个节点上，就改挂到那个节点下面，不能挂到自己或自己的子孙下面；落在空白处就弹回原位；拖动根节点时整棵树跟着过去）；节点文字编辑结束时（节点宽度按文字重新算，和画成图用同一个估算 `mindmapNodeBox`，折行和高度用 Excalidraw 自己的测量，再重排整棵树）。排版后的位置不变时不动场景，不多出撤销记录。
-- **折叠**不用 `isDeleted`（保存时会丢掉）：子孙（节点、节点文字、连线）从白板上拿掉，原样存进被折叠节点的 `customData.notefableMindmap.stash`，展开时用同样的 ID 放回（只放回白板能存的元素种类）；嵌套折叠时内层的存货平铺进外层，不嵌套。因为不在白板上，折叠的分支不会出现在导出、小地图和公开链接里（公开的 scene 本来就去掉 `customData`，测试覆盖）；它们的文字照样进搜索和 AI 读取（算在被折叠的节点上）。白板上被折叠的节点外侧显示“+N”（隐藏的主题数），点它展开；锁定的白板只显示不能点。
-- **复制**（Ctrl+D、Alt 拖动、粘贴）：Excalidraw 的 `onDuplicate` 里改写副本的标记（`remapMindmapDuplicates`）：父节点一起复制的节点挂到新的父节点下，没带父节点的成为新树的根；两端都复制了的连线才保留标记。被折叠的存货不复制。
+- **折叠**不用 `isDeleted`（保存时会丢掉）：子孙（节点、节点文字、连线）从白板上拿掉，原样存进被折叠节点的 `customData.notefableMindmap.stash`，展开时用同样的 ID 放回（只放回白板能存的元素种类）；嵌套折叠时内层的存货平铺进外层，不嵌套。因为不在白板上，折叠的分支不会出现在导出、小地图和公开链接里（公开的 scene 本来就去掉 `customData`，测试覆盖）；它们的文字照样进搜索和 AI 读取（算在被折叠的节点上）：页面 AI 读整板时（`canvas-adapter.ts`）和选区问 AI 时（`selection-capture.ts`），在被折叠节点下按层级缩进列出（`mindmapStashOutline`），分别受读取上限 `MAX_READ_CHARS` 和引用上限 `MAX_QUOTE_CHARS` 限制。白板上被折叠的节点外侧显示“+N”（隐藏的主题数），点它展开；锁定的白板只显示不能点。
+  - 已知限制：用户自己画的、连到被折叠节点上的箭头不在存货里。折叠状态下保存并重新打开过的白板上，Excalidraw 会解掉指向不存在元素的绑定，之后展开节点，这些箭头仍是未绑定的，需要手动重新连。
+- **复制**（Ctrl+D、Alt 拖动、粘贴）：Excalidraw 的 `onDuplicate` 里改写副本的标记（`remapMindmapDuplicateScene`）。Excalidraw 用 `onDuplicate` 返回的数组拼下一个场景（没返回的元素会消失），所以必须返回完整的 `nextElements`，只改其中的思维导图副本。改写规则：父节点一起复制的节点挂到新的父节点下，没带父节点的成为新树的根；两端都复制了的连线才保留标记。被折叠的存货不复制。
 - **学习模板**（`src/lib/whiteboard/templates.ts`，纯函数，文字由编辑器按当前语言传入，17 种语言）：思维导图、康奈尔笔记、时间线、韦恩图、对比表。思维导图之外的模板放在一个框里（框名是模板名），整体可以拖。入口：空白板中央的“从模板开始”（画了东西就消失，关掉后本次打开不再出现），以及工具栏“更多工具”里的“模板”。插入到当前视野中央并选中（框或思维导图的根）。网页和 App 的 WebView 共用，原生不另做界面。
 
 ## 给 AI（#153）留的口
@@ -87,4 +89,4 @@
 
 ## 测试
 
-`src/lib/whiteboard/*.test.ts`（保存形的转换、精简、链接、公开地址、显示请求、导出文件名、框的顺序与 PDF 分页、PDF 写入器、画成图的 9 种图转换与清理：`diagram.test.ts`）、`src/lib/whiteboard/mindmap/mindmap.test.ts`（思维导图的解析、上限、排版不重叠、标记）、`src/lib/whiteboard/mindmap/editing.test.ts`（加节点、连子孙删除、改挂、折叠与展开、方向、复制、连线绑定、拖放目标）、`src/lib/whiteboard/templates.test.ts`（5 种模板）、`src/lib/export-file.test.ts`（分块发送）、`src/app/s/[token]/file/route.test.ts`（公开图片只放行引用的文件）、`src/lib/note-share-server.test.ts`（白板可以公开；幻灯片也能公开，是分享树的叶子）。编辑器本身（Excalidraw）在浏览器里验证。
+`src/lib/whiteboard/*.test.ts`（保存形的转换、精简、链接、公开地址、显示请求、导出文件名、框的顺序与 PDF 分页、PDF 写入器、画成图的 9 种图转换与清理：`diagram.test.ts`）、`src/lib/whiteboard/mindmap/mindmap.test.ts`（思维导图的解析、上限、排版不重叠、标记）、`src/lib/whiteboard/mindmap/editing.test.ts`（加节点、连子孙删除、改挂、折叠与展开、方向、复制、连线绑定、拖放目标、锁定元素、约 2 万元素的大白板）、`src/lib/whiteboard/templates.test.ts`（5 种模板）、`src/lib/export-file.test.ts`（分块发送）、`src/app/s/[token]/file/route.test.ts`（公开图片只放行引用的文件）、`src/lib/note-share-server.test.ts`（白板可以公开；幻灯片也能公开，是分享树的叶子）。编辑器本身（Excalidraw）在浏览器里验证。
