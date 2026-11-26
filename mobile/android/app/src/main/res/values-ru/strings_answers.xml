@@ -89,4 +89,5 @@
     <string name="proposal_op_elements">%1$s · элементов: %2$s</string>
     <string name="proposal_before">До</string>
     <string name="proposal_after">После</string>
+    <string name="proposal_view_preview">Показать предпросмотр</string>
 </resources>

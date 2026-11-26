@@ -291,6 +291,7 @@
 "proposal_op_elements" = "%1$s · %2$s phần tử";
 "proposal_before" = "Trước";
 "proposal_after" = "Sau";
+"proposal_view_preview" = "Xem bản xem trước";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "Đính kèm trang";

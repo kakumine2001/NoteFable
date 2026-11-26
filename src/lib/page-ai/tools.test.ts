@@ -120,7 +120,7 @@ describe("page tools", () => {
     expect(result.content).toContain("[Truncated");
   });
 
-  it("shows a whiteboard or slide deck as structured read-only content with IDs, and says it cannot be edited", async () => {
+  it("shows a whiteboard with edit instructions and a slide deck as structured read-only content with IDs", async () => {
     mocks.findFirst.mockResolvedValue({ id: "w1", kind: "whiteboard", title: "Plan", version: 2, blocks: [], updatedAt, canvas: { segments: [{ id: "e1", text: "Goal" }, { id: "e2", text: "Risks" }] } });
     mocks.canvas.mockResolvedValue({
       data: {
@@ -137,6 +137,7 @@ describe("page tools", () => {
     expect(board.isError).toBeUndefined();
     expect(board.content).toContain("kind: whiteboard");
     expect(board.content).toContain("This page is a whiteboard, not a note.");
+    expect(board.content).toContain("propose_whiteboard_edit");
     expect(board.content).toContain("## Frame: Roadmap (id: f1)");
     expect(board.content).toContain('- rectangle (id: e1): "Goal"');
     expect(board.content).not.toContain("(id: t1)");

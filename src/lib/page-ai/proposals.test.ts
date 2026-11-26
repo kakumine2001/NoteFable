@@ -96,7 +96,7 @@ vi.mock("@/lib/page-ai/registry", async () => {
   const adapters = { note: noteAdapter, whiteboard: canvasTextAdapter("whiteboard"), slides: fakeSlidesAdapter() };
   return { PAGE_ADAPTERS: adapters, adapterFor: (kind: keyof typeof adapters) => adapters[kind], allAdapters: () => Object.values(adapters) };
 });
-import { applyProposal, attachProposals, discardProposal, proposalImage, proposalsByMessage, saveProposal, undoProposal, type SaveInput } from "./proposals";
+import { applyProposal, attachProposals, discardProposal, proposalContent, proposalImage, proposalsByMessage, saveProposal, undoProposal, type SaveInput } from "./proposals";
 import { FAKE_PNG_BASE64 } from "./fake-adapter";
 
 const para = (text: string) => ({ id: text, type: "paragraph", props: {}, content: [{ type: "text", text, styles: {} }], children: [] });
@@ -539,5 +539,171 @@ describe("payload checks", () => {
     const view = await saveProposal("u1", "s1", { kind: "CREATE", pageKind: "slides", draft: { title: "Plan", icon: "not an emoji", content: "", proposed: { title: "Plan", icon: "not an emoji", data: { slides: [] } } } });
     expect(await applyProposal("u1", view.id)).toMatchObject({ ok: false, httpStatus: 400 });
     expect(db.pages).toHaveLength(0);
+  });
+});
+
+describe("canvas proposal before/after versioned preview (proposalContent)", () => {
+  beforeEach(reset);
+  const wbBefore = { elements: [{ id: "r1", type: "rectangle", x: 0, y: 0, width: 120, height: 60 }] };
+  const wbAfter = {
+    elements: [
+      { id: "r1", type: "rectangle", x: 0, y: 0, width: 120, height: 60 },
+      { id: "r2", type: "stickynote", x: 200, y: 0, width: 180, height: 140 },
+    ],
+  };
+
+  it("serves after payload + focusIds without leaking them into toProposalView, and enforces ownership", async () => {
+    db.pages.push({ kind: "whiteboard", id: "wb1", userId: "u1", title: "Board", icon: null, blocks: [], version: 2, deletedAt: null });
+    db.canvases.push({ noteId: "wb1", data: wbBefore, segments: [], hash: "h", size: 10 });
+    const view = await saveProposal("u1", "s1", {
+      kind: "EDIT",
+      pageKind: "whiteboard",
+      page: { id: "wb1", title: "Board", version: 2 },
+      draft: {
+        changes: [{ op: "add", block: 0, target: { type: "elements", count: 1, name: "Note" }, after: "stickynote: Note" }],
+        focusIds: ["r2"],
+        proposed: { title: "Board", data: wbAfter },
+      },
+    });
+
+    // Slim proposal view omits canvas payload and focusIds.
+    expect(JSON.stringify(view)).not.toContain('"r2"');
+    expect(JSON.stringify(view)).not.toContain('"width"');
+    expect(view.proposed).not.toHaveProperty("data");
+    expect(view).not.toHaveProperty("focusIds");
+
+    // Another user cannot read either side.
+    expect(await proposalContent("u2", view.id, "after")).toMatchObject({ ok: false, httpStatus: 404 });
+    expect(await proposalContent("u2", view.id, "before")).toMatchObject({ ok: false, httpStatus: 404 });
+
+    // Owner gets after data + focusIds, and before data while pending + version matches.
+    expect(await proposalContent("u1", view.id, "after")).toMatchObject({
+      ok: true,
+      content: { kind: "edit", pageKind: "whiteboard", status: "pending", side: "after", title: "Board", data: wbAfter, focusIds: ["r2"] },
+    });
+    expect(await proposalContent("u1", view.id, "before")).toMatchObject({
+      ok: true,
+      content: { kind: "edit", pageKind: "whiteboard", status: "pending", side: "before", title: "Board", data: wbBefore, focusIds: ["r2"] },
+    });
+  });
+
+  it("returns stale before state on pending version mismatch or deleted page", async () => {
+    db.pages.push({ kind: "whiteboard", id: "wb1", userId: "u1", title: "Board", icon: null, blocks: [], version: 2, deletedAt: null });
+    db.canvases.push({ noteId: "wb1", data: wbBefore, segments: [], hash: "h", size: 10 });
+    const view = await saveProposal("u1", "s1", {
+      kind: "EDIT",
+      pageKind: "whiteboard",
+      page: { id: "wb1", title: "Board", version: 2 },
+      draft: { changes: [], proposed: { title: "Board", data: wbAfter } },
+    });
+
+    db.pages[0].version = 3;
+    expect(await proposalContent("u1", view.id, "before")).toMatchObject({
+      ok: true,
+      content: { stale: true, reason: "version_mismatch" },
+    });
+
+    db.pages[0].version = 2;
+    db.pages[0].deletedAt = new Date();
+    expect(await proposalContent("u1", view.id, "before")).toMatchObject({
+      ok: true,
+      content: { stale: true, reason: "deleted" },
+    });
+  });
+
+  it("reads before snapshot from NoteRevision when applied or undone, handles pruned revision and discarded proposals", async () => {
+    db.pages.push({ kind: "whiteboard", id: "wb1", userId: "u1", title: "Board", icon: null, blocks: [], version: 2, deletedAt: null });
+    db.canvases.push({ noteId: "wb1", data: wbBefore, segments: [], hash: "h", size: 10 });
+    const view = await saveProposal("u1", "s1", {
+      kind: "EDIT",
+      pageKind: "whiteboard",
+      page: { id: "wb1", title: "Board", version: 2 },
+      draft: { changes: [], proposed: { title: "Board v2", data: wbAfter } },
+    });
+
+    // Apply creates AI_EDIT revision holding wbBefore.
+    expect(await applyProposal("u1", view.id)).toMatchObject({ ok: true });
+    expect(await proposalContent("u1", view.id, "before")).toMatchObject({
+      ok: true,
+      content: { status: "applied", title: "Board", data: wbBefore },
+    });
+
+    // Undo keeps revisionId pointing to pre-AI snapshot.
+    expect(await undoProposal("u1", view.id)).toMatchObject({ ok: true });
+    expect(await proposalContent("u1", view.id, "before")).toMatchObject({
+      ok: true,
+      content: { status: "undone", title: "Board", data: wbBefore },
+    });
+
+    // Pruned revision returns unavailable cleanly.
+    db.revisions.length = 0;
+    expect(await proposalContent("u1", view.id, "before")).toMatchObject({
+      ok: true,
+      content: { unavailable: true, reason: "revision_missing" },
+    });
+
+    // Discarded proposal returns unavailable (discarded).
+    const disc = await saveProposal("u1", "s1", {
+      kind: "EDIT",
+      pageKind: "whiteboard",
+      page: { id: "wb1", title: "Board", version: 4 },
+      draft: { changes: [], proposed: { title: "Board", data: wbAfter } },
+    });
+    await discardProposal("u1", disc.id);
+    expect(await proposalContent("u1", disc.id, "before")).toMatchObject({
+      ok: true,
+      content: { status: "discarded", unavailable: true, reason: "discarded" },
+    });
+  });
+
+  it("returns empty: true for CREATE before preview and rejects note proposals with 400", async () => {
+    const wbCreate = await saveProposal("u1", "s1", {
+      kind: "CREATE",
+      pageKind: "whiteboard",
+      draft: { title: "Fresh Board", icon: null, content: "Item", proposed: { title: "Fresh Board", icon: null, data: wbAfter } },
+    });
+    expect(await proposalContent("u1", wbCreate.id, "before")).toMatchObject({
+      ok: true,
+      content: { kind: "create", pageKind: "whiteboard", empty: true },
+    });
+    expect(await proposalContent("u1", wbCreate.id, "after")).toMatchObject({
+      ok: true,
+      content: { kind: "create", pageKind: "whiteboard", data: wbAfter },
+    });
+
+    const noteProp = await saveProposal("u1", "s1", create());
+    expect(await proposalContent("u1", noteProp.id, "after")).toMatchObject({ ok: false, httpStatus: 400 });
+  });
+
+  it("applies a whiteboard edit with AI_EDIT revision, undoes it cleanly, and refuses auto-apply on locked whiteboards", async () => {
+    db.pages.push({ kind: "whiteboard", id: "wb_lock", userId: "u1", title: "Board", icon: null, blocks: [], version: 1, deletedAt: null, locked: true });
+    db.canvases.push({ noteId: "wb_lock", data: wbBefore, segments: [], hash: "h", size: 10 });
+    const lockedView = await saveProposal("u1", "s1", {
+      kind: "EDIT",
+      pageKind: "whiteboard",
+      page: { id: "wb_lock", title: "Board", version: 1 },
+      draft: {
+        changes: [{ op: "add", block: 0, target: { type: "elements", count: 1, name: "Note" }, after: "stickynote: Note" }],
+        focusIds: ["r2"],
+        proposed: { title: "Board", data: wbAfter },
+      },
+    });
+    expect(await applyProposal("u1", lockedView.id, { auto: true })).toMatchObject({ ok: false, httpStatus: 409 });
+    expect(db.proposals.find((p) => p.id === lockedView.id)?.status).toBe("PENDING");
+    expect(db.canvases[0].data).toEqual(wbBefore);
+
+    const applied = await applyProposal("u1", lockedView.id);
+    expect(applied).toMatchObject({ ok: true, kind: "edit", page: { id: "wb_lock", version: 2, data: wbAfter } });
+    expect(db.revisions).toHaveLength(1);
+    expect(db.revisions[0]).toMatchObject({ reason: "AI_EDIT", version: 1, data: wbBefore });
+    expect(await proposalContent("u1", lockedView.id, "before")).toMatchObject({
+      ok: true,
+      content: { status: "applied", side: "before", data: wbBefore },
+    });
+
+    const undone = await undoProposal("u1", lockedView.id);
+    expect(undone).toMatchObject({ ok: true, status: "undone", page: { id: "wb_lock", version: 3, data: wbBefore } });
+    expect(db.revisions).toHaveLength(2);
+    expect(db.revisions[1]).toMatchObject({ reason: "RESTORE", version: 2, data: wbAfter });
   });
 });

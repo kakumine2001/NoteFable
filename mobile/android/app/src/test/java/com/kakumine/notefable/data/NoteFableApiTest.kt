@@ -141,4 +141,13 @@ class NoteFableApiTest {
             assertFalse(body.containsKey("icon"))
         }
     }
+
+    @Test
+    fun `proposalPreviewUrl builds the static note-embed URL with proposal, lang, and theme`() {
+        val api = NoteFableApi("https://app.notefable.com", CookieJar.NO_COOKIES)
+        assertEquals(
+            "https://app.notefable.com/note-embed?proposal=prop+1&lang=ja&theme=dark",
+            api.proposalPreviewUrl("prop 1", "ja", "dark"),
+        )
+    }
 }

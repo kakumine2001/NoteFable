@@ -24,6 +24,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -85,7 +86,10 @@ private val ErrorRed: Color get() = Sm.pick(Color(0xFFE03E3E), Sm.Danger)
 /** 两张缩略图并排要的最小宽度：网页 minmax(8rem, 1fr) 两列加间距。 */
 private val TwoThumbnailsWidth = (128 * 2 + 6.4).dp
 
-/** 提案卡片需要的操作：[onOpen] 打开改动 / 新建的页面，[onUndo] 撤销已应用的提案。 */
+/** 打开画布提案（白板 / 幻灯片）的改前・改后 WebView 预览。 */
+internal val LocalPreviewProposal = staticCompositionLocalOf<((Proposal) -> Unit)?> { null }
+
+/** 提案卡片需要的操作：[onOpen] 打开改动 / 新建的页面，[onUndo] 撤销已应用的提案，[onPreview] 打开画布提案的改前・改后预览。 */
 @Composable
 internal fun ProposalCard(
     proposal: Proposal,
@@ -94,11 +98,12 @@ internal fun ProposalCard(
     onDiscard: () -> Unit,
     onUndo: () -> Unit,
     onOpen: (String) -> Unit,
+    onPreview: (() -> Unit)? = null,
 ) {
     val kind = proposal.pageKind
     val note = kind == PageKind.Note
     val openLabel = stringResource(if (note) R.string.proposal_open_note else R.string.proposal_open_page)
-    val actions = CardActions(onApply, onDiscard, onUndo, onOpen)
+    val actions = CardActions(onApply, onDiscard, onUndo, onOpen, onPreview)
     when (proposal) {
         is Proposal.Edit -> Card(
             proposal = proposal,
@@ -163,6 +168,7 @@ private class CardActions(
     val onDiscard: () -> Unit,
     val onUndo: () -> Unit,
     val onOpen: (String) -> Unit,
+    val onPreview: (() -> Unit)? = null,
 )
 
 @Composable
@@ -245,7 +251,21 @@ private fun Card(
                 Modifier.fillMaxWidth().heightIn(max = 352.dp).verticalScroll(rememberScrollState())
                     .padding(horizontal = 12.dp, vertical = 10.4.dp),
                 verticalArrangement = Arrangement.spacedBy(9.6.dp),
-            ) { body() }
+            ) {
+                if (proposal.pageKind != PageKind.Note && actions.onPreview != null) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        ActionButton(
+                            text = stringResource(R.string.proposal_view_preview),
+                            primary = false,
+                            busy = false,
+                            spinning = false,
+                            icon = Lucide.Eye,
+                            onClick = actions.onPreview,
+                        )
+                    }
+                }
+                body()
+            }
             state.error?.let { error ->
                 val text = error.serverMessage?.let(systemText::localize) ?: stringResource(
                     when (error.action) {

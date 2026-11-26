@@ -291,6 +291,7 @@
 "proposal_op_elements" = "%1$s · %2$s من العناصر";
 "proposal_before" = "قبل";
 "proposal_after" = "بعد";
+"proposal_view_preview" = "عرض المعاينة";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "إرفاق صفحات";

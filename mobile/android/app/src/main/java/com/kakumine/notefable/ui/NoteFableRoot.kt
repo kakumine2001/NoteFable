@@ -108,6 +108,8 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     // AI 生成幻灯片的全屏向导里撞到使用次数上限或存储空间上限：提示放在向导上方（盖在编辑器上的向导用上面的 noteUsageLimit / noteStorageLimit）。
     var wizardUsageLimit by remember { mutableStateOf<UsageLimitInfo?>(null) }
     var wizardStorageLimit by remember { mutableStateOf<StorageLimitInfo?>(null) }
+    // 画布提案（白板 / 幻灯片）改前・改后可视化预览当前打开的提案。
+    var previewProposal by remember { mutableStateOf<com.kakumine.notefable.data.Proposal?>(null) }
     // 白板正在用画图工具的编辑器（网页经桥发来的 drawing 为 true）：只在那个编辑器上让开两侧的返回手势。
     // 同样只认打开着的编辑器发来的，换笔记、关掉编辑器时清掉。
     var drawingEditor by remember { mutableStateOf<String?>(null) }
@@ -122,6 +124,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
         noteUsageLimit = null
         wizardUsageLimit = null
         wizardStorageLimit = null
+        previewProposal = null
     }
     // 画面上的编辑器换了，上一处开的向导不再算数；换了一次向导（或关掉），它的上限提示也去掉。
     LaunchedEffect(notes.visibleEditor) { notesViewModel.dropStaleSlidesWizard() }
@@ -493,6 +496,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                 LocalAnswerSessionId provides state.activeSessionId,
                 LocalConversationDownloader provides conversationDownloader,
                 LocalAnswerDiagram provides drawAnswerDiagram,
+                LocalPreviewProposal provides { previewProposal = it },
             ) { ChatScreen(
                 state = state,
                 // 草稿在 ViewModel 里：切到笔记时 ChatScreen 离开组合，回来时文字还在。
@@ -695,6 +699,16 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                 onClose = { diagramKey = null },
             )
         }
+    }
+
+    previewProposal?.let { proposal ->
+        ProposalPreviewScreen(
+            proposal = proposal,
+            previewUrl = { lang, theme -> app.api.proposalPreviewUrl(proposal.id, lang, theme) },
+            baseUrl = BuildConfig.BASE_URL,
+            cookieJar = app.cookieJar,
+            onClose = { previewProposal = null },
+        )
     }
 
     // 画面上没有编辑器时的向导（聊天、笔记列表）：全屏画面接过常驻 WebView。

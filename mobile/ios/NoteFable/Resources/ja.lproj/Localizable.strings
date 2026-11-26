@@ -291,6 +291,7 @@
 "proposal_op_elements" = "%1$s・要素 %2$s 個";
 "proposal_before" = "変更前";
 "proposal_after" = "変更後";
+"proposal_view_preview" = "プレビューを表示";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "ページを添付";

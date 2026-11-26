@@ -243,7 +243,7 @@ function renderWhiteboardSections(sections: WhiteboardSection[], budget: number)
   return { text: output.join("\n"), truncated: false };
 }
 
-function readWhiteboard(page: AdapterPage, budget: number): string {
+export function readWhiteboard(page: AdapterPage, budget: number): string {
   if (!isRecord(page.data) || !Array.isArray(page.data.elements)) {
     return readWhiteboardSegments(page.segments ?? [], budget, page.focusIds);
   }
