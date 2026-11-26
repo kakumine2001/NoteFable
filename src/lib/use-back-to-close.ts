@@ -30,9 +30,15 @@ const afterBack: (() => void)[] = [];
 let pendingFlush: ReturnType<typeof setTimeout> | null = null;
 function flushAfterBack() {
   pendingFlush = null;
-  while (afterBack.length > 0 && pendingBack === null && !ownBack) {
-    const callback = afterBack.shift()!;
-    callback();
+  try {
+    while (afterBack.length > 0 && pendingBack === null && !ownBack) {
+      const callback = afterBack.shift()!;
+      callback();
+    }
+  } finally {
+    if (afterBack.length > 0 && pendingBack === null && !ownBack && pendingFlush === null) {
+      pendingFlush = setTimeout(flushAfterBack);
+    }
   }
 }
 

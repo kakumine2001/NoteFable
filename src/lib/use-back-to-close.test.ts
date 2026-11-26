@@ -178,4 +178,30 @@ describe("useBackToClose and afterSheetHistory", () => {
     vi.advanceTimersByTime(1);
     expect(order).toEqual(["first", "second"]);
   });
+
+  it("reschedules remaining afterSheetHistory callbacks if an earlier callback throws", async () => {
+    const win = setupFakeWindow();
+    const mod = await import("./use-back-to-close");
+    const order: string[] = [];
+
+    mod.useBackToClose(true, vi.fn());
+    hookHarness.unmountLast();
+    vi.advanceTimersByTime(1);
+
+    mod.afterSheetHistory(() => {
+      order.push("boom");
+      throw new Error("history quota");
+    });
+    mod.afterSheetHistory(() => order.push("survivor"));
+
+    win.dispatchPopState(true);
+    expect(() => vi.advanceTimersToNextTimer()).toThrow("history quota");
+    // Remaining queued callback flushes on the next tick instead of wedging the queue.
+    vi.advanceTimersToNextTimer();
+    expect(order).toEqual(["boom", "survivor"]);
+
+    // Subsequent calls run immediately again.
+    mod.afterSheetHistory(() => order.push("immediate"));
+    expect(order).toEqual(["boom", "survivor", "immediate"]);
+  });
 });
