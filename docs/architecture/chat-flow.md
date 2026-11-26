@@ -337,7 +337,7 @@ DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_re
 
 **额度。** 用户每发一条消息算 1 条聊天额度，AI 内部的工具调用、自动应用、撤销都不另算；快捷按钮也是一次发送，算 1 条；生图仍按张数。
 
-**AI 内容的举报。** 提案卡片标题栏的旗帜和 AI 写过的页面（`NotePage.aiUpdatedAt` 非空：适用过 AI 提案，或由 Create page、画成图建出）的“…”菜单里有 “Report AI content”，与回答的举报同一个对话框和接口：`POST /api/reports` 收 `{ messageId }`、`{ proposalId }` 或 `{ pageId }` 之一和可选的理由（`elementId` 只能和 `pageId` 一起：那是幻灯片里 AI 生成的图片，见下面的 Report answer），只认本人的内容，邮件附上卡片的改前改后文字或页面当前的文字和适用过的 AI 提案列表（`src/lib/answer-report.ts`），额度与回答的举报共用。已知的缺口：本功能之前用 Create page 建的笔记没有 `aiUpdatedAt`，页面菜单里没有这一项（那段对话的回答仍可举报）；Android / iOS 的原生“…”菜单在 WebView 编辑器里的 AI 面板写过页面之后，要等页面列表下次刷新才显示这一项（面板里的卡片有自己的举报按钮）；旧版 App 不认识 `undone`，会把撤销过的提案显示成待确认，点应用会得到 409 “This change was undone.”。
+**AI 内容的举报。** 提案卡片标题栏的旗帜和 AI 写过的页面（`NotePage.aiUpdatedAt` 非空：适用过 AI 提案，或由 Create page、画成图、[AI 生成幻灯片](slides.md#ai-生成幻灯片)建出）的“…”菜单里有 “Report AI content”，与回答的举报同一个对话框和接口：`POST /api/reports` 收 `{ messageId }`、`{ proposalId }` 或 `{ pageId }` 之一和可选的理由（`elementId` 只能和 `pageId` 一起：那是幻灯片里 AI 生成的图片，见下面的 Report answer），只认本人的内容，邮件附上卡片的改前改后文字或页面当前的文字和适用过的 AI 提案列表（`src/lib/answer-report.ts`），额度与回答的举报共用。已知的缺口：本功能之前用 Create page 建的笔记没有 `aiUpdatedAt`，页面菜单里没有这一项（那段对话的回答仍可举报）；Android / iOS 的原生“…”菜单在 WebView 编辑器里的 AI 面板写过页面之后，要等页面列表下次刷新才显示这一项（面板里的卡片有自己的举报按钮）；旧版 App 不认识 `undone`，会把撤销过的提案显示成待确认，点应用会得到 409 “This change was undone.”。
 
 工具调用和结果不进入聊天记录正文（`Message.content` 只保存最终回答文字）；工具步骤的显示标签作为途中经过存入 `Message.activity`。发生压缩时，checkpoint 中每个工具调用之后都保留对应结果（`tool_result` / `function_call_output`，预览图片只留文字），保证重放合法。浏览器的途中经过里会显示"Searched notes for …"、"Listed pages"、"Read “笔记标题”"、"Applied edits to “…”"或"Created page “…”"。
 
@@ -517,7 +517,7 @@ AI 的 `search_notes` 工具（`src/lib/page-ai/tools.ts`）现在与站内搜�
 - **面板顶栏。** 笔记切换（按标题筛选，最多列 60 篇，带 New note）、锁定时的解锁按钮、版本历史、保存状态、“…”页面菜单（与 Notes 顶栏相同，含 Export Markdown）、“Open in full view”（切到 Notes 视图打开这一篇）和关闭。还没有打开笔记时显示说明、New note 和最近编辑的 8 篇。刚打开分屏时自动打开上次在这里开着的笔记，没有或已不存在就打开最近编辑的一篇（每次打开分屏只试一次）。
 - **分隔线。** `role="separator"`：拖动改变比例，比例是笔记面板占工作区的份额，限制在 0.3–0.65（`clampSplitRatio`），默认 0.46，面板最窄 320px；双击恢复默认；聚焦后 ←/→ 每次 0.03；RTL 下方向相反。
 - **本机保存。** `localStorage` 的 `notefable:split-view:v1` 存 `{ open, pageId, ratio }`（`loadSplitPreference` / `saveSplitPreference`），只按浏览器保存，不随账号同步。`/app` 是静态页面，所以在页面显示后才读取。
-- **笔记链接在右侧打开。** Chat 视图且宽度够时，`openNoteFromLink` 不切到 Notes，而是在分屏里打开（分屏关着就顺便打开）：搜索结果（带 `blockId` 时照常滚到命中的块并高亮）、空对话页最近笔记卡片的 ↗，以及所有派发 `notefable:open-note` 的地方（项目参考笔记和发言附加笔记的标签、Save to page 的 “Open saved page”、Create page 的 “Open page”、画成图的 “Open whiteboard”）。其他情况仍切到 Notes 视图。
+- **笔记链接在右侧打开。** Chat 视图且宽度够时，`openNoteFromLink` 不切到 Notes，而是在分屏里打开（分屏关着就顺便打开）：搜索结果（带 `blockId` 时照常滚到命中的块并高亮）、空对话页最近笔记卡片的 ↗，以及所有派发 `notefable:open-note` 的地方（项目参考笔记和发言附加笔记的标签、Save to page 的 “Open saved page”、Create page 的 “Open page”、画成图的 “Open whiteboard”、AI 生成幻灯片的 “Open slides”）。其他情况仍切到 Notes 视图。
 - **Ask AI 进聊天。** 分屏的笔记面板不显示笔记助手的悬浮按钮和面板。在这里选中文字点格式工具栏的 Ask AI，文字成为聊天输入框上方的引用条（与“引用回答追问”同一个引用条和发送格式），同时把这篇笔记加进这条发言的附加笔记（已附加或已满 5 篇时不加）。之后就是一条普通的聊天发言：不带 `noteId` / `noteSelection`，AI 通过附加的笔记和 Notes 工具读到内容。
 - **发送前保存。** 分屏打开且右侧笔记有未保存的编辑时（白板先交出还没交给保存队列的变更），发送聊天消息前先 `flush()`，让 AI 读到最新的正文；保存失败不阻止发送。关闭分屏时也 flush 一次。
 
@@ -538,7 +538,7 @@ AI 的 `search_notes` 工具（`src/lib/page-ai/tools.ts`）现在与站内搜�
 
 ## 整理成笔记（Create page）
 
-“Save to page” 只把一条回答原样存成笔记；**Create page** 让 AI 把整段对话改写成一篇条理清晰、可以复习的笔记（类似 Perplexity 的 Create Page）。入口在输入栏的 “＋” 菜单（桌面 `AttachMenu`、手机 `AttachSheet`，`src/components/attach-sheet.tsx`，图标 `FilePlus`，文案 “Create page” / “Create a page from this chat”）：只在 Chat 视图、会话已保存且有消息时显示，当前会话正在上传附件或生成回答时不可点（最后一条回答还没入库），窗口里的 Create page 按钮也一样。笔记里的 AI 助手会话复用 `AttachMenu` 但不传该回调，没有这个入口；服务端也拒绝它们。
+“Save to page” 只把一条回答原样存成笔记；**Create page** 让 AI 把整段对话改写成一篇条理清晰、可以复习的笔记（类似 Perplexity 的 Create Page）。入口在输入栏的 “＋” 菜单（桌面 `AttachMenu`、手机 `AttachSheet`，`src/components/attach-sheet.tsx`，图标 `FilePlus`，文案 “Create page” / “Create a page from this chat”）：只在 Chat 视图、会话已保存且有消息时显示，当前会话正在上传附件或生成回答时不可点（最后一条回答还没入库），窗口里的 Create page 按钮也一样。笔记里的 AI 助手会话复用 `AttachMenu` 但不传该回调，没有这个入口；服务端也拒绝它们。同一处紧挨着还有 “Generate slides”（[AI 生成幻灯片](slides.md#ai-生成幻灯片)，材料是这段对话），显示和禁用条件相同。
 
 点图标打开确认窗口（`src/components/create-page-dialog.tsx`），说明会用当前选择的模型改写这段对话、很长的对话会被缩短（优先保留最近的消息）、计入当天 1 次聊天额度。点 Create page 后请求 `POST /api/sessions/:sessionId/page`（body `{ model, savedOn }`，`savedOn` 是浏览器的本地日期，用于来源段落）。生成可能要几十秒：窗口显示进度，可以关闭，请求继续；完成后派发 `notefable:page-created`（新笔记加入侧栏），窗口里出现 **Open page**（省略了较早的消息或截断了过长的消息时，`partial` 为 true，窗口另外说明省略了一部分），点击派发 `notefable:open-note` 打开它。状态按会话 ID 放在组件外的 Map，重新打开窗口时进行中的请求不会再发一次；关闭窗口时忘掉已结束的结果，之后可以从继续过的对话再生成一篇。错误显示在窗口里（`localizeSystemText`），可以重试：429 / 400 / 413 显示服务端原句（游客的上限句子里带登录提示），404 显示 “Session not found.”，其余显示 “Could not create a page from this chat. Try again.”。
 

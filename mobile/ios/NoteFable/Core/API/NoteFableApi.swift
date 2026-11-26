@@ -402,6 +402,18 @@ final class NoteFableApi: ChatBackend, AccountBackend, NotesBackend, @unchecked 
         )
     }
 
+    /// AI 生成幻灯片的向导要用、但没有打开任何页面时加载的空白编辑器（`/note-embed?warm=1&lang=…&model=…&reasoning=…&theme=…`）。
+    /// 网页什么页面都不打开，只等 `window.notefableEmbed.slidesWizard`。
+    func slidesWizardUrl(lang: String?, model: String? = nil, reasoning: String? = nil, theme: String? = nil) -> String {
+        absoluteUrl(
+            "/note-embed?warm=1"
+                + (lang.map { "&lang=" + $0 } ?? "")
+                + (model.map { "&model=" + segment($0) } ?? "")
+                + (reasoning.map { "&reasoning=" + segment($0) } ?? "")
+                + (theme.map { "&theme=" + segment($0) } ?? "")
+        )
+    }
+
     /// 下载笔记里的文件（`/api/pages/files?key=…`）。文件是私有的，要带 App 的 Cookie，所以不能交给系统浏览器。
     /// 拿到响应头后用文件名和类型调用 [target] 要一个保存位置，再把内容边收边写进去；中途失败时删掉写了一半的文件。
     /// 服务端出错时抛 [ApiException]。

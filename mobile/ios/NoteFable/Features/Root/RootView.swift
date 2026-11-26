@@ -16,20 +16,28 @@ struct RootView: View {
 
     var body: some View {
         @Bindable var router = router
-        let hideTabBar = router.selectedTab == .workspace && (app.notes.state.open != nil || app.notes.state.presenting)
-        let allowEdgeDrawer = !(router.selectedTab == .workspace && (app.notes.state.editorCapturesEdgeSwipes || app.notes.state.presenting))
+        let fullScreenWizard = app.notes.state.slidesWizard?.editor == nil ? app.notes.state.slidesWizard : nil
+        let editorWizardShown = app.notes.state.slidesWizard?.editor != nil && app.notes.state.slidesWizard?.shown == true
+        let hideTabBar = fullScreenWizard != nil || (router.selectedTab == .workspace && (app.notes.state.open != nil || app.notes.state.presenting))
+        let allowEdgeDrawer = fullScreenWizard == nil && !editorWizardShown && !(router.selectedTab == .workspace && (app.notes.state.editorCapturesEdgeSwipes || app.notes.state.presenting))
 
-        AdaptiveSidebarShell(
-            isOpen: $router.drawerOpen,
-            dockedVisible: router.dockedSidebarVisible,
-            presenting: app.notes.state.presenting,
-            edgeOpens: allowEdgeDrawer,
-            onDockedChange: { docked, width in router.setSidebarDocked(docked, width: width) },
-            onCollapseDocked: { router.closeSidebar() }
-        ) {
-            DrawerPanel()
-        } content: {
-            mainTabs(hideTabBar: hideTabBar)
+        ZStack {
+            AdaptiveSidebarShell(
+                isOpen: $router.drawerOpen,
+                dockedVisible: router.dockedSidebarVisible,
+                presenting: app.notes.state.presenting,
+                edgeOpens: allowEdgeDrawer,
+                onDockedChange: { docked, width in router.setSidebarDocked(docked, width: width) },
+                onCollapseDocked: { router.closeSidebar() }
+            ) {
+                DrawerPanel()
+            } content: {
+                mainTabs(hideTabBar: hideTabBar)
+            }
+            if let wizard = fullScreenWizard {
+                SlidesWizardScreen(wizard: wizard)
+                    .transition(.opacity)
+            }
         }
         .environment(noteEditorPool)
         .onAppear {
@@ -78,11 +86,11 @@ struct RootView: View {
         .drawDiagramDialog()
         .noteTrashSheet()
         .nfOverlayHost()
-        // 提示条按当前标签页量到的底部遮挡（标签栏 + 悬浮底栏）摆放，宽屏常驻侧栏展开时在详情栏中水平居中。
+        // 提示条按当前标签页量到的底部遮挡（标签栏 + 悬浮底栏）摆放，宽屏常驻侧栏展开时在详情栏中水平居中；全屏向导盖住整窗时不偏移。
         .toastHost(
             tabBarVisible: !hideTabBar,
             tab: router.selectedTab,
-            leadingInset: router.isSidebarDockedVisible ? CGFloat(router.dockedSidebarWidth) : 0
+            leadingInset: (fullScreenWizard == nil && router.isSidebarDockedVisible) ? CGFloat(router.dockedSidebarWidth) : 0
         )
     }
 
@@ -272,6 +280,16 @@ private struct DrawerFooter: View {
                 ActionsMenuItem(L(pageKindNewLabel(kind)), icon: pageKindIcon(kind), iconColor: pageKindColor(kind)) {
                     newMenuOpen = false
                     router.createNote(kind: kind)
+                }
+                .disabled(notesBusy)
+            }
+            if kinds.contains(.slides) {
+                ActionsMenuDivider()
+                ActionsMenuItem(L("slides_generate_with_ai"), leading: {
+                    AppIconView(icon: app.appIcon.icon, size: 16)
+                }) {
+                    newMenuOpen = false
+                    router.openSlidesWizard(.new())
                 }
                 .disabled(notesBusy)
             }

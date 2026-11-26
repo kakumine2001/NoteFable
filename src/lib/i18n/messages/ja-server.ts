@@ -266,4 +266,8 @@ export const jaServer: Record<string, string> = {
   "Could not turn this into an editable diagram.": "編集できる図に変換できませんでした。",
   "There is nothing to draw yet.": "まだ図にする内容がありません。",
   "This diagram was moved to the trash.": "この図はゴミ箱に移動されています。",
+  "Could not generate slides. Try again.": "スライドを生成できませんでした。もう一度お試しください。",
+  "There is nothing to make slides from yet.": "まだスライドにする内容がありません。",
+  "These slides were moved to the trash.": "このスライドはゴミ箱に移動されています。",
+  "This request is still running. Try again in a moment.": "このリクエストはまだ処理中です。しばらくしてからもう一度お試しください。",
 };

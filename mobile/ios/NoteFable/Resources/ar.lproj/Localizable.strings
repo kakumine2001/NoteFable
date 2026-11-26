@@ -603,6 +603,11 @@
 "slides_export_pptx" = "تصدير إلى PowerPoint (PPTX)";
 "slides_export_pptx_transition_note" = "لا تُضمَّن انتقالات الشرائح عند التصدير إلى PPTX.";
 
+/* strings_slides_wizard.xml */
+"slides_generate" = "إنشاء شرائح";
+"slides_generate_from_chat" = "إنشاء عرض شرائح من هذه المحادثة";
+"slides_generate_with_ai" = "إنشاء بالذكاء الاصطناعي";
+
 /* strings_turns.xml */
 "regenerate" = "إعادة التوليد";
 "branch_in_new_chat" = "تفريع في محادثة جديدة";

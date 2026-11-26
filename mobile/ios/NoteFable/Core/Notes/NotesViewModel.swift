@@ -100,6 +100,14 @@ final class NotesViewModel {
             next.exportFileFailed = false
             next.presenting = false
         }
+        // 画面上的编辑器换了：盖在别的编辑器上的向导、有了编辑器时的全屏向导画面都不再算数。
+        if let wizard = next.slidesWizard, wizard.editor != nil, wizard.editor != next.visibleEditor {
+            next.slidesWizard = nil
+            next.wizardUsageLimit = nil
+        } else if let wizard = next.slidesWizard, wizard.editor == nil, next.visibleEditor != nil, next.visibleEditor != state.visibleEditor {
+            next.slidesWizard = nil
+            next.wizardUsageLimit = nil
+        }
         state = next
     }
 
@@ -397,6 +405,9 @@ final class NotesViewModel {
         // 打开聊天要切标签页，由界面层（NoteEditorWebView）交给 AppRouter.openChat，不会走到这里。
         case .openChat: break
         case .pagesChanged: refresh()
+        // slidesWizard 在 NoteEditorController 层处理（停靠期和全屏向导画面也要收），这里兜底保持穷举。
+        case .slidesWizard(let open, _):
+            if open { onSlidesWizardOpened(editor: editor) } else { onSlidesWizardClosed() }
         case .storageLimit(let tier, let used, let limit):
             // 已经关掉或换走的编辑器晚到的消息不收。
             guard state.open?.editor == editor else { break }
@@ -461,6 +472,83 @@ final class NotesViewModel {
 
     func dismissUsageLimit() {
         update { $0.usageLimit = nil }
+    }
+
+    // ---- AI 生成幻灯片的向导（#150，Android NotesViewModel 同名方法） ----
+
+    @ObservationIgnored private var slidesWizardRequests = 0
+
+    /// 从一个入口打开向导：[editor] 非 nil 时盖在那个编辑器上，nil 时开全屏向导画面。要读的笔记正开着时网页自己先保存。
+    func openSlidesWizard(_ source: SlidesWizardSource, editor: String? = nil) {
+        slidesWizardRequests += 1
+        let request = slidesWizardRequests
+        update {
+            $0.slidesWizard = SlidesWizardUi(source: source, request: request, editor: editor)
+            $0.wizardUsageLimit = nil
+        }
+    }
+
+    /// 打开的脚本说网页里出来了。
+    func onSlidesWizardShown(_ request: Int) {
+        update { state in
+            guard var wizard = state.slidesWizard, wizard.request == request else { return }
+            wizard.shown = true
+            state.slidesWizard = wizard
+        }
+    }
+
+    /// 网页的 `slidesWizard` open 消息。[editor] 是发消息时画面上的编辑器（全屏向导画面是 nil）。
+    /// App 没打开过时是笔记 AI 面板里的「生成幻灯片」：记成盖在这个编辑器上、以这一篇为材料。
+    func onSlidesWizardOpened(editor: String?) {
+        if let wizard = state.slidesWizard {
+            if wizard.editor == editor { onSlidesWizardShown(wizard.request) }
+            return
+        }
+        guard let editor, state.visibleEditor == editor, let open = state.open else { return }
+        slidesWizardRequests += 1
+        let request = slidesWizardRequests
+        update {
+            $0.slidesWizard = SlidesWizardUi(source: .note(pageId: open.id), request: request, editor: editor, shown: true)
+            $0.wizardUsageLimit = nil
+        }
+    }
+
+    /// 网页的 closed 消息。还没出来的那一次不动：这是上一次被藏起来时晚到的。
+    func onSlidesWizardClosed() {
+        update { state in
+            guard state.slidesWizard?.shown == true else { return }
+            state.slidesWizard = nil
+            state.wizardUsageLimit = nil
+        }
+    }
+
+    /// App 这边关掉向导（关闭键、打开了幻灯片、打不开）；[request] 指定时只关那一次。
+    func dismissSlidesWizard(_ request: Int? = nil) {
+        update { state in
+            guard request == nil || state.slidesWizard?.request == request else { return }
+            state.slidesWizard = nil
+            state.wizardUsageLimit = nil
+        }
+    }
+
+    /// 外部链接、系统分享、切标签页要换画面：关掉全屏向导。盖在编辑器上的不在这里关：离开了编辑器它自然不算数，
+    /// 笔记存不上、留在编辑器里时向导还在网页里。
+    func dismissFullScreenSlidesWizard() {
+        update { state in
+            guard let wizard = state.slidesWizard, wizard.editor == nil else { return }
+            state.slidesWizard = nil
+            state.wizardUsageLimit = nil
+        }
+    }
+
+    /// 全屏向导里撞到使用次数上限（429 usage_limit）。
+    func onWizardUsageLimit(tier: String, kind: String) {
+        guard state.slidesWizard?.editor == nil else { return }
+        update { $0.wizardUsageLimit = UsageLimitInfo(tier: tier, kind: kind) }
+    }
+
+    func dismissWizardUsageLimit() {
+        update { $0.wizardUsageLimit = nil }
     }
 
     // ---- 编辑器导出的文件（网页 src/lib/export-file.ts） ----

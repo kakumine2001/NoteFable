@@ -12,9 +12,7 @@ struct NotesHomeView: View {
     @State private var importing = false
     @State private var kindFilter: PageKind?
     @Environment(AppEnvironment.self) private var app
-    #if DEBUG
     @Environment(AppRouter.self) private var router
-    #endif
 
     // 网页 .notes-home 的含边距宽度上限。
     private static let columnMaxWidth: CGFloat = 960
@@ -74,10 +72,23 @@ struct NotesHomeView: View {
                         .padding(.bottom, 16)
                 } else if nothing {
                     if state.error == nil && state.loaded {
-                        NotesEmptyView(kinds: kinds, busy: busy, onCreate: { notes.createNote(kind: $0) }, onImport: { importing = true })
+                        NotesEmptyView(
+                            kinds: kinds,
+                            busy: busy,
+                            onCreate: { notes.createNote(kind: $0) },
+                            onGenerateSlides: { router.openSlidesWizard(.new()) },
+                            onImport: { importing = true }
+                        )
                     }
                 } else {
-                    NotesHomeList(busy: busy, reorder: reorder, onImport: { importing = true }, activeFilter: activeFilter, dialog: $dialog)
+                    NotesHomeList(
+                        busy: busy,
+                        reorder: reorder,
+                        onGenerateSlides: { router.openSlidesWizard(.new()) },
+                        onImport: { importing = true },
+                        activeFilter: activeFilter,
+                        dialog: $dialog
+                    )
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -155,6 +166,7 @@ private struct HomeSectionEntry: Identifiable {
 private struct NotesHomeList: View {
     let busy: Bool
     let reorder: ReorderDragController
+    let onGenerateSlides: () -> Void
     let onImport: () -> Void
     let activeFilter: PageKind?
     @Binding var dialog: NotesDialogState?
@@ -216,8 +228,8 @@ private struct NotesHomeList: View {
         .padding(.top, 12)
         .padding(.bottom, 14)
 
-        // Studio Quick-Create Deck 卡片
-        CreateDeckCards(kinds: kinds, busy: busy) { notes.createNote(kind: $0) }
+        // Studio Quick-Create Deck 卡片 + 下方的「用 AI 生成」胶囊
+        CreateDeck(kinds: kinds, busy: busy, alignment: .trailing, onCreate: { notes.createNote(kind: $0) }, onGenerateSlides: onGenerateSlides)
             .padding(.bottom, 18)
 
         // 最近编辑（网页 notes-recent-list）：显示封面、图标、标题和日期
@@ -438,16 +450,23 @@ private struct RecentNotesCarousel: View {
 
 /// 头部的胶囊按钮（New project / Import Markdown）：它们是随列表滚动的内容，不是浮动外壳，所以保持网页的白底细线样式，
 /// 不用玻璃（滚到玻璃顶栏下面时不会出现玻璃叠玻璃）。
-private struct NotesHomeUtilPill: View {
-    let icon: [String]
+private struct NotesHomeUtilPill<Leading: View>: View {
     let title: String
     let busy: Bool
+    let leading: Leading
     let action: () -> Void
+
+    init(title: String, busy: Bool, action: @escaping () -> Void, @ViewBuilder leading: () -> Leading) {
+        self.title = title
+        self.busy = busy
+        self.leading = leading()
+        self.action = action
+    }
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
-                LucideIcon(icon, size: 14, color: Sm.faint)
+                leading
                 Text(title)
                     .font(.nf(13, weight: 520))
                     .foregroundStyle(Sm.muted)
@@ -459,6 +478,36 @@ private struct NotesHomeUtilPill: View {
         .buttonStyle(.pressable(background: Sm.surface, cornerRadius: 17.2, scale: 0.98, disabledOpacity: 0.5))
         .overlay { Capsule().strokeBorder(Sm.border, lineWidth: 1).allowsHitTesting(false) }
         .disabled(busy)
+    }
+}
+
+extension NotesHomeUtilPill where Leading == LucideIcon {
+    init(icon: [String], title: String, busy: Bool, action: @escaping () -> Void) {
+        self.init(title: title, busy: busy, action: action) {
+            LucideIcon(icon, size: 14, color: Sm.faint)
+        }
+    }
+}
+
+/// 新建卡片和它下面的「用 AI 生成」胶囊（网页 .ws-create-with-ai：间距 9.6，首页靠右、空状态居中）。能建幻灯片时才有胶囊。
+private struct CreateDeck: View {
+    let kinds: [PageKind]
+    let busy: Bool
+    let alignment: HorizontalAlignment
+    let onCreate: (PageKind) -> Void
+    let onGenerateSlides: () -> Void
+    @Environment(AppEnvironment.self) private var app
+
+    var body: some View {
+        VStack(alignment: alignment, spacing: 9.6) {
+            CreateDeckCards(kinds: kinds, busy: busy, onCreate: onCreate)
+            if kinds.contains(.slides) {
+                NotesHomeUtilPill(title: L("slides_generate_with_ai"), busy: busy, action: onGenerateSlides) {
+                    AppIconView(icon: app.appIcon.icon, size: 16)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .center))
     }
 }
 
@@ -892,6 +941,7 @@ private struct NotesEmptyView: View {
     let kinds: [PageKind]
     let busy: Bool
     let onCreate: (PageKind) -> Void
+    let onGenerateSlides: () -> Void
     let onImport: () -> Void
     @Environment(\.layoutDirection) private var layoutDirection
 
@@ -916,7 +966,7 @@ private struct NotesEmptyView: View {
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 8)
-            CreateDeckCards(kinds: kinds, busy: busy, onCreate: onCreate)
+            CreateDeck(kinds: kinds, busy: busy, alignment: .center, onCreate: onCreate, onGenerateSlides: onGenerateSlides)
                 .padding(.top, 24)
             NotesHomeUtilPill(icon: Lucide.upload, title: L("import_markdown"), busy: busy, action: onImport)
                 .padding(.top, 14)

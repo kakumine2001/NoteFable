@@ -440,6 +440,8 @@ fun AttachSheet(
     onToggleImageMode: () -> Unit,
     onCreatePage: (() -> Unit)? = null,
     createPageEnabled: Boolean = true,
+    /** 「生成幻灯片」（以这段对话为材料）：和「整理成笔记」同样的出现条件和禁用条件。 */
+    onGenerateSlides: (() -> Unit)? = null,
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -493,6 +495,18 @@ fun AttachSheet(
                     enabled = createPageEnabled,
                 ) {
                     closeThen(onCreatePage)
+                }
+            }
+            if (onGenerateSlides != null) {
+                AttachRow(
+                    Lucide.Presentation,
+                    stringResource(R.string.slides_generate),
+                    stringResource(R.string.slides_generate_from_chat),
+                    pressed = false,
+                    checked = false,
+                    enabled = createPageEnabled,
+                ) {
+                    closeThen(onGenerateSlides)
                 }
             }
         }

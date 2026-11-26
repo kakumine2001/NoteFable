@@ -2,17 +2,20 @@
 
 import { useCallback, useId, useState, type ReactNode } from "react";
 import { AnswerMenu } from "@/components/answer-actions";
+import { AppIcon } from "@/components/app-icon";
 import { useT } from "@/components/i18n-provider";
 import { PageKindIcon } from "@/components/page-kind-icon";
-import { PAGE_KIND_LABELS, type PageKind } from "@/lib/page-kinds";
+import { PAGE_KIND_LABELS, PAGE_KIND_NEW_LABELS, type PageKind } from "@/lib/page-kinds";
 
 // 新しいページを作るボタン（#168）。作れる種類（kinds、creatablePageKinds）が 1 つなら、押すとすぐその種類を作る
 // （ノートしか作れない間は今までの「New note」と同じ 1 回の操作）。2 つ以上なら、押すと種類のメニュー（ノート・スライド・ホワイトボード）を開く。
-// サイドバーの「新建」、プロジェクトの「+」、ページ行の「+」が使う。分区の「+」とホームの作成ボタンは種類が決まっているので使わない。
-export function NewPageButton({ kinds, busy, onCreate, className, label, title = label, menuLabel, children }: {
+// サイドバーの「新建」、プロジェクトの「+」、ページ行の「+」と、スライドの分区の「+」が使う。ホームの作成ボタンは種類が決まっているので使わない。
+// スライドを作れる所で onGenerate を渡すと、メニューの最後に「Generate with AI」（AI のスライド生成の窓）を出す。
+export function NewPageButton({ kinds, busy, onCreate, onGenerate, className, label, title = label, menuLabel, children }: {
   kinds: readonly PageKind[];
   busy: boolean;
   onCreate: (kind: PageKind) => void;
+  onGenerate?: () => void;
   className: string;
   // ボタンの読み上げ名（中身がアイコンだけのとき）と、ツールチップ（省略は label）。
   label?: string;
@@ -24,7 +27,10 @@ export function NewPageButton({ kinds, busy, onCreate, className, label, title =
   const t = useT();
   const id = useId();
   const [menu, setMenu] = useState<{ anchor: DOMRect; trigger: HTMLButtonElement; focusLast: boolean } | null>(null);
-  const multiple = kinds.length > 1;
+  const generate = onGenerate && kinds.includes("slides") ? onGenerate : null;
+  const multiple = kinds.length > 1 || generate !== null;
+  // 種類が 1 つだけのメニュー（スライドの分区）は「New slide deck」と作る操作の名前にする。
+  const labels = kinds.length > 1 ? PAGE_KIND_LABELS : PAGE_KIND_NEW_LABELS;
   // AnswerMenu は onClose が変わると開き直すので、同じ関数を渡し続ける。
   const close = useCallback(() => setMenu(null), []);
   return <>
@@ -43,8 +49,14 @@ export function NewPageButton({ kinds, busy, onCreate, className, label, title =
     </button>
     {menu && <AnswerMenu id={id} label={menuLabel} className="new-page-menu" anchor={menu.anchor} trigger={menu.trigger} focusLast={menu.focusLast} onClose={close}>
       {kinds.map((kind) => <button key={kind} type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onCreate(kind); }}>
-        <PageKindIcon kind={kind} size={16} aria-hidden="true" />{t(PAGE_KIND_LABELS[kind])}
+        <PageKindIcon kind={kind} size={16} aria-hidden="true" />{t(labels[kind])}
       </button>)}
+      {generate && <>
+        <hr className="chat-menu-divider" />
+        <button type="button" role="menuitem" className="chat-menu-item" aria-haspopup="dialog" onClick={() => { close(); generate(); }}>
+          <AppIcon size={16} />{t("Generate with AI")}
+        </button>
+      </>}
     </AnswerMenu>}
   </>;
 }

@@ -1,3 +1,3 @@
-Redesigned Sidebar & Workspace with quick-create cards, page-type filters, and refined light/dark themes.
-Whiteboards and Slide decks in Workspace with presentation mode, exports, and public sharing.
-Faster instant page switching and AI page proposals with one-tap undo.
+Generate editable slide decks with AI from a topic, your notes, or a chat, with an editable outline before creating the deck.
+Draw answers and notes into editable whiteboard diagrams and mind maps.
+Includes one-tap note presentation, slide transitions, and note backlinks.

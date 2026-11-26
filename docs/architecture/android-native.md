@@ -134,7 +134,7 @@ mobile/android/
 - **阿拉伯语 RTL**：`AndroidManifest.xml` 开启 `android:supportsRtl="true"`；切到 `ar` 时 Compose `LocalLayoutDirection` 变为 `Rtl`，`ModalNavigationDrawer` 从右侧抽入；`Lucide.kt` 自动水平镜像方向性图标（返回、前进、折叠箭头、收起侧栏、移入文件夹、退出登录），过程面板与提案卡片展开箭头按方向旋转，侧栏激活蓝条、子页面竖线及浮动菜单位置随 `LayoutDirection` 镜像；阿拉伯脚本标题和标签设 `letterSpacing = 0.sp` 保护连写，代码块、独立数学公式和 6 位验证码输入框固定 `LayoutDirection.Ltr`。
 - `AccountLocaleSync` 只随账号状态变化；账号 `null` 是权威 Auto，缺字段（`LOCALE_UNKNOWN`）保持不动，未登录保留本机选择。退出 / 删除账号后清空本机偏好。
 - 资源生成：繁体由 `npx tsx scripts/gen-native-zh-hant.ts` 从 `values-zh` 生成；新增的 13 种语言由 `npx tsx scripts/gen-native-strings.ts` 从 `res/values` 与 Web 字典生成（印尼语使用 Android 标准资源目录 `values-in`，巴西葡语使用 `values-pt-rBR`）；服务端系统文由 `npx tsx scripts/gen-native-system-text.ts` 生成。
-- 验证：`native-language.test.ts`（323 份 XML（17 种语言 × 19 个文件）的格式、键集合、占位符与 `locales_config.xml` 校验）及资源一致性测试；Android 的 JUnit 由 PR 检查（`android-pr.yml`）运行；真机 RTL 手感待验证。
+- 验证：`native-language.test.ts`（357 份 XML（17 种语言 × 21 个文件）的格式、键集合、占位符与 `locales_config.xml` 校验）及资源一致性测试；Android 的 JUnit 由 PR 检查（`android-pr.yml`）运行；真机 RTL 手感待验证。
 
 ## 侧栏：置顶、聊天项目与整理
 
@@ -183,6 +183,13 @@ mobile/android/
 ## 画成图
 
 网页 `draw-diagram-dialog.tsx`（#153，规则见 [chat-flow.md](chat-flow.md#画成图draw-as-diagram)）。入口有两个，图标都是 `Lucide.Workflow`：回答“…”菜单里“存到笔记 / 打开已存的笔记”后面的“画成图”（只给已换成服务端 ID 的回答，`local-N` 没有；只在主聊天里，由 NoteFableRoot 经 `LocalAnswerDiagram` 提供，笔记 AI 面板的聊天在 WebView 里，走网页自己的按钮）；笔记顶栏“…”里“添加子页面”后面的“画成图”（`NotePageMenuActions.onDrawDiagram`，只给笔记，不给白板 / 幻灯片）。笔记的入口先让编辑器保存（`NotesViewModel.saveBeforeDiagram`，服务端读已保存的正文），存不上就在顶栏下提示“保存失败，草稿已保留”、不开始；不用笔记列表的 `busy`，画图期间别的操作照常能用。选了就开始（不再确认），打开 `ui/DrawDiagramDialog.kt`（`.notes-dialog`）：说明（会画成新白板、算 1 条聊天额度）+ 转圈“正在画图…”，可以关掉；完成显示“图画好了。”（素材太长时多一句）和“打开白板”（`NotesViewModel.openCreatedPage`：先放进列表，从笔记来的展开父页面，再打开）；失败显示服务端原句（400 / 404 / 413 / 422 / 429，经系统文词典翻译）或通用句“Could not draw a diagram. Try again.”，可以重试，转换不了（422）时还有“复制图的源码”（复制 Mermaid 原文，之后显示“已复制”）。请求是 `DiagramApi.drawDiagram`（`POST /api/pages/diagram`，`{source, messageId | pageId, model, clientRequestId}`，单独的客户端不设读超时、总时限 320 秒；模型是聊天里选着的，和整理成笔记一样）。任务按素材（`answer:会话ID\n消息ID` / `note:笔记ID`）放在 App 级的 `DiagramStore`：每个任务生成一个 `clientRequestId`，重试沿用（上次其实建好了时服务端返回那一页、不再扣次数）；关掉窗口照常画，同一份素材再选回到同一个任务；关掉已结束的窗口就忘掉它，之后再选是新任务。完成后经 `created` 刷新笔记列表；登录 / 退出时清掉已结束的结果，进行中的等它结束后丢掉结果。撞到使用上限（429 `usage_limit`）时窗口内按档位显示原生登录（`GuestLimitPrompt`）或 Play 升级（`UpgradeLimitPrompt`）提示。
+
+## AI 生成幻灯片
+
+网页 `slides-wizard.tsx`（#150，规则见 [slides.md](slides.md#ai-生成幻灯片)），在编辑页共用的常驻 `/note-embed` WebView 里打开，App 只提供原生入口、承接全屏窗口和转发桥消息（`ui/SlidesWizardScreen.kt`、`NotesViewModel` 的 `openSlidesWizard` / `onSlidesWizard*`、文案在 `strings_slides_wizard.xml`）：
+
+- **三端一致的入口**：聊天输入栏“＋”抽屉（`AttachSheet`）里“整理成笔记”旁的“生成幻灯片”（同一可见规则：已保存且有消息的聊天，发送中置灰，`SlidesWizardSource.Chat`）；笔记编辑页顶栏“…”菜单里的“生成幻灯片”（仅限普通笔记，`SlidesWizardSource.Note`；编辑器内 AI 面板的快捷按钮由网页自带）；新建幻灯片时的“用 AI 生成”（侧栏“新建”菜单、项目行“＋”、页面行“＋”、幻灯片分区“＋”菜单，以及笔记首页 / 空状态创建按钮下方，`SlidesWizardSource.New(groupId, parentId)`）。
+- **承载与生命周期**：当前正打开编辑器时，通过 `window.notefableEmbed.slidesWizard({ action: "open", source, model, reasoning })` 直接盖在当前编辑器上（网页在读取当前笔记前自行保存）；未打开任何页面时，`SlidesWizardScreen` 接管常驻 WebView，若尚未加载则加载 `/note-embed?warm=1&lang=&model=&reasoning=&theme=`（`NoteFableApi.slidesWizardUrl`）再打开向导。`NoteEmbedBridge` 声明 `canShowSlidesWizard()`，接收 `slidesWizard`（`open` / `closed(busy)`）、`openPage`（打开新建幻灯片并刷新列表）、`pagesChanged` 与 `usageLimit`（无打开页面时在 `SlidesWizardScreen` 顶部弹出原生登录 / 升级提示）；系统返回键优先交由 `slidesWizard({ action: "back" })` 逐层关闭（先关选笔记层，再关向导并保留本地草稿）。`closed(busy = true)` 时后台生成仍在进行，停靠期不因短暂空闲销毁 WebView（仅换身份、崩溃或退后台释放）。单元测试：`NotesApiTest`、`NoteEmbedBridgeTest`、`NotesViewModelTest`。
 
 ## 输入栏与使用上限
 

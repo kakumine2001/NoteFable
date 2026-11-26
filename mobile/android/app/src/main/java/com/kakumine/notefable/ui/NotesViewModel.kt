@@ -19,6 +19,7 @@ import com.kakumine.notefable.data.NotesBackend
 import com.kakumine.notefable.data.NotesList
 import com.kakumine.notefable.data.PageKind
 import com.kakumine.notefable.data.PageKindTable
+import com.kakumine.notefable.data.SlidesWizardSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
@@ -76,6 +77,18 @@ data class TrashUiState(
     val confirmId: String? = null,
 )
 
+/**
+ * 开着的 AI 生成幻灯片向导（#150）。向导本身是网页（常驻 /note-embed WebView 里的 `notefableEmbed.slidesWizard`），App 只记开在哪。
+ * [request] 每次打开换一个（同一个入口再点一次也要重新调网页）。[editor] 是向导盖着的编辑器（[OpenNote.editor]）；
+ * null 是没有开着页面时的全屏向导画面。[shown]：网页里已经出来了（打开的结果或 open 消息），之后的 closed 才算这一次的。
+ */
+data class SlidesWizardUi(
+    val source: SlidesWizardSource,
+    val request: Int,
+    val editor: String? = null,
+    val shown: Boolean = false,
+)
+
 data class NotesUiState(
     val workspace: Workspace = Workspace.Chat,
     val pages: List<NotePageSummary> = emptyList(),
@@ -109,7 +122,12 @@ data class NotesUiState(
     val reorderError: ReorderFailure? = null,
     /** "Import to" 窗口开着：选好的 Markdown 文件在等用户选导入到哪个项目（网页 page.tsx 的 importingFiles）。 */
     val importTarget: Boolean = false,
+    /** AI 生成幻灯片的向导；null 是没开。 */
+    val slidesWizard: SlidesWizardUi? = null,
 ) {
+    /** 画面上的编辑器（[OpenNote.editor]）；停在聊天或笔记列表时是 null。 */
+    val visibleEditor: String? get() = open?.editor?.takeIf { workspace == Workspace.Notes }
+
     /** 项目被删后残留的 groupId 也算未分组（网页 notes-sidebar.tsx 的 loose）。只列最上层的页面，子页面缩进在父页面下。 */
     val loosePages: List<NotePageSummary>
         get() = roots.filter { page -> page.groupId == null || groups.none { it.id == page.groupId } }
@@ -851,6 +869,59 @@ class NotesViewModel(
         _state.update { it.copy(pages = upsert(it.pages, page)) }
         page.parentId?.let(::expand)
         openNote(page.id, page.title, page.icon, page.kind)
+    }
+
+    // ---- AI 生成幻灯片的向导（#150） ----
+
+    private var slidesWizardRequests = 0
+
+    /** 从一个入口打开向导：画面上有编辑器时盖在它上面，否则开全屏向导画面。要读的笔记正开着时网页自己先保存。 */
+    fun openSlidesWizard(source: SlidesWizardSource) {
+        val request = ++slidesWizardRequests
+        _state.update { it.copy(slidesWizard = SlidesWizardUi(source, request, editor = it.visibleEditor)) }
+    }
+
+    /** 打开的脚本说网页里出来了。 */
+    fun onSlidesWizardShown(request: Int) = _state.update { state ->
+        val wizard = state.slidesWizard?.takeIf { it.request == request } ?: return@update state
+        state.copy(slidesWizard = wizard.copy(shown = true))
+    }
+
+    /**
+     * 网页的 `slidesWizard` open 消息。[editor] 是发消息时画面上的编辑器（全屏向导画面是 null）。
+     * App 没打开过时是笔记 AI 面板里的「生成幻灯片」：记成盖在这个编辑器上、以这一篇为材料。
+     */
+    fun onSlidesWizardOpened(editor: String?) {
+        val state = _state.value
+        val wizard = state.slidesWizard
+        if (wizard != null) {
+            if (wizard.editor == editor) onSlidesWizardShown(wizard.request)
+            return
+        }
+        val open = state.open?.takeIf { editor != null && state.visibleEditor == editor } ?: return
+        val request = ++slidesWizardRequests
+        _state.update { it.copy(slidesWizard = SlidesWizardUi(SlidesWizardSource.Note(open.id), request, editor = editor, shown = true)) }
+    }
+
+    /** 网页的 closed 消息。还没出来的那一次不动：这是上一次被藏起来时晚到的。 */
+    fun onSlidesWizardClosed() = _state.update { if (it.slidesWizard?.shown == true) it.copy(slidesWizard = null) else it }
+
+    /** App 这边关掉向导（返回键、打开了幻灯片、打不开）；[request] 指定时只关那一次。 */
+    fun dismissSlidesWizard(request: Int? = null) = _state.update {
+        if (request == null || it.slidesWizard?.request == request) it.copy(slidesWizard = null) else it
+    }
+
+    /**
+     * 外部链接、系统分享要换画面：关掉全屏向导。盖在编辑器上的不在这里关：离开了编辑器它自然不算数，
+     * 笔记存不上、留在编辑器里时向导还在网页里。
+     */
+    fun dismissFullScreenSlidesWizard() = _state.update {
+        if (it.slidesWizard != null && it.slidesWizard.editor == null) it.copy(slidesWizard = null) else it
+    }
+
+    /** 画面上的编辑器换了：盖在别的编辑器上的向导、有了编辑器时的全屏向导画面都不再算数。 */
+    fun dropStaleSlidesWizard() = _state.update {
+        if (it.slidesWizard != null && it.slidesWizard.editor != it.visibleEditor) it.copy(slidesWizard = null) else it
     }
 
     // ---- Markdown 导出 / 导入（网页 use-note-pages.ts 的 exportPage / importMarkdown） ----

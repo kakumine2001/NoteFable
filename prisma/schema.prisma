@@ -492,7 +492,8 @@ model NoteProposal {
 // 利用者行への外部キーは持たない（IP 単位の行もあるため）。古い行は usage-limits.ts が時々消す。
 model UsageCounter {
   key       String
-  // "chat" / "image"（日ごと）、"chat:month" / "image:month"（月ごと。day は期間の初日）、"report"
+  // "chat" / "image"（日ごと）、"chat:month" / "image:month"（月ごと。day は期間の初日）、"report"、
+  // "req:…"（同じ要求の送り直しを数えないための印。count は 0 = 生成中。usage-requests.ts）
   kind      String
   day       DateTime @db.Date
   count     Int      @default(0)

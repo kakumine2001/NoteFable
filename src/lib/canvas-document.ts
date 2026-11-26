@@ -77,7 +77,7 @@ function scan(kind: CanvasKind, value: unknown, files: Map<string, string>) {
       if (current.includes("\u0000") || LONE_SURROGATE.test(current)) throw invalid();
       if (!literalText && INLINE_DATA_URL.test(current)) throw new NoteValidationError(msg("Images must be uploaded, not embedded in the page."));
       // 先頭の空白も URL としては同じに読まれるので、空白を飛ばして見分ける（その形は parseNoteFileUrl が断る）。
-      if (current.trimStart().startsWith(FILE_URL_PREFIX)) {
+      if (!literalText && current.trimStart().startsWith(FILE_URL_PREFIX)) {
         const parsed = parseNoteFileUrl(current);
         if (!parsed || parsed === "empty") throw invalid();
         files.set(parsed.path, parsed.ownerId);

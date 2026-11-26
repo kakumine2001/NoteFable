@@ -180,7 +180,9 @@ describe("usage limits", () => {
     await vi.waitFor(() => expect(mocks.deleteMany).toHaveBeenCalled());
     const where = mocks.deleteMany.mock.calls[0][0].where;
     expect(where.OR[0].kind).toEqual({ in: ["chat", "image", "report"] });
-    expect(where.OR[1].day.lt.getTime()).toBeLessThan(Date.now() - 40 * 24 * 60 * 60 * 1000);
+    // 同じ要求の送り直しの印は、日ごとの行と同じ日数で消す。
+    expect(where.OR[1]).toEqual({ kind: { startsWith: "req:" }, day: { lt: where.OR[0].day.lt } });
+    expect(where.OR[2].day.lt.getTime()).toBeLessThan(Date.now() - 40 * 24 * 60 * 60 * 1000);
   });
 
   it("summarizes this period's use per kind", async () => {

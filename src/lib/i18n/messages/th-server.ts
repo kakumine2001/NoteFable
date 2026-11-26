@@ -266,4 +266,8 @@ export const thServer: Record<string, string> = {
   "Could not turn this into an editable diagram.": "แปลงเป็นไดอะแกรมที่แก้ไขได้ไม่สำเร็จ",
   "There is nothing to draw yet.": "ยังไม่มีอะไรให้วาด",
   "This diagram was moved to the trash.": "ไดอะแกรมนี้ถูกย้ายไปที่ถังขยะแล้ว",
+  "Could not generate slides. Try again.": "สร้างสไลด์ไม่สำเร็จ โปรดลองอีกครั้ง",
+  "There is nothing to make slides from yet.": "ยังไม่มีเนื้อหาสำหรับทำสไลด์",
+  "These slides were moved to the trash.": "สไลด์นี้ถูกย้ายไปที่ถังขยะแล้ว",
+  "This request is still running. Try again in a moment.": "คำขอนี้ยังดำเนินการอยู่ กรุณาลองอีกครั้งในอีกสักครู่",
 };

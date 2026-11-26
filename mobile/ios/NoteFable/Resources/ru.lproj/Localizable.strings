@@ -603,6 +603,11 @@
 "slides_export_pptx" = "Экспорт в PowerPoint (PPTX)";
 "slides_export_pptx_transition_note" = "Переходы между слайдами не сохраняются при экспорте в PPTX.";
 
+/* strings_slides_wizard.xml */
+"slides_generate" = "Создать слайды";
+"slides_generate_from_chat" = "Сделать презентацию из этого чата";
+"slides_generate_with_ai" = "Создать с помощью ИИ";
+
 /* strings_turns.xml */
 "regenerate" = "Сгенерировать заново";
 "branch_in_new_chat" = "Ответвить в новый чат";

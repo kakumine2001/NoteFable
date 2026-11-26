@@ -109,7 +109,7 @@ final class AppRouter {
     /// 切换底部标签页（必要时先保存当前打开的笔记，等工作区真正切换完成后再更新选中标签）。
     func selectTab(_ tab: AppTab) {
         navigationEpoch &+= 1
-        drawerOpen = false
+        dismissOverlays()
         switch tab {
         case .search:
             selectedTab = .search
@@ -134,7 +134,7 @@ final class AppRouter {
 
     func openSearch() {
         navigationEpoch &+= 1
-        drawerOpen = false
+        dismissOverlays()
         selectedTab = .search
     }
 
@@ -147,7 +147,7 @@ final class AppRouter {
     /// 关闭抽屉并切到聊天新建会话（在笔记工作区时先保存打开的笔记）。
     func openNewChat() {
         navigationEpoch &+= 1
-        drawerOpen = false
+        dismissOverlays()
         let startNew: @MainActor () -> Void = { [weak self, app] in
             app.chat.newChat()
             self?.selectedTab = .chat
@@ -334,6 +334,18 @@ final class AppRouter {
         closeDiagram()
     }
 
+    /// 打开 AI 生成幻灯片向导（#150）。工作区里已经打开着编辑器时（即便当前停在搜索标签页）切回工作区并盖在编辑器上，
+    /// 避免全屏向导和隐藏的编辑页争抢同一个常驻 WKWebView；没有打开任何页面时开全屏向导画面。
+    func openSlidesWizard(_ source: SlidesWizardSource) {
+        drawerOpen = false
+        if let editor = app.notes.state.visibleEditor {
+            selectedTab = .workspace
+            app.notes.openSlidesWizard(source, editor: editor)
+        } else {
+            app.notes.openSlidesWizard(source, editor: nil)
+        }
+    }
+
     /// 登录 / 退出后：旧身份整理好的笔记、画好的白板与搜索状态恢复默认标签。
     func onIdentityChanged() {
         navigationEpoch &+= 1
@@ -348,5 +360,6 @@ final class AppRouter {
 
     private func dismissOverlays() {
         drawerOpen = false
+        app.notes.dismissFullScreenSlidesWizard()
     }
 }

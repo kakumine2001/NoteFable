@@ -266,4 +266,8 @@ export const frServer: Record<string, string> = {
   "Could not turn this into an editable diagram.": "Impossible de le convertir en diagramme modifiable.",
   "There is nothing to draw yet.": "Il n’y a encore rien à dessiner.",
   "This diagram was moved to the trash.": "Ce diagramme a été déplacé dans la corbeille.",
+  "Could not generate slides. Try again.": "Impossible de générer les diapositives. Réessayez.",
+  "There is nothing to make slides from yet.": "Il n’y a encore rien pour créer des diapositives.",
+  "These slides were moved to the trash.": "Ces diapositives ont été déplacées dans la corbeille.",
+  "This request is still running. Try again in a moment.": "Cette requête est toujours en cours. Réessayez dans un instant.",
 };
