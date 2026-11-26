@@ -153,7 +153,7 @@ private struct SearchPanel: View {
                 HStack(spacing: 4) {
                     SearchTab(title: L("search_tab_all"), selected: state.scope == .all, thumb: searchTabThumb) { model.setScope(.all) }
                     SearchTab(title: L("search_tab_chats"), selected: state.scope == .chats, thumb: searchTabThumb) { model.setScope(.chats) }
-                    SearchTab(title: L("notes"), selected: state.scope == .notes, thumb: searchTabThumb) { model.setScope(.notes) }
+                    SearchTab(title: L("pg_pages"), selected: state.scope == .notes, thumb: searchTabThumb) { model.setScope(.notes) }
                 }
                 .padding(4)
                 .animation(NFMotion.unlessReduced(NFMotion.spring(0.28), reduceMotion), value: state.scope)
@@ -480,7 +480,7 @@ private struct SearchResultList: View {
                     ForEach(entries) { entry in
                         switch entry {
                         case .header(let isChats):
-                            Text(L(isChats ? "search_tab_chats" : "notes"))
+                            Text(L(isChats ? "search_tab_chats" : "pg_pages"))
                                 .font(.nf(12, weight: 600))
                                 .nfLineHeight(18, fontSize: 12)
                                 .foregroundStyle(Sm.muted)

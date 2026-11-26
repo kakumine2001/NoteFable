@@ -21,7 +21,7 @@ export async function GET(request: Request, context: RouteContext) {
       select: { kind: true, title: true, blocks: true },
     });
     if (!page) {
-      return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+      return NextResponse.json({ error: msg("Page not found.") }, { status: 404 });
     }
     const kind = pageKindOf(page);
     if (!pageKindFeatures(kind).markdownExport) return pageKindRejection(request, NOTE_ONLY_ACTION_ERRORS.export, kind);

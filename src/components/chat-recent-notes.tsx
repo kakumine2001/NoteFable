@@ -52,7 +52,7 @@ export function ChatRecentNotes({ selected, disabled, lastEditor, onToggle, onOp
   return <section translate="no" className="chat-recent notion-page-column" aria-labelledby="chat-recent-title">
     <header>
       <h2 id="chat-recent-title">{t("Recently edited")}</h2>
-      <button type="button" className="chat-recent-all" onClick={onViewAll}>{t("All notes")}<ChevronRight size={14} className="rtl-mirror" aria-hidden="true" /></button>
+      <button type="button" className="chat-recent-all" onClick={onViewAll}>{t("All pages")}<ChevronRight size={14} className="rtl-mirror" aria-hidden="true" /></button>
     </header>
     <ul>{pages.map(({ id, kind, title, icon, cover, coverPosition }) => {
       const attached = selected.some((page) => page.id === id);

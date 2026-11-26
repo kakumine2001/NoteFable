@@ -29,7 +29,7 @@ export async function POST(_request: Request, context: Context) {
     const result = await prisma.$transaction(async (tx) => {
       await lockNoteOrder(tx, user.id);
       const root = await tx.notePage.findFirst({ where: { id: pageId, userId: user.id, deletedAt: null } });
-      if (!root) throw new NoteValidationError(msg("Note not found."), 404);
+      if (!root) throw new NoteValidationError(msg("Page not found."), 404);
       const ids = await descendantIds(tx, user.id, pageId);
       if (ids.length + 1 > MAX_DUPLICATE_PAGES) throw new NoteValidationError(msg("Only pages with up to 99 sub-pages can be duplicated."));
       const children = ids.length ? await tx.notePage.findMany({ where: { id: { in: ids }, userId: user.id, deletedAt: null } }) : [];

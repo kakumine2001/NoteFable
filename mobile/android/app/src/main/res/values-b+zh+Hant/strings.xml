@@ -11,7 +11,7 @@
     <string name="retry">重試</string>
     <string name="messages_load_failed">載入聊天失敗。</string>
 
-    <string name="empty_hint">提出問題、整理筆記，或帶入一份檔案。</string>
+    <string name="empty_hint">提出問題、整理工作區裡的內容，或帶入一份檔案。</string>
     <string name="message_hint">儘管提問…</string>
     <string name="send">傳送訊息</string>
     <string name="stop">停止生成</string>
@@ -87,10 +87,10 @@
     <string name="new_note">新筆記</string>
     <string name="projects">專案</string>
     <string name="new_project">新專案</string>
-    <string name="no_notes_in_project">此專案中還沒有筆記。</string>
+    <string name="no_notes_in_project">此專案中還沒有頁面。</string>
     <string name="notes_list_empty">你的筆記會顯示在這裡。</string>
     <string name="trash">回收站</string>
-    <string name="trash_note_title">將筆記移到回收站？</string>
+    <string name="trash_note_title">將頁面移到回收站？</string>
     <string name="trash_note_body">將把“%1$s”移到回收站，可在 %2$d 天內恢復。</string>
     <string name="cancel">取消</string>
     <string name="move_to_trash">移到回收站</string>
@@ -102,12 +102,11 @@
     <string name="save">儲存</string>
     <string name="delete_project_title">刪除專案？</string>
     <string name="delete_project">刪除專案</string>
-    <string name="delete_project_body">將刪除“%1$s”。其中的筆記會保留，並移出此專案。</string>
+    <string name="delete_project_body">將刪除“%1$s”。其中的頁面會保留，並移出此專案。</string>
     <string name="rename_name">重新命名 %1$s</string>
     <string name="delete_project_name">刪除專案 %1$s</string>
     <string name="project_name">專案名稱</string>
     <string name="no_project">未分組</string>
-    <string name="move_note">移動筆記</string>
     <string name="move_note_to">將“%1$s”移到</string>
     <string name="project">專案</string>
     <string name="new_project_name">新專案名稱</string>
@@ -116,9 +115,9 @@
     <string name="close">關閉</string>
     <string name="empty_trash">清空回收站</string>
     <string name="close_trash">關閉回收站</string>
-    <string name="trash_hint">回收站中的筆記可在 %1$d 天內恢復，之後將永久刪除。</string>
-    <string name="empty_trash_one">永久刪除回收站中的這篇筆記？此操作無法撤銷。</string>
-    <string name="empty_trash_all">永久刪除回收站中的全部 %1$d 篇筆記？此操作無法撤銷。</string>
+    <string name="trash_hint">回收站中的頁面可在 %1$d 天內恢復，之後將永久刪除。</string>
+    <string name="empty_trash_one">永久刪除回收站中的這個頁面？此操作無法撤銷。</string>
+    <string name="empty_trash_all">永久刪除回收站中的全部 %1$d 個頁面？此操作無法撤銷。</string>
     <string name="loading_trash">正在載入回收站…</string>
     <string name="try_again">重試</string>
     <string name="trash_is_empty">回收站是空的。</string>
@@ -133,19 +132,19 @@
     <string name="removing_soon">即將刪除</string>
     <string name="one_day_left">剩餘 1 天</string>
     <string name="days_left">剩餘 %1$d 天</string>
-    <string name="loading_notes">正在載入筆記…</string>
-    <string name="notes_intro">用塊組織筆記，輸入 %1$s 即可新增標題、列表、待辦和程式碼。</string>
-    <string name="notes_storage_hint">筆記儲存在伺服器上，並與此裝置關聯。登入後，可在其他裝置開啟。如果在登入前清除應用或網站資料，將無法再開啟這些筆記。</string>
-    <string name="all_notes">全部筆記</string>
+    <string name="loading_notes">正在載入頁面…</string>
+    <string name="notes_intro">寫筆記、做投影片、在白板上自由畫。在筆記中輸入 %1$s 即可新增標題、列表、待辦和程式碼。</string>
+    <string name="notes_storage_hint">工作區儲存在伺服器上，並與此裝置關聯。登入後，可在其他裝置開啟。如果在登入前清除應用或網站資料，將無法再開啟其中的內容。</string>
+    <string name="all_notes">全部頁面</string>
     <string name="version_history">版本歷史</string>
     <string name="save_saved">已儲存</string>
     <string name="save_saving">正在儲存…</string>
     <string name="save_not_saved">未儲存</string>
     <string name="save_conflict">儲存衝突</string>
-    <string name="err_trash_unsaved">請先處理未儲存的草稿，再將此筆記移到回收站。</string>
-    <string name="err_load_notes">載入筆記失敗。</string>
-    <string name="err_create_note">建立筆記失敗。</string>
-    <string name="err_trash_note">將筆記移到回收站失敗。</string>
+    <string name="err_trash_unsaved">請先處理未儲存的草稿，再將此頁面移到回收站。</string>
+    <string name="err_load_notes">載入頁面失敗。</string>
+    <string name="err_create_note">建立頁面失敗。</string>
+    <string name="err_trash_note">將頁面移到回收站失敗。</string>
     <string name="err_group">無法修改專案。</string>
     <string name="err_trash_request">回收站請求失敗，請重試。</string>
     <string name="err_trash_load">無法載入回收站。</string>
@@ -153,7 +152,7 @@
     <!-- 登录窗口（网页 sign-in-dialog.tsx）。 -->
     <string name="sign_in">登入</string>
     <string name="signin_title">登入 NoteFable</string>
-    <string name="signin_subtitle">儲存你的聊天和筆記，換裝置也能開啟。</string>
+    <string name="signin_subtitle">儲存你的聊天和工作區，換裝置也能開啟。</string>
     <string name="continue_google">使用 Google 繼續</string>
     <string name="signin_or">或</string>
     <string name="signin_email">郵箱地址</string>

@@ -2,7 +2,7 @@
 
 import {
   ArrowRight, ArrowUp, BookOpen, Check, Copy, FilePenLine, FileText, Folder, Globe, History,
-  MessageSquareText, MoreHorizontal, NotebookPen, Paperclip, Plus, Search,
+  MessageSquareText, MoreHorizontal, NotebookPen, Paperclip, Plus, Presentation, Search, Shapes,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -174,17 +174,43 @@ function useStations(): Station[] {
     ),
   },
   {
+    id: "make",
+    label: t("Make"),
+    title: t("Turn notes into slides and diagrams."),
+    body: t("Present a note as slides, or build a deck with layouts and themes and export it to PDF or PowerPoint. Sketch on a whiteboard, or let the AI draw an answer or a note as a diagram."),
+    card: (
+      <div className="tl-card tl-card-make">
+        {/* 実物と同じ種類アイコン（page-kind-icon.tsx：スライドは Presentation、ホワイトボードは Shapes）。 */}
+        <div className="tl-slide">
+          <span className="tl-card-meta"><Presentation size={13} />{" "}{t("Slides")}</span>
+          <h4>{t("Why sunsets are red")}</h4>
+          <p>{t("Rayleigh scattering")}</p>
+        </div>
+        <div className="tl-diagram">
+          <span className="tl-card-meta"><Shapes size={13} />{" "}{t("Whiteboard")}</span>
+          <ol>
+            <li>{t("Sunlight")}</li>
+            <li aria-hidden="true" className="tl-diagram-arrow"><ArrowRight size={14} className="rtl-mirror" /></li>
+            <li>{t("Air scatters blue")}</li>
+            <li aria-hidden="true" className="tl-diagram-arrow"><ArrowRight size={14} className="rtl-mirror" /></li>
+            <li>{t("Red remains")}</li>
+          </ol>
+        </div>
+      </div>
+    ),
+  },
+  {
     id: "connect",
     label: t("Connect"),
     title: t("Give related chats one home."),
-    body: t("Group chats into a project, give it standing instructions, and attach the notes it should always have in mind."),
+    body: t("Group chats into a project, give it standing instructions, and attach the pages it should always have in mind."),
     card: (
       <div className="tl-card tl-card-project">
         <h4><Folder size={16} />{" "}{t("Physics 101")}</h4>
         <dl>
           <dt>{t("Instructions")}</dt>
           <dd className="tl-project-quote">{t("Explain with everyday examples. Quiz me at the end.")}</dd>
-          <dt>{t("Reference notes")}</dt>
+          <dt>{t("Reference pages")}</dt>
           <dd><span><BookOpen size={13} />{" "}{t("Why sunsets are red")}</span><span><BookOpen size={13} />{" "}{t("Lens formula cheatsheet")}</span></dd>
           <dt>{t("Chats")}</dt>
           <dd><span><MessageSquareText size={13} />{" "}{t("Sunset colours")}</span><span><MessageSquareText size={13} />{" "}{t("Why is the ocean blue?")}</span><span><MessageSquareText size={13} />{" "}{t("Polarised sunglasses")}</span></dd>
@@ -196,7 +222,7 @@ function useStations(): Station[] {
     id: "find",
     label: t("Find"),
     title: t("Find it again, however you typed it."),
-    body: t("Search runs across chats, notes and attached files. Capitals, full-width letters, hiragana or katakana: it matches them all."),
+    body: t("Search runs across chats, Workspace pages and attached files. Capitals, full-width letters, hiragana or katakana: it matches them all."),
     card: (
       <div className="tl-card tl-card-search">
         <div className="tl-search-box"><Search size={15} /><span>ｒａｙｌｅｉｇｈ</span><kbd>{t("full-width, lower-case")}</kbd></div>
@@ -214,9 +240,9 @@ function useStations(): Station[] {
 function useFacts() {
   const t = useT();
   return [
-  { title: t("No account needed"), body: t("Open it and start. Your chats and notes are tied to this browser.") },
-  { title: t("Google or email sign-in, if you want it"), body: t("Sign in to carry the same chats and notes to another device.") },
-  { title: t("An assistant inside every note"), body: t("Ask about the page you are writing without leaving it.") },
+  { title: t("No account needed"), body: t("Open it and start. Your chats and Workspace are tied to this browser.") },
+  { title: t("Google or email sign-in, if you want it"), body: t("Sign in to carry the same chats and Workspace to another device.") },
+  { title: t("An assistant inside every page"), body: t("Ask about the page you are working on without leaving it.") },
   ];
 }
 

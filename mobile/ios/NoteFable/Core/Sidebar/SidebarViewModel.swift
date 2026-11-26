@@ -100,6 +100,20 @@ func projectSettingsChanges(_ initial: ChatProjectDetail, _ instructions: String
     return ProjectSettingsChanges(instructions: newInstructions, noteIds: newIds)
 }
 
+/// 想关项目设置时（取消、点遮罩）要做的事（网页 projectSettingsDismissStep）。
+enum ProjectSettingsDismiss: Equatable, Sendable { case stay, confirm, close }
+
+/// 保存中不关（结果没处显示）；有没保存的改动时不悄悄丢掉，先把底栏换成“未保存的更改”确认；否则关闭。
+func projectSettingsDismissStep(busy: Bool, dirty: Bool) -> ProjectSettingsDismiss {
+    if busy { return .stay }
+    return dirty ? .confirm : .close
+}
+
+/// 想关的次数（底栏确认的晃动）。改动全撤回后归零，免得再改一个字时没想关也出确认（网页 projectSettingsAttention）。
+func projectSettingsAttention(_ attention: Int, dirty: Bool) -> Int {
+    dirty ? attention : 0
+}
+
 /// 侧栏要用到的聊天状态（Android 里直接读 ChatViewModel.state.value 的那几个字段）。
 struct SidebarChatSnapshot: Equatable, Sendable {
     var sessions: [SessionSummary] = []
@@ -445,7 +459,7 @@ final class SidebarViewModel {
         }
     }
 
-    /// 设置窗口打开时读项目详情和全部笔记（两个都要成功）。失败时和网页一样：笔记读不到是 "Could not load your notes."，
+    /// 设置窗口打开时读项目详情和全部页面（两个都要成功）。失败时和网页一样：页面读不到是 "Could not load your pages."，
     /// 否则 "Could not load the project settings."；服务端给了原因就用原因（见 [projectSettingsLoadError]）。
     func loadProjectSettings(_ id: String) async -> Result<ProjectSettingsLoaded, Error> {
         let api = projectsApi

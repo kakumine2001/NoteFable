@@ -20,7 +20,7 @@ class NoteMissing extends Error {}
 export async function PUT(request: Request, context: Context) {
   try {
     const { icon } = await readSmallJson(request);
-    if (icon !== null && !isEmojiIcon(icon) && !uploadedCoverPath(icon)) throw new NoteValidationError(msg("Note icon must be a single emoji or an uploaded image."));
+    if (icon !== null && !isEmojiIcon(icon) && !uploadedCoverPath(icon)) throw new NoteValidationError(msg("Page icon must be a single emoji or an uploaded image."));
     const user = await getOrCreateUser();
     assertCoverOwner(icon as string | null, user.id, "icon");
     const { pageId } = await context.params;
@@ -36,11 +36,11 @@ export async function PUT(request: Request, context: Context) {
         if (!updated.count) throw new NoteMissing();
       });
     } catch (error) {
-      if (error instanceof NoteMissing) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+      if (error instanceof NoteMissing) return NextResponse.json({ error: msg("Page not found.") }, { status: 404 });
       throw error;
     }
     const page = await prisma.notePage.findFirst({ where: { id: pageId, userId: user.id, deletedAt: null } });
-    if (!page) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+    if (!page) return NextResponse.json({ error: msg("Page not found.") }, { status: 404 });
     // ホワイトボード・スライドは本体も返す（版だけ新しく本体が古いページを、画面に持たせない）。版を先に、本体を後に読む。
     const kind = pageKindOf(page);
     if (isCanvasKind(kind)) return NextResponse.json({ page: { ...page, data: await readCanvasData(user.id, pageId) ?? emptyCanvasData(kind) } });

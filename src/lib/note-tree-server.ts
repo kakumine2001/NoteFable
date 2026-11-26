@@ -40,7 +40,7 @@ export async function lockNoteOrder(tx: Tx, userId: string) {
 export async function resolveParent(tx: Tx, userId: string, pageId: string | null, parentId: string) {
   if (pageId && parentId === pageId) throw new NoteValidationError(msg("A page cannot be moved into itself."));
   const parent = await tx.notePage.findFirst({ where: { id: parentId, userId, deletedAt: null }, select: { id: true, groupId: true } });
-  if (!parent) throw new NoteValidationError(msg("Note not found."), 404);
+  if (!parent) throw new NoteValidationError(msg("Page not found."), 404);
   if (pageId && (await descendantIds(tx, userId, pageId)).includes(parentId)) throw new NoteValidationError(msg("A page cannot be moved into its own sub-page."));
   return parent;
 }

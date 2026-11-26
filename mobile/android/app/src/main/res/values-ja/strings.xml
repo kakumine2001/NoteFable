@@ -10,7 +10,7 @@
     <string name="retry">再試行</string>
     <string name="messages_load_failed">会話を読み込めませんでした。</string>
 
-    <string name="empty_hint">質問したり、ノートを整理したり、ファイルを読み込んだりできます。</string>
+    <string name="empty_hint">質問したり、ワークスペースの内容を整理したり、ファイルを読み込んだりできます。</string>
     <string name="message_hint">なんでも聞いてください…</string>
     <string name="send">メッセージを送信</string>
     <string name="stop">生成を停止</string>
@@ -86,10 +86,10 @@
     <string name="new_note">新しいノート</string>
     <string name="projects">プロジェクト</string>
     <string name="new_project">新しいプロジェクト</string>
-    <string name="no_notes_in_project">このプロジェクトにはノートがありません。</string>
+    <string name="no_notes_in_project">このプロジェクトにはページがありません。</string>
     <string name="notes_list_empty">ノートがここに表示されます。</string>
     <string name="trash">ゴミ箱</string>
-    <string name="trash_note_title">ノートをゴミ箱に移動しますか？</string>
+    <string name="trash_note_title">ページをゴミ箱に移動しますか？</string>
     <string name="trash_note_body">「%1$s」をゴミ箱に移動します。%2$d日間は復元できます。</string>
     <string name="cancel">キャンセル</string>
     <string name="move_to_trash">ゴミ箱に移動</string>
@@ -101,12 +101,11 @@
     <string name="save">保存</string>
     <string name="delete_project_title">プロジェクトを削除しますか？</string>
     <string name="delete_project">プロジェクトを削除</string>
-    <string name="delete_project_body">「%1$s」を削除します。ノートは削除されず、プロジェクトから外れます。</string>
+    <string name="delete_project_body">「%1$s」を削除します。ページは削除されず、プロジェクトから外れます。</string>
     <string name="rename_name">「%1$s」の名前を変更</string>
     <string name="delete_project_name">プロジェクト「%1$s」を削除</string>
     <string name="project_name">プロジェクト名</string>
     <string name="no_project">プロジェクトなし</string>
-    <string name="move_note">ノートを移動</string>
     <string name="move_note_to">「%1$s」の移動先</string>
     <string name="project">プロジェクト</string>
     <string name="new_project_name">新しいプロジェクト名</string>
@@ -115,9 +114,9 @@
     <string name="close">閉じる</string>
     <string name="empty_trash">ゴミ箱を空にする</string>
     <string name="close_trash">ゴミ箱を閉じる</string>
-    <string name="trash_hint">ゴミ箱のノートは%1$d日間復元できます。その後、完全に削除されます。</string>
-    <string name="empty_trash_one">ゴミ箱のこのノートを完全に削除しますか？この操作は取り消せません。</string>
-    <string name="empty_trash_all">ゴミ箱のノート%1$d件をすべて完全に削除しますか？この操作は取り消せません。</string>
+    <string name="trash_hint">ゴミ箱のページは%1$d日間復元できます。その後、完全に削除されます。</string>
+    <string name="empty_trash_one">ゴミ箱のこのページを完全に削除しますか？この操作は取り消せません。</string>
+    <string name="empty_trash_all">ゴミ箱のページ%1$d件をすべて完全に削除しますか？この操作は取り消せません。</string>
     <string name="loading_trash">ゴミ箱を読み込み中…</string>
     <string name="try_again">もう一度試す</string>
     <string name="trash_is_empty">ゴミ箱は空です。</string>
@@ -132,19 +131,19 @@
     <string name="removing_soon">まもなく削除</string>
     <string name="one_day_left">残り1日</string>
     <string name="days_left">残り%1$d日</string>
-    <string name="loading_notes">ノートを読み込み中…</string>
-    <string name="notes_intro">ブロックでノートを書けます。%1$sを入力すると、見出し、リスト、チェックリスト、コードを追加できます。</string>
-    <string name="notes_storage_hint">ノートはサーバーに保存され、この端末に紐づきます。別の端末で開くにはログインしてください。ログインする前にアプリやサイトのデータを消去すると、ノートを開けなくなります。</string>
-    <string name="all_notes">すべてのノート</string>
+    <string name="loading_notes">ページを読み込み中…</string>
+    <string name="notes_intro">ノートを書いたり、スライドを作ったり、ホワイトボードに描いたりできます。ノートでは%1$sを入力すると、見出し、リスト、チェックリスト、コードを追加できます。</string>
+    <string name="notes_storage_hint">ワークスペースはサーバーに保存され、この端末に紐づきます。別の端末で開くにはログインしてください。ログインする前にアプリやサイトのデータを消去すると、ワークスペースを開けなくなります。</string>
+    <string name="all_notes">すべてのページ</string>
     <string name="version_history">編集履歴</string>
     <string name="save_saved">保存済み</string>
     <string name="save_saving">保存中…</string>
     <string name="save_not_saved">未保存</string>
     <string name="save_conflict">競合</string>
-    <string name="err_trash_unsaved">未保存の下書きを処理してから、ノートをゴミ箱に移動してください。</string>
-    <string name="err_load_notes">ノートを読み込めませんでした。</string>
-    <string name="err_create_note">ノートを作成できませんでした。</string>
-    <string name="err_trash_note">ノートをゴミ箱に移動できませんでした。</string>
+    <string name="err_trash_unsaved">未保存の下書きを処理してから、ページをゴミ箱に移動してください。</string>
+    <string name="err_load_notes">ページを読み込めませんでした。</string>
+    <string name="err_create_note">ページを作成できませんでした。</string>
+    <string name="err_trash_note">ページをゴミ箱に移動できませんでした。</string>
     <string name="err_group">グループを変更できませんでした。</string>
     <string name="err_trash_request">ゴミ箱の操作に失敗しました。もう一度お試しください。</string>
     <string name="err_trash_load">ゴミ箱を読み込めませんでした。</string>
@@ -152,7 +151,7 @@
     <!-- 登录窗口（网页 sign-in-dialog.tsx）。 -->
     <string name="sign_in">ログイン</string>
     <string name="signin_title">NoteFable にログイン</string>
-    <string name="signin_subtitle">チャットとノートを保存して、どの端末からでも開けます。</string>
+    <string name="signin_subtitle">チャットとワークスペースを保存して、どの端末からでも開けます。</string>
     <string name="continue_google">Google で続ける</string>
     <string name="signin_or">または</string>
     <string name="signin_email">メールアドレス</string>

@@ -16,7 +16,7 @@ export async function GET(request: Request, context: Context) {
       prisma.notePage.findFirst({ where: { id: pageId, userId: user.id, deletedAt: null }, select: { id: true } }),
       findNoteBacklinks(user.id, pageId, new URL(request.url).origin),
     ]);
-    if (!page) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+    if (!page) return NextResponse.json({ error: msg("Page not found.") }, { status: 404 });
     return NextResponse.json(backlinks, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return noteApiError(error); }
 }

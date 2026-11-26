@@ -6,7 +6,7 @@
     <string name="share_publish">Pubblica</string>
     <string name="share_republish">Ripubblica</string>
     <string name="share_unpublish">Rimuovi pubblicazione</string>
-    <string name="share_desc">Pubblica questa nota così chiunque abbia il link può visualizzarla.</string>
+    <string name="share_desc">Pubblica questa pagina così chiunque abbia il link può visualizzarla.</string>
     <string name="share_expired">Questo link di condivisione è scaduto.</string>
     <string name="share_public_link">Link pubblico</string>
     <string name="share_copy_link">Copia link</string>

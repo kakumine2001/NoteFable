@@ -2,14 +2,14 @@
 <!-- Batch 4：検索（src/lib/i18n/messages/ja.ts）。 -->
 <resources>
     <string name="search">検索</string>
-    <string name="search_chats_and_notes">チャットとノートを検索</string>
+    <string name="search_chats_and_notes">チャットとページを検索</string>
     <string name="search_close">検索を閉じる</string>
     <string name="search_tab_all">すべて</string>
     <string name="search_tab_chats">チャット</string>
     <string name="search_project">プロジェクト</string>
     <string name="search_all_projects">すべてのプロジェクト</string>
-    <string name="search_idle_title">チャットやノートを検索</string>
-    <string name="search_idle_body">入力したすべての語を、同じチャットやノートのタイトル、本文、添付ファイル内から探します。</string>
+    <string name="search_idle_title">チャットやページを検索</string>
+    <string name="search_idle_body">入力したすべての語を、同じチャットやページのタイトル、本文、添付ファイル内から探します。</string>
     <string name="search_unavailable_title">検索を利用できません</string>
     <string name="search_unavailable_body">接続を確認して、もう一度お試しください。</string>
     <string name="search_try_again">もう一度試す</string>

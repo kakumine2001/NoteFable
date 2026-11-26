@@ -11,15 +11,21 @@ export const ZH_HANT_TERMS: readonly (readonly [simplified: string, traditional:
   ["便签", "便利貼"],
   // OpenCC 把「类型」转成程序用语「型別」；界面上的「檔案類型」「頁面類型」用「類型」（#168 的类型筛选）。
   ["类型", "類型"],
+  // OpenCC の分割で「中搜索」が「搜索」のまま残る。
+  ["搜索", "搜尋"],
 ];
+
+// そのまま残す言葉。OpenCC は分割しだいで「最多只能」を「最多隻能」にする。
+export const ZH_HANT_KEEP: readonly string[] = ["只能"];
 
 const convert = OpenCC.Converter({ from: "cn", to: "twp" });
 const marker = (index: number) => `${index}`;
 
 export function toTraditional(text: string): string {
+  const fixed: (readonly [string, string])[] = [...ZH_HANT_TERMS, ...ZH_HANT_KEEP.map((word) => [word, word] as const)];
   let marked = text;
-  ZH_HANT_TERMS.forEach(([simplified], index) => { marked = marked.split(simplified).join(marker(index)); });
+  fixed.forEach(([simplified], index) => { marked = marked.split(simplified).join(marker(index)); });
   let converted = convert(marked);
-  ZH_HANT_TERMS.forEach(([, traditional], index) => { converted = converted.split(marker(index)).join(traditional); });
+  fixed.forEach(([, traditional], index) => { converted = converted.split(marker(index)).join(traditional); });
   return converted;
 }

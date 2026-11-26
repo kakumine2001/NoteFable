@@ -325,7 +325,7 @@ private struct SettingsUnsavedButton: View {
 
 /// 左右晃一下（网页 settings-unsaved-shake）：360ms 里 0 → −6 → 6 → −6 → 6 → 0。
 /// `progress` 每加 1 晃一次：小数部分是这一次晃到哪里了。
-private struct SettingsShakeEffect: GeometryEffect {
+struct SettingsShakeEffect: GeometryEffect {
     var progress: CGFloat
 
     var animatableData: CGFloat {

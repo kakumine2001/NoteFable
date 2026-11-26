@@ -25,7 +25,7 @@ Production aliases：
 
 ```text
 notefable.com                 # 正式域名（2026-11-15 购入，Vercel 管理 DNS）：介绍页、法律页面
-app.notefable.com             # 工作区（聊天与 Notes）
+app.notefable.com             # 工作区（聊天与 Workspace）
 www.notefable.com             # 308 跳转到 notefable.com
 notefable-kaku10.vercel.app
 ```
@@ -105,7 +105,7 @@ flowchart LR
     Vercel --> OpenAI["OpenAI"]
     Vercel --> DeepSeek["DeepSeek"]
     Vercel --> Anthropic["Anthropic API"]
-    Vercel --> External["Google / Stripe / Resend"]
+    Vercel --> External["Google / Apple / Stripe / Resend"]
 ```
 
 ## Build
@@ -267,7 +267,7 @@ OPENAI_EMBEDDING_MODEL
 NOTEFABLE_SEMANTIC_SEARCH
 ```
 
-代码默认聊天模型为 `gpt-6-luna`，图片生成与编辑为 `gpt-image-2.6-sunburst`，笔记语义搜索嵌入模型为 `text-embedding-3-small`（可选 `text-embedding-3-small` / `text-embedding-3-large`，512 维，非法值会记录警告并回退默认；共用 `OPENAI_API_KEY` 与 `OPENAI_BASE_URL`）。`NOTEFABLE_SEMANTIC_SEARCH` 设为 `0` 或 `false` 时关闭语义搜索（退回纯关键词搜索）。Production 使用官方接入点 `https://api.openai.com/v1`。本地代码不代表已发布的线上版本；更换密钥或模型环境变量后，需要重新部署才能应用到运行中的函数。
+代码默认聊天模型为 `gpt-6-luna`，图片生成与编辑为 `gpt-image-2.6-sunburst`，页面语义搜索嵌入模型为 `text-embedding-3-small`（可选 `text-embedding-3-small` / `text-embedding-3-large`，512 维，非法值会记录警告并回退默认；共用 `OPENAI_API_KEY` 与 `OPENAI_BASE_URL`）。`NOTEFABLE_SEMANTIC_SEARCH` 设为 `0` 或 `false` 时关闭语义搜索（退回纯关键词搜索）。Production 使用官方接入点 `https://api.openai.com/v1`。本地代码不代表已发布的线上版本；更换密钥或模型环境变量后，需要重新部署才能应用到运行中的函数。
 
 ### DeepSeek
 
@@ -306,7 +306,7 @@ NOTEFABLE_MODELS=[{"id":"gpt-6-luna"},{"id":"claude-haiku-5-5","label":"Claude",
 
 ### File & Image Storage
 
-生产环境使用私有 Vercel Blob（`notefable-images`），存放聊天图片（`images/YYYY/MM/DD/...`）、临时上传（`chat-uploads/<userId>/`）、笔记封面和图片图标（`page-covers/<userId>/`）、笔记附件（`note-files/<userId>/`）、用户头像（`avatars/<userId>/`）、设置里的图标（`app-icons/<userId>/`）和 AI 提案卡片的缩略图（`proposal-images/<userId>/`）：
+生产环境使用私有 Vercel Blob（`notefable-images`），存放聊天图片（`images/YYYY/MM/DD/...`）、临时上传（`chat-uploads/<userId>/`）、笔记封面和页面图片图标（`page-covers/<userId>/`）、页面里的图片和文件（`note-files/<userId>/`）、用户头像（`avatars/<userId>/`）、设置里的图标（`app-icons/<userId>/`）和 AI 提案卡片的缩略图（`proposal-images/<userId>/`）：
 
 ```text
 Client -> POST /api/uploads -> @vercel/blob/client 直传临时附件（chat-uploads/）

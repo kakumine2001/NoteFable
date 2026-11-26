@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="attach_pages">添加页面</string>
-    <string name="attach_pages_desc">让 AI 参考你的笔记</string>
+    <string name="attach_pages_desc">让 AI 参考你的页面</string>
     <string name="attached_pages">已添加的页面</string>
     <string name="ask_notefable">问 NoteFable</string>
     <string name="quote">引用</string>

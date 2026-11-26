@@ -205,7 +205,7 @@ export const whiteboardAdapter: PageAdapter = {
     tool: WHITEBOARD_CREATE_TOOL,
     async propose(_ctx, rawArgs) {
       const value = asObject(rawArgs);
-      const label = msg("Note proposal rejected");
+      const label = msg("Page proposal rejected");
       const title = typeof value.title === "string" ? value.title.trim() : "";
       if (!title) throw new AdapterError("title must be a non-empty string.", label);
       if (value.icon !== null && value.icon !== undefined && typeof value.icon !== "string") {

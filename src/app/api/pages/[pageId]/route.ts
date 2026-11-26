@@ -27,7 +27,7 @@ export async function GET(_request: Request, context: Context) {
     const user = await getOrCreateUser();
     const { pageId } = await context.params;
     const page = await prisma.notePage.findFirst({ where: { id: pageId, userId: user.id, deletedAt: null } });
-    if (!page) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+    if (!page) return NextResponse.json({ error: msg("Page not found.") }, { status: 404 });
     const kind = pageKindOf(page);
     if (isCanvasKind(kind)) {
       // 版（ページの行）を先に、本体を後に読む。間に別のタブが保存しても、返す版は本体より古くなるだけで、次の保存は 409 になる
@@ -46,7 +46,7 @@ export async function PATCH(request: Request, context: Context) {
     const user = await getOrCreateUser();
     const { pageId } = await context.params;
     const target = await prisma.notePage.findFirst({ where: { id: pageId, userId: user.id, deletedAt: null }, select: { kind: true } });
-    if (!target) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+    if (!target) return NextResponse.json({ error: msg("Page not found.") }, { status: 404 });
     const kind = pageKindOf(target);
     if (isCanvasKind(kind)) {
       const body = await readNoteRequest(request, MAX_CANVAS_REQUEST_BYTES, CANVAS_TOO_LARGE);
@@ -74,8 +74,8 @@ export async function PATCH(request: Request, context: Context) {
       const alreadySaved = page && page.title === update.title && update.present.every((key) => page[key] === update[key]) && isDeepStrictEqual(page.blocks, update.blocks);
       return { page, conflict: !changed.count && !alreadySaved, changed: changed.count > 0 };
     });
-    if (!result.page) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
-    if (result.conflict) return NextResponse.json({ error: msg("This note was changed in another tab."), page: result.page }, { status: 409 });
+    if (!result.page) return NextResponse.json({ error: msg("Page not found.") }, { status: 404 });
+    if (result.conflict) return NextResponse.json({ error: msg("This page was changed in another tab."), page: result.page }, { status: 409 });
     if (result.changed) scheduleNoteEmbeddingSync(user.id, [result.page.id]);
     return NextResponse.json({ page: result.page });
   } catch (error) { return noteApiError(error); }
@@ -88,7 +88,7 @@ export async function PATCH(request: Request, context: Context) {
 async function saveCanvas(body: unknown, userId: string, pageId: string, kind: CanvasKind) {
   const input = validateCanvasPage(kind, body);
   const value = body as { version?: unknown; icon?: unknown };
-  if (!Number.isSafeInteger(value.version) || Number(value.version) < 0) throw new NoteValidationError(msg("A valid note version is required."));
+  if (!Number.isSafeInteger(value.version) || Number(value.version) < 0) throw new NoteValidationError(msg("A valid page version is required."));
   const version = value.version as number;
   const iconPresent = "icon" in value;
   if (iconPresent) assertCoverOwner(input.icon, userId, "icon");
@@ -115,8 +115,8 @@ async function saveCanvas(body: unknown, userId: string, pageId: string, kind: C
     }
     return { page, conflict: !changed.count && !alreadySaved, changed: changed.count > 0 };
   }, { timeout: 20_000 });
-  if (!result.page) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
-  if (result.conflict) return NextResponse.json({ error: msg("This note was changed in another tab."), page: result.page, version: result.page.version }, { status: 409 });
+  if (!result.page) return NextResponse.json({ error: msg("Page not found.") }, { status: 404 });
+  if (result.conflict) return NextResponse.json({ error: msg("This page was changed in another tab."), page: result.page, version: result.page.version }, { status: 409 });
   if (result.changed) scheduleNoteEmbeddingSync(userId, [pageId]);
   return NextResponse.json({ version: result.page.version, page: result.page });
 }
@@ -134,7 +134,7 @@ export async function DELETE(_request: Request, context: Context) {
       const result = await tx.notePage.updateMany({ where: { id: { in: subtree }, userId: user.id, deletedAt: null }, data: { deletedAt: new Date() } });
       return result.count && subtree;
     });
-    if (!ids) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+    if (!ids) return NextResponse.json({ error: msg("Page not found.") }, { status: 404 });
     // 期限切れのゴミ箱の掃除は、この操作の成否に影響させない。
     await tryPurgeExpiredNotes(user.id);
     return NextResponse.json({ ok: true, ids });

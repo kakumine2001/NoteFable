@@ -95,7 +95,7 @@ function DeleteAccount({ disabled, onBusyChange }: { disabled: boolean; onBusyCh
   }
   return (
     <div className="settings-delete-confirm" role="group" aria-labelledby={warningId}>
-      <p id={warningId}>{t("Permanently delete your account and everything in it: chats, notes, files and settings. This can’t be undone.")}</p>
+      <p id={warningId}>{t("Permanently delete your account and everything in it: chats, notes, slide decks, whiteboards, files and settings. This can’t be undone.")}</p>
       <p>{t("Deleting your NoteFable account does not cancel an App Store subscription. Cancel it in the App Store to avoid renewal.")}</p>
       <a className="settings-chip settings-plan-manage" href="https://apps.apple.com/account/subscriptions" target="_blank" rel="noreferrer">
         {t("Manage App Store Subscription")}
