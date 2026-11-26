@@ -697,21 +697,6 @@ private enum NFAdaptivePresentationMode: Equatable {
     case sheet
 }
 
-private struct NFAdaptiveSheetBridge<SheetContent: View>: ViewModifier {
-    let enabled: Bool
-    let isPresented: Binding<Bool>
-    let onDismiss: () -> Void
-    let sheetContent: () -> SheetContent
-
-    func body(content: Content) -> some View {
-        if enabled {
-            content.sheet(isPresented: isPresented, onDismiss: onDismiss, content: sheetContent)
-        } else {
-            content
-        }
-    }
-}
-
 private struct NFPopoverModifier<PopoverContent: View>: ViewModifier {
     @Binding var isPresented: Bool
     let width: CGFloat?
@@ -761,12 +746,17 @@ private struct NFPopoverModifier<PopoverContent: View>: ViewModifier {
 
     func body(content: Content) -> some View {
         popoverHost(content)
-            .modifier(NFAdaptiveSheetBridge(
-                enabled: adaptCompactToSheet,
-                isPresented: sheetBinding,
-                onDismiss: handleSheetDismissed,
-                sheetContent: { sheetDestination }
-            ))
+            .background {
+                if adaptCompactToSheet {
+                    // Attach .sheet on a separate host view so it never collides with .popover on the same SwiftUI node (iOS 17–27).
+                    Color.clear
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                        .sheet(isPresented: sheetBinding, onDismiss: handleSheetDismissed) {
+                            sheetDestination
+                        }
+                }
+            }
             .onAppear {
                 if isPresented && presentedMode == nil {
                     dismissCoordinator.markOpened()
