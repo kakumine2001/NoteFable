@@ -37,7 +37,6 @@ struct NotePageMenuButton: View {
         .nfPopover(
             isPresented: $open,
             width: 268,
-            arrowEdge: .top,
             adaptCompactToSheet: false,
             onDismiss: {
                 guard let action = pendingAction else { return }

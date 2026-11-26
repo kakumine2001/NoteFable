@@ -22,7 +22,6 @@ private struct LanguageMenuModifier: ViewModifier {
             .nfPopover(
                 isPresented: $isPresented,
                 width: 320,
-                arrowEdge: .top,
                 adaptCompactToSheet: true,
                 contentInsets: EdgeInsets(top: 10, leading: 10, bottom: 10, trailing: 10),
                 onDismiss: { query = "" }

@@ -44,7 +44,8 @@ struct ChatComposer: View {
         let error = composerErrorText(filesError: state.filesError, notice: state.notice, systemText: app.systemText)
         let shape = RoundedRectangle(cornerRadius: 26, style: .continuous)
         let focusAnimation = NFMotion.unlessReduced(NFMotion.cssEase(0.12), reduceMotion)
-        return NFGlassContainer(spacing: NFChromeMetrics.containerSpacing) {
+        // Keep GlassEffectContainer merge spacing (< HStack gap 8) so the '+' glass circle and input card stay visually split.
+        return NFGlassContainer(spacing: 4) {
             HStack(alignment: .bottom, spacing: NFChromeMetrics.gap) {
                 NFGlassIconButton(
                     Lucide.plus,

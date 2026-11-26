@@ -27,6 +27,8 @@ struct AnswerActions: View {
     /// 每次复制加一，2 秒后归零；连续点时重新计时。
     @State private var copiedTick = 0
     @State private var menuOpen = false
+    /// Popover 是否仍处于呈现或收起动画中（点击外部关闭期间 `menuOpen` 可能先变 false）。
+    @State private var popoverActive = false
     @State private var downloading = false
     @State private var reporting = false
     @State private var menuError: AnswerMenuError? = nil
@@ -58,14 +60,15 @@ struct AnswerActions: View {
                 }
                 if let sessionId {
                     NFIconButton(Lucide.ellipsis, label: L("answer_more_options"), size: 36, iconSize: 18, strokeWidth: 1.9) {
+                        popoverActive = true
                         menuOpen = true
                     }
                     .nfPopover(
                         isPresented: $menuOpen,
                         width: 256,
-                        arrowEdge: .top,
                         adaptCompactToSheet: false,
                         onDismiss: {
+                            popoverActive = false
                             guard let pending = pendingExport else { return }
                             pendingExport = nil
                             exportDocument = pending.document
@@ -76,6 +79,7 @@ struct AnswerActions: View {
                         VStack(alignment: .leading, spacing: 0) {
                             menu(sessionId: sessionId)
                         }
+                        .onAppear { popoverActive = true }
                     }
                 }
             }
@@ -100,6 +104,7 @@ struct AnswerActions: View {
         .onDisappear {
             downloadTask?.cancel()
             pendingExport = nil
+            popoverActive = false
         }
         .reportDialog(.answer(messageId: message.id), isPresented: $reporting)
         .fileExporter(
@@ -245,8 +250,8 @@ struct AnswerActions: View {
                 if !Task.isCancelled {
                     let document = MarkdownExportDocument(text: export.markdown)
                     let name = MarkdownExportDocument.baseName(export.fileName)
-                    if menuOpen {
-                        // 等 `.popover` 的 UIKit 收起完成回调再拉起 `.fileExporter`，不依赖固定延时。
+                    if menuOpen || popoverActive {
+                        // 等 `.popover` 的 UIKit 收起完成回调再拉起 `.fileExporter`，即使下载途中用户点外部关闭也不冲突。
                         pendingExport = (document, name)
                         menuOpen = false
                     } else {

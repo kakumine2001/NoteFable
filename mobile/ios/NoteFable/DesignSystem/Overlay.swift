@@ -5,7 +5,7 @@ import SwiftUI
 // 原先通过 PreferenceKey + Anchor<CGRect> 向根视图冒泡，但 UIKit 支持的 TabView 会截断 PreferenceKey 冒泡。
 // 改为根上和每个 `.nfPanel` / `.nfSheet` / `.nfDialog` / `.nfPopover` 内部通过环境注入的 `@Observable NFOverlayCenter`，
 // 以及基于 `.global` 坐标的触发器矩形：跨 TabView 标签页与抽屉声明的层都能稳定画在 TabView 与液态玻璃底栏之上。
-// 层的顺序：全屏面板 < 对话框 < 菜单；从某一层里面再打开的（设置里的语言菜单、对话框里的菜单）叠在那一层上面。
+// 层的顺序：全屏面板 < 对话框；从某一层里面再打开的（例如面板或 `.sheet` 里的对话框）叠在那一层上面。
 
 // MARK: - 根上的宿主
 

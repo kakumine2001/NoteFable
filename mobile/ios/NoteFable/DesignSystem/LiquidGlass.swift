@@ -93,10 +93,11 @@ extension View {
 
     /// Presents a native `.popover` (adapting to `.sheet` on compact widths when `adaptCompactToSheet` is true)
     /// styled with Liquid Glass on iOS 26+, Material on iOS 17–18, or opaque surface under Reduce Transparency.
+    /// Pass `arrowEdge: nil` (default) so iOS 18+ automatically picks the best side without squeezing near screen edges.
     func nfPopover<PopoverContent: View>(
         isPresented: Binding<Bool>,
         width: CGFloat? = nil,
-        arrowEdge: Edge = .top,
+        arrowEdge: Edge? = nil,
         adaptCompactToSheet: Bool = false,
         dismissDisabled: Bool = false,
         contentInsets: EdgeInsets = EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8),
@@ -436,10 +437,11 @@ enum NFMenuIcons {
         return result
     }
 
-    static func mascot(_ icon: AppIconValue?, size: CGFloat = 18) -> UIImage {
-        let key = "\(size)|\(icon ?? "")"
+    static func mascot(_ icon: AppIconValue?, size: CGFloat = 18, colorScheme: ColorScheme = .light) -> UIImage {
+        let appearance = colorScheme == .dark ? "d" : "l"
+        let key = "\(size)|\(appearance)|\(icon ?? "")"
         if let cached = mascotCache[key] { return cached }
-        let renderer = ImageRenderer(content: AppIconView(icon: icon, size: size))
+        let renderer = ImageRenderer(content: AppIconView(icon: icon, size: size).environment(\.colorScheme, colorScheme))
         renderer.scale = max(2, UIGraphicsImageRendererFormat.preferred().scale)
         let rendered = renderer.uiImage?.withRenderingMode(.alwaysOriginal) ?? template(Lucide.sparkles)
         if mascotCache.count > 12 { mascotCache.removeAll() }
@@ -464,12 +466,13 @@ struct NFMenuLabel: View {
 struct NFMascotMenuLabel: View {
     let title: String
     let icon: AppIconValue?
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Label {
             Text(title)
         } icon: {
-            Image(uiImage: NFMenuIcons.mascot(icon))
+            Image(uiImage: NFMenuIcons.mascot(icon, colorScheme: colorScheme))
         }
     }
 }
@@ -616,16 +619,46 @@ private struct NFSheetChromeApplier: ViewModifier {
 
 // MARK: - Native Adaptive Popovers
 
+/// Coordinates SwiftUI's `isPresented` binding with UIKit's presentation dismissal lifecycle so `onDismiss`
+/// fires exactly once after the popover/sheet has truly finished dismissing — whether dismissed programmatically
+/// (`isPresented = false` first) or via an outside tap (UIKit `viewDidDisappear` first), and never on resize.
 @MainActor
-private final class NFDismissSignal {
+private final class NFPopoverDismissCoordinator {
+    private(set) var activeToken = 0
+    private var isPresented = false
+    private var presentationEnded = false
     private var fired = false
 
-    func reset() {
+    func markOpened() {
+        activeToken += 1
+        isPresented = true
+        presentationEnded = false
         fired = false
     }
 
-    func fire(_ callback: (() -> Void)?) {
-        guard !fired else { return }
+    func markContainerAppeared() -> Int {
+        if !isPresented {
+            activeToken += 1
+            isPresented = true
+        }
+        presentationEnded = false
+        fired = false
+        return activeToken
+    }
+
+    func markBindingClosed(_ callback: (() -> Void)?) {
+        isPresented = false
+        fireIfReady(callback)
+    }
+
+    func markPresentationEnded(token: Int, _ callback: (() -> Void)?) {
+        guard token == activeToken else { return }
+        presentationEnded = true
+        fireIfReady(callback)
+    }
+
+    private func fireIfReady(_ callback: (() -> Void)?) {
+        guard !isPresented, presentationEnded, !fired else { return }
         fired = true
         callback?()
     }
@@ -662,7 +695,7 @@ private struct NFDismissCompletionObserver: UIViewControllerRepresentable {
 private struct NFPopoverModifier<PopoverContent: View>: ViewModifier {
     @Binding var isPresented: Bool
     let width: CGFloat?
-    let arrowEdge: Edge
+    let arrowEdge: Edge?
     let adaptCompactToSheet: Bool
     let dismissDisabled: Bool
     let contentInsets: EdgeInsets
@@ -673,35 +706,62 @@ private struct NFPopoverModifier<PopoverContent: View>: ViewModifier {
     @Environment(\.locale) private var locale
     @Environment(\.nfForceSolidChrome) private var forceSolidChrome
     @Environment(\.nfWindowFrame) private var windowFrame
+    @State private var dismissCoordinator = NFPopoverDismissCoordinator()
 
     func body(content: Content) -> some View {
-        content
-            .popover(isPresented: $isPresented, attachmentAnchor: .rect(.bounds), arrowEdge: arrowEdge) {
-                NFPopoverContainer(
-                    isPresented: $isPresented,
-                    width: width,
-                    adaptCompactToSheet: adaptCompactToSheet,
-                    dismissDisabled: dismissDisabled,
-                    contentInsets: contentInsets,
-                    windowFrame: windowFrame,
-                    onDismiss: onDismiss,
-                    content: popoverContent
-                )
-                .environment(\.layoutDirection, layoutDirection)
-                .environment(\.locale, locale)
-                .environment(\.nfForceSolidChrome, forceSolidChrome)
-                .environment(\.nfWindowFrame, windowFrame)
+        popoverHost(content)
+            .onChange(of: isPresented) { _, nowPresented in
+                if nowPresented {
+                    dismissCoordinator.markOpened()
+                } else {
+                    dismissCoordinator.markBindingClosed(onDismiss)
+                }
             }
+    }
+
+    @ViewBuilder
+    private func popoverHost(_ content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.popover(isPresented: $isPresented, attachmentAnchor: .rect(.bounds), arrowEdge: arrowEdge) {
+                popoverDestination
+            }
+        } else {
+            content.popover(isPresented: $isPresented, attachmentAnchor: .rect(.bounds), arrowEdge: arrowEdge ?? .top) {
+                popoverDestination
+            }
+        }
+    }
+
+    private var popoverDestination: some View {
+        NFPopoverContainer(
+            width: width,
+            adaptCompactToSheet: adaptCompactToSheet,
+            dismissDisabled: dismissDisabled,
+            contentInsets: contentInsets,
+            windowFrame: windowFrame,
+            dismissCoordinator: dismissCoordinator,
+            onDismiss: onDismiss,
+            content: popoverContent
+        )
+        .environment(\.layoutDirection, layoutDirection)
+        .environment(\.locale, locale)
+        .environment(\.nfForceSolidChrome, forceSolidChrome)
+        .environment(\.nfWindowFrame, windowFrame)
     }
 }
 
+@MainActor
+private final class NFTokenBox {
+    var value = 0
+}
+
 private struct NFPopoverContainer<PopoverContent: View>: View {
-    @Binding var isPresented: Bool
     let width: CGFloat?
     let adaptCompactToSheet: Bool
     let dismissDisabled: Bool
     let contentInsets: EdgeInsets
     let windowFrame: CGRect?
+    let dismissCoordinator: NFPopoverDismissCoordinator
     let onDismiss: (() -> Void)?
     let content: () -> PopoverContent
 
@@ -709,8 +769,7 @@ private struct NFPopoverContainer<PopoverContent: View>: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.nfForceSolidChrome) private var forceSolidChrome
-    @State private var contentHeight: CGFloat = 240
-    @State private var dismissSignal = NFDismissSignal()
+    @State private var tokenBox = NFTokenBox()
 
     private var useSolidChrome: Bool {
         reduceTransparency || forceSolidChrome
@@ -724,25 +783,25 @@ private struct NFPopoverContainer<PopoverContent: View>: View {
             .modifier(NFPopoverAdaptationApplier(adaptCompactToSheet: adaptCompactToSheet))
             .modifier(NFSheetChromeApplier(useSolidChrome: useSolidChrome))
             .background {
-                let binding = $isPresented
-                let signal = dismissSignal
+                let coordinator = dismissCoordinator
+                let box = tokenBox
                 let callback = onDismiss
                 NFDismissCompletionObserver {
-                    if !binding.wrappedValue { signal.fire(callback) }
+                    coordinator.markPresentationEnded(token: box.value, callback)
                 }
                 .frame(width: 0, height: 0)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
             }
             .onAppear {
-                dismissSignal.reset()
+                tokenBox.value = dismissCoordinator.markContainerAppeared()
             }
             .onDisappear {
-                let binding = $isPresented
-                let signal = dismissSignal
+                let coordinator = dismissCoordinator
+                let box = tokenBox
                 let callback = onDismiss
                 DispatchQueue.main.async {
-                    if !binding.wrappedValue { signal.fire(callback) }
+                    coordinator.markPresentationEnded(token: box.value, callback)
                 }
             }
     }
@@ -769,21 +828,26 @@ private struct NFPopoverContainer<PopoverContent: View>: View {
                 alignment: .topLeading
             )
         } else {
-            ScrollView(.vertical) {
-                VStack(alignment: .leading, spacing: 0) {
-                    content()
-                }
-                .nfOverlayContentDefaults()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(contentInsets)
-                .nfOnSizeChange { size in
-                    if abs(contentHeight - size.height) > 0.5 {
-                        contentHeight = size.height
-                    }
-                }
+            let stack = VStack(alignment: .leading, spacing: 0) {
+                content()
             }
-            .scrollBounceBehavior(.basedOnSize)
-            .frame(width: width, height: min(max(64, contentHeight), maxHeight))
+            .nfOverlayContentDefaults()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(contentInsets)
+
+            // Fit intrinsic height immediately when content fits within maxHeight (avoids an initial height jump),
+            // and fall back to a capped scroll view on short windows.
+            ViewThatFits(in: .vertical) {
+                stack
+                    .fixedSize(horizontal: false, vertical: true)
+                ScrollView(.vertical) {
+                    stack
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                .frame(height: maxHeight)
+            }
+            .frame(width: width)
+            .frame(maxHeight: maxHeight)
         }
     }
 }

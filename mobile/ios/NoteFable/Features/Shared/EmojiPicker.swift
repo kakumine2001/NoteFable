@@ -54,7 +54,6 @@ private struct EmojiPickerModifier: ViewModifier {
             .nfPopover(
                 isPresented: $isPresented,
                 width: 380,
-                arrowEdge: .top,
                 adaptCompactToSheet: true,
                 contentInsets: EdgeInsets(top: 8, leading: 0, bottom: 0, trailing: 0),
                 onDismiss: { draft.query = "" }
