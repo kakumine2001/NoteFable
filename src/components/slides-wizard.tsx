@@ -51,12 +51,25 @@ export function useSlidesJobState(key: string | null): SlidesJob["state"] {
 // flush: 材料のノートのうち開いているものの入力中の内容を、要求の前に保存する。
 export function SlidesWizardHost({ embedded = false, flush }: { embedded?: boolean; flush?: SlidesFlush }) {
   const view = useSyncExternalStore(subscribeSlidesWizard, getSlidesWizard, () => null);
+  const busy = useSyncExternalStore(subscribeSlidesWizard, isSlidesWizardBusy, () => false);
   const visible = view !== null;
+  const reportedClosedBusy = useRef(false);
   useEffect(() => {
     if (!embedded || !visible || !nativeCanShowSlidesWizard()) return;
+    reportedClosedBusy.current = false;
     postToNative({ type: "slidesWizard", state: "open" });
-    return () => { postToNative({ type: "slidesWizard", state: "closed", busy: isSlidesWizardBusy() }); };
+    return () => {
+      const stillBusy = isSlidesWizardBusy();
+      reportedClosedBusy.current = stillBusy;
+      postToNative({ type: "slidesWizard", state: "closed", busy: stillBusy });
+    };
   }, [embedded, visible]);
+  // 作成中に閉じたあと、裏で動いていた要求が全部終わった（成功・失敗・アウトライン完了とも）らアプリに知らせる。
+  useEffect(() => {
+    if (!embedded || visible || busy || !reportedClosedBusy.current || !nativeCanShowSlidesWizard()) return;
+    reportedClosedBusy.current = false;
+    postToNative({ type: "slidesWizard", state: "closed", busy: false });
+  }, [embedded, visible, busy]);
   if (!view) return null;
   return <SlidesWizardDialog key={view.key} view={view} embedded={embedded} flush={flush} />;
 }

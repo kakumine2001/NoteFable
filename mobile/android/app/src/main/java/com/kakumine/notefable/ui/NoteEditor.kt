@@ -615,13 +615,7 @@ class NoteEmbedHost(
     ) { message ->
         when (embedRoute(message, bridge.activeEditor)) {
             EmbedRoute.PagesChanged -> {
-                if (webView != null) {
-                    if (slidesWizardBusy) {
-                        slidesWizardBusy = false
-                        if (isParked && loadedForIdentity) scheduleIdle()
-                    }
-                    onPagesChanged()
-                }
+                if (webView != null) onPagesChanged()
                 return@NoteEmbedBridge
             }
             EmbedRoute.Wizard -> {

@@ -104,6 +104,23 @@ final class NoteEditorPool {
         if let controller, controller.isWizardActive, !controller.hasEverResponded { destroy() }
     }
 
+    /// 用 `NoteEmbedScripts.slidesWizardOpen` 打开向导：冷启动时 `.task` 可能先于 `makeUIView` 执行，
+    /// 在池上一起等 `controller` 与 `webView` 就绪（每 250ms 轮询，最多 20 秒），避免 `controller == nil` 时提前退出一直停在加载中。
+    func openSlidesWizard(script: String) async -> Bool {
+        let deadline = ContinuousClock.now + NoteEditorController.wizardOpenTimeout
+        while !Task.isCancelled && ContinuousClock.now < deadline {
+            if let controller, let answer = await controller.tryOpenSlidesWizard(script: script) {
+                return answer
+            }
+            do {
+                try await Task.sleep(for: NoteEditorController.wizardPollInterval)
+            } catch {
+                return false
+            }
+        }
+        return false
+    }
+
     private func rescheduleIdleIfParked() {
         guard let controller, controller.isParked, controller.isLoaded else { return }
         scheduleIdle()
@@ -204,8 +221,8 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
     private static let handlerName = "notefableNative"
     /// 全屏向导借用常驻 WebView 时的占位编辑器标识（没有打开任何页面）。
     static let slidesWizardEditorId = "__slides_wizard__"
-    private static let wizardOpenTimeout: Duration = .seconds(20)
-    private static let wizardPollInterval: Duration = .milliseconds(250)
+    static let wizardOpenTimeout: Duration = .seconds(20)
+    static let wizardPollInterval: Duration = .milliseconds(250)
 
     /// 所有编辑器共用 App 的默认（落盘的）数据存储：Cookie 每次加载前换成 App 的；网页的本地草稿（localStorage）
     /// 和 Android 的 WebView 一样跨 App 重启保留，离开笔记再回来、网页进程崩溃、App 被系统杀掉后重新打开都还能恢复。
@@ -277,8 +294,6 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
             if case .pagesChanged = message {
                 // 笔记 AI 面板的后台画成图、AI 生成幻灯片可能在离开编辑页（常驻 WKWebView 停靠中）或切页途中完成：只要 WKWebView 还在就刷新列表。
                 if self.webView != nil {
-                    self.slidesWizardBusy = false
-                    self.onWizardBusyChanged()
                     self.app.notes.refresh()
                 }
                 return
@@ -459,32 +474,21 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         }
     }
 
-    /// 用 `NoteEmbedScripts.slidesWizardOpen` 打开向导：网页加载完才有 `window.notefableEmbed`，
-    /// 每 250ms 轮询一次，最多 20 秒；旧服务端不支持或被拒绝返回 false。
-    func openSlidesWizard(script: String) async -> Bool {
-        let deadline = ContinuousClock.now + Self.wizardOpenTimeout
-        while !Task.isCancelled && ContinuousClock.now < deadline {
-            if let webView {
-                let raw: String? = await withCheckedContinuation { (done: CheckedContinuation<String?, Never>) in
-                    webView.evaluateJavaScript(script) { result, _ in
-                        done.resume(returning: result as? String)
-                    }
-                }
-                if let answer = NoteEmbedScripts.slidesWizardAnswer(raw) {
-                    if answer {
-                        slidesWizardVisible = true
-                        hasEverResponded = true
-                    }
-                    return answer
-                }
-            }
-            do {
-                try await Task.sleep(for: Self.wizardPollInterval)
-            } catch {
-                return false
+    /// 尝试执行一次 `NoteEmbedScripts.slidesWizardOpen`：网页未就绪或 `webView == nil` 返回 `nil` 供外层继续轮询；
+    /// 网页明确接受或拒绝返回 `true` / `false`。
+    func tryOpenSlidesWizard(script: String) async -> Bool? {
+        guard let webView else { return nil }
+        let raw: String? = await withCheckedContinuation { (done: CheckedContinuation<String?, Never>) in
+            webView.evaluateJavaScript(script) { result, _ in
+                done.resume(returning: result as? String)
             }
         }
-        return false
+        guard let answer = NoteEmbedScripts.slidesWizardAnswer(raw) else { return nil }
+        if answer {
+            slidesWizardVisible = true
+            hasEverResponded = true
+        }
+        return answer
     }
 
     /// 设置里换了图标 / 界面语言 / 外观（或跟随系统时系统切了深浅）：推给网页（就地换，不重新加载笔记）。

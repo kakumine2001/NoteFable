@@ -29,14 +29,13 @@ struct SlidesWizardOverlayLauncher: View {
             .allowsHitTesting(false)
             .accessibilityHidden(true)
             .task(id: taskKey) {
-                guard let controller = pool.controller else { return }
-                if wizard.shown && controller.slidesWizardVisible { return }
+                if wizard.shown && pool.controller?.slidesWizardVisible == true { return }
                 guard let script = NoteEmbedScripts.slidesWizardOpen(source: wizard.source, model: model, reasoning: reasoning) else {
                     Toast.show(app.systemText.localize(slidesWizardFailedText), long: true)
                     onFailed(wizard.request)
                     return
                 }
-                let opened = await controller.openSlidesWizard(script: script)
+                let opened = await pool.openSlidesWizard(script: script)
                 if Task.isCancelled { return }
                 if opened {
                     onShown(wizard.request)
