@@ -299,7 +299,7 @@ function relayoutTree(
     const startBinding = { ...(existing.element.startBinding as Record<string, unknown> | null ?? {}), elementId: node.parent.id, fixedPoint: geometry.startFixedPoint, mode: "orbit" };
     const endBinding = { ...(existing.element.endBinding as Record<string, unknown> | null ?? {}), elementId: node.id, fixedPoint: geometry.endFixedPoint, mode: "orbit" };
     const moved = Math.abs(existing.element.x - geometry.x) >= 0.5 || Math.abs(existing.element.y - geometry.y) >= 0.5
-      || JSON.stringify(existing.element.points) !== JSON.stringify(geometry.points)
+      || !samePoints(existing.element.points, geometry.points)
       || (existing.element.startBinding as { elementId?: string } | null)?.elementId !== node.parent.id
       || (existing.element.endBinding as { elementId?: string } | null)?.elementId !== node.id;
     if (moved) {
@@ -321,6 +321,16 @@ function relayoutTree(
       for (const label of texts.get(element.id) ?? []) patch(change, label.id, { isDeleted: true });
     }
   }
+}
+
+// 線の頂点どうしを 0.5 px 未満の誤差で比べる（小数座標に置いた木で浮動小数の丸め差だけで置き直さないため）。
+function samePoints(actual: unknown, expected: readonly (readonly [number, number])[]) {
+  if (!Array.isArray(actual) || actual.length !== expected.length) return false;
+  return expected.every(([ex, ey], index) => {
+    const point = actual[index];
+    return Array.isArray(point) && typeof point[0] === "number" && typeof point[1] === "number"
+      && Math.abs(point[0] - ex) < 0.5 && Math.abs(point[1] - ey) < 0.5;
+  });
 }
 
 // 根の子（最初の枝）の色。深い節は最初の枝の色を受け継ぐ。
@@ -523,15 +533,21 @@ export function mindmapRemovalCleanup(elements: readonly SceneElement[], before:
   return relayout.patches.size || relayout.added.length ? { change: emptyChange(), roots } : null;
 }
 
+// 選んだ要素と、選んだ枠（frame）の中にある生きている要素の ID を合わせる。
+export function expandWithFrameChildren(elements: readonly SceneElement[], ids: readonly string[]): string[] {
+  const selected = new Set(ids);
+  const expanded = new Set(ids);
+  for (const element of elements) {
+    if (live(element) && typeof element.frameId === "string" && selected.has(element.frameId)) expanded.add(element.id);
+  }
+  return [...expanded];
+}
+
 // 切り取り（Ctrl+X）の前に一緒に選ぶ要素：切り取る節（選んだ節と、選んだ枠の中の節）の子孫（ロックした枝は除く）と、その節どうしの線。
 // 子孫も切り取れば、貼り付けで枝ごと移る（選んだ節だけだと、子孫は片付けで消えて貼り付けに入らない）。
 export function mindmapCutExtras(elements: readonly SceneElement[], selectedIds: readonly string[]): string[] {
   // 切り取りに元から含まれる要素：選んだものと、選んだ枠の中のもの。
-  const selected = new Set(selectedIds);
-  const taken = new Set(selectedIds);
-  for (const element of elements) {
-    if (live(element) && typeof element.frameId === "string" && selected.has(element.frameId)) taken.add(element.id);
-  }
+  const taken = new Set(expandWithFrameChildren(elements, selectedIds));
   const nodes = selectedSubtrees(elements, [...taken]);
   if (!nodes.size) return [];
   const edges = edgesOf(elements).filter(({ element, data }) => !element.locked && nodes.has(data.parent) && nodes.has(data.child)).map(({ element }) => element.id);

@@ -3,8 +3,9 @@ import { describe, expect, it } from "vitest";
 import { MAX_WHITEBOARD_ELEMENTS, validateCanvasData } from "@/lib/canvas-document";
 import {
   addMindmapChild, addMindmapSibling, bindMindmapEdges, collapsedMindmapNodes, collapseMindmapNode, composeMindmapScene, deleteMindmapNodes, exceedsWhiteboardLimit,
-  expandMindmapNode, includesMindmapNode, insertMindmapElements, liveMindmapNodeIds, mindmapCutExtras, mindmapDropTarget, mindmapRemovalCleanup, mindmapRootsOf,
-  mindmapSelection, readMindmapTrees, relayoutMindmap, remapMindmapDuplicates, remapMindmapDuplicateScene, reparentMindmapNode, setMindmapDirection, type MindmapChange, type MindmapSceneTools, type SceneElement,
+  expandMindmapNode, expandWithFrameChildren, includesMindmapNode, insertMindmapElements, liveMindmapNodeIds, mindmapCutExtras, mindmapDropTarget, mindmapRemovalCleanup,
+  mindmapRootsOf, mindmapSelection, readMindmapTrees, relayoutMindmap, remapMindmapDuplicates, remapMindmapDuplicateScene, reparentMindmapNode, setMindmapDirection,
+  type MindmapChange, type MindmapSceneTools, type SceneElement,
 } from "@/lib/whiteboard/mindmap/editing";
 import { mindmapSkeletons, type MindmapSkeleton } from "@/lib/whiteboard/mindmap/elements";
 import { mindmapDataOf, mindmapStashOutline, type MindmapNodeData, type MindmapTreeNode } from "@/lib/whiteboard/mindmap/model";
@@ -575,6 +576,43 @@ describe("frames", () => {
     const expanded = compose(moved, expandMindmapNode(moved, "n2"));
     expect(live(expanded).filter((element) => element.type !== "frame" && element.frameId)).toEqual([]);
     expect(readMindmapTrees(expanded).get(rootId)!.nodes.size).toBe(5);
+  });
+
+  it("relayouts overflowing branches when a frame is dragged or resized", () => {
+    const { elements, box, rootId } = framed();
+    // 枠を縮めて子孫をはみ出させた状態：枠 ID だけを選んでも中の根が見つかり、はみ出た節は枠から外れる。
+    const shrunk = elements.map((element) => (element.id === "F" ? frame("F", box.x, box.y, 180, box.height) : element));
+    const affectedAfterResize = expandWithFrameChildren(shrunk, ["F"]);
+    expect(includesMindmapNode(shrunk, affectedAfterResize)).toBe(true);
+    expect([...mindmapRootsOf(shrunk, affectedAfterResize)]).toEqual([rootId]);
+    const ejected = compose(shrunk, none(), mindmapRootsOf(shrunk, affectedAfterResize));
+    expectFrames(ejected, shrunk.find((element) => element.id === "F")!);
+    const outsideId = live(ejected).find((element) => element.type === "rectangle" && element.frameId === null)!.id;
+    const oldX = ejected.find((element) => element.id === outsideId)!.x;
+    // 枠を右に 500px 動かす：Excalidraw は枠と枠内の要素だけを動かし、枠外の子孫は元の位置に残る。
+    const dragged = ejected.map((element) => (element.id === "F" || element.frameId === "F" ? { ...element, x: element.x + 500 } : element));
+    const moved = compose(dragged, none(), mindmapRootsOf(dragged, expandWithFrameChildren(dragged, ["F"])));
+    expect(moved.find((element) => element.id === outsideId)!.x).toBeCloseTo(oldX + 500, 1);
+    expectFrames(moved, moved.find((element) => element.id === "F")!);
+  });
+});
+
+describe("edge point tolerance", () => {
+  it("ignores sub-pixel floating-point drift in connector points but repairs real bends", () => {
+    const { elements, rootId } = sample();
+    // 小数座標に置いた木（テンプレート挿入の sceneCenter など）を置き直しても、誤差だけではパッチを作らない。
+    const shifted = elements.map((element) => ({ ...element, x: element.x + 10.1, y: element.y + 20.3 }));
+    const laidOut = compose(shifted, { patches: new Map(), added: [], restored: [] }, [rootId]);
+    const edge = edgeOf(laidOut, "n2");
+    const drifted = laidOut.map((element) => (element.id === edge.id
+      ? { ...element, points: (element.points as [number, number][]).map(([px, py]) => [px + 1e-12, py - 1e-12]) }
+      : element));
+    expect(relayoutMindmap(drifted, rootId).patches.size).toBe(0);
+    // 0.5px 以上ずれた折れ線は元に戻す。
+    const bent = laidOut.map((element) => (element.id === edge.id
+      ? { ...element, points: (element.points as [number, number][]).map(([px, py], i) => (i === 1 ? [px, py + 12] : [px, py])) }
+      : element));
+    expect(relayoutMindmap(bent, rootId).patches.has(edge.id)).toBe(true);
   });
 });
 

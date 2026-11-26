@@ -36,8 +36,8 @@ import { WhiteboardMinimap } from "@/components/whiteboard/whiteboard-minimap";
 import type { MentionPage } from "@/components/note-mention";
 import { applyMindmapChange, fitMindmapNodeToText, MindmapOverlay, templateLabels, WhiteboardTemplateStart, type MindmapOverlayModel } from "@/components/whiteboard/whiteboard-mindmap";
 import {
-  addMindmapChild, addMindmapSibling, collapsedMindmapNodes, collapseMindmapNode, deleteMindmapNodes, exceedsWhiteboardLimit, expandMindmapNode, findMindmapNode,
-  includesMindmapNode, liveMindmapNodeIds, mindmapCutExtras, mindmapDropTarget, mindmapFinder, mindmapRemovalCleanup, mindmapRootsOf, mindmapSelection,
+  addMindmapChild, addMindmapSibling, collapsedMindmapNodes, collapseMindmapNode, deleteMindmapNodes, exceedsWhiteboardLimit, expandMindmapNode, expandWithFrameChildren,
+  findMindmapNode, includesMindmapNode, liveMindmapNodeIds, mindmapCutExtras, mindmapDropTarget, mindmapFinder, mindmapRemovalCleanup, mindmapRootsOf, mindmapSelection,
   remapMindmapDuplicateScene, reparentMindmapNode, setMindmapDirection,
   type MindmapChange, type SceneElement,
 } from "@/lib/whiteboard/mindmap/editing";
@@ -712,7 +712,9 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   const finishMindmapGesture = useCallback((ids: string[], dragged: boolean) => {
     if (!api || !mounted.current || !editableRef.current) return;
     const elements = asScene(api.getSceneElements());
-    if (!includesMindmapNode(elements, ids)) return;
+    // 枠を動かした・大きさを変えたときも、枠の中にある思考マップを置き直す（はみ出て枠の外にある子孫を置き去りにしない・収まらない節を枠から外す）。
+    const affected = expandWithFrameChildren(elements, ids);
+    if (!includesMindmapNode(elements, affected)) return;
     const selection = mindmapSelection(elements, ids);
     if (dragged && selection && !selection.isRoot) {
       const target = mindmapDropTarget(elements, selection.nodeId);
@@ -720,7 +722,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
       // 落とした先を広げられない（要素の上限）ときは、下の置き直しで元の場所に戻す。
       if (change && runMindmap({ ...change, select: selection.nodeId }, [], { capture: false })) return;
     }
-    runMindmap(noChange(), mindmapRootsOf(elements, ids), { capture: false });
+    runMindmap(noChange(), mindmapRootsOf(elements, affected), { capture: false });
   }, [api, runMindmap]);
   const finishMindmapTextEdit = useCallback((textId: string) => {
     if (!api || !mounted.current || !editableRef.current) return;
@@ -761,6 +763,8 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   }, [api]);
   // Excalidraw の削除（ほかの図形と一緒に選んだとき）・切り取り・消しゴムで節が消えたら、子孫と線も片付ける。場面が変わるたびに
   // onStateChange（取り消しの記録を作る直前）で見るので、消した操作と同じ 1 回の取り消しになる。
+  const historyReplay = useRef(false);
+  useEffect(() => actions?.onHistoryReplay(() => { historyReplay.current = true; }), [actions]);
   useEffect(() => {
     if (!api) return;
     let topics = liveMindmapNodeIds(asScene(api.getSceneElementsIncludingDeleted()));
@@ -771,6 +775,8 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
         // Excalidraw の描き直しの途中なので、失敗しても投げない。
         try {
           if (!mounted.current) return;
+          const replaying = historyReplay.current;
+          historyReplay.current = false;
           // 描いている・動かしている間は節が消えないので、点や位置が変わるたびには読み直さない。
           const appState = api.getAppState();
           if (appState.newElement || appState.selectedElementsAreBeingDragged || appState.isResizing) return;
@@ -778,6 +784,11 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
           const version = `${getSceneVersion(elements)}|${elements.length}`;
           if (version === seen) return;
           seen = version;
+          // 取り消し・やり直しは Excalidraw が戻した場面をそのまま残す（片付けや置き直しで別の線を足さない）。
+          if (replaying) {
+            topics = liveMindmapNodeIds(asScene(elements));
+            return;
+          }
           const cleanup = editableRef.current ? mindmapRemovalCleanup(asScene(elements), topics) : null;
           topics = liveMindmapNodeIds(asScene(elements));
           if (!cleanup) return;
