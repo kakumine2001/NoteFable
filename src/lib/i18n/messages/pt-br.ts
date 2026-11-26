@@ -906,6 +906,7 @@ export const ptBR: Record<string, string> = {
   "Portrait": "Retrato",
   "Generating…": "Gerando…",
   "Generate": "Gerar",
+  "Generate again": "Gerar novamente",
   "Report image": "Denunciar imagem",
   "Report sent": "Denúncia enviada",
   "Thanks. We’ll review this image.": "Obrigado. Vamos analisar esta imagem.",

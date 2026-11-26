@@ -39,7 +39,7 @@
 
 - **上传 / 粘贴**：和笔记一样传到 `POST /api/pages/files`（note-files，按套餐的存储上限），保存时由 `claimStoredFiles` 设为使用中。
 - **聊天里的图片**：`GET /api/pages/chat-images` 列出本人聊天里（当前显示的分支，`active: true`）的图片附件（发送的照片和 AI 生成的图，新的在前，最多 60 张），`POST /api/pages/chat-images { attachmentId }` 把那一张复制成 note-files 并返回 URL。预览走 `/api/attachments/:id/image`（检查所有者）。
-- **AI 生成**：`POST /api/pages/images { prompt, size }`（`1536x1024` / `1024x1024` / `1024x1536`），和聊天的图片生成一样用 OpenAI `/images/generations`（共用 `src/lib/image-generation.ts`），计一次图片生成次数（失败退回）、先检查存储空间，结果存成 note-files（笔记文件经函数返回，Vercel 的响应上限是 4.5 MB，所以超过 4 MiB 的 PNG 转成 WebP、必要时缩小）。不留在聊天记录里。
+- **AI 生成**：`POST /api/pages/images { prompt, size }`（`1536x1024` / `1024x1024` / `1024x1536`），共用 `WorkspaceImageDialog`（与笔记、白板一致：生成后先展示预览，支持修改描述重新生成或点击插入/替换），和聊天的图片生成一样用 OpenAI `/images/generations`（共用 `src/lib/image-generation.ts`），计一次图片生成次数（失败退回）、先检查存储空间，结果存成 note-files（笔记文件经函数返回，Vercel 的响应上限是 4.5 MB，所以超过 4 MiB 的 PNG 转成 WebP、必要时缩小）。不留在聊天记录里。入口包括工具栏图片菜单、右侧图片检查器与页面 AI 面板的“＋”菜单。
 - **举报 AI 图片**：AI 生成的图片元素右键菜单有 “Report image”，发 `POST /api/reports { pageId, elementId, reason }`；服务端在本人未删除的幻灯片里找到这个带 `generated` 的元素，把说明（prompt）和文件路径发到开发者邮箱（`slideImageReportEmail`，`src/lib/answer-report.ts`），和回答的举报共用每日次数。
 
 ## 放映

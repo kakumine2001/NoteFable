@@ -906,6 +906,7 @@ export const ko: Record<string, string> = {
   "Portrait": "세로",
   "Generating…": "생성 중…",
   "Generate": "생성",
+  "Generate again": "다시 생성",
   "Report image": "이미지 신고",
   "Report sent": "신고를 보냈습니다",
   "Thanks. We’ll review this image.": "감사합니다. 이 이미지를 검토하겠습니다.",

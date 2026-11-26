@@ -906,6 +906,7 @@ export const id: Record<string, string> = {
   "Portrait": "Potret",
   "Generating…": "Membuat…",
   "Generate": "Buat",
+  "Generate again": "Buat lagi",
   "Report image": "Laporkan gambar",
   "Report sent": "Laporan terkirim",
   "Thanks. We’ll review this image.": "Terima kasih. Kami akan meninjau gambar ini.",

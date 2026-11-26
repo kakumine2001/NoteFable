@@ -906,6 +906,7 @@ export const it: Record<string, string> = {
   "Portrait": "Verticale",
   "Generating…": "Generazione…",
   "Generate": "Genera",
+  "Generate again": "Genera di nuovo",
   "Report image": "Segnala immagine",
   "Report sent": "Segnalazione inviata",
   "Thanks. We’ll review this image.": "Grazie. Esamineremo questa immagine.",

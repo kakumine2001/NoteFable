@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, History, Image as ImageIcon, Paperclip, SquarePen, X, Zap } from "lucide-react";
+import { ArrowUp, History, Image as ImageIcon, Paperclip, SquarePen, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent, type UIEvent } from "react";
 import { createPortal } from "react-dom";
 import { AppIcon } from "@/components/app-icon";
@@ -200,7 +200,7 @@ async function streamChat(
 // ページは、編集案の Apply を押すまで変わらない（チャットと同じ仕組み）。「自動適用」を入れると、編集案はすぐ適用され、カードから元に戻せる。
 // 入力欄はチャットと同じ機能を持つ：「＋」メニュー（ファイル・写真、ノートの添付）とモデル選択。画像の作成だけは置かない（ページの編集には使わない）。
 // ホワイトボード・スライドのエディターは、選んだ要素・スライドを selection（文字と ID）で渡す。
-export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: noteTitle, model, reasoning, onModelChange, onReasoningChange, flush, embedded = false, selection = null, onClearSelection, openSignal = 0, hidden = false, quickActions, selectionActions, anchor = null }: {
+export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: noteTitle, model, reasoning, onModelChange, onReasoningChange, flush, embedded = false, selection = null, onClearSelection, openSignal = 0, hidden = false, quickActions, selectionActions, anchor = null, onGenerateImage }: {
   pageId: string;
   pageKind?: PageKind;
   pageTitle: string;
@@ -225,6 +225,8 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
   selectionActions?: readonly QuickAction[];
   // エディターが用意したボタンの置き場所（CanvasEditorProps.aiSlot の目印）。動かしていないボタンはここに重ねる。
   anchor?: HTMLElement | null;
+  // 「＋」メニューからページの画像生成ダイアログを開く（編集できるときだけ渡す）。
+  onGenerateImage?: () => void;
 }) {
   const { t, tag, dir } = useI18n();
   // 提案カードに、このパネルのページを伝える（そのページへの「開く」は出さない）。
@@ -964,10 +966,6 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
       <header className="note-ai-header">
         <AppIcon size={24} state={replyCharacterState} animated={replyCharacterState !== "idle" && replyCharacterState !== "hidden"} />
         <span className="note-ai-title" title={noteTitle}>{chatTitle || t(kindText.title)}</span>
-        {/* 「自動適用」：入れると AI の編集案をすぐ適用する（ページの履歴に残り、カードから元に戻せる）。 */}
-        {editable && <button type="button" className={`notion-icon-button grid note-ai-auto ${autoApplyOn ? "is-active" : ""}`} aria-pressed={autoApplyOn}
-          aria-label={t("Auto-apply")} title={autoApplyOn ? t("Auto-apply is on: AI changes are applied right away. You can undo them.") : t("Auto-apply AI changes (you can undo them)")}
-          onClick={() => { const next = !autoApplyOn; setAutoApply(next); saveAutoApply(pageKind, next); }}><Zap size={16} /></button>}
         <button type="button" className={`notion-icon-button grid ${historyOpen ? "is-active" : ""}`} aria-label={t(kindText.history)} title={t(kindText.history)} aria-pressed={historyOpen}
           onClick={() => { if (!historyOpen) { setHistoryOpenedAt(Date.now()); void loadChats(); } setHistoryOpen(!historyOpen); }}><History size={16} /></button>
         <button type="button" className="notion-icon-button grid" disabled={busy || (!chatId && messages.length === 0 && !historyOpen && !loadingChat)} aria-label={t("New chat")} title={t("New chat")} onClick={newChat}><SquarePen size={16} /></button>
@@ -1096,8 +1094,25 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
             placeholder={t(kindText.placeholder)} aria-label={t("Instruction for the AI")} className="note-ai-input" />
           <div className="note-ai-tools">
             <AttachMenu className="relative" backToClose={phone} disabled={busy} onFilesChange={(event) => { addFiles(Array.from(event.target.files ?? [])); event.target.value = ""; }}
-              onAttachPages={() => setPageDialogOpen(true)} />
+              onAttachPages={() => setPageDialogOpen(true)}
+              onGenerateImage={onGenerateImage ? () => { if (phone) close(); onGenerateImage(); } : undefined} />
             {onModelChange && onReasoningChange && <ModelSelect value={model} reasoning={reasoning} onModelChange={onModelChange} onReasoningChange={onReasoningChange} />}
+            {/* 「自動適用」：モデル選択の隣に置くコンパクトなスイッチ。色だけでなくつまみの位置で ON/OFF が一目で分かる。 */}
+            {editable && (
+              <button
+                type="button"
+                role="switch"
+                aria-checked={autoApplyOn}
+                className={`note-ai-auto ${autoApplyOn ? "is-active" : ""}`}
+                title={autoApplyOn ? t("Auto-apply is on: AI changes are applied right away. You can undo them.") : t("Auto-apply AI changes (you can undo them)")}
+                onClick={() => { const next = !autoApplyOn; setAutoApply(next); saveAutoApply(pageKind, next); }}
+              >
+                <span className="note-ai-auto-label">{t("Auto-apply")}</span>
+                <span className="note-ai-auto-track" data-on={autoApplyOn} aria-hidden="true">
+                  <span className="note-ai-auto-thumb" />
+                </span>
+              </button>
+            )}
             <button type="submit" className="note-ai-send" disabled={busy || loadingChat || !input.trim() || Boolean(uploadError)} aria-label={t("Send")}><ArrowUp size={16} /></button>
           </div>
         </div>

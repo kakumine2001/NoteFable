@@ -2,9 +2,10 @@ import SwiftUI
 
 /// 空白聊天页输入栏上方的「最近编辑」（Android ui/ChatRecentNotes.kt；网页 412×915 下实测）：
 /// 标题行（13 / 600 灰，右边"全部笔记" 13 灰 + ChevronRight 14，触控区高 48），下面一排可以横向滚动的卡片（间距 8）。
-/// 卡片 152×101、圆角 14.4、白底 1px 描边、内边距 11×13、行距 4：32 的图标格（圆角 8、浅底；表情 16 或页面类型图标 18）、
-/// 标题 14 / 600 单行、状态 12 灰（"添加" / ✓ "已添加"）。点卡片把笔记加到下一条消息（再点取消），已添加的是浅蓝底蓝描边；
-/// 加满了、或正在上传附件时没添加的变淡（.55）不能点。右上角 48 的 ↗ 打开那篇笔记。
+/// 卡片固定 152×108、圆角 14.4、白底 1px 描边：顶上 32 的封面条（有封面显示封面，没有就是页面类型色的渐变），
+/// 32 的图标格（白底描边、圆角 8；表情 16 或页面类型图标 17）压在封面条下沿 16，下面标题 14 / 600 单行、
+/// 底部状态 12 灰（"添加" / ✓ "已添加"）。有没有封面、哪种页面，卡片都一样大。点卡片把笔记加到下一条消息（再点取消），
+/// 已添加的是浅蓝底蓝描边；加满了、或正在上传附件时没添加的变淡（.55）不能点。右上角 48 的触控区里是 26 的 ↗ 圆钮，打开那篇笔记。
 struct ChatRecentNotes: View {
     let pages: [NotePageSummary]
     let selected: [ChatProjectNote]
@@ -68,29 +69,21 @@ private struct ChatRecentNoteCard: View {
     var body: some View {
         let title = page.title.isEmpty ? L("sb_untitled") : page.title
         let shape = RoundedRectangle(cornerRadius: 14.4)
-        let hasCover = NoteCovers.preset(page.cover) != nil || NoteCovers.imagePath(page.cover) != nil
+        let iconShape = RoundedRectangle(cornerRadius: 8)
         Button(action: onToggle) {
+            // 每张卡都有同样的封面条和固定尺寸，有没有封面都对齐（网页 .chat-recent .notes-recent-card）。
             VStack(alignment: .leading, spacing: 0) {
-                if hasCover {
-                    NoteCoverBanner(cover: page.cover, coverPosition: page.coverPosition, kind: page.kind)
-                        .frame(height: 32)
-                        .overlay(alignment: .bottom) { NFDivider() }
-                }
-                VStack(alignment: .leading, spacing: 4) {
-                    Group {
-                        NoteIconGlyph(page.icon, emojiSize: 16, iconSize: 17, color: pageKindColor(page.kind), kind: page.kind)
-                    }
-                    .frame(width: 32, height: 32)
-                    .background(hasCover ? Sm.surface : (page.icon != nil ? Sm.hover : pageKindSoft(page.kind)), in: RoundedRectangle(cornerRadius: 8))
-                    .overlay {
-                        if hasCover { RoundedRectangle(cornerRadius: 8).strokeBorder(Sm.border, lineWidth: 1) }
-                    }
-                    .padding(.top, hasCover ? -16 : 0)
+                NoteCoverBanner(cover: page.cover, coverPosition: page.coverPosition, kind: page.kind)
+                    .frame(height: 32)
+                    .overlay(alignment: .bottom) { NFDivider() }
+                // 图标压住封面条 16，标题从图标下面 4 开始。
+                VStack(alignment: .leading, spacing: 0) {
                     Text(title)
                         .font(.nf(14, weight: 600))
                         .nfLineHeight(21, fontSize: 14)
                         .foregroundStyle(Sm.text)
                         .lineLimit(1)
+                    Spacer(minLength: 0)
                     HStack(spacing: 4) {
                         if attached { LucideIcon(Lucide.check, size: 12, color: Sm.muted) }
                         Text(L(attached ? "note_attached" : "attach_pages_submit"))
@@ -100,12 +93,21 @@ private struct ChatRecentNoteCard: View {
                             .lineLimit(1)
                     }
                 }
-                .padding(.horizontal, 13)
-                .padding(.top, hasCover ? 0 : 11)
-                .padding(.bottom, 11)
+                .padding(.horizontal, 12)
+                .padding(.top, 20)
+                .padding(.bottom, 10)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
-            .frame(width: 152, alignment: .leading)
-            .frame(minHeight: 101, alignment: .top)
+            .overlay(alignment: .topLeading) {
+                NoteIconGlyph(page.icon, emojiSize: 16, iconSize: 17, color: pageKindColor(page.kind), kind: page.kind)
+                    .frame(width: 32, height: 32)
+                    .background(Sm.surface, in: iconShape)
+                    .overlay { iconShape.strokeBorder(Sm.border, lineWidth: 1) }
+                    .shadow(color: Color(argb: 0x120F172A), radius: 2, x: 0, y: 1)
+                    .padding(.leading, 12)
+                    .padding(.top, 16)
+            }
+            .frame(width: 152, height: 108, alignment: .topLeading)
             .background {
                 // 白底上叠选中的浅蓝；1dp 的投影。
                 shape.fill(Sm.surface)
@@ -121,23 +123,19 @@ private struct ChatRecentNoteCard: View {
         .accessibilityLabel(title)
         .accessibilityAddTraits(attached ? .isSelected : [])
         .overlay(alignment: .topTrailing) {
-            if hasCover {
-                Button(action: onOpen) {
-                    LucideIcon(Lucide.arrowUpRight, size: 14, color: Sm.muted)
-                        .frame(width: 26, height: 26)
-                        .background(Sm.surface.opacity(0.86), in: Circle())
-                        .overlay { Circle().strokeBorder(Sm.border, lineWidth: 1) }
-                }
-                .buttonStyle(.pressable(cornerRadius: 13))
-                .accessibilityLabel(L("open_note_title", title))
-                .padding(5)
-            } else {
-                NFIconButton(
-                    Lucide.arrowUpRight, label: L("open_note_title", title), size: 48, iconSize: 16, cornerRadius: 12,
-                    action: onOpen
-                )
-                .padding(1)
+            // 48 的触控区，看得见的是封面条上 26 的圆钮。
+            Button(action: onOpen) {
+                LucideIcon(Lucide.arrowUpRight, size: 14, color: Sm.muted)
+                    .frame(width: 26, height: 26)
+                    .background(Sm.surface.opacity(0.86), in: Circle())
+                    .overlay { Circle().strokeBorder(Sm.border, lineWidth: 1) }
+                    .padding(4)
+                    .frame(width: 48, height: 48, alignment: .topTrailing)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.pressable(pressedBackground: nil, cornerRadius: 13, scale: 0.92))
+            .accessibilityLabel(L("open_note_title", title))
+            .padding(1)
         }
     }
 }

@@ -907,6 +907,7 @@ export const ja: Record<string, string> = {
   "Portrait": "縦長",
   "Generating…": "生成中…",
   "Generate": "生成",
+  "Generate again": "もう一度生成",
   "Report image": "画像を報告",
   "Report sent": "報告を送信しました",
   "Thanks. We’ll review this image.": "ありがとうございます。この画像を確認します。",

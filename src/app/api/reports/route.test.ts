@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ currentUser: vi.fn(), find: vi.fn(), findProposal: vi.fn(), findPage: vi.fn(), readCanvas: vi.fn(), consume: vi.fn(), refund: vi.fn(), send: vi.fn() }));
+const mocks = vi.hoisted(() => ({ currentUser: vi.fn(), find: vi.fn(), findProposal: vi.fn(), findPage: vi.fn(), findPageImage: vi.fn(), readCanvas: vi.fn(), consume: vi.fn(), refund: vi.fn(), send: vi.fn() }));
 vi.mock("@/lib/auth", () => ({
   getOrCreateUser: mocks.currentUser,
   isAccountUser: (user: { googleSub: string | null; verifiedEmail?: string | null }) => Boolean(user.googleSub || user.verifiedEmail),
@@ -11,6 +11,7 @@ vi.mock("@/lib/answer-report", async (load) => ({
   findReportedAnswer: mocks.find,
   findReportedProposal: mocks.findProposal,
   findReportedPage: mocks.findPage,
+  findReportedPageImage: mocks.findPageImage,
   sendReport: mocks.send,
 }));
 vi.mock("@/lib/canvas-store", () => ({ readCanvasData: mocks.readCanvas }));
@@ -116,6 +117,24 @@ describe("POST /api/reports", () => {
     expect((await POST(post({ pageId: "other", elementId: "img1" }))).status).toBe(404);
     expect(mocks.findPage).not.toHaveBeenCalled();
     expect(mocks.send).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports a generated workspace image on a note or whiteboard using a verified report token", async () => {
+    const path = "note-files/u1/00000000-0000-4000-8000-000000000001.png";
+    const reportToken = "signed-report-token";
+    mocks.findPageImage.mockResolvedValueOnce({ pageId: "n1", pageKind: "note", path, prompt: "A misty forest" });
+    expect((await POST(post({ pageId: "n1", reportToken, reason: "Inappropriate" }))).status).toBe(200);
+    expect(mocks.findPageImage).toHaveBeenCalledWith("u1", "n1", reportToken);
+    const email = mocks.send.mock.calls[0][0] as { subject: string; text: string };
+    expect(email.subject).toContain("n1");
+    expect(email.text).toContain("Page: n1 (note)");
+    expect(email.text).toContain("A misty forest");
+    expect(email.text).toContain(path);
+    expect(email.text).toContain("Reason: Inappropriate");
+
+    mocks.findPageImage.mockResolvedValueOnce(null);
+    expect((await POST(post({ pageId: "n1", reportToken }))).status).toBe(404);
+    expect((await POST(post({ pageId: "n1", elementId: "img1", reportToken }))).status).toBe(400);
   });
 
   it("rejects bad bodies, other sites and too many reports", async () => {
