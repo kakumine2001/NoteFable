@@ -67,6 +67,53 @@ export function mindmapDataOf(customData: unknown): MindmapData | null {
   };
 }
 
+// 畳んだ節が預かっている子孫の文字を、木の順（親 → 子、兄弟は order）に並べる。AI が読む文字に使う（白板に無いので、
+// 要素の並びからは読めない）。depth は畳んだ節の子が 1。節に付かない文字（線の文字など）は最後に depth 1 で並べる。
+export function mindmapStashOutline(nodeId: string, customData: unknown): { depth: number; text: string }[] {
+  const mark = mindmapDataOf(customData);
+  if (mark?.role !== "node" || !mark.stash) return [];
+  const textOfElement = (element: StashedElement) => {
+    const raw = typeof element.originalText === "string" && element.originalText.trim() ? element.originalText : element.text;
+    return typeof raw === "string" ? raw.trim() : "";
+  };
+  const nodes = new Map<string, MindmapNodeData>();
+  for (const element of mark.stash) {
+    const data = mindmapDataOf(element.customData);
+    if (data?.role === "node") nodes.set(element.id, data);
+  }
+  // 持ち主（付いている節、または自分）ごとの文字。
+  const texts = new Map<string, string[]>();
+  for (const element of mark.stash) {
+    const text = textOfElement(element);
+    if (!text) continue;
+    const owner = typeof element.containerId === "string" ? element.containerId : element.id;
+    const list = texts.get(owner);
+    if (list) list.push(text);
+    else texts.set(owner, [text]);
+  }
+  const children = new Map<string, string[]>();
+  for (const [id, data] of [...nodes].sort(([, a], [, b]) => a.order - b.order)) {
+    const parent = data.parent !== null && nodes.has(data.parent) ? data.parent : nodeId;
+    const list = children.get(parent);
+    if (list) list.push(id);
+    else children.set(parent, [id]);
+  }
+  const out: { depth: number; text: string }[] = [];
+  const emit = (owner: string, depth: number) => {
+    for (const text of texts.get(owner) ?? []) out.push({ depth, text });
+    texts.delete(owner);
+  };
+  const stack = (children.get(nodeId) ?? []).map((id) => ({ id, depth: 1 })).reverse();
+  while (stack.length) {
+    const { id, depth } = stack.pop()!;
+    emit(id, depth);
+    const next = children.get(id) ?? [];
+    for (let index = next.length - 1; index >= 0; index--) stack.push({ id: next[index], depth: depth + 1 });
+  }
+  for (const owner of [...texts.keys()]) emit(owner, 1);
+  return out;
+}
+
 // 節の数（根を含む）。
 export function countMindmapNodes(root: MindmapTreeNode) {
   let count = 0;
