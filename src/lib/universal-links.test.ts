@@ -1,14 +1,22 @@
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import nextConfig from "../../next.config";
 import { config as proxyConfig } from "../proxy";
+import { routeLocalizedRequest } from "./i18n/routing";
 
-const AASA_PATH = path.resolve(process.cwd(), "public/.well-known/apple-app-site-association");
+const require = createRequire(import.meta.url);
+const { pathToRegexp } = require("next/dist/compiled/path-to-regexp") as {
+  pathToRegexp: (pattern: string) => RegExp;
+};
+
+const AASA_URL_PATH = "/.well-known/apple-app-site-association";
+const AASA_FILE_PATH = path.resolve(process.cwd(), "public/.well-known/apple-app-site-association");
 
 describe("iOS Universal Links (apple-app-site-association)", () => {
   it("provides a valid AASA document matching only single-segment /c/<id> conversation share links", () => {
-    const raw = readFileSync(AASA_PATH, "utf8");
+    const raw = readFileSync(AASA_FILE_PATH, "utf8");
     expect(Buffer.byteLength(raw, "utf8")).toBeLessThan(128 * 1024);
 
     const parsed = JSON.parse(raw) as {
@@ -31,7 +39,7 @@ describe("iOS Universal Links (apple-app-site-association)", () => {
 
   it("serves the extensionless AASA file with application/json Content-Type", async () => {
     const rules = (await nextConfig.headers?.()) ?? [];
-    const rule = rules.find((item) => item.source === "/.well-known/apple-app-site-association");
+    const rule = rules.find((item) => item.source === AASA_URL_PATH);
     expect(rule).toBeDefined();
     expect(rule?.headers).toContainEqual({
       key: "Content-Type",
@@ -39,8 +47,27 @@ describe("iOS Universal Links (apple-app-site-association)", () => {
     });
   });
 
-  it("does not intercept /.well-known/apple-app-site-association in proxy matcher", () => {
-    expect(proxyConfig.matcher).not.toContain("/.well-known/apple-app-site-association");
-    expect(proxyConfig.matcher).not.toContain("/.well-known/:path*");
+  it("is not intercepted by proxy matchers or localized routing", () => {
+    const matched = proxyConfig.matcher.some((entry) => {
+      const pattern = typeof entry === "string" ? entry : (entry as { source: string }).source;
+      return pathToRegexp(pattern).test(AASA_URL_PATH);
+    });
+    expect(matched).toBe(false);
+
+    const route = routeLocalizedRequest(
+      {
+        url: `https://app.notefable.com${AASA_URL_PATH}`,
+        cookie: () => undefined,
+        header: () => null,
+      },
+      {
+        site: "https://notefable.com",
+        app: "https://app.notefable.com",
+        siteHost: "notefable.com",
+        appHost: "app.notefable.com",
+        cookieDomain: "notefable.com",
+      },
+    );
+    expect(route.kind).toBe("none");
   });
 });
