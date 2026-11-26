@@ -91,6 +91,16 @@ describe("POST /api/reports", () => {
     const email = mocks.send.mock.calls[0][0] as { text: string };
     expect(email.text).toContain("Cells are rude");
     expect(email.text).toContain("prop1: created");
+
+    // AI-generated slide decks (aiUpdatedAt set, no proposals) are also reportable.
+    mocks.findPage.mockResolvedValueOnce({
+      id: "deck1", kind: "slides", title: "AI Deck", aiUpdatedAt: new Date("2026-11-26T00:00:00Z"), text: "Slide 1", proposals: [],
+    });
+    expect((await POST(post({ pageId: "deck1", reason: "Bad deck" }))).status).toBe(200);
+    const deckEmail = mocks.send.mock.calls[1][0] as { text: string };
+    expect(deckEmail.text).toContain("Page: deck1 (slides)");
+    expect(deckEmail.text).toContain("Generate slides");
+
     mocks.findPage.mockResolvedValueOnce(null);
     expect((await POST(post({ pageId: "gone" }))).status).toBe(404);
     // 対象は 1 つだけ。
@@ -117,6 +127,47 @@ describe("POST /api/reports", () => {
     expect((await POST(post({ pageId: "other", elementId: "img1" }))).status).toBe(404);
     expect(mocks.findPage).not.toHaveBeenCalled();
     expect(mocks.send).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports an AI image on the user's own whiteboard with its prompt and storage path", async () => {
+    const ownedPath = "note-files/u1/00000000-0000-4000-8000-000000000002.png";
+    const foreignPath = "note-files/other/00000000-0000-4000-8000-000000000003.png";
+    const ownedUrl = `/api/pages/files?key=${encodeURIComponent(ownedPath)}&name=ai-image.png`;
+    const foreignUrl = `/api/pages/files?key=${encodeURIComponent(foreignPath)}&name=ai-image.png`;
+    mocks.readCanvas.mockResolvedValue({
+      elements: [
+        { id: "wb-img-1", type: "image", fileId: "f1", customData: { generated: { prompt: "Sketch turned into watercolor castle" } } },
+        { id: "wb-img-plain", type: "image", fileId: "f1" },
+        { id: "wb-img-deleted", type: "image", fileId: "f1", isDeleted: true, customData: { generated: { prompt: "Deleted" } } },
+        { id: "wb-img-foreign", type: "image", fileId: "f2", customData: { generated: { prompt: "Foreign" } } },
+        { id: "wb-rect", type: "rectangle", customData: { generated: { prompt: "Not an image" } } },
+      ],
+      files: {
+        f1: { id: "f1", mimeType: "image/png", dataURL: ownedUrl },
+        f2: { id: "f2", mimeType: "image/png", dataURL: foreignUrl },
+      },
+    });
+
+    expect((await POST(post({ pageId: "wb1", elementId: "wb-img-1", reason: "Broken rendering" }))).status).toBe(200);
+    expect(mocks.readCanvas).toHaveBeenCalledWith("u1", "wb1");
+    const email = mocks.send.mock.calls[0][0] as { subject: string; text: string };
+    expect(email.subject).toContain("Reported whiteboard image wb1/wb-img-1");
+    expect(email.text).toContain("Whiteboard: wb1");
+    expect(email.text).toContain("Image element: wb-img-1");
+    expect(email.text).toContain("Sketch turned into watercolor castle");
+    expect(email.text).toContain(ownedPath);
+    expect(email.text).toContain("Reason: Broken rendering");
+
+    // Non-generated, deleted, foreign-owned file, non-image, missing element, and missing/trashed page are rejected as 404.
+    expect((await POST(post({ pageId: "wb1", elementId: "wb-img-plain" }))).status).toBe(404);
+    expect((await POST(post({ pageId: "wb1", elementId: "wb-img-deleted" }))).status).toBe(404);
+    expect((await POST(post({ pageId: "wb1", elementId: "wb-img-foreign" }))).status).toBe(404);
+    expect((await POST(post({ pageId: "wb1", elementId: "wb-rect" }))).status).toBe(404);
+    expect((await POST(post({ pageId: "wb1", elementId: "missing" }))).status).toBe(404);
+    mocks.readCanvas.mockResolvedValueOnce(null);
+    expect((await POST(post({ pageId: "trashed", elementId: "wb-img-1" }))).status).toBe(404);
+    expect(mocks.send).toHaveBeenCalledTimes(1);
+    expect(mocks.consume).toHaveBeenCalledTimes(1);
   });
 
   it("reports a generated workspace image on a note or whiteboard using a verified report token", async () => {

@@ -89,4 +89,5 @@
     <string name="proposal_op_elements">%1$s · %2$s तत्व</string>
     <string name="proposal_before">पहले</string>
     <string name="proposal_after">बाद में</string>
+    <string name="proposal_view_preview">पूर्वावलोकन देखें</string>
 </resources>

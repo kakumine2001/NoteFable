@@ -85,6 +85,10 @@ struct RootView: View {
         // 「画成图」的进度窗口：回答的菜单（聊天）和笔记的菜单（编辑页）都从这里开。
         .drawDiagramDialog()
         .noteTrashSheet()
+        // 画布提案（白板 / 幻灯片）改前・改后可视化预览弹层。
+        .sheet(item: $router.previewProposal) { proposal in
+            ProposalPreviewSheet(proposal: proposal)
+        }
         .nfOverlayHost()
         // 提示条按当前标签页量到的底部遮挡（标签栏 + 悬浮底栏）摆放，宽屏常驻侧栏展开时在详情栏中水平居中；全屏向导盖住整窗时不偏移。
         .toastHost(

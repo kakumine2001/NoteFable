@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Flag, LoaderCircle, RefreshCw, Sparkles } from "lucide-react";
+import { Check, Flag, ImagePlus, LoaderCircle, RefreshCw } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { GuestLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
 import { useT } from "@/components/i18n-provider";
@@ -21,6 +21,7 @@ export function WorkspaceImageDialog({
   embedded = false,
   mode = "insert",
   defaultSize = "1536x1024",
+  referenceImage,
   onInsert,
   onClose,
 }: {
@@ -29,6 +30,7 @@ export function WorkspaceImageDialog({
   embedded?: boolean;
   mode?: "insert" | "replace";
   defaultSize?: GenerateImageSize;
+  referenceImage?: { blob: Blob; previewUrl: string };
   onInsert: (image: PageImage) => void;
   onClose: () => void;
 }) {
@@ -37,7 +39,8 @@ export function WorkspaceImageDialog({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const insertButtonRef = useRef<HTMLButtonElement>(null);
   const { account } = useAccount();
-  const draftScope = `workspace-image:${pageKind}:${pageId}`;
+  const isSketch = Boolean(referenceImage);
+  const draftScope = `${isSketch ? "workspace-sketch-image" : "workspace-image"}:${pageKind}:${pageId}`;
   const [prompt, setPrompt] = useState(() => takePendingDraft(draftScope));
   const [size, setSize] = useState<GenerateImageSize>(defaultSize);
   const [busy, setBusy] = useState(false);
@@ -79,14 +82,16 @@ export function WorkspaceImageDialog({
 
   async function generate() {
     const trimmed = prompt.trim();
-    if (!trimmed || busy) return;
+    if ((!trimmed && !isSketch) || busy) return;
     setBusy(true);
     setError("");
     setUsageLimit(null);
     setReportOpen(false);
     setReportError("");
     try {
-      const image = await generatePageImage(trimmed, size);
+      const image = referenceImage
+        ? await generatePageImage(trimmed, size, { referenceImage: referenceImage.blob })
+        : await generatePageImage(trimmed, size);
       if (!dialogMountedRef.current) return;
       limitHitRef.current = false;
       savePendingDraft(draftScope, "", { persistent: embedded });
@@ -165,6 +170,8 @@ export function WorkspaceImageDialog({
   }
 
   const primaryInsertLabel = mode === "replace" ? t("Replace") : t("Insert");
+  const canGenerate = !busy && (isSketch || Boolean(prompt.trim()));
+  const dialogHeading = isSketch ? t("Turn sketch into image") : t("Generate an image");
 
   return (
     <dialog
@@ -177,21 +184,34 @@ export function WorkspaceImageDialog({
         // ダイアログ内の Delete や矢印キーなどが背後のスライド・ノートエディターのショートカットへ伝播しないように止める。
         if (event.key !== "Escape") event.stopPropagation();
       }}
-      aria-label={t("Generate an image")}
+      aria-label={dialogHeading}
       className="notes-dialog ws-image-dialog"
     >
       <form id={formId} onSubmit={(event) => { event.preventDefault(); void generate(); }}>
-        <h2 className="text-base font-semibold">{t("Generate an image")}</h2>
-        <p className="ws-image-muted">{t("Describe the image. Each image uses one image generation from your plan.")}</p>
+        <h2 className="text-base font-semibold">{dialogHeading}</h2>
+        <p className="ws-image-muted">
+          {isSketch
+            ? t("Add an optional description or style. Each image uses one image generation from your plan.")
+            : t("Describe the image. Each image uses one image generation from your plan.")}
+        </p>
+        {referenceImage && (
+          <div className="ws-image-reference">
+            <span className="ws-image-reference-label">{t("Selected sketch")}</span>
+            {/* eslint-disable-next-line @next/next/no-img-element -- 選択したホワイトボード要素を書き出したローカル PNG プレビュー。 */}
+            <img src={referenceImage.previewUrl} alt={t("Selected sketch")} className="ws-image-reference-img" />
+          </div>
+        )}
         <textarea
           autoFocus={!preview}
           className="notes-dialog-input ws-image-prompt"
-          rows={preview ? 3 : 4}
+          rows={preview || isSketch ? 3 : 4}
           maxLength={4000}
           value={prompt}
           disabled={busy}
           aria-label={t("Image description")}
-          placeholder={t("A watercolor illustration of a lighthouse at dawn")}
+          placeholder={isSketch
+            ? t("Optional: watercolor illustration, clean 3D render, architectural diagram…")
+            : t("A watercolor illustration of a lighthouse at dawn")}
           onChange={(event) => setPrompt(event.target.value)}
           onKeyDown={(event) => {
             if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !event.nativeEvent.isComposing) {
@@ -285,7 +305,7 @@ export function WorkspaceImageDialog({
               type="submit"
               form={formId}
               className="notion-button inline-flex items-center gap-1.5"
-              disabled={busy || !prompt.trim()}
+              disabled={!canGenerate}
             >
               {busy ? <LoaderCircle size={15} className="animate-spin" aria-hidden="true" /> : <RefreshCw size={14} aria-hidden="true" />}
               <span>{busy ? t("Generating…") : t("Generate again")}</span>
@@ -306,9 +326,9 @@ export function WorkspaceImageDialog({
             type="submit"
             form={formId}
             className="notion-button notion-button-primary inline-flex items-center gap-1.5"
-            disabled={busy || !prompt.trim()}
+            disabled={!canGenerate}
           >
-            {busy ? <LoaderCircle size={15} className="animate-spin" aria-hidden="true" /> : <Sparkles size={14} aria-hidden="true" />}
+            {busy ? <LoaderCircle size={15} className="animate-spin" aria-hidden="true" /> : <ImagePlus size={14} aria-hidden="true" />}
             <span>{busy ? t("Generating…") : t("Generate")}</span>
           </button>
         )}

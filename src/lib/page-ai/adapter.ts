@@ -53,6 +53,8 @@ export type EditDraft = {
   changes: ProposalChange[];
   proposed: ProposedContent;
   images?: ProposalImage[];
+  // 変更した要素・スライドの ID（改前/改後プレビューで対象箇所を示すため。画面の提案一覧には載せず content API だけで返す）。
+  focusIds?: string[];
   // この提案のために保存したファイル（チャットの画像の写しなど）。提案を保存できなかったときに消す。
   copiedFiles?: string[];
   // 内容の変わらない編集案。モデルに作り直させる。
@@ -68,6 +70,7 @@ export type CreateDraft = {
   changes?: ProposalChange[];
   proposed: ProposedContent;
   images?: ProposalImage[];
+  focusIds?: string[];
   copiedFiles?: string[];
 };
 

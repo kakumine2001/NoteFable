@@ -364,6 +364,14 @@ class NoteFableApi(
                 (theme?.let { "&theme=" + segment(it) } ?: ""),
         )
 
+    /** 画布提案（白板 / 幻灯片）改前・改后可视化预览页（`/note-embed?proposal=<id>&lang=…&theme=…`）。 */
+    fun proposalPreviewUrl(proposalId: String, lang: String? = null, theme: String? = null): String =
+        absoluteUrl(
+            "/note-embed?proposal=" + segment(proposalId) +
+                (lang?.let { "&lang=$it" } ?: "") +
+                (theme?.let { "&theme=" + segment(it) } ?: ""),
+        )
+
     /**
      * 下载笔记里的文件（`/api/pages/files?key=…`）。文件是私有的，要带 App 的 Cookie，所以不能交给系统浏览器。
      * 拿到响应头后用文件名和类型调用 [target] 要一个输出流，再把内容写进去。服务端出错时抛 [ApiException]。

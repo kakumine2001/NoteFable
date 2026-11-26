@@ -26,7 +26,11 @@ export type SlidesOptions = {
   language: "auto" | Locale;
   wording: SlidesWording;
   theme: DeckTheme;
+  // 各スライドの配図を AI で生成するか（既定は false）。
+  generateImages?: boolean;
 };
+
+export type SlidesWizardOptions = SlidesOptions;
 
 // 表紙は slides に含めない。
 export type SlidesOutline = { title: string; slides: { title: string; points: string[] }[] };
@@ -41,9 +45,10 @@ export const MAX_OUTLINE_SLIDES = MAX_PAGE_COUNT - 1;
 export const MAX_SLIDE_TITLE_CHARS = 200;
 export const MAX_SLIDE_POINTS = 12;
 export const MAX_POINT_CHARS = 500;
+export const MAX_SLIDE_IMAGE_PROMPT_CHARS = 500;
 
 export const DEFAULT_SLIDES_OPTIONS: SlidesOptions = {
-  pageCount: "auto", tone: "auto", audience: "", language: "auto", wording: "condense", theme: { id: "simple", mode: "light" },
+  pageCount: "auto", tone: "auto", audience: "", language: "auto", wording: "condense", theme: { id: "simple", mode: "light" }, generateImages: false,
 };
 
 const object = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
@@ -84,17 +89,19 @@ export function parseOptions(value: unknown): SlidesOptions | null {
   const {
     pageCount = DEFAULT_SLIDES_OPTIONS.pageCount, tone = DEFAULT_SLIDES_OPTIONS.tone, audience = DEFAULT_SLIDES_OPTIONS.audience,
     language = DEFAULT_SLIDES_OPTIONS.language, wording = DEFAULT_SLIDES_OPTIONS.wording, theme = {},
+    generateImages = DEFAULT_SLIDES_OPTIONS.generateImages,
   } = value;
   if (pageCount !== "auto" && !(Number.isInteger(pageCount) && (pageCount as number) >= MIN_PAGE_COUNT && (pageCount as number) <= MAX_PAGE_COUNT)) return null;
   if (!SLIDES_TONES.includes(tone as SlidesTone) || !SLIDES_WORDINGS.includes(wording as SlidesWording)) return null;
   if (typeof audience !== "string" || oneLine(audience).length > MAX_AUDIENCE_CHARS) return null;
   if (language !== "auto" && !isLocale(language)) return null;
+  if (typeof generateImages !== "boolean") return null;
   if (!object(theme)) return null;
   const { id = DEFAULT_SLIDES_OPTIONS.theme.id, mode = DEFAULT_SLIDES_OPTIONS.theme.mode } = theme;
   if (!SLIDE_THEMES.some((entry) => entry.id === id) || (mode !== "light" && mode !== "dark")) return null;
   return {
     pageCount: pageCount as SlidesOptions["pageCount"], tone: tone as SlidesTone, audience: oneLine(audience), language,
-    wording: wording as SlidesWording, theme: { id: id as string, mode },
+    wording: wording as SlidesWording, theme: { id: id as string, mode }, generateImages,
   };
 }
 

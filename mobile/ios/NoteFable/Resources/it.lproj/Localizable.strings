@@ -291,6 +291,7 @@
 "proposal_op_elements" = "%1$s · %2$s elementi";
 "proposal_before" = "Prima";
 "proposal_after" = "Dopo";
+"proposal_view_preview" = "Visualizza anteprima";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "Allega pagine";

@@ -157,6 +157,8 @@ struct NotesUiState: Equatable, Sendable {
     var slidesWizard: SlidesWizardUi? = nil
     /// 全屏向导里撞到使用次数上限（没有打开的编辑器时显示在向导上方）。
     var wizardUsageLimit: UsageLimitInfo? = nil
+    /// 全屏向导里逐页配图撞到文件存储空间上限（没有打开的编辑器时显示在向导上方）。
+    var wizardStorageLimit: StorageLimitInfo? = nil
 
     init(workspace: Workspace = .chat, collapsed: Set<String> = [], expanded: Set<String> = [], collapsedSections: Set<PageKind> = []) {
         self.workspace = workspace

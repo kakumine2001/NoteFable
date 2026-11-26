@@ -89,4 +89,5 @@
     <string name="proposal_op_elements">%1$s・要素 %2$s 個</string>
     <string name="proposal_before">変更前</string>
     <string name="proposal_after">変更後</string>
+    <string name="proposal_view_preview">プレビューを表示</string>
 </resources>

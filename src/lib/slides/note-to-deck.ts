@@ -31,6 +31,8 @@ export type NoteToDeckInput = {
   untitledLabel?: string;
   /** 添付や無題のラベルを現在の UI 言語に合わせるための文言。 */
   labels?: NoteToDeckLabels;
+  /** AI スライド生成で右側に空の画像プレースホルダー（imageText）を確保するとき。 */
+  reservedImage?: { prompt: string };
 };
 
 export type NoteToDeckResult = {
@@ -1324,8 +1326,100 @@ function makeTitleSlide(title: string, subtitle?: RichBlock[]): Slide {
   return slide;
 }
 
-function sectionToSlides(section: SectionSpec, labels: ResolvedLabels): Slide[] {
+function makePendingImagePlaceholder(prompt: string): ImageElement {
+  return {
+    id: newId(),
+    type: "image",
+    x: 1000,
+    y: 140,
+    w: 800,
+    h: 800,
+    rotation: 0,
+    role: "image",
+    src: "",
+    alt: "",
+    fit: "cover",
+    radius: 16,
+    pendingImagePrompt: prompt,
+  };
+}
+
+function sectionToSlides(section: SectionSpec, labels: ResolvedLabels, reservedImage?: { prompt: string }): Slide[] {
   const visibleBody = section.body.filter(blockHasVisibleContent);
+
+  // AI スライド生成で配図を予約したスライド：1 枚目を imageText（左：見出しと本文、右：1:1 の画像枠）で組む。
+  // 左に入りきらない続きがあるときは、2 枚目以降を通常幅の続ページ（(2)…）へ流す。
+  if (reservedImage?.prompt) {
+    const leftW = 820;
+    const leftHeadingLayout = section.heading ? computeHeadingLayout(section.heading, leftW) : null;
+    const leftTop = leftHeadingLayout ? leftHeadingLayout.bodyTop : 112;
+    const leftAvail = Math.max(360, BODY_BOTTOM - leftTop);
+    const placeholder = makePendingImagePlaceholder(reservedImage.prompt);
+    if (!visibleBody.length) {
+      if (!section.heading) return [];
+      const elements: SlideElement[] = [placeholder];
+      if (leftHeadingLayout) elements.push(makeHeadingElement(section.heading, section.headingInline, 1, leftHeadingLayout, leftW));
+      const slide: Slide = { id: newId(), layout: "imageText", elements };
+      if (section.sectionLabel !== undefined) slide.section = section.sectionLabel;
+      return [slide];
+    }
+    const leftItems = blocksToFlowItems(visibleBody, leftW, leftAvail, labels);
+    if (!leftItems.length) {
+      if (!section.heading) return [];
+      const elements: SlideElement[] = [placeholder];
+      if (leftHeadingLayout) elements.push(makeHeadingElement(section.heading, section.headingInline, 1, leftHeadingLayout, leftW));
+      const slide: Slide = { id: newId(), layout: "imageText", elements };
+      if (section.sectionLabel !== undefined) slide.section = section.sectionLabel;
+      return [slide];
+    }
+    const firstItems: FlowItem[] = [];
+    const restItems: FlowItem[] = [];
+    let usedH = 0;
+    for (const item of leftItems) {
+      const gap = firstItems.length ? (isRichFlowItem(item) && isRichFlowItem(firstItems[firstItems.length - 1]) ? 4 : 18) : 0;
+      if (restItems.length || (firstItems.length && usedH + gap + item.height > leftAvail)) {
+        restItems.push(item);
+      } else {
+        firstItems.push(item);
+        usedH += gap + item.height;
+      }
+    }
+    const firstElements: SlideElement[] = [placeholder];
+    if (section.heading && leftHeadingLayout) {
+      firstElements.push(makeHeadingElement(section.heading, section.headingInline, 1, leftHeadingLayout, leftW));
+    }
+    firstElements.push(...layoutFlowItems(firstItems, MARGIN_X, leftTop, leftW, BODY_BOTTOM, firstItems.every(isRichFlowItem) ? "body" : undefined));
+    const firstSlide: Slide = { id: newId(), layout: "imageText", elements: firstElements };
+    if (section.sectionLabel !== undefined) firstSlide.section = section.sectionLabel;
+    if (!restItems.length) return [firstSlide];
+
+    const fullHeadingLayout = section.heading ? computeHeadingLayout(section.heading, CONTENT_W) : null;
+    const bodyTop = fullHeadingLayout ? fullHeadingLayout.bodyTop : BODY_TOP_NO_TITLE;
+    const availH = Math.max(360, BODY_BOTTOM - bodyTop);
+    const extraPages: FlowItem[][] = [];
+    let cur: FlowItem[] = [];
+    let curH = 0;
+    for (const item of restItems) {
+      const gap = cur.length ? (isRichFlowItem(item) && isRichFlowItem(cur[cur.length - 1]) ? 4 : 18) : 0;
+      if (cur.length && curH + gap + item.height > availH) {
+        extraPages.push(cur);
+        cur = [item];
+        curH = item.height;
+      } else {
+        cur.push(item);
+        curH += gap + item.height;
+      }
+    }
+    if (cur.length) extraPages.push(cur);
+    const continuations = extraPages.map((pageItems, idx) => {
+      const elements: SlideElement[] = [];
+      if (section.heading && fullHeadingLayout) elements.push(makeHeadingElement(section.heading, section.headingInline, idx + 2, fullHeadingLayout));
+      const allRich = pageItems.every(isRichFlowItem);
+      elements.push(...layoutFlowItems(pageItems, MARGIN_X, bodyTop, CONTENT_W, BODY_BOTTOM, allRich ? "body" : undefined));
+      return { id: newId(), layout: section.heading && allRich ? "bullets" : "blank", elements } as Slide;
+    });
+    return [firstSlide, ...continuations];
+  }
 
   // 本文なし + 見出しあり → 章（section）スライド。
   if (!visibleBody.length) {
@@ -1476,7 +1570,7 @@ function sameTitle(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
-export function noteToDeckResult({ title, blocks, theme, untitledLabel, labels }: NoteToDeckInput): NoteToDeckResult {
+export function noteToDeckResult({ title, blocks, theme, untitledLabel, labels, reservedImage }: NoteToDeckInput): NoteToDeckResult {
   const resolvedLabels: ResolvedLabels = {
     untitled: cleanStr(labels?.untitled ?? untitledLabel, 200).trim() || "Untitled",
     file: cleanStr(labels?.file, 60).trim() || "File",
@@ -1605,7 +1699,7 @@ export function noteToDeckResult({ title, blocks, theme, untitledLabel, labels }
         }
       } else {
         const { heading, headingInline, rest } = splitLeadingHeading(topBlocks);
-        slides.push(...sectionToSlides({ heading, headingInline, body: rest }, resolvedLabels));
+        slides.push(...sectionToSlides({ heading, headingInline, body: rest }, resolvedLabels, reservedImage));
       }
     }
   }

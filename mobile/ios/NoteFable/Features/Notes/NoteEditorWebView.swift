@@ -136,7 +136,12 @@ final class NoteEditorPool {
                 return
             }
             guard let self, self.controller?.isParked == true else { return }
-            self.destroy()
+            // 逐页配图等长时间后台任务仍在进行时续期，避免中途销毁 WebView 导致已扣费的图片丢失。
+            if self.controller?.slidesWizardBusy == true {
+                self.scheduleIdle()
+            } else {
+                self.destroy()
+            }
         }
     }
 
@@ -325,6 +330,8 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
                     self.router.openNote(id)
                 case .usageLimit(let tier, let kind, _):
                     self.app.notes.onWizardUsageLimit(tier: tier, kind: kind)
+                case .storageLimit(let tier, let used, let limit):
+                    self.app.notes.onWizardStorageLimit(tier: tier, used: used, limit: limit)
                 default:
                     break
                 }

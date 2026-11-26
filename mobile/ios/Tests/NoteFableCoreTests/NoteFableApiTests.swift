@@ -302,6 +302,12 @@ final class NoteFableApiTests: XCTestCase {
         XCTAssertEqual(plan.usage["chat"]?.used, 3)
         XCTAssertEqual(plan.priceJpy, 980)
     }
+
+    func testProposalPreviewURLBuildsStaticEmbedQuery() {
+        let api = makeApi(FakeTransport())
+        let url = api.proposalPreviewUrl(proposalId: "prop 1", lang: "ja", theme: "dark")
+        XCTAssertEqual(url, "https://notefable.test/note-embed?proposal=prop%201&lang=ja&theme=dark")
+    }
 }
 
 /// 从后台线程收集回调的值。

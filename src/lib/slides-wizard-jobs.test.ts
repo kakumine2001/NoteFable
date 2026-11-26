@@ -145,7 +145,7 @@ describe("slides wizard requests", () => {
       url: "/api/pages/slides/outline",
       body: {
         source: { type: "topic", topic: "Vaccines" },
-        options: { pageCount: "auto", tone: "auto", audience: "", language: "auto", wording: "condense", theme: { id: "simple", mode: "light" } },
+        options: { pageCount: "auto", tone: "auto", audience: "", language: "auto", wording: "condense", theme: { id: "simple", mode: "light" }, generateImages: false },
         model: "luna", clientRequestId: expect.stringMatching(/^[A-Za-z0-9_-]{8,64}$/),
       },
     }]);
@@ -267,5 +267,36 @@ describe("slides wizard requests", () => {
     await respond(200, { outline: OUTLINE });
     expect(getSlidesWizard()).toBeNull();
     expect(readSlidesDraft("scope-a", { type: "new" })?.outline).toBeNull();
+  });
+
+  it("starts per-slide image generation when deck returns imageTasks and stays busy while images run", async () => {
+    const liveDeck = {
+      format: 1,
+      theme: { id: "simple", mode: "light" },
+      slides: [{
+        id: "s1",
+        layout: "imageText",
+        elements: [{ id: "img1", type: "image", role: "image", x: 0, y: 0, w: 400, h: 400, rotation: 0, src: "", fit: "cover", radius: 16, pendingImagePrompt: "Clean illustration of antibodies" }],
+      }],
+    };
+    fetchMock.mockImplementation((url, init) => {
+      if (init?.method === "POST") return new Promise<Response>((resolve, reject) => { pending.push({ resolve, reject }); });
+      if (url === `/api/pages/${PAGE.id}`) return Promise.resolve(json(200, { page: { ...PAGE, data: liveDeck } }));
+      return Promise.resolve(json(scopeStatus, scopeStatus === 200 ? { scope } : { error: "Database is unavailable. Try again in a moment." }));
+    });
+    await openTopic();
+    updateSlidesDraft((draft) => ({ ...draft, step: "outline", outline: OUTLINE, options: { ...draft.options, generateImages: true } }));
+    void requestSlides("deck");
+    await settle();
+    await respond(201, {
+      page: PAGE,
+      imageTasks: [{ slideId: "s1", elementId: "img1", slideTitle: "How they work", prompt: "Clean illustration of antibodies" }],
+    });
+    expect(ready().job).toEqual({ state: "done", page: PAGE, partial: false });
+    expect(isSlidesWizardBusy()).toBe(true);
+    // Closing while images are still generating keeps the done state when reopened.
+    closeSlidesWizard();
+    await open({ entry: { type: "new" }, model: "luna" });
+    expect(ready().job).toEqual({ state: "done", page: PAGE, partial: false });
   });
 });

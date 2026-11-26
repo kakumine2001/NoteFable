@@ -89,4 +89,5 @@
     <string name="proposal_op_elements">%1$s · %2$s Elemente</string>
     <string name="proposal_before">Vorher</string>
     <string name="proposal_after">Nachher</string>
+    <string name="proposal_view_preview">Vorschau anzeigen</string>
 </resources>

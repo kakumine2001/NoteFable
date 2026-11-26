@@ -3,8 +3,8 @@
 import {
   AlignCenter, AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalDistributeCenter, AlignJustify, AlignLeft, AlignRight,
   AlignStartHorizontal, AlignStartVertical, AlignVerticalDistributeCenter, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, ArrowDown, ArrowUp,
-  Bold, BringToFront, Code, Eye, EyeOff, Flag, Group, ImagePlus, Italic, Link, List, ListOrdered, Minus, Plus, SendToBack, Sigma, Sparkles, SquareFunction, Strikethrough, Trash2,
-  Underline, Ungroup,
+  Bold, BringToFront, Code, Eye, EyeOff, Flag, Group, ImagePlus, Italic, Link, List, ListOrdered, Minus, Plus, SendToBack, Sigma, SquareFunction, Strikethrough, Trash2,
+  Underline, Ungroup, Upload,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { AppIcon } from "@/components/app-icon";
@@ -272,8 +272,8 @@ export function SlideInspector({ slide, slideCount, selection, theme, editable, 
     </Section>}
 
     {single?.type === "image" && <Section title={t("Image")}>
-      <button type="button" className="slides-wide-button" disabled={!editable} onClick={() => onReplaceImage(single.id)}><ImagePlus size={16} aria-hidden="true" />{single.src ? t("Replace image") : t("Add an image")}</button>
-      <button type="button" className="slides-wide-button" disabled={!editable} onClick={() => onGenerateImage(single.id)}><Sparkles size={16} aria-hidden="true" />{t("Generate with AI")}</button>
+      <button type="button" className="slides-wide-button" disabled={!editable} onClick={() => onReplaceImage(single.id)}><Upload size={16} aria-hidden="true" />{single.src ? t("Replace image") : t("Add an image")}</button>
+      <button type="button" className="slides-wide-button" disabled={!editable} onClick={() => onGenerateImage(single.id)}><ImagePlus size={16} aria-hidden="true" />{t("Generate with AI")}</button>
       <div className="slides-field">
         <span>{t("Fit")}</span>
         <select value={single.fit} onChange={(event) => update(ids, (element) => (element.type === "image" ? { ...element, fit: event.target.value as "cover" | "contain" } : element), "fit")}>
