@@ -253,6 +253,30 @@ class NotesApiTest {
     }
 
     @Test
+    fun `parses the slides wizard appearing and disappearing`() {
+        assertEquals(EmbedMessage.SlidesWizard(open = true), EmbedMessage.parse("""{"type":"slidesWizard","state":"open"}"""))
+        assertEquals(EmbedMessage.SlidesWizard(open = false, busy = true), EmbedMessage.parse("""{"type":"slidesWizard","state":"closed","busy":true}"""))
+        assertEquals(EmbedMessage.SlidesWizard(open = false), EmbedMessage.parse("""{"type":"slidesWizard","state":"closed","busy":false}"""))
+        // busy 只认布尔值；不认识的 state 丢掉。
+        assertEquals(EmbedMessage.SlidesWizard(open = false), EmbedMessage.parse("""{"type":"slidesWizard","state":"closed","busy":"true"}"""))
+        assertNull(EmbedMessage.parse("""{"type":"slidesWizard","state":"hidden"}"""))
+        assertNull(EmbedMessage.parse("""{"type":"slidesWizard"}"""))
+        // 向导的上限提示不带 pageId。
+        assertEquals(EmbedMessage.UsageLimit("guest", "chat"), EmbedMessage.parse("""{"type":"usageLimit","tier":"guest","kind":"chat"}"""))
+    }
+
+    @Test
+    fun `the slides wizard loads a warm editor without a page`() {
+        val api = NoteFableApi("https://example.test", CookieJar.NO_COOKIES)
+        assertEquals("https://example.test/note-embed?warm=1&lang=ja", api.slidesWizardUrl("ja"))
+        assertEquals(
+            "https://example.test/note-embed?warm=1&lang=zh-Hant&model=gpt-5.5&reasoning=high&theme=dark",
+            api.slidesWizardUrl("zh-Hant", "gpt-5.5", "high", "dark"),
+        )
+        assertEquals("https://example.test/note-embed?warm=1&model=a%26b", api.slidesWizardUrl(null, "a&b"))
+    }
+
+    @Test
     fun `reads uploaded image icons and keeps emoji icons as text`() {
         val key = "upload:page-covers/user1/0e111e3a-9e25-4944-ade7-b460580fa921.png"
         assertEquals("/api/pages/covers?key=page-covers%2Fuser1%2F0e111e3a-9e25-4944-ade7-b460580fa921.png", NoteIcons.imagePath(key))

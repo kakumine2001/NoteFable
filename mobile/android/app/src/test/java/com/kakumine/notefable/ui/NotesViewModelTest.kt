@@ -13,6 +13,7 @@ import com.kakumine.notefable.data.NotesBackend
 import com.kakumine.notefable.data.NotesList
 import com.kakumine.notefable.data.PageKind
 import com.kakumine.notefable.data.PageKindTable
+import com.kakumine.notefable.data.SlidesWizardSource
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.serialization.json.Json
 import kotlinx.coroutines.Dispatchers
@@ -1392,5 +1393,82 @@ class NotesViewModelTest {
         assertEquals("Renamed page", vm.state.value.open?.title)
         assertTrue("renamePage:a:Renamed page:3" in backend.calls)
         assertEquals(listOf("a"), warmUpdated.map { it.first })
+    }
+
+    // ---- AI 生成幻灯片的向导（#150） ----
+
+    @Test
+    fun `the slides wizard covers the open editor, otherwise it gets its own screen`() = runTest(dispatcher) {
+        val vm = notesVm()
+        vm.openSlidesWizard(SlidesWizardSource.New(groupId = "g1"))
+        assertNull(vm.state.value.slidesWizard?.editor)
+        assertEquals(SlidesWizardSource.New(groupId = "g1"), vm.state.value.slidesWizard?.source)
+
+        vm.openNote("a")
+        advanceUntilIdle()
+        // 有了编辑器，全屏的那一次不再算数。
+        vm.dropStaleSlidesWizard()
+        assertNull(vm.state.value.slidesWizard)
+        vm.openSlidesWizard(SlidesWizardSource.Note("a"))
+        assertEquals("a", vm.state.value.slidesWizard?.editor)
+        vm.dropStaleSlidesWizard()
+        assertEquals("a", vm.state.value.slidesWizard?.editor)
+
+        vm.closeNote()
+        advanceUntilIdle()
+        vm.dropStaleSlidesWizard()
+        assertNull(vm.state.value.slidesWizard)
+    }
+
+    @Test
+    fun `a late closed message does not dismiss a wizard that has not appeared yet`() = runTest(dispatcher) {
+        val vm = notesVm()
+        vm.openSlidesWizard(SlidesWizardSource.Chat("s1"))
+        val first = vm.state.value.slidesWizard!!.request
+        vm.onSlidesWizardClosed()
+        assertEquals(first, vm.state.value.slidesWizard?.request)
+
+        // 同一个入口再开一次是新的一次：上一次的结果不算。
+        vm.openSlidesWizard(SlidesWizardSource.Chat("s1"))
+        val second = vm.state.value.slidesWizard!!.request
+        assertNotEquals(first, second)
+        vm.onSlidesWizardShown(first)
+        assertEquals(false, vm.state.value.slidesWizard?.shown)
+        vm.dismissSlidesWizard(first)
+        assertEquals(second, vm.state.value.slidesWizard?.request)
+
+        vm.onSlidesWizardOpened(null)
+        assertEquals(true, vm.state.value.slidesWizard?.shown)
+        vm.onSlidesWizardClosed()
+        assertNull(vm.state.value.slidesWizard)
+    }
+
+    @Test
+    fun `a wizard opened inside the editor takes that note as its source`() = runTest(dispatcher) {
+        val vm = notesVm()
+        // 没有开着的编辑器时网页的 open 不开任何画面。
+        vm.onSlidesWizardOpened(null)
+        assertNull(vm.state.value.slidesWizard)
+        vm.openNote("a")
+        advanceUntilIdle()
+        vm.onSlidesWizardOpened("other")
+        assertNull(vm.state.value.slidesWizard)
+        // 笔记 AI 面板里的「生成幻灯片」。
+        vm.onSlidesWizardOpened("a")
+        val wizard = vm.state.value.slidesWizard!!
+        assertEquals(SlidesWizardSource.Note("a"), wizard.source)
+        assertEquals("a", wizard.editor)
+        assertTrue(wizard.shown)
+        vm.onSlidesWizardClosed()
+        assertNull(vm.state.value.slidesWizard)
+    }
+
+    @Test
+    fun `changing identity closes the slides wizard`() = runTest(dispatcher) {
+        val vm = notesVm()
+        vm.openSlidesWizard(SlidesWizardSource.New())
+        vm.onIdentityChanged()
+        advanceUntilIdle()
+        assertNull(vm.state.value.slidesWizard)
     }
 }

@@ -86,6 +86,7 @@ import com.kakumine.notefable.data.ExportFileAssembler
 import com.kakumine.notefable.data.NoteFileLinks
 import com.kakumine.notefable.data.NotePageSummary
 import com.kakumine.notefable.data.PageKind
+import com.kakumine.notefable.data.SlidesWizardSource
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -194,12 +195,25 @@ class NoteEmbedBridge(
     @JavascriptInterface
     fun canSaveFile(): Boolean = true
 
+    /**
+     * 网页据此发 `slidesWizard` 的 open / closed（AI 生成幻灯片的向导，#150），笔记 AI 面板里的「生成幻灯片」也只对这样的 App 显示；
+     * 旧版 App 没有这个方法。
+     */
+    @JavascriptInterface
+    fun canShowSlidesWizard(): Boolean = true
+
     /** 幻灯片的操作（"…"菜单的放映 / 导出、放映中的返回键）：交给网页（`window.notefableEmbed.slides`）。 */
     fun slides(command: String, onResult: ((Boolean) -> Unit)? = null) {
         val view = webView ?: return run { onResult?.invoke(false) }
         view.evaluateJavascript("(function(){var e=window.notefableEmbed;if(e&&typeof e.slides==='function')return e.slides(${JSONObject.quote(command)})===true;return false})()") { result ->
             onResult?.invoke(result == "true")
         }
+    }
+
+    /** 向导开着时的「返回」：网页关掉最上面一层（选笔记的面板，其次向导，草稿保留）。没有可关的回 false。 */
+    fun slidesWizardBack(onResult: (Boolean) -> Unit) {
+        val view = webView ?: return onResult(false)
+        view.evaluateJavascript(SLIDES_WIZARD_BACK_SCRIPT) { result -> onResult(result == "true") }
     }
 
     /** Swap the dictionary without reloading the note, its draft or AI stream. */
@@ -266,8 +280,9 @@ class NoteEmbedBridge(
                     return@post
                 }
             }
-            if (message is EmbedMessage.PagesChanged) {
-                // 笔记 AI 面板的后台画成图可能在用户离开编辑页（常驻 WebView 停靠中）后完成：只要 WebView 还在就转发，不要求 activeEditor。
+            if (message is EmbedMessage.PagesChanged || message is EmbedMessage.SlidesWizard) {
+                // 笔记 AI 面板的后台画成图、生成幻灯片可能在用户离开编辑页（常驻 WebView 停靠中）后完成；离开页面时网页收起向导的
+                // closed（带 busy）也在停靠中才到。只要 WebView 还在就转发，不要求 activeEditor。
                 if (webView != null) onMessage(message)
                 return@post
             }
@@ -404,6 +419,48 @@ class NoteEmbedBridge(
             return "(function(){var e=window.notefableEmbed;if(e&&typeof e.reveal==='function')e.reveal(${JsonPrimitive(target)})})()"
         }
 
+        /**
+         * 打开 AI 生成幻灯片向导的脚本（`window.notefableEmbed.slidesWizard`）。结果是 'open'（出来了）、'loading'（网页还没挂好，
+         * 过一会儿再问）、'unsupported'（旧服务端没有向导）或 'rejected'。[source] 里有网页不认的 id 时返回 null。
+         */
+        fun slidesWizardOpenScript(source: SlidesWizardSource, model: String? = null, reasoning: String? = null): String? {
+            val fields = linkedMapOf<String, kotlinx.serialization.json.JsonElement>()
+            val ids = when (source) {
+                is SlidesWizardSource.New -> {
+                    fields["type"] = JsonPrimitive("new")
+                    listOf("groupId" to source.groupId, "parentId" to source.parentId)
+                }
+                is SlidesWizardSource.Note -> {
+                    fields["type"] = JsonPrimitive("note")
+                    listOf("pageId" to source.pageId)
+                }
+                is SlidesWizardSource.Chat -> {
+                    fields["type"] = JsonPrimitive("chat")
+                    listOf("sessionId" to source.sessionId)
+                }
+            }
+            for ((key, id) in ids) {
+                if (id == null) continue
+                if (!REVEAL_TARGET.matches(id)) return null
+                fields[key] = JsonPrimitive(id)
+            }
+            val request = linkedMapOf<String, kotlinx.serialization.json.JsonElement>("action" to JsonPrimitive("open"), "source" to JsonObject(fields))
+            model?.trim()?.takeIf { it.isNotEmpty() }?.let { request["model"] = JsonPrimitive(it) }
+            reasoning?.trim()?.takeIf { it.isNotEmpty() }?.let { request["reasoning"] = JsonPrimitive(it) }
+            return "(function(){var e=window.notefableEmbed;if(!e)return 'loading';if(typeof e.slidesWizard!=='function')return 'unsupported';" +
+                "return e.slidesWizard(${JsonObject(request)})===true?'open':'rejected'})()"
+        }
+
+        /** [slidesWizardOpenScript] 的结果（evaluateJavascript 给的 JSON）：true 打开了，false 打不开，null 还要再问。 */
+        fun slidesWizardAnswer(result: String?): Boolean? = when (result) {
+            "\"open\"" -> true
+            "\"unsupported\"", "\"rejected\"" -> false
+            else -> null
+        }
+
+        const val SLIDES_WIZARD_BACK_SCRIPT =
+            "(function(){var e=window.notefableEmbed;if(e&&typeof e.slidesWizard==='function')return e.slidesWizard({\"action\":\"back\"})===true;return false})()"
+
         const val CLOSE_SCRIPT =
             "(function(){var e=window.notefableEmbed;if(e&&typeof e.close==='function')return e.close()===true;return false})()"
 
@@ -431,6 +488,29 @@ class NoteEmbedBridge(
 
         private const val FLUSH_TIMEOUT_MS = 15_000L
     }
+}
+
+/** 全屏的向导画面（[SlidesWizardScreen]）挂着常驻 WebView 时的 [NoteEmbedBridge.activeEditor]：不是任何页面的 id。 */
+internal const val SLIDES_WIZARD_EDITOR = "#slides-wizard"
+
+/** 常驻 WebView 发来的消息交给谁。 */
+internal enum class EmbedRoute { PagesChanged, Wizard, Editor, Drop }
+
+/**
+ * [activeEditor] 是 [NoteEmbedBridge.activeEditor]。向导的出现 / 消失和 pagesChanged 在编辑器停靠时也要收（生成中关了向导、离开了页面）；
+ * 全屏向导画面只收「打开幻灯片」和使用上限，别的是上一个页面晚到的消息。盖在编辑器上的向导的这两种消息和编辑器的一样处理。
+ */
+internal fun embedRoute(message: EmbedMessage, activeEditor: String?): EmbedRoute = when {
+    message is EmbedMessage.PagesChanged -> EmbedRoute.PagesChanged
+    message is EmbedMessage.SlidesWizard -> EmbedRoute.Wizard
+    activeEditor == null -> EmbedRoute.Drop
+    activeEditor != SLIDES_WIZARD_EDITOR -> EmbedRoute.Editor
+    message is EmbedMessage.OpenPage || message is EmbedMessage.UsageLimit -> EmbedRoute.Wizard
+    else -> EmbedRoute.Drop
+}
+
+private suspend fun WebView.evaluate(script: String): String? = suspendCancellableCoroutine { cont ->
+    evaluateJavascript(script) { result -> if (cont.isActive) cont.resume(result) }
 }
 
 private const val CLOSE_TOP_DIALOG =
@@ -461,6 +541,9 @@ internal fun loadReveal(open: OpenNote, generation: Int): String? = open.reveal.
  * 整个笔记工作区共用的常驻 /note-embed WebView 宿主：首次打开笔记时按需创建，切页或短暂回到列表 / 聊天时保留
  * 网页壳和缓存（最多 8 篇），离开笔记时调 `window.notefableEmbed.close()` 卸载编辑器 DOM。
  * 换身份、系统内存紧张、App 退到后台、空闲超过 120 秒、渲染进程崩溃或宿主销毁时彻底释放 WebView。
+ *
+ * AI 生成幻灯片的向导（#150）也开在这个 WebView 里：开着页面时盖在编辑器上，没有页面时挂到全屏的 [SlidesWizardScreen]（[showWizard]）。
+ * 向导关掉时还有生成没完成的话，空闲时限是 360 秒，退到后台也先不释放（释放了请求就断了）。
  */
 @SuppressLint("SetJavaScriptEnabled")
 class NoteEmbedHost(
@@ -475,6 +558,19 @@ class NoteEmbedHost(
     var onExportFile: (ExportFile?) -> Unit = {}
     var onShowFileChooser: ((ValueCallback<Array<Uri>>, WebChromeClient.FileChooserParams) -> Boolean)? = null
     var excludeEdges: Boolean = false
+    /**
+     * 向导的消息：`slidesWizard`（出现 / 消失），以及全屏向导画面的 `openPage` 和 `usageLimit`。[editor] 是向导盖着的编辑器
+     * （[OpenNote.editor]），全屏画面或停靠中是 null。
+     */
+    var onSlidesWizard: (editor: String?, EmbedMessage) -> Unit = { _, _ -> }
+
+    /** 网页现在显示着向导（按它的 slidesWizard 消息和打开的结果）；WebView 换掉后是 false。 */
+    var slidesWizardVisible = false
+        private set
+
+    /** 向导关掉时还有生成没完成。 */
+    var slidesWizardBusy = false
+        private set
 
     /** 幻灯片放映中（网页发 presentation start / end）：横屏、全屏、屏幕常亮，原生顶栏收起。 */
     var presenting by mutableStateOf(false)
@@ -504,9 +600,17 @@ class NoteEmbedHost(
         exports = ExportFileAssembler(File(cacheDir, ExportFileAssembler.DIR_NAME)),
         onExportFile = { file -> onExportFile(file) },
     ) { message ->
-        if (message is EmbedMessage.PagesChanged) {
-            if (webView != null) onPagesChanged()
-            return@NoteEmbedBridge
+        when (embedRoute(message, bridge.activeEditor)) {
+            EmbedRoute.PagesChanged -> {
+                if (webView != null) onPagesChanged()
+                return@NoteEmbedBridge
+            }
+            EmbedRoute.Wizard -> {
+                if (webView != null) receiveWizard(message)
+                return@NoteEmbedBridge
+            }
+            EmbedRoute.Drop -> return@NoteEmbedBridge
+            EmbedRoute.Editor -> Unit
         }
         val editor = bridge.activeEditor ?: return@NoteEmbedBridge
         val expected = awaitingPageId
@@ -544,11 +648,27 @@ class NoteEmbedHost(
         onMessage(editor, message)
     }
 
+    private fun receiveWizard(message: EmbedMessage) {
+        if (message is EmbedMessage.SlidesWizard) {
+            slidesWizardVisible = message.open
+            if (!message.open) {
+                slidesWizardBusy = message.busy
+                // 停靠中才到的（离开页面时网页收起向导）：按现在的时限重新计时。
+                if (isParked && loadedForIdentity) scheduleIdle()
+            }
+        }
+        onSlidesWizard(bridge.activeEditor?.takeIf { it != SLIDES_WIZARD_EDITOR }, message)
+    }
+
     /**
      * 编辑页已经把 WebView 挂上（[attachWebView]）还没离开（[park]）。挂上到 [show] 之间 activeEditor 还是 null，
      * 这时不能当成"停着"被空闲计时、内存紧张或退到后台销毁（否则画面上挂的是已销毁的 WebView，一直空白）。
      */
     private var mounted = false
+
+    /** 第几次挂上（[attachWebView]）：全屏向导画面离开时据此知道 WebView 是不是已经被别处接走。 */
+    var mountCount = 0
+        private set
 
     /** 当前没有笔记显示（停在列表或聊天，WebView 只保留热缓存）。 */
     val isParked: Boolean get() = bridge.activeEditor == null && !mounted
@@ -610,7 +730,8 @@ class NoteEmbedHost(
                     destroy()
                     if (wasEditor != null) {
                         crashedEditor = wasEditor
-                        onMessage(wasEditor, EmbedMessage.Drawing(false))
+                        if (wasEditor != SLIDES_WIZARD_EDITOR) onMessage(wasEditor, EmbedMessage.Drawing(false))
+                        // 编辑页和全屏向导画面都按它重新挂上、重新加载（向导重新打开，草稿在网页里）。
                         generation++
                     }
                     return true
@@ -634,6 +755,7 @@ class NoteEmbedHost(
         idleJob?.cancel()
         idleJob = null
         mounted = true
+        mountCount++
         val view = ensureWebView(context, baseUrl, webBackground)
         (view.parent as? ViewGroup)?.removeView(view)
         return view
@@ -717,7 +839,84 @@ class NoteEmbedHost(
         }
     }
 
-    /** 离开编辑页但保留热缓存：卸载网页编辑器 DOM，开始 120 秒空闲倒计时，到期未重开则销毁。 */
+    /**
+     * 全屏向导画面挂上常驻 WebView（[attachWebView]）之后：没加载过时带上 Cookie 加载 [embedUrl]（空白的编辑器），
+     * 加载过的直接用（不重新加载）。打开向导另由 [openSlidesWizard] 做。
+     */
+    fun showWizard(
+        context: Context,
+        theme: String,
+        lang: String,
+        webBackground: Int,
+        appIcon: String?,
+        embedUrl: String,
+        baseUrl: String,
+        cookieJar: CookieJar,
+    ) {
+        idleJob?.cancel()
+        idleJob = null
+        loadJob?.cancel()
+        loadJob = null
+        // 和 [show] 一样：挂上之后 WebView 被销毁了就换一个新的重新挂上。
+        if (webView == null && mounted) {
+            generation++
+            return
+        }
+        val epoch = ++showEpoch
+        crashedEditor = null
+        presenting = false
+        bridge.discardExports()
+        currentPageId = null
+        awaitingPageId = null
+        bridge.activeEditor = SLIDES_WIZARD_EDITOR
+        bridge.currentTheme = theme
+        val view = ensureWebView(context, baseUrl, webBackground)
+        view.setBackgroundColor(webBackground)
+        if (loadedForIdentity) {
+            bridge.pushTheme(theme)
+            bridge.pushLanguage(lang)
+            bridge.pushAppIcon(appIcon)
+            return
+        }
+        loadJob = hostScope.launch {
+            syncCookies(baseUrl, cookieJar)
+            if (epoch != showEpoch || bridge.activeEditor != SLIDES_WIZARD_EDITOR) return@launch
+            val target = webView ?: return@launch
+            loadedForIdentity = true
+            target.loadUrl(embedUrl)
+        }
+    }
+
+    /**
+     * 用 [script]（[NoteEmbedBridge.slidesWizardOpenScript]）打开向导：网页加载完才有 window.notefableEmbed，
+     * 每 250 毫秒问一次，最多 20 秒。旧服务端没有向导、一直等不到时返回 false。
+     */
+    suspend fun openSlidesWizard(script: String): Boolean {
+        val opened = withTimeoutOrNull(WIZARD_OPEN_TIMEOUT_MS) {
+            var answer: Boolean? = null
+            while (answer == null) {
+                val result = webView?.let { view -> withTimeoutOrNull(WIZARD_ASK_TIMEOUT_MS) { view.evaluate(script) } }
+                answer = NoteEmbedBridge.slidesWizardAnswer(result)
+                if (answer == null) delay(WIZARD_POLL_MS)
+            }
+            answer
+        } ?: false
+        // 网页本来就显示着时不会再发 open。
+        if (opened) slidesWizardVisible = true
+        return opened
+    }
+
+    /** 全屏向导画面离开（[mount] 是它挂上时的 [mountCount]）。之后编辑页又挂上过的话，WebView 归编辑页，什么都不做。 */
+    fun parkWizard(mount: Int) {
+        if (mount == mountCount) park()
+    }
+
+    /** 全屏向导打不开（页面没加载成、旧服务端）：丢掉这个 WebView，下次重新加载。 */
+    fun discardWizard() {
+        if (bridge.activeEditor == SLIDES_WIZARD_EDITOR) destroy()
+    }
+
+    /** 离开编辑页但保留热缓存：卸载网页编辑器 DOM，开始 120 秒（向导还在生成时 360 秒）空闲倒计时，到期未重开则销毁。 */
     fun park() {
         loadJob?.cancel()
         loadJob = null
@@ -735,12 +934,18 @@ class NoteEmbedHost(
         webView?.excludeDrawingEdges(false)
         if (loadedForIdentity && webView != null) {
             bridge.close()
-            idleJob = hostScope.launch {
-                delay(IDLE_TIMEOUT_MS)
-                if (isParked) destroy()
-            }
+            scheduleIdle()
         } else if (webView != null) {
             destroy()
+        }
+    }
+
+    private fun scheduleIdle() {
+        idleJob?.cancel()
+        val timeout = if (slidesWizardBusy) BUSY_IDLE_TIMEOUT_MS else IDLE_TIMEOUT_MS
+        idleJob = hostScope.launch {
+            delay(timeout)
+            if (isParked) destroy()
         }
     }
 
@@ -757,6 +962,8 @@ class NoteEmbedHost(
         awaitingPageId = null
         openedPageIds.clear()
         excludeEdges = false
+        slidesWizardVisible = false
+        slidesWizardBusy = false
         bridge.activeEditor = null
         val view = webView
         webView = null
@@ -790,6 +997,10 @@ class NoteEmbedHost(
 
     companion object {
         private const val IDLE_TIMEOUT_MS = 120_000L
+        private const val BUSY_IDLE_TIMEOUT_MS = 360_000L
+        private const val WIZARD_OPEN_TIMEOUT_MS = 20_000L
+        private const val WIZARD_ASK_TIMEOUT_MS = 2_000L
+        private const val WIZARD_POLL_MS = 250L
     }
 }
 
@@ -836,6 +1047,10 @@ fun NoteEditorScreen(
     prompt: (@Composable () -> Unit)? = null,
     /** 幻灯片放映的开始 / 结束（放映中侧栏的滑动打开要关掉）。 */
     onPresentingChange: (Boolean) -> Unit = {},
+    /** AI 生成幻灯片的向导盖在这个编辑器上（null 是没有）。网页里出来之后原生顶栏收起，返回键交给它。 */
+    slidesWizard: SlidesWizardUi? = null,
+    onSlidesWizardShown: (Int) -> Unit = {},
+    onSlidesWizardDismiss: (Int) -> Unit = {},
 ) {
     val context = LocalContext.current
     val bridge = host.bridge
@@ -901,6 +1116,11 @@ fun NoteEditorScreen(
         }
     }
 
+    val wizardShown = slidesWizard?.shown == true
+    if (slidesWizard != null) {
+        LaunchSlidesWizard(host, slidesWizard, model, reasoning, onSlidesWizardShown, onSlidesWizardDismiss)
+    }
+
     // 网页里打开的面板（版本历史、图标选择器）会往历史里推一条记录，返回键先交给网页关面板；没有了才离开笔记。
     // 从原生调用打开的面板没有用户手势，浏览器不一定给它留历史记录，所以再看一眼有没有打开的 <dialog>：
     // 有就发 cancel 事件（等同网页里按 Esc，只关最上面一层），没有才保存并离开。
@@ -910,6 +1130,8 @@ fun NoteEditorScreen(
             // 放映中：先结束放映（网页收到后发 presentation end，App 恢复竖屏和顶栏），不离开幻灯片。
             // 网页没有回应（加载失败等）时由这里结束放映，不把人困在横屏全屏里。
             presenting -> bridge.slides("""{"action":"end"}""") { handled -> if (!handled) host.endPresentationLocally() }
+            // 向导开着：关它最上面一层（草稿保留），不离开笔记、也不走 WebView 的后退。网页没有可关的就当它已经关了。
+            slidesWizard != null && slidesWizard.shown -> bridge.slidesWizardBack { handled -> if (!handled) onSlidesWizardDismiss(slidesWizard.request) }
             view == null -> onBack()
             view.canGoBack() -> view.goBack()
             else -> view.evaluateJavascript(CLOSE_TOP_DIALOG) { closed -> if (closed != "true") onBack() }
@@ -922,8 +1144,12 @@ fun NoteEditorScreen(
     // 用手掌平移时、不是白板时都照常能返回。WebView 尺寸变了（键盘、旋转）就重算，关掉编辑器时清掉。
     val excludeEdges = drawing && kind == PageKind.Whiteboard
     host.excludeEdges = excludeEdges
-    Column(Modifier.fillMaxSize().background(if (presenting) Color.Black else Sm.Background)) {
-        if (!presenting) Row(
+    // 向导开着时没有原生顶栏：状态栏的留白改由外层让出。
+    Column(
+        Modifier.fillMaxSize().background(if (presenting) Color.Black else Sm.Background)
+            .then(if (wizardShown && !presenting) Modifier.statusBarsPadding() else Modifier),
+    ) {
+        if (!presenting && !wizardShown) Row(
             Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(horizontal = 10.4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

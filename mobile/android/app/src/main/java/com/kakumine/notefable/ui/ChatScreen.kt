@@ -167,6 +167,8 @@ fun ChatScreen(
     onRemoveQuote: () -> Unit = {},
     /** 顶栏「整理成笔记」：打开那个聊天的窗口。 */
     onCreatePage: (String) -> Unit = {},
+    /** “＋”抽屉的「生成幻灯片」：用那个聊天开向导。 */
+    onGenerateSlides: (String) -> Unit = {},
     /** 消息上的编辑、重新生成、版本切换、分支；为空时不显示。 */
     turnActions: TurnActions? = null,
 ) {
@@ -337,6 +339,7 @@ fun ChatScreen(
             // 网页：有消息的已保存聊天才有；当前聊天在发送（含上传附件）时不能点，最后的回答还没存下。
             onCreatePage = state.activeSessionId?.takeIf { !isEmptyChat }?.let { id -> { onCreatePage(id) } },
             createPageEnabled = !state.sending && state.upload == null,
+            onGenerateSlides = state.activeSessionId?.takeIf { !isEmptyChat }?.let { id -> { onGenerateSlides(id) } },
             onDismiss = { attachOpen = false },
         )
     }
