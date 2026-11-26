@@ -14,13 +14,13 @@ describe("translation interpolation", () => {
     const t = createTranslator({
       "Request failed: {detail}": "请求失败：{detail}",
       "Page not found.": "找不到页面。",
-      "Searched pages for “{query}”": "搜索了笔记“{query}”",
+      "Searched pages for “{query}”": "在页面中搜索了“{query}”",
       "Unsupported file type: {name}": "不支持的文件类型：{name}",
     });
     const failure = fmt("Request failed: {detail}", { detail: "Page not found." });
     expect(t(failure)).toBe(failure);
     expect(localizeSystemText(failure, t)).toBe("请求失败：找不到页面。");
-    expect(localizeSystemText(fmt("Searched pages for “{query}”", { query: "Rayleigh" }), t)).toBe("搜索了笔记“Rayleigh”");
+    expect(localizeSystemText(fmt("Searched pages for “{query}”", { query: "Rayleigh" }), t)).toBe("在页面中搜索了“Rayleigh”");
     expect(localizeSystemText(fmt("Request failed: {detail}", { detail: fmt("Unsupported file type: {name}", { name: "a.txt" }) }), t)).toBe("请求失败：不支持的文件类型：a.txt");
     expect(localizeSystemText("Something else", t)).toBe("Something else");
     expect(localizeSystemText("Request failed:", t)).toBe("Request failed:");

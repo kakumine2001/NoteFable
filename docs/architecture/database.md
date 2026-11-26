@@ -88,6 +88,10 @@ erDiagram
         string id PK
         string deviceId "unique"
         string googleSub "nullable, unique"
+        string appleSub "nullable, unique"
+        string appleRefreshToken "nullable, encrypted"
+        datetime appleAuthorizedAt "nullable"
+        datetime appleRevokedAt "nullable"
         string verifiedEmail "nullable, unique"
         string email "nullable"
         string name "nullable"
@@ -105,6 +109,9 @@ erDiagram
         string stripeCustomerId "nullable, unique"
         string stripeSubscriptionId "nullable, unique"
         string googlePurchaseToken "nullable, unique"
+        string appleOriginalTransactionId "nullable, unique"
+        string appleAppAccountToken "nullable, unique, UUID"
+        datetime applePurchaseHoldUntil "nullable"
         string subscriptionStatus "nullable"
         datetime subscriptionPeriodStart "nullable"
         datetime subscriptionPeriodEnd "nullable"
@@ -331,9 +338,9 @@ erDiagram
 - `appIcon` / `appIconImage` / `appIconUpdatedAt`：可空，设置里的“图标”（AI 角色或上传的图片，`src/lib/app-icon.ts`）的账号副本，只有已登录（Google 或邮箱）的本人通过 `GET/PUT /api/app-icon` 读写（`src/app/api/app-icon/route.ts`，校验在 `src/lib/account-app-icon.ts`；未登录 401），匿名的行不用。`appIcon` 是 `null`（默认角色 Quill）、`character:<id>` 或 `image`；`image` 时 `appIconImage` 是存储路径 `app-icons/<用户 ID>/<UUID>.<扩展名>`（私有 Blob；图片本体不进 Postgres）。`PUT { icon }` 接受 `null` / `""`、角色（`character:<id>` 或裸 id，`quill` 存为 `null`）或 base64 的 `data:image/...` URL：按内容识别，只收 PNG / JPEG / WebP、解码后 ≤ 64 KB（端末生成的是 96×96 的 PNG），旧表情和未知值返回 400。换图片时先写新文件，再按读到的 `appIconImage` 条件更新（同时被别处换掉时删掉新文件、返回 409），成功后尽力删除旧文件（失败不影响保存，账号删除时整个目录会删）。`GET` 返回 `{ icon, updatedAt, account }`：图片读出来直接放成 data URL（很小，不另开图片地址）；`updatedAt` 为 `null` 表示还没有任何端末保存过；`account` 是由用户 ID 算出的不透明键（`appIconAccountKey`，`PUT` 也返回），端末用它记住本机图标属于哪个账号。图片在存储里不见了时按默认角色（`icon: null`）回答并记日志，一时读不到才 503。客户端规则见 [image-flow.md](image-flow.md) 的“设置里的图标”。字段通过 `20261122000000_user_app_icon` migration 部署
 - `locale`：可空，已登录用户在“设置”里选的界面语言（`src/lib/i18n/locale.ts` 的全部 17 种已启用内部代码之一）。`null` 表示明确的自动检测（按浏览器语言和地区显示）。`PATCH /api/account` 的 `locale` 接受这 17 个代码或 `null`（显式恢复自动）；读出时不认识的值当作 `null`。浏览器端把它同步到语言 Cookie，见 [i18n.md](i18n.md)。字段通过 `20261116200000_user_locale` migration 部署
 
-- `plan`：`FREE`（默认）或 `PRO`。决定用量上限的档位（见下方 `UsageCounter`）。`PRO` 由 Stripe 或 Google Play 订阅经 `src/lib/subscription-state.ts` 同步写入（有效订阅期间），也可以手动改库设置；见 [billing.md](billing.md)。字段通过 `20261113000000_usage_limits` migration 部署
-- `subscriptionProvider`：可空，当前订阅在哪里买的（`stripe` = 网页、`google` = Android 的 Google Play）；下面的状态和账期都属于这份订阅。`googlePurchaseToken`：可空且唯一，Google Play 订阅的购买令牌。
-- `stripeCustomerId` / `stripeSubscriptionId`：可空且唯一，Stripe 的客户和当前（或最近一次）订阅。`subscriptionStatus` 保存订阅状态（Stripe 的状态原文，或 Google Play 经 `playStatus` 映射后的等价状态，如 `active`、`past_due`、`canceled` 等；`null` 表示没订阅过），`subscriptionPeriodStart` / `subscriptionPeriodEnd` 是当前账期（Pro 的月上限按它计），`subscriptionCancelAt` 是预约解约的日期（`null` 为没有预约）。都由 `src/lib/billing.ts`（Stripe）或 `src/lib/google-play-billing.ts`（Google Play）从外部取回后经 `src/lib/subscription-state.ts` 写入，不由用户直接修改。字段通过 `20261118000000_subscription` migration 部署
+- `plan`：`FREE`（默认）或 `PRO`。决定用量上限的档位（见下方 `UsageCounter`）。`PRO` 由 Stripe、Google Play 或 App Store 订阅经 `src/lib/subscription-state.ts` 同步写入（有效订阅期间），也可以手动改库设置；见 [billing.md](billing.md)。字段通过 `20261113000000_usage_limits` migration 部署
+- `subscriptionProvider`：可空，当前订阅在哪里买的（`stripe` = 网页、`google` = Android 的 Google Play、`apple` = iOS 的 App Store）；下面的状态和账期都属于这份订阅。`googlePurchaseToken`：可空且唯一，Google Play 订阅的购买令牌。
+- `stripeCustomerId` / `stripeSubscriptionId`：可空且唯一，Stripe 的客户和当前（或最近一次）订阅。`subscriptionStatus` 保存订阅状态（Stripe 的状态原文，或 Google Play 经 `playStatus`、App Store 经 `applePlanStatus` 映射后的等价状态，如 `active`、`past_due`、`canceled` 等；`null` 表示没订阅过），`subscriptionPeriodStart` / `subscriptionPeriodEnd` 是当前账期（Pro 的月上限按它计），`subscriptionCancelAt` 是预约解约的日期（`null` 为没有预约）。都由 `src/lib/billing.ts`（Stripe）、`src/lib/google-play-billing.ts`（Google Play）或 `src/lib/apple-app-store.ts`（App Store）从外部取回后经 `src/lib/subscription-state.ts` 写入，不由用户直接修改。字段通过 `20261118000000_subscription` migration 部署
 
 关系：
 
@@ -344,11 +351,11 @@ User 1 -> N StoredFile（SetNull）
 
 删除用户会级联删除上述全部关联记录；`StoredFile` 例外，只把 `userId` 置空（见下文 `StoredFile`）。
 
-**删除账号**（Google Play 的账号删除要求）：已登录用户在网页或 App 的“设置 → 删除账号”确认后调用 `DELETE /api/account`（同源或不带 `Origin` 的原生请求；未登录 401）。`src/app/api/account/route.ts` 在按用户的账务锁（`withUserBillingLock`）内先停止计费：有 Stripe 客户时立即取消订阅、过期未完成结账并删掉 Stripe 客户（`cancelCustomerBilling`），有 Google Play 购买令牌时停止自动续费（`cancelPlayRenewal`），任一步失败就返回 502、不删除（见 [billing.md](billing.md)）；随后调用 `deleteAccount`（`src/lib/account-deletion.ts`）在同一事务里收集聊天附件图片路径和这个用户的 `StoredFile` 路径，把这些 `StoredFile` 行标成删除中（`deletingAt`），删掉这个邮箱的 `EmailLoginCode`、`UsageCounter` 里 `user:<id>` 的行，写入 `DeletedAccount`（见下），并删掉 `User` 行本身——会话、消息、附件、笔记、历史版本、分组、项目、提案都靠外键 `onDelete: Cascade` 一起删除；`StoredFile` 行留下（`userId` 置空）。行删掉以后再删文件：收集到的文件逐个删，`note-files/<id>/`、`page-covers/<id>/`、`avatars/<id>/`、`chat-uploads/<id>/`、`app-icons/<id>/` 整个目录删（`deleteStoredPrefix` 只接受以 `/` 结尾、至少两层的目录，避免误删别人的前缀），删成功的文件再删掉它的 `StoredFile` 行；文件在响应之后（`after()`）删，失败把路径记进日志，删除中的行留给文件清理（见 `StoredFile`）下次重试。响应用过期 Cookie 清掉 Auth.js 会话；`notefable_device` 保留（它可能指向这个设备另一条匿名的行，清掉就回不到那些数据；指向被删的行时，下一次请求会建新的匿名行）。网页和 App 都先等资料保存队列清空再发删除。公开说明页是 `/delete-account`。
+**删除账号**（Google Play 的账号删除要求）：已登录用户在网页或 App 的“设置 → 删除账号”确认后调用 `DELETE /api/account`（同源或不带 `Origin` 的原生请求；未登录 401）。`src/app/api/account/route.ts` 在按用户的账务锁（`withUserBillingLock`）内先停止计费：有 Stripe 客户时立即取消订阅、过期未完成结账并删掉 Stripe 客户（`cancelCustomerBilling`），有 Google Play 购买令牌时停止自动续费（`cancelPlayRenewal`），任一步失败就返回 502、不删除（见 [billing.md](billing.md)）；App Store 订阅服务端无法取消（见 [billing.md](billing.md#ios)）。有 Apple 登录的授权 token 时再撤销 Apple 授权（`revokeAppleLogin`，失败只记日志、照常删除）；随后调用 `deleteAccount`（`src/lib/account-deletion.ts`）在同一事务里收集聊天附件图片路径和这个用户的 `StoredFile` 路径，把这些 `StoredFile` 行标成删除中（`deletingAt`），删掉这个邮箱的 `EmailLoginCode`、`UsageCounter` 里 `user:<id>` 的行，写入 `DeletedAccount`（见下），并删掉 `User` 行本身——会话、消息、附件、笔记、历史版本、分组、项目、提案都靠外键 `onDelete: Cascade` 一起删除；`StoredFile` 行留下（`userId` 置空）。行删掉以后再删文件：收集到的文件逐个删，`note-files/<id>/`、`page-covers/<id>/`、`avatars/<id>/`、`chat-uploads/<id>/`、`app-icons/<id>/` 整个目录删（`deleteStoredPrefix` 只接受以 `/` 结尾、至少两层的目录，避免误删别人的前缀），删成功的文件再删掉它的 `StoredFile` 行；文件在响应之后（`after()`）删，失败把路径记进日志，删除中的行留给文件清理（见 `StoredFile`）下次重试。响应用过期 Cookie 清掉 Auth.js 会话；`notefable_device` 保留（它可能指向这个设备另一条匿名的行，清掉就回不到那些数据；指向被删的行时，下一次请求会建新的匿名行）。网页和 App 都先等资料保存队列清空再发删除。公开说明页是 `/delete-account`。
 
 ### DeletedAccount
 
-删除账号的印记，`key`（主键）是登录 ID 的 HMAC（`google:<sub>` 或 `email:<地址>`，用 Cookie 签名密钥），不存 ID 本身；`deletedAt` 有索引（`20261116300000_deleted_account`）。登录 Cookie 是 JWT、服务端没有记录，删除后其他设备或还在路上的请求仍带着有效 Cookie；`getOrCreateUser` 每次用登录 Cookie 找用户时都和查用户行并行地查这张表（包括删除后用同一身份重新建的账号），Cookie 的 `signedInAt`（登录时写入，Auth.js 更新 Cookie 时保留；旧 Cookie 没有，按 0 处理）早于 `deletedAt` 就当作未登录，不重建账号（`src/lib/deleted-accounts.ts`）。删除后重新登录得到的新 Cookie 照常建新账号。`GET /api/account` 遇到这种 Cookie 返回 `user: null`。超过 400 天的行在下一次删除账号时顺带删掉。
+删除账号的印记，`key`（主键）是登录 ID 的 HMAC（`google:<sub>`、`apple:<sub>` 或 `email:<地址>`，用 Cookie 签名密钥），不存 ID 本身；`deletedAt` 有索引（`20261116300000_deleted_account`）。登录 Cookie 是 JWT、服务端没有记录，删除后其他设备或还在路上的请求仍带着有效 Cookie；`getOrCreateUser` 每次用登录 Cookie 找用户时都和查用户行并行地查这张表（包括删除后用同一身份重新建的账号），Cookie 的 `signedInAt`（登录时写入，Auth.js 更新 Cookie 时保留；旧 Cookie 没有，按 0 处理）早于 `deletedAt` 就当作未登录，不重建账号（`src/lib/deleted-accounts.ts`）。删除后重新登录得到的新 Cookie 照常建新账号。`GET /api/account` 遇到这种 Cookie 返回 `user: null`。超过 400 天的行在下一次删除账号时顺带删掉。
 
 ### UsageCounter
 
@@ -357,7 +364,7 @@ User 1 -> N StoredFile（SetNull）
 | 档位 | 条件 | 聊天 | 图片 |
 | --- | --- | --- | --- |
 | guest | 未登录 | 20 / 天 | 10 / 月，且 3 / 天 |
-| member | 已登录（Google 或邮箱） | 40 / 天 | 20 / 月，且 5 / 天 |
+| member | 已登录（Google、Apple 或邮箱） | 40 / 天 | 20 / 月，且 5 / 天 |
 | pro | `plan = PRO` | 2000 / 账期 | 60 / 账期，且 10 / 天 |
 
 上限为 0 时直接拒绝，不写行（`INSERT` 本身不受 `WHERE` 限制）。图片一次生成同时计月（账期）和当天两行（`USAGE_DAILY_LIMITS`）。未登录用户清 Cookie 就会变成新用户，所以同一 IP 的未登录用户还共享一个更大的上限（聊天 100 / 天、图片 30 / 月）；登录后不受这个限制。计数用带条件的 `INSERT … ON CONFLICT DO UPDATE … WHERE count < limit`，并发请求也不会超额；多个计数在同一事务里，任一满额就整体回滚。`/api/chat`、`/api/images` 和 `/api/sessions/:id/page` 满额时返回 429（`code: "usage_limit"`）。没能交付任何内容的失败（聊天在正文和提案出现前失败或取消、图片生成或保存失败、会话不存在、附件处理失败）会退还这一次。按天计的行超过 7 天、按月计的行超过 62 天，在计数时以 1% 的概率顺带删除（没有定时任务）。设置里的“方案”经 `GET /api/billing` 读本期用量（`usageSummary`）。`kind = report` 的行是“报告回答”的每日次数（`REPORT_LIMITS`：每个用户 10 次，未登录时同一网络 20 次，`consumeReportQuota`），不属于用量档位。
@@ -626,7 +633,7 @@ StoredFileKind
 
 | 数据 | 保留规则 | 删除时的级联 |
 | --- | --- | --- |
-| Trash 里的笔记（`NotePage.deletedAt`） | 30 天。期内可复原；超期的笔记不再列出，复原被拒绝（404），并在下一次惰性清理时永久删除 | 永久删除一篇笔记会级联删除它的 `NoteRevision`、`ChatProjectNote`、`MessageNote`；在这篇笔记里开始的 `Session` 保留（`noteId` 置空），仍在 Chats 里 |
+| Trash 里的笔记（`NotePage.deletedAt`） | 30 天。期内可复原；超期的笔记不再列出，复原被拒绝（404），并在下一次惰性清理时永久删除 | 永久删除一篇笔记会级联删除它的 `NoteRevision`、`NoteCanvas`、`NoteEmbedding`、`ChatProjectNote`、`MessageNote`；在这篇笔记里开始的 `Session` 保留（`noteId` 置空），仍在 Chats 里 |
 | 编辑历史（`NoteRevision`） | 每篇笔记最多 50 份（`AUTO` 30 份且不超过 90 天，`AI_EDIT` / `RESTORE` 合计 20 份）；自动快照最短间隔 10 分钟；白板 / 幻灯片最多 10 份（5 + 5），间隔 30 分钟；超出时删最旧的 | 随笔记或用户级联删除 |
 | 白板 / 幻灯片的本体（`NoteCanvas`） | 每页一行，随保存覆盖；Trash 里的页面保留 | 随页面的永久删除、用户删除级联删除 |
 | 项目参考笔记（`ChatProjectNote`） | 每个项目最多 5 篇；Trash 里的笔记保留关联但不使用 | 随项目、随笔记的永久删除级联删除 |

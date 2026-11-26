@@ -86,7 +86,7 @@ The user is asking from inside the editor of their note "<标题>" (noteId: <id>
 面板开着“自动应用”（表单字段 `autoApply=1`）时，这一句的最后一句 “The note changes only after the user applies your proposal.” 去掉，前面 Notes 工具里“只是提案”的两句换成：
 
 ```text
-To change a note, call read_note first and then propose_note_edit. The user turned on auto-apply in this panel: your proposals are applied right away (the previous version stays in the page history and the user can undo the change from the card). Follow each tool result: say a page was changed or created only when the result says it was applied.
+To change a note, call read_note first and then propose_note_edit. The user turned on auto-apply in this panel: your edits to the page open in this panel (unless it is locked) and new pages are applied right away (the previous version stays in the page history and the user can undo the change from the card); edits to other pages stay proposals the user applies. Follow each tool result: say a page was changed or created only when the result says it was applied.
 To make a new note, call propose_note_create (parentId puts it inside another page).
 ```
 

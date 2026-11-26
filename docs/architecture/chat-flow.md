@@ -47,7 +47,7 @@ sequenceDiagram
 
 ## 前端发送的数据
 
-附件里的图片会留在文件仓库，计入用户的文件存储（[database.md](database.md#storedfile)）：`POST /api/uploads` 发上传凭证前先检查这批图片放不放得下（文本、PDF 只取文字，不算），放不下返回 413 `{ error, code: "storage_limit", tier, used, limit }`；`/api/chat` 保存图片时再逐张检查（并发时的最后一道），放不下时退还这次次数并返回同样的 413。网页（`/app` 和笔记 AI 面板）收到时不发送，文字和附件留在输入栏，输入栏上方显示 `StorageLimitPrompt`（用量、游客的登录按钮、免费用户的 Pro 升级按钮、“删除不需要的文件”）；Android / iOS 相同（iOS 没有升级按钮）。
+附件里的图片会留在文件仓库，计入用户的文件存储（[database.md](database.md#storedfile)）：`POST /api/uploads` 发上传凭证前先检查这批图片放不放得下（文本、PDF 只取文字，不算），放不下返回 413 `{ error, code: "storage_limit", tier, used, limit }`；`/api/chat` 保存图片时再逐张检查（并发时的最后一道），放不下时退还这次次数并返回同样的 413。网页（`/app` 和笔记 AI 面板）收到时不发送，文字和附件留在输入栏，输入栏上方显示 `StorageLimitPrompt`（用量、游客的登录按钮、免费用户的 Pro 升级按钮、“删除不需要的文件”）；Android / iOS 相同（iOS 的升级按钮只在开放 App Store 购买时给已登录的免费用户显示，点了打开设置的方案页）。
 
 `/api/chat` 在调用模型前预占一次聊天额度（未登录与免费登录按天计，Pro 按账期计），笔记内 AI 助手和“整理成笔记”（Create page，见下文）也使用同一份额度。满额时返回 `429`（`{ error, code: "usage_limit", tier, kind }`）；游客看到可关闭的登录引导（`GuestLimitPrompt`，点开与侧栏相同的 Google / 邮箱登录弹窗），已登录免费用户在启用订阅时看到升级引导（`UpgradePrompt`）。流式回答必须正常完成；失败或取消且没有交付正文或编辑提案时退还次数，已经交付的部分正文或提案仍计数。具体档位、并发控制与重置时间见[用量计数](database.md#usagecounter)与[付费方案](billing.md)。
 
@@ -62,7 +62,8 @@ FormData
 ├── webSearch       optional mode（/app 省略，由服务端默认 auto；笔记助手固定发 "off"）
 ├── noteId          optional（仅页面里的 AI 面板发送：笔记、白板、幻灯片）
 ├── noteSelection   optional（"1"：带着编辑器里选中的内容提问；只在有 noteId 时生效）
-├── selectionIds    optional（JSON 数组：白板 / 幻灯片里选中的元素 / 幻灯片 ID，最多 100 个、每个 1–120 字符，格式不对 400；只在有 noteId 时生效）
+├── selectionPageId optional（仅 /app 的桌面分屏发送：选区所在的页面 ID，和 selectionIds 一起发；带 noteId 时忽略；这个页面也在 pages 里时选区才生效）
+├── selectionIds    optional（JSON 数组：白板 / 幻灯片里选中的元素 / 幻灯片 ID（笔记的整块选区是块 ID），最多 100 个、每个 1–120 字符，格式不对 400；在有 noteId 或 selectionPageId 时生效）
 ├── autoApply       optional（"1"：AI 面板开着“自动应用”；只在有 noteId 时生效）
 ├── uploads         optional signed references (JSON string；兼容旧客户端的 files)
 ├── pages           optional attached note IDs (JSON string)
@@ -502,7 +503,7 @@ AI 的 `search_notes` 工具（`src/lib/page-ai/tools.ts`）现在与站内搜�
 - **显示**：`splitQuotedMessage` 只在发言开头是引用块、后面隔一个空行还有正文时才分开；提问气泡里引用灰字在上（全文，不折叠），正文在下。自己手写的引用开头的发言也会这样显示。编辑发言时编辑框里是完整原文（含 `> `）。服务端的临时标题（`/api/chat` 与 `/api/images` 的 `makeTitle`）用引用后面的提问。
 - **上传附件期间**：引用不能移除或替换（发出的内容已定）。
 - **被拒绝时**：放回输入框的是提问，引用回到输入框上方（等待期间已经选了别的引用时保留它，被拒的提问连同引用块整段放回输入框）；没有引用时放回打的原文；登录前暂存的草稿（`savePendingDraft`）带着引用块，回来时同样拆开。
-- **同一格式的其他用法**：笔记编辑器里选中文字的 “Ask NoteFable” 也用 `normalizeQuote` 和 `composeQuotedMessage`。在笔记助手面板里发送时另带 `noteSelection=1`（[notes-flow.md](notes-flow.md#页面里的-ai-助手)）；在桌面分屏的笔记面板里则直接成为聊天输入框上方的引用条，按普通发言发送（见“聊天与笔记分屏”）。
+- **同一格式的其他用法**：笔记编辑器里选中文字的 “Ask NoteFable” 也用 `normalizeQuote` 和 `composeQuotedMessage`。在笔记助手面板里发送时另带 `noteSelection=1`（[notes-flow.md](notes-flow.md#页面里的-ai-助手)）；在桌面分屏的页面面板里则直接成为聊天输入框上方的引用条，按普通发言发送（见“聊天与笔记分屏”）。
 - Android：`ui/QuoteSelection.kt`，见 [android-native.md](android-native.md#回答体验)。
 
 ## 拖放添加文件
@@ -511,15 +512,16 @@ AI 的 `search_notes` 工具（`src/lib/page-ai/tools.ts`）现在与站内搜�
 
 ## 聊天与笔记分屏
 
-视口宽度 1100px 以上（`SPLIT_VIEW_MEDIA_QUERY`，`src/lib/split-view.ts`）时，Chat 视图的顶栏在搜索按钮旁多一个分屏按钮（`aria-pressed`）。打开后工作区（`.workspace-split-shell`）分成左边的聊天、一条分隔线和右边的笔记面板 `SplitNotePane`（`src/components/split-note-pane.tsx`）。窄于 1100px 时按钮和面板都不出现（保存的开关不变，变宽后恢复）；手机宽度和原生 App 没有这个功能。
+视口宽度 1100px 以上（`SPLIT_VIEW_MEDIA_QUERY`，`src/lib/split-view.ts`）时，Chat 视图的顶栏在搜索按钮旁多一个分屏按钮（`aria-pressed`）。打开后工作区（`.workspace-split-shell`）分成左边的聊天、一条分隔线和右边的页面面板 `SplitNotePane`（`src/components/split-note-pane.tsx`，笔记、白板、幻灯片都能打开）。窄于 1100px 时按钮和面板都不出现（保存的开关不变，变宽后恢复）；手机宽度和原生 App 没有这个功能。
 
-- **同一份笔记状态。** `page.tsx` 的 `useNotePages` 在工作区视图或分屏打开时启用，右侧面板和工作区视图共用它和 `NotesWorkspace`（`split`）：自动保存、冲突处理、编辑历史、页面设置都与工作区视图相同；左边聊天里 Apply 提案后，右边的编辑器经 `notefable:page-updated` 立即更新。分屏里打开或新建笔记不改 URL（`view` 不是 `pages` 时，`useNotePages` 不读也不写 `page=`）。
-- **面板顶栏。** 页面切换（Switch page，按标题筛选 “Filter pages…”，最多列 60 个，带 New note）、锁定时的解锁按钮、版本历史、保存状态、“…”页面菜单（与工作区顶栏相同，含 Export Markdown）、“Open in full view”（切到工作区视图打开这一篇）和关闭。还没有打开笔记时显示说明、New note 和最近编辑的 8 篇。刚打开分屏时自动打开上次在这里开着的笔记，没有或已不存在就打开最近编辑的一篇（每次打开分屏只试一次）。
-- **分隔线。** `role="separator"`：拖动改变比例，比例是笔记面板占工作区的份额，限制在 0.3–0.65（`clampSplitRatio`），默认 0.46，面板最窄 320px；双击恢复默认；聚焦后 ←/→ 每次 0.03；RTL 下方向相反。
+- **同一份页面状态。** `page.tsx` 的 `useNotePages` 在工作区视图或分屏打开时启用，右侧面板和工作区视图共用它和 `NotesWorkspace`（`split`）：自动保存、冲突处理、编辑历史、页面设置都与工作区视图相同；左边聊天里 Apply 提案后，右边的编辑器经 `notefable:page-updated` 立即更新。分屏里打开页面或新建笔记不改 URL（`view` 不是 `pages` 时，`useNotePages` 不读也不写 `page=`）。
+- **面板顶栏。** 页面切换（Switch page，按标题筛选 “Filter pages…”，最多列 60 个，带 New note）、锁定时的解锁按钮、版本历史、保存状态、“…”页面菜单（与工作区顶栏相同，含 Export Markdown）、“Open in full view”（切到工作区视图打开这一篇）和关闭。还没有打开页面时显示说明、New note 和最近编辑的 8 个页面。刚打开分屏时自动打开上次在这里开着的页面，没有或已不存在就打开最近编辑的一个（每次打开分屏只试一次）。
+- **分隔线。** `role="separator"`：拖动改变比例，比例是页面面板占工作区的份额，限制在 0.3–0.65（`clampSplitRatio`），默认 0.46，面板最窄 320px；双击恢复默认；聚焦后 ←/→ 每次 0.03；RTL 下方向相反。
 - **本机保存。** `localStorage` 的 `notefable:split-view:v1` 存 `{ open, pageId, ratio }`（`loadSplitPreference` / `saveSplitPreference`），只按浏览器保存，不随账号同步。`/app` 是静态页面，所以在页面显示后才读取。
-- **笔记链接在右侧打开。** Chat 视图且宽度够时，`openNoteFromLink` 不切到工作区，而是在分屏里打开（分屏关着就顺便打开）：搜索结果（带 `blockId` 时照常滚到命中的块并高亮）、空对话页最近笔记卡片的 ↗，以及所有派发 `notefable:open-note` 的地方（项目参考笔记和发言附加笔记的标签、Save to page 的 “Open saved page”、Create page 的 “Open page”、画成图的 “Open whiteboard”、AI 生成幻灯片的 “Open slides”）。其他情况仍切到工作区视图。
-- **Ask NoteFable 进聊天。** 分屏的笔记面板不显示笔记助手的悬浮按钮和面板。在这里选中文字点格式工具栏的 Ask NoteFable，文字成为聊天输入框上方的引用条（与“引用回答追问”同一个引用条和发送格式），同时把这篇笔记加进这条发言的附加笔记（已附加或已满 5 篇时不加）。之后就是一条普通的聊天发言：不带 `noteId` / `noteSelection`，AI 通过附加的笔记和 Notes 工具读到内容。
-- **发送前保存。** 分屏打开且右侧笔记有未保存的编辑时（白板先交出还没交给保存队列的变更），发送聊天消息前先 `flush()`，让 AI 读到最新的正文；保存失败不阻止发送。关闭分屏时也 flush 一次。
+- **页面链接在右侧打开。** Chat 视图且宽度够时，`openNoteFromLink` 不切到工作区，而是在分屏里打开（分屏关着就顺便打开）：搜索结果（带 `blockId` 时照常滚到命中的块并高亮）、空对话页最近笔记卡片的 ↗，以及所有派发 `notefable:open-note` 的地方（项目参考笔记和发言附加笔记的标签、Save to page 的 “Open saved page”、Create page 的 “Open page”、画成图的 “Open whiteboard”、AI 生成幻灯片的 “Open slides”）。其他情况仍切到工作区视图。
+- **Ask NoteFable 进聊天。** 分屏的页面面板不显示页面 AI 的悬浮按钮和面板。在这里点 Ask NoteFable（笔记：选中文字后的格式工具栏、整块选区的浮动栏或 `⋮⋮` 菜单；白板 / 幻灯片：编辑器里的 Ask NoteFable），选中的文字（选区没有文字时是“标题 (N items selected)”）成为聊天输入框上方的引用条（与“引用回答追问”同一个引用条和发送格式），同时把这个页面加进这条发言的附加页面（已附加时不重复加；已满 5 个且不含它时只放引用）。之后就是一条普通的聊天发言：不带 `noteId` / `noteSelection`，AI 通过附加的页面和 Notes 工具读到内容。
+- **分屏的选区。** 笔记的整块选区、白板元素、幻灯片 / 元素还带 ID：只要该页面仍在附加页面里，请求就带 `selectionPageId` + `selectionIds`，并存到这条发言的 `MessageNote.selectionIds`（编辑 / 重新生成时沿用）。目标是白板 / 幻灯片且模型能用 Notes 工具时，`buildInstructions()` 另加一句列出选中的 ID，`read_note` 超长时优先输出它们；笔记的选区只靠引用文字。白板 / 幻灯片的选区在当前模型能看图时还会在发送时截成 `selection.png` 随附件上传（截不了或放不下时只提示，照常发送）。移除引用条会连选区一起去掉；图片生成模式只放引用。
+- **发送前保存。** 分屏打开且右侧页面有未保存的编辑时（白板先交出还没交给保存队列的变更），发送聊天消息前先 `flush()`，让 AI 读到最新的正文；保存失败不阻止发送。关闭分屏时也 flush 一次。
 
 ## 回答里的数学公式
 
