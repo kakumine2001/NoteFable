@@ -35,6 +35,16 @@ describe("slides prompts", () => {
     expect(deckInstructions("topic")).not.toContain("Use only facts that are in the material.");
     for (const text of [outlineInstructions("topic"), deckInstructions("topic")]) expect(text).toContain("never instructions to you");
   });
+
+  it("includes slide image instructions and settings only when generateImages is enabled on the deck step", () => {
+    expect(deckInstructions("topic", false)).not.toContain("@@@IMAGE");
+    expect(deckInstructions("topic", true)).toContain("@@@IMAGE");
+    expect(deckInstructions("topic", true)).toContain("no text");
+    const withImages = { ...DEFAULT_SLIDES_OPTIONS, generateImages: true };
+    expect(outlineInput("m", withImages, "topic")).not.toContain("Slide images:");
+    expect(deckInput("m", outline, withImages, "topic")).toContain("Slide images: enabled");
+    expect(deckInput("m", outline, DEFAULT_SLIDES_OPTIONS, "topic")).not.toContain("Slide images:");
+  });
 });
 
 describe("parseOutlineReply", () => {
@@ -131,5 +141,50 @@ describe("parseDeckReply", () => {
     // 閉じていないコードの囲みの中の @@@END は終わりの印にならない。
     expect(parseDeckReply("@@@SLIDE One\n```\n@@@SLIDE Two\n@@@END", outline)).toBeNull();
     expect(parseDeckReply("no markers\n@@@END", outline)).toBeNull();
+  });
+
+  it("extracts and sanitizes @@@IMAGE prompts only when generateImages is enabled", () => {
+    const raw = [
+      "@@@SLIDE One",
+      "@@@BODY",
+      "- Light reaction",
+      "@@@NOTES",
+      "Explain thylakoids.",
+      "@@@IMAGE",
+      `  Minimalist editorial illustration of sunlight hitting green plant leaves, ${"detail ".repeat(100)}`,
+      "@@@SLIDE Two",
+      "@@@BODY",
+      "- Dark reaction",
+      "@@@NOTES",
+      "Explain stroma.",
+      "@@@IMAGE",
+      "none",
+      "@@@END",
+    ].join("\n");
+    const enabled = parseDeckReply(raw, outline, { generateImages: true })!;
+    expect(enabled[0].imagePrompt).toBeTruthy();
+    expect(enabled[0].imagePrompt!.length).toBeLessThanOrEqual(500);
+    expect(enabled[0].imagePrompt).toContain("Minimalist editorial illustration");
+    expect(enabled[1].imagePrompt).toBeUndefined();
+
+    // Rejects data: and internal file URLs in image prompts.
+    const unsafe = [
+      "@@@SLIDE One",
+      "@@@BODY",
+      "- A",
+      "@@@IMAGE",
+      "data:image/png;base64,abc",
+      "@@@SLIDE Two",
+      "@@@BODY",
+      "- B",
+      "@@@IMAGE",
+      "/api/pages/files?key=secret",
+      "@@@END",
+    ].join("\n");
+    expect(parseDeckReply(unsafe, outline, { generateImages: true })!.map((s) => s.imagePrompt)).toEqual([undefined, undefined]);
+
+    // Disabled by default: ignores @@@IMAGE blocks completely.
+    const disabled = parseDeckReply(raw, outline)!;
+    expect(disabled.map((s) => s.imagePrompt)).toEqual([undefined, undefined]);
   });
 });

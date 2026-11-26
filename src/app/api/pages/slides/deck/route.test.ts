@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  findPage: vi.fn(), findPages: vi.fn(), findGroup: vi.fn(), consume: vi.fn(), refund: vi.fn(), generate: vi.fn(), create: vi.fn(), embed: vi.fn(),
+  findPage: vi.fn(), findPages: vi.fn(), findGroup: vi.fn(), consume: vi.fn(), refund: vi.fn(), generate: vi.fn(), create: vi.fn(), embed: vi.fn(), readCanvas: vi.fn(),
 }));
 vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "mine", googleSub: null }) }));
+vi.mock("@/lib/canvas-store", () => ({ readCanvasData: mocks.readCanvas }));
 vi.mock("@/lib/prisma", () => ({ prisma: { notePage: { findFirst: mocks.findPage, findMany: mocks.findPages }, noteGroup: { findFirst: mocks.findGroup } } }));
 vi.mock("@/lib/usage-limits", () => ({
   clientNetworkKey: () => null,
@@ -35,6 +36,7 @@ describe("POST /api/pages/slides/deck", () => {
     vi.clearAllMocks();
     mocks.findPage.mockReset().mockResolvedValue(null);
     mocks.findGroup.mockReset().mockResolvedValue(null);
+    mocks.readCanvas.mockReset().mockResolvedValue(null);
     mocks.findPages.mockResolvedValue([{ id: "cnote1", kind: "note", title: "光合作用笔记", blocks: [{ id: "b1", type: "paragraph", props: {}, content: [{ type: "text", text: "光反应和暗反应", styles: {} }], children: [] }] }]);
     mocks.consume.mockResolvedValue({ ok: true, ticket });
     mocks.generate.mockResolvedValue({ text: REPLY, cutOff: false });
@@ -166,5 +168,47 @@ describe("POST /api/pages/slides/deck", () => {
   it("refuses a body over 1 MiB", async () => {
     expect((await post({ ...topicBody, padding: "x".repeat(1_100_000) })).status).toBe(413);
     expect(mocks.consume).not.toHaveBeenCalled();
+  });
+
+  it("returns imageTasks when generateImages is enabled on create (201) and replay (200)", async () => {
+    const replyWithImages = [
+      "@@@SLIDE 光反应",
+      "@@@BODY",
+      "- 类囊体",
+      "@@@NOTES",
+      "讲光反应。",
+      "@@@IMAGE",
+      "Minimalist sunlit green chloroplast illustration",
+      "@@@SLIDE 暗反应",
+      "@@@BODY",
+      "- 基质",
+      "@@@NOTES",
+      "",
+      "@@@IMAGE",
+      "none",
+      "@@@END",
+    ].join("\n");
+    mocks.generate.mockResolvedValueOnce({ text: replyWithImages, cutOff: false });
+    const reqBody = { ...topicBody, options: { ...topicBody.options, generateImages: true } };
+    const created = await post(reqBody);
+    expect(created.status).toBe(201);
+    const createdBody = await created.json();
+    expect(mocks.generate.mock.calls[0][0].instructions).toBe(deckInstructions("topic", true));
+    expect(createdBody.imageTasks).toEqual([{
+      slideId: expect.any(String),
+      elementId: expect.any(String),
+      slideTitle: "光反应",
+      prompt: "Minimalist sunlit green chloroplast illustration",
+    }]);
+
+    // Replay returns only tasks that still have pendingImagePrompt and no src.
+    const savedDeck = mocks.create.mock.calls[0][2].data;
+    mocks.findPage.mockResolvedValueOnce({ id: "cexisting", kind: "slides", title: "光合作用", deletedAt: null });
+    mocks.readCanvas.mockResolvedValueOnce(savedDeck);
+    const replayed = await post(reqBody);
+    expect(replayed.status).toBe(200);
+    const replayedBody = await replayed.json();
+    expect(mocks.readCanvas).toHaveBeenCalledWith("mine", "cexisting");
+    expect(replayedBody.imageTasks).toEqual(createdBody.imageTasks);
   });
 });

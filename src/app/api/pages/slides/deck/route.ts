@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getOrCreateUser } from "@/lib/auth";
 import { validateCanvasPage } from "@/lib/canvas-document";
+import { readCanvasData } from "@/lib/canvas-store";
 import { msg } from "@/lib/i18n/translate";
 import { noteApiError } from "@/lib/note-api";
 import { createCanvasPage } from "@/lib/note-create";
@@ -10,10 +11,11 @@ import { PAGE_SUMMARY_SELECT } from "@/lib/note-tree-server";
 import { isRecordId } from "@/lib/page-ai/ids";
 import { aiRequestPageId, findRequestedPage, isDuplicateCreate } from "@/lib/page-ai/one-shot";
 import { prisma } from "@/lib/prisma";
-import { buildAiDeck } from "@/lib/slides/ai-build";
+import { buildAiDeck, pendingSlideImageTasks } from "@/lib/slides/ai-build";
 import { deckInput, deckInstructions, parseDeckReply } from "@/lib/slides/ai-prompt";
 import { generateSlidesText, readSlidesMaterial, readSlidesRequest, SLIDES_FAILED, slidesModel } from "@/lib/slides/ai-server";
 import { parseOutline } from "@/lib/slides/ai-wizard";
+import { normalizeDeck } from "@/lib/slides/model";
 import { clientNetworkKey, consumeUsage, refundUsage, usageLimitResponse, type UsageTicket } from "@/lib/usage-limits";
 
 export const runtime = "nodejs";
@@ -51,10 +53,11 @@ export async function POST(request: Request) {
   let ticket: UsageTicket | undefined;
   try {
     const user = await getOrCreateUser();
+    const generateImages = options.generateImages === true;
     const pageId = aiRequestPageId(user.id, "slides", clientRequestId);
     // 同じ要求の送り直し（応答だけが失われたなど）：作ってあるページを返す。
     const existing = await findRequestedPage(user.id, pageId);
-    if (existing) return replayed(existing);
+    if (existing) return await replayed(existing, user.id, generateImages);
 
     const material = await readSlidesMaterial(user.id, source);
     if (material instanceof Response) return material;
@@ -76,13 +79,13 @@ export async function POST(request: Request) {
 
     const reply = await generateSlidesText({
       model,
-      instructions: deckInstructions(source.type),
+      instructions: deckInstructions(source.type, generateImages),
       input: deckInput(material.text, outline, options, source.type),
       userId: user.id,
       request,
       maxOutputTokens: MAX_DECK_OUTPUT_TOKENS,
     });
-    const slides = reply === null ? null : parseDeckReply(reply, outline);
+    const slides = reply === null ? null : parseDeckReply(reply, outline, { generateImages });
     if (!slides) {
       if (reply !== null) console.error("The slides reply did not follow the format");
       await refundUsage(ticket);
@@ -90,6 +93,7 @@ export async function POST(request: Request) {
     }
 
     const { deck, truncatedSlides } = buildAiDeck({ title: outline.title, slides, theme: options.theme });
+    const imageTasks = generateImages ? pendingSlideImageTasks(deck) : [];
     const input = validateCanvasPage("slides", { title: outline.title.slice(0, MAX_NOTE_TITLE), icon: null, data: deck });
     let page;
     try {
@@ -105,11 +109,15 @@ export async function POST(request: Request) {
       await refundUsage(ticket);
       ticket = undefined;
       const created = await findRequestedPage(user.id, pageId);
-      if (created) return replayed(created);
+      if (created) return await replayed(created, user.id, generateImages);
       throw error;
     }
     scheduleNoteEmbeddingSync(user.id, [page.id]);
-    return NextResponse.json({ page: summary(page), ...(material.truncated || truncatedSlides ? { partial: true } : {}) }, { status: 201 });
+    return NextResponse.json({
+      page: summary(page),
+      ...(material.truncated || truncatedSlides ? { partial: true } : {}),
+      ...(imageTasks.length ? { imageTasks } : {}),
+    }, { status: 201 });
   } catch (error) {
     await refundUsage(ticket);
     if (error instanceof NoteValidationError) return noteApiError(error);
@@ -118,7 +126,9 @@ export async function POST(request: Request) {
   }
 }
 
-function replayed(page: NonNullable<Awaited<ReturnType<typeof findRequestedPage>>>) {
+async function replayed(page: NonNullable<Awaited<ReturnType<typeof findRequestedPage>>>, userId: string, generateImages: boolean) {
   if (page.deletedAt) return NextResponse.json({ error: msg("These slides were moved to the trash.") }, { status: 404 });
-  return NextResponse.json({ page: summary(page) }, { status: 200 });
+  const data = generateImages ? await readCanvasData(userId, page.id) : null;
+  const imageTasks = data ? pendingSlideImageTasks(normalizeDeck(data)) : [];
+  return NextResponse.json({ page: summary(page), ...(imageTasks.length ? { imageTasks } : {}) }, { status: 200 });
 }

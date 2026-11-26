@@ -119,6 +119,7 @@ class NoteEmbedBridgeTest {
         val closed = EmbedMessage.SlidesWizard(open = false, busy = true)
         val openPage = EmbedMessage.OpenPage("deck")
         val limit = EmbedMessage.UsageLimit("guest", "chat")
+        val storage = EmbedMessage.StorageLimit("member", 10L, 20L)
         for (editor in listOf(null, "p1", SLIDES_WIZARD_EDITOR)) {
             assertEquals(EmbedRoute.Wizard, embedRoute(closed, editor))
             assertEquals(EmbedRoute.PagesChanged, embedRoute(EmbedMessage.PagesChanged, editor))
@@ -126,13 +127,16 @@ class NoteEmbedBridgeTest {
         // 全屏向导：打开幻灯片和上限交给向导，别的（上一个页面晚到的）丢掉。
         assertEquals(EmbedRoute.Wizard, embedRoute(openPage, SLIDES_WIZARD_EDITOR))
         assertEquals(EmbedRoute.Wizard, embedRoute(limit, SLIDES_WIZARD_EDITOR))
+        assertEquals(EmbedRoute.Wizard, embedRoute(storage, SLIDES_WIZARD_EDITOR))
         assertEquals(EmbedRoute.Drop, embedRoute(EmbedMessage.SaveState("saved"), SLIDES_WIZARD_EDITOR))
         assertEquals(EmbedRoute.Drop, embedRoute(EmbedMessage.Ready("p1", "T", null), SLIDES_WIZARD_EDITOR))
         // 盖在编辑器上时和编辑器的消息一样处理；停靠中的丢掉。
         assertEquals(EmbedRoute.Editor, embedRoute(openPage, "p1"))
         assertEquals(EmbedRoute.Editor, embedRoute(limit, "p1"))
+        assertEquals(EmbedRoute.Editor, embedRoute(storage, "p1"))
         assertEquals(EmbedRoute.Drop, embedRoute(openPage, null))
         assertEquals(EmbedRoute.Drop, embedRoute(limit, null))
+        assertEquals(EmbedRoute.Drop, embedRoute(storage, null))
     }
 
     @Test
