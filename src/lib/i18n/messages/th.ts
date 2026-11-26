@@ -1252,4 +1252,10 @@ export const th: Record<string, string> = {
   "Before preview unavailable — the previous version is no longer kept.": "ไม่แสดงตัวอย่างก่อนแก้ไขได้ — เวอร์ชันก่อนหน้าไม่ได้ถูกเก็บไว้แล้ว",
   "Before preview unavailable — this proposal was discarded.": "ไม่แสดงตัวอย่างก่อนแก้ไขได้ — ข้อเสนอนี้ถูกยกเลิกแล้ว",
   "Before preview is not available.": "ไม่สามารถแสดงตัวอย่างก่อนแก้ไขได้",
+  "Turn into image": "แปลงเป็นรูปภาพ",
+  "Turn sketch into image": "แปลงภาพร่างเป็นรูปภาพ",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "เพิ่มคำอธิบายหรือสไตล์ได้ (ไม่บังคับ) แต่ละรูปจะใช้สิทธิ์สร้างรูปภาพ 1 ครั้งจากแผนของคุณ",
+  "Selected sketch": "ภาพร่างที่เลือก",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "ไม่บังคับ: ภาพวาดสีน้ำ เรนเดอร์ 3 มิติแบบเรียบสะอาด แผนภาพสถาปัตยกรรม…",
+  "Could not capture the selected sketch. Try again.": "ไม่สามารถจับภาพร่างที่เลือกได้ โปรดลองอีกครั้ง",
 };

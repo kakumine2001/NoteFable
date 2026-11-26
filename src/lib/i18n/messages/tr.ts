@@ -1252,4 +1252,10 @@ export const tr: Record<string, string> = {
   "Before preview unavailable — the previous version is no longer kept.": "Önceki önizleme kullanılamıyor — önceki sürüm artık saklanmıyor.",
   "Before preview unavailable — this proposal was discarded.": "Önceki önizleme kullanılamıyor — bu öneri iptal edildi.",
   "Before preview is not available.": "Önceki önizleme kullanılamıyor.",
+  "Turn into image": "Görsele dönüştür",
+  "Turn sketch into image": "Çizimi görsele dönüştür",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "İsteğe bağlı bir açıklama veya stil ekleyin. Her görsel planınızdan bir görsel oluşturma hakkı kullanır.",
+  "Selected sketch": "Seçilen çizim",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "İsteğe bağlı: suluboya illüstrasyon, sade 3B render, mimari diyagram…",
+  "Could not capture the selected sketch. Try again.": "Seçilen çizim yakalanamadı. Tekrar deneyin.",
 };

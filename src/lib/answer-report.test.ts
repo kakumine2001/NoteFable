@@ -7,7 +7,7 @@ vi.mock("@/lib/prisma", () => ({
 }));
 vi.mock("@/lib/email-login", () => ({ sendEmail: vi.fn() }));
 vi.mock("@/components/legal-page", () => ({ LEGAL_CONTACT_EMAIL: "owner@example.com" }));
-import { findReportedPage, findReportedProposal, parseReport } from "./answer-report";
+import { findReportedPage, findReportedProposal, parseReport, whiteboardImageReportEmail } from "./answer-report";
 
 describe("reporting AI content", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -51,5 +51,23 @@ describe("reporting AI content", () => {
     expect(page).toMatchObject({ kind: "slides", text: "Slide 1: Intro\nSlide 3: End", proposals: [{ id: "p1" }] });
     mocks.page.mockResolvedValue(null);
     expect(await findReportedPage("u1", "pg")).toBeNull();
+  });
+
+  it("formats whiteboard image report emails cleanly", () => {
+    const email = whiteboardImageReportEmail({
+      userId: "u1",
+      signedIn: true,
+      pageId: "wb1",
+      elementId: "img1",
+      prompt: "Watercolor lighthouse",
+      path: "note-files/u1/abc.png",
+      reason: "Wrong image",
+    });
+    expect(email.subject).toBe("[NoteFable] Reported whiteboard image wb1/img1");
+    expect(email.text).toContain("Whiteboard: wb1");
+    expect(email.text).toContain("Image element: img1");
+    expect(email.text).toContain("Watercolor lighthouse");
+    expect(email.text).toContain("note-files/u1/abc.png");
+    expect(email.text).toContain("Reason: Wrong image");
   });
 });

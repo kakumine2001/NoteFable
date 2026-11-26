@@ -60,6 +60,40 @@ const roundPoints = (points: unknown, digits = 2) => Array.isArray(points)
   : points;
 
 const POSITION_KEYS = ["x", "y", "width", "height"] as const;
+export const MAX_GENERATED_IMAGE_PROMPT = 4_000;
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+const DISALLOWED_PROMPT_PREFIX = /^\s*(?:data:[a-z]+\/[a-z0-9.+-]+[;,]|\/api\/pages\/files\?)/i;
+
+export type WhiteboardGeneratedImageData = { prompt: string };
+
+function sanitizeGeneratedPrompt(value: string): string {
+  let cleaned = value.replace(/\u0000/g, "").replace(LONE_SURROGATE, "").trim();
+  // 保存時の埋め込み data: URL / ファイル参照チェック（canvas-document.ts）を誤発火させない。
+  if (DISALLOWED_PROMPT_PREFIX.test(cleaned)) cleaned = `prompt: ${cleaned}`;
+  if (cleaned.length <= MAX_GENERATED_IMAGE_PROMPT) return cleaned;
+  const end = (cleaned.charCodeAt(MAX_GENERATED_IMAGE_PROMPT - 1) & 0xfc00) === 0xd800
+    ? MAX_GENERATED_IMAGE_PROMPT - 1
+    : MAX_GENERATED_IMAGE_PROMPT;
+  return cleaned.slice(0, end);
+}
+
+// AI で生成したホワイトボード画像の印（customData.generated）。報告のためにプロンプトを安全に保持し、公開共有では public.ts が落とす。
+export function generatedImageDataOf(customData: unknown): WhiteboardGeneratedImageData | null {
+  if (!object(customData)) return null;
+  const generated = customData.generated;
+  if (!object(generated) || typeof generated.prompt !== "string") return null;
+  const prompt = sanitizeGeneratedPrompt(generated.prompt);
+  return prompt ? { prompt } : null;
+}
+
+function sanitizeCustomData(element: WhiteboardElement): Record<string, unknown> | undefined {
+  if (!object(element.customData)) return undefined;
+  if (!("generated" in element.customData)) return element.customData;
+  const rest = Object.fromEntries(Object.entries(element.customData).filter(([key]) => key !== "generated"));
+  const valid = element.type === "image" ? generatedImageDataOf(element.customData) : null;
+  if (valid) return { ...rest, generated: valid };
+  return Object.keys(rest).length ? rest : undefined;
+}
 
 function compactElement(element: WhiteboardElement): WhiteboardElement {
   const next: WhiteboardElement = { ...element };
@@ -67,6 +101,11 @@ function compactElement(element: WhiteboardElement): WhiteboardElement {
   if (typeof next.angle === "number") next.angle = round(next.angle, 5);
   if (Array.isArray(next.points)) next.points = roundPoints(next.points);
   if (Array.isArray(next.pressures)) next.pressures = (next.pressures as unknown[]).map((value) => round(value, 3));
+  if ("customData" in next && object(next.customData)) {
+    const sanitized = sanitizeCustomData(next);
+    if (sanitized) next.customData = sanitized;
+    else delete next.customData;
+  }
   return next;
 }
 

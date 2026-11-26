@@ -1252,4 +1252,10 @@ export const ko: Record<string, string> = {
   "Before preview unavailable — the previous version is no longer kept.": "변경 전 미리보기를 표시할 수 없습니다 — 이전 버전이 더 이상 보관되지 않습니다.",
   "Before preview unavailable — this proposal was discarded.": "변경 전 미리보기를 표시할 수 없습니다 — 이 제안은 폐기되었습니다.",
   "Before preview is not available.": "변경 전 미리보기를 사용할 수 없습니다.",
+  "Turn into image": "이미지로 변환",
+  "Turn sketch into image": "스케치를 이미지로 변환",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "설명이나 스타일을 선택적으로 추가하세요. 이미지마다 요금제의 이미지 생성 1회를 사용합니다.",
+  "Selected sketch": "선택한 스케치",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "선택 사항: 수채화 일러스트, 깔끔한 3D 렌더링, 아키텍처 다이어그램…",
+  "Could not capture the selected sketch. Try again.": "선택한 스케치를 캡처할 수 없습니다. 다시 시도해 주세요.",
 };

@@ -1252,4 +1252,10 @@ export const fr: Record<string, string> = {
   "Before preview unavailable — the previous version is no longer kept.": "Aperçu précédent indisponible — la version précédente n’est plus conservée.",
   "Before preview unavailable — this proposal was discarded.": "Aperçu précédent indisponible — cette proposition a été ignorée.",
   "Before preview is not available.": "L’aperçu précédent n’est pas disponible.",
+  "Turn into image": "Transformer en image",
+  "Turn sketch into image": "Transformer le croquis en image",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "Ajoutez une description ou un style facultatif. Chaque image utilise une génération d’image de votre forfait.",
+  "Selected sketch": "Croquis sélectionné",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "Facultatif : illustration à l’aquarelle, rendu 3D épuré, schéma d’architecture…",
+  "Could not capture the selected sketch. Try again.": "Impossible de capturer le croquis sélectionné. Réessayez.",
 };

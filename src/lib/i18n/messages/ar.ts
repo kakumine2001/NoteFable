@@ -1252,4 +1252,10 @@ export const ar: Record<string, string> = {
   "Before preview unavailable — the previous version is no longer kept.": "المعاينة السابقة غير متوفرة — لم يعد الإصدار السابق محفوظًا.",
   "Before preview unavailable — this proposal was discarded.": "المعاينة السابقة غير متوفرة — تم تجاهل هذا الاقتراح.",
   "Before preview is not available.": "المعاينة السابقة غير متوفرة.",
+  "Turn into image": "تحويل إلى صورة",
+  "Turn sketch into image": "تحويل الرسم إلى صورة",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "أضف وصفًا أو أسلوبًا اختياريًا. تستخدم كل صورة عملية إنشاء صورة واحدة من خطتك.",
+  "Selected sketch": "الرسم المحدد",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "اختياري: رسم بالألوان المائية، تصميم ثلاثي الأبعاد نظيف، مخطط معماري…",
+  "Could not capture the selected sketch. Try again.": "تعذر التقاط الرسم المحدد. حاول مرة أخرى.",
 };

@@ -1252,4 +1252,10 @@ export const id: Record<string, string> = {
   "Before preview unavailable — the previous version is no longer kept.": "Pratinjau sebelumnya tidak tersedia — versi sebelumnya tidak lagi disimpan.",
   "Before preview unavailable — this proposal was discarded.": "Pratinjau sebelumnya tidak tersedia — usulan ini telah dibuang.",
   "Before preview is not available.": "Pratinjau sebelumnya tidak tersedia.",
+  "Turn into image": "Ubah jadi gambar",
+  "Turn sketch into image": "Ubah sketsa jadi gambar",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "Tambahkan deskripsi atau gaya opsional. Setiap gambar menggunakan satu kuota pembuatan gambar dari paket Anda.",
+  "Selected sketch": "Sketsa terpilih",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "Opsional: ilustrasi cat air, render 3D rapi, diagram arsitektur…",
+  "Could not capture the selected sketch. Try again.": "Tidak dapat mengambil sketsa yang dipilih. Coba lagi.",
 };

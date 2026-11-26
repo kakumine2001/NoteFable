@@ -1252,4 +1252,10 @@ export const hi: Record<string, string> = {
   "Before preview unavailable — the previous version is no longer kept.": "पहले का पूर्वावलोकन उपलब्ध नहीं है — पिछला संस्करण अब सुरक्षित नहीं है।",
   "Before preview unavailable — this proposal was discarded.": "पहले का पूर्वावलोकन उपलब्ध नहीं है — यह प्रस्ताव खारिज कर दिया गया था।",
   "Before preview is not available.": "पहले का पूर्वावलोकन उपलब्ध नहीं है।",
+  "Turn into image": "चित्र में बदलें",
+  "Turn sketch into image": "स्केच को चित्र में बदलें",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "वैकल्पिक विवरण या शैली जोड़ें। हर चित्र आपके प्लान के एक इमेज जनरेशन का उपयोग करता है।",
+  "Selected sketch": "चयनित स्केच",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "वैकल्पिक: वॉटरकलर चित्र, साफ 3D रेंडर, आर्किटेक्चर आरेख…",
+  "Could not capture the selected sketch. Try again.": "चयनित स्केच कैप्चर नहीं हो सका। फिर प्रयास करें।",
 };

@@ -1252,4 +1252,10 @@ export const ptBR: Record<string, string> = {
   "Before preview unavailable — the previous version is no longer kept.": "Pré-visualização anterior indisponível — a versão anterior não está mais disponível.",
   "Before preview unavailable — this proposal was discarded.": "Pré-visualização anterior indisponível — esta proposta foi descartada.",
   "Before preview is not available.": "A pré-visualização anterior não está disponível.",
+  "Turn into image": "Transformar em imagem",
+  "Turn sketch into image": "Transformar esboço em imagem",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "Adicione uma descrição ou estilo opcional. Cada imagem usa uma geração de imagem do seu plano.",
+  "Selected sketch": "Esboço selecionado",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "Opcional: ilustração em aquarela, renderização 3D limpa, diagrama de arquitetura…",
+  "Could not capture the selected sketch. Try again.": "Não foi possível capturar o esboço selecionado. Tente novamente.",
 };

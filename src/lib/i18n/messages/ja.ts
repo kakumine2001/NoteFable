@@ -1253,4 +1253,10 @@ export const ja: Record<string, string> = {
   "Before preview unavailable — the previous version is no longer kept.": "変更前のプレビューは表示できません（以前のバージョンは保存されていません）。",
   "Before preview unavailable — this proposal was discarded.": "変更前のプレビューは表示できません（この提案は破棄されました）。",
   "Before preview is not available.": "変更前のプレビューは利用できません。",
+  "Turn into image": "画像にする",
+  "Turn sketch into image": "スケッチを画像にする",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "説明やテイストを追加できます（任意）。画像はプランの画像生成回数を 1 回使います。",
+  "Selected sketch": "選択したスケッチ",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "任意：水彩イラスト、すっきりした 3D レンダー、構成図…",
+  "Could not capture the selected sketch. Try again.": "選択したスケッチを取得できませんでした。もう一度お試しください。",
 };

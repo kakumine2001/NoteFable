@@ -1261,4 +1261,10 @@ export const zh: Record<string, string> = {
   "Before preview unavailable — the previous version is no longer kept.": "无法显示修改前预览：之前的版本已不再保留。",
   "Before preview unavailable — this proposal was discarded.": "无法显示修改前预览：此建议已被放弃。",
   "Before preview is not available.": "无法显示修改前预览。",
+  "Turn into image": "变成图片",
+  "Turn sketch into image": "将草图变成图片",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "可补充说明或风格（可选）。每张图片会使用套餐中的 1 次生图额度。",
+  "Selected sketch": "已选草图",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "可选：水彩插画、简洁 3D 渲染、架构示意图…",
+  "Could not capture the selected sketch. Try again.": "无法导出所选草图，请重试。",
 };

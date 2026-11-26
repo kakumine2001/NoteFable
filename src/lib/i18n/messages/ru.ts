@@ -1252,4 +1252,10 @@ export const ru: Record<string, string> = {
   "Before preview unavailable — the previous version is no longer kept.": "Предпросмотр «до» недоступен — предыдущая версия больше не хранится.",
   "Before preview unavailable — this proposal was discarded.": "Предпросмотр «до» недоступен — это предложение было отклонено.",
   "Before preview is not available.": "Предпросмотр «до» недоступен.",
+  "Turn into image": "Превратить в изображение",
+  "Turn sketch into image": "Превратить набросок в изображение",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "Добавьте описание или стиль (необязательно). Каждое изображение расходует 1 генерацию изображений из вашего тарифа.",
+  "Selected sketch": "Выбранный набросок",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "Необязательно: акварельная иллюстрация, аккуратный 3D-рендер, архитектурная схема…",
+  "Could not capture the selected sketch. Try again.": "Не удалось захватить выбранный набросок. Попробуйте ещё раз.",
 };
