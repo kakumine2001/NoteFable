@@ -117,7 +117,7 @@ export function ProfileSettings({ user, onSave, onUpload, closeGuardRef, nameFlu
 
   const customized = Boolean(user.displayName || user.icon || user.avatarUrl);
   // メールでログインした人には Google の名前・写真が無い。「Google に戻す」系の文言は Google のプロフィールがあるときだけ。
-  const hasGoogleProfile = Boolean(user.googleName || user.image);
+  const hasGoogleProfile = !user.appleProfile && Boolean(user.googleName || user.image);
 
   return (
     <div className="settings-profile">

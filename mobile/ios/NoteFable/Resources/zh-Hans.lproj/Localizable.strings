@@ -479,6 +479,8 @@
 "storage_limit_sign_in" = "登录后可使用 %1$s 存储空间。";
 "storage_limit_upgrade" = "升级 Pro（每月 %2$s），可使用 %1$s 存储空间。";
 "storage_limit_delete" = "删除不再需要的文件即可释放空间。";
+"plan_manage_app_store" = "管理 App Store 订阅";
+"acct_delete_app_store_notice" = "删除 NoteFable 账号不会取消 App Store 订阅。请在 App Store 取消订阅，以免续费。";
 
 /* strings_report.xml */
 "report_answer" = "报告回答";
@@ -612,6 +614,9 @@
 "branch_title" = "分支 · %1$s";
 
 /* iOS only (scripts/ios-strings.ts) */
+"ios_restore_purchases" = "恢复购买";
+"ios_no_purchases" = "没有找到有效的 App Store 订阅。";
+"ios_subscription_conflict" = "你已经有 Pro。请在 App Store 订阅中管理这笔单独的购买。";
 "attach_source_photos" = "照片图库";
 "attach_source_camera" = "拍照";
 "attach_source_files" = "选取文件";
