@@ -20,6 +20,8 @@ final class AppRouter {
     }
     /// 当前窗口是否处于宽屏常驻侧栏模式（由 `RootView` 按 `AdaptiveLayout` 同步）。
     private(set) var sidebarDocked = false
+    /// 当前常驻侧栏宽度（280pt 或较紧双栏窗口下的 260pt，由 `RootView` 同步，供提示条让出正确宽度）。
+    private(set) var dockedSidebarWidth: Double = AdaptiveLayout.dockedSidebarWidth
     /// 宽屏常驻侧栏是否展开（用户可手动收起以扩大详情区，不会因点开聊天/页面而自动收起）。
     var dockedSidebarVisible = true
     /// 侧栏当前是否以常驻并排形式可见（此时详情顶栏隐藏行首菜单按钮）。
@@ -61,7 +63,10 @@ final class AppRouter {
     /// 同步窗口是否处于常驻侧栏模式：
     /// - 窄→宽：若窄屏抽屉正开着则平滑转为常驻展开，并清空抽屉状态；
     /// - 宽→窄：停留在详情区（不强行弹出覆盖抽屉），保留用户的常驻展开偏好以备再次变宽。
-    func setSidebarDocked(_ docked: Bool) {
+    func setSidebarDocked(_ docked: Bool, width: Double = AdaptiveLayout.dockedSidebarWidth) {
+        if dockedSidebarWidth != width {
+            dockedSidebarWidth = width
+        }
         guard docked != sidebarDocked else { return }
         if docked {
             if drawerOpen {

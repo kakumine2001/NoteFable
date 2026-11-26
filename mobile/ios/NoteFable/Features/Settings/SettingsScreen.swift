@@ -77,13 +77,19 @@ struct SettingsScreen: View {
         let dirty = model.dirty
         let page = state.page
         GeometryReader { bounds in
-            // 宽窗口（iPad、展开的 iPhone Duo）：左边常驻入口列表（280），右边是选中的一栏；窄窗口是两级切换。
-            let split = bounds.size.width >= CGFloat(AdaptiveLayout.sidebarDockMinWidth)
+            // 宽且足够高的窗口（iPad、展开态 iPhone Duo 竖/横屏）：左边常驻入口列表（260–280pt），右边是选中的一栏；窄屏或横屏手机维持两级切换。
+            let windowHeight = Double(bounds.size.height + bounds.safeAreaInsets.top + bounds.safeAreaInsets.bottom)
+            let availableWidth = Double(bounds.size.width)
+            let split = AdaptiveLayout.supportsDockedSidebar(
+                windowWidth: availableWidth,
+                windowHeight: windowHeight,
+                presenting: false
+            )
             ScrollViewReader { proxy in
                 HStack(spacing: 0) {
                     if split {
                         scrollBody(account: account, dirty: dirty) { homeContent }
-                            .frame(width: CGFloat(AdaptiveLayout.dockedSidebarWidth))
+                            .frame(width: CGFloat(AdaptiveLayout.sidebarWidth(forWindowWidth: availableWidth)))
                         Divider()
                     }
                     // 入口列表和一栏的画面各是一个滚动区：换画面就是换一个新的，所以总是从最上面开始（网页 scrollTop = 0）。

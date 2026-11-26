@@ -24,7 +24,7 @@ struct RootView: View {
             dockedVisible: router.dockedSidebarVisible,
             presenting: app.notes.state.presenting,
             edgeOpens: allowEdgeDrawer,
-            onDockedChange: { router.setSidebarDocked($0) },
+            onDockedChange: { docked, width in router.setSidebarDocked(docked, width: width) },
             onCollapseDocked: { router.closeSidebar() }
         ) {
             DrawerPanel()
@@ -82,7 +82,7 @@ struct RootView: View {
         .toastHost(
             tabBarVisible: !hideTabBar,
             tab: router.selectedTab,
-            leadingInset: router.isSidebarDockedVisible ? CGFloat(AdaptiveLayout.dockedSidebarWidth) : 0
+            leadingInset: router.isSidebarDockedVisible ? CGFloat(router.dockedSidebarWidth) : 0
         )
     }
 
@@ -282,9 +282,9 @@ private struct DrawerFooter: View {
 // MARK: - 自适应侧栏壳层（宽屏常驻双栏 / 窄屏推入式圆角抽屉）
 
 /// 单一结构身份的自适应侧栏容器（RTL 自动镜像）：
-/// - 宽窗口（`AdaptiveLayout.supportsDockedSidebar`：可用宽 >= 720pt 且未在幻灯片放映）：280pt 常驻侧栏与详情栏并排，
-///   支持顶部按钮收起/展开，收起时详情区平滑占满窗口；
-/// - 窄窗口：交互式推入式圆角抽屉（停留在主视图下方带轻微视差，主视图推开并收出连续圆角与柔和阴影；
+/// - 宽且足够高的窗口（`AdaptiveLayout.supportsDockedSidebar`：可用宽 >= 640pt、窗口总高 >= 560pt 且未在幻灯片放映）：
+///   260–280pt 常驻侧栏与详情栏并排，支持顶部按钮收起/展开，收起时详情区平滑占满窗口；
+/// - 窄或低矮窗口（手机竖/横屏、折叠态 iPhone Duo、较窄分屏）：交互式推入式圆角抽屉（停留在主视图下方带轻微视差，主视图推开并收出连续圆角与柔和阴影；
 ///   `shown == 0` 时外部遮罩外扩 120pt，避免裁切底部 TabView 液态玻璃边缘效果；白板与放映中禁用边缘拉出）；
 /// - 两种布局共享同一组 `panel` 与 `content` 视图节点，横竖屏旋转、分屏缩放、iPhone Duo 折展时保持选中项、WebView 与未保存草稿。
 private struct AdaptiveSidebarShell<Panel: View, Content: View>: View {
@@ -292,7 +292,7 @@ private struct AdaptiveSidebarShell<Panel: View, Content: View>: View {
     let dockedVisible: Bool
     let presenting: Bool
     let edgeOpens: Bool
-    let onDockedChange: (Bool) -> Void
+    let onDockedChange: (Bool, Double) -> Void
     let onCollapseDocked: () -> Void
     let panel: Panel
     let content: Content
@@ -315,6 +315,11 @@ private struct AdaptiveSidebarShell<Panel: View, Content: View>: View {
         case ignored
     }
 
+    private struct DockLayoutState: Equatable {
+        let docked: Bool
+        let width: Double
+    }
+
     private static var maxWidth: CGFloat { 296 }
     /// 从屏幕边缘多宽以内开始的拖动算“拉出抽屉”。
     private static var edgeWidth: CGFloat { 24 }
@@ -325,7 +330,7 @@ private struct AdaptiveSidebarShell<Panel: View, Content: View>: View {
         dockedVisible: Bool,
         presenting: Bool,
         edgeOpens: Bool = true,
-        onDockedChange: @escaping (Bool) -> Void,
+        onDockedChange: @escaping (Bool, Double) -> Void,
         onCollapseDocked: @escaping () -> Void,
         @ViewBuilder panel: () -> Panel,
         @ViewBuilder content: () -> Content
@@ -343,11 +348,17 @@ private struct AdaptiveSidebarShell<Panel: View, Content: View>: View {
 
     var body: some View {
         GeometryReader { proxy in
+            // 键盘算在底部安全区里：加上下安全区得到稳定窗口高度，避免 iPad / iPhone Duo 弹出键盘时误退回单栏。
+            let windowHeight = Double(proxy.size.height + proxy.safeAreaInsets.top + proxy.safeAreaInsets.bottom)
+            let availableWidth = Double(proxy.size.width)
             let layoutDocked = AdaptiveLayout.supportsDockedSidebar(
-                windowWidth: Double(proxy.size.width),
+                windowWidth: availableWidth,
+                windowHeight: windowHeight,
                 presenting: presenting
             )
-            let dockedWidth = CGFloat(AdaptiveLayout.dockedSidebarWidth)
+            let resolvedDockedWidth = AdaptiveLayout.sidebarWidth(forWindowWidth: availableWidth)
+            let dockedWidth = CGFloat(resolvedDockedWidth)
+            let dockState = DockLayoutState(docked: layoutDocked, width: resolvedDockedWidth)
             let drawerWidth = min(Self.maxWidth, proxy.size.width * 0.84)
             let panelWidth = layoutDocked ? dockedWidth : drawerWidth
             let dockFactor: CGFloat = layoutDocked ? dockedShown : 0
@@ -430,10 +441,11 @@ private struct AdaptiveSidebarShell<Panel: View, Content: View>: View {
             }
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .leading)
             .background { Sm.sidebar.ignoresSafeArea() }
-            .onChange(of: layoutDocked, initial: true) { _, docked in
-                lastDocked = docked
-                onDockedChange(docked)
-                if docked {
+            .onChange(of: dockState, initial: true) { old, next in
+                let modeChanged = old.docked != next.docked || lastDocked != next.docked
+                lastDocked = next.docked
+                onDockedChange(next.docked, next.width)
+                if modeChanged && next.docked {
                     openDrag = nil
                     closeDrag = nil
                     shown = 0

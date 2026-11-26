@@ -50,21 +50,30 @@ final class AdaptiveLayoutTests: XCTestCase {
     // MARK: - AdaptiveLayout
 
     func testDockedSidebarThresholdMatchesCompactAndWideWindows() async {
-        // 手机 412、窄分屏与阈值下方保持单栏推入抽屉。
-        for width in [0.0, 320.0, 412.0, 585.0, 683.0, 719.5] {
-            XCTAssertFalse(AdaptiveLayout.supportsDockedSidebar(windowWidth: width, presenting: false))
+        // 标准手机竖屏（412×915）、折叠态 iPhone Duo 竖屏（~402×874）与窄分屏（585×820）保持单栏推入抽屉。
+        for (width, height) in [(0.0, 915.0), (320.0, 820.0), (412.0, 915.0), (585.0, 820.0), (639.5, 951.0)] {
+            XCTAssertFalse(AdaptiveLayout.supportsDockedSidebar(windowWidth: width, windowHeight: height, presenting: false))
         }
-        // iPad mini 竖屏（744）、iPad 11 寸竖/横屏（820 / 1180）、展开的 iPhone Duo（>= 720）启用常驻侧栏。
-        for width in [720.0, 744.0, 820.0, 1024.0, 1180.0, 1366.0] {
-            XCTAssertTrue(AdaptiveLayout.supportsDockedSidebar(windowWidth: width, presenting: false))
+        // 横屏手机（852×393、956×440）与折叠态横屏 iPhone Duo（678×466）高度不足，不强行拆成常驻双栏。
+        for (width, height) in [(852.0, 393.0), (956.0, 440.0), (678.0, 466.0), (820.0, 559.5)] {
+            XCTAssertFalse(AdaptiveLayout.supportsDockedSidebar(windowWidth: width, windowHeight: height, presenting: false))
         }
-        // 幻灯片放映中无论窗口多宽都收起常驻侧栏。
-        XCTAssertFalse(AdaptiveLayout.supportsDockedSidebar(windowWidth: 1180.0, presenting: true))
-        XCTAssertFalse(AdaptiveLayout.supportsDockedSidebar(windowWidth: .nan, presenting: false))
-        XCTAssertFalse(AdaptiveLayout.supportsDockedSidebar(windowWidth: .infinity, presenting: false))
+        // 展开态 iPhone Duo 竖屏（669×951）与横屏（951×669）、iPad mini（744×1133）、iPad 11 寸（820×1180 / 1180×820）、
+        // iPad 13 寸半屏（683×1024）与全屏启用常驻侧栏。
+        for (width, height) in [(640.0, 560.0), (669.0, 951.0), (951.0, 669.0), (683.0, 1024.0), (744.0, 1133.0), (820.0, 1180.0), (1180.0, 820.0), (1366.0, 1024.0)] {
+            XCTAssertTrue(AdaptiveLayout.supportsDockedSidebar(windowWidth: width, windowHeight: height, presenting: false))
+        }
+        // 幻灯片放映中无论窗口多宽多高都收起常驻侧栏。
+        XCTAssertFalse(AdaptiveLayout.supportsDockedSidebar(windowWidth: 1180.0, windowHeight: 820.0, presenting: true))
+        XCTAssertFalse(AdaptiveLayout.supportsDockedSidebar(windowWidth: .nan, windowHeight: 900.0, presenting: false))
+        XCTAssertFalse(AdaptiveLayout.supportsDockedSidebar(windowWidth: 900.0, windowHeight: .infinity, presenting: false))
     }
 
     func testDetailWidthSubtractsSidebarOnlyWhenDockedAndVisible() async {
+        // 标准宽屏（>= 720）用 280pt 侧栏；较紧双栏窗口（640..<720，如竖屏展开的 iPhone Duo 669pt）收窄为 260pt。
+        XCTAssertEqual(AdaptiveLayout.sidebarWidth(forWindowWidth: 669), 260)
+        XCTAssertEqual(AdaptiveLayout.sidebarWidth(forWindowWidth: 720), 280)
+        XCTAssertEqual(AdaptiveLayout.detailWidth(windowWidth: 669, docked: true, dockedVisible: true), 409)
         XCTAssertEqual(AdaptiveLayout.detailWidth(windowWidth: 820, docked: true, dockedVisible: true), 540)
         XCTAssertEqual(AdaptiveLayout.detailWidth(windowWidth: 820, docked: true, dockedVisible: false), 820)
         XCTAssertEqual(AdaptiveLayout.detailWidth(windowWidth: 412, docked: false, dockedVisible: true), 412)
