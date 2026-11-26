@@ -41,6 +41,10 @@ export type CanvasEditorProps = {
   // 中身は見えない目印で、ボタンを動かしていない間はそこにボタンが重なる（page-assistant.tsx の anchor）。
   // 目印を包む枠は押せなくなる（note-assistant.css）。分割表示では渡さない。
   aiSlot?: ReactNode;
+  // 増えるたびに AI 画像生成ダイアログを開く（ページの AI パネルの「＋」メニューから呼ぶ）。
+  generateImageSignal?: number;
+  // ダイアログを閉じたときに親の要求を消費して、ページを切り替えて戻った際の再表示を防ぐ。
+  onConsumeGenerateImage?: () => void;
   // アイコンを変える（ノートと同じく自動保存に乗る）。
   onIconChange?: (icon: string | null) => void;
   // 中のリンクがアプリ内のページを指すとき、その場で開く（/app は画面を切り替え、/note-embed はアプリに openPage を送る）。開けたら true。

@@ -127,6 +127,7 @@ export function AttachMenu({
   onFilesChange,
   imageMode = false,
   onToggleImageMode,
+  onGenerateImage,
   onAttachPages,
   onCreatePage,
   createPageDisabled = false,
@@ -137,6 +138,8 @@ export function AttachMenu({
   onFilesChange: (event: ChangeEvent<HTMLInputElement>) => void;
   imageMode?: boolean;
   onToggleImageMode?: () => void;
+  // ワークスペースの AI パネルから、開いているページへ挿入する画像を生成するダイアログを開く。
+  onGenerateImage?: () => void;
   onAttachPages?: () => void;
   onCreatePage?: () => void;
   createPageDisabled?: boolean;
@@ -259,6 +262,24 @@ export function AttachMenu({
               <span>
                 <strong>{t("Attach pages")}</strong>
                 <small>{t("Let the AI read your notes")}</small>
+              </span>
+            </button>
+          )}
+          {onGenerateImage && (
+            <button
+              type="button"
+              role="menuitem"
+              aria-haspopup="dialog"
+              className="attach-row"
+              onClick={() => {
+                setOpen(false);
+                onGenerateImage();
+              }}
+            >
+              <ImagePlus size={18} />
+              <span>
+                <strong>{t("Generate an image")}</strong>
+                <small>{t("Describe it and it is drawn for you")}</small>
               </span>
             </button>
           )}

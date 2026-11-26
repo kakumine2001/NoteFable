@@ -6,6 +6,7 @@ import { msg } from "@/lib/i18n/translate";
 import { noteApiError } from "@/lib/note-api";
 import sharp from "sharp";
 import { MAX_NOTE_FILE_BYTES, noteFileUrl, sniffImage } from "@/lib/note-file-keys";
+import { issuePageImageReportToken } from "@/lib/page-image-report-token";
 import { assertStorageRoom, scheduleStorageMaintenance, storeFile } from "@/lib/stored-files";
 import { clientNetworkKey, consumeUsage, refundUsage, usageLimitResponse, type UsageTicket } from "@/lib/usage-limits";
 
@@ -13,9 +14,9 @@ export const runtime = "nodejs";
 // 画像の生成は 1 分ほどかかることがある。
 export const maxDuration = 120;
 
-// スライドの「AI で画像を作る」。文字の説明から画像を 1 枚作り、ノートのファイル（note-files）として保存して URL を返す。
+// ワークスペース（ノート・ホワイトボード・スライド）の「AI で画像を作る」。文字の説明から画像を 1 枚作り、ノートのファイル（note-files）として保存して URL を返す。
 // 生成の回数を 1 回使う（チャットの画像生成と同じ数え方。失敗したら戻す）。チャットの履歴には残さない。
-// 保存した画像は、スライドの保存で使用中になる（使われなければ後片付けが消す）。AI で作ったことは要素の generated に残り、報告できる。
+// 保存した画像は、ページの保存で使用中になる（使われなければ後片付けが消す）。AI で作ったことはスライド要素の generated にも残り、報告できる。
 const MAX_PROMPT_CHARS = 4_000;
 const SIZES: GenerationSize[] = ["1536x1024", "1024x1024", "1024x1536"];
 const ATTEMPTS = 2;
@@ -70,8 +71,9 @@ export async function POST(request: Request) {
     const path = `note-files/${user.id}/${randomUUID()}.${stored.extension}`;
     await storeFile(user, { path, kind: "NOTE_FILE", buffer: stored.buffer, mimeType: stored.mime }, { enforce: false });
     ticket = null;
+    const reportToken = await issuePageImageReportToken(user.id, { path, prompt });
     scheduleStorageMaintenance();
-    return NextResponse.json({ url: noteFileUrl(path, name), name, size: stored.buffer.byteLength, prompt }, { status: 201, headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ url: noteFileUrl(path, name), name, mimeType: stored.mime, size: stored.buffer.byteLength, prompt, reportToken }, { status: 201, headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     await refundUsage(ticket);
     return noteApiError(error);
