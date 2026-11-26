@@ -277,6 +277,7 @@ private struct MoveNoteDialog: View {
     @State private var name = ""
     @State private var tried = false
     @Environment(AppEnvironment.self) private var app
+    @Environment(\.nfWindowFrame) private var windowFrame
 
     /// 发一个移动请求，成功就关窗口。忙的时候点了不算（Android 的 enabled = !busy，行不变灰）。
     private func run(_ work: @escaping @MainActor (NotesViewModel) async -> Bool) {
@@ -362,8 +363,8 @@ private struct MoveNoteDialog: View {
                 text: $filter, label: L("pg_search_pages"), placeholder: L("pg_search_pages"), maxLength: 200,
                 autoFocus: false
             )
-            // .notes-move-pages：最高 40dvh。
-            FittingScrollView(maxHeight: UIScreen.main.bounds.height * 0.4) {
+            // .notes-move-pages：最高 40dvh（按 App 窗口的高度，不按整块屏幕）。
+            FittingScrollView(maxHeight: nfWindowHeight(windowFrame) * 0.4) {
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(shown) { target in
                         pageRow(target)

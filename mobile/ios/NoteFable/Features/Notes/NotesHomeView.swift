@@ -1,8 +1,8 @@
 import SwiftUI
 
-// 工作区首页（网页 NotesHome，手机；Android ui/NotesUi.kt 的 NotesHome）：左右 20、下 96；顶部 Chat / Workspace 切换（上距 4）；
+// 工作区首页（网页 NotesHome；Android ui/NotesUi.kt 的 NotesHome）：悬浮顶栏放菜单与类型筛选，内容从下方滚过；
 // Studio 头部（"Workspace" 30 / 750 + 胶囊按钮 New project / Import Markdown）→ Studio Quick-Create Deck 卡片 →
-// 类型筛选栏（All | Notes | Slides | Whiteboards）→ 圆角卡片分组列表（带语义色图标块、Favorites 类型标签）。
+// 最近编辑 → 圆角卡片分组列表（带语义色图标块、Favorites 类型标签）。
 // 笔记行长按后可以拖动排序；标题"Workspace"和分区小标题是"移出项目"的投放区，项目小标题是"移进项目"的。
 
 @MainActor
@@ -10,18 +10,57 @@ struct NotesHomeView: View {
     @Binding private var dialog: NotesDialogState?
     @State private var reorder = ReorderDragController()
     @State private var importing = false
+    @State private var kindFilter: PageKind?
     @Environment(AppEnvironment.self) private var app
+    #if DEBUG
+    @Environment(AppRouter.self) private var router
+    #endif
+
+    // 网页 .notes-home 的含边距宽度上限。
+    private static let columnMaxWidth: CGFloat = 960
 
     init(dialog: Binding<NotesDialogState?>) {
         self._dialog = dialog
     }
 
     var body: some View {
+        let state = app.notes.state
+        let selection = kindFilter
+        #if DEBUG
+        let workspaceSelected = router.selectedTab == .workspace
+        let sceneKey = "\(ScreenshotHooks.sceneTick)-\(state.pages.count)-\(workspaceSelected)"
+        #endif
+
+        ScrollViewReader { scrollProxy in
+            GeometryReader { geometry in
+                home(state, selection: selection, gutter: geometry.size.width < 640 ? 20 : 48)
+            }
+            #if DEBUG
+            .task(id: sceneKey) {
+                guard ScreenshotHooks.isActive, ScreenshotHooks.scene == .workspaceScrolled,
+                      workspaceSelected, !state.pages.isEmpty else { return }
+                // 等列表排版后再滚动；FixtureLaunch 会等待画面稳定。
+                try? await Task.sleep(for: .milliseconds(150))
+                guard !Task.isCancelled, ScreenshotHooks.consume(.workspaceScrolled) else { return }
+                scrollProxy.scrollTo(notesHomeFirstSectionID, anchor: .top)
+                ScreenshotHooks.markReady(.workspaceScrolled)
+            }
+            #endif
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .noteMarkdownImporter(isPresented: $importing)
+        .onChange(of: app.identityGeneration) { _, _ in kindFilter = nil }
+    }
+
+    private func home(_ state: NotesUiState, selection: PageKind?, gutter: CGFloat) -> some View {
         let notes = app.notes
-        let state = notes.state
         let busy = state.busy || state.loading
         let nothing = state.pages.isEmpty && state.groups.isEmpty
-        ScrollView(.vertical) {
+        let kinds = state.kinds
+        let filterKinds = !nothing && kinds.count > 1 ? kinds : []
+        let activeFilter = selection.flatMap { filterKinds.contains($0) ? $0 : nil }
+
+        return ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 0) {
                 if let error = state.error {
                     NotesErrorBar(notesErrorText(error, app.systemText), onRetry: { notes.refresh() })
@@ -35,15 +74,16 @@ struct NotesHomeView: View {
                         .padding(.bottom, 16)
                 } else if nothing {
                     if state.error == nil && state.loaded {
-                        NotesEmptyView(kinds: state.kinds, busy: busy, onCreate: { notes.createNote(kind: $0) }, onImport: { importing = true })
+                        NotesEmptyView(kinds: kinds, busy: busy, onCreate: { notes.createNote(kind: $0) }, onImport: { importing = true })
                     }
                 } else {
-                    NotesHomeList(busy: busy, reorder: reorder, onImport: { importing = true }, dialog: $dialog)
+                    NotesHomeList(busy: busy, reorder: reorder, onImport: { importing = true }, activeFilter: activeFilter, dialog: $dialog)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20)
+            .padding(.horizontal, gutter)
             .padding(.bottom, 96)
+            .frame(maxWidth: Self.columnMaxWidth)
             .reorderContainer(reorder, onStart: { [reorder] _ in
                 NoteReorderOrigin.shared.surface = .home
                 reorder.rules = { noteDropRules(notes.state) }
@@ -51,9 +91,44 @@ struct NotesHomeView: View {
             }) { id, target in
                 notes.drop(id, on: target)
             }
+            .frame(maxWidth: .infinity)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .noteMarkdownImporter(isPresented: $importing)
+        .nfReportsBottomChrome(.workspace)
+        .nfFloatingHeader(edge: .top) {
+            // 按钮行跟内容一样收窄，底条（降低透明度 / iOS 17–18）仍铺满窗口宽度。
+            WorkspaceHomeBar(kinds: filterKinds, activeFilter: activeFilter) { kindFilter = $0 }
+                .frame(maxWidth: Self.columnMaxWidth)
+                .frame(maxWidth: .infinity)
+                // 浮动顶栏排在滚动区后面（safeAreaBar）：读屏仍先念菜单和类型筛选，再进列表。
+                .accessibilityElement(children: .contain)
+                .accessibilitySortPriority(1)
+        }
+    }
+}
+
+@MainActor
+private struct WorkspaceHomeBar: View {
+    let kinds: [PageKind]
+    let activeFilter: PageKind?
+    let onSelect: (PageKind?) -> Void
+    @Environment(AppRouter.self) private var router
+
+    var body: some View {
+        NFGlassContainer(spacing: NFChromeMetrics.containerSpacing) {
+            HStack(spacing: NFChromeMetrics.gap) {
+                NFGlassIconButton(Lucide.menu, label: L("open_menu"), size: NFChromeMetrics.control, iconSize: 20) {
+                    router.openDrawer()
+                }
+                if kinds.isEmpty {
+                    Spacer(minLength: 0)
+                } else {
+                    KindFilterBar(kinds: kinds, active: activeFilter, onSelect: onSelect)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+        .padding(.horizontal, NFChromeMetrics.sideInset)
+        .frame(height: NFChromeMetrics.barHeight)
     }
 }
 
@@ -78,8 +153,8 @@ private struct NotesHomeList: View {
     let busy: Bool
     let reorder: ReorderDragController
     let onImport: () -> Void
+    let activeFilter: PageKind?
     @Binding var dialog: NotesDialogState?
-    @State private var kindFilter: PageKind? = nil
     @Environment(AppEnvironment.self) private var app
     @Environment(\.layoutDirection) private var layoutDirection
 
@@ -88,7 +163,6 @@ private struct NotesHomeList: View {
         let state = notes.state
         let kinds = state.kinds
         let multiKind = kinds.count > 1
-        let activeFilter: PageKind? = multiKind ? kindFilter : nil
         let groupIds = Set(state.groups.map(\.id))
         let matches: (NotePageSummary) -> Bool = { page in
             activeFilter == nil || state.sectionKind(of: page) == activeFilter
@@ -150,17 +224,12 @@ private struct NotesHomeList: View {
                 .padding(.bottom, 18)
         }
 
-        // 类型筛选栏（All | Notes | Slides | Whiteboards）
-        if multiKind {
-            KindFilterBar(kinds: kinds, active: activeFilter) { kindFilter = $0 }
-                .padding(.bottom, 14)
-        }
-
         // Favorites（圆角卡片 + 类型胶囊标签）
         if !visibleFavorites.isEmpty {
             let firstFavId = visibleFavorites.first?.id
             NotesHomeHeading(name: L("pg_favorites"), count: visibleFavorites.count, icon: Lucide.star, iconColor: Sm.kindFav)
                 .notesHomeHeadingMargins()
+                .notesHomeFirstSection(true)
             NotesHomeCard {
                 ForEach(visibleFavorites) { page in
                     NotesHomeFavoriteItem(page: page, busy: busy, multiKind: multiKind, showTopDivider: page.id != firstFavId)
@@ -173,6 +242,7 @@ private struct NotesHomeList: View {
             NotesHomeHeading(name: entry.group.name, count: entry.total, icon: Lucide.folder, iconColor: Sm.muted)
                 .reorderDropZone(entry.group.id, in: reorder)
                 .notesHomeHeadingMargins()
+                .notesHomeFirstSection(visibleFavorites.isEmpty && entry.id == visibleGroups.first?.id)
             if entry.members.isEmpty {
                 NotesHomeEmptyCard(L("no_notes_in_project"))
             } else {
@@ -187,7 +257,9 @@ private struct NotesHomeList: View {
 
         // 不在项目里的页面分区（Notes / Slides / Whiteboards）
         ForEach(visibleSections) { section in
-            if multiKind || !state.groups.isEmpty {
+            let hasHeading = multiKind || !state.groups.isEmpty
+            let firstSection = visibleFavorites.isEmpty && visibleGroups.isEmpty && section.id == visibleSections.first?.id
+            if hasHeading {
                 NotesHomeHeading(
                     name: multiKind ? L(pageKindSectionLabel(section.kind)) : L("no_project"),
                     count: section.count,
@@ -196,6 +268,7 @@ private struct NotesHomeList: View {
                 )
                 .reorderDropZone(noteSectionZone(section.kind), in: reorder)
                 .notesHomeHeadingMargins()
+                .notesHomeFirstSection(firstSection)
             }
             let firstRootId = section.roots.first?.id
             NotesHomeCard {
@@ -203,10 +276,12 @@ private struct NotesHomeList: View {
                     NotesHomeTree(page: page, busy: busy, flat: activeFilter != nil, showTopDivider: page.id != firstRootId, reorder: reorder, dialog: $dialog)
                 }
             }
+            .notesHomeFirstSection(firstSection && !hasHeading)
         }
 
         if filterEmpty {
             NotesHomeEmptyCard(L("sb_no_notes_match"))
+                .notesHomeFirstSection(true)
         }
     }
 }
@@ -358,6 +433,8 @@ private struct RecentNotesCarousel: View {
     }
 }
 
+/// 头部的胶囊按钮（New project / Import Markdown）：它们是随列表滚动的内容，不是浮动外壳，所以保持网页的白底细线样式，
+/// 不用玻璃（滚到玻璃顶栏下面时不会出现玻璃叠玻璃）。
 private struct NotesHomeUtilPill: View {
     let icon: [String]
     let title: String
@@ -429,63 +506,89 @@ private struct KindFilterBar: View {
     let onSelect: (PageKind?) -> Void
 
     var body: some View {
-        let trackShape = RoundedRectangle(cornerRadius: 10)
-        ScrollView(.horizontal) {
-            HStack(spacing: 2) {
-                FilterPill(title: L("search_tab_all"), icon: nil, iconColor: Sm.muted, selected: active == nil) {
-                    onSelect(nil)
+        ViewThatFits(in: .horizontal) {
+            KindFilterSegments(kinds: kinds, active: active, onSelect: onSelect)
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal) {
+                    KindFilterSegments(kinds: kinds, active: active, onSelect: onSelect)
                 }
-                ForEach(kinds, id: \.self) { kind in
-                    FilterPill(
-                        title: L(pageKindSectionLabel(kind)),
-                        icon: pageKindIcon(kind),
-                        iconColor: active == kind ? pageKindColor(kind) : Sm.muted,
-                        selected: active == kind
-                    ) {
-                        onSelect(kind)
-                    }
+                .scrollIndicators(.hidden)
+                .onChange(of: active, initial: true) { _, selected in
+                    proxy.scrollTo(selected)
                 }
             }
-            .padding(3)
         }
-        .scrollIndicators(.hidden)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Sm.hover, in: trackShape)
-        .overlay { trackShape.strokeBorder(Sm.border, lineWidth: 1).allowsHitTesting(false) }
+        .frame(height: NFChromeMetrics.control)
+        .clipShape(Capsule())
+        .nfGlassCapsule(solidFill: Sm.hover, stroke: Sm.border)
+        .nfChromeShadow(NFChromeMetrics.controlShadow, radius: 6, y: 2)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(L("ws_page_type"))
     }
 }
 
-private struct FilterPill: View {
-    let title: String
-    let icon: [String]?
-    let iconColor: Color
-    let selected: Bool
-    let action: () -> Void
+private struct KindFilterSegments: View {
+    let kinds: [PageKind]
+    let active: PageKind?
+    let onSelect: (PageKind?) -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Namespace private var thumb
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 7.2)
+        HStack(spacing: 2) {
+            FilterPill(title: L("search_tab_all"), kind: nil, selected: active == nil, thumb: thumb) {
+                onSelect(nil)
+            }
+            .id(Optional<PageKind>.none)
+            ForEach(kinds, id: \.self) { kind in
+                FilterPill(
+                    title: L(pageKindSectionLabel(kind)),
+                    kind: kind,
+                    selected: active == kind,
+                    thumb: thumb
+                ) {
+                    onSelect(kind)
+                }
+                .id(Optional(kind))
+            }
+        }
+        .padding(4)
+        .animation(NFMotion.unlessReduced(NFMotion.cssEase(0.18), reduceMotion), value: active)
+    }
+}
+
+private struct FilterPill: View {
+    let title: String
+    let kind: PageKind?
+    let selected: Bool
+    let thumb: Namespace.ID
+    let action: () -> Void
+    @Environment(\.nfChromePath) private var chromePath
+
+    var body: some View {
+        let shape = Capsule()
         Button(action: action) {
             HStack(spacing: 5) {
-                if let icon {
-                    LucideIcon(icon, size: 13, color: iconColor)
+                if let kind {
+                    LucideIcon(pageKindIcon(kind), size: 13, color: pageKindColor(kind))
                 }
                 Text(title)
                     .font(.nf(13, weight: 540))
-                    .foregroundStyle(selected ? Sm.ink : Sm.muted)
+                    .foregroundStyle(selected ? Sm.ink : chromePath.secondaryInk)
                     .lineLimit(1)
             }
             .padding(.horizontal, 10.4)
-            .frame(height: 32)
+            .frame(height: 36)
             .background {
                 if selected {
                     shape.fill(Sm.surface)
-                        .overlay { shape.strokeBorder(Sm.border, lineWidth: 1) }
+                        .overlay { shape.strokeBorder(Sm.border, lineWidth: 1).allowsHitTesting(false) }
+                        .matchedGeometryEffect(id: "kindFilterThumb", in: thumb)
                 }
             }
         }
-        .buttonStyle(.pressable(pressedBackground: nil, cornerRadius: 7.2, scale: 0.98))
+        .buttonStyle(.pressable(pressedBackground: nil, cornerRadius: 18, scale: 0.98))
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
@@ -592,7 +695,25 @@ private extension View {
             .padding(.bottom, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
+
+    /// 截图场景滚到第一个可见分组；正式版不引入额外的视图身份。
+    @ViewBuilder
+    func notesHomeFirstSection(_ isFirst: Bool) -> some View {
+        #if DEBUG
+        if isFirst {
+            id(notesHomeFirstSectionID)
+        } else {
+            self
+        }
+        #else
+        self
+        #endif
+    }
 }
+
+#if DEBUG
+private let notesHomeFirstSectionID = "nf-home-first-section"
+#endif
 
 // MARK: - 子页面的树
 

@@ -77,9 +77,9 @@ enum ChatLocalImageLoader {
     }
 }
 
-// MARK: - 输入栏上方
+// MARK: - 输入卡片
 
-/// 输入栏上方的提示（.notion-error）：浅红底、圆角 4.8、内边距 8.8×10.4、字 12.8 / 行高 19.2，下距 12。
+/// 输入卡片顶部的提示（.notion-error）：浅红底、圆角 4.8、内边距 8.8×10.4、字 12.8 / 行高 19.2，下距 12。
 struct ComposerError: View {
     let text: String
 
@@ -280,7 +280,7 @@ struct ChatFileChip: View {
     }
 }
 
-/// 输入栏下方的小字（上距 8、左右 4、12 灰 / 行高 16）：已附上的数量和总大小，上传时是进度。
+/// 输入卡片控件下方的小字（上距 8、左右 4、12 灰 / 行高 16）：已附上的数量和总大小，上传时是进度。
 struct ComposerStatus: View {
     let files: [LocalFile]
     let upload: ChatUploadProgress?

@@ -19,6 +19,21 @@ extension View {
             }
         }
     }
+
+    /// 视图的安全区边距变化时回调（不含第一次）：顶栏 / 底栏（`safeAreaBar`、`safeAreaInset`）、键盘、标签栏改变
+    /// 留给内容的区域时触发。和 `nfOnSizeChange` 一样放在背景里，不影响布局。
+    ///
+    /// ```swift
+    /// ScrollView { … }.nfOnSafeAreaChange { _ in scroll.viewportChanged() }
+    /// ```
+    func nfOnSafeAreaChange(_ action: @escaping (EdgeInsets) -> Void) -> some View {
+        background {
+            GeometryReader { proxy in
+                Color.clear
+                    .onChange(of: proxy.safeAreaInsets, initial: false) { _, insets in action(insets) }
+            }
+        }
+    }
 }
 
 // MARK: - 键盘

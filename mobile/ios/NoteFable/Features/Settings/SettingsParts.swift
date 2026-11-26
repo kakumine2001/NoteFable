@@ -2,8 +2,9 @@ import SwiftUI
 import UIKit
 
 // 设置画面的共用部件（网页 src/components/settings-dialog.css 的手机宽度的值，Android ui/SettingsParts.kt）：
-// 顶栏的圆按钮、入口列表的账号行和各栏的行、卡片、行、说明文字、读取中的一行、"未保存的更改"条。
-// 小按钮用 DesignSystem 的 `SettingsChip`。
+// 入口列表的账号行和各栏的行、卡片、行、说明文字、读取中的一行、"未保存的更改"条。
+// 顶栏的关闭 / 返回圆按钮是 DesignSystem 的玻璃圆按钮 `NFGlassIconButton`（SettingsScreen 的 topBar）；小按钮用 `SettingsChip`。
+// 卡片是内容，保持不透明的白底；"未保存的更改"条是提醒（会晃、会念出来），也保持不透明的墨色底，不做成玻璃。
 
 /// .settings-saved 的绿色。
 let settingsSavedGreen = Color(argb: 0xFF15803D)
@@ -17,33 +18,6 @@ extension SettingsPage {
         case .plan: return Lucide.creditCard
         case .account: return Lucide.circleUser
         }
-    }
-}
-
-/// 顶栏行首的圆按钮（手机的 .settings-back / .settings-close）：40×40、全圆角、白底、1px 细线（--notion-border）、正文色的图标；
-/// 入口列表上是"关闭"（X 18），一栏里是"返回"（ArrowLeft 20，从右到左的界面里镜像）。按下的手感同 .notion-icon-button（灰底、缩到 .97）。
-struct SettingsBarButton: View {
-    private let icon: [String]
-    private let iconSize: CGFloat
-    private let label: String
-    private let action: () -> Void
-
-    init(_ icon: [String], iconSize: CGFloat, label: String, action: @escaping () -> Void) {
-        self.icon = icon
-        self.iconSize = iconSize
-        self.label = label
-        self.action = action
-    }
-
-    var body: some View {
-        Button(action: action) {
-            LucideIcon(icon, size: iconSize, color: Sm.text)
-                .frame(width: 40, height: 40)
-                .overlay { Circle().strokeBorder(Sm.border, lineWidth: 1) }
-        }
-        // 白底由样式画（按下的灰底叠在它上面）；40 见方、圆角 20 就是圆。
-        .buttonStyle(.pressable(background: Sm.surface, cornerRadius: 20, scale: 0.97))
-        .accessibilityLabel(label)
     }
 }
 

@@ -14,20 +14,22 @@ import SwiftUI
 struct NotePageMenuButton: View {
     private let pageId: String
     private let actions: NotePageMenuActions
+    private let buttonWidth: CGFloat
     @State private var open = false
     /// "报告 AI 内容"的窗口（网页 NotePageMenu 的 reporting）。
     @State private var reporting = false
 
-    init(pageId: String, actions: NotePageMenuActions) {
+    init(pageId: String, actions: NotePageMenuActions, buttonWidth: CGFloat) {
         self.pageId = pageId
         self.actions = actions
+        self.buttonWidth = buttonWidth
     }
 
     var body: some View {
         let label = L("pg_page_options")
         let actions = self.actions
         let pageId = self.pageId
-        NFIconButton(Lucide.ellipsis, label: label) {
+        NFGlassBarButton(Lucide.ellipsis, label: label, width: buttonWidth) {
             if !actions.busy { open = true }
         }
         .actionsMenu(isPresented: $open, width: 248, label: label) {

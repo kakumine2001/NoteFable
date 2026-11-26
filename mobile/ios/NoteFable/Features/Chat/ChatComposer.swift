@@ -1,16 +1,11 @@
 import SwiftUI
 
-// 输入栏（Android ChatScreen.kt 的 `Composer`，网页 page.tsx 的 .notion-composer-wrap / .notion-composer，412×915 下的值）。
-// 外层：左右 10.4、上 12、下 max(16, 底部安全区)（由 ChatWorkspace 算好传进来）。从上到下：
-// 上限提示（未登录）→ 红色提示条 → 引用 → 已添加的笔记 → 已选的附件（每一项下距 12）→ 输入框的白色圆角框 → 一行小字状态（上距 8）。
-// 圆角框（.notion-composer）：白底、1px 深描边、圆角 16、内边距 10、行间距 4，阴影 0 1 2 rgba(12,23,48,.04) + 0 8 28 rgba(12,23,48,.07)；
-// 聚焦时描边换成 --nf-accent-line，外面再加 3px 的浅蓝光圈（--nf-accent-soft），120ms ease。
-// 框里：「生成图片」标记（开着时）→ 输入框（最小高 40、16 / 24）→ 一行控件：行首「＋」（40，图标 18 线宽 1.8），
-// 离它 6 是模型按钮（按内容宽度，最多到发送键前 6 处），发送键固定在行尾。
+// 悬浮输入栏。上限提示在玻璃卡外；卡内依次是错误、引用、笔记、附件、生成图片标记、输入框、控件和状态。
+// 卡片圆角 30、内边距 10。输入框和控件沿用网页在 412×915 下的尺寸；「＋」和模型按钮用普通按压样式。
 
 @MainActor
 struct ChatComposer: View {
-    /// 圆角框下面留多少（键盘弹出时 16；否则 16 减去底部安全区，不小于 0）。
+    /// 卡片下方的留白，由 ChatWorkspace 按键盘和安全区决定。
     let bottomPadding: CGFloat
     /// 每加一就聚焦输入框一次（引用回答、点了最近的笔记）。
     let focusRequest: Int
@@ -21,32 +16,69 @@ struct ChatComposer: View {
     @Environment(AppEnvironment.self) private var app
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var focused = false
+    @State private var columnMaxWidth: CGFloat = 760
 
     var body: some View {
         let state = app.chat.state
         // 上传附件时发出的内容已定：文字、引用、笔记、附件都不能再改。
         let uploading = state.upload != nil
-        let error = composerErrorText(filesError: state.filesError, notice: state.notice, systemText: app.systemText)
         VStack(alignment: .leading, spacing: 0) {
             limitPrompt(state)
-            if let error { ComposerError(text: error) }
-            // 网页：引用在最上面，笔记在附件上面。
-            if let quote = state.quote {
-                ChatComposerQuote(quote: quote, enabled: !uploading) { app.chat.clearQuote() }
-            }
-            if !state.attachedPages.isEmpty {
-                PendingPages(pages: state.attachedPages, enabled: !uploading) { id in app.chat.removeAttachedPage(id) }
-            }
-            if !state.files.isEmpty {
-                PendingFiles(files: state.files, enabled: !uploading) { uri in app.chat.removeFile(uri) }
-            }
-            inputBox(state, uploading: uploading)
-            ComposerStatus(files: state.files, upload: state.upload)
+            composerCard(state, uploading: uploading)
         }
+        .frame(maxWidth: columnMaxWidth)
         .padding(.horizontal, 10.4)
-        .padding(.top, 12)
+        .padding(.top, 8)
         .padding(.bottom, bottomPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity)
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            // 网页表单的 .notion-page-column：47.5rem，宽到 1440 时改用 clamp(50rem, 48vw, 55rem)。
+            let width = proxy.size.width
+            return width >= 1440 ? min(880, max(800, width * 0.48)) : 760
+        } action: { maxWidth in
+            columnMaxWidth = maxWidth
+        }
+    }
+
+    private func composerCard(_ state: ChatUiState, uploading: Bool) -> some View {
+        let error = composerErrorText(filesError: state.filesError, notice: state.notice, systemText: app.systemText)
+        let shape = RoundedRectangle(cornerRadius: 30, style: .continuous)
+        let focusAnimation = NFMotion.unlessReduced(NFMotion.cssEase(0.12), reduceMotion)
+        return NFGlassContainer(spacing: NFChromeMetrics.containerSpacing) {
+            VStack(alignment: .leading, spacing: 0) {
+                if let error { ComposerError(text: error) }
+                // 网页：引用在最上面，笔记在附件上面。
+                if let quote = state.quote {
+                    ChatComposerQuote(quote: quote, enabled: !uploading) { app.chat.clearQuote() }
+                }
+                if !state.attachedPages.isEmpty {
+                    PendingPages(pages: state.attachedPages, enabled: !uploading) { id in app.chat.removeAttachedPage(id) }
+                }
+                if !state.files.isEmpty {
+                    PendingFiles(files: state.files, enabled: !uploading) { uri in app.chat.removeFile(uri) }
+                }
+                inputControls(state, uploading: uploading)
+                ComposerStatus(files: state.files, upload: state.upload)
+            }
+            .padding(10)
+            .clipShape(shape)
+            .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: Sm.borderStrong)
+            .nfChromeShadow(Sm.composerShadow, radius: 14, y: 8)
+            .nfChromeShadow(Color(argb: 0x0A0C1730), radius: 1, y: 1)
+            .overlay {
+                shape.strokeBorder(focused ? Sm.accentLine : .clear, lineWidth: 1)
+                    .animation(focusAnimation, value: focused)
+                    .allowsHitTesting(false)
+            }
+            .overlay {
+                // 3pt 光圈画在卡片外侧，线的中心向外移 1.5pt。
+                RoundedRectangle(cornerRadius: 31.5, style: .continuous)
+                    .stroke(focused ? Sm.accentSoft : Color.clear, lineWidth: 3)
+                    .padding(-1.5)
+                    .animation(focusAnimation, value: focused)
+                    .allowsHitTesting(false)
+            }
+        }
     }
 
     /// 存储空间不够（网页 StorageLimitPrompt）优先：总要说明原因；未登录时给登录入口。
@@ -66,9 +98,8 @@ struct ChatComposer: View {
         }
     }
 
-    private func inputBox(_ state: ChatUiState, uploading: Bool) -> some View {
+    private func inputControls(_ state: ChatUiState, uploading: Bool) -> some View {
         let draft = app.chat.draft
-        let shape = RoundedRectangle(cornerRadius: 16)
         // 历史还没读到、附件不合格、附件还在上传或拷贝时不能发送。
         let canSend = !state.messagesLoading && !state.messagesFailed && state.filesError == nil
             && state.upload == nil && state.importing == 0
@@ -118,35 +149,17 @@ struct ChatComposer: View {
                 }
             }
         }
-        .padding(10)
-        .background {
-            // --nf-composer-shadow：0 1px 2px rgba(12,23,48,.04), 0 8px 28px rgba(12,23,48,.07)。
-            shape
-                .fill(Sm.surface)
-                .shadow(color: Sm.composerShadow, radius: 14, x: 0, y: 8)
-                .shadow(color: Color(argb: 0x0A0C1730), radius: 1, x: 0, y: 1)
-        }
-        .overlay {
-            shape.strokeBorder(focused ? Sm.accentLine : Sm.borderStrong, lineWidth: 1)
-                .allowsHitTesting(false)
-        }
-        .overlay {
-            // box-shadow: 0 0 0 3px var(--nf-accent-soft)：画在边界外面，线的中心在外扩 1.5 的地方。
-            RoundedRectangle(cornerRadius: 17.5)
-                .stroke(focused ? Sm.accentSoft : Color.clear, lineWidth: 3)
-                .padding(-1.5)
-                .allowsHitTesting(false)
-        }
-        .animation(NFMotion.unlessReduced(NFMotion.cssEase(0.12), reduceMotion), value: focused)
     }
 }
 
-/// 模型按钮（.codex-model-trigger，手机）：高 40、全圆角、底色 #f1f1ef（按下 #e8e8e5）、左右 13.6、间距 6.4；
+/// 模型按钮（.codex-model-trigger，手机）：高 40、全圆角、左右 13.6、间距 6.4；玻璃卡上用半透明底。
 /// 模型名 15 / 500（放不下省略）、推理强度 15 / 500 灰、ChevronDown 16。点开模型与推理强度的抽屉。
 private struct ChatModelPill: View {
     let label: String
     let effort: String?
     let action: () -> Void
+
+    @Environment(\.nfChromePath) private var chromePath
 
     var body: some View {
         Button(action: action) {
@@ -169,7 +182,10 @@ private struct ChatModelPill: View {
             .frame(height: 40)
         }
         .buttonStyle(.pressable(
-            background: Sm.modelPill, pressedBackground: Sm.modelPillPressed, cornerRadius: 20, scale: 0.97
+            background: chromePath == .solid ? Sm.modelPill : Sm.hover,
+            pressedBackground: chromePath == .solid ? Sm.modelPillPressed : Sm.active,
+            cornerRadius: 20,
+            scale: 0.97
         ))
     }
 }
