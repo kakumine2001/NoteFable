@@ -43,13 +43,16 @@ struct ChatTopBar: View {
         let messagesReady = !chat.messagesLoading && !chat.messages.isEmpty
         let menuAvailable = showTrailing && session != nil
         let capsuleAvailable = title != nil
+        let showsSidebarToggle = !router.isSidebarDockedVisible
         NFGlassContainer(spacing: NFChromeMetrics.containerSpacing) {
             ZStack {
                 HStack(spacing: NFChromeMetrics.gap) {
-                    NFGlassIconButton(Lucide.menu, label: L("open_menu"), size: NFChromeMetrics.control, iconSize: 20) {
-                        router.openDrawer()
+                    if showsSidebarToggle {
+                        NFGlassIconButton(Lucide.menu, label: L("open_menu"), size: NFChromeMetrics.control, iconSize: 20) {
+                            router.openSidebar()
+                        }
+                        .accessibilitySortPriority(2)
                     }
-                    .accessibilitySortPriority(2)
                     Spacer(minLength: 0)
                     if showTrailing {
                         NFGlassGroup(glassID: "chatTrailing", namespace: barGlass) {
@@ -61,8 +64,8 @@ struct ChatTopBar: View {
                     }
                 }
                 if let title {
-                    let leading = NFChromeMetrics.control + NFChromeMetrics.gap
-                    let trailing = showTrailing ? Self.capsuleReserve : leading
+                    let leading: CGFloat = showsSidebarToggle ? (NFChromeMetrics.control + NFChromeMetrics.gap) : 0
+                    let trailing: CGFloat = showTrailing ? Self.capsuleReserve : leading
                     // 放得下完整标题时两边让出同样的宽度，胶囊在整条栏的正中；放不下（窄窗口、长标题）时
                     // 两边只让出各自按钮的宽度，标题多占一些再省略。
                     ViewThatFits(in: .horizontal) {

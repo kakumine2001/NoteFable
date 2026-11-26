@@ -12,6 +12,8 @@ enum ScreenshotScene: String, CaseIterable, Sendable {
     case chatKeyboard = "chat-keyboard"
     case chatStreamed = "chat-streamed"
     case drawer
+    /// 宽屏（iPad）下手动收起常驻侧栏后的全宽聊天页（验证顶栏行首菜单按钮重新出现）。
+    case sidebarCollapsed = "sidebar-collapsed"
     case workspace
     case workspaceScrolled = "workspace-scrolled"
     case editor

@@ -14,10 +14,20 @@ enum AppTab: Hashable, Sendable {
 final class AppRouter {
     private let app: AppEnvironment
 
-    /// 侧边栏抽屉。里面能给聊天改名、删除，而下面可能开着笔记：关上时让编辑器重读反向链接。
+    /// 窄窗口下的侧边栏抽屉。里面能给聊天改名、删除，而下面可能开着笔记：关上时让编辑器重读反向链接。
     var drawerOpen = false {
         didSet { if oldValue, !drawerOpen { app.editorBridge?.refreshBacklinks() } }
     }
+    /// 当前窗口是否处于宽屏常驻侧栏模式（由 `RootView` 按 `AdaptiveLayout` 同步）。
+    private(set) var sidebarDocked = false
+    /// 当前常驻侧栏宽度（280pt 或较紧双栏窗口下的 260pt，由 `RootView` 同步，供提示条让出正确宽度）。
+    private(set) var dockedSidebarWidth: Double = AdaptiveLayout.dockedSidebarWidth
+    /// 宽屏常驻侧栏是否展开（用户可手动收起以扩大详情区，不会因点开聊天/页面而自动收起）。
+    var dockedSidebarVisible = true
+    /// 侧栏当前是否以常驻并排形式可见（此时详情顶栏隐藏行首菜单按钮）。
+    var isSidebarDockedVisible: Bool { sidebarDocked && dockedSidebarVisible }
+    /// 侧栏当前是否可见（宽屏常驻展开，或窄屏抽屉打开）。
+    var isSidebarVisible: Bool { sidebarDocked ? dockedSidebarVisible : drawerOpen }
     /// 当前底部标签页。
     var selectedTab: AppTab = .chat
     /// 设置（登录后点侧栏的账号行）。
@@ -50,8 +60,51 @@ final class AppRouter {
         }
     }
 
-    func openDrawer() { drawerOpen = true }
-    func closeDrawer() { drawerOpen = false }
+    /// 同步窗口是否处于常驻侧栏模式：
+    /// - 窄→宽：若窄屏抽屉正开着则平滑转为常驻展开，并清空抽屉状态；
+    /// - 宽→窄：停留在详情区（不强行弹出覆盖抽屉），保留用户的常驻展开偏好以备再次变宽。
+    func setSidebarDocked(_ docked: Bool, width: Double = AdaptiveLayout.dockedSidebarWidth) {
+        if dockedSidebarWidth != width {
+            dockedSidebarWidth = width
+        }
+        guard docked != sidebarDocked else { return }
+        if docked {
+            if drawerOpen {
+                dockedSidebarVisible = true
+                drawerOpen = false
+            }
+            sidebarDocked = true
+        } else {
+            sidebarDocked = false
+            drawerOpen = false
+        }
+    }
+
+    /// 打开侧栏：宽屏展开常驻侧栏，窄屏打开推入抽屉。
+    func openSidebar() {
+        if sidebarDocked {
+            dockedSidebarVisible = true
+        } else {
+            drawerOpen = true
+        }
+    }
+
+    /// 显式收起侧栏（侧栏顶部收起按钮）：宽屏收起常驻侧栏，窄屏关闭推入抽屉。
+    func closeSidebar() {
+        if sidebarDocked {
+            dockedSidebarVisible = false
+        } else {
+            drawerOpen = false
+        }
+    }
+
+    /// 只收起窄屏覆盖抽屉，不收起宽屏常驻侧栏（用于导航跳转、回收站、离开未保存笔记受阻等场景）。
+    func dismissDrawer() {
+        drawerOpen = false
+    }
+
+    func openDrawer() { openSidebar() }
+    func closeDrawer() { closeSidebar() }
 
     /// 切换底部标签页（必要时先保存当前打开的笔记，等工作区真正切换完成后再更新选中标签）。
     func selectTab(_ tab: AppTab) {
