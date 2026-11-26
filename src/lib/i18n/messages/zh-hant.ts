@@ -137,6 +137,7 @@ export const zhHant: Record<string, string> = {
   "Back to content": "回到內容",
   "Background": "背景",
   "Background color": "背景色",
+  "Backlinks": "反向連結",
   "Balanced for most tasks": "兼顧速度與深度，適合多數任務",
   "Bar": "豎線",
   "Basic blocks": "基礎塊",

@@ -113,6 +113,18 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 - **复制（Duplicate）。** 先保存这篇及其子页面未保存的编辑，再由 `POST /api/pages/:id/duplicate` 在一个事务里复制整棵子树（最多 100 篇，超过返回 400）：标题、图标、封面、正文、页面设置和项目照抄，最上位的标题加 “ (1)”，收藏、历史和 AI 对话不复制；复制件排在原页面的后面，响应带回全部页面的新 `position`。
 - **Trash。** 移入 Trash 时整棵子树用同一个 `deletedAt` 一起移入（响应的 `ids` 是全部被移入的页面）。Trash 列表只显示每批的最上位页面；复原时把同一时刻一起移入的子孙一起复原（中间隔着另一时刻移入的页面时，那之下的不复原），父页面仍在 Trash 或已被删除时复原到最上位，父页面还在时跟随父页面当前的项目。永久删除一篇时，Trash 里它的子孙一起删除。
 
+## 反向链接（#189）
+
+笔记正文的最下面（编辑器之后、分隔线之下）列出这篇页面的反向链接（`src/components/note-backlinks.tsx` 的 `NoteBacklinksSection`，网页 `/app`、分屏和 `/note-embed` 共用），两组：
+
+- **页面**：本人未进 Trash 的页面里指向这一篇的：笔记正文里的 `@` 页面提及，或正文里指向本站 `?view=pages&page=<id>` 的链接（与编辑器“原地打开”的判断相同：同源、`view=pages`），白板里链接到这一篇的元素或页面卡片（`customData.notefablePage`），以及幻灯片文字里指向本站这一篇的链接（放映和公开页里它在新标签页打开）。幻灯片里白板截图的来源页（`pageId`，点不了）不算。不含这一篇自己。点一下原地打开（网页走 `onOpen`，内嵌页发 `openPage`）。
+- **聊天**：在这篇页面的 AI 面板里开始的会话（`Session.noteId`），和在发言里用“＋添加页面”附上过这一篇的会话（`MessageNote`，只看 `active` 的发言）。点一下切到 Chats 打开那段会话；从附件来的会话滚到最近一条附上这一篇的发言（`messageId`），从 AI 面板来的会话打开到末尾。分屏里在左边的聊天打开。
+
+两组都按最近更新排序，各最多 50 条（聊天按会话取，一个会话里附了多少次都只占一条），先显示 5 条，其余用 “+{count} more” 展开；两组都空（或读不到）时整块不显示。按 Ctrl / ⌘ / Shift 点击时照常交给浏览器（新标签页）。`/note-embed` 只在 App 声明 `canOpenPage()` 时列页面、声明 `canOpenChat()` 时列聊天，点了发 `openPage` / `openChat`，不让 WebView 跳转。白板和幻灯片页面是整屏画布，下面没有正文区，不显示这一块（它们作为链接的来源仍会出现在别的笔记的列表里）；公开分享页（`/s/:token`）也不显示。
+
+数据来自 `GET /api/pages/:id/backlinks`（`src/lib/note-backlinks-server.ts`）：打开页面时在数据库里现查，不建索引表。笔记走本人页面的正文 JSON（与搜索一样），只把含这个页面 ID 的链接带回，再用与编辑器相同的规则（`notePageIdFromUrl`）确认。白板 / 幻灯片的本体很大，读它们会随页数变慢，所以每次保存时服务端把本体里的页面链接抽进 `NoteCanvas.links`（`extractCanvasLinks`，`src/lib/note-backlinks.ts`；复制页面时一并复制），查询只读这一列。页面改了标题、进了 Trash 都立即反映。
+
+打开着的页面在这些时候延迟 400ms 重读一次：别的页面保存完成或进 Trash（`notefable:backlinks-stale`，`useNotePages` 派发）、会话列表变了（发送、改名、删除，`/app` 在列表变化时派发同一事件；`notefable:note-chat-saved` 是 AI 面板）、页面被 AI 改写（`notefable:page-updated`）、新建或复原了页面（`notefable:page-created`）、别处移入 Trash（`notefable:pages-trashed`）。原生 App 的抽屉和回收站盖在笔记上面时，里面的改动由 App 调 `notefableEmbed.refreshBacklinks()` 让编辑器重读：别的页面改名、换图标、复原（Android 与 iOS，写入成功后）、聊天改图标（iOS，写入成功后）、聊天改名和删除（iOS，抽屉关上时；Android 的抽屉只在离开笔记后列聊天）。在 A 里写了 `@B` 马上打开 B，A 的保存一落地 B 的列表就会出现 A。其他标签页或其他设备上的变化要重新打开页面才反映。
 ## 接口
 
 | 路径 | 行为 |
@@ -124,6 +136,7 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 | `POST /api/pages/diagram` | “Draw as diagram”（画成图）：`{ source: "answer", messageId } \| { source: "note", pageId }`、`model?`、`clientRequestId`。AI 把回答或笔记画成 Mermaid，服务端转成可编辑的白板元素，新建白板（从笔记来的是它的子页面，`aiUpdatedAt` 设为现在），201 `{ page, partial? }`；同一个 `clientRequestId` 再来时返回已建的页面（200，不计数）。计入聊天额度，规则见 [chat-flow.md](chat-flow.md#画成图draw-as-diagram) |
 | `POST /api/pages/from-answer` | Android / iOS 原生 App 的 “Save to page”：`{ markdown, sessionId, messageId?, savedOn? }`，服务端核对会话归属后用 `answerToNoteContent` 生成块，经 `validateNoteContent` 与 `createNotePage`（同 `POST /api/pages`）新建，201 `{ page }` |
 | `GET /api/pages/:id` | 读取拥有的页面（Trash 里的笔记返回 404）。白板 / 幻灯片的 `page` 另带本体 `data` |
+| `GET /api/pages/:id/backlinks` | 反向链接（见“反向链接”）：`{ pages: [{ id, kind, title, icon }], chats: [{ id, title, icon, messageId }] }`，都按最近更新排序、各最多 50 条；`messageId` 是最近一条附上这一篇的发言（只在 AI 面板里开始的会话为 `null`）。`Cache-Control: no-store`；不是本人的或在 Trash 里返回 404 |
 | `PATCH /api/pages/:id` | 原子保存 `{ title, icon, cover, coverPosition, blocks, version }`，版本递增；同一事务内按需先写一份 `AUTO` 历史（见“编辑历史与恢复”）。Trash 里的笔记返回 404。白板 / 幻灯片收 `{ title, icon?, data?, version }`，只回 `{ version, page }`（见“页面类型”） |
 | `DELETE /api/pages/:id` | **移入 Trash**（软删除）：给这篇和全部子页面写同一个 `deletedAt`，响应 `{ ok: true, ids }`；不是永久删除。成功后顺带尽力清理本人超期的 Trash 笔记 |
 | `GET /api/pages/trash` | 返回 `{ pages: NoteTrashItem[] }`（`id`、`kind`、`title`、`icon`、`deletedAt`、`purgeAt`），最近放入的在前。先清理本人超期的笔记再列出；`Cache-Control: no-store` |
@@ -235,7 +248,7 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 
 ## 运行与迁移
 
-无需新增环境变量，沿用 DATABASE_URL 与 COOKIE_SECRET。笔记相关迁移包括 `20260930150000_note_pages`（NotePage 表、归属外键和列表索引）、`20261006120000_note_page_icon_cover`（`icon`、`cover`）、`20261006130000_note_page_cover_position`（`coverPosition`）、`20261006140000_note_cover_assets`（`NoteCoverAsset`）、`20261006150000_note_cover_asset_deleting`（`deletingAt`，并把已有的上传封面登记为使用中）、`20261006160000_note_cover_asset_checked`（`checkedAt` 及索引）、`20261013140000_note_proposals`（`NoteProposal`）、`20261014120000_note_groups`（`NoteGroup` 与 `NotePage.groupId`）、`20261014210000_session_note`（`Session.noteId`）、`20261122120000_session_note_set_null`（`Session.noteId` 的外键改为 `ON DELETE SET NULL`）、`20261015001000_manual_list_order`（`position`）、`20261015100000_note_trash_and_revisions`（`NotePage.deletedAt`、`NoteRevisionReason` 与 `NoteRevision`）、`20261116000000_note_page_tree_settings`（`parentId`、`favoritedAt`、`fullWidth`、`smallText`、`font`、`locked`）、`20261116100000_message_notes`（`MessageNote`）、`20261123000000_page_kinds`（枚举 `PageKind`、`NotePage.kind` 默认 `note`、`NoteRevision.data`、`NoteCanvas` 表）、`20261123000000_stored_files`（`StoredFile` 接替 `NoteCoverAsset`，见 [database.md](database.md#storedfile)）和 `20261124000000_page_ai_harness`（AI 提案的页面类型、自动应用、撤销与 `NotePage.aiUpdatedAt`，见 [database.md](database.md#noteproposal)）、`20261125000000_proposal_images`（文件种类 `PROPOSAL_IMAGE`）。除删掉已搬走的 `NoteCoverAsset` 的那一个外均为非破坏追加（`page_ai_harness` 只加列和枚举值，并回填已有提案的 `appliedPageId` 与 AI 写过的页面的 `aiUpdatedAt`）。历史快照 SQL 用到 `gen_random_uuid()`（PostgreSQL 13+），并显式带 schema（`notefable`）。Trash、历史和文件清理都没有新的环境变量，也没有定时任务（文件清理在请求之后惰性运行）。封面图片与聊天图片共用 `src/lib/storage.ts`（生产为 Private Vercel Blob，本地无令牌时写入 `NOTEFABLE_STORAGE_DIR`）。使用 `npm run prisma:migrate`，不使用 db push 或数据库重置。预览环境仍须使用独立数据库。
+无需新增环境变量，沿用 DATABASE_URL 与 COOKIE_SECRET。笔记相关迁移包括 `20260930150000_note_pages`（NotePage 表、归属外键和列表索引）、`20261006120000_note_page_icon_cover`（`icon`、`cover`）、`20261006130000_note_page_cover_position`（`coverPosition`）、`20261006140000_note_cover_assets`（`NoteCoverAsset`）、`20261006150000_note_cover_asset_deleting`（`deletingAt`，并把已有的上传封面登记为使用中）、`20261006160000_note_cover_asset_checked`（`checkedAt` 及索引）、`20261013140000_note_proposals`（`NoteProposal`）、`20261014120000_note_groups`（`NoteGroup` 与 `NotePage.groupId`）、`20261014210000_session_note`（`Session.noteId`）、`20261122120000_session_note_set_null`（`Session.noteId` 的外键改为 `ON DELETE SET NULL`）、`20261015001000_manual_list_order`（`position`）、`20261015100000_note_trash_and_revisions`（`NotePage.deletedAt`、`NoteRevisionReason` 与 `NoteRevision`）、`20261116000000_note_page_tree_settings`（`parentId`、`favoritedAt`、`fullWidth`、`smallText`、`font`、`locked`）、`20261116100000_message_notes`（`MessageNote`）、`20261123000000_page_kinds`（枚举 `PageKind`、`NotePage.kind` 默认 `note`、`NoteRevision.data`、`NoteCanvas` 表）、`20261123000000_stored_files`（`StoredFile` 接替 `NoteCoverAsset`，见 [database.md](database.md#storedfile)）和 `20261124000000_page_ai_harness`（AI 提案的页面类型、自动应用、撤销与 `NotePage.aiUpdatedAt`，见 [database.md](database.md#noteproposal)）、`20261125000000_proposal_images`（文件种类 `PROPOSAL_IMAGE`）、`20261126000000_note_canvas_links`（`NoteCanvas.links`，反向链接用，并回填已有白板 / 幻灯片里的页面链接）。除删掉已搬走的 `NoteCoverAsset` 的那一个外均为非破坏追加（`page_ai_harness` 只加列和枚举值，并回填已有提案的 `appliedPageId` 与 AI 写过的页面的 `aiUpdatedAt`）。历史快照 SQL 用到 `gen_random_uuid()`（PostgreSQL 13+），并显式带 schema（`notefable`）。Trash、历史和文件清理都没有新的环境变量，也没有定时任务（文件清理在请求之后惰性运行）。封面图片与聊天图片共用 `src/lib/storage.ts`（生产为 Private Vercel Blob，本地无令牌时写入 `NOTEFABLE_STORAGE_DIR`）。使用 `npm run prisma:migrate`，不使用 db push 或数据库重置。预览环境仍须使用独立数据库。
 
 ## 页面排序
 
@@ -263,6 +276,7 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 | `{type:"saveState", state}` | 保存状态变化：`saved` / `unsaved`（等待输入停止，网页显示 Saving…）/ `saving` / `error`（Not saved）/ `conflict` |
 | `{type:"missing", id?}` | 没有 `page` 参数，或页面不存在、不属于本人、在 Trash 里（404）；编辑中保存返回 404（别处已移入 Trash 或彻底删除）时也发，本地草稿保留。`id` 是找不到的那一篇（没有 `page` 参数时不带）：常驻 WebView 切页时，App 只认这次要打开的那一篇的 missing，上一篇晚到的不会关掉新的一篇（旧网页不带 `id`，App 照旧接受） |
 | `{type:"openPage", id}` | 正文里的页面提及被点了。App 用"从链接打开笔记"的同一入口（`openNoteFromLink`）打开那一页：先 flush、切到列表、刷新后笔记在就打开 |
+| `{type:"openChat", id, messageId?}` | 笔记下方反向链接里的聊天被点了。App 和搜索结果一样打开那段会话（先 flush、切到聊天，有 `messageId` 就滚到那条发言）。只在 App 声明了 `window.NoteFableNative.canOpenChat()` 时发；旧版 App 的内嵌页不列聊天 |
 | `{type:"pagesChanged"}` | 网页新建了页面（笔记 AI 面板的“画成图”画好了白板）。App 刷新笔记列表（`refresh()`）；不认识的旧版 App 忽略 |
 | `{type:"flushed", requestId, ok, kept?}` | 对 `flush(requestId)` 的回复；`ok` 为 false 时带 `kept` |
 | `{type:"storageLimit", tier, used, limit}` | 编辑器里的图片、文件、封面、图标或 AI 面板的附件因存储空间不够被拒绝（`used` / `limit` 是字节）。只在 App 声明了 `window.NoteFableNative.canShowStorageLimit()` 时发；App 在编辑器上方显示与聊天相同的存储提示（登录 / 升级）。没有这个方法的旧版 App 不收到，网页在编辑器里只说明原因 |
@@ -282,6 +296,7 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 - `openPage(request)`：原生端复用同一个常驻 `/note-embed` WebView 时，传入 `{ id, reveal?, model?, reasoning? }`（或 JSON / ID 字符串）就地切换到另一篇页面或重新打开缓存里的页面；不向历史栈压记录（`replaceState`，不污染原生返回手势），立即命中 `useNotePages` 内嵌模式最多 8 篇的 LRU 缓存并后台对账（未命中时仅拉取单页数据，不重载 HTML / JS 包）；返回 `true` 表示网页已接管，旧版服务端无此方法时返回 `false` 由原生自动回退到整页加载。
 - `close()`：原生端返回笔记列表或切到聊天、暂留常驻 WebView 热缓存时调用，卸载当前 `NotesWorkspace` 编辑器 DOM（释放 BlockNote / 白板 / 幻灯片实例与定时器），只保留轻量的网页壳与最多 8 篇的 LRU 队列缓存；未保存或保存中的队列绝不被 LRU 驱逐。
 - `pageTrashed(ids)`：原生端在列表、菜单或聊天提案撤销里把页面移入回收站时传入页面 ID 数组（即使当前未打开编辑器），从常驻 WebView 缓存中同步清除这些页面与草稿。
+- `refreshBacklinks()`：原生端在笔记上面改过别的页面或会话（改名、换图标、删除、从回收站复原）后调用，打开着的笔记重读反向链接。旧版网页没有这个函数时什么都不做。
 
 消息的组装与 flush 的回复在 `src/lib/native-bridge.ts`（有单元测试）；更改约定时同时修改 Android / iOS 应用端以及 [android-native.md](android-native.md) / [ios-native.md](ios-native.md)。
 

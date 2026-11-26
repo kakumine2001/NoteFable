@@ -272,6 +272,30 @@ describe("file save capability", () => {
   });
 });
 
+describe("refresh backlinks", () => {
+  it("tells the open note to re-read its backlinks", async () => {
+    const { createEmbedApi } = await import("./native-bridge");
+    const refreshBacklinks = vi.fn();
+    const api = createEmbedApi({ flush: async () => true, openHistory: () => {}, post: () => {}, refreshBacklinks });
+    expect(api.refreshBacklinks()).toBe(true);
+    expect(refreshBacklinks).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("open chat capability", () => {
+  it("is reported only by apps that declare it, and posts openChat with the message", async () => {
+    const { nativeCanOpenChat, postToNative } = await import("./native-bridge");
+    const sent: string[] = [];
+    const postMessage = (json: string) => { sent.push(json); };
+    expect(nativeCanOpenChat({ NoteFableNative: { postMessage, canOpenChat: () => true } })).toBe(true);
+    expect(nativeCanOpenChat({ NoteFableNative: { postMessage } })).toBe(false);
+    expect(nativeCanOpenChat({ NoteFableNative: { postMessage, canOpenChat: () => { throw new Error("gone"); } } })).toBe(false);
+    expect(nativeCanOpenChat({})).toBe(false);
+    expect(postToNative({ type: "openChat", id: "c1", messageId: "m1" }, { NoteFableNative: { postMessage } })).toBe(true);
+    expect(JSON.parse(sent[0])).toEqual({ type: "openChat", id: "c1", messageId: "m1" });
+  });
+});
+
 describe("usage limit capability", () => {
   it("reports canShowUsageLimit only when declared and posts usageLimit payload", async () => {
     const { nativeCanShowUsageLimit } = await import("./native-bridge");

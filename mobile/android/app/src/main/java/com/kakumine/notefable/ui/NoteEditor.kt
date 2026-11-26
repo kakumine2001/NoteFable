@@ -178,6 +178,10 @@ class NoteEmbedBridge(
     @JavascriptInterface
     fun canOpenPage(): Boolean = true
 
+    /** 网页据此在笔记下方的反向链接里列出聊天，点了发 `openChat`；旧版 App 没有这个方法，网页就不列聊天。 */
+    @JavascriptInterface
+    fun canOpenChat(): Boolean = true
+
     /** 网页据此把"存储空间不够"交给 App 显示（`storageLimit` 消息）；旧版 App 没有这个方法，网页就在编辑器里只说明原因。 */
     @JavascriptInterface
     fun canShowStorageLimit(): Boolean = true
@@ -371,6 +375,11 @@ class NoteEmbedBridge(
         webView?.evaluateJavascript(pageSettingsScript(pageJson), null)
     }
 
+    /** 抽屉或回收站里改了别的页面（改名、换图标、复原）：让开着的笔记重读下方的反向链接。 */
+    fun refreshBacklinks() {
+        webView?.evaluateJavascript(REFRESH_BACKLINKS_SCRIPT, null)
+    }
+
     companion object {
         /** 页面 JSON 作为字符串字面量传过去，网页里再 JSON.parse。 */
         fun pageUpdatedScript(pageJson: String) =
@@ -403,6 +412,10 @@ class NoteEmbedBridge(
             if (!REVEAL_TARGET.matches(target)) return null
             return "(function(){var e=window.notefableEmbed;if(e&&typeof e.reveal==='function')e.reveal(${JsonPrimitive(target)})})()"
         }
+
+        /** 旧版网页没有这个函数时什么都不做。 */
+        const val REFRESH_BACKLINKS_SCRIPT =
+            "(function(){var e=window.notefableEmbed;if(e&&typeof e.refreshBacklinks==='function')e.refreshBacklinks()})()"
 
         const val CLOSE_SCRIPT =
             "(function(){var e=window.notefableEmbed;if(e&&typeof e.close==='function')return e.close()===true;return false})()"

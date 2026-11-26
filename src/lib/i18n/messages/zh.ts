@@ -11,6 +11,7 @@ export const zh: Record<string, string> = {
   "For example:\n- Answer in plain, casual language\n- Lead with the conclusion and keep it short\n- If you’re not sure, say so instead of guessing": "例如：\n- 用轻松自然的语气回答\n- 先说结论，尽量简短\n- 不确定就直接说，不要瞎猜",
   "Could not change language. Please try again.": "无法切换语言，请重试。",
   "Table of contents": "目录",
+  "Backlinks": "反向链接",
   "Trash request failed. Please try again.": "回收站请求失败，请重试。",
   "Recently used": "最近使用",
   "Smileys & people": "表情与人物",

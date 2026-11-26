@@ -21,6 +21,7 @@ export const ar: Record<string, string> = {
   "Page title": "عنوان الصفحة",
   "Rename page": "إعادة تسمية الصفحة",
   "Table of contents": "جدول المحتويات",
+  "Backlinks": "الروابط الخلفية",
   "Visit website": "زيارة الموقع الإلكتروني",
   "Account": "الحساب",
   "Actions": "الإجراءات",

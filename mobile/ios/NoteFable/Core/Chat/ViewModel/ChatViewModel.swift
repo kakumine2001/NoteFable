@@ -54,6 +54,9 @@ final class ChatViewModel {
 
     private let iconSync: SessionIconSync
 
+    /// 一个聊天的图标写入服务端之后（开着的笔记要重读反向链接）。App 装配时设置。
+    @ObservationIgnored var onSessionIconSaved: (@MainActor () -> Void)?
+
     /// 登录 / 退出后加一：旧身份下还在收尾的回答不再写进缓存。
     @ObservationIgnored private var epoch = 0
 
@@ -382,6 +385,8 @@ final class ChatViewModel {
                 show: { value in self.showIcon(sessionId, value) },
                 fail: { self.update { $0.notice = .iconFailed } }
             )
+            // 写完（或失败退回）之后。
+            onSessionIconSaved?()
         }
     }
 

@@ -30,6 +30,7 @@ import { ChatTitleIcon, ChatTopbarIcon } from "@/components/chat-icon";
 import { ChatMessage } from "@/components/chat-message";
 import { QuoteSelectionButton } from "@/components/quote-selection";
 import { composeQuotedMessage, normalizeQuote, splitQuotedMessage } from "@/lib/chat-quote";
+import { dispatchBacklinksStale } from "@/lib/note-backlinks";
 import { ANSWER_RESIZED_EVENT } from "@/components/assistant-markdown";
 import { TurnBusyContext, type TurnActions } from "@/components/turn-actions";
 import { AccountAppIconSync, AccountLocaleSync } from "@/components/account-button";
@@ -135,6 +136,8 @@ async function saveSessionIcon(sessionId: string, icon: string | null) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ icon }),
     });
+    // 一覧のアイコンは保存の前に替わるので、保存できた後にもう一度、開いているノートのバックリンクを読み直させる。
+    if (response.ok) dispatchBacklinksStale();
     return response.ok;
   } catch {
     return false;
@@ -520,6 +523,8 @@ export default function Home() {
   const projectSync = useRef(new ChatProjectSync());
   const [sessionsReady, setSessionsReady] = useState(false);
   const [sessions, setSessions] = useState<Session[]>([]);
+  // 会話の一覧が変わった（送信・名前の変更・削除など）ら、開いているノートのバックリンク（このページを使った会話）を読み直す。
+  useEffect(() => { dispatchBacklinksStale(); }, [sessions]);
   const [chatProjects, setChatProjects] = useState<ChatProject[]>([]);
   const [chatProjectError, setChatProjectError] = useState("");
   useEffect(() => {
@@ -1968,6 +1973,8 @@ export default function Home() {
         body: JSON.stringify({ messageId }),
       });
       if (!response.ok) throw new Error(readErrorMessage(await readJsonObject(response), msg("Could not switch versions. Try again.")));
+      // 表示中の版が替わると、このページを添付した発言（active）も替わる。
+      dispatchBacklinksStale();
       cancelReveal();
       if (!await refreshSessionMessages(sessionId)) throw new Error(msg("Failed to load conversation."));
     } catch (error) {
@@ -2642,7 +2649,8 @@ export default function Home() {
 
         <div className={workspaceView === "pages" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
           {/* 分割表示の間は右側のペインが同じノートを開く。隠れたこちらにも編集画面を作ると、同じブロックが 2 つでき、検索結果の強調が見えない方に当たる。 */}
-          {!splitActive && <NotesWorkspace notes={notes} listMode={notesList} model={model} reasoning={reasoning} onModelChange={changeModel} onReasoningChange={changeReasoning} onOpen={openNote} onCreate={(request) => createNote(request)} onImport={(files) => void importMarkdownFiles(files)} onWorkspaceChange={changeWorkspace} />}
+          {!splitActive && <NotesWorkspace notes={notes} listMode={notesList} model={model} reasoning={reasoning} onModelChange={changeModel} onReasoningChange={changeReasoning} onOpen={openNote}
+            onOpenChat={(id, messageId) => void openChatFromLink(id, messageId)} onCreate={(request) => createNote(request)} onImport={(files) => void importMarkdownFiles(files)} onWorkspaceChange={changeWorkspace} />}
         </div>
 
         <div className={workspaceView === "chat" ? `notion-chat-workspace${emptyState ? " is-empty" : ""}` : "hidden"}
@@ -3018,6 +3026,7 @@ export default function Home() {
             model={model}
             reasoning={reasoning}
             onSelectNote={(id) => openNoteInSplit(id)}
+            onOpenChat={(id, messageId) => void openChatFromLink(id, messageId)}
             onCreateNote={createNoteInSplit}
             onOpenFullView={(id) => openNoteFullView(id)}
             onOpenHistory={(id) => setHistoryNoteId(id)}

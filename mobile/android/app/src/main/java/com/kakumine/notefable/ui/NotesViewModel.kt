@@ -254,6 +254,12 @@ class NotesViewModel(
     var revealInEditor: ((String) -> Unit)? = null
 
     /**
+     * 别的页面改了名、换了图标或从回收站复原了（服务端写入成功之后）：让网页编辑器重读笔记下方的反向链接
+     * （window.notefableEmbed.refreshBacklinks）。由界面在编辑器打开时设置。
+     */
+    var refreshBacklinks: (() -> Unit)? = null
+
+    /**
      * 有页面移进了回收站（本地删除、聊天提案撤销）：通知常驻 WebView 清理对应缓存（即使当前未停留在编辑页）。
      */
     var notifyPagesTrashed: ((Collection<String>) -> Unit)? = null
@@ -693,6 +699,7 @@ class NotesViewModel(
                     )
                 }
                 written.json?.let { json -> notifyPageUpdated?.invoke(pageId, json) }
+                refreshBacklinks?.invoke()
             }, true)
         } ?: false
     }
@@ -1030,6 +1037,7 @@ class NotesViewModel(
                 }
                 if (!applied) return false
                 written.json?.let { json -> notifyPageUpdated?.invoke(pageId, json) }
+                refreshBacklinks?.invoke()
             }
             ok = true
             return true
@@ -1169,6 +1177,7 @@ class NotesViewModel(
                     trash = s.trash?.copy(items = s.trash.items?.filterNot { it.id == id }),
                 )
             }
+            refreshBacklinks?.invoke()
         }
         apply
     }
