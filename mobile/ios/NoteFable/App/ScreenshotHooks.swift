@@ -8,9 +8,17 @@ enum ScreenshotScene: String, CaseIterable, Sendable {
     case chatEmpty = "chat-empty"
     case chat
     case chatStreaming = "chat-streaming"
+    case chatComposer = "chat-composer"
+    case chatKeyboard = "chat-keyboard"
+    case chatStreamed = "chat-streamed"
     case drawer
     case workspace
+    case workspaceScrolled = "workspace-scrolled"
     case editor
+    case editorScrolled = "editor-scrolled"
+    case editorLocked = "editor-locked"
+    case editorWhiteboard = "editor-whiteboard"
+    case editorSlides = "editor-slides"
     case pageMenu = "page-menu"
     case search
     case modelSheet = "model-sheet"

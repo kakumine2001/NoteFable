@@ -18,8 +18,9 @@ else
 fi
 
 read -r -a MAJORS   <<<"${NF_IOS_MAJORS:-26 18}"
-read -r -a VARIANTS <<<"${NF_VARIANTS:-light dark ar ar-app rt}"
-DEFAULT_SCENES="chat-empty chat chat-scrolled chat-menu emoji-picker toast chat-streaming drawer workspace editor page-menu search search-scrolled model-sheet attach-sheet settings settings-page sign-in"
+read -r -a VARIANTS <<<"${NF_VARIANTS:-light dark ar ar-app hc rt}"
+# chat-streaming stays last in the signed-in batch because its stream never ends.
+DEFAULT_SCENES="chat-empty chat chat-scrolled chat-menu emoji-picker chat-composer chat-keyboard toast model-sheet attach-sheet drawer search search-scrolled settings settings-page workspace workspace-scrolled editor page-menu editor-scrolled editor-locked editor-whiteboard editor-slides chat-streamed chat-streaming sign-in"
 read -r -a SCENES   <<<"${NF_SCENES:-$DEFAULT_SCENES}"
 
 DEVICES=("iPhone 17 Pro" "iPhone 18 Pro" "iPhone 16 Pro" "iPhone 17" "iPhone 16")
@@ -272,6 +273,14 @@ run_batch() {
       failed=1
     fi
 
+    if [[ "$variant" == "hc" && "$ready_line" != *" increaseContrast=true "* ]]; then
+      echo "::error::ios${major} ${variant} ${s}: Increase Contrast did not reach the app (${ready_line})"
+      failed=1
+    fi
+    if [[ "$s" == "chat-keyboard" && "$ready_line" != *" keyboard=up "* ]]; then
+      echo "::warning::ios${major} ${variant} ${s}: software keyboard is not visible (${ready_line})"
+    fi
+
     if [[ "$ready_line" == *"timeout=true"* ]]; then
       echo "::error::ios${major} ${variant} ${s} timed out waiting for readiness: ${ready_line}"
       failed=1
@@ -297,20 +306,13 @@ run_batch() {
 # Partition SCENES into signed-in and guest batches.
 declare -a SIGNED_IN_BATCH=()
 declare -a GUEST_BATCH=()
-if [[ -z "${NF_SCENES:-}" ]]; then
-  # One app process walks this order (FixtureLaunch.resetBefore handles each transition).
-  # chat-streaming stays last: its stream never ends, so any later scene would start mid-send.
-  SIGNED_IN_BATCH=(chat-empty chat chat-scrolled chat-menu emoji-picker toast model-sheet attach-sheet drawer search search-scrolled settings settings-page workspace editor page-menu chat-streaming)
-  GUEST_BATCH=(sign-in)
-else
-  for s in "${SCENES[@]}"; do
-    if [[ "$s" == "sign-in" ]]; then
-      GUEST_BATCH+=("$s")
-    else
-      SIGNED_IN_BATCH+=("$s")
-    fi
-  done
-fi
+for s in "${SCENES[@]}"; do
+  if [[ "$s" == "sign-in" ]]; then
+    GUEST_BATCH+=("$s")
+  else
+    SIGNED_IN_BATCH+=("$s")
+  fi
+done
 
 # Without NF_SCENES, only light takes every scene: the other variants take the scenes where they differ visibly
 # (content scrolled under the floating glass bars, glass menus and pickers, the toast over the composer).
@@ -322,10 +324,11 @@ variant_scenes() {
     return 0
   fi
   case "$1" in
-    dark)   echo "chat chat-scrolled chat-menu emoji-picker model-sheet drawer search-scrolled settings settings-page workspace editor" ;;
-    ar)     echo "chat chat-scrolled chat-menu drawer search-scrolled settings workspace" ;;
-    ar-app) echo "chat chat-menu model-sheet drawer" ;;
-    rt)     echo "chat chat-scrolled toast model-sheet drawer search-scrolled settings-page" ;;
+    dark)   echo "chat chat-scrolled chat-menu emoji-picker chat-composer chat-keyboard model-sheet drawer search-scrolled settings settings-page workspace workspace-scrolled editor editor-scrolled editor-whiteboard" ;;
+    ar)     echo "chat chat-scrolled chat-menu chat-composer drawer search-scrolled settings workspace workspace-scrolled editor-locked" ;;
+    ar-app) echo "chat chat-menu model-sheet drawer workspace-scrolled" ;;
+    rt)     echo "chat chat-scrolled chat-keyboard toast model-sheet drawer search-scrolled settings-page workspace-scrolled editor-locked chat-streaming" ;;
+    hc)     echo "chat-scrolled drawer workspace-scrolled" ;;
   esac
 }
 
@@ -403,8 +406,12 @@ for major in "${MAJORS[@]}"; do
   xcrun simctl install "$udid" "$APP"
 
   for variant in "${VARIANTS[@]}"; do
-    mkdir -p "$OUT/ios${major}/${variant}"
     set_variant_environment "$udid" "$variant"
+    if [[ "$variant" == "hc" ]] && ! xcrun simctl ui "$udid" increase_contrast enabled >/dev/null; then
+      echo "::warning::ios${major} hc: this simulator could not enable Increase Contrast"
+      continue
+    fi
+    mkdir -p "$OUT/ios${major}/${variant}"
     select_variant_batches "$variant"
 
     rt_ok=1
@@ -443,6 +450,9 @@ for major in "${MAJORS[@]}"; do
     if [[ "$variant" == "rt" ]]; then
       xcrun simctl spawn "$udid" defaults write com.apple.Accessibility EnhancedBackgroundContrastEnabled -int 0 || true
     fi
+    if [[ "$variant" == "hc" ]]; then
+      xcrun simctl ui "$udid" increase_contrast disabled >/dev/null
+    fi
   done
 
   xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
@@ -469,10 +479,10 @@ if [[ -d "$HOME/Library/Logs/DiagnosticReports" ]]; then
 fi
 
 # Generate contact sheet HTML + GitHub step summary.
-python3 - "$OUT" "$ready_summary_file" "${GITHUB_STEP_SUMMARY:-}" <<'PY'
+python3 - "$OUT" "$ready_summary_file" "${GITHUB_STEP_SUMMARY:-}" "$DEFAULT_SCENES" <<'PY'
 import glob, html, os, sys
 
-out_dir, ready_file, summary_path = sys.argv[1], sys.argv[2], sys.argv[3]
+out_dir, ready_file, summary_path, default_scenes = sys.argv[1:]
 
 ready_rows = []
 if os.path.exists(ready_file):
@@ -483,13 +493,8 @@ if os.path.exists(ready_file):
                 ready_rows.append(parts)
 
 majors = sorted([d for d in os.listdir(out_dir) if d.startswith('ios') and os.path.isdir(os.path.join(out_dir, d))])
-variants_order = ['light', 'dark', 'ar', 'ar-app', 'rt']
-scenes_order = [
-    'chat-empty', 'chat', 'chat-scrolled', 'chat-menu', 'emoji-picker', 'toast',
-    'chat-streaming', 'drawer', 'workspace', 'editor', 'page-menu',
-    'search', 'search-scrolled', 'model-sheet', 'attach-sheet',
-    'settings', 'settings-page', 'sign-in',
-]
+variants_order = ['light', 'dark', 'ar', 'ar-app', 'hc', 'rt']
+scenes_order = default_scenes.split()
 
 def scene_rows(major):
     # Known scenes in a fixed order, then any other scene captured for this runtime (never drop a PNG silently).
