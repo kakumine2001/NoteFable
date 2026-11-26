@@ -13,11 +13,14 @@ vi.mock("react", async (original) => ({
 
 type Entry = { state: unknown; href: string };
 
-function fakeBrowser(entries: Entry[]) {
+// manualPop: history.back() の popstate を自動では届けず、deliverPop() で届ける（届くまでの間を試す）。
+function fakeBrowser(entries: Entry[], { manualPop = false } = {}) {
   const stack = entries.map((entry) => ({ ...entry }));
   let index = stack.length - 1;
   const listeners = new Map<string, Set<(event: Event) => void>>();
   const dispatch = (event: Event) => { for (const listener of listeners.get(event.type) ?? []) listener(event); };
+  let queuedPops = 0;
+  const pop = () => dispatch({ type: "popstate", isTrusted: true } as unknown as Event);
   const history = {
     get state() { return stack[index].state; },
     pushState: vi.fn((state: unknown, _title: string, url?: string | URL | null) => {
@@ -34,7 +37,8 @@ function fakeBrowser(entries: Entry[]) {
       if (index === 0) return;
       index -= 1;
       // 実際の popstate と同じく、少し後に（信頼できるイベントとして）届く。
-      setTimeout(() => dispatch({ type: "popstate", isTrusted: true } as unknown as Event));
+      if (manualPop) queuedPops += 1;
+      else setTimeout(pop);
     }),
   };
   vi.stubGlobal("window", {
@@ -46,7 +50,12 @@ function fakeBrowser(entries: Entry[]) {
     },
     removeEventListener: (type: string, listener: (event: Event) => void) => { listeners.get(type)?.delete(listener); },
   });
-  return { history, stack, current: () => stack[index], userBack: () => { index -= 1; dispatch({ type: "popstate", isTrusted: true } as unknown as Event); } };
+  return {
+    history, stack, current: () => stack[index],
+    userBack: () => { index -= 1; pop(); },
+    deliverPop: () => { if (queuedPops > 0) { queuedPops -= 1; pop(); } },
+    listenerCount: (type: string) => listeners.get(type)?.size ?? 0,
+  };
 }
 
 const NOTE = "https://app.notefable.com/app?view=pages&page=x";
@@ -162,5 +171,93 @@ describe("replaceSheetUrl", () => {
     vi.runAllTimers();
     expect(browser.history.back).not.toHaveBeenCalled();
     expect(browser.stack).toEqual([{ state: null, href: HOME }, { state: null, href: HOME }]);
+  });
+});
+
+describe("sheet history cleanup hardening", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    cleanups.length = 0;
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const addFlag = (url: URL) => {
+    if (url.searchParams.has("flag")) return false;
+    url.searchParams.set("flag", "1");
+    return true;
+  };
+
+  it("does not let an earlier back's fallback timer end a later in-flight back", async () => {
+    const browser = fakeBrowser([{ state: null, href: HOME }, { state: null, href: NOTE }], { manualPop: true });
+    const { isSheetCleanupPopState, replaceSheetUrl, useBackToClose } = await import("./use-back-to-close");
+    useBackToClose(true, vi.fn());
+    replaceSheetUrl(dropPage);
+    browser.deliverPop();
+    vi.advanceTimersByTime(10);
+    expect(browser.stack).toEqual([{ state: null, href: HOME }, { state: null, href: HOME }, { state: MARKER, href: HOME }]);
+
+    vi.advanceTimersByTime(890);
+    const after = vi.fn();
+    replaceSheetUrl(addFlag, after);
+    expect(browser.history.back).toHaveBeenCalledTimes(2);
+    // 1 回目の予備のタイマー（1000ms）が来ても、2 回目の history.back はまだ自分のもの。
+    vi.advanceTimersByTime(600);
+    expect(isSheetCleanupPopState()).toBe(true);
+    expect(after).not.toHaveBeenCalled();
+    browser.deliverPop();
+    vi.advanceTimersByTime(10);
+    expect(after).toHaveBeenCalledTimes(1);
+    expect(browser.current()).toEqual({ state: MARKER, href: `${HOME}&flag=1` });
+  });
+
+  it("queues rewrites and holds the marker between the cleanup popstate and its flush", async () => {
+    const browser = fakeBrowser([{ state: null, href: HOME }, { state: null, href: NOTE }], { manualPop: true });
+    const { afterSheetHistory, replaceSheetUrl, useBackToClose } = await import("./use-back-to-close");
+    useBackToClose(true, vi.fn());
+    const order: string[] = [];
+    replaceSheetUrl(dropPage, () => order.push("trash"));
+    browser.deliverPop();
+    // popstate は届いたが、待っている書き換えはまだ流れていない。
+    afterSheetHistory(() => order.push("sync"));
+    replaceSheetUrl(addFlag, () => order.push("flag"));
+    useBackToClose(true, vi.fn());
+    expect(order).toEqual([]);
+    expect(browser.current()).toEqual({ state: null, href: NOTE });
+    vi.runAllTimers();
+    expect(order).toEqual(["trash", "sync", "flag"]);
+    expect(browser.history.back).toHaveBeenCalledTimes(1);
+    expect(browser.stack).toEqual([{ state: null, href: HOME }, { state: null, href: `${HOME}&flag=1` }, { state: MARKER, href: `${HOME}&flag=1` }]);
+  });
+
+  it("listens for its own back even when the marker survived a reload", async () => {
+    const browser = fakeBrowser([{ state: null, href: HOME }, { state: null, href: NOTE }, { state: MARKER, href: NOTE }]);
+    const { replaceSheetUrl } = await import("./use-back-to-close");
+    const after = vi.fn();
+    replaceSheetUrl(dropPage, after);
+    expect(browser.listenerCount("popstate")).toBe(1);
+    vi.advanceTimersByTime(10);
+    expect(after).toHaveBeenCalledTimes(1);
+    expect(browser.stack.slice(0, 2)).toEqual([{ state: null, href: HOME }, { state: null, href: HOME }]);
+  });
+
+  it("keeps flushing and restores the marker when one waiting callback throws", async () => {
+    const browser = fakeBrowser([{ state: null, href: HOME }, { state: null, href: NOTE }]);
+    const { afterSheetHistory, replaceSheetUrl, useBackToClose } = await import("./use-back-to-close");
+    const reported = vi.spyOn(console, "error").mockImplementation(() => {});
+    useBackToClose(true, vi.fn());
+    replaceSheetUrl(dropPage);
+    const failure = new Error("boom");
+    afterSheetHistory(() => { throw failure; });
+    const next = vi.fn();
+    afterSheetHistory(next);
+    vi.runAllTimers();
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(reported).toHaveBeenCalledWith(failure);
+    expect(browser.stack).toEqual([{ state: null, href: HOME }, { state: null, href: HOME }, { state: MARKER, href: HOME }]);
   });
 });
