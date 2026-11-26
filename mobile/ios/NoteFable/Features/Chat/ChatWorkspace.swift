@@ -2,14 +2,12 @@ import SwiftUI
 import UIKit
 
 // 整个聊天界面（Android ui/ChatScreen.kt 的 `ChatScreen` + NoteFableRoot.kt 里接到 ChatViewModel 的那部分）。
-// 内容（读取中的转圈 / 读取失败 + 重试 / 空白首页 / 消息列表）铺满到输入栏为止，顶栏（56）用 `nfFloatingHeader` 浮在内容上面：
-// 消息从玻璃顶栏下面滚过去（iOS 26 是 safeAreaBar 加系统的滚动边缘效果；iOS 17–18 和“降低透明度”时是不透明的条）。
-// 输入栏还在内容下面（#195 Phase 2b 再把它也变成浮动的玻璃卡片）。
-// 输入栏贴着键盘：根视图不关系统的键盘避让，键盘升起时这里的可用高度变小，输入栏跟着上去。
-// 底部留白是网页的 padding-bottom: max(1rem, safe-area)：键盘弹出时贴着键盘留 16，否则 16 里扣掉底部安全区。
+// 顶栏（56）和输入栏用 `nfFloatingHeader` 浮在内容上面。iOS 26 的 safeAreaBar 把滚动边缘效果延伸到两条栏，
+// iOS 17–18 用系统毛玻璃底，“降低透明度”时用实色底。
+// 输入栏随底部安全区移动：键盘弹出时留 16，收起后在标签栏上方留 8。
 // 模型抽屉、「＋」抽屉、选笔记的窗口、「整理成笔记」窗口、系统的文件 / 照片 / 相机选择器都挂在这里。
 
-/// 聊天画面浮动外框的开关（#195）。现在定义，Phase 2b 的输入栏和标签栏读它们；在机器上发现问题时改这里的值就能退回。
+/// 聊天画面浮动输入栏和标签栏的开关（#195），供真机验证时切回旧行为。
 enum ChatChrome {
     /// 浮动输入栏用 safeAreaBar（iOS 26，有滚动边缘效果）。如果它不像 safeAreaInset 那样跟着键盘（含拖动收起），改成 false。
     static let composerUsesSystemBar = true
@@ -47,43 +45,44 @@ struct ChatWorkspace: View {
         // 顶栏“…”菜单的对象：空白首页没有。
         let activeSession: SessionSummary? = isEmptyChat ? nil : state.sessions.first(where: { $0.id == state.activeSessionId })
         GeometryReader { proxy in
-            // 键盘算在底部安全区里：可用高度加上下安全区就是整屏的高度，键盘升降时不变。
-            let screenHeight = proxy.size.height + proxy.safeAreaInsets.top + proxy.safeAreaInsets.bottom
-            VStack(spacing: 0) {
-                content(state, heroState: heroState, hasDraft: hasDraft, showRecent: showRecent, maxEditorHeight: screenHeight * 0.4)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    // 在顶栏里面量：这里的底边就是输入栏的上沿，toast 摆在它上面（不再盖住输入栏）。
-                    .nfReportsBottomChrome(.chat)
-                    .nfFloatingHeader(edge: .top) {
-                        ChatTopBar(
-                            title: isEmptyChat ? nil : state.activeTitle,
-                            icon: state.activeIcon,
-                            session: activeSession,
-                            // 网页的空白首页顶栏没有"新建聊天"，因为已经在新聊天里。
-                            showTrailing: !isEmptyChat,
+            // 键盘算在底部安全区里：用当前窗口的可用高度加上下安全区，键盘升降时编辑框的高度上限不变。
+            let windowHeight = proxy.size.height + proxy.safeAreaInsets.top + proxy.safeAreaInsets.bottom
+            content(state, heroState: heroState, hasDraft: hasDraft, showRecent: showRecent, maxEditorHeight: windowHeight * 0.4)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // 在两条浮动栏里面量，让 toast 按输入栏和标签栏合计的遮挡高度摆放。
+                .nfReportsBottomChrome(.chat)
+                .nfFloatingHeader(edge: .top) {
+                    ChatTopBar(
+                        title: isEmptyChat ? nil : state.activeTitle,
+                        icon: state.activeIcon,
+                        session: activeSession,
+                        // 网页的空白首页顶栏没有"新建聊天"，因为已经在新聊天里。
+                        showTrailing: !isEmptyChat,
+                        onModelClick: {
+                            // 和输入栏的模型按钮一样：先收起键盘再开抽屉。
+                            hideKeyboard()
+                            modelSheetOpen = true
+                        }
+                    )
+                }
+                .nfFloatingHeader(edge: .bottom, divider: true, systemBar: ChatChrome.composerUsesSystemBar) {
+                    NFGlassContainer(spacing: NFChromeMetrics.containerSpacing) {
+                        ChatComposer(
+                            bottomPadding: keyboardUp ? 16 : 8,
+                            focusRequest: focusRequest,
+                            onFocusChange: { value in composerFocused = value },
                             onModelClick: {
-                                // 和输入栏的模型按钮一样：先收起键盘再开抽屉。
+                                // 键盘开着时抽屉会浮在键盘上面：先收起（网页 openSheet 的 blur）。
                                 hideKeyboard()
                                 modelSheetOpen = true
+                            },
+                            onAddClick: {
+                                hideKeyboard()
+                                attachSheetOpen = true
                             }
                         )
                     }
-                ChatComposer(
-                    bottomPadding: keyboardUp ? 16 : max(0, 16 - proxy.safeAreaInsets.bottom),
-                    focusRequest: focusRequest,
-                    onFocusChange: { value in composerFocused = value },
-                    onModelClick: {
-                        // 键盘开着时抽屉会浮在键盘上面：先收起（网页 openSheet 的 blur）。
-                        hideKeyboard()
-                        modelSheetOpen = true
-                    },
-                    onAddClick: {
-                        hideKeyboard()
-                        attachSheetOpen = true
-                    }
-                )
-            }
-            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
+                }
         }
         .background(Sm.background)
         // 回答里选中文字点了「问 NoteFable」：引用放到输入栏上方后聚焦输入框，接着打提问（Android composerFocus.requestFocus()）。

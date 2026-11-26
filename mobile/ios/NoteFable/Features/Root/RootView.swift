@@ -107,6 +107,7 @@ struct RootView: View {
                     Label { Text(L("search")) } icon: { Image(uiImage: NFGlassTabIcons.search) }
                 }
             }
+            .nfTabBarMinimize(router.selectedTab == .chat ? ChatChrome.tabBarMinimize : .never)
         } else {
             TabView(selection: tabSelection) {
                 ChatWorkspace()
