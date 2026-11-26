@@ -1,0 +1,20 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["59KHKFY4WB.com.kakumine.notefable"],
+        "components": [
+          {
+            "/": "/c/*/?*",
+            "exclude": true,
+            "comment": "Excludes multi-segment paths under /c/ so only /c/<id> and /c/<id>/ open the app."
+          },
+          {
+            "/": "/c/?*",
+            "comment": "Matches conversation share links; leaves /, /app, /api, and auth/billing callbacks in the browser."
+          }
+        ]
+      }
+    ]
+  }
+}

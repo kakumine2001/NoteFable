@@ -47,7 +47,7 @@ NEXT_PUBLIC_APP_ORIGIN=https://app.notefable.com
 | `notefable.com/app`、`notefable.com/?chat=…` 等旧链接 | 307 转到 `app.notefable.com/`，保留全部查询参数 |
 | `notefable.com/note-embed`、`notefable.com/<语言>/note-embed` | 307 转到 `app.notefable.com` 的同一路径，保留查询参数（编辑器用的接口只在工作区主机） |
 | `app.notefable.com/` | 工作区（rewrite 到 `/{locale}/app`），`X-Robots-Tag: noindex`，写入 `Domain=notefable.com` 的提示 Cookie `notefable_app=1`（只是“用过工作区”的标记，不是登录凭证） |
-| 两个主机的 `/c/<会话>?message=…` | 会话的分享链接（保存到笔记、导出的 Markdown 里写的），转到工作区 `app.notefable.com/?chat=…&message=…`；其中 `app.notefable.com/c/…` 在装了 Android App 时由 App Links 直接在 App 里打开（`public/.well-known/assetlinks.json`，`AndroidManifest.xml` 仅匹配工作区主机） |
+| 两个主机的 `/c/<会话>?message=…` | 会话的分享链接（保存到笔记、导出的 Markdown 里写的），转到工作区 `app.notefable.com/?chat=…&message=…`；其中 `app.notefable.com/c/…` 在装了 Android App 时由 App Links 直接在 App 里打开（`public/.well-known/assetlinks.json`，`AndroidManifest.xml` 仅匹配工作区主机），在装了 iOS App 时由 Universal Links 直接在 App 里打开（`public/.well-known/apple-app-site-association`，`next.config.ts` 为该无扩展名路径设置 `Content-Type: application/json`，`Support/NoteFable.entitlements` 仅声明 `applinks:app.notefable.com`） |
 | `notefable.com/{locale}/app` | 转到 `app.notefable.com/`，保留查询参数 |
 | `app.notefable.com/app` | 转到 `app.notefable.com/`（Stripe 付款后的返回地址 `/app?billing=…` 走这里） |
 | `app.notefable.com/api/*` | 接口只在工作区主机提供。Android App 的 `BASE_URL`、iOS App 的 `NOTEFABLE_BASE_URL`、Stripe Webhook、Google Play RTDN（Pub/Sub push 和 `GOOGLE_PLAY_PUSH_AUDIENCE`）都登记这个主机（[billing.md](billing.md)） |
