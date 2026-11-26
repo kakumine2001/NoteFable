@@ -1,4 +1,6 @@
 export const id: Record<string, string> = {
+  "Deleting your NoteFable account does not cancel an App Store subscription. Cancel it in the App Store to avoid renewal.": "Menghapus akun NoteFable tidak membatalkan langganan App Store. Batalkan di App Store untuk mencegah perpanjangan.",
+  "Manage App Store Subscription": "Kelola Langganan App Store",
   "+{count} more": "+{count} lainnya",
   "1 day left": "Tersisa 1 hari",
   "1 emoji found. Use the up and down arrow keys to navigate.": "1 emoji ditemukan. Gunakan tombol panah atas dan bawah untuk menavigasi.",

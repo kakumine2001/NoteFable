@@ -13,6 +13,8 @@ struct AccountUiState: Equatable, Sendable {
     /// 这个安装包没有配 Google 登录（没有注入取令牌的方法）时 googleEnabled 一直是 false。
     var googleEnabled = true
     var emailEnabled = false
+    var appleEnabled = false
+    var appStoreBilling = false
     var signingIn = false
     /// 正在退出登录（网页 account-button.tsx 的 signingOut）：期间不再发起退出，界面语言也不跟着账号同步。
     var signingOut = false
@@ -119,11 +121,13 @@ final class AccountViewModel {
 
     private func applyAccount(_ response: AccountResponse) {
         state.loaded = true
-        state.configured = response.configured
+        state.configured = response.configured || response.apple == true
         state.googleClientId = response.googleClientId
         // 网页 SignInDialog：showGoogle = account.google !== false，showEmail = Boolean(account.email)。
         state.googleEnabled = response.google != false && requestGoogleIdToken != nil
         state.emailEnabled = response.email == true
+        state.appleEnabled = response.apple == true
+        state.appStoreBilling = response.appStoreBilling == true
         setConfirmed(response.user)
     }
 
@@ -155,6 +159,35 @@ final class AccountViewModel {
                 self.state.signInFailed = true
             }
             self.state.signingIn = false
+        }
+    }
+
+    func signInWithApple(
+        request: @escaping @MainActor (String) async throws -> (code: String, name: String?)?,
+        beforeIdentityChange: @escaping @MainActor () async throws -> Void,
+        onSignedIn: @escaping @MainActor () -> Void
+    ) {
+        guard state.appleEnabled, !state.signingIn else { return }
+        state.signingIn = true
+        work.launch { [weak self] in
+            guard let self else { return }
+            defer { self.state.signingIn = false }
+            do {
+                let nonce = try await self.backend.appleSignInNonce()
+                guard let value = try await request(nonce) else { return }
+                try await beforeIdentityChange()
+                try await self.backend.appleSignIn(code: value.code, name: value.name)
+                do {
+                    self.applyAccount(try await self.backend.account())
+                } catch {
+                    self.retryAccountLater()
+                }
+                onSignedIn()
+            } catch is CancellationError {
+                // 取消不算失败。
+            } catch {
+                self.state.signInFailed = true
+            }
         }
     }
 

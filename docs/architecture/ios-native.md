@@ -1,6 +1,6 @@
 # 原生 iOS 界面（Swift / SwiftUI）
 
-> 目录：`mobile/ios/`。Bundle ID `com.kakumine.notefable`，最低 iOS 17，只支持 iPhone 竖屏。PR 检查、TestFlight 自动上传和签名见 [ios.md](ios.md)；目录约定和本机命令见 [mobile/ios/README.md](../../mobile/ios/README.md)。
+> 目录：`mobile/ios/`。Bundle ID `com.kakumine.notefable`，最低 iOS 17，iPhone 与 iPad 使用同一构建。PR 检查、TestFlight 自动上传和签名见 [ios.md](ios.md)；目录约定和本机命令见 [mobile/ios/README.md](../../mobile/ios/README.md)。
 
 ## 定位
 
@@ -44,8 +44,8 @@ Google 登录：Google Cloud 里给 `com.kakumine.notefable` 登记的 iOS OAuth
 上线前还缺：
 
 - **真机验证**。TestFlight 构建已能装到 iPhone；按 [android-native.md](android-native.md) 的各节核对三端必须一致的部分（功能、入口、文案、数据与编辑器能力、品牌色和角色形象），外壳手感待 #195 在 iOS 26+ 的 iPhone 上按验收标准实测（Tab 栏按住滑动与折射、顶栏按压高光、抽屉跟手、输入框随键盘不跳；浅色 / 深色 / 降低透明度下可读）。预计会有一批细节要修。
-- **Sign in with Apple**。App Store 审核规则 4.8 要求提供第三方登录（Google）的 App 同时提供一个等价的隐私登录方式；现在只有 Google 和邮箱验证码。上架前要么加 Sign in with Apple（后端要支持 Apple 账号关联，属于认证改动），要么确认邮箱验证码登录满足该条。这是上架阻塞项，和 #195 的界面升级分开、独立并行推进（认证改动按 `AGENTS.md` 的 xhigh 评审；是否三端同步加由所有者决定）。
-- **购买**。iOS 没有接 App Store 内购，设置里的方案卡片只读（显示方案和用量，没有购买 / 管理按钮），已登录的免费用户撞到上限时也没有升级提示。
+- **Sign in with Apple**。服务端配置齐全后，登录弹窗显示原生 Apple 按钮。服务端绑定一次性授权码和设备 nonce，按 Apple 账号 ID 延续同一账户。Apple 登录入口在 iOS；网页与 Android 继续提供原有登录选项。真机仍需验收。
+- **购买**。设置按当前窗口宽度切换单栏或侧栏加详情两栏，选中项和设置草稿跟随同一份状态。方案卡片显示店面月价，可购买、恢复及打开 App Store 订阅管理。购买、续费、退款都由服务端验证并同步，见 [billing.md](billing.md)。日常 TestFlight 沙盒购买使用隔离后端。App Review 则使用专用沙盒评审账号，见 [deployment.md](deployment.md)。
 - **通用链接**。`Support/NoteFable.entitlements` 声明了 `applinks:app.notefable.com`，但网站还没有提供 `/.well-known/apple-app-site-association`，所以点网页链接暂时不会打开 App。这也是上架阻塞项，和 #195 分开、单独推进（网站提供该文件属于服务端改动）。
 
 ## 结构
@@ -126,8 +126,8 @@ mobile/ios/
 - **下载会话**：用系统的“存储到文件”（`.fileExporter`）；下载途中 App 被杀不会像 Android 那样恢复。
 - **保存生成的图片**：存进相册后只提示“已保存”，不打开图片。没有权限时提示去“设置”里允许。
 - **笔记里的文件**：下载到临时目录后打开分享面板（存到“文件”或用别的 App 打开），不是直接存进下载目录。
-- **撞到上限时的提示**：游客只有登录提示；已登录的免费用户不显示升级提示（Android 的 `UpgradeLimitPrompt` 没有移植）。笔记编辑器 WebView 里的 AI 面板或幻灯片 AI 生图撞 429 `usage_limit` 时，bootstrap 声明 `canShowUsageLimit()`，接收 `EmbedMessage.usageLimit(tier, kind, pageId?)` 核对当前编辑器与 `pageId`（过滤切页后晚到的旧页面响应）后写入 `NotesUiState.usageLimit`（与 `storageLimit` 互斥，换编辑器或换身份时清零），`NoteEditorScreen` 在顶栏下方用 `GuestLimitPrompt(usage:)` 呈现：游客显示原生登录入口，已登录免费用户显示只读上限说明（无内购升级按钮）。被拒草稿由网页持久化到 `WKWebsiteDataStore.default()` 的 `localStorage`，登录重建 WebView 后重开原页面自动恢复。
-- **存储空间不够**（413 `storage_limit`）：和 Android 一样文字和附件留在输入栏、显示存储提示（`GuestLimitPrompt(storage:)`：用量、“删除不需要的文件”，游客有登录按钮），笔记编辑器里的上传被拒时网页经桥发 `storageLimit`（`canShowStorageLimit()`），编辑器顶栏下面显示同一个提示。没有内购，所以免费用户和 Pro 只说明原因，不提 Pro 的容量、不放升级按钮。设置的方案卡片显示存储用量条（`PlanInfo.storage`）和说明。
+- **撞到上限时的提示**：游客显示登录提示。已登录的免费用户在开放 App Store 购买时可以跳转到设置的方案页。笔记编辑器 WebView 里的 AI 面板或幻灯片 AI 生图撞 429 `usage_limit` 时，bootstrap 声明 `canShowUsageLimit()`，接收 `EmbedMessage.usageLimit(tier, kind, pageId?)` 核对当前编辑器与 `pageId`（过滤切页后晚到的旧页面响应）后写入 `NotesUiState.usageLimit`（与 `storageLimit` 互斥，换编辑器或换身份时清零），`NoteEditorScreen` 在顶栏下方用 `GuestLimitPrompt(usage:)` 呈现：游客显示原生登录入口，已登录免费用户可以跳转到方案页。被拒草稿由网页持久化到 `WKWebsiteDataStore.default()` 的 `localStorage`，登录重建 WebView 后重开原页面自动恢复。
+- **存储空间不够**（413 `storage_limit`）：和 Android 一样文字和附件留在输入栏、显示存储提示（`GuestLimitPrompt(storage:)`：用量、“删除不需要的文件”，游客有登录按钮），笔记编辑器里的上传被拒时网页经桥发 `storageLimit`（`canShowStorageLimit()`），编辑器顶栏下面显示同一个提示。开放 App Store 购买时，免费用户可以跳转到方案页。设置的方案卡片显示存储用量条（`PlanInfo.storage`）和说明。
 - **系统权限说明**（相机、存相册，`Info.plist`）目前只有英文，没有按语言的 `InfoPlist.strings`。
 - **表情选择器**在深色外观下仍是浅色的一块（和网页的 `Theme.LIGHT` 一样；Android 的跟着变深）。
 - **启动画面的底色**（`LaunchBackground`）跟随系统的深浅，不看 App 里选的外观：选的和系统不一样时，启动瞬间的底色与进入后的界面不同。

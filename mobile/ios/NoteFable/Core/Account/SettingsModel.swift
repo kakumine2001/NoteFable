@@ -58,7 +58,7 @@ extension AccountUser {
     /// 改过名字或头像（"使用我的 Google 名称和头像"只在这时、且有 Google 资料时出现）。
     var customized: Bool { displayName != nil || icon != nil || avatarUrl != nil }
     /// 邮箱登录的人没有 Google 的名字和照片：只有有 Google 资料时才出现"恢复成 Google 的"这类文字。
-    var hasGoogleProfile: Bool { googleName != nil || image != nil }
+    var hasGoogleProfile: Bool { appleProfile != true && (googleName != nil || image != nil) }
     /// 名字输入框里的名字：自己起的，没有就是 Google 的。
     var savedName: String { displayName ?? googleName ?? "" }
     /// 侧栏账号行上的名字；都没有时界面用 "account" 这句文案。

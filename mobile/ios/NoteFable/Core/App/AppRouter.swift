@@ -22,6 +22,7 @@ final class AppRouter {
     var selectedTab: AppTab = .chat
     /// 设置（登录后点侧栏的账号行）。
     var settingsOpen = false
+    private(set) var settingsInitialPage: SettingsPage?
     /// 登录窗口（侧栏底部和上限提示的“登录”按钮）。
     var signInOpen = false
     /// 「整理成笔记」窗口开着的聊天（网页 createPageSessionId）。
@@ -84,7 +85,10 @@ final class AppRouter {
         selectedTab = .search
     }
 
-    func openSettings() { settingsOpen = true }
+    func openSettings(page: SettingsPage? = nil) {
+        settingsInitialPage = page
+        settingsOpen = true
+    }
     func openSignIn() { signInOpen = true }
 
     /// 关闭抽屉并切到聊天新建会话（在笔记工作区时先保存打开的笔记）。

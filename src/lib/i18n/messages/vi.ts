@@ -1,4 +1,6 @@
 export const vi: Record<string, string> = {
+  "Deleting your NoteFable account does not cancel an App Store subscription. Cancel it in the App Store to avoid renewal.": "Xóa tài khoản NoteFable không hủy gói đăng ký App Store. Hãy hủy trong App Store để tránh gia hạn.",
+  "Manage App Store Subscription": "Quản lý gói đăng ký App Store",
   "+{count} more": "+{count} mục khác",
   "1 day left": "Còn 1 ngày",
   "1 emoji found. Use the up and down arrow keys to navigate.": "Tìm thấy 1 biểu tượng cảm xúc. Dùng phím mũi tên lên xuống để di chuyển.",

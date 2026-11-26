@@ -18,7 +18,7 @@ import { AVATAR_ROOT } from "@/lib/user-profile";
 // STORED_FILE_PREFIXES に保存先、REFERENCE_CHECKS（ノートと同じ参照の仕方なら NOTE_FILE_SOURCES）に参照の調べ方を足す。
 // 置くときは storeFile、保存のたびに使用中へ戻すのは claimStoredFiles を使う。docs/architecture/database.md の StoredFile。
 
-export type StorageOwner = { id: string; googleSub: string | null; verifiedEmail?: string | null; plan?: string | null };
+export type StorageOwner = { id: string; googleSub: string | null; verifiedEmail?: string | null; appleSub?: string | null; plan?: string | null; subscriptionProvider?: string | null; subscriptionPeriodEnd?: Date | null };
 type Db = Prisma.TransactionClient | typeof prisma;
 
 // 種類ごとの保存先（"/" で終わるフォルダ）。ファイル置き場の棚卸しはこのフォルダを見る。
@@ -40,7 +40,7 @@ export const FILE_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
 
 // ---------- 容量の上限 ----------
 
-export function storageLimitFor(owner: Pick<StorageOwner, "googleSub" | "verifiedEmail" | "plan">): { tier: UsageTier; limit: number } {
+export function storageLimitFor(owner: Pick<StorageOwner, "googleSub" | "verifiedEmail" | "appleSub" | "plan" | "subscriptionProvider" | "subscriptionPeriodEnd">): { tier: UsageTier; limit: number } {
   const tier = usageTier(owner);
   return { tier, limit: STORAGE_LIMITS[tier] };
 }
@@ -76,7 +76,7 @@ const limitError = (tier: UsageTier, used: number, limit: number) => new Storage
 
 async function ownerRow(owner: StorageOwner | string): Promise<StorageOwner> {
   if (typeof owner !== "string") return owner;
-  const row = await prisma.user.findUnique({ where: { id: owner }, select: { id: true, googleSub: true, verifiedEmail: true, plan: true } });
+  const row = await prisma.user.findUnique({ where: { id: owner }, select: { id: true, googleSub: true, verifiedEmail: true, appleSub: true, plan: true, subscriptionProvider: true, subscriptionPeriodEnd: true } });
   if (!row) throw new Error("Storage owner not found.");
   return row;
 }

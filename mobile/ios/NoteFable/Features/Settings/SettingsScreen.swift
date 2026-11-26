@@ -35,7 +35,11 @@ struct SettingsScreenHost: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
-            if model == nil { model = makeModel() }
+            if model == nil {
+                let created = makeModel()
+                if let page = router.settingsInitialPage { created.show(page) }
+                model = created
+            }
             if plan == nil {
                 let account = app.account
                 plan = PlanSettingsModel(load: { await account.loadPlan() })
@@ -70,30 +74,42 @@ struct SettingsScreen: View {
         let state = model.state
         let dirty = model.dirty
         let page = state.page
-        VStack(spacing: 0) {
-            topBar(page)
-            // 入口列表和一栏的画面各是一个滚动区：换画面就是换一个新的，所以总是从最上面开始（网页 scrollTop = 0）。
-            // 这里不用 transition：旧画面要马上没有（网页 display: none），新画面出现时自己从起点动到位（SettingsEntrance）。
-            // 只有在列表和一栏之间换才重新出场（网页：animation-name 变了才重新播放）；从一栏直接换到另一栏时不动。
-            let animated = state.navigated && !reduceMotion
-            ZStack(alignment: .top) {
-                if let page {
-                    SettingsEntrance(offset: entranceOffset(forward: true), animated: animated) {
-                        scrollBody(account: account, dirty: dirty) {
-                            pageContent(page, state)
-                        }
-                        // 被拦下来、从一栏直接换到另一栏时（保存失败等）也换一个新的滚动区。
-                        .id(page)
+        GeometryReader { bounds in
+            let split = bounds.size.width >= 720
+            VStack(spacing: 0) {
+                topBar(page, split: split)
+                HStack(spacing: 0) {
+                    if split {
+                        scrollBody(account: account, dirty: dirty) { homeContent }
+                            .frame(width: 280)
+                        Divider()
                     }
-                } else {
-                    SettingsEntrance(offset: entranceOffset(forward: false), animated: animated) {
-                        scrollBody(account: account, dirty: dirty) {
-                            homeContent
+                    // 入口列表和一栏的画面各是一个滚动区：换画面就是换一个新的，所以总是从最上面开始（网页 scrollTop = 0）。
+                    // 这里不用 transition：旧画面要马上没有（网页 display: none），新画面出现时自己从起点动到位（SettingsEntrance）。
+                    // 只有在列表和一栏之间换才重新出场（网页：animation-name 变了才重新播放）；从一栏直接换到另一栏时不动。
+                    let animated = state.navigated && !reduceMotion
+                    ZStack(alignment: .top) {
+                        if let page {
+                            SettingsEntrance(offset: entranceOffset(forward: true), animated: animated) {
+                                scrollBody(account: account, dirty: dirty) {
+                                    pageContent(page, state)
+                                }
+                                // 被拦下来、从一栏直接换到另一栏时（保存失败等）也换一个新的滚动区。
+                                .id(page)
+                            }
+                        } else if split {
+                            scrollBody(account: account, dirty: dirty) { pageContent(.general, state) }
+                        } else {
+                            SettingsEntrance(offset: entranceOffset(forward: false), animated: animated) {
+                                scrollBody(account: account, dirty: dirty) {
+                                    homeContent
+                                }
+                            }
                         }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .overlay(alignment: .bottom) {
@@ -120,18 +136,18 @@ struct SettingsScreen: View {
     // MARK: 顶栏
 
     /// .settings-header（手机）：三列 40 | 1fr | 40、间距 8、左右 16、高 64。标题在中间那一列里居中，所以也在整条顶栏的正中。
-    private func topBar(_ page: SettingsPage?) -> some View {
-        let home = page == nil
+    private func topBar(_ page: SettingsPage?, split: Bool) -> some View {
+        let home = split || page == nil
         return HStack(spacing: 8) {
             SettingsBarButton(home ? Lucide.x : Lucide.arrowLeft, iconSize: home ? 18 : 20, label: L(home ? "close" : "back")) {
                 // 列表上是关闭（网页 closeAll），一栏里是回列表（网页 backHome）；拦不拦由模型决定。
-                if model.state.page == nil {
+                if home {
                     model.closeAll()
                 } else {
                     model.backHome()
                 }
             }
-            Text(L(page?.titleKey ?? "acct_settings"))
+            Text(L(page?.titleKey ?? (split ? "settings_general" : "acct_settings")))
                 .font(.nf(17, weight: 650))
                 .foregroundStyle(Sm.ink)
                 .lineLimit(1)

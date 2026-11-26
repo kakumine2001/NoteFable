@@ -1,5 +1,6 @@
 import { createHmac, randomUUID, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
+import { isAppleLoginConfigured } from "@/lib/apple-identity-config";
 import { getCookieSecret } from "@/lib/env";
 import { isAccountLoginConfigured, isEmailLoginConfigured, isGoogleLoginConfigured } from "@/lib/google-auth";
 import { normalizeEmail } from "@/lib/email-address";
@@ -86,7 +87,8 @@ type GoogleIdentity = {
   signedInAt: number | null;
 };
 type EmailIdentity = { kind: "email"; email: string; signedInAt: number | null };
-export type AccountIdentity = GoogleIdentity | EmailIdentity;
+type AppleIdentity = { kind: "apple"; sub: string; signedInAt: number | null };
+export type AccountIdentity = GoogleIdentity | EmailIdentity | AppleIdentity;
 
 export { normalizeEmail };
 
@@ -98,6 +100,9 @@ export async function getAccountIdentity(): Promise<AccountIdentity | null> {
   try {
     const { auth } = await import("@/lib/google-auth");
     const session = await auth();
+    if (session?.appleSub && isAppleLoginConfigured()) {
+      return { kind: "apple", sub: session.appleSub, signedInAt: session.signedInAt ?? null };
+    }
     const sub = session?.user?.id;
     if (sub && isGoogleLoginConfigured()) {
       const email = session.user?.email ?? null;
@@ -123,9 +128,9 @@ function isUniqueViolation(error: unknown) {
 }
 
 // いま使っている端末の匿名の行。まだどのアカウントにも紐付いていなければ、ログインした人がこのデータを引き継ぐ。
-async function currentDeviceUser() {
+export async function currentDeviceUser(db: Pick<typeof prisma, "user"> = prisma) {
   const deviceId = await ensureAnonymousDeviceId();
-  return prisma.user.upsert({ where: { deviceId }, update: {}, create: { deviceId } });
+  return db.user.upsert({ where: { deviceId }, update: {}, create: { deviceId } });
 }
 
 async function getOrCreateGoogleUser(identity: GoogleIdentity): Promise<Awaited<ReturnType<typeof currentDeviceUser>>> {
@@ -190,7 +195,7 @@ async function getOrCreateGoogleUser(identity: GoogleIdentity): Promise<Awaited<
     // 端末の利用者が別のアカウントに紐付済みなら引き継がず、新しい利用者を作る。
     // googleSub / verifiedEmail が null の行だけを条件に更新し、同時リクエストでも紐付けが 1 回だけになるようにする。
     const claimed = await prisma.user.updateMany({
-      where: { id: deviceUser.id, googleSub: null, verifiedEmail: null },
+      where: { id: deviceUser.id, googleSub: null, verifiedEmail: null, appleSub: null },
       data,
     });
 
@@ -233,7 +238,7 @@ async function getOrCreateEmailUser(identity: EmailIdentity) {
   const deviceUser = await currentDeviceUser();
   try {
     const claimed = await prisma.user.updateMany({
-      where: { id: deviceUser.id, googleSub: null, verifiedEmail: null },
+      where: { id: deviceUser.id, googleSub: null, verifiedEmail: null, appleSub: null },
       data: { verifiedEmail: identity.email, email: identity.email },
     });
     if (claimed.count === 1) return await prisma.user.findUniqueOrThrow({ where: { id: deviceUser.id } });
@@ -253,8 +258,8 @@ async function getOrCreateEmailUser(identity: EmailIdentity) {
 }
 
 // アカウント（Google またはメール）に紐付いた行か。未ログインの端末にこの行のデータを見せてはいけない。
-export function isAccountUser(user: { googleSub: string | null; verifiedEmail?: string | null }) {
-  return Boolean(user.googleSub || user.verifiedEmail);
+export function isAccountUser(user: { googleSub: string | null; verifiedEmail?: string | null; appleSub?: string | null }) {
+  return Boolean(user.googleSub || user.verifiedEmail || user.appleSub);
 }
 
 export async function getOrCreateUser() {
@@ -262,8 +267,16 @@ export async function getOrCreateUser() {
   const identity = await getAccountIdentity();
   if (identity?.kind === "google") return getOrCreateGoogleUser(identity);
   if (identity?.kind === "email") return getOrCreateEmailUser(identity);
+  if (identity?.kind === "apple") return (await findAppleSessionUser(identity)) ?? anonymousUser();
 
   return anonymousUser();
+}
+
+async function findAppleSessionUser(identity: AppleIdentity) {
+  if (await isDeletedLogin({ kind: "apple", sub: identity.sub }, identity.signedInAt)) return null;
+  const user = await prisma.user.findUnique({ where: { appleSub: identity.sub } });
+  if (user?.appleRevokedAt && (!identity.signedInAt || identity.signedInAt * 1000 <= user.appleRevokedAt.getTime())) return null;
+  return user;
 }
 
 // 未ログインなら従来どおり Cookie の deviceId と DB の User を対応させる。
@@ -283,9 +296,13 @@ async function anonymousUser() {
 }
 
 // 画面に出すアカウントのプロフィール（Google の名前・写真、メールログインならアドレスだけ）。未ログインなら null。
-export async function currentAccountProfile(): Promise<{ name: string | null; email: string | null; image: string | null } | null> {
+export async function currentAccountProfile(): Promise<{ name: string | null; email: string | null; image: string | null; appleProfile?: true } | null> {
   const identity = await getAccountIdentity();
   if (!identity) return null;
   if (identity.kind === "email") return { name: null, email: identity.email, image: null };
+  if (identity.kind === "apple") {
+    const user = await findAppleSessionUser(identity);
+    return user && { name: user.name, email: user.email, image: null, appleProfile: true };
+  }
   return { name: identity.name, email: identity.email, image: identity.image };
 }

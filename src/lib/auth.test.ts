@@ -21,6 +21,7 @@ const prismaMock = vi.hoisted(() => ({
 }));
 const cookieStore = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn() }));
 const session = vi.hoisted(() => ({ value: null as unknown, configured: true, emailConfigured: true }));
+vi.mock("@/lib/apple-identity-config", () => ({ isAppleLoginConfigured: () => true }));
 const deleted = vi.hoisted(() => ({ isDeletedLogin: vi.fn() }));
 
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
@@ -86,6 +87,27 @@ describe("getOrCreateUser", () => {
     expect(user.id).toBe("device-user");
   });
 
+  it("resolves an Apple session against its stable subject", async () => {
+    session.value = { appleSub: "apple-user", signedInAt: 100 };
+    prismaMock.user.findUnique.mockResolvedValue({ id: "apple-owner", appleSub: "apple-user" });
+    expect((await getOrCreateUser()).id).toBe("apple-owner");
+    expect(prismaMock.user.findUnique).toHaveBeenCalledWith({ where: { appleSub: "apple-user" } });
+  });
+
+  it("does not expose an Apple-linked device row after sign-out", async () => {
+    prismaMock.user.upsert.mockResolvedValue({ id: "apple-owner", appleSub: "apple-user" });
+    prismaMock.user.create.mockResolvedValue({ id: "new-device" });
+    expect((await getOrCreateUser()).id).toBe("new-device");
+  });
+
+  it("does not re-create a deleted Apple account from a session cookie", async () => {
+    session.value = { appleSub: "apple-user", signedInAt: 100 };
+    deleted.isDeletedLogin.mockResolvedValue(true);
+    expect((await getOrCreateUser()).id).toBe("device-user");
+    expect(deleted.isDeletedLogin).toHaveBeenCalledWith({ kind: "apple", sub: "apple-user" }, 100);
+    expect(prismaMock.user.findUnique).not.toHaveBeenCalled();
+  });
+
   it("uses the device user when not logged in", async () => {
     const user = await getOrCreateUser();
     expect(user.id).toBe("device-user");
@@ -118,7 +140,7 @@ describe("getOrCreateUser", () => {
     const user = await getOrCreateUser();
     expect(user.id).toBe("device-user");
     expect(prismaMock.user.updateMany).toHaveBeenCalledWith({
-      where: { id: "device-user", googleSub: null, verifiedEmail: null },
+      where: { id: "device-user", googleSub: null, verifiedEmail: null, appleSub: null },
       data: expect.objectContaining({ googleSub: "g-1" }),
     });
   });
@@ -202,7 +224,7 @@ describe("getOrCreateUser", () => {
     await getOrCreateUser();
     expect(prismaMock.user.findUnique).not.toHaveBeenCalledWith({ where: { verifiedEmail: "a@example.com" } });
     expect(prismaMock.user.updateMany).toHaveBeenCalledWith({
-      where: { id: "device-user", googleSub: null, verifiedEmail: null },
+      where: { id: "device-user", googleSub: null, verifiedEmail: null, appleSub: null },
       data: expect.not.objectContaining({ verifiedEmail: expect.anything() }),
     });
   });
@@ -224,7 +246,7 @@ describe("getOrCreateUser", () => {
     const user = await getOrCreateUser();
     expect(user.id).toBe("device-user");
     expect(prismaMock.user.updateMany).toHaveBeenCalledWith({
-      where: { id: "device-user", googleSub: null, verifiedEmail: null },
+      where: { id: "device-user", googleSub: null, verifiedEmail: null, appleSub: null },
       data: { verifiedEmail: "a@example.com", email: "a@example.com" },
     });
   });
@@ -253,7 +275,7 @@ describe("getOrCreateUser", () => {
     const user = await getOrCreateUser();
     expect(user.id).toBe("device-user");
     expect(prismaMock.user.updateMany).toHaveBeenCalledWith({
-      where: { id: "device-user", googleSub: null, verifiedEmail: null },
+      where: { id: "device-user", googleSub: null, verifiedEmail: null, appleSub: null },
       data: expect.not.objectContaining({ verifiedEmail: expect.anything() }),
     });
   });
