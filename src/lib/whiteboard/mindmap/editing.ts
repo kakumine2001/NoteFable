@@ -512,9 +512,9 @@ export function mindmapRemovalCleanup(elements: readonly SceneElement[], before:
   for (const id of change.patches.keys()) {
     if (deleted.has(id)) change.patches.delete(id);
   }
-  // まだ残っている子孫・線か、消えた親を指したままの節があるときだけ片付ける。
-  const unfinished = [...change.patches.values()].some((values) => values.isDeleted === true)
-    || [...trees.values()].some((tree) => [...tree.nodes.values()].some((node) => !doomed.has(node.id) && !!node.parent && doomed.has(node.parent.id)));
+  // まだ残っている子孫・線、消えた親を指したままの節、空きのある兄弟順があるときだけ片付ける
+  // （畳んだ直後は、預けた節に結び付いた利用者の矢印だけが残りうるので、矢印の解除だけでは動かさない）。
+  const unfinished = [...change.patches.values()].some((values) => values.isDeleted === true || "customData" in values);
   return unfinished ? { change, roots: new Set(found.map(({ tree }) => tree.root.id)) } : null;
 }
 
@@ -665,15 +665,44 @@ export function expandMindmapNode(elements: readonly SceneElement[], nodeId: str
 }
 
 // 畳みから要素を戻す差分を当てると、白板の要素がサーバーの上限を超えるか（超えると保存がすべて断られる）。
-// 預かり分は上限に数えないので、広げる前にここで確かめる。
+// 預かり分は上限に数えないので、広げる前にここで確かめる。置き直しが線の無い子節に補う線も数える。
 export function exceedsWhiteboardLimit(elements: readonly SceneElement[], change: MindmapChange, max = MAX_WHITEBOARD_ELEMENTS) {
   if (!change.restored.length) return false;
-  const ids = new Set(elements.filter(live).map((element) => element.id));
-  for (const element of change.restored) {
-    if (WHITEBOARD_ELEMENT_TYPES.has(element.type)) ids.add(element.id);
+  const ids = new Set<string>();
+  const edgeChildren = new Set<string>();
+  for (const element of elements) {
+    if (!live(element) || !WHITEBOARD_ELEMENT_TYPES.has(element.type) || change.patches.get(element.id)?.isDeleted === true) continue;
+    ids.add(element.id);
+    const data = mindmapDataOf(element.customData);
+    if (data?.role === "edge") edgeChildren.add(data.child);
   }
-  // 一緒に足す節は、図形と文字の 2 要素。
-  return change.added.reduce((count, skeleton) => count + (skeleton.label ? 2 : 1), ids.size) > max;
+  const childParents = new Map<string, string>();
+  for (const element of change.restored) {
+    if (!WHITEBOARD_ELEMENT_TYPES.has(element.type)) continue;
+    ids.add(element.id);
+    const data = mindmapDataOf(element.customData);
+    if (data?.role === "edge") edgeChildren.add(data.child);
+    else if (data?.role === "node" && data.parent !== null) childParents.set(element.id, data.parent);
+  }
+  for (const [id, values] of change.patches) {
+    if (!ids.has(id) || values.customData === undefined) continue;
+    const data = mindmapDataOf(values.customData);
+    if (data?.role === "node" && data.parent !== null) childParents.set(id, data.parent);
+  }
+  let count = ids.size;
+  for (const skeleton of change.added) {
+    if (!WHITEBOARD_ELEMENT_TYPES.has(skeleton.type)) continue;
+    ids.add(skeleton.id);
+    // 一緒に足す節は、図形と文字の 2 要素。
+    count += skeleton.label ? 2 : 1;
+    const data = mindmapDataOf(skeleton.customData);
+    if (data?.role === "edge") edgeChildren.add(data.child);
+    else if (data?.role === "node" && data.parent !== null) childParents.set(skeleton.id, data.parent);
+  }
+  for (const [child, parent] of childParents) {
+    if (ids.has(parent) && !edgeChildren.has(child)) count++;
+  }
+  return count > max;
 }
 
 // ---- 向き ----

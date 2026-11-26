@@ -105,9 +105,12 @@ export function mindmapStashOutline(nodeId: string, customData: unknown): { dept
     for (const text of texts.get(owner) ?? []) out.push({ depth, text });
     texts.delete(owner);
   };
+  const visited = new Set<string>();
   const stack = (children.get(nodeId) ?? []).map((id) => ({ id, depth: 1 })).reverse();
   while (stack.length) {
     const { id, depth } = stack.pop()!;
+    if (visited.has(id)) continue;
+    visited.add(id);
     emit(id, depth);
     const next = children.get(id) ?? [];
     for (let index = next.length - 1; index >= 0; index--) stack.push({ id: next[index], depth: depth + 1 });

@@ -629,6 +629,15 @@ describe("removing a topic with Excalidraw's delete, cut or eraser", () => {
     expect(liveIds(next)).toEqual(expect.arrayContaining(["n2", "n4", "sticky", "mine"]));
   });
 
+  it("compacts sibling order and relayouts even when a topic and its connector are deleted together", () => {
+    const elements = board();
+    const removed = excalidrawDelete(elements, "n3", edgeOf(elements, "n3").id, "sticky");
+    const next = cleanUp(elements, removed)!;
+    expect(next).not.toBeNull();
+    expect(nodeData(next, "n4").order).toBe(0);
+    expect(relayoutMindmap(next, "n1").patches.size).toBe(0);
+  });
+
   it("keeps a locked descendant and its branch as their own mind map", () => {
     const elements = lock(board(), "n3");
     const next = cleanUp(elements, excalidrawDelete(elements, "n2"))!;
@@ -722,8 +731,18 @@ describe("the element limit", () => {
     const expand = expandMindmapNode(collapsed, "n2");
     expect(exceedsWhiteboardLimit(collapsed, expand, total)).toBe(false);
     expect(exceedsWhiteboardLimit(collapsed, expand, total - 1)).toBe(true);
-    // 畳んだ節に子を足すと、広げた分に節と文字が増える。
-    expect(exceedsWhiteboardLimit(collapsed, addMindmapChild(collapsed, "n2", "x", () => "x"), total + 1)).toBe(true);
+    // 畳んだ節に子を足すと、広げた分に節・文字・置き直しが作る線の 3 要素が増える。
+    const addChild = addMindmapChild(collapsed, "n2", "x", () => "x");
+    expect(live(compose(collapsed, addChild))).toHaveLength(total + 3);
+    expect(exceedsWhiteboardLimit(collapsed, addChild, total + 3)).toBe(false);
+    expect(exceedsWhiteboardLimit(collapsed, addChild, total + 2)).toBe(true);
+    // 別の木の根を畳んだ節へ付け替えると、広げた分に新しい線 1 本が増える。
+    const otherRoot = materialize(mindmapSkeletons(tree("Other"), { direction: "right", newId: () => "other" }).skeletons);
+    const twoTrees = [...collapsed, ...otherRoot];
+    const reparent = reparentMindmapNode(twoTrees, "other", "n2")!;
+    expect(live(compose(twoTrees, reparent))).toHaveLength(twoTrees.length + 7);
+    expect(exceedsWhiteboardLimit(twoTrees, reparent, twoTrees.length + 7)).toBe(false);
+    expect(exceedsWhiteboardLimit(twoTrees, reparent, twoTrees.length + 6)).toBe(true);
     // 何も戻さない操作は止めない。
     expect(exceedsWhiteboardLimit(collapsed, addMindmapChild(collapsed, "n5", "x", () => "x"), 1)).toBe(false);
   });
@@ -736,5 +755,10 @@ describe("the element limit", () => {
     expect(() => validateCanvasData("whiteboard", { elements: full })).not.toThrow();
     expect(() => validateCanvasData("whiteboard", { elements: live(compose(full, expandMindmapNode(full, "n2"))) })).toThrow();
     expect(exceedsWhiteboardLimit(full, expandMindmapNode(full, "n2"))).toBe(true);
+    // ちょうど 20,001 要素になる「畳んだ節に子を足す」も止める。
+    const almostFull = [...collapsed, ...filler.slice(0, filler.length - 8)] as SceneElement[];
+    const addChild = addMindmapChild(almostFull, "n2", "x", () => "x");
+    expect(() => validateCanvasData("whiteboard", { elements: live(compose(almostFull, addChild)) })).toThrow();
+    expect(exceedsWhiteboardLimit(almostFull, addChild)).toBe(true);
   });
 });
