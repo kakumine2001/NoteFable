@@ -154,7 +154,7 @@ flowchart LR
 ### 移动应用（Android / iOS）
 
 - **Android**（`mobile/android/`，Kotlin / Compose）：聊天、侧栏、搜索、附件、图片生成、笔记列表/项目/子页面/收藏/页面菜单、回收站、两级设置（含 Google Play Pro 订阅）、Google / 邮箱验证码登录、引用追问、回答举报、发言添加页面、整理成笔记、画成图、系统分享接收、外观切换、Markdown 导入/导出均已实现；笔记、白板和幻灯片的编辑器通过 WebView 加载 `/note-embed`。默认连接 `https://app.notefable.com`（接口仅在该主机提供，`notefable.com/api/*` 返回 421）。详见 [android-native.md](docs/architecture/android-native.md) 与 [android.md](docs/architecture/android.md)。
-- **iOS**（`mobile/ios/`，Swift / SwiftUI）：对照 Android 移植的原生客户端，通过 CI 编译、Core 单元测试和模拟器截图检查；合入调高构建号的 PR 后自动上传 TestFlight，构建已装到真机，界面尚未逐项验收。Sign in with Apple 与 App Store 订阅内购已实现（服务端与 App Store Connect 配置齐全后开放），仍需真机 / 沙盒验收；上架前还缺通用链接（网站尚未提供 `apple-app-site-association`）。结构与待补项见 [ios-native.md](docs/architecture/ios-native.md)，PR 检查与 TestFlight 自动上传见 [ios.md](docs/architecture/ios.md)。
+- **iOS**（`mobile/ios/`，Swift / SwiftUI）：对照 Android 移植的原生客户端，通过 CI 编译、Core 单元测试和模拟器截图检查；合入调高构建号的 PR 后自动上传 TestFlight，构建已装到真机，界面尚未逐项验收。Sign in with Apple 与 App Store 订阅内购已实现（服务端与 App Store Connect 配置齐全后开放），仍需真机 / 沙盒验收；通用链接（网站已提供 `apple-app-site-association`，仅匹配分享链接）同样待真机验证。结构与待补项见 [ios-native.md](docs/architecture/ios-native.md)，PR 检查与 TestFlight 自动上传见 [ios.md](docs/architecture/ios.md)。
 
 ---
 

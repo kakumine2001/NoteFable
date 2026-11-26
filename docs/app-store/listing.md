@@ -1,6 +1,6 @@
 # App Store 商店信息
 
-App Store Connect → App → App 信息 / iOS App 的版本页。iOS 版目前只发 TestFlight；这里是 App Store 产品页要填的文字，提交审核前按这里填。语言与 App 界面相同 17 种：English (U.S.)（主要语言）、Chinese (Simplified)、Chinese (Traditional)、Japanese、Korean、Spanish (Mexico) 和 Spanish (Spain)（同一份）、French、German、Portuguese (Brazil)、Italian、Indonesian、Vietnamese、Thai、Hindi、Arabic、Turkish、Russian。字数上限：名称 30、副标题 30、推广文本 170、关键词 100（逗号分隔、不加空格）、描述 4000。
+App Store Connect → App → App 信息 / iOS App 的版本页。iOS 版目前只发 TestFlight；这里是 App Store 产品页要填的文字，提交审核前按这里填。语言与 App 界面相同 17 种：English (U.S.)（主要语言）、Chinese (Simplified)、Chinese (Traditional)、Japanese、Korean、Spanish (Mexico) 和 Spanish (Spain)（同一份）、French、German、Portuguese (Brazil)、Italian、Indonesian、Vietnamese、Thai、Hindi、Arabic、Turkish、Russian。字数上限：名称 30、副标题 30、推广文本 170、关键词 100（逗号分隔、不加空格；这里按字符数写，Apple 帮助页写的是 100 字节，填写时超限就按字节裁剪）、描述 4000。
 
 内容只写 iOS 版已经能用的功能（见 [ios-native.md](../architecture/ios-native.md)）。iOS 用 App Store 订阅内购（[billing.md](../architecture/billing.md)）：描述写清 Pro 提高什么、自动续订和取消方式，不写具体价格（各店面不同，以 App 内显示为准）和试用（有介绍优惠时由 App Store 显示），并附使用条款和隐私政策链接（审核指南 3.1.2）；不引导去别处购买（3.1.1）。内购要随 App 版本一起送审。关键词不放别家的品牌名（2.3.7）。
 

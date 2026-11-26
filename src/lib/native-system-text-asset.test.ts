@@ -30,7 +30,14 @@ describe("native system text asset", { timeout: 60_000 }, () => {
         expect(messages[locale][key], `${locale}: ${key}`).toBeTruthy();
       }
     }
+    // 改名前的工具步骤标签：保存好的旧聊天记录靠它们继续翻译（#205），不能当成没用的词条删掉。
+    for (const key of ["Searched notes for “{query}”", "Listed recent notes", "Note not found", "Invalid note read", "Invalid note search"]) {
+      for (const locale of translatedLocales) {
+        expect(messages[locale][key], `${locale}: ${key}`).toBeTruthy();
+      }
+    }
     expect(templates).toContain("Read “{title}”");
+    expect(templates).toContain("Searched notes for “{query}”");
     expect(messages.zh["Request failed: {detail}"]).toBe("请求失败：{detail}");
   });
 

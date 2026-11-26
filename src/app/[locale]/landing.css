@@ -190,7 +190,9 @@ a.tl-brand { min-height: 44px; }
 .tl-diagram li:not(.tl-diagram-arrow) { padding: 5px 10px; border: 1.5px solid var(--tl-ink); border-radius: 8px; background: #fff; color: var(--tl-ink); font-size: 13px; font-weight: 550; }
 .tl-diagram li:last-child { border-color: var(--tl-blue); color: var(--tl-blue-deep); }
 .tl-diagram-arrow { display: inline-flex; color: var(--tl-muted); }
-:root[data-theme="dark"] .tl-page :is(.tl-slide, .tl-diagram, .tl-diagram li:not(.tl-diagram-arrow)) { background-color: var(--notion-surface); }
+:root[data-theme="dark"] .tl-page :is(.tl-slide, .tl-diagram) { background-color: var(--notion-bg); }
+:root[data-theme="dark"] .tl-page .tl-diagram { background-image: radial-gradient(rgba(255, 255, 255, 0.14) 1px, transparent 1px); }
+:root[data-theme="dark"] .tl-page .tl-diagram li:not(.tl-diagram-arrow) { background-color: var(--notion-surface); }
 
 .tl-card-search { padding: 0; overflow: hidden; }
 .tl-search-box { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--tl-line); color: var(--tl-muted); }

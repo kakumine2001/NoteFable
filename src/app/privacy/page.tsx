@@ -105,7 +105,7 @@ export default function PrivacyPage() {
             <a href="https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html">DeepSeek</a> (DeepSeek is operated from China).
             When the assistant looks at your Workspace pages (notes, slide decks and whiteboards), the text it reads goes to that same provider; if the reply uses web search, that search also runs at
             that provider. Image generation and image editing always go to OpenAI, whichever chat model is selected.
-            To power meaning-based search, page titles, the text of your notes, slide decks and whiteboards, and search queries are also sent to OpenAI to create search vectors (stored in our database and deleted when you delete the page or your account), whichever chat model is selected.
+            To power meaning-based search, page titles, the text of your notes, slide decks and whiteboards, and search queries are also sent to OpenAI to create search vectors (stored in our database and deleted when the page is permanently deleted or you delete your account), whichever chat model is selected.
             For OpenAI chats we also send an internal account ID so OpenAI can apply its safety checks. Each provider handles the data under its own policy.
           </li>
           <li>
@@ -142,8 +142,9 @@ export default function PrivacyPage() {
 
       <LegalSection title="6. Retention and deletion">
         <p>
-          We keep your data until you delete it. You can delete a chat or a page (a note, slide deck or whiteboard) in NoteFable. That removes it from your account in our database, including the
-          messages and note edit proposals tied to that chat. Copies of uploaded images, generated images, page files and cover images can remain in file storage
+          We keep your data until you delete it. You can delete a chat in NoteFable. That removes it from your account in our database, including the
+          messages and note edit proposals tied to that chat. A deleted page (a note, slide deck or whiteboard) first goes to Trash, where you can restore it. It is permanently removed,
+          with its history and search vectors, when you delete it from Trash, or after 30 days the next time Trash is opened or another page is deleted. Copies of uploaded images, generated images, page files and cover images can remain in file storage
           until we remove them. Signing out does not delete anything.
         </p>
         <p>

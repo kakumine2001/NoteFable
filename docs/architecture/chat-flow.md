@@ -517,7 +517,7 @@ AI 的 `search_notes` 工具（`src/lib/page-ai/tools.ts`）现在与站内搜�
 - **面板顶栏。** 页面切换（Switch page，按标题筛选 “Filter pages…”，最多列 60 个，带 New note）、锁定时的解锁按钮、版本历史、保存状态、“…”页面菜单（与工作区顶栏相同，含 Export Markdown）、“Open in full view”（切到工作区视图打开这一篇）和关闭。还没有打开笔记时显示说明、New note 和最近编辑的 8 篇。刚打开分屏时自动打开上次在这里开着的笔记，没有或已不存在就打开最近编辑的一篇（每次打开分屏只试一次）。
 - **分隔线。** `role="separator"`：拖动改变比例，比例是笔记面板占工作区的份额，限制在 0.3–0.65（`clampSplitRatio`），默认 0.46，面板最窄 320px；双击恢复默认；聚焦后 ←/→ 每次 0.03；RTL 下方向相反。
 - **本机保存。** `localStorage` 的 `notefable:split-view:v1` 存 `{ open, pageId, ratio }`（`loadSplitPreference` / `saveSplitPreference`），只按浏览器保存，不随账号同步。`/app` 是静态页面，所以在页面显示后才读取。
-- **笔记链接在右侧打开。** Chat 视图且宽度够时，`openNoteFromLink` 不切到工作区，而是在分屏里打开（分屏关着就顺便打开）：搜索结果（带 `blockId` 时照常滚到命中的块并高亮）、空对话页最近笔记卡片的 ↗，以及所有派发 `notefable:open-note` 的地方（项目参考笔记和发言附加笔记的标签、Save to page 的 “Open saved page”、Create page 的 “Open page”、画成图的 “Open whiteboard”）。其他情况仍切到 Notes 视图。
+- **笔记链接在右侧打开。** Chat 视图且宽度够时，`openNoteFromLink` 不切到工作区，而是在分屏里打开（分屏关着就顺便打开）：搜索结果（带 `blockId` 时照常滚到命中的块并高亮）、空对话页最近笔记卡片的 ↗，以及所有派发 `notefable:open-note` 的地方（项目参考笔记和发言附加笔记的标签、Save to page 的 “Open saved page”、Create page 的 “Open page”、画成图的 “Open whiteboard”）。其他情况仍切到工作区视图。
 - **Ask NoteFable 进聊天。** 分屏的笔记面板不显示笔记助手的悬浮按钮和面板。在这里选中文字点格式工具栏的 Ask NoteFable，文字成为聊天输入框上方的引用条（与“引用回答追问”同一个引用条和发送格式），同时把这篇笔记加进这条发言的附加笔记（已附加或已满 5 篇时不加）。之后就是一条普通的聊天发言：不带 `noteId` / `noteSelection`，AI 通过附加的笔记和 Notes 工具读到内容。
 - **发送前保存。** 分屏打开且右侧笔记有未保存的编辑时（白板先交出还没交给保存队列的变更），发送聊天消息前先 `flush()`，让 AI 读到最新的正文；保存失败不阻止发送。关闭分屏时也 flush 一次。
 
