@@ -1,7 +1,9 @@
+import { duplicateElements, reconcileDuplicatedElements } from "@excalidraw/element";
 import { describe, expect, it } from "vitest";
 import {
-  addMindmapChild, addMindmapSibling, bindMindmapEdges, collapsedMindmapNodes, collapseMindmapNode, deleteMindmapNodes, expandMindmapNode,
-  mindmapDropTarget, mindmapSelection, readMindmapTrees, relayoutMindmap, remapMindmapDuplicates, reparentMindmapNode, setMindmapDirection, type MindmapChange, type SceneElement,
+  addMindmapChild, addMindmapSibling, bindMindmapEdges, collapsedMindmapNodes, collapseMindmapNode, composeMindmapScene, deleteMindmapNodes, expandMindmapNode,
+  includesMindmapNode, insertMindmapElements, mindmapDropTarget, mindmapRootsOf, mindmapSelection, readMindmapTrees, relayoutMindmap, remapMindmapDuplicates,
+  remapMindmapDuplicateScene, reparentMindmapNode, setMindmapDirection, type MindmapChange, type MindmapSceneTools, type SceneElement,
 } from "@/lib/whiteboard/mindmap/editing";
 import { mindmapSkeletons, type MindmapSkeleton } from "@/lib/whiteboard/mindmap/elements";
 import { mindmapDataOf, type MindmapNodeData, type MindmapTreeNode } from "@/lib/whiteboard/mindmap/model";
@@ -258,5 +260,160 @@ describe("collapsed nodes", () => {
     const collapsed = apply(elements, collapseMindmapNode(elements, "n2"));
     expect(collapsedMindmapNodes(collapsed)).toEqual([expect.objectContaining({ nodeId: "n2", side: "right", hidden: 2 })]);
     expect(collapsedMindmapNodes(elements)).toEqual([]);
+  });
+});
+
+// エディターと同じ手順（composeMindmapScene）で差分を当てる。update は newElementWith と同じく、変わるときだけ版を上げる。
+// create は Excalidraw の変換と同じく、下書きの start / end を結び付けに使わない（エディターは外して渡す）。
+const tools: MindmapSceneTools<SceneElement> = {
+  update: (element, values, force) => {
+    const changed = Object.entries(values).some(([key, value]) => element[key] !== value || (typeof value === "object" && value !== null));
+    return changed || force ? { ...element, ...values, version: Number(element.version ?? 1) + 1 } : element;
+  },
+  create: (skeletons) => materialize(skeletons.map((skeleton) => ({ ...skeleton, start: undefined, end: undefined }))).map((element) => ({
+    ...element, version: 1, ...(element.type === "arrow" ? { startBinding: null, endBinding: null } : {}),
+  })),
+};
+const compose = (elements: SceneElement[], change: MindmapChange, roots: Iterable<string> = []) => composeMindmapScene(elements, change, roots, tools)!.elements;
+const edgeOf = (elements: SceneElement[], child: string) => live(elements).find((element) => (mindmapDataOf(element.customData) as { child?: string } | null)?.child === child)!;
+const lock = (elements: SceneElement[], ...ids: string[]) => elements.map((element) => (ids.includes(element.id) ? { ...element, locked: true } : element));
+const liveIds = (elements: SceneElement[]) => live(elements).map((element) => element.id);
+
+describe("composing a change into the scene", () => {
+  it("binds the connectors it creates in the same step, on both the arrow and the nodes", () => {
+    const { elements } = sample();
+    const next = compose(elements, addMindmapChild(elements, "n2", "a3", () => "c6"));
+    const edge = edgeOf(next, "c6");
+    expect(edge.startBinding).toMatchObject({ elementId: "n2" });
+    expect(edge.endBinding).toMatchObject({ elementId: "c6" });
+    for (const id of ["n2", "c6"]) {
+      expect(next.find((element) => element.id === id)!.boundElements).toEqual(expect.arrayContaining([{ id: edge.id, type: "arrow" }]));
+    }
+    // もう 1 回置き直しても何も変わらない。
+    expect(relayoutMindmap(next, "n1").patches.size).toBe(0);
+  });
+
+  it("restores collapsed elements as newer versions than the deleted copies, so undo records them", () => {
+    const { elements } = sample();
+    const versioned = elements.map((element) => ({ ...element, version: 3, isDeleted: false }));
+    const collapsed = compose(versioned, collapseMindmapNode(versioned, "n2"));
+    const expanded = compose(collapsed, expandMindmapNode(collapsed, "n2"));
+    for (const id of ["n3", "n4", "n3-t"]) {
+      const before = collapsed.find((element) => element.id === id)!;
+      const after = expanded.find((element) => element.id === id)!;
+      expect(before.isDeleted).toBe(true);
+      expect(after.isDeleted).toBe(false);
+      expect(Number(after.version)).toBeGreaterThan(Number(before.version));
+    }
+    expect(expanded).toHaveLength(versioned.length);
+  });
+
+  it("puts new connectors below their parent node", () => {
+    const list = [{ id: "a" }, { id: "p" }];
+    const edge = { id: "e", customData: { notefableMindmap: { v: 1, role: "edge", tree: "p", parent: "p", child: "c" } } };
+    expect(insertMindmapElements<{ id: string; customData?: unknown }>(list, [{ id: "c" }, edge, { id: "a", customData: null }]).map((item) => item.id)).toEqual(["a", "e", "p", "c"]);
+  });
+});
+
+describe("duplicating on the board (Excalidraw onDuplicate)", () => {
+  it("returns every element of the next scene, so nothing but the copies changes", () => {
+    const { elements } = sample();
+    const free = { id: "free", type: "rectangle", x: 0, y: 900, width: 10, height: 10 };
+    const board = [...elements, free].map((element) => ({
+      version: 1, versionNonce: 1, isDeleted: false, locked: false, angle: 0, groupIds: [], frameId: null, boundElements: null, containerId: null, ...element,
+    }));
+    const copied = new Map(board.filter((element) => element.id === "n3" || element.id === "n3-t").map((element) => [element.id, element]));
+    const duplication = duplicateElements({ type: "in-place", elements: board as never, idsOfElementsToDuplicate: copied as never, appState: { editingGroupId: null, selectedGroupIds: {} }, randomizeSeed: true });
+    const pairs = [...duplication.duplicateIdToOrigId].map(([duplicateId, originalId]) => ({
+      from: duplication.origElementsMap.get(originalId) as unknown as SceneElement,
+      to: duplication.duplicateElementsMap.get(duplicateId) as unknown as SceneElement,
+    }));
+    const returned = remapMindmapDuplicateScene(duplication.elementsWithDuplicates as unknown as SceneElement[], pairs)!;
+    const result = reconcileDuplicatedElements(returned as never, duplication.elementsWithDuplicates, duplication.duplicatedElements);
+    const ids = result.elements.map((element) => element.id);
+    expect(ids).toEqual(expect.arrayContaining(board.map((element) => element.id)));
+    expect(ids).toHaveLength(board.length + 2);
+    const copy = result.duplicatedElements.find((element) => element.type === "rectangle")!;
+    expect(mindmapDataOf(copy.customData)).toMatchObject({ role: "node", tree: copy.id, parent: null });
+    expect(mindmapDataOf(result.elements.find((element) => element.id === "n3")!.customData)).toMatchObject({ parent: "n2" });
+  });
+
+  it("leaves duplication to Excalidraw when no mind map element is copied", () => {
+    const shape = { id: "free", type: "rectangle", x: 0, y: 0, width: 10, height: 10 };
+    expect(remapMindmapDuplicateScene([shape], [{ from: shape, to: { ...shape, id: "copy" } }])).toBeNull();
+  });
+});
+
+describe("locked elements", () => {
+  it("keeps a locked branch when its ancestor is deleted, as its own mind map", () => {
+    const { elements, rootId } = sample();
+    const locked = lock(elements, "n3");
+    const next = compose(locked, deleteMindmapNodes(locked, ["n2"]));
+    expect(liveIds(next)).toEqual(expect.arrayContaining([rootId, "n3", "n3-t", "n5"]));
+    expect(liveIds(next)).not.toContain("n2");
+    expect(liveIds(next)).not.toContain("n4");
+    expect(nodeData(next, "n3")).toMatchObject({ parent: null, tree: "n3", direction: "right" });
+    // ロックした節は動かさない。
+    expect(next.find((element) => element.id === "n3")).toMatchObject({ x: locked.find((element) => element.id === "n3")!.x, y: locked.find((element) => element.id === "n3")!.y });
+    expect(edgeOf(next, "n3")).toBeUndefined();
+    expect(textsOf(next, rootId)).toEqual({ Root: ["B"] });
+  });
+
+  it("deletes nothing when the selected node itself is locked", () => {
+    const { elements } = sample();
+    expect(deleteMindmapNodes(lock(elements, "n3"), ["n3"]).patches.size).toBe(0);
+  });
+
+  it("does not collapse a branch that holds a locked element", () => {
+    const { elements, rootId } = sample();
+    for (const id of ["n4", "n3-t", edgeOf(elements, "n3").id]) {
+      const locked = lock(elements, id);
+      expect(collapseMindmapNode(locked, "n2").patches.size).toBe(0);
+      expect(mindmapSelection(locked, ["n2"])).toMatchObject({ hasChildren: true, canCollapse: false });
+      expect(mindmapSelection(locked, [rootId])).toMatchObject({ canCollapse: false });
+    }
+    // 節自身がロックされていても、隠すのは子孫だけ。
+    expect(mindmapSelection(lock(elements, "n2"), ["n2"])).toMatchObject({ canCollapse: true });
+  });
+});
+
+describe("large boards", () => {
+  // 節 5,000 + 節の文字 5,000 + 線 4,999 + ふつうの図形 5,000 = 約 20,000 要素。
+  function bigBoard() {
+    const leaves = Array.from({ length: 4_899 }, (_, index) => tree(`leaf ${index}`));
+    const branches = Array.from({ length: 100 }, (_, index) => tree(`branch ${index}`, ...leaves.slice(index * 49, index * 49 + 49)));
+    counter = 0;
+    const { skeletons, rootId } = mindmapSkeletons(tree("Root", ...branches), { direction: "right", newId: nextId });
+    const shapes = Array.from({ length: 5_000 }, (_, index) => ({ id: `s${index}`, type: "rectangle", x: index, y: -1000, width: 10, height: 10 }));
+    return { elements: [...materialize(skeletons), ...shapes] as SceneElement[], rootId, shapes };
+  }
+
+  it("selects, finds, lays out, collapses, expands and deletes about 20,000 elements quickly", () => {
+    const { elements, rootId, shapes } = bigBoard();
+    expect(elements.length).toBeGreaterThan(19_000);
+    const ids = elements.map((element) => element.id);
+    const started = Date.now();
+    expect(includesMindmapNode(elements, shapes.map((shape) => shape.id))).toBe(false);
+    expect([...mindmapRootsOf(elements, ids)]).toEqual([rootId]);
+    expect(mindmapSelection(elements, [rootId])).toMatchObject({ canCollapse: true });
+    let current = compose(elements, { patches: new Map(), added: [], restored: [] }, [rootId]);
+    current = compose(current, collapseMindmapNode(current, rootId));
+    current = compose(current, expandMindmapNode(current, rootId));
+    expect(live(current)).toHaveLength(elements.length);
+    current = compose(current, deleteMindmapNodes(current, ids));
+    expect(live(current)).toHaveLength(shapes.length);
+    // 2 乗の処理があると数十秒かかる。遅い CI でも余裕のある上限にする。
+    expect(Date.now() - started).toBeLessThan(8_000);
+  }, 20_000);
+
+  it("does nothing costly on a board without mind map marks", () => {
+    const shapes = Array.from({ length: 20_000 }, (_, index) => ({ id: `s${index}`, type: "rectangle", x: index, y: 0, width: 10, height: 10 }));
+    const ids = shapes.map((shape) => shape.id);
+    const started = Date.now();
+    expect(includesMindmapNode(shapes, ids)).toBe(false);
+    expect(mindmapSelection(shapes, ids)).toBeNull();
+    expect(mindmapRootsOf(shapes, ids).size).toBe(0);
+    expect(deleteMindmapNodes(shapes, ids).patches.size).toBe(0);
+    expect(Date.now() - started).toBeLessThan(2_000);
   });
 });

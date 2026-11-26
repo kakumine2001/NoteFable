@@ -1,6 +1,7 @@
 import { branchColors, edgeElementSkeleton, edgeGeometry, nodeSkeleton, randomElementId, type MindmapSkeleton } from "@/lib/whiteboard/mindmap/elements";
 import { layoutMindmap, mindmapFontSize, type PlacedMindmapNode } from "@/lib/whiteboard/mindmap/layout";
 import { MINDMAP_DATA_KEY, mindmapDataOf, type MindmapDirection, type MindmapEdgeData, type MindmapNodeData, type MindmapTreeNode, type StashedElement } from "@/lib/whiteboard/mindmap/model";
+import { WHITEBOARD_ELEMENT_TYPES } from "@/lib/whiteboard/scene";
 
 // 白板の上の思考マップを編集する（思考マップのモード：子・兄弟を足す、消す、親を替える、畳む・広げる、向きを替える、置き直す）。
 // Excalidraw を読み込まない純粋な関数で、白板の要素の並びを受け取り、変える要素の差分（patches）と、新しく足す要素の下書き（added）・
@@ -18,6 +19,7 @@ export type SceneElement = {
   customData?: Record<string, unknown> | null;
   containerId?: string | null;
   boundElements?: readonly { id: string; type: string }[] | null;
+  locked?: boolean;
   text?: string;
   originalText?: string;
   strokeColor?: string;
@@ -74,21 +76,23 @@ export function readMindmapTrees(elements: readonly SceneElement[]): Map<string,
     if (data?.role !== "node") continue;
     nodes.set(element.id, { id: element.id, element, data, parent: null, children: [], depth: 0 });
   }
+  const parentOf = (node: SceneNode) => (node.data.parent ? nodes.get(node.data.parent) : undefined);
+  // 親をたどると輪に入るか。調べた節は覚えておく（深い木でも 1 回ずつしかたどらない）。
+  const loops = new Map<string, boolean>();
   for (const node of nodes.values()) {
-    // 親の印が正（木の ID は置き直すときに親に合わせて直す）。
-    const parent = node.data.parent ? nodes.get(node.data.parent) : undefined;
-    if (!parent) continue;
-    // 親をたどって自分に戻るなら輪：親を付けない。
-    let cursor: SceneNode | undefined = parent;
-    let cycle = false;
-    const seen = new Set<string>([node.id]);
-    while (cursor) {
-      if (seen.has(cursor.id)) { cycle = true; break; }
-      seen.add(cursor.id);
-      const next: SceneNode | undefined = cursor.data.parent ? nodes.get(cursor.data.parent) : undefined;
-      cursor = next;
+    const path = new Set<string>();
+    let cursor: SceneNode | undefined = node;
+    while (cursor && !loops.has(cursor.id) && !path.has(cursor.id)) {
+      path.add(cursor.id);
+      cursor = parentOf(cursor);
     }
-    if (cycle) continue;
+    const looping = cursor ? loops.get(cursor.id) ?? true : false;
+    for (const id of path) loops.set(id, looping);
+  }
+  for (const node of nodes.values()) {
+    // 親の印が正（木の ID は置き直すときに親に合わせて直す）。輪になるなら親を付けない。
+    const parent = parentOf(node);
+    if (!parent || loops.get(node.id)) continue;
     node.parent = parent;
     parent.children.push(node);
   }
@@ -111,20 +115,30 @@ export function readMindmapTrees(elements: readonly SceneElement[]): Map<string,
   return trees;
 }
 
-// その要素（節・節の文字）が属する節と木。
-export function findMindmapNode(elements: readonly SceneElement[], elementId: string, trees = readMindmapTrees(elements)) {
-  const element = elements.find((item) => item.id === elementId);
-  const nodeId = element?.type === "text" && element.containerId ? element.containerId : elementId;
+// 要素（節・節の文字）の ID から、属する節と木を引く関数。たくさんの ID を引くときは 1 回作って使い回す
+// （1 回引くたびに要素の並びをたどると、大きな白板で止まる）。思考マップが無い白板では何も作らない。
+export function mindmapFinder(elements: readonly SceneElement[], trees = readMindmapTrees(elements)) {
+  if (!trees.size) return () => null;
+  const byId = new Map(elements.map((element) => [element.id, element]));
+  const located = new Map<string, { tree: SceneTree; node: SceneNode }>();
   for (const tree of trees.values()) {
-    const node = tree.nodes.get(nodeId);
-    if (node) return { tree, node };
+    for (const node of tree.nodes.values()) located.set(node.id, { tree, node });
   }
-  return null;
+  return (elementId: string) => {
+    const element = byId.get(elementId);
+    const nodeId = element?.type === "text" && element.containerId ? element.containerId : elementId;
+    return located.get(nodeId) ?? null;
+  };
 }
 
-function textOf(elements: readonly SceneElement[], node: SceneElement) {
+// その要素（節・節の文字）が属する節と木。
+export function findMindmapNode(elements: readonly SceneElement[], elementId: string, trees = readMindmapTrees(elements)) {
+  return mindmapFinder(elements, trees)(elementId);
+}
+
+function textOf(byId: ReadonlyMap<string, SceneElement>, node: SceneElement) {
   const bound = node.boundElements?.find((item) => item.type === "text");
-  const text = bound ? elements.find((element) => element.id === bound.id) : undefined;
+  const text = bound ? byId.get(bound.id) : undefined;
   return typeof text?.originalText === "string" ? text.originalText : typeof text?.text === "string" ? text.text : "";
 }
 
@@ -158,10 +172,44 @@ function edgesOf(elements: readonly SceneElement[]) {
 // 木を、いまの節の大きさで並べ直す。根は動かさない。節・節の文字・線を動かし、印の食い違い（木の ID・兄弟の順番）を直す。
 // 線が消されていたら作り直し、片方の端が無い線は消す。変わらないなら空の差分。
 export function relayoutMindmap(elements: readonly SceneElement[], rootId: string, change: MindmapChange = emptyChange()): MindmapChange {
-  const tree = readMindmapTrees(elements).get(rootId);
-  if (!tree) return change;
+  return relayoutMindmaps(elements, [rootId], change);
+}
+
+type SceneEdge = { element: SceneElement; data: MindmapEdgeData };
+
+// いくつもの木をまとめて置き直す（白板を木の数だけたどり直さない）。
+export function relayoutMindmaps(elements: readonly SceneElement[], rootIds: Iterable<string>, change: MindmapChange = emptyChange()): MindmapChange {
+  const trees = readMindmapTrees(elements);
+  const targets = [...new Set(rootIds)].filter((id) => trees.has(id));
+  if (!targets.length) return change;
+  const byId = new Map(elements.map((element) => [element.id, element]));
+  const rootOfNode = new Map<string, string>();
+  for (const [rootId, tree] of trees) {
+    for (const id of tree.nodes.keys()) rootOfNode.set(id, rootId);
+  }
+  // 線を、子ごと（動かす相手）と、関係する木ごと（余りの後始末）に引けるようにする。
+  const edgeOfChild = new Map<string, SceneEdge>();
+  const edgesOfRoot = new Map<string, Set<SceneEdge>>();
+  for (const edge of edgesOf(elements)) {
+    if (!edgeOfChild.has(edge.data.child)) edgeOfChild.set(edge.data.child, edge);
+    for (const rootId of [edge.data.tree, rootOfNode.get(edge.data.child), rootOfNode.get(edge.data.parent)]) {
+      if (!rootId) continue;
+      const set = edgesOfRoot.get(rootId);
+      if (set) set.add(edge);
+      else edgesOfRoot.set(rootId, new Set([edge]));
+    }
+  }
+  for (const rootId of targets) relayoutTree(trees.get(rootId)!, byId, edgeOfChild, edgesOfRoot.get(rootId) ?? [], change);
+  return change;
+}
+
+function relayoutTree(
+  tree: SceneTree, byId: ReadonlyMap<string, SceneElement>, edgeOfChild: ReadonlyMap<string, SceneEdge>,
+  treeEdges: Iterable<SceneEdge>, change: MindmapChange,
+) {
+  const rootId = tree.root.id;
   const toTree = (node: SceneNode): MindmapTreeNode => ({
-    text: textOf(elements, node.element), key: node.id, size: { width: node.element.width, height: node.element.height },
+    text: textOf(byId, node.element), key: node.id, size: { width: node.element.width, height: node.element.height },
     children: node.children.map(toTree),
   });
   const layout = layoutMindmap(toTree(tree.root), tree.direction);
@@ -169,6 +217,8 @@ export function relayoutMindmap(elements: readonly SceneElement[], rootId: strin
   const rootPlaced = byKey.get(rootId)!;
   const offset = { x: tree.root.element.x - rootPlaced.x, y: tree.root.element.y - rootPlaced.y };
   const target = (placed: PlacedMindmapNode) => ({ x: placed.x + offset.x, y: placed.y + offset.y, width: placed.width, height: placed.height });
+  const orderOf = new Map<string, number>();
+  for (const node of tree.nodes.values()) node.children.forEach((child, index) => orderOf.set(child.id, index));
 
   for (const node of tree.nodes.values()) {
     const placed = byKey.get(node.id)!;
@@ -178,11 +228,11 @@ export function relayoutMindmap(elements: readonly SceneElement[], rootId: strin
     if (Math.abs(dx) >= 0.5 || Math.abs(dy) >= 0.5) {
       patch(change, node.id, { x: box.x, y: box.y });
       const textId = boundTextId(node.element);
-      const text = textId ? elements.find((element) => element.id === textId) : undefined;
+      const text = textId ? byId.get(textId) : undefined;
       if (text) patch(change, text.id, { x: text.x + dx, y: text.y + dy });
     }
     // 印を木に合わせる（木の ID・親・兄弟の順番）。
-    const order = node.parent ? node.parent.children.indexOf(node) : 0;
+    const order = orderOf.get(node.id) ?? 0;
     const parentId = node.parent?.id ?? null;
     if (node.data.tree !== rootId || node.data.parent !== parentId || node.data.order !== order) {
       const data: MindmapNodeData = { ...node.data, tree: rootId, parent: parentId, order };
@@ -192,7 +242,6 @@ export function relayoutMindmap(elements: readonly SceneElement[], rootId: strin
   }
 
   // 線：子ごとに 1 本。無ければ作り、余り・端の無いものは消す。
-  const edges = edgesOf(elements);
   const used = new Set<string>();
   for (const node of tree.nodes.values()) {
     if (!node.parent) continue;
@@ -200,7 +249,7 @@ export function relayoutMindmap(elements: readonly SceneElement[], rootId: strin
     const childPlaced = byKey.get(node.id)!;
     const geometry = edgeGeometry(parentBox, target(childPlaced), childPlaced.side !== "left");
     const data: MindmapEdgeData = { v: 1, role: "edge", tree: rootId, parent: node.parent.id, child: node.id };
-    const existing = edges.find(({ element, data: mark }) => !used.has(element.id) && mark.child === node.id);
+    const existing = edgeOfChild.get(node.id);
     if (!existing) {
       change.added.push(edgeElementSkeleton(randomElementId(), geometry, { parent: node.parent.id, child: node.id }, colorOf(tree, node), node.depth, data));
       continue;
@@ -219,15 +268,15 @@ export function relayoutMindmap(elements: readonly SceneElement[], rootId: strin
     }
     if (existing.data.tree !== rootId || existing.data.parent !== node.parent.id) patch(change, existing.element.id, { customData: withMark(existing.element, data) });
   }
-  for (const { element, data } of edges) {
+  for (const { element, data } of treeEdges) {
     if (used.has(element.id)) continue;
     // この木の線で、どの子にも使われなかったもの（子か親が消された・別の線と重複）は消す。
-    if (data.tree === rootId || tree.nodes.has(data.child) || tree.nodes.has(data.parent)) {
-      const ends = elements.filter((item) => live(item) && (item.id === data.child || item.id === data.parent));
-      if (ends.length < 2 || tree.nodes.has(data.child)) patch(change, element.id, { isDeleted: true });
-    }
+    const ends = [...new Set([data.child, data.parent])].filter((id) => {
+      const end = byId.get(id);
+      return !!end && live(end);
+    });
+    if (ends.length < 2 || tree.nodes.has(data.child)) patch(change, element.id, { isDeleted: true });
   }
-  return change;
 }
 
 // 根の子（最初の枝）の色。深い節は最初の枝の色を受け継ぐ。
@@ -293,14 +342,24 @@ export function addMindmapSibling(elements: readonly SceneElement[], nodeId: str
 // ---- 消す ----
 
 // 選んだ節とその子孫（節の文字・線・畳んで預けた分も）を消す。根を選んだら木ごと。残った兄弟の順番を詰める。
+// ロックした節は消さない：その節から下の枝は残り、親が消えればロックした節を根にした別の思考マップになる。
+// 節の文字と線は節に付いて消える（節の無い文字・線は残せない）。
 export function deleteMindmapNodes(elements: readonly SceneElement[], ids: readonly string[]): MindmapChange {
   const change = emptyChange();
   const trees = readMindmapTrees(elements);
+  const find = mindmapFinder(elements, trees);
   const doomed = new Set<string>();
   for (const id of ids) {
-    const found = findMindmapNode(elements, id, trees);
-    if (!found) continue;
-    for (const node of [found.node, ...descendants(found.node)]) doomed.add(node.id);
+    const found = find(id);
+    if (!found || found.node.element.locked || doomed.has(found.node.id)) continue;
+    const stack = [found.node];
+    while (stack.length) {
+      const node = stack.pop()!;
+      doomed.add(node.id);
+      for (const child of node.children) {
+        if (!child.element.locked && !doomed.has(child.id)) stack.push(child);
+      }
+    }
   }
   if (!doomed.size) return change;
   for (const element of elements) {
@@ -310,10 +369,14 @@ export function deleteMindmapNodes(elements: readonly SceneElement[], ids: reado
     const data = mindmapDataOf(element.customData);
     if (data?.role === "edge" && (doomed.has(data.child) || doomed.has(data.parent))) patch(change, element.id, { isDeleted: true });
   }
-  // 残る兄弟の順番を詰める。
   for (const tree of trees.values()) {
     for (const node of tree.nodes.values()) {
       if (doomed.has(node.id)) continue;
+      // 親が消えて残る節（ロックした節）は、自分を根にする。
+      if (node.parent && doomed.has(node.parent.id)) {
+        patch(change, node.id, { customData: withMark(node.element, { ...node.data, tree: node.id, parent: null, order: 0, direction: "right" }) });
+      }
+      // 残る兄弟の順番を詰める。
       const remaining = node.children.filter((child) => !doomed.has(child.id));
       if (remaining.length === node.children.length) continue;
       remaining.forEach((child, index) => {
@@ -326,17 +389,17 @@ export function deleteMindmapNodes(elements: readonly SceneElement[], ids: reado
 
 // 消す操作に、思考マップの節が含まれるか（含まれれば deleteMindmapNodes で子孫ごと消す）。
 export function includesMindmapNode(elements: readonly SceneElement[], ids: readonly string[]) {
-  const trees = readMindmapTrees(elements);
-  return ids.some((id) => findMindmapNode(elements, id, trees) !== null);
+  const find = mindmapFinder(elements);
+  return ids.some((id) => find(id) !== null);
 }
 
 // ---- 親を替える ----
 
 // 節を別の節の子（いちばん下）にする。自分や自分の子孫の下には付けない（輪になる）。別の木の節の下にも付けられる（木ごと移る）。
 export function reparentMindmapNode(elements: readonly SceneElement[], nodeId: string, newParentId: string): MindmapChange | null {
-  const trees = readMindmapTrees(elements);
-  const found = findMindmapNode(elements, nodeId, trees);
-  const target = findMindmapNode(elements, newParentId, trees);
+  const find = mindmapFinder(elements);
+  const found = find(nodeId);
+  const target = find(newParentId);
   if (!found || !target || found.node.id === target.node.id) return null;
   if (descendants(found.node).some((node) => node.id === target.node.id)) return null;
   if (found.node.parent?.id === target.node.id) return null;
@@ -360,25 +423,37 @@ export function reparentMindmapNode(elements: readonly SceneElement[], nodeId: s
 
 // ---- 畳む・広げる ----
 
+// 畳むと白板から外す要素：子孫の節・節の文字・子孫への線。
+function hiddenByCollapse(elements: readonly SceneElement[], node: SceneNode) {
+  const hiddenIds = new Set(descendants(node).map((item) => item.id));
+  return elements.filter((element) => {
+    if (!live(element)) return false;
+    if (hiddenIds.has(element.id)) return true;
+    if (element.type === "text" && !!element.containerId && hiddenIds.has(element.containerId)) return true;
+    const data = mindmapDataOf(element.customData);
+    return data?.role === "edge" && hiddenIds.has(data.child);
+  });
+}
+
+// 畳めるのは、子がある節で、隠す中にロックした要素が無いとき（ロックした要素は隠さない。一部だけ隠すと親子が切れるので、全体を畳まない）。
+function collapsible(node: SceneNode, hidden: readonly SceneElement[]) {
+  return !node.data.collapsed && node.children.length > 0 && !hidden.some((element) => element.locked);
+}
+
 // 子孫を白板から外して、この節に預ける。子孫の中で畳んであった節の預かり分も、この節にまとめる（入れ子にしない：JSON を深くしない）。
 export function collapseMindmapNode(elements: readonly SceneElement[], nodeId: string): MindmapChange {
   const change = emptyChange();
   const found = findMindmapNode(elements, nodeId);
-  if (!found || found.node.data.collapsed || !found.node.children.length) return change;
-  const hidden = descendants(found.node);
-  const hiddenIds = new Set(hidden.map((node) => node.id));
+  if (!found) return change;
+  const hidden = hiddenByCollapse(elements, found.node);
+  if (!collapsible(found.node, hidden)) return change;
   const stash: StashedElement[] = [];
-  for (const element of elements) {
-    if (!live(element)) continue;
+  for (const element of hidden) {
     const data = mindmapDataOf(element.customData);
-    const inside = hiddenIds.has(element.id)
-      || (element.type === "text" && !!element.containerId && hiddenIds.has(element.containerId))
-      || (data?.role === "edge" && hiddenIds.has(data.child));
-    if (!inside) continue;
     let copy: StashedElement = { ...(element as StashedElement) };
     // 入れ子の預かり分を外に出す（畳んだ印は残す）。
     if (data?.role === "node" && data.stash?.length) {
-      stash.push(...data.stash);
+      for (const item of data.stash) stash.push(item);
       const { stash: _nested, ...rest } = data;
       void _nested;
       copy = { ...copy, customData: withMark(element, rest) };
@@ -468,16 +543,19 @@ export function remapMindmapDuplicates(pairs: readonly { from: SceneElement; to:
     if (data?.role === "node") nodeData.set(from.id, data);
   }
   // 複製の中での根（親を複製しなかった節）を、子孫に伝える。
+  const roots = new Map<string, string>();
   const rootOf = (id: string): string => {
     let cursor = id;
-    const seen = new Set<string>();
-    while (!seen.has(cursor)) {
-      seen.add(cursor);
+    const path = new Set<string>();
+    while (!roots.has(cursor) && !path.has(cursor)) {
+      path.add(cursor);
       const parent = nodeData.get(cursor)?.parent;
-      if (!parent || !nodeData.has(parent)) return cursor;
+      if (!parent || !nodeData.has(parent)) break;
       cursor = parent;
     }
-    return cursor;
+    const root = roots.get(cursor) ?? cursor;
+    for (const item of path) roots.set(item, root);
+    return root;
   };
   for (const { from, to } of pairs) {
     const data = mindmapDataOf(from.customData);
@@ -500,6 +578,19 @@ export function remapMindmapDuplicates(pairs: readonly { from: SceneElement; to:
   return result;
 }
 
+// Excalidraw の onDuplicate に返す並び。Excalidraw は返した並びから次の場面を作る（返さなかった要素は消える）ので、
+// 複製していない要素も含めて nextElements の全部を返し、思考マップの複製だけ印を付け直す。複製に思考マップが無ければ null。
+export function remapMindmapDuplicateScene<T extends { id: string }>(
+  nextElements: readonly T[], pairs: readonly { from: SceneElement; to: SceneElement }[],
+): T[] | null {
+  if (!pairs.some(({ from }) => mindmapDataOf(from.customData))) return null;
+  const patches = remapMindmapDuplicates(pairs);
+  return nextElements.map((element) => {
+    const values = patches.get(element.id);
+    return values ? { ...element, ...values } : element;
+  });
+}
+
 // ---- 選択 ----
 
 export type MindmapSelection = {
@@ -507,6 +598,8 @@ export type MindmapSelection = {
   rootId: string;
   isRoot: boolean;
   hasChildren: boolean;
+  // 畳める（子があり、隠す中にロックした要素が無い）。
+  canCollapse: boolean;
   collapsed: boolean;
   direction: MindmapDirection;
   // 節の場所（場面の座標）。浮かぶボタンを置くのに使う。
@@ -516,21 +609,21 @@ export type MindmapSelection = {
 
 // ちょうど 1 つの節（または節の文字）を選んでいるときの、その節の様子。
 export function mindmapSelection(elements: readonly SceneElement[], selectedIds: readonly string[]): MindmapSelection | null {
-  const trees = readMindmapTrees(elements);
+  const find = mindmapFinder(elements);
   const nodeIds = new Set<string>();
   for (const id of selectedIds) {
-    const found = findMindmapNode(elements, id, trees);
+    const found = find(id);
     if (!found) return null;
     nodeIds.add(found.node.id);
   }
   if (nodeIds.size !== 1) return null;
-  const found = findMindmapNode(elements, [...nodeIds][0], trees)!;
-  const { node, tree } = found;
+  const { node, tree } = find([...nodeIds][0])!;
   const rootCenter = tree.root.element.x + tree.root.element.width / 2;
   const center = node.element.x + node.element.width / 2;
   return {
     nodeId: node.id, rootId: tree.root.id, isRoot: !node.parent,
-    hasChildren: node.children.length > 0 || !!node.data.stash?.length, collapsed: !!node.data.collapsed, direction: tree.direction,
+    hasChildren: node.children.length > 0 || !!node.data.stash?.length, canCollapse: collapsible(node, hiddenByCollapse(elements, node)),
+    collapsed: !!node.data.collapsed, direction: tree.direction,
     box: { x: node.element.x, y: node.element.y, width: node.element.width, height: node.element.height },
     side: !node.parent ? "root" : center < rootCenter ? "left" : "right",
   };
@@ -538,10 +631,10 @@ export function mindmapSelection(elements: readonly SceneElement[], selectedIds:
 
 // 一緒に置き直す木の根（変更で触れた節の木）。
 export function mindmapRootsOf(elements: readonly SceneElement[], ids: Iterable<string>) {
-  const trees = readMindmapTrees(elements);
+  const find = mindmapFinder(elements);
   const roots = new Set<string>();
   for (const id of ids) {
-    const found = findMindmapNode(elements, id, trees);
+    const found = find(id);
     if (found) roots.add(found.tree.root.id);
   }
   return roots;
@@ -554,10 +647,16 @@ export function mindmapRootsOf(elements: readonly SceneElement[], ids: Iterable<
 export function bindMindmapEdges(elements: readonly SceneElement[], change: MindmapChange = emptyChange()): MindmapChange {
   const byId = new Map(elements.map((element) => [element.id, element]));
   const missing = new Map<string, string[]>();
+  const boundIds = new Map<string, Set<string>>();
+  const isBound = (node: SceneElement, id: string) => {
+    let set = boundIds.get(node.id);
+    if (!set) boundIds.set(node.id, set = new Set(node.boundElements?.map((item) => item.id)));
+    return set.has(id);
+  };
   for (const { element, data } of edgesOf(elements)) {
     for (const end of [data.parent, data.child]) {
       const node = byId.get(end);
-      if (!node || !live(node) || node.boundElements?.some((item) => item.id === element.id)) continue;
+      if (!node || !live(node) || isBound(node, element.id)) continue;
       if (!missing.has(end)) missing.set(end, []);
       missing.get(end)!.push(element.id);
     }
@@ -567,6 +666,79 @@ export function bindMindmapEdges(elements: readonly SceneElement[], change: Mind
     patch(change, id, { boundElements: [...(node.boundElements ?? []), ...arrows.map((arrow) => ({ id: arrow, type: "arrow" }))] });
   }
   return change;
+}
+
+// ---- 差分を場面に当てる ----
+
+// 要素を並びに入れる。同じ ID があれば置き換え（畳んだときに消した要素）、思考マップの線は親の節の前（節の下に描く）、それ以外は最後。
+export function insertMindmapElements<T extends { id: string; customData?: unknown }>(list: readonly T[], items: readonly T[]): T[] {
+  if (!items.length) return [...list];
+  // 途中への差し込みが何千もあっても止まらないよう、前後をつないだ並びにする。
+  type Link = { element: T; prev: Link | null; next: Link | null };
+  const ends: { head: Link | null; tail: Link | null } = { head: null, tail: null };
+  const byId = new Map<string, Link>();
+  const insert = (element: T, before: Link | undefined) => {
+    const prev = before ? before.prev : ends.tail;
+    const link: Link = { element, prev, next: before ?? null };
+    if (prev) prev.next = link;
+    else ends.head = link;
+    if (before) before.prev = link;
+    else ends.tail = link;
+    byId.set(element.id, link);
+  };
+  for (const element of list) insert(element, undefined);
+  for (const item of items) {
+    const existing = byId.get(item.id);
+    if (existing) { existing.element = item; continue; }
+    const data = mindmapDataOf(item.customData);
+    insert(item, data?.role === "edge" ? byId.get(data.parent) : undefined);
+  }
+  const out: T[] = [];
+  for (let link = ends.head; link; link = link.next) out.push(link.element);
+  return out;
+}
+
+// 要素を作る・変える手段（エディターは Excalidraw の convertToExcalidrawElements と newElementWith）。
+export type MindmapSceneTools<T> = {
+  // force は値が同じでも版（version）を上げる。
+  update: (element: T, values: Record<string, unknown>, force?: boolean) => T;
+  create: (skeletons: readonly MindmapSkeleton[]) => T[];
+};
+
+// 差分を要素の並び（消した要素を含む）に当て、触れた木と extraRoots の木を置き直し、線を結び付ける。何もすることが無ければ null。
+// changed は要素が変わったか。
+export function composeMindmapScene<T extends SceneElement>(
+  before: readonly T[], change: MindmapChange, extraRoots: Iterable<string>, { update, create }: MindmapSceneTools<T>,
+): { elements: T[]; changed: boolean } | null {
+  const touched = [...change.patches.keys(), ...change.added.map((item) => item.id), ...change.restored.map((item) => item.id)];
+  const requested = [...extraRoots];
+  if (!touched.length && !requested.length) return null;
+  const patchAll = (elements: T[], patches: MindmapChange["patches"]) => patches.size
+    ? elements.map((element) => {
+      const values = patches.get(element.id);
+      return values ? update(element, values) : element;
+    })
+    : elements;
+  let next = patchAll([...before], change.patches);
+  // 畳みから戻す要素は、畳んだときに消した写し（同じ ID）より新しい版にする（取り消しの記録は版が上がった要素だけを変化と見る）。
+  // 白板に置ける種類の要素だけを戻す（預かり分は持ち主の本体の中にあるが、保存の検証は通っていない）。
+  const current = new Map(next.map((element) => [element.id, element]));
+  next = insertMindmapElements(next, change.restored.filter((item) => WHITEBOARD_ELEMENT_TYPES.has(item.type)).map((item) => {
+    const version = Math.max(typeof item.version === "number" ? item.version : 1, Number(current.get(item.id)?.version ?? 0));
+    return update({ ...item, version } as unknown as T, { isDeleted: false }, true);
+  }));
+  next = insertMindmapElements(next, create(change.added));
+  let changed = touched.length > 0;
+  const roots = new Set([...requested, ...mindmapRootsOf(before, touched), ...mindmapRootsOf(next, touched)]);
+  const layout = relayoutMindmaps(next, roots);
+  if (layout.patches.size || layout.added.length) changed = true;
+  next = insertMindmapElements(patchAll(next, layout.patches), create(layout.added));
+  // 置き直しが足した線は、まだ両端の節に結び付いていない（下書きからの変換では、場面にある図形に結び付けられない）。
+  // もう 1 回置き直して結び付ける（そうしないと、直後に節を動かすと線が残る）。
+  if (layout.added.length) next = patchAll(next, relayoutMindmaps(next, roots).patches);
+  const bindings = bindMindmapEdges(next).patches;
+  if (bindings.size) changed = true;
+  return { elements: patchAll(next, bindings), changed };
 }
 
 // ---- ドラッグで親を替える ----

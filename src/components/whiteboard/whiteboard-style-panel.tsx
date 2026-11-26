@@ -325,7 +325,7 @@ function MindmapSection({ mindmap }: { mindmap: WhiteboardMindmapPanel }) {
     <div className="whiteboard-actions-row" role="toolbar" aria-label={t("Mind map")}>
       <IconAction label={`${t("Add child")} — Tab`} onClick={() => mindmap.onAddChild(selection.nodeId)}><GitBranchPlus size={15} className="rtl-mirror" /></IconAction>
       {!selection.isRoot && <IconAction label={`${t("Add sibling")} — Enter`} onClick={() => mindmap.onAddSibling(selection.nodeId)}><ListPlus size={15} /></IconAction>}
-      {selection.hasChildren && <IconAction label={selection.collapsed ? t("Expand branch") : t("Collapse branch")} onClick={() => mindmap.onToggle(selection.nodeId)}>
+      {(selection.canCollapse || (selection.collapsed && selection.hasChildren)) && <IconAction label={selection.collapsed ? t("Expand branch") : t("Collapse branch")} onClick={() => mindmap.onToggle(selection.nodeId)}>
         {selection.collapsed ? <CirclePlus size={15} /> : <CircleMinus size={15} />}
       </IconAction>}
     </div>

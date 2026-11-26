@@ -36,7 +36,7 @@ import type { MentionPage } from "@/components/note-mention";
 import { applyMindmapChange, fitMindmapNodeToText, MindmapOverlay, templateLabels, WhiteboardTemplateStart, type MindmapOverlayModel } from "@/components/whiteboard/whiteboard-mindmap";
 import {
   addMindmapChild, addMindmapSibling, collapsedMindmapNodes, collapseMindmapNode, deleteMindmapNodes, expandMindmapNode, findMindmapNode, includesMindmapNode,
-  mindmapDropTarget, mindmapRootsOf, mindmapSelection, readMindmapTrees, remapMindmapDuplicates, reparentMindmapNode, setMindmapDirection,
+  mindmapDropTarget, mindmapFinder, mindmapRootsOf, mindmapSelection, remapMindmapDuplicateScene, reparentMindmapNode, setMindmapDirection,
   type MindmapChange, type SceneElement,
 } from "@/lib/whiteboard/mindmap/editing";
 import { MINDMAP_DATA_KEY, mindmapDataOf, type MindmapDirection } from "@/lib/whiteboard/mindmap/model";
@@ -694,15 +694,18 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     const elements = asScene(api.getSceneElements());
     const ids = selectedIdsOf(api.getAppState());
     if (!ids.length || !includesMindmapNode(elements, ids)) return false;
-    const trees = readMindmapTrees(elements);
+    const find = mindmapFinder(elements);
     const byId = new Map(elements.map((element) => [element.id, element]));
     const onlyMindmap = ids.every((id) => {
       const element = byId.get(id);
-      return !element || mindmapDataOf(element.customData) !== null || findMindmapNode(elements, id, trees) !== null;
+      return !element || mindmapDataOf(element.customData) !== null || find(id) !== null;
     });
     if (!onlyMindmap) return false;
-    const first = ids.map((id) => findMindmapNode(elements, id, trees)).find((found) => found !== null);
-    return runMindmap({ ...deleteMindmapNodes(elements, ids), select: first?.node.parent?.id });
+    const change = deleteMindmapNodes(elements, ids);
+    // 選んだ節がロックされていて何も消さないときも、ここで受け止める（Excalidraw の削除に回さない）。
+    if (!change.patches.size) return ids.some((id) => find(id)?.node.element.locked);
+    const first = ids.map(find).find((found) => found !== null);
+    return runMindmap({ ...change, select: first?.node.parent?.id });
   }, [api, runMindmap]);
   const finishMindmapGesture = useCallback((ids: string[], dragged: boolean) => {
     if (!api || !mounted.current || !editableRef.current) return;
@@ -762,19 +765,14 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     run: (name, value) => (name === "deleteSelectedElements" && mindmapDeleteSelection()) || actions.run(name, value),
   }, [actions, mindmapDeleteSelection]);
   // 複製（Ctrl+D・Alt ドラッグ・貼り付け）した節の印を付け直す（親を一緒に複製しなかった節は新しい木の根になる）。
-  // 返すのは複製のすべて（返さなかった複製は作られない）。
-  const onDuplicate = useCallback((_next: readonly unknown[], _previous: readonly unknown[], data: OnDuplicateData) => {
+  // Excalidraw は返した並びから次の場面を作るので、複製していない要素も含めて全部返す。
+  const onDuplicate = useCallback((next: readonly ExcalidrawElement[], _previous: readonly unknown[], data: OnDuplicateData) => {
     const pairs = [...data.duplicateIdToOrigId].flatMap(([duplicateId, originalId]) => {
       const from = data.originalElements.get(originalId);
       const to = data.duplicateElements.get(duplicateId);
       return from && to ? [{ from: from as unknown as SceneElement, to: to as unknown as SceneElement }] : [];
     });
-    if (!pairs.some(({ from }) => mindmapDataOf(from.customData))) return;
-    const patches = remapMindmapDuplicates(pairs);
-    return [...data.duplicateElements.values()].map((element) => {
-      const values = patches.get(element.id);
-      return (values ? { ...element, ...values } : element) as unknown as ExcalidrawElement;
-    });
+    return remapMindmapDuplicateScene(next, pairs) ?? undefined;
   }, []);
 
   // ---- 表示位置を覚える。見えている範囲に内容が無ければ「内容に戻る」を出す。 ----
