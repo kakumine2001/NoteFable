@@ -2,12 +2,13 @@
 
 import "@/components/slides/slides.css";
 import {
-  ChevronDown, Copy, Download, Eye, EyeOff, FileImage, FileText, Flag, Image as ImageIcon, ImagePlus, LayoutGrid, LayoutTemplate, MessageSquareText, Minus, Monitor, MoveRight, Palette, PenTool,
+  ChevronDown, Copy, Download, Eye, EyeOff, FileImage, FileText, Flag, Image as ImageIcon, ImagePlus, LayoutGrid, LayoutTemplate, LoaderCircle, MessageSquareText, Minus, Monitor, MoveRight, Palette, PenTool,
   Play, Plus, Presentation, Redo2, Scissors, Shapes, SquareDashed, StickyNote, Table, Trash2, Type, Undo2, Upload, Clipboard,
 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { AppIcon } from "@/components/app-icon";
 import type { CanvasEditorProps } from "@/components/canvas-editors";
+import { GuestLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
 import { useT } from "@/components/i18n-provider";
 import { ChatImagesDialog, GenerateImageDialog, ReportImageDialog } from "@/components/slides/slide-dialogs";
 import { ELEMENT_LABELS, LayoutPreview, SlideInspector, TextFormatBar } from "@/components/slides/slide-inspector";
@@ -17,13 +18,15 @@ import { SlidePlayer, type PlayerControl } from "@/components/slides/slide-playe
 import { SlideRenderRoot } from "@/components/slides/slide-render";
 import { SlideStage, type StageHandle } from "@/components/slides/slide-stage";
 import type { TextCommands } from "@/components/slides/text-editor";
+import { useAccount } from "@/lib/account-store";
 import type { CanvasData } from "@/lib/canvas-document";
 import { getNativeExportEpoch } from "@/lib/export-file";
 import { localizeSystemText } from "@/lib/i18n/translate";
-import { nativeCanPresent, postToNative } from "@/lib/native-bridge";
+import { nativeCanPresent, nativeCanShowUsageLimit, postToNative } from "@/lib/native-bridge";
 import { takeCanvasReveal } from "@/lib/search-reveal";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import { hasWhiteboardFrameProvider, renderWhiteboardFramePicker, subscribeWhiteboardFrameProvider } from "@/lib/slides/whiteboard-embed";
+import { applyGeneratedSlideImage, clearPendingSlideImages, pendingSlideImageTasks } from "@/lib/slides/ai-build";
 import { createImageElement, createLineElement, createShapeElement, createTableElement, createTextElement, createWhiteboardElement } from "@/lib/slides/factory";
 import { expandGroups } from "@/lib/slides/geometry";
 import { uploadSlideImage, SLIDE_IMAGE_TYPES, type SlideImage } from "@/lib/slides/images";
@@ -39,9 +42,14 @@ import { resolveTheme, SLIDE_THEMES } from "@/lib/slides/themes";
 import type { ExportFormat } from "@/lib/slides/export-files";
 import { useSlideCapture } from "@/components/slides/slide-capture";
 import { useMediaQuery } from "@/lib/use-media-query";
+import { announceStorageLimit } from "@/lib/storage-limit-client";
 import { StorageLimitError } from "@/lib/usage-plans";
 import { SLIDES_EVENTS, slidesContextText, slidesSelectionIds, type SlidesSelectionDetail } from "@/lib/slides/ai-context";
 import { captureSlideSelectionPng } from "@/lib/slides/selection-capture";
+import {
+  dismissSlideImageJob, getSlideImageJob, registerSlideImageEditor, resumeSlideImageJob, stopSlideImageJob, subscribeSlideImageJobs,
+  type SlideImageJob,
+} from "@/lib/slides-image-jobs";
 
 // スライドのエディター（Figma Slides 式）。総覧（行 = 章）と単ページ編集、版式・主題、自由配置、放映、書き出し。
 // 保存は NotesWorkspace の保存キューが受け持つ（変わった本体を onChange で渡す）。取り消し・やり直しはこの中で持つ。
@@ -97,6 +105,46 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   // 待ったあと（アップロード・生成の完了）に、いま見えている本体を読むため。
   const deckRef = useRef(deck);
   useLayoutEffect(() => { deckRef.current = deck; }, [deck]);
+
+  // AI スライド生成の逐页配図（slides-image-jobs.ts）と同期する：開いている間はエディターの commit 経由で差し込み、409 競合や再マウントを防ぐ。
+  const { account } = useAccount();
+  const imageJob = useSyncExternalStore(subscribeSlideImageJobs, () => getSlideImageJob(pageId), () => null);
+  const pendingImages = useMemo(() => pendingSlideImageTasks(deck), [deck]);
+  const [closedImageLimit, setClosedImageLimit] = useState<SlideImageJob | null>(null);
+  const lastAnnouncedStorage = useRef<SlideImageJob | null>(null);
+  const lastAnnouncedUsage = useRef<SlideImageJob | null>(null);
+  useEffect(() => {
+    if (!editable) return;
+    return registerSlideImageEditor(pageId, {
+      getDeck: () => deckRef.current,
+      applyImage: (input) => {
+        const preview = applyGeneratedSlideImage(deckRef.current, input);
+        if (!preview.applied) return false;
+        deckRef.current = preview.deck;
+        commit((latest) => applyGeneratedSlideImage(latest, input).deck);
+        return true;
+      },
+    });
+  }, [pageId, editable, commit]);
+  useEffect(() => {
+    if (!imageJob?.usageLimit || !embedded || lastAnnouncedUsage.current === imageJob) return;
+    lastAnnouncedUsage.current = imageJob;
+    if (nativeCanShowUsageLimit()) {
+      postToNative({ type: "usageLimit", tier: imageJob.usageLimit.tier, kind: "image", pageId });
+    }
+  }, [embedded, imageJob, pageId]);
+  useEffect(() => {
+    if (!imageJob?.storageLimit || lastAnnouncedStorage.current === imageJob) return;
+    lastAnnouncedStorage.current = imageJob;
+    announceStorageLimit(new StorageLimitError(
+      imageJob.storageLimit.message,
+      imageJob.storageLimit.tier,
+      imageJob.storageLimit.used,
+      imageJob.storageLimit.limit,
+    ));
+  }, [imageJob]);
+  const showImageGuestPrompt = !embedded && imageJob !== closedImageLimit && imageJob?.usageLimit?.tier === "guest" && Boolean(account?.configured && !account.user);
+  const showImageUpgradePrompt = !embedded && imageJob !== closedImageLimit && imageJob?.usageLimit?.tier === "member" && Boolean(account?.billing && account.user);
   const theme = useMemo(() => resolveTheme(deck.theme), [deck.theme]);
   const [view, setView] = useState<"slide" | "grid">("slide");
   const [currentId, setCurrentId] = useState<string | null>(() => initial.deck.slides[0]?.id ?? null);
@@ -335,8 +383,9 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     commit((latest) => updateSlide(latest, slideId, (slide) => {
       const existing = into(slide);
       if (existing?.type !== "image") return addElements(slide, [fresh]);
-      const { generated: _old, ...rest } = existing;
+      const { generated: _old, pendingImagePrompt: _pending, ...rest } = existing;
       void _old;
+      void _pending;
       return updateElements(slide, new Set([existing.id]), () => ({ ...rest, src: image.url, alt, ...generated }));
     }));
     const shown = deckRef.current.slides.find((slide) => slide.id === slideId);
@@ -675,6 +724,56 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
       {toolbar}
       {textCommands && <TextFormatBar commands={textCommands} tick={formatTick} theme={theme} />}
       {notice && <div className="slides-notice" role="alert">{localizeSystemText(notice, t)}<button type="button" className="notion-button" onClick={() => setNotice("")}>{t("Close")}</button></div>}
+      {imageJob?.status === "working" ? (
+        <div className="slides-image-banner" role="status" aria-live="polite">
+          <LoaderCircle size={15} className="shrink-0 animate-spin" aria-hidden="true" />
+          <div className="slides-image-banner-text">
+            <span>{t("Generating slide images… ({done}/{total})", { done: imageJob.completed, total: imageJob.total })}</span>
+            {imageJob.currentSlideTitle && <span className="slides-image-banner-sub">{t("Current slide: {title}", { title: imageJob.currentSlideTitle })}</span>}
+          </div>
+          <div className="slides-image-banner-actions">
+            <button type="button" className="notion-button" disabled={Boolean(imageJob.stopping)} onClick={() => stopSlideImageJob(pageId)}>
+              {imageJob.stopping ? t("Stopping after this slide…") : t("Stop")}
+            </button>
+          </div>
+        </div>
+      ) : editable && pendingImages.length > 0 ? (
+        <div className="slides-image-banner" role="status" aria-live="polite">
+          <ImageIcon size={15} className="shrink-0" aria-hidden="true" />
+          <div className="slides-image-banner-text">
+            <span>
+              {imageJob && (imageJob.status === "stopped" || imageJob.status === "error") && imageJob.completed > 0
+                ? t("Generated {done} of {total} slide images. {remaining} remaining.", {
+                    done: imageJob.completed,
+                    total: imageJob.completed + pendingImages.length,
+                    remaining: pendingImages.length,
+                  })
+                : t("{count} slide images left to generate (up to {count} image credits).", { count: pendingImages.length })}
+            </span>
+            {imageJob?.error && <span className="slides-image-banner-error" role="alert">{localizeSystemText(imageJob.error, t)}</span>}
+          </div>
+          <div className="slides-image-banner-actions">
+            <button type="button" className="notion-button notion-button-primary" onClick={() => void resumeSlideImageJob(pageId)}>{t("Resume")}</button>
+            <button type="button" className="notion-button" onClick={() => { commit((latest) => clearPendingSlideImages(latest)); dismissSlideImageJob(pageId); }}>{t("Dismiss")}</button>
+          </div>
+        </div>
+      ) : imageJob?.status === "done" && imageJob.total > 0 ? (
+        <div className="slides-image-banner" role="status" aria-live="polite">
+          <ImageIcon size={15} className="shrink-0" aria-hidden="true" />
+          <div className="slides-image-banner-text">
+            <span>{t("Generated {total} slide images.", { total: imageJob.completed })}</span>
+          </div>
+          <div className="slides-image-banner-actions">
+            <button type="button" className="notion-button" onClick={() => dismissSlideImageJob(pageId)}>{t("Close")}</button>
+          </div>
+        </div>
+      ) : null}
+      {(showImageGuestPrompt || showImageUpgradePrompt) && (
+        <div className="slides-image-limit">
+          {showImageGuestPrompt && <GuestLimitPrompt kind="image" onClose={() => setClosedImageLimit(imageJob)} />}
+          {showImageUpgradePrompt && <UpgradePrompt kind="image" onClose={() => setClosedImageLimit(imageJob)} />}
+        </div>
+      )}
       {!deck.slides.length ? <div className="slides-empty">
         <Presentation size={40} strokeWidth={1.3} aria-hidden="true" />
         <h2>{t("This slide deck is empty")}</h2>

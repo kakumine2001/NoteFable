@@ -1,14 +1,15 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// 提案の「元に戻す」と縮小画像のエンドポイント（処理そのものは src/lib/page-ai/proposals.test.ts）。
-const mocks = vi.hoisted(() => ({ undo: vi.fn(), image: vi.fn(), sync: vi.fn(), readUrl: vi.fn(), read: vi.fn() }));
+// 提案の「元に戻す」・縮小画像・改前/改後コンテンツ取得エンドポイント（処理そのものは src/lib/page-ai/proposals.test.ts）。
+const mocks = vi.hoisted(() => ({ undo: vi.fn(), image: vi.fn(), content: vi.fn(), sync: vi.fn(), readUrl: vi.fn(), read: vi.fn() }));
 vi.mock("@/lib/storage", () => ({ getStoredImageReadUrl: mocks.readUrl, readStoredImage: mocks.read }));
 vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "u1" }) }));
 vi.mock("@/lib/note-embeddings", () => ({ scheduleNoteEmbeddingSync: mocks.sync }));
-vi.mock("@/lib/page-ai/proposals", () => ({ undoProposal: mocks.undo, proposalImage: mocks.image }));
+vi.mock("@/lib/page-ai/proposals", () => ({ undoProposal: mocks.undo, proposalImage: mocks.image, proposalContent: mocks.content }));
 import { POST as undo } from "./undo/route";
 import { GET as image } from "./image/route";
+import { GET as content } from "./content/route";
 
 const context = { params: Promise.resolve({ proposalId: "prop1" }) };
 
@@ -81,5 +82,49 @@ describe("GET /api/proposals/:id/image", () => {
     expect(mocks.image).not.toHaveBeenCalled();
     mocks.image.mockResolvedValue(null);
     expect((await get("?change=0&side=before")).status).toBe(404);
+  });
+});
+
+describe("GET /api/proposals/:id/content", () => {
+  beforeEach(() => vi.clearAllMocks());
+  const get = (query: string) => content(new NextRequest(`http://localhost/api/proposals/prop1/content${query}`), context);
+
+  it("returns before/after canvas content with Cache-Control: private, no-store", async () => {
+    const payload = {
+      kind: "edit",
+      pageKind: "whiteboard",
+      status: "pending",
+      side: "after",
+      title: "Plan",
+      changes: [],
+      focusIds: ["e1"],
+      data: { elements: [{ id: "e1", type: "rectangle" }] },
+    };
+    mocks.content.mockResolvedValue({ ok: true, content: payload });
+    const response = await get("?side=after");
+    expect(mocks.content).toHaveBeenCalledWith("u1", "prop1", "after");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(await response.json()).toEqual(payload);
+  });
+
+  it("rejects invalid side params, forwards 404/400 errors, and answers 503 on DB error", async () => {
+    for (const query of ["", "?side=", "?side=middle", "?side=BEFORE"]) {
+      const bad = await get(query);
+      expect(bad.status).toBe(400);
+      expect(bad.headers.get("Cache-Control")).toBe("private, no-store");
+    }
+    expect(mocks.content).not.toHaveBeenCalled();
+
+    mocks.content.mockResolvedValue({ ok: false, httpStatus: 404, error: "Proposal not found." });
+    const notFound = await get("?side=before");
+    expect(notFound.status).toBe(404);
+    expect(notFound.headers.get("Cache-Control")).toBe("private, no-store");
+
+    mocks.content.mockRejectedValue(new Error("db down"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const down = await get("?side=before");
+    expect(down.status).toBe(503);
+    expect(down.headers.get("Cache-Control")).toBe("private, no-store");
   });
 });

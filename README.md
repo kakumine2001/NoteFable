@@ -236,7 +236,7 @@ flowchart LR
 - **前端与全栈**：Next.js 16 App Router · React 19 · Tailwind CSS v4
 - **数据与存储**：Prisma 7 · Neon PostgreSQL 18 · Private Vercel Blob
 - **模型接口**：OpenAI Responses API / Images API · DeepSeek Responses API · Anthropic Messages API
-- **部署与观测**：Vercel（GitHub `main` 联动自动部署）· `@vercel/analytics` · `@vercel/speed-insights`（已在 `src/app/layout.tsx` 启用）
+- **部署与观测**：Vercel（GitHub `main` 联动自动部署）· `@vercel/analytics` · `@vercel/speed-insights`（已在 `src/app/layout.tsx` 启用；公开分享页 `/s/…` 和原生 App 内嵌的编辑页 `/note-embed` 不发送）
 
 ### 线上部署概览
 

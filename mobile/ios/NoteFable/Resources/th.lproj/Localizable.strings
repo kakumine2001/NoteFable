@@ -290,6 +290,7 @@
 "proposal_op_elements" = "%1$s · %2$s องค์ประกอบ";
 "proposal_before" = "ก่อน";
 "proposal_after" = "หลัง";
+"proposal_view_preview" = "ดูตัวอย่าง";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "แนบหน้า";

@@ -118,8 +118,11 @@ function buildInstructions({ webSearchMode, pageTools = false, note, project, cu
   // 操作のツールがまだ無い種類（AI からは読むだけ）。#153・#150 でアダプターに操作を足すと、ここから外れる。
   const readOnly = allAdapters().filter((adapter) => !adapter.edit && adapter.kind !== "note").map((adapter) => KIND_NOUNS[adapter.kind].many);
   const editTools = allAdapters().filter((adapter) => adapter.edit && adapter.kind !== "note").map((adapter) => `${adapter.edit!.tool.name} for ${KIND_NOUNS[adapter.kind].many}`);
+  const createTools = allAdapters().filter((adapter) => adapter.create && adapter.kind !== "note").map((adapter) => `${adapter.create!.tool.name} for ${KIND_NOUNS[adapter.kind].many}`);
+  const noteAdapterForKind = note?.kind ? allAdapters().find((adapter) => adapter.kind === note.kind) : undefined;
   const noteNoun = KIND_NOUNS[note?.kind ?? "note"];
   const noteReadOnly = readOnly.includes(noteNoun.many);
+  const noteEditTool = noteAdapterForKind?.edit?.tool.name;
   return [
     "You are NoteFable, a concise, friendly AI study assistant. Help users learn clearly.",
     "Answer in the user's language unless they ask otherwise.",
@@ -132,20 +135,20 @@ function buildInstructions({ webSearchMode, pageTools = false, note, project, cu
       ? [
           "You can search and read the user's own pages (notes, whiteboards and slide decks), kept in their NoteFable Workspace, with the search_notes and read_note tools (search_notes matches by meaning as well as keywords), and browse them with list_pages. Use them when the user refers to their notes, slides, whiteboards or Workspace or asks about personal records, plans, or topics they may have saved there; skip searching for general questions unrelated to their pages, and never guess what a page says.",
           // ワークスペースには 3 種類のページがある。種類ごとの操作はアダプター（src/lib/page-ai/）が持ち、無い種類は読むだけ。
-          `The user's Workspace holds three kinds of pages: notes, whiteboards and slide decks. search_notes and list_pages find all of them and show each page's kind; read_note returns structured content for whiteboards (frames, elements with IDs/types/text/groups/page links and arrow/line connections) and slide decks (theme, sections, slides with IDs/layouts, elements with IDs/roles/tables/image descriptions and speaker notes).${editTools.length ? ` Change those only with their own tools: ${editTools.join(", ")}.` : ""}${readOnly.length ? ` ${capitalize(readOnly.join(" and "))} can't be changed with the tools yet: never try to edit one with propose_note_edit, and tell the user it can't be edited from chat yet.` : ""}`,
+          `The user's Workspace holds three kinds of pages: notes, whiteboards and slide decks. search_notes and list_pages find all of them and show each page's kind; read_note returns structured content for whiteboards (frames, elements with IDs/types/text/groups/page links and arrow/line connections) and slide decks (theme, sections, slides with IDs/layouts, elements with IDs/roles/tables/image descriptions and speaker notes).${editTools.length ? ` Change those only with their own tools: ${editTools.join(", ")} (call read_note first, pass its version, and never invent pixel coordinates).` : ""}${createTools.length ? ` To create new ones, use ${createTools.join(", ")}.` : ""}${readOnly.length ? ` ${capitalize(readOnly.join(" and "))} can't be changed with the tools yet: never try to edit one with propose_note_edit, and tell the user it can't be edited from chat yet.` : ""}`,
           autoApply
             // AI パネルの「自動適用」。提案はすぐ適用され、履歴にも残り、利用者はカードから元に戻せる。
             ? "To change a note, call read_note first and then propose_note_edit. The user turned on auto-apply in this panel: your edits to the page open in this panel (unless it is locked) and new pages are applied right away (the previous version stays in the page history and the user can undo the change from the card); edits to other pages stay proposals the user applies. Follow each tool result: say a page was changed or created only when the result says it was applied."
-            : "To change a note, call read_note first and then propose_note_edit. That only shows the user a proposal to review; the note changes only after they apply it, so never say a note was updated.",
+            : "To change a note, call read_note first and then propose_note_edit. That only shows the user a proposal to review; the page changes only after they apply it, so never say a page was updated.",
           "Notes can hold uploaded images and files, shown to you as [Image: …] / [File: …]; propose_note_edit may replace or delete those blocks. When the user wants an image they sent in this chat placed in a note, call list_chat_attachments and put the line ![caption](attachment:ID), alone on its own line, in the proposal's markdown.",
           autoApply
             ? "To make a new note, call propose_note_create (parentId puts it inside another page)."
-            : "To make a new note, call propose_note_create (parentId puts it inside another page). It also only shows a proposal until the user applies it, so never say a note was created.",
+            : "To make a new note, call propose_note_create (parentId puts it inside another page). It also only shows a proposal until the user applies it, so never say a page was created.",
           ...(preview ? ["When the layout, colors or drawings of a whiteboard or slide matter, call preview_page to see it as an image."] : []),
           ...(note && isCanvasKind(note.kind)
             ? [
-                // ホワイトボード・スライドから始めた会話。読むだけの種類なら、本文の文字は読めるが変えられない（操作は #153・#150）。
-                `${note.continuedInChats ? "This conversation was started from inside the user's" : "The user is asking from inside their"} ${noteNoun.one} ${JSON.stringify(note.title.slice(0, 80))} (noteId: ${note.id}). Unless they clearly mean something else, treat requests as being about it: call read_note with this noteId to read it.${noteReadOnly ? " You cannot change it with the tools." : ""}`,
+                // ホワイトボード・スライドから始めた会話。操作可能な種類は専用の編集ツールを案内し、読むだけの種類は変えられないと伝える。
+                `${note.continuedInChats ? "This conversation was started from inside the user's" : "The user is asking from inside their"} ${noteNoun.one} ${JSON.stringify(note.title.slice(0, 80))} (noteId: ${note.id}). Unless they clearly mean something else, treat requests as being about it: call read_note with this noteId to read it.${noteReadOnly ? " You cannot change it with the tools." : noteEditTool ? ` When the user asks to edit, add, delete, connect, group or organize items on it, call ${noteEditTool} with the version returned by read_note. Change only what was asked and leave the rest as it is.${autoApply ? "" : " The page changes only after the user applies your proposal."}` : ""}`,
                 ...(selection?.ids.length
                   ? [`The user selected these ${noteNoun.parts} in it (their IDs as shown by read_note): ${JSON.stringify(selection.ids)}. Their text, if any, is quoted at the start of the message. Focus on them unless the user clearly means the whole ${noteNoun.one}.`]
                   : selection?.text

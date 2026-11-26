@@ -63,6 +63,7 @@ struct SlidesWizardScreen: View {
         let chat = app.chat.state
         let resolvedTheme = (colorScheme == .dark ? ResolvedTheme.dark : ResolvedTheme.light).rawValue
         let usage = notes.state.wizardUsageLimit
+        let storage = notes.state.wizardStorageLimit
         let showUsagePrompt: Bool = {
             guard let usage else { return false }
             if usage.tier == "guest" { return app.account.state.configured && app.account.state.user == nil }
@@ -71,7 +72,13 @@ struct SlidesWizardScreen: View {
         }()
 
         VStack(spacing: 0) {
-            if showUsagePrompt, let usage {
+            if let storage {
+                GuestLimitPrompt(storage: storage, attachmentsLost: false) {
+                    notes.dismissWizardStorageLimit()
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+            } else if showUsagePrompt, let usage {
                 GuestLimitPrompt(usage: usage, attachmentsLost: false) {
                     notes.dismissWizardUsageLimit()
                 }

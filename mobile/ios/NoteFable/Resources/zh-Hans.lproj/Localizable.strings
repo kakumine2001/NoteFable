@@ -290,6 +290,7 @@
 "proposal_op_elements" = "%1$s · %2$s 个元素";
 "proposal_before" = "修改前";
 "proposal_after" = "修改后";
+"proposal_view_preview" = "查看预览";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "添加页面";

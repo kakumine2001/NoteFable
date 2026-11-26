@@ -290,6 +290,7 @@
 "proposal_op_elements" = "%1$s · %2$s elemen";
 "proposal_before" = "Sebelum";
 "proposal_after" = "Sesudah";
+"proposal_view_preview" = "Lihat pratinjau";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "Lampirkan halaman";

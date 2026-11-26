@@ -290,6 +290,7 @@
 "proposal_op_elements" = "%1$s · %2$s elementos";
 "proposal_before" = "Antes";
 "proposal_after" = "Después";
+"proposal_view_preview" = "Ver vista previa";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "Adjuntar páginas";

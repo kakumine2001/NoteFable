@@ -89,4 +89,5 @@
     <string name="proposal_op_elements">%1$s · 요소 %2$s개</string>
     <string name="proposal_before">변경 전</string>
     <string name="proposal_after">변경 후</string>
+    <string name="proposal_view_preview">미리보기 보기</string>
 </resources>

@@ -290,6 +290,7 @@
 "proposal_op_elements" = "%1$s · 요소 %2$s개";
 "proposal_before" = "변경 전";
 "proposal_after" = "변경 후";
+"proposal_view_preview" = "미리보기 보기";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "페이지 첨부";

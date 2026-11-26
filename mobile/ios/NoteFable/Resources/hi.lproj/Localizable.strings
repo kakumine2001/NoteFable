@@ -290,6 +290,7 @@
 "proposal_op_elements" = "%1$s · %2$s तत्व";
 "proposal_before" = "पहले";
 "proposal_after" = "बाद में";
+"proposal_view_preview" = "पूर्वावलोकन देखें";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "पेज अटैच करें";

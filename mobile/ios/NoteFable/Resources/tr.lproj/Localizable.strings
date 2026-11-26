@@ -290,6 +290,7 @@
 "proposal_op_elements" = "%1$s · %2$s öğe";
 "proposal_before" = "Önce";
 "proposal_after" = "Sonra";
+"proposal_view_preview" = "Önizlemeyi görüntüle";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "Sayfa ekle";

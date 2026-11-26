@@ -26,6 +26,7 @@ export const SYSTEM_TEXT_TEMPLATES = [
   "Project names can have at most {max} characters.",
   "Proposed edits to “{title}”",
   "Proposed new note “{title}”",
+  "Proposed new page “{title}”",
   "Read “{title}”",
   "Request failed: {detail}",
   "Scope must be one of: {scopes}.",

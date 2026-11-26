@@ -72,6 +72,17 @@ struct ProposalCard: View {
             if open {
                 FittingScrollView(maxHeight: 352) {
                     VStack(alignment: .leading, spacing: 9.6) {
+                        if proposal.pageKind != .note {
+                            ProposalActionButton(
+                                title: L("proposal_view_preview"),
+                                icon: Lucide.eye,
+                                primary: false,
+                                busy: false,
+                                spinning: false
+                            ) {
+                                router.openProposalPreview(proposal)
+                            }
+                        }
                         content
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)

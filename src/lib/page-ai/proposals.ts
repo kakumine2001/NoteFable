@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
 import type { Prisma } from "@/generated/prisma/client";
+import { emptyCanvasData, type CanvasData } from "@/lib/canvas-document";
+import { readCanvasData } from "@/lib/canvas-store";
 import { NoteValidationError } from "@/lib/note-document";
 import { createRevision } from "@/lib/note-revisions";
 import { descendantIds, lockNoteOrder } from "@/lib/note-tree-server";
-import { isCanvasKind, NOT_A_NOTE_ERRORS, pageKindOf, type PageKind } from "@/lib/page-kinds";
+import { isCanvasKind, NOT_A_NOTE_ERRORS, pageKindOf, type CanvasKind, type PageKind } from "@/lib/page-kinds";
 import { prisma } from "@/lib/prisma";
 import { getImageExtension } from "@/lib/storage";
 import { discardStoredFiles, storeFile } from "@/lib/stored-files";
@@ -21,14 +23,15 @@ import type { PageCreateProposal, PageEditProposal, ProposalChange, ProposalStat
 // 提案の縮小画像。本体はファイル置き場（StoredFile の PROPOSAL_IMAGE）に置き、提案にはその場所だけを残す（画像を DB に入れない）。
 type StoredImage = { change: number; side: "before" | "after"; mimeType: ProposalImage["mimeType"]; path: string };
 
-// NoteProposal.payload に保存する形。proposed は適用で書く内容（画面には返さない）、images は縮小画像の置き場所（画面には URL で返す）。
+// NoteProposal.payload に保存する形。proposed は適用で書く内容（画面には返さない）、images は縮小画像の置き場所（画面には URL で返す）、
+// focusIds は影響した要素・スライド ID（content API のプレビュー専用で、SSE やメッセージ履歴には流さない）。
 type EditPayload = {
   pageId: string; pageTitle: string; baseVersion: number; title?: { before: string; after: string };
-  changes: ProposalChange[]; proposed: ProposedContent; images?: StoredImage[];
+  changes: ProposalChange[]; proposed: ProposedContent; images?: StoredImage[]; focusIds?: string[];
 };
 type CreatePayload = {
   title: string; icon: string | null; content: string; parentId?: string | null; parentTitle?: string;
-  changes?: ProposalChange[]; proposed: ProposedContent; images?: StoredImage[];
+  changes?: ProposalChange[]; proposed: ProposedContent; images?: StoredImage[]; focusIds?: string[];
 };
 
 // 画面とやり取りする形（chat-activity.ts の proposal / create_proposal と同じ項目に、状態を足したもの）。
@@ -81,10 +84,12 @@ export function toProposalView(row: Row): ProposalView {
     ...(status === "applied" && row.appliedVersion !== null ? { undoable: true } : {}),
   };
   if (row.kind === "EDIT") {
-    const { proposed, images, changes, ...rest } = row.payload as EditPayload;
+    const { proposed, images, focusIds, changes, ...rest } = row.payload as EditPayload;
+    void focusIds;
     return { ...rest, changes: withImages(row.id, changes, images) ?? [], proposed: { title: proposed.title, blocks: [] }, ...state, kind: "proposal" };
   }
-  const { proposed, images, changes, ...rest } = row.payload as CreatePayload;
+  const { proposed, images, focusIds, changes, ...rest } = row.payload as CreatePayload;
+  void focusIds;
   const shown = withImages(row.id, changes, images);
   return { ...rest, ...(shown ? { changes: shown } : {}), proposed: { title: proposed.title, icon: proposed.icon ?? null, blocks: [] }, ...state, kind: "create_proposal" };
 }
@@ -134,19 +139,28 @@ export type SaveInput =
   | { kind: "EDIT"; pageKind: PageKind; page: { id: string; title: string; version: number }; draft: EditDraft }
   | { kind: "CREATE"; pageKind: PageKind; draft: CreateDraft; parentTitle?: string };
 
+function keptFocusIds(focusIds: string[] | undefined): string[] | undefined {
+  if (!Array.isArray(focusIds) || !focusIds.length) return undefined;
+  const unique = [...new Set(focusIds.filter((id): id is string => typeof id === "string" && id.trim().length > 0 && id.length <= 120))].slice(0, 200);
+  return unique.length ? unique : undefined;
+}
+
 export async function saveProposal(userId: string, sessionId: string, input: SaveInput): Promise<ProposalView> {
   const images = await storeImages(userId, keptImages(input.draft.images));
+  const focusIds = keptFocusIds(input.draft.focusIds);
   const payload: EditPayload | CreatePayload = input.kind === "EDIT"
     ? {
         pageId: input.page.id, pageTitle: input.page.title, baseVersion: input.page.version,
         ...(input.draft.title ? { title: input.draft.title } : {}), changes: input.draft.changes, proposed: input.draft.proposed,
         ...(images.length ? { images } : {}),
+        ...(focusIds ? { focusIds } : {}),
       }
     : {
         title: input.draft.title, icon: input.draft.icon, content: input.draft.content,
         ...(input.draft.parentId ? { parentId: input.draft.parentId, ...(input.parentTitle !== undefined ? { parentTitle: input.parentTitle } : {}) } : {}),
         ...(input.draft.changes?.length ? { changes: input.draft.changes } : {}), proposed: input.draft.proposed,
         ...(images.length ? { images } : {}),
+        ...(focusIds ? { focusIds } : {}),
       };
   try {
     const row = await prisma.noteProposal.create({
@@ -202,11 +216,14 @@ const finalState = (row: Pick<Row, "status" | "appliedPageId" | "appliedVersion"
   status: STATUS[row.status], pageId: row.appliedPageId, undoable: row.status === "APPLIED" && row.appliedVersion !== null,
 });
 
+// 消えたページの文言は、提案した種類に合わせる。
+const gone = (row: Pick<Row, "pageKind">) => row.pageKind === "note" ? msg("This note no longer exists.") : msg("This page no longer exists.");
+
 // 適用済みなら、そのときの結果（いまのページ）をそのまま返す。
 async function appliedResult(userId: string, row: Row): Promise<ApplyResult> {
   const pageId = row.appliedPageId ?? (row.kind === "EDIT" ? editPayload(row.payload, row.pageKind)?.pageId : null);
   const page = pageId ? await loadFullPage(userId, pageId) : null;
-  if (!page) return fail(404, msg("This note no longer exists."), finalState(row));
+  if (!page) return fail(404, gone(row), finalState(row));
   return { ok: true, status: "applied", kind: row.kind === "EDIT" ? "edit" : "create", page };
 }
 
@@ -216,7 +233,9 @@ async function editConflict(userId: string, row: Row, pageId: string): Promise<A
   if (!exists) return fail(404, msg("Page not found."));
   const kind = pageKindOf(exists);
   if (kind !== row.pageKind && row.pageKind === "note" && isCanvasKind(kind)) return fail(409, NOT_A_NOTE_ERRORS[kind]);
-  return fail(409, msg("This note changed after the proposal was made. Ask again to get a fresh proposal."));
+  return fail(409, row.pageKind === "note"
+    ? msg("This note changed after the proposal was made. Ask again to get a fresh proposal.")
+    : msg("This page changed after the proposal was made. Ask again to get a fresh proposal."));
 }
 
 // auto は AI パネルの「自動適用」（利用者が確認せずに適用した）。
@@ -269,7 +288,7 @@ export async function applyProposal(userId: string, id: string, { auto = false }
     }, { timeout: 20_000 });
     if (!applied) return afterLostClaim();
     const page = await loadFullPage(userId, applied);
-    if (!page) return fail(404, msg("This note no longer exists."), { status: "applied", pageId: applied, undoable: true });
+    if (!page) return fail(404, gone(row), { status: "applied", pageId: applied, undoable: true });
     return { ok: true, status: "applied", kind: edit ? "edit" : "create", page };
   } catch (error) {
     if (error instanceof Conflict) return editConflict(userId, row, edit!.pageId);
@@ -393,6 +412,130 @@ export async function proposalImage(userId: string, id: string, change: number, 
   const image = Array.isArray(images) ? images.find((entry) => entry && entry.change === change && entry.side === side) : undefined;
   if (!image || typeof image.path !== "string" || !image.path.startsWith(`proposal-images/${userId}/`) || !PROPOSAL_IMAGE_TYPES.has(image.mimeType)) return null;
   return { mimeType: image.mimeType, path: image.path };
+}
+
+export type ProposalContentReason = "version_mismatch" | "deleted" | "revision_missing" | "discarded" | "invalid";
+
+export type ProposalContentPayload = {
+  kind: "edit" | "create";
+  pageKind: CanvasKind;
+  status: ProposalStatus;
+  side: "before" | "after";
+  title: string;
+  pageTitle?: string;
+  titleDiff?: { before: string; after: string };
+  content?: string;
+  parentTitle?: string;
+  changes: ProposalChange[];
+  focusIds?: string[];
+  data?: CanvasData;
+  empty?: true;
+  stale?: true;
+  unavailable?: true;
+  reason?: ProposalContentReason;
+};
+
+export type ProposalContentResult =
+  | { ok: true; content: ProposalContentPayload }
+  | { ok: false; httpStatus: number; error: string };
+
+// キャンバス提案（ホワイトボード・スライド）の改前・改後の本体を、プレビュー表示のために本人のみへ返す。
+// - side=after: NoteProposal.payload.proposed.data をそのまま返す。
+// - side=before:
+//   - CREATE は空（empty: true）。
+//   - EDIT + PENDING は生きているページの版が baseVersion と一致するときだけ本体を返し、ずれていれば stale（version_mismatch / deleted）。
+//   - EDIT + APPLIED / UNDONE は適用時に残した AI_EDIT 履歴（revisionId、本人限定）から返す。無ければ unavailable（revision_missing）。
+//   - EDIT + DISCARDED は unavailable（discarded）。
+export async function proposalContent(userId: string, id: string, side: "before" | "after"): Promise<ProposalContentResult> {
+  const row = await findProposal(userId, id);
+  if (!row) return { ok: false, httpStatus: 404, error: msg("Proposal not found.") };
+  if (!isCanvasKind(row.pageKind)) return { ok: false, httpStatus: 400, error: msg("Invalid request.") };
+
+  const status = STATUS[row.status];
+  const kind = row.kind === "EDIT" ? "edit" : "create";
+  const edit = row.kind === "EDIT" ? editPayload(row.payload, row.pageKind) : null;
+  const create = row.kind === "CREATE" ? createPayload(row.payload, row.pageKind) : null;
+  const rawPayload = (row.payload && typeof row.payload === "object" ? row.payload : null) as Partial<EditPayload & CreatePayload> | null;
+  const focusIds = keptFocusIds(rawPayload?.focusIds);
+  const changes = withImages(row.id, Array.isArray(rawPayload?.changes) ? rawPayload.changes : [], rawPayload?.images) ?? [];
+
+  const base: Omit<ProposalContentPayload, "title"> = {
+    kind,
+    pageKind: row.pageKind,
+    status,
+    side,
+    changes,
+    ...(focusIds ? { focusIds } : {}),
+    ...(edit ? { pageTitle: edit.pageTitle, ...(edit.title ? { titleDiff: edit.title } : {}) } : {}),
+    ...(create ? { content: create.content, ...(create.parentTitle !== undefined ? { parentTitle: create.parentTitle } : {}) } : {}),
+  };
+
+  if (side === "after") {
+    const payload = edit ?? create;
+    if (!payload?.proposed.data) {
+      return { ok: true, content: { ...base, title: typeof rawPayload?.title === "string" ? rawPayload.title : "", unavailable: true, reason: "invalid" } };
+    }
+    return {
+      ok: true,
+      content: {
+        ...base,
+        title: payload.proposed.title,
+        data: payload.proposed.data,
+      },
+    };
+  }
+
+  // side === "before"
+  if (row.kind === "CREATE") {
+    return {
+      ok: true,
+      content: {
+        ...base,
+        title: create?.title ?? (typeof rawPayload?.title === "string" ? rawPayload.title : ""),
+        empty: true,
+      },
+    };
+  }
+
+  if (!edit) {
+    return { ok: true, content: { ...base, title: "", unavailable: true, reason: "invalid" } };
+  }
+
+  if (row.status === "PENDING") {
+    const page = await prisma.notePage.findFirst({
+      where: { id: edit.pageId, userId, deletedAt: null },
+      select: { id: true, kind: true, title: true, version: true, canvas: { select: { data: true } } },
+    }) as { id: string; kind?: unknown; title: string; version: number; canvas?: { data: unknown } | null } | null;
+    if (!page) {
+      return { ok: true, content: { ...base, title: edit.pageTitle, stale: true, reason: "deleted" } };
+    }
+    if (page.version !== edit.baseVersion || pageKindOf(page) !== row.pageKind) {
+      return { ok: true, content: { ...base, title: edit.pageTitle, stale: true, reason: "version_mismatch" } };
+    }
+    const rawData = page.canvas !== undefined
+      ? page.canvas?.data
+      : await readCanvasData(userId, edit.pageId);
+    const data = rawData && typeof rawData === "object" && !Array.isArray(rawData)
+      ? rawData as CanvasData
+      : emptyCanvasData(row.pageKind);
+    return { ok: true, content: { ...base, title: page.title, data } };
+  }
+
+  if (row.status === "APPLIED" || row.status === "UNDONE") {
+    if (!row.revisionId) {
+      return { ok: true, content: { ...base, title: edit.pageTitle, unavailable: true, reason: "revision_missing" } };
+    }
+    const revision = await prisma.noteRevision.findFirst({
+      where: { id: row.revisionId, userId },
+      select: { title: true, data: true },
+    });
+    if (!revision || !revision.data || typeof revision.data !== "object" || Array.isArray(revision.data)) {
+      return { ok: true, content: { ...base, title: edit.pageTitle, unavailable: true, reason: "revision_missing" } };
+    }
+    return { ok: true, content: { ...base, title: revision.title, data: revision.data as CanvasData } };
+  }
+
+  return { ok: true, content: { ...base, title: edit.pageTitle, unavailable: true, reason: "discarded" } };
 }
 
 // 履歴の表示用に、セッションの提案を回答ごとにまとめる。回答に紐付いていない提案は出さない。

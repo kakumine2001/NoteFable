@@ -334,14 +334,15 @@ async function runCreate(adapter: PageAdapter, value: unknown, ctx: ToolContext)
       });
     if (!parent) {
       if (draft.copiedFiles?.length) await discardStoredFiles(draft.copiedFiles);
-      return toolError("The parent page was not found. Use an ID from search_notes or list_pages, or null.", msg("Note proposal rejected"));
+      return toolError("The parent page was not found. Use an ID from search_notes or list_pages, or null.", adapter.kind === "note" ? msg("Note proposal rejected") : msg("Page proposal rejected"));
     }
     parentTitle = parent.title;
   }
   const outcome = await saveAndMaybeApply(ctx, () => saveProposal(ctx.userId, ctx.sessionId, { kind: "CREATE", pageKind: adapter.kind, draft, parentTitle }), draft.copiedFiles, Boolean(ctx.autoApply || adapter.create!.direct));
   return {
     content: proposalResult("create", outcome),
-    label: outcome.applied ? fmt("Created page “{title}”", { title: draft.title }) : fmt("Proposed new note “{title}”", { title: draft.title }),
+    label: outcome.applied ? fmt("Created page “{title}”", { title: draft.title })
+      : adapter.kind === "note" ? fmt("Proposed new note “{title}”", { title: draft.title }) : fmt("Proposed new page “{title}”", { title: draft.title }),
     events: [{ ...outcome.view, type: "notefable.create_proposal" }],
   };
 }

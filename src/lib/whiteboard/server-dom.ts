@@ -78,7 +78,7 @@ function install() {
 }
 
 // fn の中（と、そこから続く非同期の処理）でだけ document / DOMParser が見える。
-export function withServerDom<T>(fn: () => Promise<T>): Promise<T> {
+export function withServerDom<T>(fn: () => T): T {
   install();
   return sharedScope().run({ document: fakeDocument(), DOMParser, window: undefined }, fn);
 }

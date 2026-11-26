@@ -62,9 +62,10 @@ const SELECTION_ACTIONS = [
   { label: msg("Translate"), prompt: "Translate the quoted excerpt naturally into English (or into the note's main language if it is already English). Do not edit the note unless asked." },
 ] as const;
 
-// ホワイトボード・スライドの頼み事。AI が操作できるようになるまで（#153・#150）、答えるだけのもの。
+// ホワイトボードの頼み事（#153：編集ツール対応。整理・整列は propose_whiteboard_edit で提案する）。
 const WHITEBOARD_ACTIONS = [
   { label: msg("Summarize"), prompt: "Summarize this whiteboard in a few bullet points, in its own language. Do not change it." },
+  { label: msg("Group & organize"), prompt: "Group and organize the elements on this whiteboard into clear clusters or frames using propose_whiteboard_edit, keeping all content in its own language." },
   { label: msg("Find gaps"), prompt: "Point out what is missing or unclear on this whiteboard, in its own language. Do not change it." },
   { label: msg("Suggest next steps"), prompt: "Suggest concrete next steps based on this whiteboard, in its own language. Do not change it." },
 ] as const;
@@ -72,14 +73,18 @@ const SLIDES_ACTIONS = [
   { label: msg("Summarize"), prompt: "Summarize this slide deck in a few bullet points, in its own language. Do not change it." },
   { label: msg("Suggest improvements"), prompt: "Suggest how to improve this slide deck (structure, clarity and wording), in its own language. Do not change it." },
 ] as const;
-// ホワイトボード・スライドで選んだ要素・スライドについての頼み事（PR 6/7 で編集ツールが入るまでは読み取り専用の助言）。
+// ホワイトボード・スライドで選んだ要素・スライドについての頼み事（ホワイトボードの「Group & organize」は propose_whiteboard_edit を使う）。
 const WHITEBOARD_SELECTION_ACTIONS = [
   { label: msg("Summarize"), prompt: "Summarize the selected items in their own language. Do not change the page unless asked." },
   { label: msg("Explain"), prompt: "Explain the selected items clearly in their own language. Do not change the page unless asked." },
-  { label: msg("Group & organize"), prompt: "Suggest how to group and organize the selected items, in their own language. Do not change the page unless asked." },
+  { label: msg("Group & organize"), prompt: "Group and organize the selected items cleanly into a neat layout or named frame(s) using propose_whiteboard_edit, keeping their own language." },
   { label: msg("Find gaps"), prompt: "Point out what is missing or unclear in the selected items, in their own language. Do not change the page unless asked." },
   { label: msg("Suggest next steps"), prompt: "Suggest concrete next steps based on the selected items, in their own language. Do not change the page unless asked." },
 ] as const;
+// 旧プロンプト（履歴の短いラベル復元用）。
+const LEGACY_WHITEBOARD_PROMPTS: readonly QuickAction[] = [
+  { label: msg("Group & organize"), prompt: "Suggest how to group and organize the selected items, in their own language. Do not change the page unless asked." },
+];
 const SLIDES_SELECTION_ACTIONS = [
   { label: msg("Summarize"), prompt: "Summarize the selected items in their own language. Do not change the page unless asked." },
   { label: msg("Explain"), prompt: "Explain the selected items clearly in their own language. Do not change the page unless asked." },
@@ -88,7 +93,7 @@ const SLIDES_SELECTION_ACTIONS = [
 ] as const;
 
 const ACTION_LABEL_BY_PROMPT = new Map<string, string>(
-  [...QUICK_ACTIONS, ...SELECTION_ACTIONS, ...WHITEBOARD_ACTIONS, ...SLIDES_ACTIONS, ...WHITEBOARD_SELECTION_ACTIONS, ...SLIDES_SELECTION_ACTIONS]
+  [...QUICK_ACTIONS, ...SELECTION_ACTIONS, ...WHITEBOARD_ACTIONS, ...SLIDES_ACTIONS, ...WHITEBOARD_SELECTION_ACTIONS, ...LEGACY_WHITEBOARD_PROMPTS, ...SLIDES_SELECTION_ACTIONS]
     .map((action) => [action.prompt, action.label]),
 );
 
@@ -103,7 +108,7 @@ const DEFAULT_ACTIONS: Record<PageKind, { quick: readonly QuickAction[]; selecti
 const KIND_TEXT: Record<PageKind, { title: string; placeholder: string; history: string; readOnly: string }> = {
   note: { title: msg("Ask AI about this note"), placeholder: msg("Ask AI to edit this note…"), history: msg("Chats in this note"), readOnly: "" },
   whiteboard: {
-    title: msg("Ask AI about this whiteboard"), placeholder: msg("Ask AI about this whiteboard…"), history: msg("Chats on this page"),
+    title: msg("Ask AI about this whiteboard"), placeholder: msg("Ask AI to edit this whiteboard…"), history: msg("Chats on this page"),
     readOnly: msg("Ask the AI about this whiteboard. It can read the text on it but can't change it yet."),
   },
   slides: {

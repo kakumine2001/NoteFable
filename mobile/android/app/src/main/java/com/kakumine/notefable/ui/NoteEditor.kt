@@ -518,7 +518,7 @@ internal fun embedRoute(message: EmbedMessage, activeEditor: String?): EmbedRout
     message is EmbedMessage.SlidesWizard -> EmbedRoute.Wizard
     activeEditor == null -> EmbedRoute.Drop
     activeEditor != SLIDES_WIZARD_EDITOR -> EmbedRoute.Editor
-    message is EmbedMessage.OpenPage || message is EmbedMessage.UsageLimit -> EmbedRoute.Wizard
+    message is EmbedMessage.OpenPage || message is EmbedMessage.UsageLimit || message is EmbedMessage.StorageLimit -> EmbedRoute.Wizard
     else -> EmbedRoute.Drop
 }
 
@@ -975,7 +975,13 @@ class NoteEmbedHost(
         val timeout = if (slidesWizardBusy) BUSY_IDLE_TIMEOUT_MS else IDLE_TIMEOUT_MS
         idleJob = hostScope.launch {
             delay(timeout)
-            if (isParked) destroy()
+            if (!isParked) return@launch
+            // 逐页配图等长时间后台任务仍在进行时续期，避免中途销毁 WebView 导致已扣费的图片丢失。
+            if (slidesWizardBusy) {
+                scheduleIdle()
+            } else {
+                destroy()
+            }
         }
     }
 

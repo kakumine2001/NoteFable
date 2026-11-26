@@ -10,7 +10,7 @@ import { descendantIdsOf } from "@/lib/note-tree";
 import { isImportableMarkdownFile, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_FILES, MAX_IMPORT_TOTAL_BYTES } from "@/lib/note-io";
 import { isCanvasKind, pageKindFeatures, pageKindOf, type PageKind } from "@/lib/page-kinds";
 import { CANVAS_DRAFT_PREFIX, canvasSaveBody, canvasSavedPage, newPageBody, parseCanvasDraft } from "@/lib/canvas-save";
-import { PAGES_TRASHED_EVENT, PAGES_WILL_TRASH_EVENT, type PagesWillTrashDetail } from "@/lib/proposal-sync";
+import { PAGES_TRASHED_EVENT, PAGES_WILL_CHANGE_EVENT, PAGES_WILL_TRASH_EVENT, type PagesWillTrashDetail } from "@/lib/proposal-sync";
 import { preloadPageEditor } from "@/lib/preload-editor";
 import { dispatchBacklinksStale } from "@/lib/note-backlinks";
 import { afterSheetHistory, isSheetCleanupPopState, restoreSheetMarker } from "@/lib/use-back-to-close";
@@ -557,13 +557,26 @@ export function useNotePages(
       const queue = queues.current.get(page.id);
       // 遅れて届いた古い版（自動適用の読み直しが前後したときなど）で、新しい版を古い版へ戻さない。
       if (!queue || page.version <= queue.version) return;
-      if (!queue.dirty && queue.status !== "saving") {
+      // 開いているホワイトボード等に 400ms 待ちの未提出ストローク・ドラッグがあれば、先に同期でキューへ渡してから判定する。
+      // そうしないと、エディターの再マウント時の unmount flush が古い画布を新しい版へ上書きして AI 編集を消してしまう。
+      const hasPendingEditorWork = displayedId.current === page.id && flushCanvasEditorsSync(page.id);
+      if (!hasPendingEditorWork && !queue.dirty && queue.status !== "saving") {
         // ホワイトボード・スライドで本体（data）の無い応答が届いたら、古い本体と新しい版を組み合わせない（別のタブの保存を上書きさせる）。
         // 読み直してから替える。
         if (isCanvasKind(pageKindOf(page.kind ? page : queue.page)) && page.data === undefined) {
           void pageRequest(`/api/pages/${page.id}`).then((data) => {
             const current = queues.current.get(page.id);
-            if (!current || current.dirty || current.status === "saving" || data.page.version <= current.version) return;
+            if (!current || data.page.version <= current.version) return;
+            const pendingNow = displayedId.current === page.id && flushCanvasEditorsSync(page.id);
+            if (pendingNow || current.dirty || current.status === "saving") {
+              if (current.status !== "saving") {
+                current.status = "conflict";
+                current.latest = data.page;
+                current.error = msg("This page was changed from the chat. Save a copy or load the latest version.");
+                refresh((value) => value + 1);
+              }
+              return;
+            }
             current.loadLatest(data.page);
             if (displayedId.current === page.id) setEditorEpoch((value) => value + 1);
           }).catch(() => { /* 次に開いた時に読み直す。 */ });
@@ -571,7 +584,7 @@ export function useNotePages(
         }
         queue.loadLatest(page);
         if (displayedId.current === page.id) setEditorEpoch((value) => value + 1);
-      } else {
+      } else if (queue.status !== "saving") {
         // 未保存の編集は消さず、衝突として知らせる。
         queue.status = "conflict";
         queue.latest = page;
@@ -654,17 +667,31 @@ export function useNotePages(
         window.history.replaceState(null, "", url);
       }
     }
+    function onPagesWillChange(event: Event) {
+      const detail = (event as CustomEvent<PagesWillTrashDetail | undefined>).detail;
+      if (!detail || !Array.isArray(detail.ids)) return;
+      const ids = new Set(detail.ids.filter((id): id is string => typeof id === "string"));
+      const openPage = displayedId.current !== null && ids.has(displayedId.current);
+      const pending = [...ids].flatMap((id) => { const queue = queues.current.get(id); return queue ? [queue] : []; });
+      if (!openPage && !pending.length) return;
+      detail.waits.push((async () => {
+        if (openPage && !(await flushCanvasEditors())) return false;
+        return (await Promise.all(pending.map((queue) => queue.flush()))).every(Boolean);
+      })());
+    }
     window.addEventListener("notefable:page-meta", onPageMeta);
     window.addEventListener("notefable:page-updated", onPageUpdated);
     window.addEventListener("notefable:page-created", onPageCreated);
     window.addEventListener(PAGES_TRASHED_EVENT, onPagesTrashed);
     window.addEventListener(PAGES_WILL_TRASH_EVENT, onPagesWillTrash);
+    window.addEventListener(PAGES_WILL_CHANGE_EVENT, onPagesWillChange);
     return () => {
       window.removeEventListener("notefable:page-meta", onPageMeta);
       window.removeEventListener("notefable:page-updated", onPageUpdated);
       window.removeEventListener("notefable:page-created", onPageCreated);
       window.removeEventListener(PAGES_TRASHED_EVENT, onPagesTrashed);
       window.removeEventListener(PAGES_WILL_TRASH_EVENT, onPagesWillTrash);
+      window.removeEventListener(PAGES_WILL_CHANGE_EVENT, onPagesWillChange);
     };
   }, [upsertSummary, markMeta, invalidatePageCache, cancelPending]);
 
