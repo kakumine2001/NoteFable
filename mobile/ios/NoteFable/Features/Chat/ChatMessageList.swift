@@ -20,13 +20,13 @@ struct ChatRevealTrigger: Equatable {
 
 /// 消息列表（Android ChatScreen.kt 的 `MessageList` 里有消息的那一支）：正向排列，短对话从顶部开始。
 /// 左右 24、顶部 4、底部 96（网页消息列的 pb-12 + 输入栏区顶部"滚动到底部"那一行），消息间距 36。
-/// 列表铺到浮动顶栏下面（顶栏的高度从安全区让出来，内容从顶栏下面滚过去）。
+/// 列表铺到浮动顶栏和输入栏下面，两条栏通过安全区为消息留出空间。
 /// 提问由 `UserTurn` 画，回答交给 `AssistantTurn`。跟随底部的规则在 `ChatScrollController`。
 @MainActor
 struct ChatMessageList: View {
     /// 这个聊天在发送、上传或读取：提问下面的编辑、版本切换不能点（Android TurnActions.busy）。
     let busy: Bool
-    /// 提问的编辑框最高到多少（屏高的 40%）。
+    /// 提问的编辑框最高到多少（窗口高度的 40%）。
     let maxEditorHeight: CGFloat
 
     @Environment(AppEnvironment.self) private var app
@@ -56,6 +56,13 @@ struct ChatMessageList: View {
                 .padding(.horizontal, ChatMetrics.pageGutter)
                 .padding(.top, 4)
                 .padding(.bottom, ChatMetrics.listBottomPadding)
+                // 对照网页 .notion-page-column：常规上限 47.5rem，1440 起按 48vw 在 50–55rem 间变化。
+                // 只收窄消息列；滚动视图仍铺满可用宽度，横向调整时也不会重建消息行。
+                .containerRelativeFrame(.horizontal) { width, _ in
+                    let maxWidth: CGFloat = width < 1440 ? 760 : min(880, max(800, width * 0.48))
+                    return min(width, maxWidth)
+                }
+                .frame(maxWidth: .infinity)
                 .background { ChatScrollProbe(controller: scroll) }
             }
             // 往下拖列表时键盘跟着手指收起。
@@ -213,7 +220,7 @@ private struct ChatRevealFlashModifier: ViewModifier {
 
 /// "滚动到底部"（.notion-scroll-bottom 里的 .notion-icon-button）：40 的玻璃圆（iOS 26 Liquid Glass；iOS 17–18 毛玻璃；
 /// “降低透明度”时白底加描边），ArrowDown 20 / 描边 2.1。离开底部时 150ms 淡入 + 从 .95 放大。
-/// 网页里按钮在输入栏区的上内边距 12 之下；这里放在列表底部再往下 4，下沿离输入栏内容正好 8。
+/// 按钮贴近输入栏，放在列表底部再往下偏移 4。
 private struct ChatScrollToBottomButton: View {
     let visible: Bool
     let action: () -> Void
