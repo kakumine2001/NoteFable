@@ -105,29 +105,48 @@ struct NewPageMenuAnchor<Content: View>: View {
     private let label: String
     private let alignment: ActionsMenuAlignment
     private let onCreate: (PageKind) -> Void
+    private let onGenerateSlides: (() -> Void)?
     private let content: (@escaping () -> Void) -> Content
     @State private var open = false
+    @Environment(AppEnvironment.self) private var app
 
-    init(kinds: [PageKind], label: String, alignment: ActionsMenuAlignment = .trailing, onCreate: @escaping (PageKind) -> Void,
-         @ViewBuilder content: @escaping (@escaping () -> Void) -> Content) {
+    init(
+        kinds: [PageKind],
+        label: String,
+        alignment: ActionsMenuAlignment = .trailing,
+        onCreate: @escaping (PageKind) -> Void,
+        onGenerateSlides: (() -> Void)? = nil,
+        @ViewBuilder content: @escaping (@escaping () -> Void) -> Content
+    ) {
         self.kinds = kinds
         self.label = label
         self.alignment = alignment
         self.onCreate = onCreate
+        self.onGenerateSlides = onGenerateSlides
         self.content = content
     }
 
     var body: some View {
         let kinds = self.kinds
         let onCreate = self.onCreate
+        let showGenerateSlides = onGenerateSlides != nil && kinds.contains(.slides)
         content {
-            if kinds.count > 1 { open = true } else { onCreate(kinds.first ?? .note) }
+            if kinds.count > 1 || showGenerateSlides { open = true } else { onCreate(kinds.first ?? .note) }
         }
         .actionsMenu(isPresented: $open, alignment: alignment, label: label) {
             ForEach(kinds, id: \.self) { kind in
                 ActionsMenuItem(L(pageKindLabel(kind)), icon: pageKindIcon(kind)) {
                     open = false
                     onCreate(kind)
+                }
+            }
+            if showGenerateSlides, let onGenerateSlides {
+                ActionsMenuDivider()
+                ActionsMenuItem(L("slides_generate_with_ai"), leading: {
+                    AppIconView(icon: app.appIcon.icon, size: 16)
+                }) {
+                    open = false
+                    onGenerateSlides()
                 }
             }
         }
@@ -143,6 +162,9 @@ struct NotesSectionHeading: View {
     let busy: Bool
     let onToggle: () -> Void
     let onCreate: () -> Void
+    var onGenerateSlides: (() -> Void)? = nil
+    @State private var slidesMenuOpen = false
+    @Environment(AppEnvironment.self) private var app
 
     var body: some View {
         let name = L(pageKindSectionLabel(kind))
@@ -167,8 +189,28 @@ struct NotesSectionHeading: View {
             }
             .buttonStyle(.pressable(cornerRadius: 7))
             .accessibilityLabel(isOpen ? L("pg_collapse_title", name) : L("pg_expand_title", name))
-            NFIconButton(Lucide.plus, label: L(pageKindNewLabel(kind)), iconSize: 15, color: Sm.tabMuted, action: onCreate)
+            if kind == .slides, let onGenerateSlides {
+                let label = L(pageKindNewLabel(kind))
+                NFIconButton(Lucide.plus, label: label, iconSize: 15, color: Sm.tabMuted) {
+                    slidesMenuOpen = true
+                }
                 .disabled(busy)
+                .actionsMenu(isPresented: $slidesMenuOpen, alignment: .trailing, label: label) {
+                    ActionsMenuItem(L("ws_new_slides"), icon: Lucide.presentation) {
+                        slidesMenuOpen = false
+                        onCreate()
+                    }
+                    ActionsMenuItem(L("slides_generate_with_ai"), leading: {
+                        AppIconView(icon: app.appIcon.icon, size: 16)
+                    }) {
+                        slidesMenuOpen = false
+                        onGenerateSlides()
+                    }
+                }
+            } else {
+                NFIconButton(Lucide.plus, label: L(pageKindNewLabel(kind)), iconSize: 15, color: Sm.tabMuted, action: onCreate)
+                    .disabled(busy)
+            }
         }
         .padding(.leading, 6)
         .padding(.trailing, 2)

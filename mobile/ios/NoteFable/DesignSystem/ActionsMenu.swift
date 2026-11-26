@@ -233,6 +233,7 @@ enum ActionsMenuItemRole {
 struct ActionsMenuItem: View {
     private let title: String
     private let icon: [String]?
+    private let leading: AnyView?
     private let role: ActionsMenuItemRole
     private let iconColor: Color?
     private let isBusy: Bool
@@ -253,11 +254,30 @@ struct ActionsMenuItem: View {
     ) {
         self.title = title
         self.icon = icon
+        self.leading = nil
         self.role = role
         self.iconColor = iconColor
         self.isBusy = isBusy
         self.value = value
         self.isSelected = isSelected
+        self.action = action
+    }
+
+    init<Leading: View>(
+        _ title: String,
+        role: ActionsMenuItemRole = .normal,
+        isBusy: Bool = false,
+        @ViewBuilder leading: () -> Leading,
+        action: @escaping () -> Void
+    ) {
+        self.title = title
+        self.icon = nil
+        self.leading = AnyView(leading())
+        self.role = role
+        self.iconColor = nil
+        self.isBusy = isBusy
+        self.value = nil
+        self.isSelected = false
         self.action = action
     }
 
@@ -271,6 +291,8 @@ struct ActionsMenuItem: View {
             HStack(spacing: 12) {
                 if isBusy {
                     Spinner(size: 16, color: color)
+                } else if let leading {
+                    leading
                 } else if let icon {
                     LucideIcon(icon, size: 16, color: isEnabled ? (iconColor ?? color) : color)
                 }

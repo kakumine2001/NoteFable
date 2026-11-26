@@ -97,7 +97,7 @@
 
 ### 在 App 的 WebView 里
 
-同一个向导开在常驻的 `/note-embed` WebView 里（页面开着或只是温着都行），约定见 [notes-flow.md](notes-flow.md#原生应用内嵌编辑器note-embed)：App 调 `notefableEmbed.slidesWizard({ action: "open", source, model? })` 打开、`{ action: "back" }` 返回；网页发 `slidesWizard` 的 `open` / `closed`、`openPage`（Open slides，先于 `closed`）、`pagesChanged`、`usageLimit`。笔记 AI 面板里的 “Generate slides” 只对声明了 `canShowSlidesWizard()` 的 App 显示。Android / iOS 的原生入口另行接入。
+同一个向导开在常驻的 `/note-embed` WebView 里（页面开着或只是温着都行），约定见 [notes-flow.md](notes-flow.md#原生应用内嵌编辑器note-embed)：App 调 `notefableEmbed.slidesWizard({ action: "open", source, model? })` 打开、`{ action: "back" }` 返回；网页发 `slidesWizard` 的 `open` / `closed`、`openPage`（Open slides，先于 `closed`）、`pagesChanged`、`usageLimit`。笔记 AI 面板里的 “Generate slides” 只对声明了 `canShowSlidesWizard()` 的 App 显示。Android（`SlidesWizardScreen.kt`）与 iOS（`SlidesWizardScreen.swift`）已接入与网页一致的全部入口和常驻 WebView 承载，详见 [android-native.md](android-native.md#ai-生成幻灯片) 与 [ios-native.md](ios-native.md)。
 
 ### 服务端
 

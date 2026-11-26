@@ -16,13 +16,21 @@ struct RootView: View {
 
     var body: some View {
         @Bindable var router = router
-        let hideTabBar = router.selectedTab == .workspace && (app.notes.state.open != nil || app.notes.state.presenting)
-        let allowEdgeDrawer = !(router.selectedTab == .workspace && (app.notes.state.editorCapturesEdgeSwipes || app.notes.state.presenting))
+        let fullScreenWizard = app.notes.state.slidesWizard?.editor == nil ? app.notes.state.slidesWizard : nil
+        let editorWizardShown = app.notes.state.slidesWizard?.editor != nil && app.notes.state.slidesWizard?.shown == true
+        let hideTabBar = fullScreenWizard != nil || (router.selectedTab == .workspace && (app.notes.state.open != nil || app.notes.state.presenting))
+        let allowEdgeDrawer = fullScreenWizard == nil && !editorWizardShown && !(router.selectedTab == .workspace && (app.notes.state.editorCapturesEdgeSwipes || app.notes.state.presenting))
 
-        AppDrawer(isOpen: $router.drawerOpen, edgeOpens: allowEdgeDrawer) {
-            DrawerPanel()
-        } content: {
-            mainTabs(hideTabBar: hideTabBar)
+        ZStack {
+            AppDrawer(isOpen: $router.drawerOpen, edgeOpens: allowEdgeDrawer) {
+                DrawerPanel()
+            } content: {
+                mainTabs(hideTabBar: hideTabBar)
+            }
+            if let wizard = fullScreenWizard {
+                SlidesWizardScreen(wizard: wizard)
+                    .transition(.opacity)
+            }
         }
         .environment(noteEditorPool)
         .onAppear {
@@ -260,6 +268,16 @@ private struct DrawerFooter: View {
                 ActionsMenuItem(L(pageKindNewLabel(kind)), icon: pageKindIcon(kind), iconColor: pageKindColor(kind)) {
                     newMenuOpen = false
                     router.createNote(kind: kind)
+                }
+                .disabled(notesBusy)
+            }
+            if kinds.contains(.slides) {
+                ActionsMenuDivider()
+                ActionsMenuItem(L("slides_generate_with_ai"), leading: {
+                    AppIconView(icon: app.appIcon.icon, size: 16)
+                }) {
+                    newMenuOpen = false
+                    router.openSlidesWizard(.new())
                 }
                 .disabled(notesBusy)
             }

@@ -96,6 +96,16 @@ struct UsageLimitInfo: Equatable, Sendable {
     var kind: String
 }
 
+/// 开着的 AI 生成幻灯片向导（#150）。向导本身是网页（常驻 `/note-embed` WKWebView 里的 `notefableEmbed.slidesWizard`），App 只记开在哪。
+/// [request] 每次打开换一个（同一个入口再点一次也要重新调网页）。[editor] 是向导盖着的编辑器（[OpenNote.editor]）；
+/// nil 是没有开着页面时的全屏向导画面。[shown]：网页里已经出来了（打开的结果或 open 消息），之后的 closed 才算这一次的。
+struct SlidesWizardUi: Equatable, Sendable {
+    var source: SlidesWizardSource
+    var request: Int
+    var editor: String? = nil
+    var shown: Bool = false
+}
+
 struct NotesUiState: Equatable, Sendable {
     var workspace: Workspace = .chat
     var pages: [NotePageSummary] = [] {
@@ -143,12 +153,21 @@ struct NotesUiState: Equatable, Sendable {
     var moveBusy: Set<String> = []
     /// 拖动失败的行和原因（网页 ReorderRowButton 的 list-reorder-error）。
     var reorderError: ReorderFailure? = nil
+    /// AI 生成幻灯片的向导；nil 是没开。
+    var slidesWizard: SlidesWizardUi? = nil
+    /// 全屏向导里撞到使用次数上限（没有打开的编辑器时显示在向导上方）。
+    var wizardUsageLimit: UsageLimitInfo? = nil
 
     init(workspace: Workspace = .chat, collapsed: Set<String> = [], expanded: Set<String> = [], collapsedSections: Set<PageKind> = []) {
         self.workspace = workspace
         self.collapsed = collapsed
         self.expanded = expanded
         self.collapsedSections = collapsedSections
+    }
+
+    /// 画面上的编辑器（[OpenNote.editor]）；停在聊天或笔记列表时是 nil。
+    var visibleEditor: String? {
+        workspace == .notes ? open?.editor : nil
     }
 
     /// 能新建的类型（网页 creatablePageKinds）：分区、新建菜单、首页的新建按钮只出这些。

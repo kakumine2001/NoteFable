@@ -24,6 +24,8 @@ struct NotePageMenuActions {
     var onDrawDiagram: (() -> Void)? = nil
     /// 这篇的「画成图」正在画（网页的菜单项显示转圈和"正在画图…"）。
     var drawingDiagram = false
+    /// 「生成幻灯片」（#150，放在「画成图」后面，只给笔记，用这一篇开向导）。nil 时不显示。
+    var onGenerateSlides: (() -> Void)? = nil
 }
 
 /// 菜单 "Style" 一栏的字体：[key] 是 NotePageSummary.font 的值，[label] 是文案的键。

@@ -39,9 +39,11 @@ struct NoteEditorScreen: View {
         let page = state.pages.first(where: { $0.id == open.id })
         // 页面类型：列表里有这一篇就用列表的，否则用打开时知道的（检索结果、网页的 ready 消息）。
         let kind = page?.kind ?? open.kind
+        let editorWizard = state.slidesWizard?.editor == open.editor ? state.slidesWizard : nil
+        let wizardShown = editorWizard?.shown == true
         VStack(spacing: 0) {
-            if !state.presenting { topBar(state, page: page) }
-            if !state.presenting, let notice = state.notice ?? state.error {
+            if !state.presenting && !wizardShown { topBar(state, page: page) }
+            if !state.presenting && !wizardShown, let notice = state.notice ?? state.error {
                 // 离开时没能保存等提示：点一下收起。
                 Button {
                     notes.dismissNotice()
@@ -72,6 +74,18 @@ struct NoteEditorScreen: View {
                 edgeBack: !kind.capturesEdgeSwipes
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background {
+                if let editorWizard {
+                    SlidesWizardOverlayLauncher(
+                        wizard: editorWizard,
+                        pool: editorPool,
+                        model: app.chat.state.selectedModel?.id,
+                        reasoning: app.chat.state.selectedReasoning,
+                        onShown: { notes.onSlidesWizardShown($0) },
+                        onFailed: { notes.dismissSlidesWizard($0) }
+                    )
+                }
+            }
         }
         // 幻灯片放映中：横屏、隐藏状态栏和主屏幕指示条、屏幕常亮（Android 的 PresentationMode）。
         .background(state.presenting ? Color.black : Color.clear)
@@ -283,7 +297,9 @@ struct NoteEditorScreen: View {
             onSlides: { command in notes.slidesCommand(command) },
             // 「画成图」：先让网页保存（服务端读已保存的正文），存不上就在顶栏下面提示、不开始；进度窗口挂在根上。
             onDrawDiagram: { _ = router.drawDiagramFromNote(id) },
-            drawingDiagram: app.diagrams.job(.note(pageId: id)) == .working
+            drawingDiagram: app.diagrams.job(.note(pageId: id)) == .working,
+            // 「生成幻灯片」：盖在当前编辑器上打开向导，读这篇之前由网页自己保存。
+            onGenerateSlides: { router.openSlidesWizard(.note(pageId: id)) }
         )
     }
 }
