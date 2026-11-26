@@ -23,3 +23,25 @@ export function playerAction(event: Pick<KeyboardEvent, "key" | "ctrlKey" | "met
     default: return null;
   }
 }
+
+// 放映の画面（または発表者ビュー）のボタン等にフォーカスがあるか。あればスペース・Enter はそのボタンに任せる。
+// 発表者ビューは別のウィンドウなので、そこの要素は開いた側の Element ではない（instanceof では見分けられない）。nodeType で見る。
+export const PLAYER_CONTROL_SELECTOR = "button, a, input, textarea, select, [role='button']";
+
+type ElementLike = { nodeType: number; closest: (selector: string) => unknown };
+
+export function isElementTarget(target: unknown): target is ElementLike {
+  if (typeof target !== "object" || target === null) return false;
+  const node = target as Partial<ElementLike>;
+  return node.nodeType === 1 && typeof node.closest === "function";
+}
+
+export function isPlayerControlTarget(
+  target: EventTarget | null,
+  containers: ReadonlyArray<{ contains: (node: Node | null) => boolean } | null | undefined>,
+): boolean {
+  if (!isElementTarget(target)) return false;
+  const node = target as unknown as Node;
+  if (!containers.some((container) => container?.contains(node))) return false;
+  return Boolean(target.closest(PLAYER_CONTROL_SELECTOR));
+}

@@ -12,6 +12,11 @@ let pendingBack: ReturnType<typeof setTimeout> | null = null;
 // 自分で呼んだ history.back() が起こす popstate を、端末の「戻る」と区別して無視するための印。
 let ownBack = false;
 let ownBackEvent: Event | null = null;
+// popstate が来なかったときに ownBack を解除する予備のタイマー（次の history.back() の前と、popstate が来たときに消す）。
+let ownBackTimer: ReturnType<typeof setTimeout> | null = null;
+// 自分の history.back() の popstate を受けてから、待っていた書き換え（afterBack）を流すまでの間の予約。
+// この間はまだ元の履歴を書き換えていないので、新しい書き換えは列に並べ、目印も積まない（流した直後に積み直す）。
+let pendingFlush: ReturnType<typeof setTimeout> | null = null;
 let listening = false;
 
 const hasMarker = () => !!window.history.state?.notefableSheet;
@@ -24,16 +29,31 @@ export function isSheetCleanupPopState(event?: Event): boolean {
 
 // 目印を外す history.back() を待っている処理（afterSheetHistory）。
 let afterBack: (() => void)[] = [];
+// 1 つが失敗しても、残りの書き換えは流す（失敗はあとで報告する）。
 function flushAfterBack() {
   const callbacks = afterBack;
   afterBack = [];
-  callbacks.forEach((callback) => callback());
+  for (const callback of callbacks) {
+    try { callback(); } catch (error) { reportLater(error); }
+  }
 }
+function reportLater(error: unknown) {
+  if (typeof globalThis.reportError === "function") globalThis.reportError(error);
+  else console.error(error);
+}
+
+// 元の履歴に戻ったあとの仕上げ：待っていた書き換えを流し、まだ開いているシートがあれば書き換えた後の URL で目印を積み直す。
+function finishBack() {
+  try { flushAfterBack(); } finally { restoreSheetMarker(); }
+}
+
+// 目印を外す history.back() が予約中・進行中、またはその後の書き換えを流す前か。
+const waitingForHistory = () => pendingBack !== null || ownBack || pendingFlush !== null;
 
 // シートを閉じたあとに今の履歴（URL）を書き換えたいとき用。閉じたシートの目印を外す history.back() が予約中・進行中なら、
 // それが終わって元の履歴に戻ってから呼ぶ（先に書き換えると、戻った先は書き換える前の URL のまま）。なければすぐ呼ぶ。
 export function afterSheetHistory(callback: () => void) {
-  if (pendingBack === null && !ownBack) {
+  if (!waitingForHistory()) {
     callback();
     return;
   }
@@ -45,12 +65,16 @@ function onPopState(event: PopStateEvent) {
   if (!event.isTrusted) return;
   if (ownBack) {
     ownBack = false;
+    if (ownBackTimer !== null) { clearTimeout(ownBackTimer); ownBackTimer = null; }
     ownBackEvent = event;
     queueMicrotask(() => { if (ownBackEvent === event) ownBackEvent = null; });
-    // 退けた目印のあとに別のシートが開いていた（目印を積み損ねた）場合は積み直す。
-    restoreSheetMarker();
     // 元の履歴に戻った。Next.js がこの popstate を処理し終えてから、待っていた書き換えをする。
-    setTimeout(flushAfterBack);
+    // 退けた目印のあとに別のシートが開いていた（目印を積み損ねた）・まだ開いている場合は、書き換えた後の URL で積み直す。
+    if (pendingFlush !== null) clearTimeout(pendingFlush);
+    pendingFlush = setTimeout(() => {
+      pendingFlush = null;
+      finishBack();
+    });
     return;
   }
   // 端末の「戻る」: 目印が外れたので、一番上のシートを閉じる。
@@ -81,10 +105,64 @@ function onKeyDown(event: KeyboardEvent) {
 
 // 画面遷移（履歴の置き換え）で目印が消えたのに、シートがまだ開いているときに積み直す。
 // シートが閉じる処理は遷移より後に走るので、1 拍置いて「本当にまだ開いているもの」だけを見る。
+// 自分の history.back() の途中や、その後の書き換えを流す前は積まない（流し終えたときに積み直す）。
 export function restoreSheetMarker() {
   setTimeout(() => {
+    if (ownBack || pendingFlush !== null) return;
     if (openSheets.length > 0 && !hasMarker()) window.history.pushState(MARKER, "");
   });
+}
+
+// 目印を外す history.back()。popstate は onPopState が受け、待っている書き換え（afterBack）を流す。
+function stepBackPastMarker() {
+  // 再読み込み後など、目印は残っているのにまだ popstate を聞いていないことがある。
+  listen();
+  ownBack = true;
+  window.history.back();
+  // popstate が来なかったときに次の本物の「戻る」を飲み込まないよう、一定時間後に解除する。
+  // 前の history.back() の予備のタイマーが、この history.back() の途中で解除してしまわないよう消してから置く。
+  if (ownBackTimer !== null) clearTimeout(ownBackTimer);
+  ownBackTimer = setTimeout(() => {
+    ownBackTimer = null;
+    if (!ownBack) return;
+    ownBack = false;
+    finishBack();
+  }, 1000);
+}
+
+// 今の履歴の URL を書き換える（開いていたノートがゴミ箱に入った・見つからないときに page= を外すなど）。update が false を返したら書かない（履歴も動かさない）。
+// シートの目印は、その下の（書き換えたい URL の）履歴の上に積んである。目印だけを書き換えると、シートを閉じた後や「戻る」で
+// 書き換える前の URL（ゴミ箱に入ったノート）へ戻ってしまう。そこで目印の上にいるときは、目印の URL も書き換えてから
+// history.back() で目印を退け、その下の履歴を書き換え、まだ開いているシートがあれば目印を積み直す。
+// 閉じたシートの目印を外す history.back() が進行中なら、それが終わって元の履歴に戻ってから書き換える。
+export function replaceSheetUrl(update: (url: URL) => boolean, afterReplace?: () => void) {
+  const apply = () => {
+    const url = new URL(window.location.href);
+    if (!update(url)) return;
+    window.history.replaceState(null, "", url);
+    restoreSheetMarker();
+    afterReplace?.();
+  };
+  const target = new URL(window.location.href);
+  if (!update(target)) return;
+  if (ownBack || pendingFlush !== null) {
+    afterBack.push(apply);
+    return;
+  }
+  if (!hasMarker()) {
+    // 目印は画面遷移で置き換わっている。予約された後始末（あれば）は何もせずに待っている書き換えを流す。
+    afterSheetHistory(apply);
+    return;
+  }
+  // 閉じたシートの後始末が予約されていたら、ここで代わりに目印を退ける（シートが開き直したときも書き換えを待たせない）。
+  if (pendingBack !== null) {
+    clearTimeout(pendingBack);
+    pendingBack = null;
+  }
+  // 「進む」で書き換える前の URL に戻らないよう、退ける目印の URL も書き換えておく。
+  window.history.replaceState(window.history.state, "", target);
+  afterBack.push(apply);
+  stepBackPastMarker();
 }
 
 function listen() {
@@ -116,7 +194,8 @@ export function useBackToClose(open: boolean, onClose: () => boolean | void) {
       pendingBack = null;
     }
     // 目印が残っていればそれを使い回し、無ければ（その間に「戻る」で外れた場合など）積む。
-    if (!hasMarker()) window.history.pushState(MARKER, "");
+    // 自分の history.back() の途中や、その後の書き換えを流す前は、流し終えたときに積み直す（restoreSheetMarker）。
+    if (!hasMarker() && !ownBack && pendingFlush === null) window.history.pushState(MARKER, "");
 
     return () => {
       const index = openSheets.indexOf(sheet);
@@ -125,16 +204,11 @@ export function useBackToClose(open: boolean, onClose: () => boolean | void) {
       if (sheet.closedByBack || openSheets.length > 0) return;
       pendingBack = setTimeout(() => {
         pendingBack = null;
+        // 目印を退ける history.back() がもう進行中（replaceSheetUrl）・流す前なら、そちらが待っている書き換えを流す。
+        if (ownBack || pendingFlush !== null) return;
         // 画面遷移が目印を置き換えていたら何もしない。
         if (openSheets.length === 0 && hasMarker()) {
-          ownBack = true;
-          window.history.back();
-          // popstate が来なかったときに次の本物の「戻る」を飲み込まないよう、一定時間後に解除する。
-          setTimeout(() => {
-            if (!ownBack) return;
-            ownBack = false;
-            flushAfterBack();
-          }, 1000);
+          stepBackPastMarker();
         } else {
           flushAfterBack();
         }
