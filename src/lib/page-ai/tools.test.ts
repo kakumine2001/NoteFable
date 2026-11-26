@@ -160,6 +160,24 @@ describe("page tools", () => {
     mocks.findFirst.mockResolvedValue({ id: "s2", kind: "slides", title: "Empty", version: 0, blocks: [], updatedAt, canvas: null });
     mocks.canvas.mockResolvedValue(null);
     expect((await runPageTool("read_note", { noteId: "s2" }, ctx)).content).toContain("(This page has no text.)");
+
+    // 20,000 文字を超える大デッキでは、省略されたスライドの安定 ID 索引を末尾に含める。
+    const bigSlides = Array.from({ length: 30 }, (_, i) => ({
+      id: `big_${i + 1}`,
+      layout: "bullets",
+      elements: [{
+        id: `el_${i + 1}`,
+        type: "text",
+        role: "body",
+        doc: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: `Slide ${i + 1} `.padEnd(1000, "x") }] }] },
+      }],
+    }));
+    mocks.findFirst.mockResolvedValue({ id: "s_big", kind: "slides", title: "Big Deck", version: 3, blocks: [], updatedAt, canvas: { segments: [] } });
+    mocks.canvas.mockResolvedValue({ data: { format: 1, theme: { id: "simple", mode: "light" }, slides: bigSlides } });
+    const bigRead = await runPageTool("read_note", { noteId: "s_big" }, ctx);
+    expect(bigRead.content).toContain("[Truncated:");
+    expect(bigRead.content).toContain("Omitted slides (stable IDs):");
+    expect(bigRead.content).toContain("id: big_30");
   });
 
   it("numbers blocks, shows the kind and version, and wraps the page content in unguessable delimiters", async () => {

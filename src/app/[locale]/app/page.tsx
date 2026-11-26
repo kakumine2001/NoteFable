@@ -3079,7 +3079,7 @@ export default function Home() {
         body={`${t("“{title}” will be moved to Trash. You can restore it for {count} days.", { title: trashingNote.title, count: TRASH_RETENTION_DAYS })}${descendantIdsOf(notes.pages, trashingNote.id).size ? ` ${t("Its sub-pages move to Trash with it.")}` : ""}`}
         onConfirm={() => deleteNote(trashingNote.id)} />}
       {historyQueue && historyNoteId && (
-        <NoteHistoryDialog key={historyNoteId} noteId={historyNoteId} getVersion={() => historyQueue.version} flush={async () => { await flushCanvasEditors(); return historyQueue.flush(); }}
+        <NoteHistoryDialog key={historyNoteId} noteId={historyNoteId} getVersion={() => historyQueue.version} flush={async () => { if (!(await flushCanvasEditors())) return false; return historyQueue.flush(); }}
           onRestored={() => setHistoryNoteId(null)} onClose={() => setHistoryNoteId(null)} />
       )}
       {workspaceView === "pages" && shareNoteId && (

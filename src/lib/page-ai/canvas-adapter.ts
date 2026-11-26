@@ -3,7 +3,7 @@ import type { CanvasKind } from "@/lib/page-kinds";
 import { MAX_READ_CHARS, type AdapterPage, type PageAdapter } from "@/lib/page-ai/adapter";
 import { canvasStorage } from "@/lib/page-ai/storage";
 import { normalizeDeck, slideRows, type SlideElement } from "@/lib/slides/model";
-import type { RichBlock, RichDoc, RichInline } from "@/lib/slides/rich-text";
+import { isRichDocEmpty, richDocText, type RichBlock, type RichDoc, type RichInline } from "@/lib/slides/rich-text";
 import { pageCardOf } from "@/lib/whiteboard/links";
 import { mindmapIndent, mindmapStashOutline } from "@/lib/whiteboard/mindmap/model";
 
@@ -567,55 +567,94 @@ export function readSlides(page: AdapterPage, budget: number): string {
     return lines.join("\n");
   };
 
-  const slideEntries = deck.slides.map((slide, index) => ({
-    slide,
-    index,
-    focused: focus.size > 0 && (focus.has(slide.id) || slide.elements.some((element) => focus.has(element.id))),
-    block: formatSlideBlock(slide, index, false),
-  }));
+  const slideEntries = deck.slides.map((slide, index) => {
+    const titleEl = slide.elements.find((element) => element.type === "text" && element.role === "title")
+      ?? slide.elements.find((element) => element.type === "text" && element.role === "quote")
+      ?? slide.elements.find((element) => element.type === "text" && !isRichDocEmpty(element.doc));
+    const shortTitle = titleEl?.type === "text" ? inlineLine(richDocText(titleEl.doc)).slice(0, 48) : "";
+    const section = sectionOf.get(slide.id);
+    const indexLine = `Slide ${index + 1} (id: ${slide.id}, layout: ${slide.layout}${section ? `, section: ${section.slice(0, 24)}` : ""}${slide.hidden ? ", hidden" : ""})${shortTitle ? `: ${shortTitle}` : ""}`;
+    return {
+      slide,
+      index,
+      indexLine,
+      focused: focus.size > 0 && (focus.has(slide.id) || slide.elements.some((element) => focus.has(element.id))),
+      block: formatSlideBlock(slide, index, false),
+    };
+  });
 
   const fullLength = metaHeader.length + slideEntries.reduce((sum, entry) => sum + 2 + entry.block.length, 0);
   const focusedEntries = slideEntries.filter((entry) => entry.focused);
   const unfocusedEntries = slideEntries.filter((entry) => !entry.focused);
   // 複数枚が選ばれているときは、先頭の 1 枚（長い発表者ノートなど）が枠を使い切らないよう各選択スライドに均等枠を確保してから残りを未選択に回す。
-  const orderedBlocks: string[] = (() => {
+  const orderedEntries: { block: string; indexLine: string }[] = (() => {
     if (fullLength <= budget || !focusedEntries.length) {
-      return slideEntries.map((entry) => entry.block);
+      return slideEntries.map((entry) => ({ block: entry.block, indexLine: entry.indexLine }));
     }
     const availableForFocused = Math.max(0, budget - metaHeader.length - noticeReserve);
     const perFocusedBudget = Math.max(0, Math.floor(availableForFocused / focusedEntries.length) - 2);
     const preparedFocused = focusedEntries.map((entry) => {
-      if (entry.block.length <= perFocusedBudget) return entry.block;
+      if (entry.block.length <= perFocusedBudget) return { block: entry.block, indexLine: entry.indexLine };
       const compact = formatSlideBlock(entry.slide, entry.index, true);
-      if (compact.length <= perFocusedBudget) return compact;
-      return clipToBudget(compact, perFocusedBudget) || compact.slice(0, perFocusedBudget);
+      if (compact.length <= perFocusedBudget) return { block: compact, indexLine: entry.indexLine };
+      return { block: clipToBudget(compact, perFocusedBudget) || compact.slice(0, perFocusedBudget), indexLine: entry.indexLine };
     });
-    return [...preparedFocused, ...unfocusedEntries.map((entry) => entry.block)];
+    return [...preparedFocused, ...unfocusedEntries.map((entry) => ({ block: entry.block, indexLine: entry.indexLine }))];
   })();
 
+  const buildTruncationSuffix = (omittedEntries: readonly { indexLine: string }[], maxSuffixBudget: number): string => {
+    const omittedCount = omittedEntries.length;
+    if (omittedCount <= 0) return `[Truncated: content exceeds ${MAX_READ_CHARS} characters.]`;
+    const baseNotice = `[Truncated: ${omittedCount} more slide${omittedCount === 1 ? "" : "s"} omitted (limit: ${MAX_READ_CHARS} characters).]`;
+    const header = "\nOmitted slides (stable IDs):";
+    if (maxSuffixBudget < baseNotice.length + header.length + 24) return baseNotice;
+    const lines: string[] = [baseNotice + header];
+    let len = lines[0].length;
+    let listed = 0;
+    for (const entry of omittedEntries) {
+      const line = `\n- ${entry.indexLine}`;
+      const tailReserve = listed + 1 < omittedCount ? 28 : 0;
+      if (len + line.length + tailReserve > maxSuffixBudget) break;
+      lines.push(line);
+      len += line.length;
+      listed++;
+    }
+    if (listed < omittedCount) {
+      const remaining = omittedCount - listed;
+      const more = `\n- … (+${remaining} more)`;
+      if (len + more.length <= maxSuffixBudget) lines.push(more);
+    }
+    return listed > 0 ? lines.join("") : baseNotice;
+  };
+
+  // 20,000 文字を超える大きなデッキでは、省略されたスライドの安定 ID 一覧を残すための枠を確保する。
+  const indexReserve = fullLength > budget ? Math.min(2400, Math.max(noticeReserve, Math.floor(budget * 0.14))) : noticeReserve;
   const out: string[] = metaHeader ? [metaHeader] : [];
   let used = metaHeader.length;
 
-  for (let i = 0; i < orderedBlocks.length; i++) {
-    const block = orderedBlocks[i];
+  for (let i = 0; i < orderedEntries.length; i++) {
+    const block = orderedEntries[i].block;
     const sep = 2; // "\n\n"
-    const isLast = i === orderedBlocks.length - 1;
-    const limit = isLast ? budget : Math.max(0, budget - noticeReserve);
+    const isLast = i === orderedEntries.length - 1;
+    const limit = isLast ? budget : Math.max(0, budget - indexReserve);
     if (used + sep + block.length <= limit) {
       out.push(block);
       used += sep + block.length;
     } else {
       if (i === 0) {
-        const remaining = Math.max(0, budget - used - sep - noticeReserve);
+        const omittedEntries = orderedEntries.slice(1);
+        const remaining = Math.max(0, budget - used - sep - (omittedEntries.length ? indexReserve : noticeReserve));
         const clipped = clipToBudget(block, remaining);
-        if (clipped) out.push(clipped);
-        const omitted = orderedBlocks.length - 1;
-        return omitted > 0
-          ? `${out.join("\n\n")}\n\n[Truncated: ${omitted} more slide${omitted === 1 ? "" : "s"} omitted (limit: ${MAX_READ_CHARS} characters).]`
-          : `${out.join("\n\n")}\n\n[Truncated: content exceeds ${MAX_READ_CHARS} characters.]`;
+        if (clipped) {
+          out.push(clipped);
+          used += sep + clipped.length;
+        }
+        const suffix = buildTruncationSuffix(omittedEntries, Math.max(noticeReserve, budget - used - sep));
+        return `${out.join("\n\n")}\n\n${suffix}`;
       }
-      const omitted = orderedBlocks.length - i;
-      return `${out.join("\n\n")}\n\n[Truncated: ${omitted} more slide${omitted === 1 ? "" : "s"} omitted (limit: ${MAX_READ_CHARS} characters).]`;
+      const omittedEntries = orderedEntries.slice(i);
+      const suffix = buildTruncationSuffix(omittedEntries, Math.max(noticeReserve, budget - used - sep));
+      return `${out.join("\n\n")}\n\n${suffix}`;
     }
   }
 

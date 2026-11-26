@@ -9,6 +9,7 @@ const updatedAt = new Date("2026-11-26T00:00:00Z");
 
 const NULL_OP = {
   slideId: null,
+  elementId: null,
   slideIds: null,
   afterSlideId: null,
   atStart: null,

@@ -62,6 +62,10 @@ const MERGE_MS = 1500;
 // 提案の適用・元に戻す・編集画面を閉じる前の flush で、アップロード中の画像を待つ時間。
 const UPLOAD_FLUSH_WAIT_MS = 10_000;
 
+type AdoptSlideImage = (image: SlideImage, target: string | null, at: { x: number; y: number } | undefined, slideId: string | null) => boolean;
+// ページ切替後にアップロードが完了した画像を、同じページ・同じ世代で開き直したエディターへ引き継ぐ（whiteboard-editor.tsx と同じ仕組み）。
+const liveSlideEditors = new Map<string, Set<{ adopt: AdoptSlideImage }>>();
+
 function isTypingTarget(target: EventTarget | null) {
   const element = target as HTMLElement | null;
   return !!element && (element.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName) || Boolean(element.closest("dialog")));
@@ -70,9 +74,10 @@ function isTypingTarget(target: EventTarget | null) {
 const MOD = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
 
 // aiSlot: AI の面板（#150）を置く場所。単ページ編集の面の右下（スマホでは縮小図の帯の上）に重ねて出す。
-export default function SlidesEditor({ pageId, title, data, version, editable, embedded, onChange, onTitleChange, onAskAi, onSelectionChange, aiSlot, generateImageSignal = 0, onConsumeGenerateImage }: CanvasEditorProps & { aiSlot?: ReactNode }) {
+export default function SlidesEditor({ pageId, title, data, version, generation = 0, editable, embedded, onChange, onTitleChange, onAskAi, onSelectionChange, aiSlot, generateImageSignal = 0, onConsumeGenerateImage }: CanvasEditorProps & { aiSlot?: ReactNode }) {
   const t = useT();
   const phone = useMediaQuery("(max-width: 640px)");
+  const liveKey = `${pageId}:${generation}`;
   // 作ったばかりで中身の無いスライドは、最初の 1 枚（標題）を入れて始める（作成の続き。開いただけで書き換えるのはこの時だけ）。
   const [initial] = useState(() => {
     const deck = normalizeDeck(data);
@@ -83,9 +88,9 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   const sent = useRef<Deck | null>(initial.seeded ? null : initial.deck);
   const onChangeRef = useRef(onChange);
   useLayoutEffect(() => { onChangeRef.current = onChange; }, [onChange]);
-  // 待ったあと（アップロード・生成の完了）や同期 flush に、いま最新の本体を読むため。
+  // commit / undo / redo をすべて 1 つの同期 ref で進めてから純粋な state として公開し、flush や非同期完了が常に最新の本体を読むようにする。
+  const historyRef = useRef<History>(history);
   const deckRef = useRef(deck);
-  useLayoutEffect(() => { deckRef.current = deck; }, [deck]);
   const mounted = useRef(true);
   const uploadTasks = useRef(new Set<Promise<void>>());
 
@@ -142,34 +147,54 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   useLayoutEffect(() => { editableRef.current = editable; }, [editable]);
   const commit = useCallback((change: Deck | ((deck: Deck) => Deck), merge?: string) => {
     if (!editableRef.current) return;
-    const prev = deckRef.current;
-    const next = typeof change === "function" ? change(prev) : change;
-    if (next === prev) return;
-    deckRef.current = next;
-    setHistory((current) => {
-      const now = Date.now();
-      const merging = !!merge && current.merge === merge && now - current.mergedAt < MERGE_MS;
-      return { deck: next, past: merging ? current.past : [...current.past, current.deck].slice(-HISTORY_LIMIT), future: [], merge: merge ?? null, mergedAt: now };
-    });
+    const current = historyRef.current;
+    const nextDeck = typeof change === "function" ? change(current.deck) : change;
+    if (nextDeck === current.deck) return;
+    const now = Date.now();
+    const merging = !!merge && current.merge === merge && now - current.mergedAt < MERGE_MS;
+    const nextHistory: History = {
+      deck: nextDeck,
+      past: merging ? current.past : [...current.past, current.deck].slice(-HISTORY_LIMIT),
+      future: [],
+      merge: merge ?? null,
+      mergedAt: now,
+    };
+    historyRef.current = nextHistory;
+    deckRef.current = nextDeck;
+    setHistory(nextHistory);
   }, []);
   // 文字の編集中は閉じてから戻す（開いている文字の編集は外からの変更を取り込まない）。
   const undo = useCallback(() => {
     setEditing(null);
-    setHistory((current) => {
-      if (!current.past.length) return current;
-      const next = current.past[current.past.length - 1];
-      deckRef.current = next;
-      return { deck: next, past: current.past.slice(0, -1), future: [current.deck, ...current.future], merge: null, mergedAt: 0 };
-    });
+    const current = historyRef.current;
+    if (!current.past.length) return;
+    const nextDeck = current.past[current.past.length - 1];
+    const nextHistory: History = {
+      deck: nextDeck,
+      past: current.past.slice(0, -1),
+      future: [current.deck, ...current.future],
+      merge: null,
+      mergedAt: 0,
+    };
+    historyRef.current = nextHistory;
+    deckRef.current = nextDeck;
+    setHistory(nextHistory);
   }, []);
   const redo = useCallback(() => {
     setEditing(null);
-    setHistory((current) => {
-      if (!current.future.length) return current;
-      const next = current.future[0];
-      deckRef.current = next;
-      return { deck: next, past: [...current.past, current.deck], future: current.future.slice(1), merge: null, mergedAt: 0 };
-    });
+    const current = historyRef.current;
+    if (!current.future.length) return;
+    const nextDeck = current.future[0];
+    const nextHistory: History = {
+      deck: nextDeck,
+      past: [...current.past, current.deck],
+      future: current.future.slice(1),
+      merge: null,
+      mergedAt: 0,
+    };
+    historyRef.current = nextHistory;
+    deckRef.current = nextDeck;
+    setHistory(nextHistory);
   }, []);
 
   // AI スライド生成の逐页配図（slides-image-jobs.ts）と同期する：開いている間はエディターの commit 経由で差し込み、409 競合や再マウントを防ぐ。
@@ -335,7 +360,7 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     const targetSlideId = (current && slideIds.includes(current.id) ? current.id : slideIds[0]) ?? null;
     const fallbackSlide = targetSlideId ? deck.slides.find((slide) => slide.id === targetSlideId) ?? null : null;
     const captureImage = makeSlideCapture(targetSlideId, elementIds, fallbackSlide, theme);
-    onSelectionChange({ text, ids, captureImage });
+    onSelectionChange({ text, ids, kind: isElementSelection ? "elements" : "slides", captureImage });
   }, [onSelectionChange, view, deck, selectedSlides, current, liveSelection, theme, makeSlideCapture, t]);
 
   // 選んだスライドや要素について AI に聞く（ロック中のスライドからも利用可能）。
@@ -357,9 +382,10 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     const targetSlideId = (current && slideIds.includes(current.id) ? current.id : slideIds[0]) ?? null;
     const fallbackSlide = targetSlideId ? deck.slides.find((slide) => slide.id === targetSlideId) ?? null : null;
     const captureImage = makeSlideCapture(targetSlideId, elementIds, fallbackSlide, theme);
+    const kind = elementIds.length > 0 ? "elements" : slideIds.length > 1 ? "slides" : "slide";
     // スマホでは設定シートが開いたままだと AI 引き出しと重なるため閉じる。
     if (phone) { setInspectorOpen(false); setSelection(new Set()); }
-    onAskAi({ text, ids, captureImage });
+    onAskAi({ text, ids, kind, captureImage });
   }, [onAskAi, view, deck, selectedSlides, current, liveSelection, theme, makeSlideCapture, phone, t]);
 
   // ---- 枚の操作 ----
@@ -428,38 +454,69 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   // 画像を置く：置き場所（空の画像・差し替え）があればそこへ、無ければ新しい画像として。
   // 画像は待ったあと（アップロード・生成の完了）に置くので、その時点の最新の本体に対して変更する（途中の編集や、続けて置いた画像を消さない）。
   // slideId は置く枚（既定は今の枚）。
-  const placeImage = useCallback((image: SlideImage, target: string | null, at?: { x: number; y: number }, slideId: string | null = current?.id ?? null) => {
+  const applyImageToDeck = useCallback((latest: Deck, image: SlideImage, target: string | null, at: { x: number; y: number } | undefined, slideId: string | null): { nextDeck: Deck; selectedId: string; createdSlideId: string | null } => {
     const alt = image.name.replace(/\.[a-z0-9]+$/i, "");
     const generated = image.prompt ? { generated: { prompt: image.prompt.slice(0, 4000) } } : {};
     const fresh: ImageElement = { ...createImageElement(image.url, image.width, image.height, alt, at), ...generated };
     if (!slideId) {
       const createdSlide = addElements(createSlide("blank"), [fresh]);
-      commit((latest) => ({ ...latest, slides: [...latest.slides, createdSlide] }));
-      setCurrentId(createdSlide.id);
-      setSelectedSlides(new Set([createdSlide.id]));
-      setSelection(new Set([fresh.id]));
-      setView("slide");
-      return;
+      return { nextDeck: { ...latest, slides: [...latest.slides, createdSlide] }, selectedId: fresh.id, createdSlideId: createdSlide.id };
     }
     // 差し替える画像（target）か、空の画像の置き場所。無ければ新しい画像として足す。
     const into = (slide: Slide) => {
       const existing = target ? slide.elements.find((element) => element.id === target && element.type === "image") : undefined;
       return existing ?? (!target && !at ? slide.elements.find((element) => element.type === "image" && element.role && !element.src) : undefined);
     };
-    commit((latest) => updateSlide(latest, slideId, (slide) => {
+    let selectedId = fresh.id;
+    const nextDeck = updateSlide(latest, slideId, (slide) => {
       const existing = into(slide);
       if (existing?.type !== "image") return addElements(slide, [fresh]);
+      selectedId = existing.id;
       const { generated: _old, pendingImagePrompt: _pending, ...rest } = existing;
       void _old;
       void _pending;
       return updateElements(slide, new Set([existing.id]), () => ({ ...rest, src: image.url, alt, ...generated }));
-    }));
-    const shown = deckRef.current.slides.find((slide) => slide.id === slideId);
-    const placed = shown ? into(shown) : undefined;
-    setSelection(new Set([placed?.type === "image" ? placed.id : fresh.id]));
+    });
+    return { nextDeck, selectedId, createdSlideId: null };
+  }, []);
+
+  const placeImage = useCallback((image: SlideImage, target: string | null, at?: { x: number; y: number }, slideId: string | null = current?.id ?? null) => {
+    if (!editableRef.current) return;
+    let outcome: { selectedId: string; createdSlideId: string | null } | null = null;
+    commit((latest) => {
+      const applied = applyImageToDeck(latest, image, target, at, slideId);
+      outcome = { selectedId: applied.selectedId, createdSlideId: applied.createdSlideId };
+      return applied.nextDeck;
+    });
+    if (!outcome) return;
+    const { selectedId, createdSlideId } = outcome as { selectedId: string; createdSlideId: string | null };
+    if (createdSlideId) {
+      setCurrentId(createdSlideId);
+      setSelectedSlides(new Set([createdSlideId]));
+    }
+    setSelection(new Set([selectedId]));
     setEditing(null);
     setView("slide");
-  }, [commit, current]);
+  }, [applyImageToDeck, commit, current]);
+
+  const adoptImageRef = useRef<AdoptSlideImage>(() => false);
+  useLayoutEffect(() => {
+    adoptImageRef.current = (image, target, at, slideId) => {
+      if (!mounted.current || !editableRef.current) return false;
+      placeImage(image, target, at, slideId);
+      return true;
+    };
+  }, [placeImage]);
+  useEffect(() => {
+    const entry = { adopt: ((image, target, at, slideId) => adoptImageRef.current(image, target, at, slideId)) as AdoptSlideImage };
+    let set = liveSlideEditors.get(liveKey);
+    if (!set) { set = new Set(); liveSlideEditors.set(liveKey, set); }
+    set.add(entry);
+    return () => {
+      set.delete(entry);
+      if (!set.size) liveSlideEditors.delete(liveKey);
+    };
+  }, [liveKey]);
 
   const uploadFiles = useCallback(async (files: File[], target: string | null, at?: { x: number; y: number }) => {
     const images = files.filter((file) => SLIDE_IMAGE_TYPES.includes(file.type)).slice(0, 10);
@@ -470,8 +527,21 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
       for (const [index, file] of images.entries()) {
         try {
           const image = await uploadSlideImage(file);
-          if (!mounted.current) return;
-          placeImage(image, index === 0 ? target : null, at ? { x: at.x + index * 24, y: at.y + index * 24 } : undefined, slideId);
+          const itemTarget = index === 0 ? target : null;
+          const itemAt = at ? { x: at.x + index * 24, y: at.y + index * 24 } : undefined;
+          if (mounted.current) {
+            placeImage(image, itemTarget, itemAt, slideId);
+            continue;
+          }
+          // ページ切替や再マウント後にアップロードが完了した場合：同じ世代で開き直したエディターへ渡すか、
+          // 無ければ保存キューへ直接反映してアップロード結果を失わないようにする。
+          if (!editableRef.current) continue;
+          const live = [...(liveSlideEditors.get(liveKey) ?? [])].at(-1);
+          if (live && live.adopt(image, itemTarget, itemAt, slideId)) continue;
+          const { nextDeck } = applyImageToDeck(deckRef.current, image, itemTarget, itemAt, slideId);
+          deckRef.current = nextDeck;
+          sent.current = nextDeck;
+          onChangeRef.current(nextDeck as unknown as CanvasData);
         } catch (caught) {
           if (!mounted.current) return;
           if (!(caught instanceof StorageLimitError)) setNotice(caught instanceof Error ? caught.message : t("Upload failed. Try again."));
@@ -485,7 +555,7 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     } finally {
       uploadTasks.current.delete(task);
     }
-  }, [current, placeImage, t]);
+  }, [applyImageToDeck, current, liveKey, placeImage, t]);
 
   const requestImage = (target: string | null) => {
     imageTarget.current = target;

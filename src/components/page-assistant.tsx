@@ -86,19 +86,50 @@ const WHITEBOARD_SELECTION_ACTIONS = [
 const LEGACY_WHITEBOARD_PROMPTS: readonly QuickAction[] = [
   { label: msg("Group & organize"), prompt: "Suggest how to group and organize the selected items, in their own language. Do not change the page unless asked." },
 ];
-const SLIDES_SELECTION_ACTIONS = [
+const SLIDES_ELEMENT_SELECTION_ACTIONS = [
+  { label: msg("Rewrite"), prompt: "Rewrite only the selected slide element(s) to be clearer and more engaging using propose_slides_edit (update_element), keeping the same language and leaving other elements untouched." },
+  { label: msg("Make it shorter"), prompt: "Make only the selected slide element(s) shorter and punchier without losing the key points using propose_slides_edit (update_element), keeping the same language and leaving other elements untouched." },
+  { label: msg("Expand"), prompt: "Expand only the selected slide element(s) with clearer detail and supporting points using propose_slides_edit (update_element), keeping the same language and leaving other elements untouched." },
+  { label: msg("Change tone"), prompt: "Adjust the tone of only the selected slide element(s) to be more polished and clear for a presentation using propose_slides_edit (update_element), keeping the same language and leaving other elements untouched." },
+] as const;
+const SLIDES_SINGLE_SELECTION_ACTIONS = [
+  { label: msg("Rewrite"), prompt: "Rewrite the selected slide to be clearer and more engaging using propose_slides_edit, keeping the same language." },
+  { label: msg("Make it shorter"), prompt: "Make the selected slide shorter and punchier without losing the key points using propose_slides_edit, keeping the same language." },
+  { label: msg("Expand"), prompt: "Expand the selected slide with clearer detail and supporting points using propose_slides_edit, keeping the same language." },
+  { label: msg("Change tone"), prompt: "Adjust the tone of the selected slide to be more polished and clear for a presentation using propose_slides_edit, keeping the same language." },
+  { label: msg("Write speaker notes"), prompt: "Write clear, natural speaker notes for the selected slide using propose_slides_edit, keeping the same language." },
+  { label: msg("Split into two slides"), prompt: "Split the selected slide into two focused, well-balanced slides using propose_slides_edit (split_slide), keeping the same language." },
+] as const;
+const SLIDES_MULTI_SELECTION_ACTIONS = [
+  { label: msg("Rewrite"), prompt: "Rewrite the selected slides to be clearer and more engaging using propose_slides_edit, keeping the same language." },
+  { label: msg("Make it shorter"), prompt: "Make the selected slides shorter and punchier without losing the key points using propose_slides_edit, keeping the same language." },
+  { label: msg("Expand"), prompt: "Expand the selected slides with clearer detail and supporting points using propose_slides_edit, keeping the same language." },
+  { label: msg("Change tone"), prompt: "Adjust the tone of the selected slides to be more polished and clear for a presentation using propose_slides_edit, keeping the same language." },
+  { label: msg("Write speaker notes"), prompt: "Write clear, natural speaker notes for the selected slides using propose_slides_edit, keeping the same language." },
+  { label: msg("Merge slides"), prompt: "Merge the selected slides into one concise, well-structured slide using propose_slides_edit (merge_slides), keeping the same language." },
+] as const;
+const LEGACY_SLIDES_PROMPTS: readonly QuickAction[] = [
   { label: msg("Rewrite"), prompt: "Rewrite the selected slide or elements to be clearer and more engaging using propose_slides_edit, keeping the same language." },
   { label: msg("Make it shorter"), prompt: "Make the selected slide or elements shorter and punchier without losing the key points using propose_slides_edit, keeping the same language." },
   { label: msg("Expand"), prompt: "Expand the selected slide or elements with clearer detail and supporting points using propose_slides_edit, keeping the same language." },
   { label: msg("Change tone"), prompt: "Adjust the tone of the selected slide or elements to be more polished and clear for a presentation using propose_slides_edit, keeping the same language." },
   { label: msg("Write speaker notes"), prompt: "Write clear, natural speaker notes for the selected slide(s) using propose_slides_edit, keeping the same language." },
-  { label: msg("Split into two slides"), prompt: "Split the selected slide into two focused, well-balanced slides using propose_slides_edit (split_slide), keeping the same language." },
-  { label: msg("Merge slides"), prompt: "Merge the selected slides into one concise, well-structured slide using propose_slides_edit (merge_slides), keeping the same language." },
-] as const;
+];
+const SLIDES_SELECTION_ACTIONS = SLIDES_SINGLE_SELECTION_ACTIONS;
 
 const ACTION_LABEL_BY_PROMPT = new Map<string, string>(
-  [...QUICK_ACTIONS, ...SELECTION_ACTIONS, ...WHITEBOARD_ACTIONS, ...SLIDES_ACTIONS, ...WHITEBOARD_SELECTION_ACTIONS, ...LEGACY_WHITEBOARD_PROMPTS, ...SLIDES_SELECTION_ACTIONS]
-    .map((action) => [action.prompt, action.label]),
+  [
+    ...QUICK_ACTIONS,
+    ...SELECTION_ACTIONS,
+    ...WHITEBOARD_ACTIONS,
+    ...SLIDES_ACTIONS,
+    ...WHITEBOARD_SELECTION_ACTIONS,
+    ...LEGACY_WHITEBOARD_PROMPTS,
+    ...SLIDES_ELEMENT_SELECTION_ACTIONS,
+    ...SLIDES_SINGLE_SELECTION_ACTIONS,
+    ...SLIDES_MULTI_SELECTION_ACTIONS,
+    ...LEGACY_SLIDES_PROMPTS,
+  ].map((action) => [action.prompt, action.label]),
 );
 
 // 種類ごとの既定の頼み事（エディターが quickActions を渡せば、そちらを使う）。
@@ -210,10 +241,11 @@ async function streamChat(
 // ページは、編集案の Apply を押すまで変わらない（チャットと同じ仕組み）。「自動適用」を入れると、編集案はすぐ適用され、カードから元に戻せる。
 // 入力欄はチャットと同じ機能を持つ：「＋」メニュー（ファイル・写真、ノートの添付）とモデル選択。画像の作成だけは置かない（ページの編集には使わない）。
 // ホワイトボード・スライドのエディターは、選んだ要素・スライドを selection（文字と ID）で渡す。
-export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: noteTitle, model, reasoning, onModelChange, onReasoningChange, flush, embedded = false, selection = null, onClearSelection, openSignal = 0, hidden = false, quickActions, selectionActions, anchor = null, onGenerateImage }: {
+export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: noteTitle, pageLocked = false, model, reasoning, onModelChange, onReasoningChange, flush, embedded = false, selection = null, onClearSelection, openSignal = 0, hidden = false, quickActions, selectionActions, anchor = null, onGenerateImage }: {
   pageId: string;
   pageKind?: PageKind;
   pageTitle: string;
+  pageLocked?: boolean;
   model: string;
   reasoning: string;
   // モデルと推論強度を変える（チャットの選択と共通）。渡されないとき（Android アプリの /note-embed）は選択欄を出さない。
@@ -246,13 +278,22 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
     : { currentPageId: noteId }, [noteId, embedded]);
   const kindText = KIND_TEXT[pageKind];
   const actions = quickActions ?? DEFAULT_ACTIONS[pageKind].quick;
-  const pickedActions = selectionActions ?? DEFAULT_ACTIONS[pageKind].selection;
-  // AI がこの種類のページを変えられるか（読むだけの種類には「自動適用」を出さない）。
+  const pickedActions = selectionActions ?? (
+    pageKind === "slides"
+      ? (selection?.kind === "elements"
+        ? SLIDES_ELEMENT_SELECTION_ACTIONS
+        : selection?.kind === "slides"
+          ? SLIDES_MULTI_SELECTION_ACTIONS
+          : SLIDES_SINGLE_SELECTION_ACTIONS)
+      : DEFAULT_ACTIONS[pageKind].selection
+  );
+  // AI がこの種類のページを変えられるか（読むだけの種類やロック中のページには「自動適用」を出さない）。
   const editable = PAGE_KIND_FEATURES[pageKind].aiEdit;
+  const canAutoApply = editable && !pageLocked;
   // 「自動適用」はこのブラウザに種類ごとに覚える。既定は「提案 → 確認」。
   const [autoApply, setAutoApply] = useState(false);
   useEffect(() => { queueMicrotask(() => setAutoApply(loadAutoApply(pageKind))); }, [pageKind]);
-  const autoApplyOn = editable && autoApply;
+  const autoApplyOn = canAutoApply && autoApply;
   // エディターが渡した文字も、ノートの「Ask AI」と同じく整えて長さを抑える（normalizeQuote）。
   const selectionText = selection?.text ? normalizeQuote(selection.text) : "";
   // サーバーが受け付ける形にそろえる（重複・空・長すぎる ID を外し、上限の数まで）。上限を超えた選択でも送れなくならない。
@@ -1112,7 +1153,7 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
               onGenerateImage={onGenerateImage ? () => { if (phone) close(); onGenerateImage(); } : undefined} />
             {onModelChange && onReasoningChange && <ModelSelect value={model} reasoning={reasoning} onModelChange={onModelChange} onReasoningChange={onReasoningChange} />}
             {/* 「自動適用」：モデル選択の隣に置くコンパクトなスイッチ。色だけでなくつまみの位置で ON/OFF が一目で分かる。 */}
-            {editable && (
+            {canAutoApply && (
               <button
                 type="button"
                 role="switch"

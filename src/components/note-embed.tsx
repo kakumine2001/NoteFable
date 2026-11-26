@@ -321,7 +321,7 @@ export function NoteEmbed() {
         </div>
       </section>
       {historyOpen && active && activeId && (
-        <NoteHistoryDialog key={activeId} noteId={activeId} getVersion={() => active.version} flush={async () => { await flushCanvasEditors(); return active.flush(); }}
+        <NoteHistoryDialog key={activeId} noteId={activeId} getVersion={() => active.version} flush={async () => { if (!(await flushCanvasEditors())) return false; return active.flush(); }}
           onRestored={() => setHistoryOpen(false)} onClose={() => setHistoryOpen(false)} />
       )}
       {/* AI パネルの「画成図」の窓。「Open whiteboard」はアプリにページを開いてもらう（WebView の中では移動しない）。 */}

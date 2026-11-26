@@ -81,7 +81,7 @@ const SLIDES_CREATE_TOOL = {
 const SLIDES_EDIT_TOOL = {
   name: "propose_slides_edit",
   description:
-    `Propose structured edits to an existing slide deck (kind slides only). This does NOT change the slide deck unless auto-apply is on: the user reviews a before/after visual preview before applying, so never say the slide deck was updated unless the tool result says it was applied. Call read_note first and pass its noteId and version. ALWAYS target slides by their stable slide.id from read_note (never by slide number!). Never output pixel coordinates. Up to ${MAX_AI_SLIDES_OPS} operations per call. Supported ops: "update_slide" (slideId + any of title, body Markdown, notes, layout, hidden, transition, section; preserves existing images/whiteboard frames), "set_layout" (slideId, layout; never drops content), "split_slide" (slideId -> first slide uses title/body/notes/layout, second slide uses secondTitle/secondBody/secondNotes/secondLayout, optional ref), "merge_slides" (slideIds [2+], optional title/body/notes/layout), "add_slide" (afterSlideId or atStart=true for beginning or both null for end, title, body, notes, layout, hidden, transition, section, optional ref), "delete_slides" (slideIds), "reorder_slides" (slideIds as full permutation or subset + afterSlideId/atStart), "restyle_deck" (themeId from the 8 built-in themes, themeMode light|dark, optional slideLayouts [{slideId, layout}]; strictly preserves 100% of slide text and speaker notes). Pass null for fields unused by an operation.`,
+    `Propose structured edits to an existing slide deck (kind slides only). This does NOT change the slide deck unless auto-apply is on: the user reviews a before/after visual preview before applying, so never say the slide deck was updated unless the tool result says it was applied. Call read_note first and pass its noteId and version. ALWAYS target slides by their stable slide.id from read_note (never by slide number!). Never output pixel coordinates. Up to ${MAX_AI_SLIDES_OPS} operations per call. Supported ops: "update_slide" (slideId + any of title, body Markdown, notes, layout, hidden, transition, section; preserves existing images/whiteboard frames/shapes/lines), "update_element" (slideId, elementId, body Markdown; rewrites ONLY that text or shape element without touching other elements on the slide), "set_layout" (slideId, layout; never drops content), "split_slide" (slideId -> first slide uses title/body/notes/layout, second slide uses secondTitle/secondBody/secondNotes/secondLayout, optional ref), "merge_slides" (slideIds [2+], optional title/body/notes/layout), "add_slide" (afterSlideId or atStart=true for beginning or both null for end, title, body, notes, layout, hidden, transition, section, optional ref), "delete_slides" (slideIds), "reorder_slides" (slideIds as full permutation or subset + afterSlideId/atStart), "restyle_deck" (themeId from the 8 built-in themes, themeMode light|dark, optional slideLayouts [{slideId, layout}]; strictly preserves 100% of slide text, formatting, links, tables, media, shapes and speaker notes). Pass null for fields unused by an operation.`,
   parameters: {
     type: "object",
     properties: {
@@ -98,6 +98,7 @@ const SLIDES_EDIT_TOOL = {
               type: "string",
               enum: [
                 "update_slide",
+                "update_element",
                 "set_layout",
                 "split_slide",
                 "merge_slides",
@@ -108,13 +109,14 @@ const SLIDES_EDIT_TOOL = {
               ],
               description: "Operation type.",
             },
-            slideId: { type: ["string", "null"], description: "Target stable slide ID (from read_note or earlier local ref) for update_slide, set_layout, split_slide; null otherwise." },
+            slideId: { type: ["string", "null"], description: "Target stable slide ID (from read_note or earlier local ref) for update_slide, update_element, set_layout, split_slide; null otherwise." },
+            elementId: { type: ["string", "null"], description: "Target stable element ID (from read_note) for update_element; null otherwise." },
             slideIds: { type: ["array", "null"], items: { type: "string" }, description: "Target stable slide IDs for merge_slides (2+), delete_slides (1+), or reorder_slides; null otherwise." },
             afterSlideId: { type: ["string", "null"], description: "For add_slide / reorder_slides: insert immediately after this stable slide ID, or null." },
             atStart: { type: ["boolean", "null"], description: "For add_slide / reorder_slides when afterSlideId is null: true to insert at start, false/null to append at end." },
             ref: { type: ["string", "null"], description: "Optional temporary local ref ID for a slide created by add_slide or the second slide of split_slide, or null." },
             title: { type: ["string", "null"], description: "Slide title text (for update_slide, add_slide, merge_slides, or first slide of split_slide), or null." },
-            body: { type: ["string", "null"], description: "Slide body Markdown (bullets, numbered lists, code blocks, math, tables), or null." },
+            body: { type: ["string", "null"], description: "Slide or element body Markdown (bullets, numbered lists, code blocks, math, tables), or null." },
             notes: { type: ["string", "null"], description: "Plain-text speaker notes (pass empty string to clear, null to keep unchanged), or null." },
             layout: { type: ["string", "null"], enum: [...LAYOUT_IDS, null], description: `Slide layout (${LAYOUT_IDS.join(", ")}), or null.` },
             hidden: { type: ["boolean", "null"], description: "For update_slide / add_slide: hide or show the slide, or null." },
@@ -141,7 +143,7 @@ const SLIDES_EDIT_TOOL = {
             },
           },
           required: [
-            "op", "slideId", "slideIds", "afterSlideId", "atStart", "ref",
+            "op", "slideId", "elementId", "slideIds", "afterSlideId", "atStart", "ref",
             "title", "body", "notes", "layout", "hidden", "transition", "section",
             "secondTitle", "secondBody", "secondNotes", "secondLayout",
             "themeId", "themeMode", "slideLayouts",
@@ -209,7 +211,7 @@ export const slidesAdapter: PageAdapter = {
     tool: SLIDES_CREATE_TOOL,
     async propose(_ctx, rawArgs) {
       const value = asObject(rawArgs);
-      const label = msg("Note proposal rejected");
+      const label = msg("Page proposal rejected");
       const title = typeof value.title === "string" ? value.title.trim() : "";
       if (!title) throw new AdapterError("title must be a non-empty string.", label);
       if (value.icon !== null && value.icon !== undefined && typeof value.icon !== "string") {

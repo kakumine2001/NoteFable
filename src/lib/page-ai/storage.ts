@@ -44,9 +44,16 @@ export const noteStorage: Storage = {
     if (content.icon !== undefined) await claimCover(tx, content.icon, userId, "icon");
     await claimNoteFiles(tx, content.blocks as never, userId);
   },
-  async write(tx, target, content, { ai }) {
+  async write(tx, target, content, { ai, requireUnlocked }) {
     const changed = await tx.notePage.updateMany({
-      where: { id: target.id, userId: target.userId, version: target.version, deletedAt: null, kind: "note" },
+      where: {
+        id: target.id,
+        userId: target.userId,
+        version: target.version,
+        deletedAt: null,
+        kind: "note",
+        ...(requireUnlocked ? { locked: false } : {}),
+      },
       data: {
         title: content.title, ...(content.icon === undefined ? {} : { icon: content.icon }),
         blocks: content.blocks as Prisma.InputJsonValue, version: { increment: 1 }, ...(ai ? { aiUpdatedAt: new Date() } : {}),
@@ -93,9 +100,16 @@ export function canvasStorage(kind: CanvasKind): Storage {
       if (content.icon !== undefined) await claimCover(tx, content.icon, userId, "icon");
       await claimStoredFiles(tx, content.filePaths ?? [], userId);
     },
-    async write(tx, target, content, { ai }) {
+    async write(tx, target, content, { ai, requireUnlocked }) {
       const changed = await tx.notePage.updateMany({
-        where: { id: target.id, userId: target.userId, version: target.version, deletedAt: null, kind },
+        where: {
+          id: target.id,
+          userId: target.userId,
+          version: target.version,
+          deletedAt: null,
+          kind,
+          ...(requireUnlocked ? { locked: false } : {}),
+        },
         data: { title: content.title, ...(content.icon === undefined ? {} : { icon: content.icon }), version: { increment: 1 }, ...(ai ? { aiUpdatedAt: new Date() } : {}) },
       });
       if (!changed.count) return false;

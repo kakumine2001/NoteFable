@@ -15,6 +15,7 @@ import {
 
 const NULL_OP = {
   slideId: null,
+  elementId: null,
   slideIds: null,
   afterSlideId: null,
   atStart: null,
@@ -379,7 +380,7 @@ describe("applySlidesEdits (propose_slides_edit)", () => {
     const mutatedText = JSON.parse(JSON.stringify(before)) as Deck;
     const tEl = mutatedText.slides[1].elements.find((e) => e.type === "text" && e.role === "title")!;
     if (tEl.type === "text") tEl.doc = richDocFromText("Key Goals!");
-    expect(() => assertDeckTextPreserved(before, mutatedText)).toThrow(/text content changed/);
+    expect(() => assertDeckTextPreserved(before, mutatedText)).toThrow(/Restyle invariant violated: content changed/);
 
     // Mutate speaker notes
     const mutatedNotes = JSON.parse(JSON.stringify(before)) as Deck;
@@ -390,7 +391,7 @@ describe("applySlidesEdits (propose_slides_edit)", () => {
     const mutatedTable = JSON.parse(JSON.stringify(before)) as Deck;
     const tbl = mutatedTable.slides[2].elements.find((e) => e.type === "table")!;
     if (tbl.type === "table") tbl.rows[0].cells[1].text = "Col C";
-    expect(() => assertDeckTextPreserved(before, mutatedTable)).toThrow(/table content changed/);
+    expect(() => assertDeckTextPreserved(before, mutatedTable)).toThrow(/Restyle invariant violated: content changed/);
 
     // Hallucinate extra text element
     const hallucinated = JSON.parse(JSON.stringify(before)) as Deck;
@@ -407,7 +408,7 @@ describe("applySlidesEdits (propose_slides_edit)", () => {
       fill: null,
       autoHeight: false,
     });
-    expect(() => assertDeckTextPreserved(before, hallucinated)).toThrow(/text content changed/);
+    expect(() => assertDeckTextPreserved(before, hallucinated)).toThrow(/Restyle invariant violated: elements added or removed/);
   });
 
   it("flags no-op edits as unchanged and enforces operation, slide count, and speaker notes limits", () => {
@@ -462,5 +463,196 @@ describe("applySlidesEdits (propose_slides_edit)", () => {
     expect(restyledPending?.type === "image" ? restyledPending.pendingImagePrompt : undefined).toBe("Futuristic studio diagram");
 
     expect(() => applySlidesEdits(deck, [op({ op: "delete_slides", slideIds: ["slide_quote", "slide_pending"] })])).toThrow(/at least one slide/i);
+  });
+
+  it("handles quote without attribution (no index shift), Full image title fallback, and preserves rich untouched title on body-only rebuild", () => {
+    const bareQuote: Slide = {
+      ...createSlide("quote", { quote: "Original quote" }),
+      id: "slide_bare_quote",
+    };
+    bareQuote.elements = bareQuote.elements.filter((el) => el.role !== "attribution");
+
+    const fullImg: Slide = {
+      ...createSlide("fullImage", { caption: "Hero shot" }),
+      id: "slide_full_img",
+    };
+
+    const richTitleSlide: Slide = {
+      ...createSlide("bullets", { title: "Bold Title", body: "Initial" }),
+      id: "slide_rich_title",
+    };
+    const titleEl = richTitleSlide.elements.find((el) => el.type === "text" && el.role === "title");
+    if (titleEl && titleEl.type === "text") {
+      titleEl.doc = {
+        type: "doc",
+        content: [{ type: "paragraph", attrs: { align: null }, content: [{ type: "text", text: "Bold Title", marks: [{ type: "strong" }] }] }],
+      };
+    }
+
+    const deck = normalizeDeck({ format: DECK_FORMAT, theme: { id: "simple", mode: "light" }, slides: [bareQuote, fullImg, richTitleSlide] });
+    const res = applySlidesEdits(deck, [
+      op({ op: "update_slide", slideId: "slide_bare_quote", title: "Author", body: "New quote" }),
+      op({ op: "update_slide", slideId: "slide_full_img", title: "Full Image Title", body: "Updated caption" }),
+      op({ op: "update_slide", slideId: "slide_rich_title", body: "| A | B |\n| --- | --- |\n| 1 | 2 |" }),
+    ]);
+
+    const q = res.deck.slides[0];
+    const qText = q.elements.find((el) => el.type === "text" && el.role === "quote");
+    const aText = q.elements.find((el) => el.type === "text" && el.role === "attribution");
+    expect(qText?.type === "text" ? richDocText(qText.doc) : "").toBe("New quote");
+    expect(aText?.type === "text" ? richDocText(aText.doc) : "").toBe("Author");
+
+    const fi = res.deck.slides[1];
+    const fiTitle = fi.elements.find((el) => el.type === "text" && el.role === "title");
+    const fiCaption = fi.elements.find((el) => el.type === "text" && el.role === "caption");
+    expect(fiTitle?.type === "text" ? richDocText(fiTitle.doc) : "").toBe("Full Image Title");
+    expect(fiCaption?.type === "text" ? richDocText(fiCaption.doc) : "").toBe("Updated caption");
+
+    const rt = res.deck.slides[2];
+    const rtTitle = rt.elements.find((el) => el.type === "text" && el.role === "title");
+    expect(rtTitle?.id).toBe(titleEl?.id);
+    expect(rtTitle?.type === "text" ? JSON.stringify(rtTitle.doc) : "").toContain('"strong"');
+  });
+
+  it("enforces strict structural restyle invariant (links, marks, code lang, decorative shapes, and pre-normalized stored section length)", () => {
+    const base = sampleDeck();
+    // Add a link, code language, and empty decorative shape with a role.
+    const slide = base.slides[1];
+    const bodyEl = slide.elements.find((el) => el.type === "text" && el.role === "body");
+    if (bodyEl && bodyEl.type === "text") {
+      bodyEl.doc = {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            attrs: { align: null },
+            content: [{ type: "text", text: "Docs", marks: [{ type: "link", attrs: { href: "https://example.com/a" } }] }],
+          },
+          { type: "code_block", attrs: { language: "ts" }, content: [{ type: "text", text: "const x = 1;" }] },
+        ],
+      };
+    }
+    slide.elements.push({
+      id: "decor_shape_1",
+      type: "shape",
+      role: "body",
+      shape: "roundRect",
+      x: 100,
+      y: 100,
+      w: 200,
+      h: 120,
+      rotation: 0,
+      fill: "accent",
+      stroke: null,
+      strokeWidth: 0,
+      dash: "solid",
+      doc: { type: "doc", content: [{ type: "paragraph", attrs: { align: null } }] },
+      style: { font: "body", size: 28, color: "text", align: "center", valign: "middle", lineHeight: 1.2, bold: false, italic: false },
+    });
+
+    // Empty decorative shape survives layout change during restyle_deck!
+    const restyled = applySlidesEdits(base, [
+      op({ op: "restyle_deck", themeId: "tech", slideLayouts: [{ slideId: "slide_goals", layout: "twoColumn" }] }),
+    ]);
+    expect(restyled.deck.slides[1].elements.some((el) => el.id === "decor_shape_1" && el.type === "shape")).toBe(true);
+
+    // Changing only link href or code language must be rejected by assertDeckTextPreserved.
+    const alteredHref: Deck = JSON.parse(JSON.stringify(restyled.deck));
+    const alteredBody = alteredHref.slides[1].elements.find((el) => el.id === bodyEl?.id);
+    if (alteredBody && alteredBody.type === "text") {
+      alteredBody.doc.content[0] = {
+        type: "paragraph",
+        attrs: { align: null },
+        content: [{ type: "text", text: "Docs", marks: [{ type: "link", attrs: { href: "https://evil.example/b" } }] }],
+      };
+    }
+    expect(() => assertDeckTextPreserved(base, alteredHref)).toThrow(/Restyle invariant violated/i);
+
+    // Raw stored section > 200 chars must not be silently truncated by restyle_deck.
+    const rawOversizedSection = JSON.parse(JSON.stringify(base)) as Record<string, unknown>;
+    (rawOversizedSection.slides as Record<string, unknown>[])[0].section = "x".repeat(201);
+    expect(() => applySlidesEdits(rawOversizedSection, [op({ op: "restyle_deck", themeId: "tech" })])).toThrow(/Restyle invariant violated/i);
+  });
+
+  it("supports scoped update_element without touching sibling boxes/tables, rejects colliding refs, blank/conflicting anchors, and silent noteToDeck truncation", () => {
+    const deck = sampleDeck();
+    deck.slides[1].elements.push(
+      {
+        id: "free_box_1",
+        type: "text",
+        x: 200,
+        y: 600,
+        w: 600,
+        h: 160,
+        rotation: 0,
+        doc: { type: "doc", content: [{ type: "paragraph", attrs: { align: null }, content: [{ type: "text", text: "Original note box" }] }] },
+        style: { font: "body", size: 32, color: "text", align: "left", valign: "top", lineHeight: 1.3, bold: false, italic: false },
+        fill: null,
+        autoHeight: false,
+      },
+      {
+        id: "free_box_2",
+        type: "text",
+        x: 900,
+        y: 600,
+        w: 600,
+        h: 160,
+        rotation: 0,
+        doc: { type: "doc", content: [{ type: "paragraph", attrs: { align: null }, content: [{ type: "text", text: "Keep untouched" }] }] },
+        style: { font: "body", size: 32, color: "text", align: "left", valign: "top", lineHeight: 1.3, bold: false, italic: false },
+        fill: null,
+        autoHeight: false,
+      },
+    );
+
+    const elemEdited = applySlidesEdits(deck, [
+      op({ op: "update_element", slideId: "slide_goals", elementId: "free_box_1", body: "**Crisp rewritten box**" }),
+    ]);
+    const box1 = elemEdited.deck.slides[1].elements.find((el) => el.id === "free_box_1");
+    const box2 = elemEdited.deck.slides[1].elements.find((el) => el.id === "free_box_2");
+    expect(box1?.type === "text" ? richDocText(box1.doc) : "").toBe("Crisp rewritten box");
+    expect(box2?.type === "text" ? richDocText(box2.doc) : "").toBe("Keep untouched");
+
+    // Local ref cannot collide with an existing slide ID.
+    expect(() => applySlidesEdits(deck, [
+      op({ op: "add_slide", title: "Shadow", ref: "slide_cover" }),
+    ])).toThrow(/conflicts with an existing slide ID/i);
+
+    // Blank afterSlideId and conflicting afterSlideId + atStart=true are rejected.
+    expect(() => applySlidesEdits(deck, [op({ op: "add_slide", title: "X", afterSlideId: "   " })])).toThrow(/afterSlideId/i);
+    expect(() => applySlidesEdits(deck, [op({ op: "add_slide", title: "X", afterSlideId: "slide_cover", atStart: true })])).toThrow(/not both/i);
+
+    // Two-column update with empty right placeholder distributes bullets across both columns.
+    const twoColDeck = normalizeDeck({
+      format: DECK_FORMAT,
+      theme: { id: "simple", mode: "light" },
+      slides: [{ ...createSlide("twoColumn", { title: "Compare" }), id: "tc1" }],
+    });
+    const updatedTwoCol = applySlidesEdits(twoColDeck, [
+      op({ op: "update_slide", slideId: "tc1", body: "- One\n- Two\n- Three\n- Four" }),
+    ]);
+    const col1 = updatedTwoCol.deck.slides[0].elements.find((el) => el.type === "text" && el.role === "body");
+    const col2 = updatedTwoCol.deck.slides[0].elements.find((el) => el.type === "text" && el.role === "body2");
+    expect(col1?.type === "text" ? richDocText(col1.doc) : "").toContain("One");
+    expect(col2?.type === "text" ? richDocText(col2.doc) : "").toContain("Three");
+
+    // Subset reorder moving section head keeps section on remaining slides of that row.
+    const sectionedDeck = normalizeDeck({
+      format: DECK_FORMAT,
+      theme: { id: "simple", mode: "light" },
+      slides: [
+        { ...createSlide("bullets", { title: "A1" }), id: "a1", section: "Alpha" },
+        { ...createSlide("bullets", { title: "A2" }), id: "a2" },
+        { ...createSlide("bullets", { title: "B1" }), id: "b1", section: "Beta" },
+        { ...createSlide("bullets", { title: "B2" }), id: "b2" },
+      ],
+    });
+    const moved = applySlidesEdits(sectionedDeck, [
+      op({ op: "reorder_slides", slideIds: ["b1"], afterSlideId: "a1" }),
+    ]);
+    expect(moved.deck.slides.map((s) => s.id)).toEqual(["a1", "b1", "a2", "b2"]);
+    expect(moved.deck.slides[0].section).toBe("Alpha");
+    expect(moved.deck.slides[1].section).toBeUndefined();
+    expect(moved.deck.slides[3].section).toBe("Beta");
   });
 });

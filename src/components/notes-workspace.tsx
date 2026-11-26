@@ -282,8 +282,8 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
       </>}
       {/* AI パネル（AI 操控底座）。エディターが選んだ要素・スライドを selection で渡す。AI が操作できない種類は読むだけ。
           送る前の flush は、ホワイトボードなどがまだ保存キューへ渡していない変更（描き終わり・文字の確定の直後）も先に渡してもらう（版の履歴と同じ）。 */}
-      <PageAssistant key={activeId} pageId={activeId} pageKind={activeKind} pageTitle={active.content.title} model={model} reasoning={reasoning}
-        onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={async () => { await flushCanvasEditors(); return active.flush(); }} embedded={embedded}
+      <PageAssistant key={activeId} pageId={activeId} pageKind={activeKind} pageTitle={active.content.title} pageLocked={Boolean(active.page.locked)} model={model} reasoning={reasoning}
+        onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={async () => { if (!(await flushCanvasEditors())) return false; return active.flush(); }} embedded={embedded}
         selection={aiSelection} onClearSelection={(sent) => setAiAsk((current) => clearActiveSelection(current, activeId, sent))}
         openSignal={aiOpenSignal} hidden={split} anchor={CanvasEditor && !split ? aiAnchor : null}
         onGenerateImage={CanvasEditor && editable ? requestPageImageGeneration : undefined} />
@@ -331,7 +331,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
             : nativeCanOpenChat() ? (id, messageId) => { postToNative(messageId ? { type: "openChat", id, messageId } : { type: "openChat", id }); } : undefined} />
       </div>
       {!embedded && !split && <NoteFloatingToc blocks={active.content.blocks} scrollRootRef={rootRef} activeId={activeId} />}
-      <PageAssistant key={activeId} pageId={activeId} pageTitle={active.content.title} model={model} reasoning={reasoning}
+      <PageAssistant key={activeId} pageId={activeId} pageTitle={active.content.title} pageLocked={Boolean(active.page.locked)} model={model} reasoning={reasoning}
         onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={() => active.flush()} embedded={embedded}
         selection={aiSelection} onClearSelection={(sent) => setAiAsk((current) => clearActiveSelection(current, activeId, sent))} openSignal={aiOpenSignal} hidden={split}
         onGenerateImage={editable ? requestPageImageGeneration : undefined} />
