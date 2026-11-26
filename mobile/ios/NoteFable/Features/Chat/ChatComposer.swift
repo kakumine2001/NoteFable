@@ -127,7 +127,6 @@ struct ChatComposer: View {
                     label: L("attach_add"),
                     iconSize: 18,
                     strokeWidth: 1.8,
-                    color: chromePath == .native ? chromePath.primaryInk : Sm.text,
                     disabledColor: Sm.muted,
                     action: onAddClick
                 )

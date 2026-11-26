@@ -102,8 +102,8 @@ struct ActionsMenuItem: View {
                 }
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 6.5)
-            .frame(minHeight: 38)
+            .padding(.vertical, 9)
+            .frame(minHeight: 44)
         }
         .buttonStyle(.pressable(background: isSelected ? selectedBg : .clear, cornerRadius: 12))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -144,8 +144,8 @@ struct ActionsMenuToggle: View {
         }
         .tint(Sm.blue)
         .padding(.horizontal, 12)
-        .padding(.vertical, 4)
-        .frame(minHeight: 38)
+        .padding(.vertical, 6)
+        .frame(minHeight: 44)
     }
 }
 

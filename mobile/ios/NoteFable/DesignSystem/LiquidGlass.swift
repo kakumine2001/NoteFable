@@ -920,7 +920,7 @@ private struct NFPopoverContainer<PopoverContent: View>: View {
 
     @ViewBuilder
     private var popoverBody: some View {
-        let maxHeight = max(240, nfWindowHeight(windowFrame) * 0.78)
+        let maxHeight = max(240, nfWindowHeight(windowFrame) * 0.80)
         if asSheet {
             VStack(alignment: .leading, spacing: 0) {
                 content()
