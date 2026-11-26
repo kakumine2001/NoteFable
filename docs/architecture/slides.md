@@ -80,6 +80,23 @@
 
 旧版 App（没有 `canPresent` / `canSaveFile`）：放映只在 WebView 里进行（不横屏、不常亮），导出提示更新 App。
 
+## AI 生成幻灯片
+
+把一个主题、自己的几篇笔记或一段对话做成一套新的幻灯片（#150）。先出大纲，用户改好后再生成整套；生成成功才建页，中途放弃不会留下空白页。模型只写文字，版式和坐标由服务端的纯函数排。本节是服务端接口；向导界面和各端入口另行接入。
+
+- **形状与上限**（`src/lib/slides/ai-wizard.ts`，画面和服务端共用，不依赖 prisma / DOM）：
+  - 来源 `source`：`{ type: "topic", topic }`（1–300 字符，换行并成空格）、`{ type: "notes", pageIds }`（1–5 篇，`MAX_MESSAGE_NOTES`）、`{ type: "chat", sessionId }`。
+  - 选项 `options`（省略的项取默认值，值不对返回 400）：`pageCount`（`"auto"` 或含封面的总页数 3–30）、`tone`（auto / professional / casual / academic / persuasive）、`audience`（一行，≤ 200）、`language`（`"auto"`＝跟随材料或主题，或 17 种界面语言代码）、`wording`（condense 精简 / keep 保留原文）、`theme`（8 个主题之一 + light / dark）。
+  - 大纲 `outline`：`{ title, slides: [{ title, points }] }`，不含封面；1–29 页，标题 1–200，每页最多 12 条要点、每条 ≤ 500（空要点丢弃）。
+- **接口**（`runtime = "nodejs"`，`maxDuration = 300`，请求体 ≤ 1 MiB；`model` 经 `normalizeModel`）：
+  - `GET /api/pages/slides/outline` → `{ scope }`（`Cache-Control: private, no-store`）：由用户 ID 哈希出的值，向导用它按用户隔离本机草稿（浏览器拿不到用户 ID）。
+  - `POST /api/pages/slides/outline` `{ source, options, model?, clientRequestId }` → 200 `{ outline, partial? }`，不建页。
+  - `POST /api/pages/slides/deck` `{ source, options, outline, model?, clientRequestId, groupId?, parentId? }` → 201 `{ page, partial? }`（页面摘要）；同一 `clientRequestId` 已建过时 200 `{ page }`，该页在 Trash 里则 404 “These slides were moved to the trash.”。
+- **材料**（`src/lib/page-ai/one-shot.ts`，不联网搜索）：笔记只读本人、`deletedAt: null`、`kind: "note"` 的页，每次现读，用 `delimitPageContent` 包住（私有数据，不是指令），每篇 20,000、合计 60,000 字符；对话只读本人会话里 `active: true` 的 USER / ASSISTANT 正文和附件文件名（和 Create page 同一套 `buildTranscript`），不读 SYSTEM 与 `providerContext`。缺任一篇笔记或会话返回 404，没有可用文字返回 400，都在扣额度之前。被上限截短时响应带 `partial`。
+- **额度**：大纲和整套各扣 1 条聊天额度，任何失败（502 上游 / 超时 / 截断 / 格式不对，503 保存等，父页面或项目不存在的 404）都退还；满额返回 429 `usage_limit`。
+- **重试不重复扣费**：整套用由（用户、用途、`clientRequestId`）决定的页面 ID（同画成图）。大纲不建页，用 `UsageCounter` 里的标记行（`src/lib/usage-requests.ts`，见 [database.md](database.md#usagecounter)）：同一 ID 且来源、选项、模型都相同的请求，成功后可免费重跑 3 次（响应丢失时用），仍在生成时返回 409 `request_in_progress`（超过 300 秒视为原请求已中断，可免费接着做）。
+- **组装**（`src/lib/slides/ai-build.ts`）：封面（只有标题）+ 大纲每页单独走 `noteToDeckResult`（和笔记放映同一套排版，放不下时续页“(2)”，续页可能让总页数超过 30，但不超过 `MAX_SLIDES`）；不加 `section`；图片、分割线、目录丢弃，正文一级标题降为三级；演讲备注放在该页的第一张。建页走 `createCanvasPage`（`ai: true`，所以有 Report AI content）。位置：`parentId`，否则来源是单篇笔记时作为它的子页面，否则 `groupId` 项目，否则最上层。
+
 ## 与其他功能的接口
 
 - **白板（#152）**：`src/lib/slides/whiteboard-embed.tsx`。白板端调用 `registerWhiteboardFrameProvider({ renderPicker })` 注册“选框并转成图片”的组件后，幻灯片工具栏才出现“白板框”按钮；选中的框由白板端上传成 note-files 后通过 `onPick({ pageId, frameId, frameName, src, width, height })` 交回，幻灯片里放的是那一刻的静态图（`whiteboard` 元素）。没注册时不显示按钮。

@@ -235,6 +235,8 @@ async function purgeOldUsage() {
     where: {
       OR: [
         { kind: { in: ["chat", "image", "report"] }, day: { lt: new Date(now - RETENTION_DAYS * DAY_MS) } },
+        // 同じ要求の送り直しの印（usage-requests.ts）。
+        { kind: { startsWith: "req:" }, day: { lt: new Date(now - RETENTION_DAYS * DAY_MS) } },
         { day: { lt: new Date(now - MONTHLY_RETENTION_DAYS * DAY_MS) } },
       ],
     },
