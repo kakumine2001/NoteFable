@@ -11,7 +11,7 @@
     "markdownExport": false,
     "typography": false,
     "publicShare": true,
-    "aiEdit": false
+    "aiEdit": true
   },
   "slides": {
     "editor": true,

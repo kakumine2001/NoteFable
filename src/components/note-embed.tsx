@@ -5,6 +5,7 @@ import { useI18n } from "@/components/i18n-provider";
 import { DrawDiagramHost } from "@/components/draw-diagram-dialog";
 import { NoteHistoryDialog } from "@/components/note-history-dialog";
 import { NotesWorkspace } from "@/components/notes-workspace";
+import { ProposalEmbedPreview } from "@/components/proposal-embed-preview";
 import { useModels } from "@/components/models-provider";
 import { readEmbedModelPreference, readModelPreference, resolveModelPreference } from "@/lib/model-preference";
 import { saveAppIcon } from "@/lib/app-icon";
@@ -56,6 +57,8 @@ export function NoteEmbed() {
   });
   const { active, activeId, loading, select, deactivate } = notes;
   const [pageId, setPageId] = useState<string | null>(null);
+  // /note-embed?proposal=<id>：アプリの提案カードから開くキャンバス提案の改前・改後プレビュー専用モード。
+  const [proposalPreviewId, setProposalPreviewId] = useState<string | null>(null);
   // アプリが一時的に一覧・チャットへ戻っている間（close() 後）は、編集画面の DOM を外してキャッシュだけ保つ。
   const [idle, setIdle] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -114,11 +117,16 @@ export function NoteEmbed() {
     return handed && saved;
   }, []);
 
-  // ページは静的に配るので、初回に開くノートは表示後に URL から読む（2 ページ目以降は openPage で切り替える）。
+  // ページは静的に配るので、初回に開くノート（または提案プレビュー）は表示後に URL から読む（2 ページ目以降は openPage で切り替える）。
   useEffect(() => {
     if (initialLoadedRef.current) return;
     initialLoadedRef.current = true;
     const params = new URL(window.location.href).searchParams;
+    const proposal = params.get("proposal");
+    if (proposal && REVEAL_TARGET.test(proposal)) {
+      queueMicrotask(() => setProposalPreviewId(proposal));
+      return;
+    }
     const id = params.get("page");
     const restored = resolveModelPreference(readEmbedModelPreference(params), options)
       ?? resolveModelPreference(readModelPreference(), options);
@@ -296,6 +304,10 @@ export function NoteEmbed() {
     const opened = await select(pageId, "none", { keepCurrent: false });
     if (!opened && expectedPageRef.current === pageId) postToNative({ type: "missing", id: pageId });
   };
+
+  if (proposalPreviewId) {
+    return <ProposalEmbedPreview proposalId={proposalPreviewId} />;
+  }
 
   const page = idle ? <main className="notion-workspace flex h-dvh" /> : (
     <main className="notion-workspace flex h-dvh">

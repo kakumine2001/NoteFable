@@ -39,6 +39,8 @@ final class AppRouter {
     var createPageSessionId: String?
     /// 「画成图」窗口显示的素材（状态在 `app.diagrams`）。
     var diagramSource: DiagramSource?
+    /// 画布提案（白板 / 幻灯片）改前・改后可视化预览窗口当前打开的提案。
+    var previewProposal: Proposal?
 
     private var linkTask: Task<Void, Never>?
     private var shareTask: Task<Void, Never>?
@@ -347,12 +349,21 @@ final class AppRouter {
     }
 
     /// 登录 / 退出后：旧身份整理好的笔记、画好的白板与搜索状态恢复默认标签。
+    func openProposalPreview(_ proposal: Proposal) {
+        previewProposal = proposal
+    }
+
+    func closeProposalPreview() {
+        previewProposal = nil
+    }
+
     func onIdentityChanged() {
         navigationEpoch &+= 1
         diagramIdentityGeneration += 1
         flushingDiagramPages.removeAll()
         createPageSessionId = nil
         diagramSource = nil
+        previewProposal = nil
         if selectedTab == .search {
             selectedTab = (app.notes.state.workspace == .notes) ? .workspace : .chat
         }
@@ -360,6 +371,7 @@ final class AppRouter {
 
     private func dismissOverlays() {
         drawerOpen = false
+        previewProposal = nil
         app.notes.dismissFullScreenSlidesWizard()
     }
 }

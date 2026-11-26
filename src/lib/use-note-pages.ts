@@ -10,7 +10,7 @@ import { descendantIdsOf } from "@/lib/note-tree";
 import { isImportableMarkdownFile, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_FILES, MAX_IMPORT_TOTAL_BYTES } from "@/lib/note-io";
 import { isCanvasKind, pageKindFeatures, pageKindOf, type PageKind } from "@/lib/page-kinds";
 import { CANVAS_DRAFT_PREFIX, canvasSaveBody, canvasSavedPage, newPageBody, parseCanvasDraft } from "@/lib/canvas-save";
-import { PAGES_TRASHED_EVENT, PAGES_WILL_TRASH_EVENT, type PagesWillTrashDetail } from "@/lib/proposal-sync";
+import { PAGES_TRASHED_EVENT, PAGES_WILL_CHANGE_EVENT, PAGES_WILL_TRASH_EVENT, type PagesWillTrashDetail } from "@/lib/proposal-sync";
 import { preloadPageEditor } from "@/lib/preload-editor";
 import { dispatchBacklinksStale } from "@/lib/note-backlinks";
 import { afterSheetHistory, isSheetCleanupPopState, restoreSheetMarker } from "@/lib/use-back-to-close";
@@ -654,17 +654,31 @@ export function useNotePages(
         window.history.replaceState(null, "", url);
       }
     }
+    function onPagesWillChange(event: Event) {
+      const detail = (event as CustomEvent<PagesWillTrashDetail | undefined>).detail;
+      if (!detail || !Array.isArray(detail.ids)) return;
+      const ids = new Set(detail.ids.filter((id): id is string => typeof id === "string"));
+      const openPage = displayedId.current !== null && ids.has(displayedId.current);
+      const pending = [...ids].flatMap((id) => { const queue = queues.current.get(id); return queue ? [queue] : []; });
+      if (!openPage && !pending.length) return;
+      detail.waits.push((async () => {
+        if (openPage && !(await flushCanvasEditors())) return false;
+        return (await Promise.all(pending.map((queue) => queue.flush()))).every(Boolean);
+      })());
+    }
     window.addEventListener("notefable:page-meta", onPageMeta);
     window.addEventListener("notefable:page-updated", onPageUpdated);
     window.addEventListener("notefable:page-created", onPageCreated);
     window.addEventListener(PAGES_TRASHED_EVENT, onPagesTrashed);
     window.addEventListener(PAGES_WILL_TRASH_EVENT, onPagesWillTrash);
+    window.addEventListener(PAGES_WILL_CHANGE_EVENT, onPagesWillChange);
     return () => {
       window.removeEventListener("notefable:page-meta", onPageMeta);
       window.removeEventListener("notefable:page-updated", onPageUpdated);
       window.removeEventListener("notefable:page-created", onPageCreated);
       window.removeEventListener(PAGES_TRASHED_EVENT, onPagesTrashed);
       window.removeEventListener(PAGES_WILL_TRASH_EVENT, onPagesWillTrash);
+      window.removeEventListener(PAGES_WILL_CHANGE_EVENT, onPagesWillChange);
     };
   }, [upsertSummary, markMeta, invalidatePageCache, cancelPending]);
 

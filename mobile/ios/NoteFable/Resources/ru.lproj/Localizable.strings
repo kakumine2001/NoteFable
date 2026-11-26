@@ -291,6 +291,7 @@
 "proposal_op_elements" = "%1$s · элементов: %2$s";
 "proposal_before" = "До";
 "proposal_after" = "После";
+"proposal_view_preview" = "Показать предпросмотр";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "Прикрепить страницы";
