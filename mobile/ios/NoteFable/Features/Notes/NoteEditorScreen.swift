@@ -71,7 +71,7 @@ struct NoteEditorScreen: View {
                 open: open, pool: editorPool, app: app, router: router,
                 appIcon: app.appIcon.icon, language: app.language.uiLocale,
                 theme: (colorScheme == .dark ? ResolvedTheme.dark : ResolvedTheme.light).rawValue,
-                edgeBack: !kind.capturesEdgeSwipes
+                edgeBack: !kind.capturesEdgeSwipes || wizardShown
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background {

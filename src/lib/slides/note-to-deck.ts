@@ -281,7 +281,7 @@ function blockHasVisibleContent(block: RawBlock): boolean {
   return inlinePlain(block.content).trim().length > 0 || children.some(blockHasVisibleContent);
 }
 
-function blocksHaveVisibleContent(blocks: RawBlock[]): boolean {
+export function blocksHaveVisibleContent(blocks: RawBlock[]): boolean {
   return blocks.some(blockHasVisibleContent);
 }
 

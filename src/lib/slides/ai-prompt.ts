@@ -105,8 +105,8 @@ function cut(text: string, max: number) {
   return text.slice(0, end).trimEnd();
 }
 
-// 全体を太字で囲んだ題名・要点は、記号を外す。
-const label = (text: string) => oneLine(text).replace(/^\*\*((?:(?!\*\*).)+)\*\*$/, "$1");
+// 全体を太字で囲んだ題名・要点は、記号を外して前後の空白を詰める。
+const label = (text: string) => oneLine(text).replace(/^\*\*((?:(?!\*\*).)+)\*\*$/, "$1").trim();
 
 // 大綱の返事。題名が無ければ fallbackTitle。枚が 1 つも読めなければ null。上限を超えた分は切る。
 export function parseOutlineReply(raw: string, fallbackTitle: string): SlidesOutline | null {

@@ -73,7 +73,6 @@ final class NoteEditorPool {
             )
             controller = created
             active = created
-            generation += 1
         }
         return (active, mountToken)
     }
@@ -98,6 +97,11 @@ final class NoteEditorPool {
     /// 全屏向导打不开（页面没加载成、旧服务端）：丢掉这个 WebView，下次重新加载。
     func discardWizard() {
         if controller?.isWizardActive == true { destroy() }
+    }
+
+    /// 网页还没出现向导就被用户关闭：如果这个 WebView 从未成功打开过页面或向导（比如离线加载失败），直接丢掉避免停靠坏页面。
+    func discardWizardIfUnready() {
+        if let controller, controller.isWizardActive, !controller.hasEverResponded { destroy() }
     }
 
     private func rescheduleIdleIfParked() {
@@ -229,6 +233,8 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
     private(set) var slidesWizardVisible = false
     /// 关掉向导时还有 AI 生成在后台跑。
     private(set) var slidesWizardBusy = false
+    /// 这次加载的网页是否真的回应过（ready / slidesWizard open / openSlidesWizard 成功）：离线或加载失败停在错误页时为 false。
+    private(set) var hasEverResponded = false
     var isParked: Bool { activeEditor == nil }
     var isWizardActive: Bool { activeEditor == Self.slidesWizardEditorId }
 
@@ -279,6 +285,7 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
             }
             if case .slidesWizard(let open, let busy) = message {
                 guard self.webView != nil else { return }
+                self.hasEverResponded = true
                 self.slidesWizardVisible = open
                 self.slidesWizardBusy = open ? false : busy
                 self.onWizardBusyChanged()
@@ -312,6 +319,7 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
                 switch message {
                 case .ready(let id, _, _, _, _):
                     if id != expected { return }
+                    self.hasEverResponded = true
                     self.awaitingPageId = nil
                     self.currentPageId = id
                     self.openedPageIds.insert(id)
@@ -463,7 +471,10 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
                     }
                 }
                 if let answer = NoteEmbedScripts.slidesWizardAnswer(raw) {
-                    if answer { slidesWizardVisible = true }
+                    if answer {
+                        slidesWizardVisible = true
+                        hasEverResponded = true
+                    }
                     return answer
                 }
             }
@@ -576,6 +587,7 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         isLoaded = false
         slidesWizardVisible = false
         slidesWizardBusy = false
+        hasEverResponded = false
         activeEditor = nil
         currentPageId = nil
         awaitingPageId = nil

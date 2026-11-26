@@ -106,8 +106,10 @@ describe("parseDeckReply", () => {
   });
 
   it("returns an outline reply that the deck request accepts unchanged", () => {
-    const parsed = parseOutlineReply(`# ${"t".repeat(300)}\n## ${"s ".repeat(200)}\n- ${"p ".repeat(400)}\n## **B**\n- `, "x")!;
+    const parsed = parseOutlineReply(`# ${"t".repeat(300)}\n## ${"s ".repeat(200)}\n- ${"p ".repeat(400)}\n## **B**\n- \n## ** **\n- ** **\n## ** Padded **\n- ** Item **`, "x")!;
     expect(parseOutline(parsed)).toEqual(parsed);
+    expect(parsed.slides.map((s) => s.title)).not.toContain("");
+    expect(parsed.slides.at(-1)).toEqual({ title: "Padded", points: ["Item"] });
   });
 
   it("falls back to the outline points when a body is empty", () => {

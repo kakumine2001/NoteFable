@@ -146,4 +146,20 @@ final class SlidesBridgeTests: XCTestCase {
         await notesSettle()
         XCTAssertNil(vm.state.slidesWizard)
     }
+
+    @MainActor
+    func testRouterSwitchesToWorkspaceWhenOpeningWizardWithOpenNoteFromSearchTab() async {
+        let env = AppEnvironment(config: AppConfig(baseURL: "https://example.test", siteURL: "https://example.test"))
+        let router = AppRouter(app: env)
+        env.notes.openNote("n1", title: "Note 1", icon: nil)
+        await notesSettle()
+        router.selectTab(.search)
+        XCTAssertEqual(router.selectedTab, .search)
+        XCTAssertEqual(env.notes.state.visibleEditor, "n1")
+
+        // 从搜索标签页打开向导：切回工作区并复用已打开的编辑器，不另外拉起全屏向导争抢 WKWebView。
+        router.openSlidesWizard(.new())
+        XCTAssertEqual(router.selectedTab, .workspace)
+        XCTAssertEqual(env.notes.state.slidesWizard?.editor, "n1")
+    }
 }

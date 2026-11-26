@@ -113,7 +113,10 @@ internal fun SlidesWizardScreen(
     // 这个画面最后一次挂上 WebView 的序号：离开时只停靠自己挂着的。
     val mount = remember { intArrayOf(host.mountCount) }
     DisposableEffect(host) { onDispose { host.parkWizard(mount[0]) } }
-    val close = { onDismiss(wizard.request) }
+    val close = {
+        if (!wizard.shown) host.discardWizardIfUnready()
+        onDismiss(wizard.request)
+    }
     BackHandler {
         // 网页里出来之后，返回键关它最上面一层（草稿保留）；还在读取时直接关掉。
         if (wizard.shown) bridge.slidesWizardBack { handled -> if (!handled) close() } else close()

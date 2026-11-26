@@ -281,11 +281,16 @@ final class AppRouter {
         closeDiagram()
     }
 
-    /// 打开 AI 生成幻灯片向导（#150）。当前正停在工作区且打开着编辑器时盖在编辑器上，否则开全屏向导画面。
+    /// 打开 AI 生成幻灯片向导（#150）。工作区里已经打开着编辑器时（即便当前停在搜索标签页）切回工作区并盖在编辑器上，
+    /// 避免全屏向导和隐藏的编辑页争抢同一个常驻 WKWebView；没有打开任何页面时开全屏向导画面。
     func openSlidesWizard(_ source: SlidesWizardSource) {
         drawerOpen = false
-        let editor = selectedTab == .workspace ? app.notes.state.visibleEditor : nil
-        app.notes.openSlidesWizard(source, editor: editor)
+        if let editor = app.notes.state.visibleEditor {
+            selectedTab = .workspace
+            app.notes.openSlidesWizard(source, editor: editor)
+        } else {
+            app.notes.openSlidesWizard(source, editor: nil)
+        }
     }
 
     /// 登录 / 退出后：旧身份整理好的笔记、画好的白板与搜索状态恢复默认标签。

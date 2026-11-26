@@ -53,9 +53,29 @@ describe("buildAiDeck", () => {
     const slide = deck.slides[1];
     expect(types(slide)).not.toContain("image");
     expect(types(slide)).not.toContain("line");
+    expect(textOf({ slides: [slide] })).not.toContain("/api/pages/files");
+    expect(JSON.stringify(slide.elements)).not.toContain("example.com");
     const sizes = JSON.stringify(slide.elements).match(/"type":"size","attrs":\{"size":\d+\}/g);
     expect(sizes).toEqual(['"type":"size","attrs":{"size":42}']);
     expect(textOf(deck)).toContain("after");
+  });
+
+  it("drops external Markdown images, skips empty extra slides, and allows literal file-URL text in code or notes", () => {
+    const { deck } = buildAiDeck({
+      title: "API",
+      theme,
+      slides: [
+        { title: "Endpoints", body: "![chart](https://example.com/chart.png)\n\nUse `/api/pages/files?key=demo`.", notes: "/api/pages/files?key=example" },
+        { title: "", body: "- \n> ", notes: "" },
+        { title: "▸", body: "", notes: "" },
+      ],
+    });
+    expect(deck.slides).toHaveLength(3);
+    expect(JSON.stringify(deck.slides[1].elements)).not.toContain("https://example.com/chart.png");
+    expect(textOf({ slides: [deck.slides[1]] })).toContain("/api/pages/files?key=demo");
+    expect(textOf({ slides: [deck.slides[2]] })).toContain("▸");
+    expect(textOf({ slides: [deck.slides[2]] })).not.toContain("Untitled");
+    expect(() => validateCanvasData("slides", deck)).not.toThrow();
   });
 
   it("continues long slides and puts the speaker notes on the first of them only", () => {

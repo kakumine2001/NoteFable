@@ -200,6 +200,7 @@ struct NotesSectionHeading: View {
                         slidesMenuOpen = false
                         onCreate()
                     }
+                    ActionsMenuDivider()
                     ActionsMenuItem(L("slides_generate_with_ai"), leading: {
                         AppIconView(icon: app.appIcon.icon, size: 16)
                     }) {

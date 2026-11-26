@@ -9,6 +9,7 @@ import { scheduleNoteEmbeddingSync } from "@/lib/note-embeddings";
 import { PAGE_SUMMARY_SELECT } from "@/lib/note-tree-server";
 import { isRecordId } from "@/lib/page-ai/ids";
 import { aiRequestPageId, findRequestedPage, isDuplicateCreate } from "@/lib/page-ai/one-shot";
+import { prisma } from "@/lib/prisma";
 import { buildAiDeck } from "@/lib/slides/ai-build";
 import { deckInput, deckInstructions, parseDeckReply } from "@/lib/slides/ai-prompt";
 import { generateSlidesText, readSlidesMaterial, readSlidesRequest, SLIDES_FAILED, slidesModel } from "@/lib/slides/ai-server";
@@ -57,6 +58,16 @@ export async function POST(request: Request) {
 
     const material = await readSlidesMaterial(user.id, source);
     if (material instanceof Response) return material;
+    // 作り先（親ページ・プロジェクト）が本人所有で存在することを課金・生成の前に確かめる。
+    // 単一ノート由来の暗黙の親は readSlidesMaterial で確認済み。同時削除への防御は createCanvasPage のトランザクション内でも行う。
+    const effectiveParentId = parentId ?? (source.type === "notes" && source.pageIds.length === 1 ? source.pageIds[0] : null);
+    if (parentId) {
+      const parent = await prisma.notePage.findFirst({ where: { id: parentId, userId: user.id, deletedAt: null }, select: { id: true } });
+      if (!parent) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+    } else if (!effectiveParentId && groupId) {
+      const group = await prisma.noteGroup.findFirst({ where: { id: groupId, userId: user.id }, select: { id: true } });
+      if (!group) return NextResponse.json({ error: msg("Project not found.") }, { status: 404 });
+    }
     const model = slidesModel(body.model);
 
     const usage = await consumeUsage(user, "chat", clientNetworkKey(request));
@@ -83,7 +94,7 @@ export async function POST(request: Request) {
     let page;
     try {
       ({ page } = await createCanvasPage(user.id, "slides", input, {
-        parentId: parentId ?? (source.type === "notes" && source.pageIds.length === 1 ? source.pageIds[0] : null),
+        parentId: effectiveParentId,
         groupId,
         ai: true,
         id: pageId,

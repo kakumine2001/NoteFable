@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  findPage: vi.fn(), findPages: vi.fn(), consume: vi.fn(), refund: vi.fn(), generate: vi.fn(), create: vi.fn(), embed: vi.fn(),
+  findPage: vi.fn(), findPages: vi.fn(), findGroup: vi.fn(), consume: vi.fn(), refund: vi.fn(), generate: vi.fn(), create: vi.fn(), embed: vi.fn(),
 }));
 vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "mine", googleSub: null }) }));
-vi.mock("@/lib/prisma", () => ({ prisma: { notePage: { findFirst: mocks.findPage, findMany: mocks.findPages } } }));
+vi.mock("@/lib/prisma", () => ({ prisma: { notePage: { findFirst: mocks.findPage, findMany: mocks.findPages }, noteGroup: { findFirst: mocks.findGroup } } }));
 vi.mock("@/lib/usage-limits", () => ({
   clientNetworkKey: () => null,
   consumeUsage: mocks.consume,
@@ -34,6 +34,7 @@ describe("POST /api/pages/slides/deck", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.findPage.mockReset().mockResolvedValue(null);
+    mocks.findGroup.mockReset().mockResolvedValue(null);
     mocks.findPages.mockResolvedValue([{ id: "cnote1", kind: "note", title: "光合作用笔记", blocks: [{ id: "b1", type: "paragraph", props: {}, content: [{ type: "text", text: "光反应和暗反应", styles: {} }], children: [] }] }]);
     mocks.consume.mockResolvedValue({ ok: true, ticket });
     mocks.generate.mockResolvedValue({ text: REPLY, cutOff: false });
@@ -70,10 +71,27 @@ describe("POST /api/pages/slides/deck", () => {
     expect((await post(noteBody)).status).toBe(201);
     expect(mocks.create.mock.calls[0][3]).toMatchObject({ parentId: "cnote1", groupId: null });
     expect(mocks.generate.mock.calls[0][0].input).toMatch(/<<<page-content [0-9a-f]{12}>>>\n光反应和暗反应\n<<<end page-content/);
-    await post({ ...noteBody, parentId: "cother", clientRequestId: "req-aaaaaaaaaa" });
+    // replay findFirst -> null, parentId pre-check -> found
+    mocks.findPage.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "cother" });
+    expect((await post({ ...noteBody, parentId: "cother", clientRequestId: "req-aaaaaaaaaa" })).status).toBe(201);
     expect(mocks.create.mock.calls[1][3]).toMatchObject({ parentId: "cother" });
-    await post({ ...topicBody, groupId: "cgroup1", clientRequestId: "req-bbbbbbbbbb" });
+    mocks.findGroup.mockResolvedValueOnce({ id: "cgroup1" });
+    expect((await post({ ...topicBody, groupId: "cgroup1", clientRequestId: "req-bbbbbbbbbb" })).status).toBe(201);
     expect(mocks.create.mock.calls[2][3]).toMatchObject({ parentId: null, groupId: "cgroup1" });
+  });
+
+  it("rejects missing parentId or groupId with 404 before charging usage or calling the model", async () => {
+    mocks.findPage.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+    const badParent = await post({ ...topicBody, parentId: "cmissingparent", clientRequestId: "req-parent404" });
+    expect(badParent.status).toBe(404);
+    expect(mocks.consume).not.toHaveBeenCalled();
+    expect(mocks.generate).not.toHaveBeenCalled();
+
+    mocks.findGroup.mockResolvedValueOnce(null);
+    const badGroup = await post({ ...topicBody, groupId: "cmissinggroup", clientRequestId: "req-group404" });
+    expect(badGroup.status).toBe(404);
+    expect(mocks.consume).not.toHaveBeenCalled();
+    expect(mocks.generate).not.toHaveBeenCalled();
   });
 
   it("returns the page made for the same request without generating or counting again", async () => {
@@ -121,6 +139,7 @@ describe("POST /api/pages/slides/deck", () => {
     mocks.create.mockRejectedValueOnce(new Error("down"));
     expect((await post(topicBody)).status).toBe(503);
     expect(mocks.refund).toHaveBeenLastCalledWith(ticket);
+    mocks.findGroup.mockResolvedValueOnce({ id: "cgone" });
     mocks.create.mockRejectedValueOnce(new NoteValidationError("Project not found.", 404));
     const response = await post({ ...topicBody, groupId: "cgone" });
     expect([response.status, (await response.json()).error]).toEqual([404, "Project not found."]);

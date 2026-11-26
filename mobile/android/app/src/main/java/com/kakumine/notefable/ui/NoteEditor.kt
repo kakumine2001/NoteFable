@@ -615,7 +615,13 @@ class NoteEmbedHost(
     ) { message ->
         when (embedRoute(message, bridge.activeEditor)) {
             EmbedRoute.PagesChanged -> {
-                if (webView != null) onPagesChanged()
+                if (webView != null) {
+                    if (slidesWizardBusy) {
+                        slidesWizardBusy = false
+                        if (isParked && loadedForIdentity) scheduleIdle()
+                    }
+                    onPagesChanged()
+                }
                 return@NoteEmbedBridge
             }
             EmbedRoute.Wizard -> {
@@ -654,7 +660,10 @@ class NoteEmbedHost(
                 else -> Unit
             }
         }
-        if (message is EmbedMessage.Ready) bridge.acceptingFiles = true
+        if (message is EmbedMessage.Ready) {
+            hasEverResponded = true
+            bridge.acceptingFiles = true
+        }
         if (message is EmbedMessage.Presentation) presenting = message.state != "end"
         // 网页（重新）载入后不在放映：渲染进程崩溃后重载时收不到 end，这里清掉（否则一直横屏、没有顶栏，返回键也离不开）。
         if (message is EmbedMessage.Ready) presenting = false
@@ -663,8 +672,11 @@ class NoteEmbedHost(
 
     private fun receiveWizard(message: EmbedMessage) {
         if (message is EmbedMessage.SlidesWizard) {
+            hasEverResponded = true
             slidesWizardVisible = message.open
-            if (!message.open) {
+            if (message.open) {
+                slidesWizardBusy = false
+            } else {
                 slidesWizardBusy = message.busy
                 // 停靠中才到的（离开页面时网页收起向导）：按现在的时限重新计时。
                 if (isParked && loadedForIdentity) scheduleIdle()
@@ -672,6 +684,9 @@ class NoteEmbedHost(
         }
         onSlidesWizard(bridge.activeEditor?.takeIf { it != SLIDES_WIZARD_EDITOR }, message)
     }
+
+    /** 这次加载的网页是否真的回应过（ready / slidesWizard / openSlidesWizard 成功）：离线或加载失败停在错误页时为 false。 */
+    private var hasEverResponded = false
 
     /**
      * 编辑页已经把 WebView 挂上（[attachWebView]）还没离开（[park]）。挂上到 [show] 之间 activeEditor 还是 null，
@@ -915,7 +930,10 @@ class NoteEmbedHost(
             answer
         } ?: false
         // 网页本来就显示着时不会再发 open。
-        if (opened) slidesWizardVisible = true
+        if (opened) {
+            hasEverResponded = true
+            slidesWizardVisible = true
+        }
         return opened
     }
 
@@ -927,6 +945,11 @@ class NoteEmbedHost(
     /** 全屏向导打不开（页面没加载成、旧服务端）：丢掉这个 WebView，下次重新加载。 */
     fun discardWizard() {
         if (bridge.activeEditor == SLIDES_WIZARD_EDITOR) destroy()
+    }
+
+    /** 网页还没出现向导就被用户关闭：如果这个 WebView 从未成功打开过页面或向导（比如离线加载失败），直接丢掉避免停靠坏页面。 */
+    fun discardWizardIfUnready() {
+        if (bridge.activeEditor == SLIDES_WIZARD_EDITOR && !hasEverResponded) destroy()
     }
 
     /** 离开编辑页但保留热缓存：卸载网页编辑器 DOM，开始 120 秒（向导还在生成时 360 秒）空闲倒计时，到期未重开则销毁。 */
@@ -971,6 +994,7 @@ class NoteEmbedHost(
         showEpoch++
         presenting = false
         loadedForIdentity = false
+        hasEverResponded = false
         currentPageId = null
         awaitingPageId = null
         openedPageIds.clear()

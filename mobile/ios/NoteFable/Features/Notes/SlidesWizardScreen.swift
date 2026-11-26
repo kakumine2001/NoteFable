@@ -105,6 +105,8 @@ struct SlidesWizardScreen: View {
                     .overlay(alignment: .topTrailing) {
                         NFGlassContainer(spacing: NFChromeMetrics.containerSpacing) {
                             NFGlassIconButton(Lucide.x, label: L("close"), size: 40, iconSize: 18) {
+                                // 还没加载出来就关掉：避免把失败或未就绪的空白页当成热缓存停靠，下次重开干等 20 秒。
+                                editorPool.discardWizardIfUnready()
                                 notes.dismissSlidesWizard(wizard.request)
                             }
                         }
