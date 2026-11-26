@@ -3,6 +3,8 @@ import Foundation
 /// 账号相关的服务端能力（Google 登录、读取资料、退出）。改资料和头像在 AccountApi（AccountProfileBackend）。拆成协议便于单元测试。
 protocol AccountBackend {
     func account() async throws -> AccountResponse
+    func appleSignInNonce() async throws -> String
+    func appleSignIn(code: String, name: String?) async throws
 
     /// 第一步：向服务端要一次性 nonce（服务端同时写入签名 Cookie）。
     func nativeSignInNonce() async throws -> String
@@ -20,4 +22,9 @@ protocol AccountBackend {
 
     /// `DELETE /api/account`：永久删除登录中的账号和其中全部数据（网页设置的"删除账号"）。成功后本地的登录 Cookie 也删掉。
     func deleteAccount() async throws
+}
+
+extension AccountBackend {
+    func appleSignInNonce() async throws -> String { throw UnsupportedOperationError() }
+    func appleSignIn(code: String, name: String?) async throws { throw UnsupportedOperationError() }
 }

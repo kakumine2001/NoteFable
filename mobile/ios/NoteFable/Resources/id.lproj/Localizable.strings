@@ -478,6 +478,8 @@
 "storage_limit_sign_in" = "Masuk untuk mendapatkan penyimpanan %1$s.";
 "storage_limit_upgrade" = "Dapatkan penyimpanan %1$s dengan Pro seharga %2$s/bulan.";
 "storage_limit_delete" = "Hapus file yang tidak lagi Anda perlukan untuk mengosongkan ruang.";
+"plan_manage_app_store" = "Kelola Langganan App Store";
+"acct_delete_app_store_notice" = "Menghapus akun NoteFable tidak membatalkan langganan App Store. Batalkan di App Store untuk mencegah perpanjangan.";
 
 /* strings_report.xml */
 "report_answer" = "Laporkan jawaban";
@@ -611,6 +613,9 @@
 "branch_title" = "Cabang · %1$s";
 
 /* iOS only (scripts/ios-strings.ts) */
+"ios_restore_purchases" = "Pulihkan Pembelian";
+"ios_no_purchases" = "Tidak ditemukan langganan App Store aktif.";
+"ios_subscription_conflict" = "Anda sudah memiliki Pro. Kelola pembelian terpisah di langganan App Store.";
 "attach_source_photos" = "Perpustakaan Foto";
 "attach_source_camera" = "Ambil Foto";
 "attach_source_files" = "Pilih File";

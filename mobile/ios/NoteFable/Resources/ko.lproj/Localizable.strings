@@ -478,6 +478,8 @@
 "storage_limit_sign_in" = "로그인하면 저장 공간이 %1$s로 늘어나요.";
 "storage_limit_upgrade" = "월 %2$s의 Pro로 저장 공간 %1$s를 이용해 보세요.";
 "storage_limit_delete" = "필요 없는 파일을 삭제하면 공간을 확보할 수 있어요.";
+"plan_manage_app_store" = "App Store 구독 관리";
+"acct_delete_app_store_notice" = "NoteFable 계정을 삭제해도 App Store 구독은 취소되지 않습니다. 갱신을 막으려면 App Store에서 취소하세요.";
 
 /* strings_report.xml */
 "report_answer" = "답변 신고";
@@ -611,6 +613,9 @@
 "branch_title" = "분기 · %1$s";
 
 /* iOS only (scripts/ios-strings.ts) */
+"ios_restore_purchases" = "구입 복원";
+"ios_no_purchases" = "활성 App Store 구독을 찾을 수 없습니다.";
+"ios_subscription_conflict" = "이미 Pro를 이용 중입니다. 별도 구매는 App Store 구독에서 관리하세요.";
 "attach_source_photos" = "사진 보관함";
 "attach_source_camera" = "사진 찍기";
 "attach_source_files" = "파일 선택";

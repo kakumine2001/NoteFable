@@ -17,10 +17,26 @@ export type BillingTx = Prisma.TransactionClient;
 // 並んで届いた知らせが古い状態で新しい状態を上書きしないように、また 2 つの申し込みや削除と申し込みが重ならないように。
 // Postgres の advisory lock（トランザクションの間だけ）。中の DB 操作は渡す tx で行う（接続を余分に取らない）。
 // 中から同じ利用者の withUserBillingLock を呼ばないこと（自分を待って止まる）。
+async function lockBillingKey(tx: BillingTx, key: string) {
+  await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${key}))`);
+}
+
 export async function withUserBillingLock<T>(userId: string, work: (tx: BillingTx) => Promise<T>): Promise<T> {
   return prisma.$transaction(async (tx) => {
-    await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`notefable-billing:user:${userId}`}))`);
+    await lockBillingKey(tx, `notefable-billing:user:${userId}`);
     return work(tx);
+  }, { maxWait: 15_000, timeout: 60_000 });
+}
+
+// An App Store original transaction can be assigned to a different account on a verified resubscribe.
+// Serialize transfers by original ID and always acquire affected user locks in the same order.
+export async function withAppleBillingLocks<T>(originalId: string, userId: string, work: (tx: BillingTx, previousUserId: string | null) => Promise<T>): Promise<T> {
+  return prisma.$transaction(async (tx) => {
+    await lockBillingKey(tx, `notefable-billing:apple:${originalId}`);
+    const previous = await tx.user.findUnique({ where: { appleOriginalTransactionId: originalId }, select: { id: true } });
+    const userIds = [...new Set([userId, ...(previous ? [previous.id] : [])])].sort();
+    for (const id of userIds) await lockBillingKey(tx, `notefable-billing:user:${id}`);
+    return work(tx, previous && previous.id !== userId ? previous.id : null);
   }, { maxWait: 15_000, timeout: 60_000 });
 }
 
@@ -30,13 +46,19 @@ export type SubscriptionOwner = {
   subscriptionStatus: string | null;
   stripeSubscriptionId: string | null;
   googlePurchaseToken: string | null;
+  appleOriginalTransactionId?: string | null;
   subscriptionPeriodStart?: Date | null;
   subscriptionPeriodEnd?: Date | null;
+  applePurchaseHoldUntil?: Date | null;
 };
+
+export function applePurchasePending(owner: { applePurchaseHoldUntil?: Date | null }, now = Date.now()) {
+  return (owner.applePurchaseHoldUntil?.getTime() ?? 0) > now;
+}
 
 export const SUBSCRIPTION_OWNER_SELECT = {
   id: true, subscriptionProvider: true, subscriptionStatus: true, stripeSubscriptionId: true, googlePurchaseToken: true,
-  subscriptionPeriodStart: true, subscriptionPeriodEnd: true,
+  appleOriginalTransactionId: true, applePurchaseHoldUntil: true, subscriptionPeriodStart: true, subscriptionPeriodEnd: true,
 } as const;
 
 export type SubscriptionUpdate = {
@@ -44,14 +66,15 @@ export type SubscriptionUpdate = {
   periodStart: Date | null;
   periodEnd: Date | null;
   cancelAt: Date | null;
-} & ({ provider: "stripe"; stripeSubscriptionId: string } | { provider: "google"; googlePurchaseToken: string });
+} & ({ provider: "stripe"; stripeSubscriptionId: string } | { provider: "google"; googlePurchaseToken: string }
+  | { provider: "apple"; appleOriginalTransactionId: string });
 
 function isCurrent(owner: SubscriptionOwner, update: SubscriptionUpdate) {
   if (!owner.subscriptionProvider) return true;
   if (owner.subscriptionProvider !== update.provider) return false;
-  return update.provider === "stripe"
-    ? owner.stripeSubscriptionId === update.stripeSubscriptionId
-    : owner.googlePurchaseToken === update.googlePurchaseToken;
+  if (update.provider === "stripe") return owner.stripeSubscriptionId === update.stripeSubscriptionId;
+  if (update.provider === "google") return owner.googlePurchaseToken === update.googlePurchaseToken;
+  return owner.appleOriginalTransactionId === update.appleOriginalTransactionId;
 }
 
 // 行の購読とこの知らせの関係。
@@ -71,7 +94,9 @@ export async function writeSubscription(tx: BillingTx, owner: SubscriptionOwner,
     where: { id: owner.id },
     data: {
       subscriptionProvider: update.provider,
-      ...(update.provider === "stripe" ? { stripeSubscriptionId: update.stripeSubscriptionId } : { googlePurchaseToken: update.googlePurchaseToken }),
+      ...(update.provider === "stripe" ? { stripeSubscriptionId: update.stripeSubscriptionId } : {}),
+      ...(update.provider === "google" ? { googlePurchaseToken: update.googlePurchaseToken } : {}),
+      ...(update.provider === "apple" ? { appleOriginalTransactionId: update.appleOriginalTransactionId } : {}),
       subscriptionStatus: update.status,
       subscriptionPeriodStart: update.periodStart,
       subscriptionPeriodEnd: update.periodEnd,

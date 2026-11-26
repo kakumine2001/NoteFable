@@ -11,7 +11,7 @@ import UIKit
 //     }
 //
 // “登录”打开登录窗口（`router.openSignIn()`）；“以后再说”和 ✕ 默认调 `app.chat.dismissGuestLimit()`，要换就传 `onClose`。
-// 免费用户的升级提示（Android UpgradeLimitPrompt / PlanSettings 里借用这个外框的购买提示）iOS 还没有购买流程，不做。
+// 免费用户撞到上限时，可跳到方案页查看 App Store 的当地价格。
 
 /// 未登录用户撞到当日上限时，输入栏上方的登录提示（网页 src/components/guest-limit-prompt.tsx，样式在 globals.css 的
 /// .guest-limit-*，412 宽手机下实测；Android GuestLimitPrompt.kt）：外框内边距 14/40/14/14、1px 蓝描边、圆角 12、
@@ -83,8 +83,18 @@ struct GuestLimitPrompt: View {
         return true
     }
 
+    private var offersUpgrade: Bool {
+        (usage?.tier == "member" || storage?.tier == "member") &&
+            app.account.state.appStoreBilling && app.account.state.user != nil
+    }
+
     private var titleText: String {
-        storage != nil ? L("storage_limit_title") : L(kind == "image" ? "guest_limit_title_image" : "guest_limit_title_chat")
+        if storage != nil { return L("storage_limit_title") }
+        if usage?.tier == "member" {
+            let text = usage?.kind == "image" ? "upgrade_title_image" : "guest_limit_title_chat"
+            return L(text)
+        }
+        return L(kind == "image" ? "guest_limit_title_image" : "guest_limit_title_chat")
     }
 
     private var bodyText: String? {
@@ -162,10 +172,14 @@ struct GuestLimitPrompt: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 2)
                 }
-                if offersSignIn {
+                if offersSignIn || offersUpgrade {
                 VStack(spacing: 8) {
-                    GuestLimitSignInButton(label: L("sign_in"), sheen: reduced ? 1.2 : sheen, halo: reduced ? 0 : halo) {
-                        router.openSignIn()
+                    GuestLimitSignInButton(label: L(offersUpgrade ? "plan_upgrade" : "sign_in"), sheen: reduced ? 1.2 : sheen, halo: reduced ? 0 : halo) {
+                        if offersUpgrade {
+                            router.openSettings(page: .plan)
+                        } else {
+                            router.openSignIn()
+                        }
                     }
                     Button(action: close) {
                         Text(L("not_now"))

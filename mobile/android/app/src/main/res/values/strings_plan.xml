@@ -34,4 +34,6 @@
     <string name="storage_limit_sign_in">Sign in to get %1$s of storage.</string>
     <string name="storage_limit_upgrade">Get %1$s of storage with Pro for %2$s/month.</string>
     <string name="storage_limit_delete">Delete files you no longer need to free up space.</string>
+    <string name="plan_manage_app_store">Manage App Store Subscription</string>
+    <string name="acct_delete_app_store_notice">Deleting your NoteFable account does not cancel an App Store subscription. Cancel it in the App Store to avoid renewal.</string>
 </resources>

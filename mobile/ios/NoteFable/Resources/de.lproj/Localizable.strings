@@ -478,6 +478,8 @@
 "storage_limit_sign_in" = "Melde dich an, um %1$s Speicherplatz zu erhalten.";
 "storage_limit_upgrade" = "Sichere dir %1$s Speicherplatz mit Pro für %2$s/Monat.";
 "storage_limit_delete" = "Lösche Dateien, die du nicht mehr brauchst, um Platz zu schaffen.";
+"plan_manage_app_store" = "App Store-Abonnement verwalten";
+"acct_delete_app_store_notice" = "Das Löschen deines NoteFable-Kontos kündigt kein App Store-Abonnement. Kündige es im App Store, um eine Verlängerung zu vermeiden.";
 
 /* strings_report.xml */
 "report_answer" = "Antwort melden";
@@ -611,6 +613,9 @@
 "branch_title" = "Verzweigung · %1$s";
 
 /* iOS only (scripts/ios-strings.ts) */
+"ios_restore_purchases" = "Käufe wiederherstellen";
+"ios_no_purchases" = "Kein aktives App Store-Abonnement gefunden.";
+"ios_subscription_conflict" = "Du hast bereits Pro. Verwalte den getrennten Kauf in den App Store-Abonnements.";
 "attach_source_photos" = "Fotomediathek";
 "attach_source_camera" = "Foto aufnehmen";
 "attach_source_files" = "Dateien auswählen";

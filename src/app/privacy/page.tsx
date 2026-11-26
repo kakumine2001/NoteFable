@@ -23,10 +23,10 @@ export default function PrivacyPage() {
           <li>
             <strong>A device identifier.</strong> When you use the app, we create a random identifier and store it in a signed,
             HTTP-only cookie named <code>notefable_device</code> (valid for one year). Your chats and Workspace content are saved under this identifier.
-            If you clear your cookies, you lose access to that data in that browser unless you signed in with Google.
+            If you clear your cookies, you lose access to that data in that browser if you were using NoteFable without signing in.
             When you sign in with Google, the sign-in also sets an HTTP-only session cookie (about 30 days) that holds your Google account ID, email,
             name and profile-picture link, plus a few short-lived cookies used only to complete the sign-in. The Android app uses one more HTTP-only
-            cookie, valid for 5 minutes, while it signs you in.
+            cookie, valid for 5 minutes, while it signs you in. Apple sign-in on iOS also uses a 5-minute challenge cookie and a signed session cookie that identifies your Apple account.
             The web app (app.notefable.com) also sets a cookie named <code>notefable_app</code> for notefable.com and its subdomains
             (valid for about 13 months). It only records that this browser has used the web app, so notefable.com can take you straight back to it;
             it contains no identifier.
@@ -39,6 +39,11 @@ export default function PrivacyPage() {
             We do not request access to your Gmail, Drive, Calendar, contacts or any other Google data.
           </li>
           <li>
+            <strong>Apple sign-in (optional, iOS).</strong> Apple provides a unique account identifier and, if shared, your name and email address.
+            You can choose an Apple relay address. We store the identifier and shared profile details with your account, and encrypt the credential
+            used to revoke authorization if you delete the account.
+          </li>
+          <li>
             <strong>Email sign-in (optional).</strong> If you sign in with an email code, we store your email address with your account and send the
             six-digit code to it. We keep only a hash of the code, delete it once it is used or expires, and keep a hash of the requesting network address
             for a short time to limit abuse.
@@ -46,8 +51,7 @@ export default function PrivacyPage() {
           <li>
             <strong>Purchases (Pro).</strong> When you start a Pro purchase on the website, we create a customer record at Stripe and store its ID, even if you
             do not finish paying. If you subscribe, we also store the subscription’s status, plan, renewal and end dates, and the payment provider’s
-            identifiers for it: the Stripe customer and subscription IDs for a website purchase, or the Google Play purchase token for an Android purchase. Payments are handled by Stripe or Google Play; we never see or store your card number or other payment details. To match a Google Play
-            purchase to your account, the app passes your internal account ID to Google Play when you buy.
+            identifiers for it: Stripe customer and subscription IDs, a Google Play purchase token, or an App Store original transaction ID. Payments are handled by Stripe, Google Play or Apple. We never see or store your card details. For Android, we pass Google Play your internal account ID. For iOS, we pass Apple a random account token so it can associate the transaction with your NoteFable account.
           </li>
           <li>
             <strong>Reports.</strong> If you report AI content, the reason you give, the reported content and your internal account ID are emailed to us so
@@ -56,8 +60,8 @@ export default function PrivacyPage() {
             was made from and where it is stored. We keep the email only as long as we need it for the review.
           </li>
           <li>
-            <strong>The Android app.</strong> The app stores the same cookies on your phone and sends the same data as the website. It reads only the photos
-            and files you pick, and photos you take with your camera app; it does not read your contacts, location or advertising ID, and it contains no ads
+            <strong>The Android and iOS apps.</strong> The apps store the same cookies on your phone and send the same data as the website. They read only the photos
+            and files you pick, and photos you take with your camera app. They do not read your contacts, location or advertising ID, and they contain no ads
             or third-party analytics. Images you save go to your photo gallery.
           </li>
           <li>
@@ -114,7 +118,7 @@ export default function PrivacyPage() {
           <li>
             <strong>Payment providers</strong>, if you buy Pro: <a href="https://stripe.com/privacy">Stripe</a> for website purchases (when you start a purchase we
             send your email address and internal account ID, and we receive the subscription status; you enter your payment and billing details directly with Stripe) and Google Play for Android
-            purchases (under <a href="https://policies.google.com/privacy">Google’s Privacy Policy</a>). They keep their own payment records as the law requires.
+            purchases (under <a href="https://policies.google.com/privacy">Google’s Privacy Policy</a>). <a href="https://www.apple.com/legal/privacy/">Apple</a> handles iOS purchases and Apple sign-in. These providers keep their own payment records as the law requires.
           </li>
           <li>
             <a href="https://resend.com/legal/privacy-policy">Resend</a>, which delivers the sign-in code email (your email address and the code), if you sign in
@@ -143,9 +147,9 @@ export default function PrivacyPage() {
           until we remove them. Signing out does not delete anything.
         </p>
         <p>
-          <strong>Deleting your account.</strong> When signed in, open <em>Settings → Account → Delete account</em> on the website or in the Android app. This immediately and
+          <strong>Deleting your account.</strong> When signed in, open <em>Settings → Account → Delete account</em> on the website or in the Android or iOS app. This immediately and
           permanently deletes your account and everything in it: chats, messages, notes, slide decks, whiteboards, page history, projects, uploaded and generated images, files, your profile
-          and settings. It also ends a Pro subscription bought on the website immediately, deletes your customer record at Stripe, and stops a Google Play subscription from renewing; Stripe and Google keep their payment records (such as invoices and charges) as the law requires. Database backups that may still contain it are overwritten within 30 days. To keep other signed-in devices from re-creating the account, we keep a one-way hash of its Google account ID and email address (not the ID or address itself) for 400 days. If you cannot sign in, email
+          and settings. It also ends a Pro subscription bought on the website immediately, deletes your customer record at Stripe, and stops a Google Play subscription from renewing. Apple subscriptions are managed in the App Store. We request revocation of Apple sign-in authorization during deletion. If Apple is unavailable, you can revoke access in your Apple Account settings. Payment providers retain payment records as the law requires. Database backups that may still contain it are overwritten within 30 days. To keep other signed-in devices from re-creating the account, we keep a one-way hash of linked sign-in identifiers (not the ID or address itself) for 400 days. If you cannot sign in, email
           {" "}<a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a> from the account’s address and we will delete it within 30 days.
           Data you used without signing in is tied only to your browser or app: delete its chats and Workspace pages in NoteFable, or clear the app’s data. See
           {" "}<Link href="/delete-account">notefable.com/delete-account</Link>.
