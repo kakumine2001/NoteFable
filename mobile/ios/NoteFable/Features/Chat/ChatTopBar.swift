@@ -63,12 +63,14 @@ struct ChatTopBar: View {
             if let title {
                 // 放得下完整标题时两边让出同样的宽度，胶囊在整条栏的正中；放不下（窄窗口、长标题）时
                 // 两边只让出各自按钮的宽度，标题多占一些再省略。
-                ViewThatFits(in: .horizontal) {
-                    ChatSessionCapsule(title: title, icon: icon, onModelClick: onModelClick)
-                        .padding(.horizontal, max(leadingReserve, trailingReserve))
-                    ChatSessionCapsule(title: title, icon: icon, onModelClick: onModelClick)
-                        .padding(.leading, leadingReserve)
-                        .padding(.trailing, trailingReserve)
+                ZStack {
+                    ViewThatFits(in: .horizontal) {
+                        ChatSessionCapsule(title: title, icon: icon, onModelClick: onModelClick)
+                            .padding(.horizontal, max(leadingReserve, trailingReserve))
+                        ChatSessionCapsule(title: title, icon: icon, onModelClick: onModelClick)
+                            .padding(.leading, leadingReserve)
+                            .padding(.trailing, trailingReserve)
+                    }
                 }
                 .emojiPicker(isPresented: $pickingIcon, current: icon) { picked in
                     app.chat.changeIcon(picked)

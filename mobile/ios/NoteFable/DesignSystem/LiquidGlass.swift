@@ -692,6 +692,26 @@ private struct NFDismissCompletionObserver: UIViewControllerRepresentable {
     }
 }
 
+private enum NFAdaptivePresentationMode: Equatable {
+    case popover
+    case sheet
+}
+
+private struct NFAdaptiveSheetBridge<SheetContent: View>: ViewModifier {
+    let enabled: Bool
+    let isPresented: Binding<Bool>
+    let onDismiss: () -> Void
+    let sheetContent: () -> SheetContent
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.sheet(isPresented: isPresented, onDismiss: onDismiss, content: sheetContent)
+        } else {
+            content
+        }
+    }
+}
+
 private struct NFPopoverModifier<PopoverContent: View>: ViewModifier {
     @Binding var isPresented: Bool
     let width: CGFloat?
@@ -702,31 +722,102 @@ private struct NFPopoverModifier<PopoverContent: View>: ViewModifier {
     let onDismiss: (() -> Void)?
     let popoverContent: () -> PopoverContent
 
+    @Environment(\.horizontalSizeClass) private var hostHorizontalSizeClass
     @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.locale) private var locale
     @Environment(\.nfForceSolidChrome) private var forceSolidChrome
     @Environment(\.nfWindowFrame) private var windowFrame
+    @State private var presentedMode: NFAdaptivePresentationMode? = nil
     @State private var dismissCoordinator = NFPopoverDismissCoordinator()
+
+    /// Resolve compact/regular on the host view — UIKit overrides `horizontalSizeClass` to `.compact` inside popovers.
+    private var desiredMode: NFAdaptivePresentationMode {
+        (adaptCompactToSheet && hostHorizontalSizeClass == .compact) ? .sheet : .popover
+    }
+
+    private var popoverBinding: Binding<Bool> {
+        Binding(
+            get: { presentedMode == .popover },
+            set: { now in
+                if !now && presentedMode == .popover {
+                    presentedMode = nil
+                    if isPresented { isPresented = false }
+                }
+            }
+        )
+    }
+
+    private var sheetBinding: Binding<Bool> {
+        Binding(
+            get: { presentedMode == .sheet },
+            set: { now in
+                if !now && presentedMode == .sheet {
+                    presentedMode = nil
+                    if isPresented { isPresented = false }
+                }
+            }
+        )
+    }
 
     func body(content: Content) -> some View {
         popoverHost(content)
+            .modifier(NFAdaptiveSheetBridge(
+                enabled: adaptCompactToSheet,
+                isPresented: sheetBinding,
+                onDismiss: handleSheetDismissed,
+                sheetContent: { sheetDestination }
+            ))
+            .onAppear {
+                if isPresented && presentedMode == nil {
+                    dismissCoordinator.markOpened()
+                    presentedMode = desiredMode
+                }
+            }
             .onChange(of: isPresented) { _, nowPresented in
                 if nowPresented {
-                    dismissCoordinator.markOpened()
+                    if presentedMode == nil {
+                        dismissCoordinator.markOpened()
+                        presentedMode = desiredMode
+                    }
                 } else {
+                    presentedMode = nil
                     dismissCoordinator.markBindingClosed(onDismiss)
                 }
             }
+            .onChange(of: desiredMode) { _, nextMode in
+                if isPresented, let current = presentedMode, current != nextMode {
+                    // Dismiss current presentation; completion handler re-presents in `nextMode` without clearing state.
+                    presentedMode = nil
+                }
+            }
+    }
+
+    private func handleSheetDismissed() {
+        if isPresented {
+            dismissCoordinator.markOpened()
+            presentedMode = desiredMode
+        } else {
+            dismissCoordinator.markPresentationEnded(token: dismissCoordinator.activeToken, onDismiss)
+        }
+    }
+
+    private func handlePopoverEnded(token: Int) {
+        if isPresented && presentedMode == nil {
+            dismissCoordinator.markOpened()
+            presentedMode = desiredMode
+        } else {
+            dismissCoordinator.markPresentationEnded(token: token, onDismiss)
+        }
     }
 
     @ViewBuilder
     private func popoverHost(_ content: Content) -> some View {
         if #available(iOS 18.0, *) {
-            content.popover(isPresented: $isPresented, attachmentAnchor: .rect(.bounds), arrowEdge: arrowEdge) {
+            content.popover(isPresented: popoverBinding, attachmentAnchor: .rect(.bounds), arrowEdge: arrowEdge) {
                 popoverDestination
             }
         } else {
-            content.popover(isPresented: $isPresented, attachmentAnchor: .rect(.bounds), arrowEdge: arrowEdge ?? .top) {
+            content.popover(isPresented: popoverBinding, attachmentAnchor: .rect(.bounds), arrowEdge: arrowEdge ?? .top) {
                 popoverDestination
             }
         }
@@ -735,12 +826,31 @@ private struct NFPopoverModifier<PopoverContent: View>: ViewModifier {
     private var popoverDestination: some View {
         NFPopoverContainer(
             width: width,
-            adaptCompactToSheet: adaptCompactToSheet,
+            asSheet: false,
+            fixedPickerSize: adaptCompactToSheet,
             dismissDisabled: dismissDisabled,
             contentInsets: contentInsets,
             windowFrame: windowFrame,
             dismissCoordinator: dismissCoordinator,
-            onDismiss: onDismiss,
+            onPresentationEnded: handlePopoverEnded,
+            content: popoverContent
+        )
+        .environment(\.layoutDirection, layoutDirection)
+        .environment(\.locale, locale)
+        .environment(\.nfForceSolidChrome, forceSolidChrome)
+        .environment(\.nfWindowFrame, windowFrame)
+    }
+
+    private var sheetDestination: some View {
+        NFPopoverContainer(
+            width: width,
+            asSheet: true,
+            fixedPickerSize: true,
+            dismissDisabled: dismissDisabled,
+            contentInsets: contentInsets,
+            windowFrame: windowFrame,
+            dismissCoordinator: dismissCoordinator,
+            onPresentationEnded: { _ in },
             content: popoverContent
         )
         .environment(\.layoutDirection, layoutDirection)
@@ -757,16 +867,16 @@ private final class NFTokenBox {
 
 private struct NFPopoverContainer<PopoverContent: View>: View {
     let width: CGFloat?
-    let adaptCompactToSheet: Bool
+    let asSheet: Bool
+    let fixedPickerSize: Bool
     let dismissDisabled: Bool
     let contentInsets: EdgeInsets
     let windowFrame: CGRect?
     let dismissCoordinator: NFPopoverDismissCoordinator
-    let onDismiss: (() -> Void)?
+    let onPresentationEnded: (Int) -> Void
     let content: () -> PopoverContent
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.nfForceSolidChrome) private var forceSolidChrome
     @State private var tokenBox = NFTokenBox()
@@ -780,53 +890,51 @@ private struct NFPopoverContainer<PopoverContent: View>: View {
             .environment(\.nfDismiss, NFDismissAction(action: { dismiss() }))
             .nfOverlayHost()
             .interactiveDismissDisabled(dismissDisabled)
-            .modifier(NFPopoverAdaptationApplier(adaptCompactToSheet: adaptCompactToSheet))
+            .modifier(NFPopoverAdaptationApplier(asSheet: asSheet))
             .modifier(NFSheetChromeApplier(useSolidChrome: useSolidChrome))
             .background {
-                let coordinator = dismissCoordinator
-                let box = tokenBox
-                let callback = onDismiss
-                NFDismissCompletionObserver {
-                    coordinator.markPresentationEnded(token: box.value, callback)
+                if !asSheet {
+                    let box = tokenBox
+                    let onEnded = onPresentationEnded
+                    NFDismissCompletionObserver {
+                        onEnded(box.value)
+                    }
+                    .frame(width: 0, height: 0)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
                 }
-                .frame(width: 0, height: 0)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
             }
             .onAppear {
                 tokenBox.value = dismissCoordinator.markContainerAppeared()
             }
             .onDisappear {
-                let coordinator = dismissCoordinator
-                let box = tokenBox
-                let callback = onDismiss
-                DispatchQueue.main.async {
-                    coordinator.markPresentationEnded(token: box.value, callback)
+                if !asSheet {
+                    let box = tokenBox
+                    let onEnded = onPresentationEnded
+                    DispatchQueue.main.async {
+                        onEnded(box.value)
+                    }
                 }
             }
     }
 
     @ViewBuilder
     private var popoverBody: some View {
-        let maxHeight = max(240, nfWindowHeight(windowFrame) * 0.72)
-        if adaptCompactToSheet {
-            let compact = horizontalSizeClass == .compact
-            // Single structural branch so resizing across compact/regular size classes preserves picker state and focus.
+        let maxHeight = max(240, nfWindowHeight(windowFrame) * 0.78)
+        if asSheet {
             VStack(alignment: .leading, spacing: 0) {
                 content()
             }
             .nfOverlayContentDefaults()
             .padding(contentInsets)
-            .frame(
-                width: compact ? nil : (width ?? 360),
-                height: compact ? nil : min(460, maxHeight),
-                alignment: .topLeading
-            )
-            .frame(
-                maxWidth: compact ? .infinity : nil,
-                maxHeight: compact ? .infinity : nil,
-                alignment: .topLeading
-            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else if fixedPickerSize {
+            VStack(alignment: .leading, spacing: 0) {
+                content()
+            }
+            .nfOverlayContentDefaults()
+            .padding(contentInsets)
+            .frame(width: width ?? 360, height: min(460, maxHeight), alignment: .topLeading)
         } else {
             let stack = VStack(alignment: .leading, spacing: 0) {
                 content()
@@ -853,12 +961,11 @@ private struct NFPopoverContainer<PopoverContent: View>: View {
 }
 
 private struct NFPopoverAdaptationApplier: ViewModifier {
-    let adaptCompactToSheet: Bool
+    let asSheet: Bool
 
     func body(content: Content) -> some View {
-        if adaptCompactToSheet {
+        if asSheet {
             content
-                .presentationCompactAdaptation(.sheet)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         } else {
