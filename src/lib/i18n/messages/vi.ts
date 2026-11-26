@@ -905,6 +905,7 @@ export const vi: Record<string, string> = {
   "Portrait": "Dọc",
   "Generating…": "Đang tạo…",
   "Generate": "Tạo",
+  "Generate again": "Tạo lại",
   "Report image": "Báo cáo hình ảnh",
   "Report sent": "Đã gửi báo cáo",
   "Thanks. We’ll review this image.": "Cảm ơn bạn. Chúng tôi sẽ xem xét hình ảnh này.",

@@ -28,6 +28,8 @@ import { uploadWhiteboardImage } from "@/lib/whiteboard/upload";
 import { registerCanvasFlusher } from "@/lib/canvas-flush";
 import { WhiteboardChrome, toolType, type WhiteboardTool, type WhiteboardUiState } from "@/components/whiteboard/whiteboard-ui";
 import { WhiteboardLinkDialog } from "@/components/whiteboard/whiteboard-link-dialog";
+import { WorkspaceImageDialog } from "@/components/workspace-image-dialog";
+import { fitWhiteboardImageSize, type PageImage } from "@/lib/page-images";
 import { excalidrawLang, useKeepDocumentLanguage } from "@/components/whiteboard/excalidraw-locale";
 import { WhiteboardMinimap } from "@/components/whiteboard/whiteboard-minimap";
 import type { MentionPage } from "@/components/note-mention";
@@ -100,6 +102,9 @@ export type WhiteboardEditorProps = {
   onSelectionChange?: (selection: PageSelection | null) => void;
   // 右下（AI ボタン、#153）用に空けておく場所の中身。
   aiSlot?: ReactNode;
+  // 増えるたびに AI 画像生成ダイアログを開く（AI パネルの「＋」メニューから呼ぶ）。
+  generateImageSignal?: number;
+  onConsumeGenerateImage?: () => void;
   handleRef?: Ref<WhiteboardEditorHandle>;
 };
 
@@ -173,7 +178,7 @@ function randomId() {
 }
 
 export default function WhiteboardEditor(props: WhiteboardEditorProps) {
-  const { pageId, data, generation, editable, embedded, onChange, onOpenPage, handleRef } = props;
+  const { pageId, data, generation, editable, embedded, onChange, onOpenPage, handleRef, generateImageSignal = 0, onConsumeGenerateImage } = props;
   // 開いた時の保存キューの世代。同じページ・同じ世代のエディターどうしだけで、閉じた方の画像を受け渡す
   // （最新の版を読む・版の復元で中身を置き換えた後のエディターへ、置き換える前の画像を入れない）。
   const liveKey = useMemo(() => `${pageId}:${generation ?? 0}`, [pageId, generation]);
@@ -188,6 +193,10 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   const [notice, setNotice] = useState<{ text: string; vars?: TranslateVars } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [linkDialog, setLinkDialog] = useState<{ mode: "link" | "card"; url?: string } | null>(null);
+  const [generateImageOpen, setGenerateImageOpen] = useState(false);
+  // 初期値を 0 にすることで、動的読み込み中に AI パネルから送られた要求もマウント直後に開ける。
+  const [dismissedGenerateSignal, setDismissedGenerateSignal] = useState(0);
+  const showGenerateImageDialog = editable && (generateImageOpen || generateImageSignal > dismissedGenerateSignal);
   const [sceneVersion, setSceneVersion] = useState("0");
   const [contentHidden, setContentHidden] = useState(false);
   const [minimapOpen, setMinimapOpen] = useState(() => {
@@ -1109,6 +1118,41 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     }
   }, [api, busy, insertPdf, t]);
 
+  // ---- AI で作った画像を現在の視野の中央へ自然に置く ----
+  const insertGeneratedImage = useCallback((image: PageImage) => {
+    if (!api || !editable) return;
+    const { width, height } = fitWhiteboardImageSize(image.width, image.height);
+    const center = sceneCenter();
+    const fileId = randomId() as FileId;
+    const imageId = randomId();
+    uploadedUrls.current.set(fileId, { url: image.url, mimeType: image.mimeType });
+    knownFiles.current.add(fileId);
+    uploads.current.set(fileId, { status: "done", url: image.url, mimeType: image.mimeType });
+    api.addFiles([{ id: fileId, mimeType: image.mimeType as BinaryFileData["mimeType"], dataURL: image.url as BinaryFileData["dataURL"], created: Date.now() }]);
+    const created = convertToExcalidrawElements([{
+      type: "image",
+      id: imageId,
+      x: Math.round(center.x - width / 2),
+      y: Math.round(center.y - height / 2),
+      width,
+      height,
+      fileId,
+      status: "saved",
+    }]);
+    const insertedId = created.find((element) => element.type === "image")?.id ?? imageId;
+    api.setActiveTool({ type: "selection" });
+    api.updateScene({
+      elements: [...api.getSceneElementsIncludingDeleted(), ...created],
+      appState: { selectedElementIds: { [insertedId]: true } },
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+    });
+    lastSignature.current = null;
+    dirty.current = true;
+    ownEdit.current = true;
+    touched.current = true;
+    scheduleSave();
+  }, [api, editable, sceneCenter, scheduleSave]);
+
   const toggleMinimap = useCallback(() => {
     setMinimapOpen((open) => {
       try { localStorage.setItem(MINIMAP_KEY, open ? "0" : "1"); } catch { /* 覚えられなくても切り替えはできる。 */ }
@@ -1149,6 +1193,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
       {ui && api && <WhiteboardChrome ui={ui} drawMode={drawMode} editable={editable} embedded={embedded} compact={compact} theme={theme} actions={panelActions}
         title={props.title} icon={props.icon} onTitleChange={props.onTitleChange} onIconChange={props.onIconChange}
         onSelectTool={selectTool} onLink={openLinkDialog} onOpenLink={openLink} onUnlock={unlockTarget} onInsertPageCard={() => setLinkDialog({ mode: "card" })}
+        onGenerateImage={() => setGenerateImageOpen(true)}
         onExport={(format) => void runExport(format)} onImportPdf={() => pdfInputRef.current?.click()}
         onFitToContent={fitToContent} onCanvasBackground={(color) => api.updateScene({ appState: { viewBackgroundColor: color }, captureUpdate: CaptureUpdateAction.IMMEDIATELY })}
         onPenMode={(penMode) => api.updateScene({ appState: { penMode }, captureUpdate: CaptureUpdateAction.NEVER })}
@@ -1174,6 +1219,15 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
         onPickUrl={linkDialog.mode === "link" ? (url) => { setLinkDialog(null); setLinkOnSelection(url); } : undefined}
         onRemove={linkDialog.mode === "link" ? () => { setLinkDialog(null); setLinkOnSelection(null); } : undefined}
         onClose={() => setLinkDialog(null)} />}
+      {showGenerateImageDialog && (
+        <WorkspaceImageDialog
+          pageId={pageId}
+          pageKind="whiteboard"
+          embedded={embedded}
+          onInsert={insertGeneratedImage}
+          onClose={() => { setGenerateImageOpen(false); setDismissedGenerateSignal(generateImageSignal); onConsumeGenerateImage?.(); }}
+        />
+      )}
       {notice && <div className="whiteboard-notice" role="alert"><span>{notice.vars ? t(notice.text, notice.vars) : localizeSystemText(notice.text, t)}</span><button type="button" className="notion-button" onClick={() => setNotice(null)}>{t("Close")}</button></div>}
     </div>
   );
