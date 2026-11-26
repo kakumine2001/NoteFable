@@ -1187,6 +1187,7 @@ export const it: Record<string, string> = {
   "Collapse branch": "Comprimi ramo",
   "Expand branch": "Espandi ramo",
   "Hidden topics: {count}": "Argomenti nascosti: {count}",
+  "This branch can't be expanded: a whiteboard can hold up to {max} elements.": "Impossibile espandere questo ramo: una lavagna può contenere al massimo {max} elementi.",
   "Branches on both sides": "Rami su entrambi i lati",
   "Branches on the right": "Rami a destra",
   "New topic": "Nuovo argomento",

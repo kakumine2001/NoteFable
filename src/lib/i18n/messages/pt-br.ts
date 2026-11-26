@@ -1187,6 +1187,7 @@ export const ptBR: Record<string, string> = {
   "Collapse branch": "Recolher ramo",
   "Expand branch": "Expandir ramo",
   "Hidden topics: {count}": "Tópicos ocultos: {count}",
+  "This branch can't be expanded: a whiteboard can hold up to {max} elements.": "Não é possível expandir este ramo: um quadro branco comporta no máximo {max} elementos.",
   "Branches on both sides": "Ramos nos dois lados",
   "Branches on the right": "Ramos à direita",
   "New topic": "Novo tópico",

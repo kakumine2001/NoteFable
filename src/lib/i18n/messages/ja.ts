@@ -1188,6 +1188,7 @@ export const ja: Record<string, string> = {
   "Collapse branch": "枝を折りたたむ",
   "Expand branch": "枝を展開",
   "Hidden topics: {count}": "非表示のトピック：{count}",
+  "This branch can't be expanded: a whiteboard can hold up to {max} elements.": "この枝は展開できません。ホワイトボードに置ける要素は {max} 個までです。",
   "Branches on both sides": "枝を両側に",
   "Branches on the right": "枝を右側に",
   "New topic": "新しいトピック",

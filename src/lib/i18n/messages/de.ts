@@ -1187,6 +1187,7 @@ export const de: Record<string, string> = {
   "Collapse branch": "Zweig einklappen",
   "Expand branch": "Zweig ausklappen",
   "Hidden topics: {count}": "Ausgeblendete Themen: {count}",
+  "This branch can't be expanded: a whiteboard can hold up to {max} elements.": "Dieser Zweig kann nicht ausgeklappt werden: Ein Whiteboard fasst höchstens {max} Elemente.",
   "Branches on both sides": "Zweige auf beiden Seiten",
   "Branches on the right": "Zweige rechts",
   "New topic": "Neues Thema",

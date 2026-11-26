@@ -1187,6 +1187,7 @@ export const es: Record<string, string> = {
   "Collapse branch": "Contraer rama",
   "Expand branch": "Expandir rama",
   "Hidden topics: {count}": "Temas ocultos: {count}",
+  "This branch can't be expanded: a whiteboard can hold up to {max} elements.": "No se puede desplegar esta rama: una pizarra admite como máximo {max} elementos.",
   "Branches on both sides": "Ramas a ambos lados",
   "Branches on the right": "Ramas a la derecha",
   "New topic": "Nuevo tema",

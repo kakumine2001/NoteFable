@@ -5,7 +5,7 @@ import { canvasStorage } from "@/lib/page-ai/storage";
 import { normalizeDeck, slideRows, type SlideElement } from "@/lib/slides/model";
 import type { RichBlock, RichDoc, RichInline } from "@/lib/slides/rich-text";
 import { pageCardOf } from "@/lib/whiteboard/links";
-import { mindmapStashOutline } from "@/lib/whiteboard/mindmap/model";
+import { mindmapIndent, mindmapStashOutline } from "@/lib/whiteboard/mindmap/model";
 
 // ホワイトボード・スライドのアダプター（構造化して読む）。編集（edit / create）と予覧（preview）は #153・#150 の後続 PR で足す。
 // 適用（validate / write / createPage / snapshot）は保存と同じ検証で、元に戻す・テストの偽アダプターでも使う。
@@ -30,9 +30,6 @@ function clipToBudget(text: string, budget: number): string {
 // ---- ホワイトボード ----
 
 type RawElement = Record<string, unknown> & { id: string; type: string };
-
-// 隠れた枝の字下げの段数の上限（深い木で空白が読む上限を食わないように）。
-const MAX_HIDDEN_INDENT = 8;
 
 function elementOwnText(element: RawElement): string {
   if (element.type !== "text" && element.type !== "stickynote") return "";
@@ -102,7 +99,7 @@ function formatWhiteboardElement(element: RawElement, boundTexts: string[]): str
 // 要素の行と、思考マップで畳んでいる節ならその下に隠れている文字の行（1 行ずつなので、読む上限は行の切れ目で効く）。
 function whiteboardElementLines(element: RawElement, boundTexts: string[]): string[] {
   const hidden = mindmapStashOutline(element.id, element.customData)
-    .map(({ depth, text }) => `${"  ".repeat(Math.min(depth, MAX_HIDDEN_INDENT))}- hidden in collapsed branch: "${inlineLine(text)}"`);
+    .map(({ depth, text }) => `${mindmapIndent(depth)}- hidden in collapsed branch: "${inlineLine(text)}"`);
   return [formatWhiteboardElement(element, boundTexts), ...hidden];
 }
 

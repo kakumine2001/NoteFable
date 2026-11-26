@@ -1187,6 +1187,7 @@ export const id: Record<string, string> = {
   "Collapse branch": "Ciutkan cabang",
   "Expand branch": "Bentangkan cabang",
   "Hidden topics: {count}": "Topik tersembunyi: {count}",
+  "This branch can't be expanded: a whiteboard can hold up to {max} elements.": "Cabang ini tidak bisa dibuka: papan tulis hanya dapat memuat hingga {max} elemen.",
   "Branches on both sides": "Cabang di kedua sisi",
   "Branches on the right": "Cabang di kanan",
   "New topic": "Topik baru",

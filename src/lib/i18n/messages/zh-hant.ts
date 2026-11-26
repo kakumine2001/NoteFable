@@ -1209,6 +1209,7 @@ export const zhHant: Record<string, string> = {
   "This PDF is too large to import (max 50 MB).": "這個 PDF 太大，無法匯入（最大 50 MB）。",
   "This answer is no longer available.": "這條回答已經不存在。",
   "This answer is too large to save as a note.": "這條回答太長，無法儲存為筆記。",
+  "This branch can't be expanded: a whiteboard can hold up to {max} elements.": "無法展開這個分支：一塊白板最多容納 {max} 個元素。",
   "This change can't be undone here. Restore an earlier version from the page history.": "這項修改無法在這裡撤銷。請從頁面歷史中恢復較早的版本。",
   "This change was undone.": "這項修改已撤銷。",
   "This chat has nothing to turn into a page yet.": "這段聊天還沒有可以整理成筆記的內容。",

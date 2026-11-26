@@ -23,6 +23,9 @@ const BRANCH_COLORS: readonly { stroke: string; fill: string }[] = [
 const ROOT_COLORS = { stroke: "#1e1e1e", fill: "#f1f3f5" };
 const TEXT_COLOR = "#1e1e1e";
 
+// 枝の色の数（根の子がこれより多いと同じ色を繰り返す）。
+export const BRANCH_COLOR_COUNT = BRANCH_COLORS.length;
+
 export type MindmapSkeleton = Record<string, unknown> & { id: string; type: string };
 
 const ID_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
@@ -73,7 +76,7 @@ export const EDGE_GAP = 6;
 
 // 親の外側の辺の中央から、子の内側の辺の中央へ。中間点を子の高さに置いて、斜めに出て横から入るなめらかな曲線にする
 // （中間点を 2 つにして横に出すと、Excalidraw の曲線が出口で行き過ぎて小さな輪ができる）。
-// 置き直し（relayout.ts）も同じ形を使う。right は子が親の右にあるか。
+// 置き直し（editing.ts の relayoutMindmaps）も同じ形を使う。right は子が親の右にあるか。
 export function edgeGeometry(parent: Box, child: Box, right: boolean) {
   const startX = right ? parent.x + parent.width + EDGE_GAP : parent.x - EDGE_GAP;
   const startY = parent.y + parent.height / 2;

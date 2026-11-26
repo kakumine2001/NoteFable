@@ -1187,6 +1187,7 @@ export const fr: Record<string, string> = {
   "Collapse branch": "Replier la branche",
   "Expand branch": "Déplier la branche",
   "Hidden topics: {count}": "Sujets masqués : {count}",
+  "This branch can't be expanded: a whiteboard can hold up to {max} elements.": "Impossible de déplier cette branche : un tableau blanc peut contenir au maximum {max} éléments.",
   "Branches on both sides": "Branches des deux côtés",
   "Branches on the right": "Branches à droite",
   "New topic": "Nouveau sujet",

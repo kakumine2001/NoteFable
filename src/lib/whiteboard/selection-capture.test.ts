@@ -62,6 +62,16 @@ describe("collapsed mind map branches in a selection", () => {
     expect(result.text).toBe("Water\nWater\n  - Evaporation\n    - Heat");
     expect(result.ids).toEqual(["s1", "n1"]);
   });
+
+  it("caps the indentation of a very deep branch", () => {
+    const stash = Array.from({ length: 30 }, (_, index) => [
+      { id: `c${index}`, type: "rectangle", customData: { notefableMindmap: { v: 1, role: "node", tree: "n1", parent: index ? `c${index - 1}` : "n1", order: 0 } } },
+      { id: `c${index}-t`, type: "text", containerId: `c${index}`, originalText: `level ${index + 1}` },
+    ]).flat();
+    const elements = [{ id: "n1", type: "rectangle", customData: { notefableMindmap: { v: 1, role: "node", tree: "n1", parent: null, order: 0, collapsed: true, stash } } }];
+    const lines = expandWhiteboardSelection(elements, new Set(["n1"])).text.split("\n");
+    expect(lines).toContain(`${"  ".repeat(8)}- level 30`);
+  });
 });
 
 describe("selection image scaling", () => {

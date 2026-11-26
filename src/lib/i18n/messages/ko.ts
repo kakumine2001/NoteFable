@@ -1187,6 +1187,7 @@ export const ko: Record<string, string> = {
   "Collapse branch": "가지 접기",
   "Expand branch": "가지 펼치기",
   "Hidden topics: {count}": "숨겨진 주제: {count}",
+  "This branch can't be expanded: a whiteboard can hold up to {max} elements.": "이 가지는 펼칠 수 없습니다. 화이트보드에는 요소를 최대 {max}개까지 넣을 수 있습니다.",
   "Branches on both sides": "가지를 양쪽에",
   "Branches on the right": "가지를 오른쪽에",
   "New topic": "새 주제",

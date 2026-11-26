@@ -1,9 +1,10 @@
 import { duplicateElements, reconcileDuplicatedElements } from "@excalidraw/element";
 import { describe, expect, it } from "vitest";
+import { MAX_WHITEBOARD_ELEMENTS, validateCanvasData } from "@/lib/canvas-document";
 import {
-  addMindmapChild, addMindmapSibling, bindMindmapEdges, collapsedMindmapNodes, collapseMindmapNode, composeMindmapScene, deleteMindmapNodes, expandMindmapNode,
-  includesMindmapNode, insertMindmapElements, mindmapDropTarget, mindmapRootsOf, mindmapSelection, readMindmapTrees, relayoutMindmap, remapMindmapDuplicates,
-  remapMindmapDuplicateScene, reparentMindmapNode, setMindmapDirection, type MindmapChange, type MindmapSceneTools, type SceneElement,
+  addMindmapChild, addMindmapSibling, bindMindmapEdges, collapsedMindmapNodes, collapseMindmapNode, composeMindmapScene, deleteMindmapNodes, exceedsWhiteboardLimit,
+  expandMindmapNode, includesMindmapNode, insertMindmapElements, liveMindmapNodeIds, mindmapCutExtras, mindmapDropTarget, mindmapRemovalCleanup, mindmapRootsOf,
+  mindmapSelection, readMindmapTrees, relayoutMindmap, remapMindmapDuplicates, remapMindmapDuplicateScene, reparentMindmapNode, setMindmapDirection, type MindmapChange, type MindmapSceneTools, type SceneElement,
 } from "@/lib/whiteboard/mindmap/editing";
 import { mindmapSkeletons, type MindmapSkeleton } from "@/lib/whiteboard/mindmap/elements";
 import { mindmapDataOf, mindmapStashOutline, type MindmapNodeData, type MindmapTreeNode } from "@/lib/whiteboard/mindmap/model";
@@ -574,5 +575,166 @@ describe("frames", () => {
     const expanded = compose(moved, expandMindmapNode(moved, "n2"));
     expect(live(expanded).filter((element) => element.type !== "frame" && element.frameId)).toEqual([]);
     expect(readMindmapTrees(expanded).get(rootId)!.nodes.size).toBe(5);
+  });
+});
+
+// Excalidraw の削除・消しゴム：選んだ要素と、その上の文字だけを消し、消した図形に結び付いた矢印は外す。
+const excalidrawDelete = (elements: SceneElement[], ...ids: string[]) => elements.map((element) => {
+  if (ids.includes(element.id) || (element.containerId && ids.includes(element.containerId))) {
+    return { ...element, isDeleted: true, version: Number(element.version ?? 1) + 1 };
+  }
+  const next = { ...element };
+  for (const key of ["startBinding", "endBinding"]) {
+    if (ids.includes((element[key] as { elementId?: string } | null)?.elementId ?? "")) next[key] = null;
+  }
+  return next;
+});
+const cleanUp = (before: SceneElement[], after: SceneElement[]) => {
+  const cleanup = mindmapRemovalCleanup(after, liveMindmapNodeIds(before));
+  return cleanup ? compose(after, cleanup.change, cleanup.roots) : null;
+};
+const sticky = { id: "sticky", type: "stickynote", x: 900, y: 900, width: 100, height: 100 } as SceneElement;
+const userArrow = (id: string, from: string, to: string) => ({
+  id, type: "arrow", x: 0, y: 0, width: 10, height: 10, startBinding: { elementId: from }, endBinding: { elementId: to },
+}) as SceneElement;
+// 根の子の文字（上からの順）。
+const topics = (elements: SceneElement[], root: string) => readMindmapTrees(elements).get(root)!.root.children
+  .map((child) => elements.find((element) => element.id === `${child.id}-t`)?.originalText ?? child.id);
+function flat(...labels: string[]) {
+  counter = 0;
+  const { skeletons, rootId } = mindmapSkeletons(tree("R", ...labels.map((label) => tree(label))), { direction: "right", newId: nextId });
+  return { elements: compose(materialize(skeletons), { patches: new Map(), added: [], restored: [] }, [rootId]), rootId };
+}
+
+describe("removing a topic with Excalidraw's delete, cut or eraser", () => {
+  const board = () => compose([...sample().elements, sticky, userArrow("mine", "n3", "sticky")], { patches: new Map(), added: [], restored: [] }, ["n1"]);
+
+  it("removes the subtree and its connectors but nothing else of the user's", () => {
+    const elements = board();
+    const next = cleanUp(elements, excalidrawDelete(elements, "n2", "sticky"))!;
+    expect(live(next).filter((element) => element.type !== "arrow").map((element) => element.id).sort()).toEqual(["n1", "n1-t", "n5", "n5-t"]);
+    // 残る線は B への 1 本と、利用者の矢印（消した節からは外す）。
+    expect(live(next).filter((element) => element.type === "arrow").map((element) => element.id).sort()).toEqual(["mine", edgeOf(next, "n5").id].sort());
+    expect(next.find((element) => element.id === "mine")!.startBinding).toBeNull();
+    expect(nodeData(next, "n5").order).toBe(0);
+    // もう片付けるものは無い。
+    expect(mindmapRemovalCleanup(next, liveMindmapNodeIds(elements))).toBeNull();
+  });
+
+  it("removes the connector of an erased leaf", () => {
+    const elements = board();
+    const next = cleanUp(elements, excalidrawDelete(elements, "n3"))!;
+    expect(edgeOf(next, "n3")).toBeUndefined();
+    expect(nodeData(next, "n4").order).toBe(0);
+    expect(liveIds(next)).toEqual(expect.arrayContaining(["n2", "n4", "sticky", "mine"]));
+  });
+
+  it("keeps a locked descendant and its branch as their own mind map", () => {
+    const elements = lock(board(), "n3");
+    const next = cleanUp(elements, excalidrawDelete(elements, "n2"))!;
+    expect(liveIds(next)).toEqual(expect.arrayContaining(["n3", "n3-t"]));
+    expect(liveIds(next)).not.toContain("n4");
+    expect(nodeData(next, "n3")).toMatchObject({ parent: null, tree: "n3" });
+    expect(next.find((element) => element.id === "mine")!.startBinding).toMatchObject({ elementId: "n3" });
+  });
+
+  it("removes the whole tree when the centre topic is removed", () => {
+    const elements = board();
+    expect(liveIds(cleanUp(elements, excalidrawDelete(elements, "n1"))!).sort()).toEqual(["mine", "sticky"]);
+  });
+
+  it("does nothing after an operation that already removed the branch: delete, collapse, undo of an addition", () => {
+    const elements = board();
+    expect(cleanUp(elements, compose(elements, deleteMindmapNodes(elements, ["n2"])))).toBeNull();
+    expect(cleanUp(elements, compose(elements, collapseMindmapNode(elements, "n2")))).toBeNull();
+    const added = compose(elements, addMindmapChild(elements, "n5", "new", () => "x1"));
+    const edge = edgeOf(added, "x1").id;
+    expect(cleanUp(added, added.map((element) => (["x1", "x1-t", edge].includes(element.id) ? { ...element, isDeleted: true } : element)))).toBeNull();
+  });
+
+  it("unbinds the user's arrows from every topic the Delete key removes", () => {
+    const elements = [...board(), userArrow("deep", "sticky", "n4")];
+    const next = compose(elements, deleteMindmapNodes(elements, ["n2"]));
+    expect(next.find((element) => element.id === "mine")!.startBinding).toBeNull();
+    expect(next.find((element) => element.id === "deep")).toMatchObject({ startBinding: { elementId: "sticky" }, endBinding: null });
+  });
+});
+
+describe("cutting a topic", () => {
+  it("takes the unlocked descendants and the connectors between them along", () => {
+    const { elements } = sample();
+    const to = (child: string) => edgeOf(elements, child).id;
+    expect(mindmapCutExtras(elements, ["n2"]).sort()).toEqual(["n3", "n4", to("n3"), to("n4")].sort());
+    expect(mindmapCutExtras(lock(elements, "n3"), ["n2"]).sort()).toEqual(["n4", to("n4")].sort());
+    expect(mindmapCutExtras(elements, ["n5"])).toEqual([]);
+    expect(mindmapCutExtras(lock(elements, "n2"), ["n2"])).toEqual([]);
+  });
+
+  it("includes the branch of a topic inside a cut frame", () => {
+    // 枠を切り取ると中の節は消えるので、枠の外の子孫も一緒に選ぶ（枠の中のものは選び足さない）。
+    const elements = [
+      ...sample().elements.map((element) => (element.id === "n2" || element.id === "n2-t" ? { ...element, frameId: "F" } : element)),
+      { id: "F", type: "frame", x: 0, y: 0, width: 10, height: 10 } as SceneElement,
+    ];
+    expect(mindmapCutExtras(elements, ["F"]).sort()).toEqual(["n3", "n4", edgeOf(elements, "n3").id, edgeOf(elements, "n4").id].sort());
+  });
+});
+
+describe("sibling order after gaps", () => {
+  // 先頭の 2 つを Excalidraw で消した直後：残りの順番は 2、3 のまま。
+  const gaps = () => excalidrawDelete(flat("a", "b", "c", "d").elements, "n2", "n3");
+
+  it("puts a sibling right below the topic", () => {
+    const next = compose(gaps(), addMindmapSibling(gaps(), "n4", "new", () => "s"));
+    expect(topics(next, "n1")).toEqual(["c", "new", "d"]);
+  });
+
+  it("puts a new or moved child at the bottom", () => {
+    expect(topics(compose(gaps(), addMindmapChild(gaps(), "n1", "new", () => "s")), "n1")).toEqual(["c", "d", "new"]);
+    const moved = compose(gaps(), addMindmapChild(gaps(), "n4", "new", () => "s"));
+    expect(topics(compose(moved, reparentMindmapNode(moved, "s", "n1")!), "n1")).toEqual(["c", "d", "new"]);
+  });
+});
+
+describe("branch colours", () => {
+  const colourOfNew = (elements: SceneElement[]) => addMindmapChild(elements, "n1", "new", () => "s").added[0].strokeColor;
+  const colours = (elements: SceneElement[], ...ids: string[]) => ids.map((id) => elements.find((element) => element.id === id)!.strokeColor);
+
+  it("does not repeat a colour after a branch is deleted", () => {
+    const { elements } = flat("a", "b", "c");
+    const next = compose(elements, deleteMindmapNodes(elements, ["n2"]));
+    expect(colours(next, "n3", "n4")).not.toContain(colourOfNew(next));
+  });
+
+  it("counts the branches hidden under a collapsed centre topic", () => {
+    const { elements } = flat("a", "b");
+    const collapsed = compose(elements, collapseMindmapNode(elements, "n1"));
+    expect(colours(elements, "n2", "n3")).not.toContain(colourOfNew(collapsed));
+  });
+});
+
+describe("the element limit", () => {
+  it("refuses to expand a branch that would not be saved", () => {
+    const { elements } = sample();
+    const collapsed = live(compose(elements, collapseMindmapNode(elements, "n2")));
+    // 戻るのは節 2・文字 2・線 2。
+    const total = collapsed.length + 6;
+    const expand = expandMindmapNode(collapsed, "n2");
+    expect(exceedsWhiteboardLimit(collapsed, expand, total)).toBe(false);
+    expect(exceedsWhiteboardLimit(collapsed, expand, total - 1)).toBe(true);
+    // 畳んだ節に子を足すと、広げた分に節と文字が増える。
+    expect(exceedsWhiteboardLimit(collapsed, addMindmapChild(collapsed, "n2", "x", () => "x"), total + 1)).toBe(true);
+    // 何も戻さない操作は止めない。
+    expect(exceedsWhiteboardLimit(collapsed, addMindmapChild(collapsed, "n5", "x", () => "x"), 1)).toBe(false);
+  });
+
+  it("matches what the server accepts", () => {
+    const { elements } = sample();
+    const collapsed = live(compose(elements, collapseMindmapNode(elements, "n2")));
+    const filler = Array.from({ length: MAX_WHITEBOARD_ELEMENTS - collapsed.length }, (_, index) => ({ id: `f${index}`, type: "rectangle", x: 0, y: 0, width: 1, height: 1 }));
+    const full = [...collapsed, ...filler] as SceneElement[];
+    expect(() => validateCanvasData("whiteboard", { elements: full })).not.toThrow();
+    expect(() => validateCanvasData("whiteboard", { elements: live(compose(full, expandMindmapNode(full, "n2"))) })).toThrow();
+    expect(exceedsWhiteboardLimit(full, expandMindmapNode(full, "n2"))).toBe(true);
   });
 });

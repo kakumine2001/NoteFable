@@ -1196,6 +1196,7 @@ export const zh: Record<string, string> = {
   "Collapse branch": "折叠分支",
   "Expand branch": "展开分支",
   "Hidden topics: {count}": "已隐藏的主题：{count}",
+  "This branch can't be expanded: a whiteboard can hold up to {max} elements.": "无法展开这个分支：一块白板最多容纳 {max} 个元素。",
   "Branches on both sides": "分支在两侧",
   "Branches on the right": "分支在右侧",
   "New topic": "新主题",

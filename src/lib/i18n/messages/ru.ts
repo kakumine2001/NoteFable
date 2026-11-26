@@ -1187,6 +1187,7 @@ export const ru: Record<string, string> = {
   "Collapse branch": "Свернуть ветвь",
   "Expand branch": "Развернуть ветвь",
   "Hidden topics: {count}": "Скрыто тем: {count}",
+  "This branch can't be expanded: a whiteboard can hold up to {max} elements.": "Эту ветку нельзя развернуть: на доске может быть не более {max} элементов.",
   "Branches on both sides": "Ветви с обеих сторон",
   "Branches on the right": "Ветви справа",
   "New topic": "Новая тема",

@@ -1187,6 +1187,7 @@ export const tr: Record<string, string> = {
   "Collapse branch": "Dalı daralt",
   "Expand branch": "Dalı genişlet",
   "Hidden topics: {count}": "Gizli konular: {count}",
+  "This branch can't be expanded: a whiteboard can hold up to {max} elements.": "Bu dal genişletilemiyor: bir beyaz tahtada en fazla {max} öğe bulunabilir.",
   "Branches on both sides": "Dallar iki yanda",
   "Branches on the right": "Dallar sağda",
   "New topic": "Yeni konu",

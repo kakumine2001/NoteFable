@@ -1187,6 +1187,7 @@ export const hi: Record<string, string> = {
   "Collapse branch": "शाखा समेटें",
   "Expand branch": "शाखा फैलाएँ",
   "Hidden topics: {count}": "छिपे विषय: {count}",
+  "This branch can't be expanded: a whiteboard can hold up to {max} elements.": "यह शाखा नहीं खोली जा सकती: एक व्हाइटबोर्ड में अधिकतम {max} तत्व हो सकते हैं।",
   "Branches on both sides": "दोनों तरफ़ शाखाएँ",
   "Branches on the right": "दाईं ओर शाखाएँ",
   "New topic": "नया विषय",

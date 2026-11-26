@@ -1187,6 +1187,7 @@ export const ar: Record<string, string> = {
   "Collapse branch": "طي الفرع",
   "Expand branch": "توسيع الفرع",
   "Hidden topics: {count}": "المواضيع المخفية: {count}",
+  "This branch can't be expanded: a whiteboard can hold up to {max} elements.": "لا يمكن توسيع هذا الفرع: يمكن أن تحتوي السبورة البيضاء على {max} عنصر كحد أقصى.",
   "Branches on both sides": "الفروع على الجانبين",
   "Branches on the right": "الفروع على اليمين",
   "New topic": "موضوع جديد",

@@ -1187,6 +1187,7 @@ export const vi: Record<string, string> = {
   "Collapse branch": "Thu gọn nhánh",
   "Expand branch": "Mở rộng nhánh",
   "Hidden topics: {count}": "Chủ đề bị ẩn: {count}",
+  "This branch can't be expanded: a whiteboard can hold up to {max} elements.": "Không thể mở rộng nhánh này: một bảng trắng chỉ chứa được tối đa {max} phần tử.",
   "Branches on both sides": "Nhánh ở hai bên",
   "Branches on the right": "Nhánh ở bên phải",
   "New topic": "Chủ đề mới",

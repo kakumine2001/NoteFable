@@ -87,6 +87,16 @@ describe("canvasTextAdapter structured whiteboard read", () => {
     expect(result).not.toContain("c1");
   });
 
+  it("caps the indentation of a very deep hidden branch", () => {
+    const stash = Array.from({ length: 30 }, (_, index) => [
+      { id: `c${index}`, type: "rectangle", customData: { notefableMindmap: { v: 1, role: "node", tree: "n1", parent: index ? `c${index - 1}` : "n1", order: 0 } } },
+      { id: `c${index}-t`, type: "text", containerId: `c${index}`, originalText: `level ${index + 1}` },
+    ]).flat();
+    const elements = [{ id: "n1", type: "rectangle", customData: { notefableMindmap: { v: 1, role: "node", tree: "n1", parent: null, order: 0, collapsed: true, stash } } }];
+    const result = adapter.read(page("whiteboard", { data: { elements } }));
+    expect(result).toContain(`\n${"  ".repeat(8)}- hidden in collapsed branch: "level 30"`);
+  });
+
   it("counts hidden branch lines against the read limit", () => {
     const hidden = Array.from({ length: 5_000 }, (_, index) => ({
       id: `h${index}`, type: "text", containerId: `c${index}`, originalText: `Hidden topic number ${index} ${"x".repeat(40)}`,

@@ -116,6 +116,10 @@ export function mindmapStashOutline(nodeId: string, customData: unknown): { dept
   return out;
 }
 
+// 隠れた枝を AI に渡すときの字下げ。深い木の空白が読む文字の上限を食わないように、段数を抑える。
+const MAX_HIDDEN_INDENT = 8;
+export const mindmapIndent = (depth: number) => "  ".repeat(Math.min(depth, MAX_HIDDEN_INDENT));
+
 // 節の数（根を含む）。
 export function countMindmapNodes(root: MindmapTreeNode) {
   let count = 0;

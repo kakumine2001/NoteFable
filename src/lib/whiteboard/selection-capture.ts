@@ -1,5 +1,5 @@
 import { isSelectionId, MAX_SELECTION_IDS } from "@/lib/page-ai/types";
-import { mindmapStashOutline } from "@/lib/whiteboard/mindmap/model";
+import { mindmapIndent, mindmapStashOutline } from "@/lib/whiteboard/mindmap/model";
 
 // 選区を AI へ送る PNG の長辺上限（D5）。モデル入力の解像度上限に収め、帯域とトークンを抑える。
 export const MAX_SELECTION_IMAGE_SIDE = 1568;
@@ -116,7 +116,7 @@ export function expandWhiteboardSelection<T extends WhiteboardSelectableElement>
     if (!hidden.length) continue;
     const label = boundText.get(element.id);
     if (label) add(label, true);
-    for (const { depth, text } of hidden) lines.push(`${"  ".repeat(depth)}- ${text.replace(/\s*\r?\n\s*/g, " ")}`);
+    for (const { depth, text } of hidden) lines.push(`${mindmapIndent(depth)}- ${text.replace(/\s*\r?\n\s*/g, " ")}`);
   }
 
   return { elements: expanded, ids, text: lines.join("\n") };

@@ -1187,6 +1187,7 @@ export const th: Record<string, string> = {
   "Collapse branch": "ยุบกิ่ง",
   "Expand branch": "ขยายกิ่ง",
   "Hidden topics: {count}": "หัวข้อที่ซ่อนอยู่: {count}",
+  "This branch can't be expanded: a whiteboard can hold up to {max} elements.": "ขยายกิ่งนี้ไม่ได้: ไวท์บอร์ดมีองค์ประกอบได้สูงสุด {max} รายการ",
   "Branches on both sides": "แตกกิ่งทั้งสองข้าง",
   "Branches on the right": "แตกกิ่งด้านขวา",
   "New topic": "หัวข้อใหม่",
