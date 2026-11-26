@@ -182,7 +182,7 @@ export function MoveNoteDialog({ page, groups, error, onMove, onCreateGroup, onC
     if (group) await move(group.id);
   }
   const options: { id: string | null; label: string }[] = [{ id: null, label: t("No project") }, ...groups.map((group) => ({ id: group.id, label: group.name }))];
-  return <Modal label={t("Move note")} busy={busy} onClose={onClose}>
+  return <Modal label={t("Move page")} busy={busy} onClose={onClose}>
     <h2 className="text-base font-semibold">{t("Move “{title}” to", { title: page.title })}</h2>
     <div className="mt-3 grid gap-0.5" role="radiogroup" aria-label={t("Project")}>
       {options.map((option) => <button key={option.id ?? "none"} type="button" role="radio" aria-checked={!page.parentId && page.groupId === option.id}

@@ -450,7 +450,7 @@ final class SidebarViewModel {
         }
     }
 
-    /// 设置窗口打开时读项目详情和全部笔记（两个都要成功）。失败时和网页一样：笔记读不到是 "Could not load your notes."，
+    /// 设置窗口打开时读项目详情和全部页面（两个都要成功）。失败时和网页一样：页面读不到是 "Could not load your pages."，
     /// 否则 "Could not load the project settings."；服务端给了原因就用原因（见 [projectSettingsLoadError]）。
     func loadProjectSettings(_ id: String) async -> Result<ProjectSettingsLoaded, Error> {
         let api = projectsApi

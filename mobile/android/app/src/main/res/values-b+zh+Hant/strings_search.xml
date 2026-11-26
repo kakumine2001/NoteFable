@@ -3,14 +3,14 @@
 <!-- Batch 4：搜索（src/lib/i18n/messages/zh.ts）。 -->
 <resources>
     <string name="search">搜尋</string>
-    <string name="search_chats_and_notes">搜尋聊天和筆記</string>
+    <string name="search_chats_and_notes">搜尋聊天和頁面</string>
     <string name="search_close">關閉搜尋</string>
     <string name="search_tab_all">全部</string>
     <string name="search_tab_chats">聊天</string>
     <string name="search_project">專案</string>
     <string name="search_all_projects">全部專案</string>
-    <string name="search_idle_title">搜尋你的聊天和筆記</string>
-    <string name="search_idle_body">輸入的每個詞都需要出現在同一個聊天或筆記中，可以在標題、訊息或附件裡。</string>
+    <string name="search_idle_title">搜尋你的聊天和頁面</string>
+    <string name="search_idle_body">輸入的每個詞都需要出現在同一個聊天或頁面中，可以在標題、正文或附件裡。</string>
     <string name="search_unavailable_title">搜尋不可用</string>
     <string name="search_unavailable_body">請檢查網路連線後重試。</string>
     <string name="search_try_again">重試</string>

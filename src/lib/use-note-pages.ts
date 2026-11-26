@@ -37,7 +37,7 @@ async function pageRequest(url: string, method = "GET", body?: unknown) {
     ...(body === undefined ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
   });
   const data = await response.json();
-  if (!response.ok) throw new NoteSaveError(data.error || msg("Note request failed. Your draft has been kept."), response.status, data.page);
+  if (!response.ok) throw new NoteSaveError(data.error || msg("Page request failed. Your draft has been kept."), response.status, data.page);
   return data;
 }
 
@@ -377,7 +377,7 @@ export function useNotePages(
             } else if (currentQueue.status !== "saving") {
               currentQueue.status = "conflict";
               currentQueue.latest = latestPage;
-              currentQueue.error = msg("This note was changed in another tab. Save a copy or load the latest version.");
+              currentQueue.error = msg("This page was changed in another tab. Save a copy or load the latest version.");
               refresh((value) => value + 1);
             }
           } else if (currentQueue.status === "error" && !currentQueue.gone && currentQueue.dirty) {
@@ -405,7 +405,7 @@ export function useNotePages(
             if (currentQueue) {
               currentQueue.gone = true;
               currentQueue.status = "error";
-              currentQueue.error = caught instanceof Error ? caught.message : msg("Failed to open note.");
+              currentQueue.error = caught instanceof Error ? caught.message : msg("Failed to open page.");
               refresh((value) => value + 1);
             }
             return;
@@ -420,7 +420,7 @@ export function useNotePages(
             setActive(undefined);
             // 別の未キャッシュページへ移動中（pendingId）なら、URL 変更や popstate でその遷移をキャンセルしない。
             if (!pendingId.current || pendingId.current === id) {
-              setError(caught instanceof Error ? caught.message : msg("Failed to open note."));
+              setError(caught instanceof Error ? caught.message : msg("Failed to open page."));
               // ドロワーなどが開いていても「戻る」の目印を消さない（replaceSheetUrl）。
               replaceSheetUrl((url) => {
                 if (url.searchParams.get("page") !== id) return false;
@@ -475,7 +475,7 @@ export function useNotePages(
           } else if (existingAfter.status !== "saving") {
             existingAfter.status = "conflict";
             existingAfter.latest = latestPage;
-            existingAfter.error = msg("This note was changed in another tab. Save a copy or load the latest version.");
+            existingAfter.error = msg("This page was changed in another tab. Save a copy or load the latest version.");
           }
         }
       }
@@ -493,7 +493,7 @@ export function useNotePages(
       return true;
     } catch (caught) {
       if (intent !== navigation.current) return true;
-      setError(caught instanceof Error ? caught.message : msg("Failed to open note."));
+      setError(caught instanceof Error ? caught.message : msg("Failed to open page."));
       const gone = caught instanceof NoteSaveError && caught.status === 404;
       // 別のタブで捨てた（または削除した）ノートが一覧に残っていたら外す。
       if (gone) {
@@ -537,7 +537,7 @@ export function useNotePages(
         }
       }
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : msg("Failed to load notes."));
+      setError(caught instanceof Error ? caught.message : msg("Failed to load pages."));
       // 失敗したら、次にノートを開く（分割表示を開き直すなど）ときにもう一度読み込めるようにする。
       started.current = false;
     }
@@ -577,7 +577,7 @@ export function useNotePages(
               if (current.status !== "saving") {
                 current.status = "conflict";
                 current.latest = data.page;
-                current.error = msg("This note was changed from the chat. Save a copy or load the latest version.");
+                current.error = msg("This page was changed from the chat. Save a copy or load the latest version.");
                 refresh((value) => value + 1);
               }
               return;
@@ -593,7 +593,7 @@ export function useNotePages(
         // 未保存の編集は消さず、衝突として知らせる。
         queue.status = "conflict";
         queue.latest = page;
-        queue.error = msg("This note was changed from the chat. Save a copy or load the latest version.");
+        queue.error = msg("This page was changed from the chat. Save a copy or load the latest version.");
         refresh((value) => value + 1);
       }
     }
@@ -790,7 +790,7 @@ export function useNotePages(
       } else {
         syncPageUrl(page.id, "push");
       }
-    } catch (caught) { setError(caught instanceof Error ? caught.message : msg("Failed to create note.")); }
+    } catch (caught) { setError(caught instanceof Error ? caught.message : msg("Failed to create page.")); }
     finally { actionBusy.current = false; setBusy(false); }
   }
 
@@ -806,12 +806,12 @@ export function useNotePages(
       // 待っても終わらない画像のアップロードがあれば、ゴミ箱へ移さない（移すと画像の入っていない版が残る）。
       if (!(await flushCanvasEditors())) throw new Error(msg("Wait for images to finish uploading, then try again."));
       const queue = queues.current.get(id);
-      if (queue && !(await queue.flush())) throw new Error(msg("Resolve the unsaved draft before moving this note to Trash."));
+      if (queue && !(await queue.flush())) throw new Error(msg("Resolve the unsaved draft before moving this page to Trash."));
       // サブページも一緒にゴミ箱へ入る。開いている（未保存の）サブページも先に保存する。
       // 待っている間に増えた・動いたサブページも含めるよう、最新の一覧（pagesRef）から辿る。
       for (const childId of descendantIdsOf(pagesRef.current, id)) {
         const child = queues.current.get(childId);
-        if (child && !(await child.flush())) throw new Error(msg("Resolve the unsaved draft before moving this note to Trash."));
+        if (child && !(await child.flush())) throw new Error(msg("Resolve the unsaved draft before moving this page to Trash."));
       }
       const data = await pageRequest(`/api/pages/${id}`, "DELETE");
       // 開いている別のページのバックリンクから、ゴミ箱へ移ったページ（とサブページ）を外す。
@@ -842,7 +842,7 @@ export function useNotePages(
         return true;
       });
       return true;
-    } catch (caught) { setTrashError(caught instanceof Error && caught.message ? caught.message : msg("Failed to move the note to Trash.")); return false; }
+    } catch (caught) { setTrashError(caught instanceof Error && caught.message ? caught.message : msg("Failed to move the page to Trash.")); return false; }
     finally { actionBusy.current = false; setBusy(false); }
   }
 
@@ -969,7 +969,7 @@ export function useNotePages(
     const queue = (id === activeId ? active : undefined) ?? queues.current.get(id);
     if (queue && (!isCanvasKind(pageKindOf(queue.page)) || pageKindFeatures(pageKindOf(queue.page)).editor)) {
       if (queue.gone) return false;
-      if (queue.status === "conflict") throw new Error(queue.error || msg("This note was changed in another tab."));
+      if (queue.status === "conflict") throw new Error(queue.error || msg("This page was changed in another tab."));
       queue.edit({ ...queue.content, title: normalized });
       return true;
     }
@@ -1036,7 +1036,7 @@ export function useNotePages(
     if (loaded.current) return true;
     // 読み込みの途中なら、終わるのを待ってもらう（失敗の表示は出さない）。
     if (listLoading) return false;
-    setActionError(msg("Failed to load notes."));
+    setActionError(msg("Failed to load pages."));
     if (!started.current) { started.current = true; void load(); }
     return false;
   }
@@ -1106,7 +1106,7 @@ export function useNotePages(
     // ホワイトボード・スライドの 409 は本体を含まない。新しい版と古い本体を組み合わせないよう、読み直してから替える。
     if (isCanvasKind(pageKindOf(queue.page)) && latest.data === undefined) {
       try { latest = (await pageRequest(`/api/pages/${queue.page.id}`)).page as NotePage; }
-      catch (caught) { setActionError(caught instanceof Error && caught.message ? caught.message : msg("Failed to open note.")); return; }
+      catch (caught) { setActionError(caught instanceof Error && caught.message ? caught.message : msg("Failed to open page.")); return; }
       // 読み直している間に、別の操作（もう一度押した・新しいページとして保存した）で衝突が片付いていたら、その後の編集を消さない。
       if (queues.current.get(queue.page.id) !== queue || queue.latest !== conflict) return;
     }

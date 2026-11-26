@@ -116,7 +116,7 @@ describe("pages attached to a chat message", () => {
     expect(instructions).toContain("Reference note 1: \"Biology\"");
     expect(instructions).not.toContain("Attached note 2");
     // 参照ノートの区切り行のあとで改行してから、添付ノートの説明を始める。
-    expect(instructions).toContain("=== End of reference note 1 ===\n The user attached the notes below");
+    expect(instructions).toContain("=== End of reference note 1 ===\n The user attached the pages below");
     expect(instructions).toContain("=== Attached note 1: \"History\" (id: n2) ===");
   });
 

@@ -124,7 +124,7 @@ function validTable(content: unknown) {
 
 export function validateNoteContent(value: unknown): NoteContent {
   if (!object(value) || typeof value.title !== "string" || value.title.length > MAX_NOTE_TITLE) {
-    throw new NoteValidationError(fmt("Note title must be at most {max} characters.", { max: MAX_NOTE_TITLE }));
+    throw new NoteValidationError(fmt("Page title must be at most {max} characters.", { max: MAX_NOTE_TITLE }));
   }
   const ids = new Set<string>();
   let count = 0;
@@ -185,7 +185,7 @@ export function validateNoteContent(value: unknown): NoteContent {
   const icon = value.icon ?? null;
   const cover = value.cover ?? null;
   // アイコンは絵文字 1 つか、カバーと同じ形でアップロードした画像（upload:page-covers/<所有者>/<UUID>.<拡張子>）。
-  if (icon !== null && !isEmojiIcon(icon) && !uploadedCoverPath(icon)) throw new NoteValidationError(msg("Note icon must be a single emoji or an uploaded image."));
+  if (icon !== null && !isEmojiIcon(icon) && !uploadedCoverPath(icon)) throw new NoteValidationError(msg("Page icon must be a single emoji or an uploaded image."));
   if (cover !== null && !isPresetCover(cover) && !uploadedCoverPath(cover)) throw new NoteValidationError(msg("Unsupported note cover."));
   const coverPosition = value.coverPosition ?? null;
   if (coverPosition !== null && !(Number.isInteger(coverPosition) && Number(coverPosition) >= 0 && Number(coverPosition) <= 100)) {
@@ -287,7 +287,7 @@ export function topLevelJsonFields(text: string): { keys: Set<string>; strings: 
 
 export function validateNoteUpdate(value: unknown) {
   const content = validateNoteContent(value);
-  if (!object(value) || !Number.isSafeInteger(value.version) || Number(value.version) < 0) throw new NoteValidationError(msg("A valid note version is required."));
+  if (!object(value) || !Number.isSafeInteger(value.version) || Number(value.version) < 0) throw new NoteValidationError(msg("A valid page version is required."));
   // 旧クライアントや旧下書きは icon/cover/coverPosition を送らない。送られた項目だけを更新し、
   // 省略された項目は保存済みの値を残す（null で上書きしない）。
   const present = NOTE_META_FIELDS.filter((key) => key in value);

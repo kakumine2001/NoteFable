@@ -10,7 +10,7 @@ export const COVER_CONTENT_TYPES: Record<string, string> = { jpg: "image/jpeg", 
 // kind は誤りの文言だけを変える（ページのアイコンにも同じ形の画像を使う）。
 export function assertCoverOwner(cover: string | null, userId: string, kind: "cover" | "icon" = "cover") {
   const upload = uploadedCoverPath(cover);
-  if (upload && upload.ownerId !== userId) throw new NoteValidationError(kind === "icon" ? msg("Note icon must be a single emoji or an uploaded image.") : msg("Unsupported note cover."));
+  if (upload && upload.ownerId !== userId) throw new NoteValidationError(kind === "icon" ? msg("Page icon must be a single emoji or an uploaded image.") : msg("Unsupported note cover."));
 }
 
 // ページにアップロード画像を設定する保存処理の中で呼ぶ（同じトランザクション）。ファイルの行を「使用中」に戻し、

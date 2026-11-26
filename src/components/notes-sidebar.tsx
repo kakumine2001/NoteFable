@@ -264,7 +264,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
                   </span>
                 </div>
                 {open && <div className="notes-group-members">
-                  {members.length ? members.map(tree) : <p className="px-2 py-1.5 text-xs text-[var(--notion-faint)]">{t("No notes in this project.")}</p>}
+                  {members.length ? members.map(tree) : <p className="px-2 py-1.5 text-xs text-[var(--notion-faint)]">{t("No pages in this project.")}</p>}
                 </div>}
               </div>
             );
@@ -309,7 +309,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
         <button type="button" className="notion-sidebar-action is-subtle" aria-haspopup="dialog" onClick={() => setTrashOpen(true)}><Trash2 size={15} /><span>{t("Trash")}</span></button>
       </div>
       {/* 上部バーの「ゴミ箱へ」と同じ確認の小窓。移せなかったら閉じずに理由を出す。送っている間は Esc・「戻る」でも閉じない。 */}
-      {deleting && <ConfirmDialog title={t("Move note to Trash?")} confirmLabel={t("Move to Trash")} error={deleteError} onClose={() => setDeleting(null)}
+      {deleting && <ConfirmDialog title={t("Move page to Trash?")} confirmLabel={t("Move to Trash")} error={deleteError} onClose={() => setDeleting(null)}
         body={`${t("“{title}” will be moved to Trash. You can restore it for {count} days.", { title: deleting.title, count: TRASH_RETENTION_DAYS })}${children.has(deleting.id) ? ` ${t("Its sub-pages move to Trash with it.")}` : ""}`}
         onConfirm={async () => (await onDelete(deleting.id)) === true} />}
       {trashOpen && <NoteTrashDialog onClose={() => setTrashOpen(false)} />}
@@ -348,7 +348,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
         submitLabel={naming.mode === "create" ? t("Create") : t("Save")} error={groupError} onClose={() => setNaming(null)}
         onSubmit={async (name) => naming.mode === "create" ? Boolean(await onCreateGroup(name)) : Boolean(await onRenameGroup(naming.group.id, name))} />}
       {deletingGroup && <ConfirmDialog title={t("Delete project?")} confirmLabel={t("Delete project")} error={groupError} onClose={() => setDeletingGroup(null)}
-        body={t("“{name}” will be deleted. Its notes are kept and move out of the project.", { name: deletingGroup.name })}
+        body={t("“{name}” will be deleted. Its pages are kept and move out of the project.", { name: deletingGroup.name })}
         onConfirm={async () => Boolean(await onDeleteGroup(deletingGroup.id))} />}
       <SidebarFooter />
       {picker && pickerPage && (

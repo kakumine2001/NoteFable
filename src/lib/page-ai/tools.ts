@@ -188,7 +188,7 @@ async function loadPage(userId: string, pageId: string): Promise<{ page: Adapter
 
 async function readPage(userId: string, pageId: string, focusIds?: readonly string[]): Promise<ToolRun> {
   const loaded = await loadPage(userId, pageId);
-  if (!loaded) return { content: "Note not found.", isError: true, label: msg("Note not found") };
+  if (!loaded) return { content: "Page not found.", isError: true, label: msg("Page not found") };
   const { page, adapter } = loaded;
   if (focusIds?.length) page.focusIds = focusIds;
   const body = adapter.read(page);
@@ -207,7 +207,7 @@ async function listPages(userId: string, value: unknown): Promise<ToolRun> {
   const kind = isPageKind(rawKind) ? rawKind : null;
   const parentId = typeof rawParent === "string" && rawParent.trim() ? rawParent.trim().slice(0, 200) : null;
   if (parentId && !await prisma.notePage.findFirst({ where: { id: parentId, userId, deletedAt: null }, select: { id: true } })) {
-    return { content: "Page not found.", isError: true, label: msg("Note not found") };
+    return { content: "Page not found.", isError: true, label: msg("Page not found") };
   }
   const rows = await prisma.notePage.findMany({
     where: { userId, deletedAt: null, ...(kind ? { kind } : {}), ...(parentId ? { parentId } : {}) },
@@ -290,7 +290,7 @@ async function runEdit(adapter: PageAdapter, value: unknown, ctx: ToolContext): 
   if (!pageId) return toolError("noteId must be a non-empty string.");
   if (!Number.isSafeInteger(raw.version)) return toolError("version must be the integer shown by read_note.");
   const loaded = await loadPage(ctx.userId, pageId);
-  if (!loaded) return toolError("Note not found.", msg("Note not found"));
+  if (!loaded) return toolError("Page not found.", msg("Page not found"));
   const { page } = loaded;
   const kind = page.kind;
   if (kind !== adapter.kind) {
@@ -301,7 +301,7 @@ async function runEdit(adapter: PageAdapter, value: unknown, ctx: ToolContext): 
       : `This page is ${KIND_NAMES[kind]}, not ${KIND_NAMES[adapter.kind]}, so ${tool} cannot change it. Tell the user it cannot be edited from chat yet.`);
   }
   if (page.version !== raw.version) {
-    return toolError(`The page changed after you read it (it is now version ${page.version}). Call read_note again and redo the edits.`, msg("Note changed since it was read"));
+    return toolError(`The page changed after you read it (it is now version ${page.version}). Call read_note again and redo the edits.`, kind === "note" ? msg("Note changed since it was read") : msg("Page changed since it was read"));
   }
   const draft = await adapter.edit!.propose(ctx, page, value);
   if (draft.unchanged) {
@@ -334,14 +334,15 @@ async function runCreate(adapter: PageAdapter, value: unknown, ctx: ToolContext)
       });
     if (!parent) {
       if (draft.copiedFiles?.length) await discardStoredFiles(draft.copiedFiles);
-      return toolError("The parent page was not found. Use an ID from search_notes or list_pages, or null.", msg("Note proposal rejected"));
+      return toolError("The parent page was not found. Use an ID from search_notes or list_pages, or null.", adapter.kind === "note" ? msg("Note proposal rejected") : msg("Page proposal rejected"));
     }
     parentTitle = parent.title;
   }
   const outcome = await saveAndMaybeApply(ctx, () => saveProposal(ctx.userId, ctx.sessionId, { kind: "CREATE", pageKind: adapter.kind, draft, parentTitle }), draft.copiedFiles, Boolean(ctx.autoApply || adapter.create!.direct));
   return {
     content: proposalResult("create", outcome),
-    label: outcome.applied ? fmt("Created page “{title}”", { title: draft.title }) : fmt("Proposed new note “{title}”", { title: draft.title }),
+    label: outcome.applied ? fmt("Created page “{title}”", { title: draft.title })
+      : adapter.kind === "note" ? fmt("Proposed new note “{title}”", { title: draft.title }) : fmt("Proposed new page “{title}”", { title: draft.title }),
     events: [{ ...outcome.view, type: "notefable.create_proposal" }],
   };
 }
@@ -352,7 +353,7 @@ async function runPreview(value: unknown, ctx: ToolContext): Promise<ToolRun> {
   if (!pageId) return { content: "noteId must be a non-empty string.", isError: true, label: msg("Preview failed") };
   if (!ctx.vision) return { content: "This model cannot view images.", isError: true, label: msg("Preview failed") };
   const loaded = await loadPage(ctx.userId, pageId);
-  if (!loaded) return { content: "Note not found.", isError: true, label: msg("Note not found") };
+  if (!loaded) return { content: "Page not found.", isError: true, label: msg("Page not found") };
   const { page, adapter } = loaded;
   if (!adapter.preview) return { content: `A preview of ${KIND_NAMES[adapter.kind]} is not available. Use read_note instead.`, isError: true, label: msg("Preview failed") };
   if (!page.data && page.kind !== "note") page.data = await readCanvasData(ctx.userId, pageId);
@@ -371,17 +372,17 @@ export async function runPageTool(name: string, value: unknown, ctx: ToolContext
   try {
     if (name === "search_notes") {
       const query = input(value, "query");
-      if (query === null) return { content: "query must be a string.", isError: true, label: msg("Invalid note search") };
+      if (query === null) return { content: "query must be a string.", isError: true, label: msg("Invalid page search") };
       const results = await searchPages(ctx.userId, query);
       return {
-        content: JSON.stringify({ results, ...(results.length ? {} : { note: "No matching notes." }) }),
-        label: query ? fmt("Searched notes for “{query}”", { query }) : msg("Listed recent notes"),
+        content: JSON.stringify({ results, ...(results.length ? {} : { note: "No matching pages." }) }),
+        label: query ? fmt("Searched pages for “{query}”", { query }) : msg("Listed recent pages"),
       };
     }
     if (name === "list_pages") return await listPages(ctx.userId, value);
     if (name === "read_note") {
       const pageId = input(value, "noteId");
-      if (!pageId) return { content: "noteId must be a non-empty string.", isError: true, label: msg("Invalid note read") };
+      if (!pageId) return { content: "noteId must be a non-empty string.", isError: true, label: msg("Invalid page read") };
       const focusIds = ctx.focusSelection?.pageId === pageId ? ctx.focusSelection.ids : undefined;
       return await readPage(ctx.userId, pageId, focusIds);
     }

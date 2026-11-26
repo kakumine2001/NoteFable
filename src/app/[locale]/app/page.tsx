@@ -1040,7 +1040,7 @@ export default function Home() {
     const icon = notes.active?.content.icon ?? summary?.icon ?? null;
     const ids = [...new Set((selection.ids ?? []).filter(isSelectionId))].slice(0, MAX_SELECTION_IDS);
     const quoteText = normalizeQuote(selection.text)
-      || (ids.length ? `${title} (${t("{count} items selected", { count: ids.length })})` : "");
+      || (ids.length ? `${title} (${t("Selected items: {count}", { count: ids.length })})` : "");
     if (quoteText) quoteSelection(quoteText);
     else {
       setSplitSelection(null);
@@ -2591,7 +2591,7 @@ export default function Home() {
             </button>
             {workspaceView === "pages" && notes.active && !notesList && (
               <button type="button" className="notion-icon-button grid sm:hidden" onClick={openNotesList}
-                aria-label={t("All notes")} title={t("All notes")}>
+                aria-label={t("All pages")} title={t("All pages")}>
                 <ChevronLeft size={22} className="rtl-mirror" />
               </button>
             )}
@@ -2635,7 +2635,7 @@ export default function Home() {
           <div className="flex shrink-0 items-center gap-1.5">
             {/* サイドバーの Search 行が見えているパソコン幅では出さない（サイドバーを畳んだとき・タブレット・スマホ用）。 */}
             <button type="button" className={`notion-icon-button grid${sidebarVisible ? " lg:hidden" : ""}`} onClick={() => setSearchOpen(true)}
-              aria-label={t("Search chats and notes")} title={t("Search (Ctrl+K)")} aria-haspopup="dialog">
+              aria-label={t("Search chats and pages")} title={t("Search (Ctrl+K)")} aria-haspopup="dialog">
               <Search size={18} />
             </button>
             {workspaceView === "chat" && isSplitViewport && (
@@ -3103,7 +3103,7 @@ export default function Home() {
         onChoose={(groupId) => { const files = importingFiles; setImportingFiles(null); void importMarkdownFiles(files, groupId); }} />}
       {movingNote && <MoveNoteDialog page={movingNote} groups={notes.groups} error={notes.groupError} pages={notes.pages}
         onMove={notes.moveNote} onMoveToPage={notes.moveToPage} onCreateGroup={notes.createGroup} onClose={() => setMovingNoteId(null)} />}
-      {trashingNote && <ConfirmDialog title={t("Move note to Trash?")} confirmLabel={t("Move to Trash")} error={notes.trashError} onClose={() => setTrashingNoteId(null)}
+      {trashingNote && <ConfirmDialog title={t("Move page to Trash?")} confirmLabel={t("Move to Trash")} error={notes.trashError} onClose={() => setTrashingNoteId(null)}
         body={`${t("“{title}” will be moved to Trash. You can restore it for {count} days.", { title: trashingNote.title, count: TRASH_RETENTION_DAYS })}${descendantIdsOf(notes.pages, trashingNote.id).size ? ` ${t("Its sub-pages move to Trash with it.")}` : ""}`}
         onConfirm={() => deleteNote(trashingNote.id)} />}
       {historyQueue && historyNoteId && (

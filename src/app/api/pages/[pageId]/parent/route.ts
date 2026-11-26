@@ -20,7 +20,7 @@ export async function PUT(request: Request, context: Context) {
     const pages = await prisma.$transaction(async (tx) => {
       await lockNoteOrder(tx, user.id);
       const page = await tx.notePage.findFirst({ where: { id: pageId, userId: user.id, deletedAt: null }, select: { groupId: true } });
-      if (!page) throw new NoteValidationError(msg("Note not found."), 404);
+      if (!page) throw new NoteValidationError(msg("Page not found."), 404);
       const groupId = parentId === null ? page.groupId : (await resolveParent(tx, user.id, pageId, parentId)).groupId;
       await setPageMeta(tx, user.id, pageId, { parentId });
       const ids = await setSubtreeGroup(tx, user.id, pageId, groupId);

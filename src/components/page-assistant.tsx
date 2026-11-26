@@ -499,7 +499,7 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
   const selectionSummary = pageKind === "note" && selectionIds.length > 0
     ? (selectionIds.length === 1 ? t("1 block") : t("{count} blocks", { count: selectionIds.length }))
     : selectionIds.length > 0
-      ? t("{count} items selected", { count: selectionIds.length })
+      ? t("Selected items: {count}", { count: selectionIds.length })
       : "";
 
   // スマホではシートとして開き、端末の「戻る」で閉じられるようにする。
@@ -752,7 +752,7 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
     setNotice("");
     flashOutcome(null);
     if (!(await flush())) {
-      setError(msg("Resolve the note's unsaved changes first, then ask again."));
+      setError(msg("Resolve the page's unsaved changes first, then ask again."));
       setActiveTurnAssistantId(null);
       flashOutcome("error");
       if (continued) notePanelTurns.delete(continued);
@@ -1047,7 +1047,7 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
               <span className="chat-quote-text">
                 {selectionText || (pageKind === "note"
                   ? (selectionIds.length === 1 ? t("1 block") : t("{count} blocks", { count: selectionIds.length }))
-                  : t("{count} items selected", { count: selectionIds.length }))}
+                  : t("Selected items: {count}", { count: selectionIds.length }))}
               </span>
               {Boolean(selection?.captureImage && modelOption.supportsImageInput) && (
                 <ImageIcon size={13} className="note-ai-quote-vision" aria-hidden="true" />

@@ -294,10 +294,10 @@ export type CanvasPageInput = { title: string; icon: string | null; data?: Canva
 export function validateCanvasPage(kind: CanvasKind, value: unknown): CanvasPageInput {
   if (!object(value)) throw new NoteValidationError(msg("Invalid JSON request."));
   if (typeof value.title !== "string" || value.title.length > MAX_NOTE_TITLE) {
-    throw new NoteValidationError(fmt("Note title must be at most {max} characters.", { max: MAX_NOTE_TITLE }));
+    throw new NoteValidationError(fmt("Page title must be at most {max} characters.", { max: MAX_NOTE_TITLE }));
   }
   const icon = value.icon ?? null;
-  if (icon !== null && !isEmojiIcon(icon) && !uploadedCoverPath(icon)) throw new NoteValidationError(msg("Note icon must be a single emoji or an uploaded image."));
+  if (icon !== null && !isEmojiIcon(icon) && !uploadedCoverPath(icon)) throw new NoteValidationError(msg("Page icon must be a single emoji or an uploaded image."));
   if ((value.cover ?? null) !== null || (value.coverPosition ?? null) !== null || value.blocks !== undefined) throw invalid();
   const canvas = value.data === undefined ? null : validateCanvasData(kind, value.data);
   return {

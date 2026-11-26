@@ -152,7 +152,7 @@ mobile/ios/
 - **下载会话**：用系统的“存储到文件”（`.fileExporter`）；下载途中 App 被杀不会像 Android 那样恢复。
 - **保存生成的图片**：存进相册后只提示“已保存”，不打开图片。没有权限时提示去“设置”里允许。
 - **笔记里的文件**：下载到临时目录后打开分享面板（存到“文件”或用别的 App 打开），不是直接存进下载目录。
-- **撞到上限时的提示**：游客显示登录提示。已登录的免费用户在开放 App Store 购买时可以跳转到设置的方案页。笔记编辑器 WebView 里的 AI 面板或幻灯片 AI 生图撞 429 `usage_limit` 时，bootstrap 声明 `canShowUsageLimit()`，接收 `EmbedMessage.usageLimit(tier, kind, pageId?)` 核对当前编辑器与 `pageId`（过滤切页后晚到的旧页面响应）后写入 `NotesUiState.usageLimit`（与 `storageLimit` 互斥，换编辑器或换身份时清零），`NoteEditorScreen` 在顶栏下方用 `GuestLimitPrompt(usage:)` 呈现：游客显示原生登录入口，已登录免费用户可以跳转到方案页。被拒草稿由网页持久化到 `WKWebsiteDataStore.default()` 的 `localStorage`，登录重建 WebView 后重开原页面自动恢复。
+- **撞到上限时的提示**：游客显示登录提示。已登录的免费用户在开放 App Store 购买时可以跳转到设置的方案页。笔记编辑器 WebView 里的 AI 面板或工作区 AI 生图撞 429 `usage_limit` 时，bootstrap 声明 `canShowUsageLimit()`，接收 `EmbedMessage.usageLimit(tier, kind, pageId?)` 核对当前编辑器与 `pageId`（过滤切页后晚到的旧页面响应）后写入 `NotesUiState.usageLimit`（与 `storageLimit` 互斥，换编辑器或换身份时清零），`NoteEditorScreen` 在顶栏下方用 `GuestLimitPrompt(usage:)` 呈现：游客显示原生登录入口，已登录免费用户可以跳转到方案页。被拒草稿由网页持久化到 `WKWebsiteDataStore.default()` 的 `localStorage`，登录重建 WebView 后重开原页面自动恢复。
 - **存储空间不够**（413 `storage_limit`）：和 Android 一样文字和附件留在输入栏、显示存储提示（`GuestLimitPrompt(storage:)`：用量、“删除不需要的文件”，游客有登录按钮），笔记编辑器里的上传被拒时网页经桥发 `storageLimit`（`canShowStorageLimit()`），编辑器顶栏下面显示同一个提示。开放 App Store 购买时，免费用户可以跳转到方案页。设置的方案卡片显示存储用量条（`PlanInfo.storage`）和说明。
 - **系统权限说明**（相机、存相册，`Info.plist`）目前只有英文，没有按语言的 `InfoPlist.strings`。
 - **表情选择器**在深色外观下仍是浅色的一块：卡片连同玻璃固定取浅色 `colorScheme`，只有阴影跟着外观（和网页的 `Theme.LIGHT` 一样；Android 的跟着变深）。

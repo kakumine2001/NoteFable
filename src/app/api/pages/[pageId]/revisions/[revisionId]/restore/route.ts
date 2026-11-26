@@ -35,7 +35,7 @@ async function restorable<T>(check: () => T | Promise<T>): Promise<T> {
 export async function POST(request: Request, context: Context) {
   try {
     const body = await readSmallJson(request);
-    if (!Number.isSafeInteger(body.version) || (body.version as number) < 0) throw new NoteValidationError(msg("A valid note version is required."));
+    if (!Number.isSafeInteger(body.version) || (body.version as number) < 0) throw new NoteValidationError(msg("A valid page version is required."));
     const version = body.version as number;
     const user = await getOrCreateUser();
     const { pageId, revisionId } = await context.params;
@@ -73,15 +73,15 @@ export async function POST(request: Request, context: Context) {
       if (!(error instanceof Stale)) throw error;
       outcome = "stale";
     }
-    if (outcome === "note-missing") return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+    if (outcome === "note-missing") return NextResponse.json({ error: msg("Page not found.") }, { status: 404 });
     if (outcome === "revision-missing") return NextResponse.json({ error: msg("Revision not found.") }, { status: 404 });
     if (outcome === "stale") {
       const latest = await prisma.notePage.findFirst({ where: { id: pageId, userId: user.id, deletedAt: null } });
-      if (!latest) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+      if (!latest) return NextResponse.json({ error: msg("Page not found.") }, { status: 404 });
       // ホワイトボード・スライドは最新の本体も付ける（画面が版と本体をそろえて持てるように）。
       const latestKind = pageKindOf(latest);
       const page = isCanvasKind(latestKind) ? { ...latest, data: await readCanvasData(user.id, pageId) ?? emptyCanvasData(latestKind) } : latest;
-      return NextResponse.json({ error: msg("This note was changed in another tab."), page }, { status: 409 });
+      return NextResponse.json({ error: msg("This page was changed in another tab."), page }, { status: 409 });
     }
     scheduleNoteEmbeddingSync(user.id, [pageId]);
     return NextResponse.json({ page: outcome.page });

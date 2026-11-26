@@ -18,6 +18,6 @@ export async function PUT(request: Request, context: Context) {
     const { pageId } = await context.params;
     const changed = await prisma.$transaction((tx) => setPageMeta(tx, user.id, pageId, { favoritedAt: favorite ? new Date() : null }));
     const page = changed ? await pageSummary(user.id, pageId) : null;
-    return page ? NextResponse.json({ page }) : NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+    return page ? NextResponse.json({ page }) : NextResponse.json({ error: msg("Page not found.") }, { status: 404 });
   } catch (error) { return noteApiError(error); }
 }

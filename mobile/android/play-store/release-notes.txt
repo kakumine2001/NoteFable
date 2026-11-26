@@ -1,3 +1,3 @@
-Generate editable slide decks with AI from a topic, your notes, or a chat, with an editable outline before creating the deck.
-Draw answers and notes into editable whiteboard diagrams and mind maps.
-Includes one-tap note presentation, slide transitions, and note backlinks.
+The AI can now edit whiteboards, with a before/after preview you approve.
+Generate an AI image for a slide, or turn a whiteboard sketch into an image.
+Clearer wording: notes, slide decks and whiteboards are all pages in your Workspace.

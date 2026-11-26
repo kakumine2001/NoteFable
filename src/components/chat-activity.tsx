@@ -52,7 +52,7 @@ function describeCurrent(steps: ProgressStep[], t: Translate) {
 }
 
 function toolRunningLabel(name: string, t: Translate) {
-  return name === "search_notes" ? t("Searching your notes") : t("Reading your note");
+  return name === "search_notes" ? t("Searching your pages") : t("Reading your page");
 }
 
 // 完了後のヘッダー用に、検索回数と参照ページ数をまとめる。
@@ -79,8 +79,8 @@ function summarize(steps: ProgressStep[], t: Translate) {
   return [
     searches ? (searches === 1 ? t("1 search") : t("{count} searches", { count: searches })) : "",
     pages.size ? (pages.size === 1 ? t("1 source") : t("{count} sources", { count: pages.size })) : "",
-    notes ? (notes === 1 ? t("1 note lookup") : t("{count} note lookups", { count: notes })) : "",
-    projectNotes ? (projectNotes === 1 ? t("1 project note") : t("{count} project notes", { count: projectNotes })) : projectInstructions ? t("project instructions") : "",
+    notes ? (notes === 1 ? t("1 page lookup") : t("{count} page lookups", { count: notes })) : "",
+    projectNotes ? (projectNotes === 1 ? t("1 project page") : t("{count} project pages", { count: projectNotes })) : projectInstructions ? t("project instructions") : "",
   ].filter(Boolean);
 }
 
@@ -122,7 +122,7 @@ function StepRow({ step }: { step: ProgressStep }) {
   }
 
   if (step.kind === "context") {
-    const used = [step.hasInstructions ? t("instructions") : "", step.notes.length ? (step.notes.length === 1 ? t("1 reference note") : t("{count} reference notes", { count: step.notes.length })) : ""].filter(Boolean);
+    const used = [step.hasInstructions ? t("instructions") : "", step.notes.length ? (step.notes.length === 1 ? t("1 reference page") : t("{count} reference pages", { count: step.notes.length })) : ""].filter(Boolean);
     return (
       <li className="chat-activity-step">
         <span className="chat-activity-icon"><FolderOpen size={13} strokeWidth={1.9} /></span>

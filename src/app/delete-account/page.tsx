@@ -17,7 +17,7 @@ export default function DeleteAccountPage() {
     <LegalPage title="Delete your NoteFable account">
       <LegalSection title="Delete it yourself">
         <ol className="list-decimal space-y-1.5 pl-6">
-          <li>Open NoteFable — the Android or iOS app, or <a href={WORKSPACE_URL}>{WORKSPACE_URL.replace(/^https:\/\//, "").replace(/\/$/, "")}</a> — and sign in to the account.</li>
+          <li>Open NoteFable — the Android or iOS app, or <a href={WORKSPACE_URL}>{WORKSPACE_URL.replace(/^https:\/\//, "").replace(/\/$/, "")}</a> — and sign in to the account. If you created it with Sign in with Apple, use the iOS app (the website and the Android app do not offer Apple sign-in).</li>
           <li>Tap your name at the bottom of the sidebar to open <strong>Settings</strong>, then <strong>Account</strong>.</li>
           <li>Tap <strong>Delete account</strong>, read the warning, then <strong>Delete permanently</strong>.</li>
         </ol>
@@ -28,8 +28,8 @@ export default function DeleteAccountPage() {
         <ul>
           <li>Your account: Google or Apple account ID, email address, name, profile photo, display name and icon, language and custom instructions.</li>
           <li>All chats and messages, attached files and their extracted text, and generated images.</li>
-          <li>Everything in your Workspace: all notes, note history, groups, covers, note files and images, plus chat projects and note edit proposals.</li>
-          <li>Your daily usage counters and any pending email sign-in codes.</li>
+          <li>Everything in your Workspace: all notes, slide decks and whiteboards, their history, projects, covers, files and images, plus chat projects and AI page proposals.</li>
+          <li>Your usage counters and any pending email sign-in codes.</li>
           <li>
             Your Pro subscription: one bought on the website ends immediately and your customer record at Stripe is deleted; a Google Play subscription stops
             renewing. To stop an App Store subscription from renewing, cancel it in your App Store subscriptions. The period already paid is not refunded. The payment providers keep their own records as the law requires.
@@ -51,8 +51,9 @@ export default function DeleteAccountPage() {
 
       <LegalSection title="Used NoteFable without signing in?">
         <p>
-          That data is tied only to your browser or to the app on your phone, not to an account. Delete its chats and notes in NoteFable, or clear the app’s storage
-          (Android: Settings → Apps → NoteFable → Storage → Clear storage). See the <Link href="/privacy">Privacy Policy</Link> for details.
+          That data is tied only to your browser or to the app on your phone, not to an account. To remove it, delete your chats, projects and Workspace pages in NoteFable and empty the Trash.
+          Clearing browser cookies or the app’s storage (Android: Settings → Apps → NoteFable → Storage → Clear storage) only removes your access on that device;
+          it does not delete the data on our servers. See the <Link href="/privacy">Privacy Policy</Link> for details.
         </p>
       </LegalSection>
     </LegalPage>

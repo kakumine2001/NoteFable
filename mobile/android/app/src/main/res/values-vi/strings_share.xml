@@ -6,7 +6,7 @@
     <string name="share_publish">Xuất bản</string>
     <string name="share_republish">Xuất bản lại</string>
     <string name="share_unpublish">Hủy xuất bản</string>
-    <string name="share_desc">Xuất bản ghi chú này để bất kỳ ai có liên kết đều có thể xem.</string>
+    <string name="share_desc">Xuất bản trang này để bất kỳ ai có liên kết đều có thể xem.</string>
     <string name="share_expired">Liên kết chia sẻ này đã hết hạn.</string>
     <string name="share_public_link">Liên kết công khai</string>
     <string name="share_copy_link">Sao chép liên kết</string>
