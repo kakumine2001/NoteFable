@@ -213,7 +213,7 @@ final class FixtureLaunch {
             // chat-scrolled 把京都聊天滚上去并停止跟随底部。先换到新聊天（列表被拿掉）再打开京都聊天，
             // 新建的列表从最底部开始，后面的菜单、抽屉、底部弹层、提示条场景和原来的截图一样贴底。
             app.chat.newChat()
-            try? await Task.sleep(for: .milliseconds(150))
+            try? await Task.sleep(for: .milliseconds(250))
             app.chat.openSession(FixtureCatalog.IDs.kyotoSession)
             let repinDeadline = Date().addingTimeInterval(5)
             _ = await poll(until: repinDeadline) {
@@ -221,6 +221,7 @@ final class FixtureLaunch {
                     && !app.chat.state.messagesLoading
                     && !app.chat.state.messages.isEmpty
             }
+            try? await Task.sleep(for: .milliseconds(250))
         }
         if router.drawerOpen {
             router.dismissDrawer()

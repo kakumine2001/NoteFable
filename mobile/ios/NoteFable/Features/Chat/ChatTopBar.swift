@@ -60,10 +60,10 @@ struct ChatTopBar: View {
                     }
                 }
             }
-            if let title {
-                // 放得下完整标题时两边让出同样的宽度，胶囊在整条栏的正中；放不下（窄窗口、长标题）时
-                // 两边只让出各自按钮的宽度，标题多占一些再省略。
-                ZStack {
+            ZStack {
+                if let title {
+                    // 放得下完整标题时两边让出同样的宽度，胶囊在整条栏的正中；放不下（窄窗口、长标题）时
+                    // 两边只让出各自按钮的宽度，标题多占一些再省略。
                     ViewThatFits(in: .horizontal) {
                         ChatSessionCapsule(title: title, icon: icon, onModelClick: onModelClick)
                             .padding(.horizontal, max(leadingReserve, trailingReserve))
@@ -72,11 +72,11 @@ struct ChatTopBar: View {
                             .padding(.trailing, trailingReserve)
                     }
                 }
-                .emojiPicker(isPresented: $pickingIcon, current: icon) { picked in
-                    app.chat.changeIcon(picked)
-                }
-                .accessibilitySortPriority(1)
             }
+            .emojiPicker(isPresented: $pickingIcon, current: icon) { picked in
+                app.chat.changeIcon(picked)
+            }
+            .accessibilitySortPriority(1)
         }
         // 读屏按 菜单 → 标题胶囊 → 新建聊天 → “…” 的顺序念（胶囊叠在按钮行上面，否则会排到最后）。
         .accessibilityElement(children: .contain)
@@ -130,17 +130,14 @@ struct ChatTopBar: View {
         .accessibilityLabel(label)
     }
 
-    /// CI 截图：emoji-picker 打开表情选择器（先等排版落下）。
+    /// CI 截图：emoji-picker 打开表情选择器（先等排版落下；真正挂出并载完目录后由 EmojiPickerBody 报告就绪）。
     private func runScreenshotHook(ready: Bool, capsuleAvailable: Bool) async {
         guard ScreenshotHooks.isActive, ready else { return }
         if ScreenshotHooks.scene == .emojiPicker, capsuleAvailable {
-            try? await Task.sleep(for: .milliseconds(150))
+            try? await Task.sleep(for: .milliseconds(250))
             if Task.isCancelled { return }
             if ScreenshotHooks.consume(.emojiPicker) {
                 pickingIcon = true
-                // 等系统自适应 .sheet / .popover 进场动画落稳。
-                try? await Task.sleep(for: .milliseconds(450))
-                ScreenshotHooks.markReady(.emojiPicker)
             }
         }
     }

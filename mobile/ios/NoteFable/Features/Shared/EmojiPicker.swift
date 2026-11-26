@@ -163,7 +163,16 @@ struct EmojiPickerBody: View {
         // 本机画不出来的表情不进面板：App 启动时把 `EmojiGlyphs.isSupported` 接到了 `app.emojiGlyphSupported` 上。
         do {
             let catalog = try await app.loadEmojiCatalog()
-            if !Task.isCancelled { load = .ready(catalog) }
+            if !Task.isCancelled {
+                load = .ready(catalog)
+                if ScreenshotHooks.isActive, ScreenshotHooks.scene == .emojiPicker {
+                    // 等系统自适应 .sheet / .popover 进场动画与表情网格排版落稳再报就绪。
+                    try? await Task.sleep(for: .milliseconds(450))
+                    if !Task.isCancelled {
+                        ScreenshotHooks.markReady(.emojiPicker)
+                    }
+                }
+            }
         } catch {
             if !Task.isCancelled { load = .failed }
         }
