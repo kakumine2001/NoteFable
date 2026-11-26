@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   queryRaw: vi.fn(),
   sessionFindMany: vi.fn(),
-  messageNoteFindMany: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -11,66 +10,70 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     $queryRaw: mocks.queryRaw,
     session: { findMany: mocks.sessionFindMany },
-    messageNote: { findMany: mocks.messageNoteFindMany },
   },
 }));
 
 import { findNoteBacklinks } from "@/lib/note-backlinks-server";
 
 const origin = "https://app.notefable.com";
-const row = (overrides: Record<string, unknown>) => ({ kind: "note", title: "Page", icon: null, mentioned: false, hrefs: null, elements: null, ...overrides });
-const session = (id: string, updatedAt: string, title = id) => ({ id, title, icon: null, updatedAt: new Date(updatedAt) });
+const row = (overrides: Record<string, unknown>) => ({ kind: "note", title: "Page", icon: null, mentioned: false, hrefs: [], ...overrides });
 
 describe("findNoteBacklinks", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.queryRaw.mockResolvedValue([]);
     mocks.sessionFindMany.mockResolvedValue([]);
-    mocks.messageNoteFindMany.mockResolvedValue([]);
   });
 
-  it("keeps mentions and confirmed links, drops candidates whose ids only look alike", async () => {
+  it("keeps mentions and confirmed links of any page kind, drops candidates whose ids only look alike", async () => {
     mocks.queryRaw.mockResolvedValue([
       row({ id: "a", title: "Mentions", mentioned: true }),
       row({ id: "b", title: "Links", hrefs: ["/app?view=pages&page=target"] }),
       row({ id: "c", title: "Longer id", hrefs: ["/app?view=pages&page=target2"] }),
       row({ id: "d", title: "Other site", hrefs: ["https://evil.example/?view=pages&page=target"] }),
-      row({ id: "w", kind: "whiteboard", title: "Board", icon: "🧩", elements: [{ id: "e", type: "rectangle", customData: { notefablePage: { id: "target", kind: "note" } } }] }),
-      row({ id: "x", kind: "whiteboard", title: "Deleted card", elements: [{ id: "e", type: "rectangle", isDeleted: true, link: "/app?view=pages&page=target" }] }),
+      row({ id: "w", kind: "whiteboard", title: "Board", icon: "🧩", hrefs: ["/app?view=pages&page=target"] }),
+      row({ id: "s", kind: "slides", title: "Deck", hrefs: [`${origin}/?view=pages&page=target`] }),
     ]);
     const result = await findNoteBacklinks("me", "target", origin);
     expect(result.pages).toEqual([
       { id: "a", kind: "note", title: "Mentions", icon: null },
       { id: "b", kind: "note", title: "Links", icon: null },
       { id: "w", kind: "whiteboard", title: "Board", icon: "🧩" },
+      { id: "s", kind: "slides", title: "Deck", icon: null },
     ]);
   });
 
-  it("scopes the page query to the owner, live pages and other pages", async () => {
+  it("scopes the page query to the owner, live pages and other pages, and never reads canvas bodies", async () => {
     await findNoteBacklinks("me", "target", origin);
     const sql = mocks.queryRaw.mock.calls[0][0] as { sql: string; values: unknown[] };
     expect(sql.sql).toContain('p."deletedAt" IS NULL');
     expect(sql.sql).toContain('p."id" <>');
     expect(sql.sql).toContain('"notefable"."NotePage"');
+    expect(sql.sql).toContain('c."links"');
+    expect(sql.sql).not.toContain('c."data"');
     expect(sql.values).toContain("me");
     expect(sql.values).toContain("target");
   });
 
-  it("merges chats started in the note with chats that attached it, newest first", async () => {
-    mocks.sessionFindMany.mockResolvedValue([session("panel", "2026-11-20T00:00:00Z")]);
-    mocks.messageNoteFindMany.mockResolvedValue([
-      { messageId: "m3", message: { session: session("attached", "2026-11-24T00:00:00Z") } },
-      { messageId: "m2", message: { session: session("attached", "2026-11-24T00:00:00Z") } },
-      { messageId: "m1", message: { session: session("panel", "2026-11-20T00:00:00Z") } },
+  it("selects chats as units: started in the note, or with an active message attaching it", async () => {
+    mocks.sessionFindMany.mockResolvedValue([
+      { id: "attached", title: "Attached", icon: null, noteId: null, messages: [{ id: "m3" }] },
+      { id: "panel", title: "Panel", icon: "💬", noteId: "target", messages: [{ id: "m1" }] },
+      { id: "other-panel", title: "Elsewhere", icon: null, noteId: "another", messages: [{ id: "m9" }] },
     ]);
     const result = await findNoteBacklinks("me", "target", origin);
+    // A chat started in this note opens at its end; one that attached it opens at that message.
     expect(result.chats).toEqual([
-      { id: "attached", title: "attached", icon: null, messageId: "m3" },
-      { id: "panel", title: "panel", icon: null, messageId: null },
+      { id: "attached", title: "Attached", icon: null, messageId: "m3" },
+      { id: "panel", title: "Panel", icon: "💬", messageId: null },
+      { id: "other-panel", title: "Elsewhere", icon: null, messageId: "m9" },
     ]);
-    expect(mocks.sessionFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: "me", noteId: "target" } }));
-    expect(mocks.messageNoteFindMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { noteId: "target", message: { active: true, session: { userId: "me" } } },
+    const attaching = { active: true, notes: { some: { noteId: "target" } } };
+    expect(mocks.sessionFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { userId: "me", OR: [{ noteId: "target" }, { messages: { some: attaching } }] },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      take: 50,
+      select: expect.objectContaining({ messages: { where: attaching, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1, select: { id: true } } }),
     }));
   });
 });

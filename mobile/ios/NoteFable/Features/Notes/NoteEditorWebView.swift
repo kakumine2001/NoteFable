@@ -609,6 +609,10 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         run(NoteEmbedScripts.slides(command))
     }
 
+    func chatsChanged() {
+        run(NoteEmbedScripts.chatsChanged)
+    }
+
     private func run(_ script: String) {
         webView?.evaluateJavaScript(script, completionHandler: nil)
     }

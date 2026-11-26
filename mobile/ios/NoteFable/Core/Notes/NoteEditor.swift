@@ -27,12 +27,15 @@ protocol NoteEditorBridge: AnyObject {
     func close()
     /// 移进回收站的页面从常驻 WebView 缓存里清掉（`window.notefableEmbed.pageTrashed`）。
     func pageTrashed(_ ids: [String])
+    /// 聊天可能改过名或删掉了：让网页重读笔记下方的反向链接（`window.notefableEmbed.chatsChanged`）。
+    func chatsChanged()
 }
 
 extension NoteEditorBridge {
     func openPage(id: String, reveal: String?, model: String?, reasoning: String?) async -> Bool { false }
     func close() {}
     func pageTrashed(_ ids: [String]) {}
+    func chatsChanged() {}
 }
 
 /// 对网页执行的脚本。和 Android 端逐字相同，网页那边没有对应函数时什么都不做。
@@ -101,6 +104,9 @@ enum NoteEmbedScripts {
     static func reveal(_ id: String) -> String {
         "window.notefableEmbed&&window.notefableEmbed.reveal&&window.notefableEmbed.reveal(\(quote(id)))"
     }
+
+    /// 让网页重读反向链接（旧版网页没有这个函数时什么都不做）。
+    static let chatsChanged = "(function(){var e=window.notefableEmbed;if(e&&typeof e.chatsChanged==='function')e.chatsChanged()})()"
 
     /// 幻灯片的操作（JSON：{ action: "present" | "end" | "export", format? }）。
     static func slides(_ command: String) -> String {
@@ -263,6 +269,11 @@ final class NoteEmbedBridge {
 
     func slides(_ command: String) {
         editor?.slides(command)
+    }
+
+    /// 抽屉里能给聊天改名、删除：关上后让开着的笔记重读反向链接。
+    func chatsChanged() {
+        editor?.chatsChanged()
     }
 
     /// 别处（聊天里的提案）改了这篇笔记：把服务端返回的新版本交给网页，走网页 notefable:page-updated 的同一条路

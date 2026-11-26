@@ -12,7 +12,7 @@ import { isCanvasKind, pageKindFeatures, pageKindOf, type PageKind } from "@/lib
 import { CANVAS_DRAFT_PREFIX, canvasSaveBody, canvasSavedPage, newPageBody, parseCanvasDraft } from "@/lib/canvas-save";
 import { PAGES_TRASHED_EVENT, PAGES_WILL_TRASH_EVENT, type PagesWillTrashDetail } from "@/lib/proposal-sync";
 import { preloadPageEditor } from "@/lib/preload-editor";
-import { dispatchPageSaved } from "@/lib/note-backlinks";
+import { dispatchBacklinksStale } from "@/lib/note-backlinks";
 import { afterSheetHistory, isSheetCleanupPopState, restoreSheetMarker } from "@/lib/use-back-to-close";
 import type { NoteContent, NoteGroupSummary, NotePage, NotePageSettings, NotePageSummary } from "@/types/notes";
 import { fmt, msg } from "@/lib/i18n/translate";
@@ -263,7 +263,7 @@ export function useNotePages(
         const data = await pageRequest(`/api/pages/${page.id}`, "PATCH", canvasSaveBody(content, version, saved));
         // 送っている間にゴミ箱へ移った（キューを捨てた）ページを、一覧に戻さない。
         if (queues.current.get(page.id) === queue) upsertSummary(data.page, { since: started });
-        dispatchPageSaved(page.id);
+        dispatchBacklinksStale(page.id);
         return canvasSavedPage(queue.page, data, content, saved);
       }
       const data = await pageRequest(`/api/pages/${page.id}`, "PATCH", { ...content, version });
@@ -271,7 +271,7 @@ export function useNotePages(
       // 送っている間にゴミ箱へ移った（キューを捨てた）ページは、一覧に戻さない。
       if (queues.current.get(page.id) === queue) upsertSummary(data.page, { since: started });
       // 開いている別のページのバックリンクを読み直してもらう（メンションを書いてすぐ移った先でも、保存の後に出る）。
-      dispatchPageSaved(page.id);
+      dispatchBacklinksStale(page.id);
       return data.page;
     }, () => {
       upsertSummary({
@@ -780,6 +780,8 @@ export function useNotePages(
         if (child && !(await child.flush())) throw new Error(msg("Resolve the unsaved draft before moving this note to Trash."));
       }
       const data = await pageRequest(`/api/pages/${id}`, "DELETE");
+      // 開いている別のページのバックリンクから、ゴミ箱へ移ったページ（とサブページ）を外す。
+      dispatchBacklinksStale(id);
       const removed = new Set<string>([id, ...(Array.isArray(data.ids) ? data.ids as string[] : [])]);
       for (const removedId of removed) {
         invalidatePageCache(removedId);

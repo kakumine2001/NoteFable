@@ -14,8 +14,10 @@ enum AppTab: Hashable, Sendable {
 final class AppRouter {
     private let app: AppEnvironment
 
-    /// 侧边栏抽屉。
-    var drawerOpen = false
+    /// 侧边栏抽屉。里面能给聊天改名、删除，而下面可能开着笔记：关上时让编辑器重读反向链接。
+    var drawerOpen = false {
+        didSet { if oldValue, !drawerOpen { app.editorBridge?.chatsChanged() } }
+    }
     /// 当前底部标签页。
     var selectedTab: AppTab = .chat
     /// 设置（登录后点侧栏的账号行）。

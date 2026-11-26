@@ -275,6 +275,7 @@ final class NotesTestEditor: NoteEditorBridge {
     func theme(_ value: String) { calls.append("theme:\(value)") }
     func reveal(_ id: String) { calls.append("reveal:\(id)") }
     func slides(_ command: String) { calls.append("slides:\(command)") }
+    func chatsChanged() { calls.append("chatsChanged") }
     func openPage(id: String, reveal: String?, model: String?, reasoning: String?) async -> Bool {
         calls.append("openPage:\(id):\(reveal ?? "-"):\(model ?? "-"):\(reasoning ?? "-")")
         return openPageResult

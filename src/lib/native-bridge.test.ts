@@ -272,6 +272,16 @@ describe("file save capability", () => {
   });
 });
 
+describe("chats changed", () => {
+  it("tells the open note to re-read its backlinks", async () => {
+    const { createEmbedApi } = await import("./native-bridge");
+    const chatsChanged = vi.fn();
+    const api = createEmbedApi({ flush: async () => true, openHistory: () => {}, post: () => {}, chatsChanged });
+    expect(api.chatsChanged()).toBe(true);
+    expect(chatsChanged).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("open chat capability", () => {
   it("is reported only by apps that declare it, and posts openChat with the message", async () => {
     const { nativeCanOpenChat, postToNative } = await import("./native-bridge");

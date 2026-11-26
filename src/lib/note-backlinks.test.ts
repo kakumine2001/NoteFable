@@ -1,27 +1,61 @@
-import { describe, expect, it } from "vitest";
-import { parseNoteBacklinks, whiteboardLinksTo } from "@/lib/note-backlinks";
+import { describe, expect, it, vi } from "vitest";
+import { BACKLINKS_STALE_EVENT, dispatchBacklinksStale, extractCanvasLinks, MAX_CANVAS_LINKS, parseNoteBacklinks } from "@/lib/note-backlinks";
 
-const origin = "https://app.notefable.com";
+const pageLink = "/app?view=pages&page=target";
+const element = (overrides: Record<string, unknown>) => ({ id: "e", type: "rectangle", ...overrides });
+const slideText = (...marks: unknown[]) => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "go", marks }] }] });
 
-describe("whiteboardLinksTo", () => {
-  it("finds element links (relative or same-origin absolute) and page cards", () => {
-    expect(whiteboardLinksTo({ elements: [{ id: "e", type: "rectangle", link: "/app?view=pages&page=target" }] }, "target", origin)).toBe(true);
-    expect(whiteboardLinksTo({ elements: [{ id: "e", type: "text", link: `${origin}/?view=pages&page=target` }] }, "target", origin)).toBe(true);
-    expect(whiteboardLinksTo({ elements: [{ id: "e", type: "rectangle", link: null, customData: { notefablePage: { id: "target", kind: "note" } } }] }, "target", origin)).toBe(true);
+describe("extractCanvasLinks", () => {
+  it("collects whiteboard element links and page cards, once each", () => {
+    expect(extractCanvasLinks("whiteboard", { elements: [
+      element({ id: "a", link: pageLink }),
+      element({ id: "b", type: "text", link: "https://app.notefable.com/?view=pages&page=other" }),
+      element({ id: "c", link: pageLink }),
+      element({ id: "d", link: null, customData: { notefablePage: { id: "card", kind: "note" } } }),
+    ] })).toEqual([pageLink, "https://app.notefable.com/?view=pages&page=other", "/app?view=pages&page=card"]);
   });
 
-  it("ignores deleted elements, unsupported types, other origins and other pages", () => {
-    expect(whiteboardLinksTo({ elements: [{ id: "e", type: "rectangle", isDeleted: true, link: "/app?view=pages&page=target" }] }, "target", origin)).toBe(false);
-    expect(whiteboardLinksTo({ elements: [{ id: "e", type: "iframe", link: "/app?view=pages&page=target" }] }, "target", origin)).toBe(false);
-    expect(whiteboardLinksTo({ elements: [{ id: "e", type: "text", link: "https://evil.example/?view=pages&page=target" }] }, "target", origin)).toBe(false);
-    expect(whiteboardLinksTo({ elements: [{ id: "e", type: "text", link: "/app?view=pages&page=target2" }] }, "target", origin)).toBe(false);
-    expect(whiteboardLinksTo({ elements: [{ id: "e", type: "text", link: "/app?view=pages&page=other" }] }, "target", origin)).toBe(false);
+  it("skips deleted and unsupported elements, ordinary links and broken input", () => {
+    expect(extractCanvasLinks("whiteboard", { elements: [
+      element({ isDeleted: true, link: pageLink }),
+      element({ type: "iframe", link: pageLink }),
+      element({ link: "https://example.com/docs" }),
+      element({ customData: { notefablePage: { id: "a b" } } }),
+    ] })).toEqual([]);
+    expect(extractCanvasLinks("whiteboard", null)).toEqual([]);
+    expect(extractCanvasLinks("slides", { slides: "nope" })).toEqual([]);
   });
 
-  it("rejects ids that cannot be page ids and tolerates broken input", () => {
-    expect(whiteboardLinksTo({ elements: [{ id: "e", type: "rectangle", customData: { notefablePage: { id: "a b" } } }] }, "a b", origin)).toBe(false);
-    expect(whiteboardLinksTo(null, "target", origin)).toBe(false);
-    expect(whiteboardLinksTo({ elements: "nope" }, "target", origin)).toBe(false);
+  it("collects slide text links, including inside lists, but not the whiteboard still's source page", () => {
+    expect(extractCanvasLinks("slides", { slides: [
+      { id: "s1", elements: [
+        { id: "t1", type: "text", doc: slideText({ type: "link", attrs: { href: "https://app.notefable.com/?view=pages&page=one" } }) },
+        { id: "t2", type: "text", doc: { type: "doc", content: [{ type: "bullet_list", content: [{ type: "list_item", content: [
+          { type: "paragraph", content: [{ type: "text", text: "x", marks: [{ type: "strong" }, { type: "link", attrs: { href: pageLink } }] }] },
+        ] }] }] } },
+        { id: "w", type: "whiteboard", pageId: "source" },
+        { id: "l", type: "text", doc: slideText({ type: "link", attrs: { href: "mailto:a@b.c" } }) },
+      ] },
+    ] })).toEqual(["https://app.notefable.com/?view=pages&page=one", pageLink]);
+  });
+
+  it("keeps the column small", () => {
+    const elements = Array.from({ length: MAX_CANVAS_LINKS + 5 }, (_, index) => element({ id: `e${index}`, link: `/app?view=pages&page=p${index}` }));
+    expect(extractCanvasLinks("whiteboard", { elements })).toHaveLength(MAX_CANVAS_LINKS);
+    expect(extractCanvasLinks("whiteboard", { elements: [element({ link: `/app?view=pages&page=x&q=${"y".repeat(3000)}` })] })).toEqual([]);
+  });
+});
+
+describe("dispatchBacklinksStale", () => {
+  it("announces which page changed", () => {
+    const events: Event[] = [];
+    vi.stubGlobal("window", { dispatchEvent: (event: Event) => { events.push(event); return true; } });
+    dispatchBacklinksStale("p1");
+    dispatchBacklinksStale();
+    expect(events.map((event) => [event.type, (event as CustomEvent<{ pageId?: string }>).detail.pageId])).toEqual([
+      [BACKLINKS_STALE_EVENT, "p1"], [BACKLINKS_STALE_EVENT, undefined],
+    ]);
+    vi.unstubAllGlobals();
   });
 });
 

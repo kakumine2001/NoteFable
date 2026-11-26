@@ -5,8 +5,9 @@ import { useEffect, useId, useState, type MouseEvent } from "react";
 import { useT } from "@/components/i18n-provider";
 import { NoteIcon } from "@/components/note-icon";
 import { PageKindIcon } from "@/components/page-kind-icon";
+import { NOTE_CHAT_SAVED_EVENT } from "@/components/page-assistant";
 import { appHref } from "@/lib/hosts";
-import { PAGE_SAVED_EVENT, parseNoteBacklinks, type NoteBacklinks } from "@/lib/note-backlinks";
+import { BACKLINKS_STALE_EVENT, parseNoteBacklinks, type NoteBacklinks } from "@/lib/note-backlinks";
 import { PAGES_TRASHED_EVENT } from "@/lib/proposal-sync";
 
 // 最初に見せる数（ページ・会話それぞれ）。残りは「+N 件」で広げる。
@@ -45,17 +46,22 @@ export function NoteBacklinksSection({ pageId, embedded = false, onOpenPage, onO
     const schedule = () => { clearTimeout(timer); timer = setTimeout(() => setReload((value) => value + 1), REFRESH_DELAY_MS); };
     // このページ自身の保存・更新では変わらない（自分へのリンクは数えない）。
     const onOtherPage = (event: Event) => {
-      const id = (event as CustomEvent<{ id?: unknown }>).detail?.id;
-      if (id !== pageId) schedule();
+      const detail = (event as CustomEvent<{ id?: unknown; pageId?: unknown }>).detail;
+      if ((detail?.pageId ?? detail?.id) !== pageId) schedule();
     };
-    window.addEventListener(PAGE_SAVED_EVENT, onOtherPage);
-    window.addEventListener("notefable:page-updated", onOtherPage);
-    window.addEventListener(PAGES_TRASHED_EVENT, schedule);
+    // 別のページの保存・ゴミ箱への移動と会話の変化（合図）、AI などによる書き換え、新しく作った・復元したページ、
+    // ノートの AI パネルの会話。
+    const listeners: [string, (event: Event) => void][] = [
+      [BACKLINKS_STALE_EVENT, onOtherPage],
+      ["notefable:page-updated", onOtherPage],
+      ["notefable:page-created", onOtherPage],
+      [PAGES_TRASHED_EVENT, schedule],
+      [NOTE_CHAT_SAVED_EVENT, schedule],
+    ];
+    for (const [name, listener] of listeners) window.addEventListener(name, listener);
     return () => {
       clearTimeout(timer);
-      window.removeEventListener(PAGE_SAVED_EVENT, onOtherPage);
-      window.removeEventListener("notefable:page-updated", onOtherPage);
-      window.removeEventListener(PAGES_TRASHED_EVENT, schedule);
+      for (const [name, listener] of listeners) window.removeEventListener(name, listener);
     };
   }, [pageId]);
 

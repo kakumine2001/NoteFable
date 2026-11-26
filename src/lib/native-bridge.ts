@@ -3,6 +3,7 @@ import { isImageIcon, parseCharacterIcon, saveAppIcon, toCharacterIcon } from "@
 import { parseThemePreference, saveThemePreference, type ThemePreference } from "@/lib/theme";
 import { pageSettingsOf, type NotePage, type NotePageSummary, type NoteSaveStatus, type PageKind } from "@/types/notes";
 import { PAGES_TRASHED_EVENT } from "@/lib/proposal-sync";
+import { dispatchBacklinksStale } from "@/lib/note-backlinks";
 import type { UsageKind, UsageTier } from "@/lib/usage-plans";
 
 // Android アプリ（mobile/android）の WebView にノートのエディターだけを載せる /note-embed と、アプリ側とのやり取り。
@@ -79,6 +80,8 @@ export type EmbedApi = {
   close: () => boolean;
   // アプリ側でゴミ箱へ移したページ（およびサブページ）の ID を知らせ、常駐 WebView 内のキャッシュを消す（未保存の下書きは復元時のため残す）。
   pageTrashed: (ids: unknown) => boolean;
+  // アプリ側で会話の名前を変えた・消したかもしれない（ノートの上に開くドロワー）ので、バックリンクを読み直させる。
+  chatsChanged: () => boolean;
 };
 
 type BridgeWindow = { NoteFableNative?: unknown; notefableEmbed?: EmbedApi };
@@ -320,7 +323,7 @@ export function dispatchPagesTrashed(ids: string[]) {
   window.dispatchEvent(new CustomEvent<{ ids: string[]; preserveDrafts?: boolean }>(PAGES_TRASHED_EVENT, { detail: { ids, preserveDrafts: true } }));
 }
 
-export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, theme = saveThemePreference, slides = dispatchSlidesCommand, openPage, close, pageTrashed = dispatchPagesTrashed, language, reveal = () => {}, post }: {
+export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, theme = saveThemePreference, slides = dispatchSlidesCommand, openPage, close, pageTrashed = dispatchPagesTrashed, chatsChanged = dispatchBacklinksStale, language, reveal = () => {}, post }: {
   flush: () => Promise<boolean>;
   reveal?: (target: string) => void;
   language?: (locale: Locale) => Promise<boolean>;
@@ -335,6 +338,7 @@ export function createEmbedApi({ flush, draftKept = () => false, openHistory, pa
   openPage?: (request: OpenPageRequest) => void;
   close?: () => void;
   pageTrashed?: (ids: string[]) => void;
+  chatsChanged?: () => void;
   post: (message: NativeMessage) => void;
 }): EmbedApi {
   return {
@@ -403,6 +407,10 @@ export function createEmbedApi({ flush, draftKept = () => false, openHistory, pa
       const ids = parseTrashedPageIds(value);
       if (!ids) return false;
       pageTrashed(ids);
+      return true;
+    },
+    chatsChanged() {
+      chatsChanged();
       return true;
     },
   };

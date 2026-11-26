@@ -30,6 +30,7 @@ import { ChatTitleIcon, ChatTopbarIcon } from "@/components/chat-icon";
 import { ChatMessage } from "@/components/chat-message";
 import { QuoteSelectionButton } from "@/components/quote-selection";
 import { composeQuotedMessage, normalizeQuote, splitQuotedMessage } from "@/lib/chat-quote";
+import { dispatchBacklinksStale } from "@/lib/note-backlinks";
 import { ANSWER_RESIZED_EVENT } from "@/components/assistant-markdown";
 import { TurnBusyContext, type TurnActions } from "@/components/turn-actions";
 import { AccountAppIconSync, AccountLocaleSync } from "@/components/account-button";
@@ -520,6 +521,8 @@ export default function Home() {
   const projectSync = useRef(new ChatProjectSync());
   const [sessionsReady, setSessionsReady] = useState(false);
   const [sessions, setSessions] = useState<Session[]>([]);
+  // 会話の一覧が変わった（送信・名前の変更・削除など）ら、開いているノートのバックリンク（このページを使った会話）を読み直す。
+  useEffect(() => { dispatchBacklinksStale(); }, [sessions]);
   const [chatProjects, setChatProjects] = useState<ChatProject[]>([]);
   const [chatProjectError, setChatProjectError] = useState("");
   useEffect(() => {

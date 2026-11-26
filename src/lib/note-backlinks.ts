@@ -1,11 +1,11 @@
-import { MENTION_PAGE_ID, notePageIdFromUrl } from "@/lib/note-mention";
-import type { PageKind } from "@/lib/page-kinds";
-import { pageCardOf } from "@/lib/whiteboard/links";
+import type { CanvasKind, PageKind } from "@/lib/page-kinds";
+import { pageCardOf, pageLinkUrl } from "@/lib/whiteboard/links";
 import { storedToScene } from "@/lib/whiteboard/scene";
 
 // バックリンク（#189）：このページを指している自分のページ（ノートの「@」メンション・本文のページへのリンク、ホワイトボードの
-// ページへのリンク・ページカード）と、このページを使った会話（ノートの AI パネルで始めた会話、発言に添付した会話）。
-// サーバー（note-backlinks-server.ts）と画面（note-backlinks.tsx）で使う、prisma を読み込まない部分。
+// ページへのリンク・ページカード、スライドの文字のリンク）と、このページを使った会話（ノートの AI パネルで始めた会話、
+// 発言に添付した会話）。サーバー（note-backlinks-server.ts・canvas-store.ts）と画面（note-backlinks.tsx）で使う、
+// prisma を読み込まない部分。
 
 // 一度に返す数（ページ・会話それぞれ）。
 export const BACKLINK_LIMIT = 50;
@@ -15,25 +15,48 @@ export type PageBacklink = { id: string; kind: PageKind; title: string; icon: st
 export type ChatBacklink = { id: string; title: string; icon: string | null; messageId: string | null };
 export type NoteBacklinks = { pages: PageBacklink[]; chats: ChatBacklink[] };
 
+// NoteCanvas.links に残す数と 1 件の長さの上限（本体の大きさの上限の中で、列だけが膨らまないように）。
+export const MAX_CANVAS_LINKS = 1000;
+const MAX_CANVAS_LINK_CHARS = 2048;
+
 const object = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
 
-// ノートの本文の判定（「@」メンションと、アプリ内のページへのリンク）はサーバーの SQL と notePageIdFromUrl で行う（note-backlinks-server.ts）。
-
-// ホワイトボードの要素が targetId のページを指しているか：要素のリンク（アプリ内のページ）か、ページカードの印。
-// 消した要素・置けない種類の要素は見ない（画面に出すものと同じ storedToScene の結果）。
-export function whiteboardLinksTo(data: unknown, targetId: string, origin: string): boolean {
-  if (!MENTION_PAGE_ID.test(targetId)) return false;
-  return storedToScene(data).elements.some((element) =>
-    (typeof element.link === "string" && notePageIdFromUrl(element.link, origin) === targetId)
-    || pageCardOf(element.customData)?.id === targetId);
+// ホワイトボード・スライドの本体が持つ、アプリ内のページへのリンクの候補（保存のたびに NoteCanvas.links に入れる）。
+// ホワイトボードは要素のリンクとページカードの印（消した要素・置けない種類の要素は見ない：storedToScene と同じ）、
+// スライドは文字のリンク（{ type: "link", attrs: { href } }）。どのオリジンへのリンクかは読む時に確かめるので、
+// href のまま持つ（view=pages を含むものだけ）。深さに依存しないよう再帰は使わない。
+// 追加した時のマイグレーション（20261126000000_note_canvas_links）が、同じ規則で今ある行を埋める。
+export function extractCanvasLinks(kind: CanvasKind, data: unknown): string[] {
+  const links = new Set<string>();
+  const add = (href: unknown) => {
+    if (links.size < MAX_CANVAS_LINKS && typeof href === "string" && href.length <= MAX_CANVAS_LINK_CHARS && href.includes("view=pages")) links.add(href);
+  };
+  if (kind === "whiteboard") {
+    for (const element of storedToScene(data).elements) {
+      add(element.link);
+      const card = pageCardOf(element.customData);
+      if (card) add(pageLinkUrl(card.id));
+    }
+  } else {
+    const stack: unknown[] = [object(data) ? data.slides : null];
+    while (stack.length) {
+      const node = stack.pop();
+      if (Array.isArray(node)) { for (let index = node.length - 1; index >= 0; index--) stack.push(node[index]); continue; }
+      if (!object(node)) continue;
+      if (node.type === "link" && object(node.attrs)) add(node.attrs.href);
+      for (const value of Object.values(node)) if (typeof value === "object" && value !== null) stack.push(value);
+    }
+  }
+  return [...links];
 }
 
-// 保存が終わったページ。開いているページのバックリンクは、別のページの保存（メンションを書いてすぐ移ってきた場合など）の後に読み直す。
-export const PAGE_SAVED_EVENT = "notefable:page-saved";
+// 開いているページのバックリンクが古くなった合図。ページの保存・ゴミ箱への移動と、会話の変化で出す。
+// detail.pageId はきっかけのページ（そのページ自身を開いている画面は読み直さない。自分へのリンクは数えない）。
+export const BACKLINKS_STALE_EVENT = "notefable:backlinks-stale";
 
-export function dispatchPageSaved(id: string) {
+export function dispatchBacklinksStale(pageId?: string) {
   if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") return;
-  window.dispatchEvent(new CustomEvent<{ id: string }>(PAGE_SAVED_EVENT, { detail: { id } }));
+  window.dispatchEvent(new CustomEvent<{ pageId?: string }>(BACKLINKS_STALE_EVENT, { detail: { pageId } }));
 }
 
 // 応答（GET /api/pages/:id/backlinks）を確かめる。形が違う項目は捨てる。
