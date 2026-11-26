@@ -222,6 +222,9 @@ struct FixtureCatalog: Sendable {
         case ("POST", "/api/native-auth/nonce"):
             return jsonReply(["nonce": "fx-nonce"])
 
+        case ("POST", "/api/native-auth/apple"):
+            return jsonReply(["nonce": "fx-apple-nonce"])
+
         case ("GET", "/api/auth/csrf"):
             return jsonReply(["csrfToken": "fx-csrf"])
 

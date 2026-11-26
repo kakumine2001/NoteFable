@@ -177,8 +177,9 @@ struct NoteEditorScreen: View {
         // 只有有公开视图的类型能公开（按服务端的 kinds 表；现在笔记、白板、幻灯片都能公开），网页同样按这张表显示分享按钮。
         let sharePage = kind.features.publicShare ? page : nil
         let locked = page?.locked == true
-        // 固定有菜单、返回、搜索、历史四项。
-        let buttonCount = 4 + (locked ? 1 : 0) + (sharePage == nil ? 0 : 1) + (page == nil ? 0 : 1)
+        let showsSidebarToggle = !router.isSidebarDockedVisible
+        // 固定有返回、搜索、历史三项；侧栏未常驻展开时再加行首菜单一项。
+        let buttonCount = (showsSidebarToggle ? 4 : 3) + (locked ? 1 : 0) + (sharePage == nil ? 0 : 1) + (page == nil ? 0 : 1)
         let sideInset = NFChromeMetrics.compactSideInset
         let gap = NFChromeMetrics.gap
 
@@ -189,8 +190,10 @@ struct NoteEditorScreen: View {
             NFGlassContainer(spacing: NFChromeMetrics.containerSpacing) {
                 HStack(spacing: gap) {
                     NFGlassGroup {
-                        NFGlassBarButton(Lucide.menu, label: L("open_menu"), width: buttonWidth) {
-                            router.openDrawer()
+                        if showsSidebarToggle {
+                            NFGlassBarButton(Lucide.menu, label: L("open_menu"), width: buttonWidth) {
+                                router.openSidebar()
+                            }
                         }
                         NFGlassBarButton(Lucide.chevronLeft, label: L("all_notes"), width: buttonWidth, iconSize: 22) {
                             notes.closeNote()

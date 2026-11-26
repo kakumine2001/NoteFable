@@ -125,10 +125,13 @@ private struct WorkspaceHomeBar: View {
     @Environment(AppRouter.self) private var router
 
     var body: some View {
+        let showsSidebarToggle = !router.isSidebarDockedVisible
         NFGlassContainer(spacing: NFChromeMetrics.containerSpacing) {
             HStack(spacing: NFChromeMetrics.gap) {
-                NFGlassIconButton(Lucide.menu, label: L("open_menu"), size: NFChromeMetrics.control, iconSize: 20) {
-                    router.openDrawer()
+                if showsSidebarToggle {
+                    NFGlassIconButton(Lucide.menu, label: L("open_menu"), size: NFChromeMetrics.control, iconSize: 20) {
+                        router.openSidebar()
+                    }
                 }
                 if kinds.isEmpty {
                     Spacer(minLength: 0)

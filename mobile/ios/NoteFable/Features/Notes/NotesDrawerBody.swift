@@ -36,7 +36,7 @@ struct NotesDrawerBody: View {
                 NotesSidebarActionRow(icon: Lucide.upload, title: L("import_markdown")) { importing = true }
                     .disabled(busy)
                 NotesSidebarActionRow(icon: Lucide.trash2, title: L("trash")) {
-                    router.closeDrawer()
+                    router.dismissDrawer()
                     notes.openTrash()
                 }
             }
