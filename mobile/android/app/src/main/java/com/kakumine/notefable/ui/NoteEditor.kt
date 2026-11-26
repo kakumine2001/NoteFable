@@ -518,7 +518,7 @@ internal fun embedRoute(message: EmbedMessage, activeEditor: String?): EmbedRout
     message is EmbedMessage.SlidesWizard -> EmbedRoute.Wizard
     activeEditor == null -> EmbedRoute.Drop
     activeEditor != SLIDES_WIZARD_EDITOR -> EmbedRoute.Editor
-    message is EmbedMessage.OpenPage || message is EmbedMessage.UsageLimit -> EmbedRoute.Wizard
+    message is EmbedMessage.OpenPage || message is EmbedMessage.UsageLimit || message is EmbedMessage.StorageLimit -> EmbedRoute.Wizard
     else -> EmbedRoute.Drop
 }
 

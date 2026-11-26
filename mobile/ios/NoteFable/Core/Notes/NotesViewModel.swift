@@ -104,9 +104,11 @@ final class NotesViewModel {
         if let wizard = next.slidesWizard, wizard.editor != nil, wizard.editor != next.visibleEditor {
             next.slidesWizard = nil
             next.wizardUsageLimit = nil
+            next.wizardStorageLimit = nil
         } else if let wizard = next.slidesWizard, wizard.editor == nil, next.visibleEditor != nil, next.visibleEditor != state.visibleEditor {
             next.slidesWizard = nil
             next.wizardUsageLimit = nil
+            next.wizardStorageLimit = nil
         }
         state = next
     }
@@ -485,6 +487,7 @@ final class NotesViewModel {
         update {
             $0.slidesWizard = SlidesWizardUi(source: source, request: request, editor: editor)
             $0.wizardUsageLimit = nil
+            $0.wizardStorageLimit = nil
         }
     }
 
@@ -510,6 +513,7 @@ final class NotesViewModel {
         update {
             $0.slidesWizard = SlidesWizardUi(source: .note(pageId: open.id), request: request, editor: editor, shown: true)
             $0.wizardUsageLimit = nil
+            $0.wizardStorageLimit = nil
         }
     }
 
@@ -519,6 +523,7 @@ final class NotesViewModel {
             guard state.slidesWizard?.shown == true else { return }
             state.slidesWizard = nil
             state.wizardUsageLimit = nil
+            state.wizardStorageLimit = nil
         }
     }
 
@@ -528,6 +533,7 @@ final class NotesViewModel {
             guard request == nil || state.slidesWizard?.request == request else { return }
             state.slidesWizard = nil
             state.wizardUsageLimit = nil
+            state.wizardStorageLimit = nil
         }
     }
 
@@ -538,17 +544,34 @@ final class NotesViewModel {
             guard let wizard = state.slidesWizard, wizard.editor == nil else { return }
             state.slidesWizard = nil
             state.wizardUsageLimit = nil
+            state.wizardStorageLimit = nil
         }
     }
 
     /// 全屏向导里撞到使用次数上限（429 usage_limit）。
     func onWizardUsageLimit(tier: String, kind: String) {
         guard state.slidesWizard?.editor == nil else { return }
-        update { $0.wizardUsageLimit = UsageLimitInfo(tier: tier, kind: kind) }
+        update {
+            $0.wizardStorageLimit = nil
+            $0.wizardUsageLimit = UsageLimitInfo(tier: tier, kind: kind)
+        }
     }
 
     func dismissWizardUsageLimit() {
         update { $0.wizardUsageLimit = nil }
+    }
+
+    /// 全屏向导里逐页配图撞到文件存储空间上限（413 storage_limit）。
+    func onWizardStorageLimit(tier: String, used: Int, limit: Int) {
+        guard state.slidesWizard?.editor == nil else { return }
+        update {
+            $0.wizardUsageLimit = nil
+            $0.wizardStorageLimit = StorageLimitInfo(tier: tier, used: used, limit: limit)
+        }
+    }
+
+    func dismissWizardStorageLimit() {
+        update { $0.wizardStorageLimit = nil }
     }
 
     // ---- 编辑器导出的文件（网页 src/lib/export-file.ts） ----

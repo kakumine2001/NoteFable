@@ -6,6 +6,9 @@ import {
   fitSlidesSource, newSlidesDraft, readSlidesDraft, removeSlidesDraft, slidesEntryKey, writeSlidesDraft,
   type SlidesDraft, type SlidesEntry, type WizardNote,
 } from "@/lib/slides-wizard-draft";
+import {
+  isAnySlideImageJobWorking, isSlideImageJobWorking, parseSlideImageTasks, resetSlideImageJobs, startSlideImageJob, subscribeSlideImageJobs,
+} from "@/lib/slides-image-jobs";
 import { usageLimitErrorFrom, type UsageTier } from "@/lib/usage-plans";
 import type { NotePageSummary } from "@/types/notes";
 
@@ -65,7 +68,11 @@ function emit() {
 
 export function subscribeSlidesWizard(listener: () => void) {
   listeners.add(listener);
-  return () => { listeners.delete(listener); };
+  const stopImages = subscribeSlideImageJobs(listener);
+  return () => {
+    listeners.delete(listener);
+    stopImages();
+  };
 }
 
 export function getSlidesWizard(): SlidesWizardView | null {
@@ -78,7 +85,7 @@ export function getSlidesJobState(key: string): SlidesJob["state"] {
 }
 
 export function isSlidesWizardBusy() {
-  return [...sessions.values()].some((session) => session.job.state === "working");
+  return [...sessions.values()].some((session) => session.job.state === "working") || isAnySlideImageJobWorking();
 }
 
 async function loadScope() {
@@ -110,8 +117,11 @@ async function loadScope() {
 // 見せ終わった結果は忘れる（出来た：次は新しく作る。失敗：下書きは残し、失敗の表示だけ消す）。進行中のものは残す。
 function dismissFinished(key: string) {
   const session = sessions.get(key);
-  if (session?.job.state === "done") sessions.delete(key);
-  else if (session?.job.state === "error") session.job = { state: "idle" };
+  if (session?.job.state === "done") {
+    if (!isSlideImageJobWorking(session.job.page.id)) sessions.delete(key);
+  } else if (session?.job.state === "error") {
+    session.job = { state: "idle" };
+  }
 }
 
 // model はいま選んでいるチャットモデル（サーバーはそのモデルの既定の推論強度で呼ぶ）。
@@ -303,6 +313,8 @@ export async function requestSlides(stage: SlidesStage, { flush, fresh = false }
       if (typeof page?.id === "string") {
         // 出来たので下書きは要らない。
         if (scope) removeSlidesDraft(scope, key);
+        const imageTasks = parseSlideImageTasks(result.imageTasks);
+        if (imageTasks.length) startSlideImageJob(page.id, imageTasks);
         finish({ state: "done", page, partial: result.partial === true });
         // 一覧（サイドバー・ホーム）に加える。サーバーが返すのは一覧用の形（本体を含まない）。
         window.dispatchEvent(new CustomEvent("notefable:page-created", { detail: page }));
@@ -329,5 +341,6 @@ export function resetSlidesWizard() {
   sessions.clear();
   scope = null;
   shown = null;
+  resetSlideImageJobs();
   emit();
 }

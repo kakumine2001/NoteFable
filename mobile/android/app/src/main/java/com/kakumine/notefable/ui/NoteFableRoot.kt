@@ -105,8 +105,9 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     var noteStorageLimit by remember { mutableStateOf<Pair<String, StorageLimitInfo>?>(null) }
     // 笔记编辑器里 AI 面板或幻灯片生图撞到使用次数上限（网页经桥发来的 usageLimit）：和 storageLimit 共用编辑器上方提示槽，互斥显示。
     var noteUsageLimit by remember { mutableStateOf<Pair<String, UsageLimitInfo>?>(null) }
-    // AI 生成幻灯片的全屏向导里撞到使用次数上限：提示放在向导上方（盖在编辑器上的向导用上面的 noteUsageLimit）。
+    // AI 生成幻灯片的全屏向导里撞到使用次数上限或存储空间上限：提示放在向导上方（盖在编辑器上的向导用上面的 noteUsageLimit / noteStorageLimit）。
     var wizardUsageLimit by remember { mutableStateOf<UsageLimitInfo?>(null) }
+    var wizardStorageLimit by remember { mutableStateOf<StorageLimitInfo?>(null) }
     // 白板正在用画图工具的编辑器（网页经桥发来的 drawing 为 true）：只在那个编辑器上让开两侧的返回手势。
     // 同样只认打开着的编辑器发来的，换笔记、关掉编辑器时清掉。
     var drawingEditor by remember { mutableStateOf<String?>(null) }
@@ -120,10 +121,14 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
         noteStorageLimit = null
         noteUsageLimit = null
         wizardUsageLimit = null
+        wizardStorageLimit = null
     }
     // 画面上的编辑器换了，上一处开的向导不再算数；换了一次向导（或关掉），它的上限提示也去掉。
     LaunchedEffect(notes.visibleEditor) { notesViewModel.dropStaleSlidesWizard() }
-    LaunchedEffect(notes.slidesWizard?.request) { wizardUsageLimit = null }
+    LaunchedEffect(notes.slidesWizard?.request) {
+        wizardUsageLimit = null
+        wizardStorageLimit = null
+    }
     // 白板开着（类型和编辑页顶栏一样：列表里有这一篇就用列表的，否则用打开时知道的）：横向拖动是在画布上画 / 平移，
     // 不从边上拉出抽屉（菜单按钮照常打开）；抽屉开着时照常能拖回去、点遮罩关上。
     val whiteboardOpen = notes.workspace == Workspace.Notes && notes.open?.let { open ->
@@ -156,7 +161,14 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                     notesViewModel.dismissSlidesWizard()
                     notesViewModel.openNoteFromLink(message.id)
                 }
-                is EmbedMessage.UsageLimit -> wizardUsageLimit = UsageLimitInfo(message.tier, message.kind)
+                is EmbedMessage.UsageLimit -> {
+                    wizardStorageLimit = null
+                    wizardUsageLimit = UsageLimitInfo(message.tier, message.kind)
+                }
+                is EmbedMessage.StorageLimit -> {
+                    wizardUsageLimit = null
+                    wizardStorageLimit = StorageLimitInfo(message.tier, message.used, message.limit)
+                }
                 else -> Unit
             }
         }
@@ -697,7 +709,9 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
             cookieJar = app.cookieJar,
             onShown = notesViewModel::onSlidesWizardShown,
             onDismiss = notesViewModel::dismissSlidesWizard,
-            prompt = wizardUsageLimit?.let { usageLimitPrompt(it, account, openSignIn) { wizardUsageLimit = null } },
+            prompt = wizardStorageLimit?.let { limit ->
+                { StorageLimitPrompt(limit = limit, account = account, attachmentsLost = false, onSignIn = openSignIn) { wizardStorageLimit = null } }
+            } ?: wizardUsageLimit?.let { usageLimitPrompt(it, account, openSignIn) { wizardUsageLimit = null } },
         )
     }
 

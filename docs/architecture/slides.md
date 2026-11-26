@@ -16,7 +16,7 @@
 - 一页是 1920 × 1080 的逻辑像素（16:9），显示时缩放。PPTX 里是 13.333 × 7.5 英寸（1 px = 1/144 英寸，字号 1 px = 0.5 pt）。
 - `section`：有这个字段的页开始总览的新一行（章），值是章名（可空）；第一页总在第一行。
 - `transition`：可选的简易翻页转场（`"fade"` 淡入 / `"slide"` 滑入；`"none"` 或省略时字段不写入，保持旧 Deck JSON 100% 兼容）。右侧页属性栏（`slide-inspector.tsx`）提供单页选择与“应用到全部幻灯片”（均进撤销栈）。
-- 元素共有 `id, x, y, w, h, rotation, group?, role?, opacity?`。类型：`text`（富文本 `doc` + `style`）、`shape`（15 种形状，可带文字）、`line`（箱子的对角线，`flipH` / `flipV` 定方向，两端可带箭头）、`image`（`src` 只能是本人的 `/api/pages/files?key=…`；`generated.prompt` 记着 AI 生成的说明，用于举报）、`table`（纯文字单元格，最多 50 × 20）、`whiteboard`（白板框的静态图，见下）。
+- 元素共有 `id, x, y, w, h, rotation, group?, role?, opacity?`。类型：`text`（富文本 `doc` + `style`）、`shape`（15 种形状，可带文字）、`line`（箱子的对角线，`flipH` / `flipV` 定方向，两端可带箭头）、`image`（`src` 只能是本人的 `/api/pages/files?key=…`；`generated.prompt` 记着 AI 生成的说明，用于举报；`pendingImagePrompt` 仅在待生成配图的空占位上暂存，一旦填入 `src` 即由 `normalizeDeck` 清除，且 `publicDeck` 严格剥离）、`table`（纯文字单元格，最多 50 × 20）、`whiteboard`（白板框的静态图，见下）。
 - 颜色是主题色名（`background, surface, text, muted, heading, accent, accent2, accent3, line`）或 `#rrggbb`；换主题时用色名的元素一起变。
 - 富文本是 ProseMirror 的 JSON（`src/lib/slides/rich-text.ts`）：段落（对齐）、项目符号 / 编号列表、代码块（可选 `attrs.language`）、块级公式，行内文字带粗体、斜体、下划线、删除线、代码、链接（只允许 http / https / mailto / tel）、颜色、字号，以及行内公式（KaTeX）。
 - 读入时一律经过 `normalizeDeck`：坏值换默认值，未知元素丢掉，重复 ID 重新分配，外部图片地址清空（公开页面不会去外部取图）。搜索用的 `segments` 由服务端从所有 `text` 字段和备注里取（`extractCanvasSegments`，公式的 TeX 也算），ID 是页的 ID。
@@ -64,7 +64,7 @@
 
 沿用笔记的分享（“Share” → 发布到网页，`/s/:token`）。幻灯片是分享树的**叶子**（`leafKind`，`src/lib/note-share-server.ts`）：只公开这套幻灯片本身，下面的子页面永远不公开（分享对话框也不显示“包含子页面”）；作为笔记的子页面时，可以在那个笔记的分享里打开它，但它下面的页面仍然不可达。
 
-公开页面（`PublicSlidesView`）一页一页大图显示、下面是缩略图，可以全屏放映（同样的键位），只读。由于外层 `body` 锁定 `overflow: hidden`，`.public-slides-shell` 在自身 `100dvh` 容器内纵向滚动，矮屏或横屏时也能滑到下方缩略图条。服务端先过 `publicDeck`：去掉隐藏页、演讲者备注和 AI 图片的说明；图片地址改成 `/s/:token/file?…`，该路由对幻灯片只放行公开页面引用的图片（`publicDeckFilePaths`）；公式在服务端用 KaTeX 预先渲染，浏览器不加载 KaTeX。
+公开页面（`PublicSlidesView`）一页一页大图显示、下面是缩略图，可以全屏放映（同样的键位），只读。由于外层 `body` 锁定 `overflow: hidden`，`.public-slides-shell` 在自身 `100dvh` 容器内纵向滚动，矮屏或横屏时也能滑到下方缩略图条。服务端先过 `publicDeck`：去掉隐藏页、演讲者备注以及 AI 图片的 `generated` 和 `pendingImagePrompt` 说明；图片地址改成 `/s/:token/file?…`，该路由对幻灯片只放行公开页面引用的图片（`publicDeckFilePaths`）；公式在服务端用 KaTeX 预先渲染，浏览器不加载 KaTeX。
 
 ## 原生应用（Android / iOS）
 
@@ -86,34 +86,35 @@
 
 ### 向导（网页和 App 的 WebView 共用）
 
-`src/components/slides-wizard.tsx`（窗口，`SlidesWizardHost`，画面上只放一个）、`src/lib/slides-wizard-jobs.ts`（状态与请求）、`src/lib/slides-wizard-draft.ts`（本机草稿）。电脑是小窗，手机宽度（≤639px）全屏；不用 Sparkles 图标。
+`src/components/slides-wizard.tsx`（窗口，`SlidesWizardHost`，画面上只放一个）、`src/lib/slides-wizard-jobs.ts`（状态与请求）、`src/lib/slides-image-jobs.ts`（逐页配图队列）、`src/lib/slides-wizard-draft.ts`（本机草稿）。电脑是小窗，手机宽度（≤639px）全屏；不用 Sparkles 图标。
 
-- **三步**：① 材料和设置（页数、语气、受众、语言、文字处理；主题和深浅色收在 “Advanced”）→ “Create outline”；② 可改的大纲（整套标题、每页改名 / 上下移 / 删除 / 增删要点、加页，最多 29 页；有空标题时不能生成）→ “Generate slides”，另有 Back、“Regenerate outline”（总是新请求）；③ 进度 → “Open slides”。①② 都写明这一步算 1 条聊天消息；“Start over” 丢掉草稿。成功前不建页。
+- **三步**：① 材料和设置（页数、语气、受众、语言、文字处理、**“Generate images for slides”** 开关（默认关）；主题和深浅色收在 “Advanced”）→ “Create outline”；② 可改的大纲（整套标题、每页改名 / 上下移 / 删除 / 增删要点、加页，最多 29 页；有空标题时不能生成；同样可切换逐页配图并在点击生成前按实际内容页数提示最多消耗多少次图片额度）→ “Generate slides”，另有 Back、“Regenerate outline”（总是新请求）；③ 进度 → “Open slides”。①② 都写明聊天额度（以及开启配图时的最大图片额度预览）；“Start over” 丢掉草稿。成功前不建页。
+- **逐页配图（`src/lib/slides-image-jobs.ts`）**：开启 `generateImages` 时，整套建成后（1 次聊天额度）按服务端返回的 `imageTasks` 逐页调用 `POST /api/pages/images`（每张计 1 次图片额度）。向导与幻灯片编辑器顶部横幅同步显示进度（已完成数 / 总数、当前页标题）、**Stop**（随时中止）、**Resume**（续配）与 **Open slides**（随时打开）。每张成功即写回该页（编辑器已挂载时经注册的实时提交写入，避免版本冲突覆盖用户编辑；未挂载时读最新版 `PATCH /api/pages/:id` 并在 409 时重读合并最多重试 3 次，随后派发 `notefable:page-updated` / `pagesChanged`），同时设置 `generated.prompt`（支持单图 Report image）并清除 `pendingImagePrompt`。用户点 Stop、触发 429 `usage_limit`、413 `storage_limit` 或失败时，干净停止并保留已生成的所有图片，显示成功数与剩余数；续配前重新读取最新页面，只为仍带 `pendingImagePrompt` 且尚未放图的占位生成，绝不重复扣费。编辑器里也可点击 **Dismiss** 清掉剩余未生成的占位提示词。
 - **入口决定材料**：聊天来的固定是这段对话；笔记来的固定带这篇笔记（可再加，合计 5 篇，在向导里的选笔记面板上选，列表来自 `GET /api/pages` 里 `kind` 为 note 的页）；“新建幻灯片”来的选一句话主题或笔记，从项目 / 页面行的“+”打开时整套建在那里（deck 请求带 `groupId` / `parentId`；服务端的位置规则见下，选了单篇笔记时它仍排在 `groupId` 前面）。
 - **草稿**：`localStorage` 的 `notefable:slides-wizard:v1:<scope>:<入口>`（`scope` 来自 `GET /api/pages/slides/outline`；入口 = `new`、`new:g:<项目>`、`new:p:<页面>`、`note:<页面>`、`chat:<会话>`），存步骤、材料、设置、大纲和未拿到结果的请求；30 天过期，每个用户保留最新 10 份。关闭窗口不丢，整套建成后删除。读写失败（隐私模式等）时只是不跨刷新保存。
 - **请求**：每个入口一个状态（idle / working / done / error），关闭窗口请求继续，大纲写进草稿，整套建成派发 `notefable:page-created`（并发 `pagesChanged`）。同一内容（不含 `clientRequestId` 的请求体）还没成功时重试沿用同一个 `clientRequestId`（刷新或 WebView 重建后也是），不自动重发；404 后换新的。材料里有正开着的笔记时先保存，保存不了就不发（“Resolve the note's unsaved changes first, then ask again.”）。400 / 404 / 409 / 413 / 429 显示服务端原句，其余显示 “Could not generate slides. Try again.”。
-- **上限**：429 时网页显示 `GuestLimitPrompt` / `UpgradePrompt`（同画成图），App 里发 `usageLimit`（不带 `pageId`）；草稿保留。
+- **上限**：429 时网页显示 `GuestLimitPrompt` / `UpgradePrompt`（同画成图），413 时显示 `StorageLimitPrompt`；App 里发 `usageLimit`（大纲/整套 `kind: "chat"`，逐页配图 `kind: "image"`）与 `storageLimit`（不带 `pageId`）；草稿与已生成的配图均保留。
 - **网页入口**：聊天“＋”菜单 / 抽屉里 Create page 旁的 “Generate slides”（同样的显示和禁用条件）；笔记的 “…” 菜单（含分屏）和笔记 AI 面板常用按钮里 “Draw as diagram” 旁；侧栏“新建”、项目和页面行的“+”、幻灯片分区的“+”（菜单：New slide deck / Generate with AI）、首页和空状态新建卡片下的 “Generate with AI”。
 
 ### 在 App 的 WebView 里
 
-同一个向导开在常驻的 `/note-embed` WebView 里（页面开着或只是温着都行），约定见 [notes-flow.md](notes-flow.md#原生应用内嵌编辑器note-embed)：App 调 `notefableEmbed.slidesWizard({ action: "open", source, model? })` 打开、`{ action: "back" }` 返回；网页发 `slidesWizard` 的 `open` / `closed`、`openPage`（Open slides，先于 `closed`）、`pagesChanged`、`usageLimit`。笔记 AI 面板里的 “Generate slides” 只对声明了 `canShowSlidesWizard()` 的 App 显示。Android（`SlidesWizardScreen.kt`）与 iOS（`SlidesWizardScreen.swift`）已接入与网页一致的全部入口和常驻 WebView 承载，详见 [android-native.md](android-native.md#ai-生成幻灯片) 与 [ios-native.md](ios-native.md)。
+同一个向导开在常驻的 `/note-embed` WebView 里（页面开着或只是温着都行），约定见 [notes-flow.md](notes-flow.md#原生应用内嵌编辑器note-embed)：App 调 `notefableEmbed.slidesWizard({ action: "open", source, model? })` 打开、`{ action: "back" }` 返回；网页发 `slidesWizard` 的 `open` / `closed`、`openPage`（Open slides，先于 `closed`）、`pagesChanged`、`usageLimit`、`storageLimit`。笔记 AI 面板里的 “Generate slides” 只对声明了 `canShowSlidesWizard()` 的 App 显示。Android（`SlidesWizardScreen.kt`）与 iOS（`SlidesWizardScreen.swift`）已接入与网页一致的全部入口和常驻 WebView 承载，详见 [android-native.md](android-native.md#ai-生成幻灯片) 与 [ios-native.md](ios-native.md)。
 
 ### 服务端
 
 
 - **形状与上限**（`src/lib/slides/ai-wizard.ts`，画面和服务端共用，不依赖 prisma / DOM）：
   - 来源 `source`：`{ type: "topic", topic }`（1–300 字符，换行并成空格）、`{ type: "notes", pageIds }`（1–5 篇，`MAX_MESSAGE_NOTES`）、`{ type: "chat", sessionId }`。
-  - 选项 `options`（省略的项取默认值，值不对返回 400）：`pageCount`（`"auto"` 或含封面的总页数 3–30）、`tone`（auto / professional / casual / academic / persuasive）、`audience`（一行，≤ 200）、`language`（`"auto"`＝跟随材料或主题，或 17 种界面语言代码）、`wording`（condense 精简 / keep 保留原文）、`theme`（8 个主题之一 + light / dark）。
+  - 选项 `options`（省略的项取默认值，值不对返回 400）：`pageCount`（`"auto"` 或含封面的总页数 3–30）、`tone`（auto / professional / casual / academic / persuasive）、`audience`（一行，≤ 200）、`language`（`"auto"`＝跟随材料或主题，或 17 种界面语言代码）、`wording`（condense 精简 / keep 保留原文）、`theme`（8 个主题之一 + light / dark）、`generateImages`（布尔值，默认 `false`）。
   - 大纲 `outline`：`{ title, slides: [{ title, points }] }`，不含封面；1–29 页，标题 1–200，每页最多 12 条要点、每条 ≤ 500（空要点丢弃）。
 - **接口**（`runtime = "nodejs"`，`maxDuration = 300`，请求体 ≤ 1 MiB；`model` 经 `normalizeModel`）：
   - `GET /api/pages/slides/outline` → `{ scope }`（`Cache-Control: private, no-store`）：由用户 ID 哈希出的值，向导用它按用户隔离本机草稿（浏览器拿不到用户 ID）。
   - `POST /api/pages/slides/outline` `{ source, options, model?, clientRequestId }` → 200 `{ outline, partial? }`，不建页。
-  - `POST /api/pages/slides/deck` `{ source, options, outline, model?, clientRequestId, groupId?, parentId? }` → 201 `{ page, partial? }`（页面摘要）；同一 `clientRequestId` 已建过时 200 `{ page }`，该页在 Trash 里则 404 “These slides were moved to the trash.”。
+  - `POST /api/pages/slides/deck` `{ source, options, outline, model?, clientRequestId, groupId?, parentId? }` → 201 `{ page, partial?, imageTasks? }`（页面摘要；开启 `generateImages` 且存在待配图页时返回 `imageTasks: [{ slideId, slideTitle, prompt }]`）；同一 `clientRequestId` 已建过时 200 `{ page, imageTasks? }`（从已保存的 Deck 派生仍待配图的任务，已配好图的不重复返回），该页在 Trash 里则 404 “These slides were moved to the trash.”。
 - **材料**（`src/lib/page-ai/one-shot.ts`，不联网搜索）：笔记只读本人、`deletedAt: null`、`kind: "note"` 的页，每次现读，用 `delimitPageContent` 包住（私有数据，不是指令），每篇 20,000、合计 60,000 字符；对话只读本人会话里 `active: true` 的 USER / ASSISTANT 正文和附件文件名（和 Create page 同一套 `buildTranscript`），不读 SYSTEM 与 `providerContext`。缺任一篇笔记或会话返回 404，没有可用文字返回 400，都在扣额度之前。被上限截短时响应带 `partial`。
-- **额度**：大纲和整套各扣 1 条聊天额度，任何失败（502 上游 / 超时 / 截断 / 格式不对，503 保存等，父页面或项目不存在的 404）都退还；满额返回 429 `usage_limit`。
+- **额度**：大纲和整套各扣 1 条聊天额度，任何失败（502 上游 / 超时 / 截断 / 格式不对，503 保存等，父页面或项目不存在的 404）都退还；满额返回 429 `usage_limit`。逐页配图由客户端调用 `POST /api/pages/images` 按张扣图片额度。
 - **重试不重复扣费**：整套用由（用户、用途、`clientRequestId`）决定的页面 ID（同画成图）。大纲不建页，用 `UsageCounter` 里的标记行（`src/lib/usage-requests.ts`，见 [database.md](database.md#usagecounter)）：同一 ID 且来源、选项、模型都相同的请求，成功后可免费重跑 3 次（响应丢失时用），仍在生成时返回 409 `request_in_progress`（超过 300 秒视为原请求已中断，可免费接着做）。
-- **组装**（`src/lib/slides/ai-build.ts`）：封面（只有标题）+ 大纲每页单独走 `noteToDeckResult`（和笔记放映同一套排版，放不下时续页“(2)”，续页可能让总页数超过 30，但不超过 `MAX_SLIDES`）；不加 `section`；图片、分割线、目录丢弃，正文一级标题降为三级；演讲备注放在该页的第一张。建页走 `createCanvasPage`（`ai: true`，所以有 Report AI content）。位置：`parentId`，否则来源是单篇笔记时作为它的子页面，否则 `groupId` 项目，否则最上层。
+- **组装**（`src/lib/slides/ai-build.ts`）：封面（只有标题）+ 大纲每页单独走 `noteToDeckResult`（和笔记放映同一套排版，放不下时续页“(2)”，续页可能让总页数超过 30，但不超过 `MAX_SLIDES`）；若该页带 `imagePrompt`，首张采用左文右图 `imageText` 版式并放一个带 `pendingImagePrompt` 的空图片占位（续页不重复放图）；不加 `section`；图片、分割线、目录丢弃，正文一级标题降为三级；演讲备注放在该页的第一张。建页走 `createCanvasPage`（`ai: true`，所以有 Report AI content）。位置：`parentId`，否则来源是单篇笔记时作为它的子页面，否则 `groupId` 项目，否则最上层。
 
 ## 与其他功能的接口
 

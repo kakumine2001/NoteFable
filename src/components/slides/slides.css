@@ -61,6 +61,14 @@
 .slides-present-more.slides-tool:hover:not(:disabled) { background: var(--nf-ink-hover); }
 .slides-present-button:disabled, .slides-present-more:disabled { opacity: 0.45; }
 .slides-notice { display: flex; align-items: center; gap: 12px; margin: 8px 12px 0; padding: 8px 12px; border-radius: 8px; background: var(--nf-error-bg); color: var(--nf-error-text); font-size: 14px; }
+.slides-image-banner { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--notion-border); background: var(--notion-surface); color: var(--notion-text); font-size: 13px; }
+.slides-image-banner-text { display: flex; min-width: 0; flex: 1 1 200px; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.slides-image-banner-sub { color: var(--notion-muted); font-size: 12px; }
+.slides-image-banner-error { color: var(--nf-error-text); font-size: 12px; }
+.slides-image-banner-actions { display: flex; flex: none; align-items: center; gap: 6px; margin-inline-start: auto; }
+.slides-image-banner-actions .notion-button { min-height: 28px; padding: 4px 10px; font-size: 12.5px; }
+.slides-image-limit { padding: 8px 12px 0; background: var(--notion-bg); }
+.slides-image-limit .guest-limit-prompt { width: 100%; max-width: none; margin-bottom: 0; }
 
 .slides-body { position: relative; display: flex; min-height: 0; flex: 1; }
 .slides-center { display: flex; min-width: 0; flex: 1; flex-direction: column; background: var(--notion-sidebar); }

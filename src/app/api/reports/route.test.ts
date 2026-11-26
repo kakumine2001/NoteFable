@@ -91,6 +91,16 @@ describe("POST /api/reports", () => {
     const email = mocks.send.mock.calls[0][0] as { text: string };
     expect(email.text).toContain("Cells are rude");
     expect(email.text).toContain("prop1: created");
+
+    // AI-generated slide decks (aiUpdatedAt set, no proposals) are also reportable.
+    mocks.findPage.mockResolvedValueOnce({
+      id: "deck1", kind: "slides", title: "AI Deck", aiUpdatedAt: new Date("2026-11-26T00:00:00Z"), text: "Slide 1", proposals: [],
+    });
+    expect((await POST(post({ pageId: "deck1", reason: "Bad deck" }))).status).toBe(200);
+    const deckEmail = mocks.send.mock.calls[1][0] as { text: string };
+    expect(deckEmail.text).toContain("Page: deck1 (slides)");
+    expect(deckEmail.text).toContain("Generate slides");
+
     mocks.findPage.mockResolvedValueOnce(null);
     expect((await POST(post({ pageId: "gone" }))).status).toBe(404);
     // 対象は 1 つだけ。

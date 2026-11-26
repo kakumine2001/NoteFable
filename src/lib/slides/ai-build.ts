@@ -3,14 +3,16 @@ import { MAX_SLIDE_NOTES, MAX_SLIDES } from "@/lib/canvas-document";
 import { markdownToBlocks } from "@/lib/note-markdown";
 import { cleanText, oneLine } from "@/lib/slides/ai-wizard";
 import { createSlide } from "@/lib/slides/layouts";
-import { DECK_FORMAT, normalizeDeck, type Deck, type DeckTheme, type Slide } from "@/lib/slides/model";
+import { DECK_FORMAT, normalizeDeck, safeImageSrc, type Deck, type DeckTheme, type ImageElement, type Slide } from "@/lib/slides/model";
 import { blocksHaveVisibleContent, noteToDeckResult } from "@/lib/slides/note-to-deck";
+import { richDocText } from "@/lib/slides/rich-text";
 
-// AI が書いた各スライド（題名・Markdown の本文・演説者ノート）から、保存する Deck を作る純粋な関数。
+// AI が書いた各スライド（題名・Markdown の本文・演説者ノート・任意の配図説明）から、保存する Deck を作る純粋な関数。
 // 版式・文字の大きさ・続きのページは「ノートを放映」と同じ noteToDeckResult に任せる（モデルは座標を出さない）。
 
-export type AiDeckSlide = { title: string; body: string; notes: string };
+export type AiDeckSlide = { title: string; body: string; notes: string; imagePrompt?: string };
 export type AiDeckInput = { title: string; slides: readonly AiDeckSlide[]; theme: DeckTheme; untitledLabel?: string };
+export type PendingSlideImageTask = { slideId: string; elementId: string; slideTitle: string; prompt: string };
 
 type Block = ReturnType<typeof markdownToBlocks>[number];
 
@@ -40,7 +42,14 @@ function chunk(slide: AiDeckSlide, theme: DeckTheme, untitledLabel: string | und
     : [];
   const blocks = [...heading, ...bodyBlocks(markdownToBlocks(prepareNoteMarkdown(cleanText(slide.body), { dropImages: true })))];
   if (!blocksHaveVisibleContent(blocks)) return { slides: [] as Slide[], truncatedSlides: 0 };
-  const { deck, truncatedSlides } = noteToDeckResult({ title: "", blocks, theme, untitledLabel });
+  const imagePrompt = slide.imagePrompt ? oneLine(slide.imagePrompt) : "";
+  const { deck, truncatedSlides } = noteToDeckResult({
+    title: "",
+    blocks,
+    theme,
+    untitledLabel,
+    ...(imagePrompt ? { reservedImage: { prompt: imagePrompt } } : {}),
+  });
   const slides = deck.slides.map((entry) => {
     const { section: _section, ...rest } = entry;
     void _section;
@@ -61,4 +70,78 @@ export function buildAiDeck({ title, slides, theme, untitledLabel }: AiDeckInput
   const truncatedSlides = all.length - deck.slides.length + chunks.reduce((sum, entry) => sum + entry.truncatedSlides, 0);
   // 保存の検証は undefined の値を受け付けないので、JSON にできる形にそろえて返す。
   return { deck: JSON.parse(JSON.stringify(deck)) as Deck, truncatedSlides };
+}
+
+function slideTitleOf(slide: Slide): string {
+  const titleEl = slide.elements.find((element) => element.type === "text" && element.role === "title")
+    ?? slide.elements.find((element) => element.type === "text" && richDocText(element.doc).trim());
+  return titleEl?.type === "text" ? oneLine(richDocText(titleEl.doc)).slice(0, 200) : "";
+}
+
+// まだ画像を生成していない配図タスクを Deck から取り出す（既に画像がある要素は含めない）。
+export function pendingSlideImageTasks(deck: Deck): PendingSlideImageTask[] {
+  const tasks: PendingSlideImageTask[] = [];
+  for (const slide of deck.slides) {
+    const slideTitle = slideTitleOf(slide);
+    for (const element of slide.elements) {
+      if (element.type === "image" && !element.src && element.pendingImagePrompt?.trim()) {
+        tasks.push({
+          slideId: slide.id,
+          elementId: element.id,
+          slideTitle,
+          prompt: element.pendingImagePrompt.trim(),
+        });
+      }
+    }
+  }
+  return tasks;
+}
+
+// 生成できた画像を対応する空きスロットへ入れ、generated.prompt を付けて pendingImagePrompt を外す。
+// 既に画像が入っている要素や見つからない要素は上書きしない（applied: false）。
+export function applyGeneratedSlideImage(
+  deck: Deck,
+  input: { slideId: string; elementId?: string; url: string; name?: string; prompt: string },
+): { deck: Deck; applied: boolean } {
+  const src = safeImageSrc(input.url);
+  if (!src) return { deck, applied: false };
+  const prompt = cleanText(input.prompt).trim().slice(0, 4000);
+  const alt = oneLine((input.name ?? "").replace(/\.[a-z0-9]+$/i, "") || prompt).slice(0, 500);
+  let applied = false;
+  const slides = deck.slides.map((slide) => {
+    if (slide.id !== input.slideId) return slide;
+    const target = (input.elementId
+      ? slide.elements.find((element): element is ImageElement => element.type === "image" && element.id === input.elementId)
+      : undefined)
+      ?? slide.elements.find((element): element is ImageElement => element.type === "image" && !element.src && Boolean(element.pendingImagePrompt));
+    if (!target || target.src) return slide;
+    applied = true;
+    const elements = slide.elements.map((element) => {
+      if (element.id !== target.id || element.type !== "image") return element;
+      const { pendingImagePrompt: _pending, generated: _oldGenerated, ...rest } = element;
+      void _pending;
+      void _oldGenerated;
+      return { ...rest, src, alt: rest.alt || alt, generated: { prompt } };
+    });
+    return { ...slide, elements };
+  });
+  return applied ? { deck: { ...deck, slides }, applied: true } : { deck, applied: false };
+}
+
+// 未生成の配図プロンプトをすべて消す（エディターのバナーで「閉じる / Dismiss」を押したとき）。
+export function clearPendingSlideImages(deck: Deck): Deck {
+  let changed = false;
+  const slides = deck.slides.map((slide) => {
+    let slideChanged = false;
+    const elements = slide.elements.map((element) => {
+      if (element.type !== "image" || !element.pendingImagePrompt) return element;
+      slideChanged = true;
+      changed = true;
+      const { pendingImagePrompt: _pending, ...rest } = element;
+      void _pending;
+      return rest;
+    });
+    return slideChanged ? { ...slide, elements } : slide;
+  });
+  return changed ? { ...deck, slides } : deck;
 }

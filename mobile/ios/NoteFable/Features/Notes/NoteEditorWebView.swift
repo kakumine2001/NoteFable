@@ -325,6 +325,8 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
                     self.router.openNote(id)
                 case .usageLimit(let tier, let kind, _):
                     self.app.notes.onWizardUsageLimit(tier: tier, kind: kind)
+                case .storageLimit(let tier, let used, let limit):
+                    self.app.notes.onWizardStorageLimit(tier: tier, used: used, limit: limit)
                 default:
                     break
                 }

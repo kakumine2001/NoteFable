@@ -25,14 +25,17 @@ describe("parseOptions", () => {
   it("fills in the defaults for missing fields", () => {
     expect(parseOptions(undefined)).toEqual(DEFAULT_SLIDES_OPTIONS);
     expect(parseOptions({})).toEqual(DEFAULT_SLIDES_OPTIONS);
+    expect(DEFAULT_SLIDES_OPTIONS.generateImages).toBe(false);
     expect(parseOptions({ pageCount: 30, tone: "academic", audience: " first-year\nstudents ", language: "zh-Hant", wording: "keep", theme: { mode: "dark" } }))
-      .toEqual({ pageCount: 30, tone: "academic", audience: "first-year students", language: "zh-Hant", wording: "keep", theme: { id: "simple", mode: "dark" } });
+      .toEqual({ pageCount: 30, tone: "academic", audience: "first-year students", language: "zh-Hant", wording: "keep", theme: { id: "simple", mode: "dark" }, generateImages: false });
+    expect(parseOptions({ generateImages: true })).toEqual({ ...DEFAULT_SLIDES_OPTIONS, generateImages: true });
   });
 
   it("rejects wrong values", () => {
     for (const value of [
       null, [], { pageCount: 2 }, { pageCount: 31 }, { pageCount: 4.5 }, { pageCount: "10" }, { tone: "funny" }, { audience: 3 },
       { audience: "x".repeat(201) }, { language: "pt" }, { wording: "long" }, { theme: "tech" }, { theme: { id: "neon" } }, { theme: { mode: "auto" } },
+      { generateImages: "yes" }, { generateImages: 1 },
     ]) expect(parseOptions(value), JSON.stringify(value)).toBeNull();
   });
 });
