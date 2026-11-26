@@ -108,9 +108,9 @@
 "close" = "बंद करें";
 "empty_trash" = "ट्रैश खाली करें";
 "close_trash" = "ट्रैश बंद करें";
-"trash_hint" = "ट्रैश में रखे पेज को %1$d दिनों तक पुनर्स्थापित किया जा सकता है। उसके बाद वे हमेशा के लिए हटा दिए जाते हैं।";
+"trash_hint" = "ट्रैश में रखे पेजों को %1$d दिनों तक पुनर्स्थापित किया जा सकता है। उसके बाद वे हमेशा के लिए हटा दिए जाते हैं।";
 "empty_trash_one" = "ट्रैश में मौजूद इस पेज को हमेशा के लिए हटाएँ? इसे वापस नहीं बदला जा सकता।";
-"empty_trash_all" = "ट्रैश में मौजूद सभी %1$d पेज को हमेशा के लिए हटाएँ? इसे वापस नहीं बदला जा सकता।";
+"empty_trash_all" = "ट्रैश में मौजूद सभी %1$d पेजों को हमेशा के लिए हटाएँ? इसे वापस नहीं बदला जा सकता।";
 "loading_trash" = "ट्रैश लोड हो रहा है…";
 "try_again" = "फिर से प्रयास करें";
 "trash_is_empty" = "ट्रैश खाली है।";
@@ -208,7 +208,7 @@
 "activity_searching_query" = "“%1$s” खोजा जा रहा है";
 "activity_reading_host" = "%1$s पढ़ा जा रहा है";
 "activity_scanning_host" = "%1$s देखा जा रहा है";
-"activity_searching_notes" = "आपके पेज में खोज जारी है";
+"activity_searching_notes" = "आपके पेजों में खोज जारी है";
 "activity_reading_note" = "आपका पेज पढ़ा जा रहा है";
 "activity_one_search" = "1 खोज";
 "activity_searches" = "%1$s खोजें";
@@ -425,8 +425,8 @@
 "pg_search_pages" = "पेज खोजें";
 "pg_no_matching_pages" = "कोई मेल खाता पेज नहीं मिला।";
 "pg_subpages_to_trash" = "इसके सब-पेज भी इसके साथ ट्रैश में चले जाएँगे।";
-"pg_rename_page" = "पृष्ठ का नाम बदलें";
-"pg_page_title" = "पृष्ठ शीर्षक";
+"pg_rename_page" = "पेज का नाम बदलें";
+"pg_page_title" = "पेज का शीर्षक";
 
 /* strings_personal.xml */
 "appearance" = "दिखावट";
@@ -525,7 +525,7 @@
 "share_public_link" = "सार्वजनिक लिंक";
 "share_copy_link" = "लिंक कॉपी करें";
 "share_open_link" = "लिंक खोलें";
-"share_include_subpages" = "उप-पृष्ठ शामिल करें";
+"share_include_subpages" = "सब-पेज शामिल करें";
 "share_link_expires" = "लिंक समाप्ति";
 "share_never" = "कभी नहीं";
 "share_1h" = "1 घंटा";
@@ -535,9 +535,9 @@
 "share_custom_date" = "कस्टम तिथि…";
 "share_set" = "सेट करें";
 "share_expires_time" = "समाप्ति: %1$s";
-"share_via_parent" = "मूल पृष्ठ के माध्यम से साझा (%1$s)";
-"share_excluded_parent" = "मूल पृष्ठ साझाकरण से बाहर (%1$s)";
-"share_exclude_from_parent" = "मूल पृष्ठ साझाकरण से बाहर रखें";
+"share_via_parent" = "मूल पेज के माध्यम से साझा (%1$s)";
+"share_excluded_parent" = "मूल पेज साझाकरण से बाहर (%1$s)";
+"share_exclude_from_parent" = "मूल पेज साझाकरण से बाहर रखें";
 "share_load_failed" = "साझाकरण सेटिंग्स लोड नहीं हो सकीं।";
 "share_update_failed" = "साझाकरण सेटिंग्स अपडेट नहीं हो सकीं।";
 

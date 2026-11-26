@@ -14,6 +14,12 @@ describe("Traditional Chinese conversion with product terms", () => {
     expect(toTraditional("页面类型")).toBe("頁面類型");
   });
 
+  it("keeps words that OpenCC segmentation would break", () => {
+    expect(plain("最多只能有")).toBe("最多隻能有");
+    expect(toTraditional("最多只能有")).toBe("最多只能有");
+    expect(toTraditional("在页面中搜索了")).toBe("在頁面中搜尋了");
+  });
+
   it("converts everything else exactly like OpenCC", () => {
     for (const text of ["白板编辑功能即将推出。", "只有笔记可以导出为 Markdown。", "数据", "{max} 个文件"]) expect(toTraditional(text)).toBe(plain(text));
   });

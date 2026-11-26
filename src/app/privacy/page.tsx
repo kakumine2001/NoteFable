@@ -56,8 +56,8 @@ export default function PrivacyPage() {
           <li>
             <strong>Reports.</strong> If you report AI content, the reason you give, the reported content and your internal account ID are emailed to us so
             we can review it: for an answer, the answer and the message before it; for a proposed page change, the page title and the text before and after
-            the change; for a page the AI wrote, its title, its current text and the AI changes applied to it; for an AI-made slide image, the description it
-            was made from and where it is stored. We keep the email only as long as we need it for the review.
+            the change; for a page the AI wrote, its title, its current text and the AI changes applied to it; for an AI-made image in your Workspace (in a note, slide deck or whiteboard), the
+            description it was made from and where it is stored. We keep the email only as long as we need it for the review.
           </li>
           <li>
             <strong>The Android and iOS apps.</strong> The apps store the same cookies on your phone and send the same data as the website. They read only the photos
@@ -80,8 +80,8 @@ export default function PrivacyPage() {
             This data is aggregated and does not use cookies.
           </li>
           <li>
-            <strong>Browser storage.</strong> Your browser keeps a few interface preferences (for example which note groups are collapsed) and
-            unsaved local drafts of notes so they can be restored.
+            <strong>Browser storage.</strong> Your browser keeps a few interface preferences (for example which Workspace sections and projects are
+            collapsed) and unsaved local drafts of your notes, slide decks and whiteboards so they can be restored.
           </li>
         </ul>
       </LegalSection>

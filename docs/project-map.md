@@ -69,7 +69,7 @@ Google 登录要在 Google Cloud 登记“谁可以用我的登录”，这叫 *
 - **模型列表**：能选哪些 AI 模型由服务器决定，App 每次打开时去要，不写死在 App 里。
 - **外观和 Markdown**：网页、安卓和 iOS 都能选“跟随系统 / 浅色 / 深色”（只记在当前这台设备上，不跟着账号走），也都能把一篇笔记导出成 Markdown 文件、把 Markdown 文件导入成笔记。
 - **只有网页才有的**：电脑宽度下在聊天旁边并排打开一篇笔记的“分屏”。手机屏幕放不下，所以两个 App 没有。
-- **iOS 现状**：代码在 CI 上跑通 Core 单元测试、模拟器构建和截图；合入调高构建号的 PR 后由 GitHub Actions 自动上传 TestFlight，构建已装到真机，界面还没逐项验收。上架前还缺 App Store 内购、Sign in with Apple（或确认邮箱验证码登录满足审核要求）和通用链接（见 [ios.md](architecture/ios.md) 和 [ios-native.md](architecture/ios-native.md)）。
+- **iOS 现状**：代码在 CI 上跑通 Core 单元测试、模拟器构建和截图；合入调高构建号的 PR 后由 GitHub Actions 自动上传 TestFlight，构建已装到真机，界面还没逐项验收。Sign in with Apple 和 App Store 内购已经接好（配置齐全后开放），还要真机和沙盒验收；上架前还缺通用链接（见 [ios.md](architecture/ios.md) 和 [ios-native.md](architecture/ios-native.md)）。
 
 ## 签名（用印章来理解）
 
@@ -104,7 +104,7 @@ Drive 安装包交付当前暂停。Android 发布条件和 Play 签名规则见
 
 ## 收费
 
-Pro 每月 ¥300（含税），只提高使用上限和文件存储容量（单个文件的上限不变：工作区页面里的文件 4 MB，聊天附件 20 MB）。第一次订阅先免费试用 30 天（要先绑定付款方式，到期自动扣费，试用期内取消不扣钱）。网页用 Stripe 收钱，App 里用 Google Play 收钱，买的是同一个 Pro。
+Pro 每月 ¥300（含税），只提高使用上限和文件存储容量（单个文件的上限不变：工作区页面里的文件 4 MB，聊天附件 20 MB）。第一次订阅先免费试用 30 天（要先绑定付款方式，到期自动扣费，试用期内取消不扣钱）。网页用 Stripe 收钱，安卓 App 用 Google Play、iOS App 用 App Store 收钱，买的是同一个 Pro。
 
 | 身份 | 聊天 | 生成图片 | 文件存储 |
 | --- | --- | --- | --- |
@@ -142,7 +142,7 @@ Stripe 还有 4 项没亲眼确认（商品价格、Webhook、扣款失败后的
 
 ## 上架进度
 
-网站、Stripe、签名、登录和 Play 封闭测试都已推进中；安卓侧等 14 天封闭测试满期后即可申请正式版；iOS 侧 TestFlight 已能自动上传并装到真机，上架前还缺内购、Sign in with Apple 和通用链接。
+网站、Stripe、签名、登录和 Play 封闭测试都已推进中；安卓侧等 14 天封闭测试满期后即可申请正式版；iOS 侧 TestFlight 已能自动上传并装到真机，内购和 Sign in with Apple 已接好、待真机验收，上架前还缺通用链接。
 
 - [x] Play Console 启用订阅 `notefable_pro`（`monthly` 与 30 天免费试用）
 - [x] 填 Play Console 的应用内容声明和商店介绍（答案在 [docs/play-store/](play-store/console-answers.md)）

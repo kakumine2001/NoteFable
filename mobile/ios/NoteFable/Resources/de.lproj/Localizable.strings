@@ -84,7 +84,7 @@
 "notes_list_empty" = "Deine Notizen erscheinen hier.";
 "trash" = "Papierkorb";
 "trash_note_title" = "Seite in den Papierkorb verschieben?";
-"trash_note_body" = "„%1$s“ wird in den Papierkorb verschoben. Du kannst die Notiz %2$d Tage lang wiederherstellen.";
+"trash_note_body" = "„%1$s“ wird in den Papierkorb verschoben. Du kannst die Seite %2$d Tage lang wiederherstellen.";
 "cancel" = "Abbrechen";
 "move_to_trash" = "In den Papierkorb verschieben";
 "move_to_project" = "In Projekt verschieben";

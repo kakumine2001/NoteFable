@@ -329,7 +329,7 @@ DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_re
 
 **撤销（Undo）。** 适用后的卡片有 Undo（自动应用的和手动适用的都有；本功能之前适用、没有记下版本的旧提案没有）。编辑：只在页面仍是 `appliedVersion`（之后没人改过）时，在一个事务里把状态改为 `UNDONE`，把当前状态存成 `RESTORE` 历史，再把 `revisionId` 那份历史的内容按保存的规则校验后写回（版本 +1，所以撤销本身也能从历史里恢复）；页面之后被改过则 409 “This page changed after the AI edit. Restore an earlier version from the page history.”。新建：同样只在页面仍是 `appliedVersion`、而且下面没有子页面（都是用户之后的工作）时，把页面移入回收站（30 天内可复原），否则 409 “This page changed after the AI created it. Move it to Trash from its page menu instead.”；响应带被移入的 `ids`，网页派发 `notefable:pages-trashed` 把它们从列表、保存队列、URL 里拿掉。网页在撤销新建之前先保存这个页面和子页面里没保存的编辑（开着的白板先交出还没交给保存队列的变更和上传中的图片；和“移到回收站”一样，保存不了就不撤销，提示先处理未保存的草稿），所以没保存的内容不会随撤销丢掉；保存后版本变了，服务端就按上面的规则拒绝。重复请求返回同样的结果（新建的页面还在回收站里时再次返回它的 ID，好让没收到第一次响应的画面关掉它）。
 
-**自动应用。** AI 面板标题栏的“自动应用”开关（`Zap` 图标，按页面类型存在本机 `localStorage` 的 `notefable:ai-auto-apply:v1`，默认关；只在这种页面 `aiEdit` 为真时显示）打开时，面板的请求带 `autoApply=1`（只在带 `noteId` 时生效）。自动应用的范围是面板所在的这个页面（`ToolContext.panelPageId`）：对它的编辑（页面没有锁定时；适用时再确认一次，准备期间被锁定就不写）和新建的页面在保存提案后立即用同一个 `applyProposal`（`auto: true`，记 `autoApplied`）适用，事件里的提案已是 `applied`；对别的页面的编辑、锁定页面的编辑仍是待确认的提案（工具结果的 `autoApplyFailed` 说明原因），所以页面或文件里的文字不能借自动应用改掉别的页面。适用失败（例如版本冲突）则提案照常待确认，工具结果告诉模型“没有自动应用”；写入已提交、只是之后读回失败时按已适用处理。`buildInstructions()` 在这时把“只是提案，不要说已修改”换成“对这个页面的修改和新页面会立即生效、对别的页面仍是提案、用户可以撤销，按工具结果说明”。网页收到已自动应用的提案时（`src/lib/proposal-sync.ts`，在 `readChatEventStream` 里）重新读取页面（网络或服务端暂时失败时隔几秒重试几次）并派发与手动 Apply 相同的 `notefable:page-updated` / `notefable:page-created`，打开着的编辑器随之更新。Android / iOS 的编辑页（`/note-embed`）里，卡片的“打开”经 JS 桥 `openPage` 交给 App 打开（和提及链接一样）；App 不支持时不显示“打开”，不会跳到系统浏览器。适配器的 `create.direct` 为真时不开自动应用也直接建，卡片上同样可以撤销（移入回收站）；这是给以后白板 / 幻灯片的新建工具（#150 等）预留的，现在只有测试用的 `fake-adapter.ts` 用它。“画成图”不走工具和提案，而是 `POST /api/pages/diagram`（见下文“画成图”）。
+**自动应用。** AI 面板输入栏底部、模型选择器旁的“自动应用”开关（带 “Auto-apply” 文字和滑块；按页面类型存在本机 `localStorage` 的 `notefable:ai-auto-apply:v1`，默认关；只在这种页面 `aiEdit` 为真时显示）打开时，面板的请求带 `autoApply=1`（只在带 `noteId` 时生效）。自动应用的范围是面板所在的这个页面（`ToolContext.panelPageId`）：对它的编辑（页面没有锁定时；适用时再确认一次，准备期间被锁定就不写）和新建的页面在保存提案后立即用同一个 `applyProposal`（`auto: true`，记 `autoApplied`）适用，事件里的提案已是 `applied`；对别的页面的编辑、锁定页面的编辑仍是待确认的提案（工具结果的 `autoApplyFailed` 说明原因），所以页面或文件里的文字不能借自动应用改掉别的页面。适用失败（例如版本冲突）则提案照常待确认，工具结果告诉模型“没有自动应用”；写入已提交、只是之后读回失败时按已适用处理。`buildInstructions()` 在这时把“只是提案，不要说已修改”换成“对这个页面的修改和新页面会立即生效、对别的页面仍是提案、用户可以撤销，按工具结果说明”。网页收到已自动应用的提案时（`src/lib/proposal-sync.ts`，在 `readChatEventStream` 里）重新读取页面（网络或服务端暂时失败时隔几秒重试几次）并派发与手动 Apply 相同的 `notefable:page-updated` / `notefable:page-created`，打开着的编辑器随之更新。Android / iOS 的编辑页（`/note-embed`）里，卡片的“打开”经 JS 桥 `openPage` 交给 App 打开（和提及链接一样）；App 不支持时不显示“打开”，不会跳到系统浏览器。适配器的 `create.direct` 为真时不开自动应用也直接建，卡片上同样可以撤销（移入回收站）；这是给以后白板 / 幻灯片的新建工具（#150 等）预留的，现在只有测试用的 `fake-adapter.ts` 用它。“画成图”不走工具和提案，而是 `POST /api/pages/diagram`（见下文“画成图”）。
 
 成功后卡片会派发浏览器事件 `notefable:page-updated`（编辑、撤销编辑）、`notefable:page-created`（新建）或 `notefable:pages-trashed`（撤销新建），`src/lib/use-note-pages.ts` 据此把已加载的笔记编辑队列更新到新版本，或把新笔记加入列表；队列里有未保存的编辑时不会覆盖，而是标记为冲突让用户选择。卡片在页面内的操作状态（适用中、错误）按提案 ID 保存在组件外的小型 store 里，回答结束后重新拉取历史导致卡片重新挂载时不会回到"未应用"。服务端把上游流里 `notefable.` 开头的事件全部丢弃，这类事件只能由本进程的工具执行产生。
 
@@ -502,7 +502,7 @@ AI 的 `search_notes` 工具（`src/lib/page-ai/tools.ts`）现在与站内搜�
 - **显示**：`splitQuotedMessage` 只在发言开头是引用块、后面隔一个空行还有正文时才分开；提问气泡里引用灰字在上（全文，不折叠），正文在下。自己手写的引用开头的发言也会这样显示。编辑发言时编辑框里是完整原文（含 `> `）。服务端的临时标题（`/api/chat` 与 `/api/images` 的 `makeTitle`）用引用后面的提问。
 - **上传附件期间**：引用不能移除或替换（发出的内容已定）。
 - **被拒绝时**：放回输入框的是提问，引用回到输入框上方（等待期间已经选了别的引用时保留它，被拒的提问连同引用块整段放回输入框）；没有引用时放回打的原文；登录前暂存的草稿（`savePendingDraft`）带着引用块，回来时同样拆开。
-- **同一格式的其他用法**：笔记编辑器里选中文字的 “Ask AI” 也用 `normalizeQuote` 和 `composeQuotedMessage`。在笔记助手面板里发送时另带 `noteSelection=1`（[notes-flow.md](notes-flow.md#页面里的-ai-助手)）；在桌面分屏的笔记面板里则直接成为聊天输入框上方的引用条，按普通发言发送（见“聊天与笔记分屏”）。
+- **同一格式的其他用法**：笔记编辑器里选中文字的 “Ask NoteFable” 也用 `normalizeQuote` 和 `composeQuotedMessage`。在笔记助手面板里发送时另带 `noteSelection=1`（[notes-flow.md](notes-flow.md#页面里的-ai-助手)）；在桌面分屏的笔记面板里则直接成为聊天输入框上方的引用条，按普通发言发送（见“聊天与笔记分屏”）。
 - Android：`ui/QuoteSelection.kt`，见 [android-native.md](android-native.md#回答体验)。
 
 ## 拖放添加文件
@@ -518,7 +518,7 @@ AI 的 `search_notes` 工具（`src/lib/page-ai/tools.ts`）现在与站内搜�
 - **分隔线。** `role="separator"`：拖动改变比例，比例是笔记面板占工作区的份额，限制在 0.3–0.65（`clampSplitRatio`），默认 0.46，面板最窄 320px；双击恢复默认；聚焦后 ←/→ 每次 0.03；RTL 下方向相反。
 - **本机保存。** `localStorage` 的 `notefable:split-view:v1` 存 `{ open, pageId, ratio }`（`loadSplitPreference` / `saveSplitPreference`），只按浏览器保存，不随账号同步。`/app` 是静态页面，所以在页面显示后才读取。
 - **笔记链接在右侧打开。** Chat 视图且宽度够时，`openNoteFromLink` 不切到工作区，而是在分屏里打开（分屏关着就顺便打开）：搜索结果（带 `blockId` 时照常滚到命中的块并高亮）、空对话页最近笔记卡片的 ↗，以及所有派发 `notefable:open-note` 的地方（项目参考笔记和发言附加笔记的标签、Save to page 的 “Open saved page”、Create page 的 “Open page”、画成图的 “Open whiteboard”）。其他情况仍切到 Notes 视图。
-- **Ask AI 进聊天。** 分屏的笔记面板不显示笔记助手的悬浮按钮和面板。在这里选中文字点格式工具栏的 Ask AI，文字成为聊天输入框上方的引用条（与“引用回答追问”同一个引用条和发送格式），同时把这篇笔记加进这条发言的附加笔记（已附加或已满 5 篇时不加）。之后就是一条普通的聊天发言：不带 `noteId` / `noteSelection`，AI 通过附加的笔记和 Notes 工具读到内容。
+- **Ask NoteFable 进聊天。** 分屏的笔记面板不显示笔记助手的悬浮按钮和面板。在这里选中文字点格式工具栏的 Ask NoteFable，文字成为聊天输入框上方的引用条（与“引用回答追问”同一个引用条和发送格式），同时把这篇笔记加进这条发言的附加笔记（已附加或已满 5 篇时不加）。之后就是一条普通的聊天发言：不带 `noteId` / `noteSelection`，AI 通过附加的笔记和 Notes 工具读到内容。
 - **发送前保存。** 分屏打开且右侧笔记有未保存的编辑时（白板先交出还没交给保存队列的变更），发送聊天消息前先 `flush()`，让 AI 读到最新的正文；保存失败不阻止发送。关闭分屏时也 flush 一次。
 
 ## 回答里的数学公式

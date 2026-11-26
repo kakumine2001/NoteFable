@@ -1,7 +1,7 @@
 {
   "name": "NoteFable",
   "short_name": "NoteFable",
-  "description": "AI chat and a personal workspace for your notes.",
+  "description": "AI chat and a personal Workspace for your notes, slide decks and whiteboards.",
   "start_url": "/app",
   "scope": "/",
   "display": "standalone",

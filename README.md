@@ -76,7 +76,7 @@ flowchart LR
 - **桌面端聊天与笔记分屏**：
   - 视口宽度 1100px 以上时，聊天顶栏提供分屏按钮，在右侧并排打开正常编辑器（带笔记切换、版本历史、页面菜单、“在完整视图中打开”和关闭）。
   - 中间分隔线可拖动（笔记侧占 30%–65%，默认 46%；双击恢复默认，聚焦后用 `←` / `→` 调整）；开关、打开的笔记和比例保存在当前浏览器（`localStorage`）。
-  - 宽屏聊天中点笔记链接（搜索结果、参考/附加笔记标签、保存或整理后的打开链接）会在右侧直接打开不离开对话；右侧笔记选中文字点 “Ask AI” 会引用进聊天输入框并附加该笔记；发消息前自动保存右侧未保存编辑。手机宽度和原生 App 无分屏。详见 [chat-flow.md](docs/architecture/chat-flow.md#聊天与笔记分屏)。
+  - 宽屏聊天中点笔记链接（搜索结果、参考/附加笔记标签、保存或整理后的打开链接）会在右侧直接打开不离开对话；右侧笔记选中文字点 “Ask NoteFable” 会引用进聊天输入框并附加该笔记；发消息前自动保存右侧未保存编辑。手机宽度和原生 App 无分屏。详见 [chat-flow.md](docs/architecture/chat-flow.md#聊天与笔记分屏)。
 - **侧栏项目、图标与拖拽排序**：
   - 聊天侧栏每行右侧三点菜单支持置顶/取消置顶、重命名、移动到独立聊天项目、删除确认。项目可新建、改名、删除（删除项目保留聊天）；项目菜单中的 Project settings 可设共通指示与参考页面。共享与归档暂不提供。
   - Chat 和工作区列表无单独拖动柄：直接拖动整行（标题区）调序（触屏长按后拖动；焦点在行上时 `Alt+↑/↓` 也可调整，刷新后保留；在标题区滑动仍正常滚动列表）。Chat 行拖到项目行可移入项目（取消置顶并自动展开项目），拖到 Chats 标题移出项目。
@@ -110,8 +110,8 @@ flowchart LR
 
 #### 页面内 AI 助手
 - 页面编辑和自动保存不调用 AI 模型（开启语义搜索时，保存后会更新嵌入索引，见下文“搜索”）；页面内 AI 助手（笔记、白板、幻灯片共用面板，白板/幻灯片目前只能问、不能改）仅在发送请求后调用所选模型。
-- 选中文字时格式工具栏最前有 “Ask AI”，选中多个块时浮动栏有 “Ask NoteFable”，点击打开助手并引用所选内容，附带快捷操作（改进写作、修正拼写和语法、缩短、解释、翻译）。
-- 助手对话持久化在服务端，首次打开恢复最近一段，标题栏 “New chat” 可另开新段。输入栏“＋”菜单含添加文件或照片、添加页面（桌面聊天输入栏“＋”含添加文件或照片、创建图片、整理成笔记，手机“＋”抽屉合并四项），与聊天共用模型/推理强度选择；不提供图片生成与联网搜索。Android / iOS 的 `/note-embed` 由 App 传入模型，不显示模型选择器。详见 [notes-flow.md](docs/architecture/notes-flow.md)。
+- 选中文字时格式工具栏最前有 “Ask NoteFable”，选中多个块时浮动栏也有，点击打开助手并引用所选内容，附带快捷操作（改进写作、修正拼写和语法、缩短、解释、翻译）。
+- 助手对话持久化在服务端，首次打开恢复最近一段，标题栏 “New chat” 可另开新段。输入栏“＋”菜单含添加文件或照片、添加页面（桌面聊天输入栏“＋”含添加文件或照片、创建图片、整理成笔记，手机“＋”抽屉合并四项），与聊天共用模型/推理强度选择；可编辑页面的“＋”菜单另有 “Generate an image”（生成后先预览，再插入当前页面）；不提供聊天式的图片模式与联网搜索。Android / iOS 的 `/note-embed` 由 App 传入模型，不显示模型选择器。详见 [notes-flow.md](docs/architecture/notes-flow.md)。
 
 #### Markdown 导入与导出
 - **导出**：页面菜单 “Export Markdown” 下载 `.md`（`# 标题` + 正文，`GET /api/pages/:id/export`）。不打包图片和文件，上传的图片/文件块输出为 `[Image: 名称]` / `[File: 名称]`；无整工作区 ZIP 导出。
@@ -154,7 +154,7 @@ flowchart LR
 ### 移动应用（Android / iOS）
 
 - **Android**（`mobile/android/`，Kotlin / Compose）：聊天、侧栏、搜索、附件、图片生成、笔记列表/项目/子页面/收藏/页面菜单、回收站、两级设置（含 Google Play Pro 订阅）、Google / 邮箱验证码登录、引用追问、回答举报、发言添加页面、整理成笔记、画成图、系统分享接收、外观切换、Markdown 导入/导出均已实现；笔记、白板和幻灯片的编辑器通过 WebView 加载 `/note-embed`。默认连接 `https://app.notefable.com`（接口仅在该主机提供，`notefable.com/api/*` 返回 421）。详见 [android-native.md](docs/architecture/android-native.md) 与 [android.md](docs/architecture/android.md)。
-- **iOS**（`mobile/ios/`，Swift / SwiftUI）：对照 Android 移植的原生客户端，通过 CI 编译、Core 单元测试和模拟器截图检查；合入调高构建号的 PR 后自动上传 TestFlight，构建已装到真机，界面尚未逐项验收。上架前还缺 App Store 内购、Sign in with Apple（或确认邮箱验证码登录满足审核要求）和通用链接（网站尚未提供 `apple-app-site-association`）。结构与待补项见 [ios-native.md](docs/architecture/ios-native.md)，PR 检查与 TestFlight 自动上传见 [ios.md](docs/architecture/ios.md)。
+- **iOS**（`mobile/ios/`，Swift / SwiftUI）：对照 Android 移植的原生客户端，通过 CI 编译、Core 单元测试和模拟器截图检查；合入调高构建号的 PR 后自动上传 TestFlight，构建已装到真机，界面尚未逐项验收。Sign in with Apple 与 App Store 订阅内购已实现（服务端与 App Store Connect 配置齐全后开放），仍需真机 / 沙盒验收；上架前还缺通用链接（网站尚未提供 `apple-app-site-association`）。结构与待补项见 [ios-native.md](docs/architecture/ios-native.md)，PR 检查与 TestFlight 自动上传见 [ios.md](docs/architecture/ios.md)。
 
 ---
 
@@ -207,7 +207,7 @@ flowchart LR
 
 “天”按日本时间 0 点重置；超限返回 `429`，失败且无交付内容的请求不计数。页面保存、搜索等不限次数（语义检索与建索引调用 OpenAI 嵌入的次数每人每天各 200 次，超出时搜索静默退回关键词）；更细限流可在 Vercel 防火墙/网关层配置。数值定义见 `src/lib/usage-plans.ts`，计数表见 [database.md](docs/architecture/database.md#usagecounter)。
 
-| 身份 | 聊天（含页面 AI 助手、Create page、画成图） | 图片生成（含幻灯片 AI 生图） | 举报（`REPORT_LIMITS`，回答与 AI 内容共用） |
+| 身份 | 聊天（含页面 AI 助手、Create page、画成图） | 图片生成（含工作区笔记 / 白板 / 幻灯片的 AI 生图） | 举报（`REPORT_LIMITS`，回答与 AI 内容共用） |
 | --- | --- | --- | --- |
 | 游客（未登录） | 20 条 / 天（另设同网络共享上限防清 Cookie 刷额度） | 10 张 / 月 且 3 张 / 天 | 10 次 / 天（未登录同网络合计 20 次 / 天） |
 | 登录免费 | 40 条 / 天 | 20 张 / 月 且 5 张 / 天 | 10 次 / 天 |

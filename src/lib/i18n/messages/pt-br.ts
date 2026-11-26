@@ -695,7 +695,7 @@ export const ptBR: Record<string, string> = {
   "Choose a character": "Escolher um personagem",
   "AI reply": "Resposta da IA",
   "Revise": "Revise",
-  "Make": "Criar",
+  "Make": "Crie",
   "Turn notes into slides and diagrams.": "Transforme notas em slides e diagramas.",
   "Sunlight": "Luz do sol",
   "Air scatters blue": "O ar espalha o azul",

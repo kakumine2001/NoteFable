@@ -690,7 +690,7 @@ export const de: Record<string, string> = {
   "{term} scattering · Scattering ∝ 1/λ⁴…": "{term}-Streuung · Streuung ∝ 1/λ⁴…",
   "{title} (only the beginning was shared)": "{title} (nur der Anfang wurde geteilt)",
   "“{name}” will be deleted. Its pages are kept and move out of the project.": "„{name}“ wird gelöscht. Die zugehörigen Seiten bleiben erhalten und werden aus dem Projekt verschoben.",
-  "“{title}” will be moved to Trash. You can restore it for {count} days.": "„{title}“ wird in den Papierkorb verschoben. Du kannst die Notiz {count} Tage lang wiederherstellen.",
+  "“{title}” will be moved to Trash. You can restore it for {count} days.": "„{title}“ wird in den Papierkorb verschoben. Du kannst die Seite {count} Tage lang wiederherstellen.",
   "＋ New project": "＋ Neues Projekt",
   "Choose a character": "Charakter auswählen",
   "AI reply": "KI-Antwort",

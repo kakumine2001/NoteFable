@@ -4,7 +4,7 @@ Play Console → 发布 → 商店展示 → 主要商店详情。默认语言�
 
 内容只写已经上线的功能（见 [README.md](../../README.md)）；改了功能或额度后同步改这里。Play Console 分批同步这里的内容，不是每次改动后马上同步（见 `AGENTS.md`）。
 
-定位：AI 对话 + 工作区（Workspace：笔记、幻灯片、白板）。应用名保留 “AI Chat & Notes”（notes 是搜索词，放进 Workspace 会让德、法、西、葡、俄语超过 30 字）；简短说明和完整说明写清三种页面。
+定位：AI 对话 + 工作区（Workspace：笔记、幻灯片、白板）。应用名保留 “AI Chat & Notes”（notes 是搜索词，放进 Workspace 会让德、葡、俄等语言超过 30 字）；简短说明和完整说明写清三种页面。
 
 ## English (en-US)
 
@@ -23,9 +23,9 @@ ASK ANYTHING
 • Create and edit images from a text description.
 
 KEEP IT IN YOUR WORKSPACE
-• Save any answer as a note with one tap, or turn a whole chat into a page.
+• Save any answer as a note, or turn a whole chat into a page.
 • Notes: a clean block editor with headings, lists, to-dos, code, math equations, images and files.
-• Slide decks with layouts, themes, text, math, images and shapes: present full screen with speaker notes, export to PDF or PowerPoint, or share a link to view them. Any note can be presented as slides, too.
+• Slide decks with layouts, themes, text, math, images and shapes: present full screen, write speaker notes, export to PDF or PowerPoint, or share a link to view them. Any note can be presented as slides, too.
 • Whiteboards for free-form thinking: draw, add sticky notes, shapes, arrows and images, mark up PDF pages, and share a read-only link.
 • Organize everything with projects, sub-pages, favorites and emoji icons.
 • Edit history and a trash bin, so nothing is lost by accident.
@@ -68,9 +68,9 @@ NoteFable 把 AI 对话和你的工作区放在一起：把回答存成笔记，
 • 用文字描述生成或修改图片。
 
 存进工作区
-• 一键把回答存为笔记，或把整段对话整理成一页笔记。
+• 把回答存为笔记，或把整段对话整理成一页笔记。
 • 笔记：简洁的块编辑器，支持标题、列表、待办、代码、数学公式、图片和文件。
-• 幻灯片：版式、主题、文字、公式、图片和形状；全屏放映并查看演讲备注，导出 PDF 或 PowerPoint，也能分享放映链接。任何笔记也都能直接当幻灯片放映。
+• 幻灯片：版式、主题、文字、公式、图片和形状；全屏放映，添加演讲备注，导出 PDF 或 PowerPoint，也能分享放映链接。任何笔记也都能直接当幻灯片放映。
 • 白板：自由地画，贴便签，放形状、箭头和图片，在 PDF 页面上批注，还能分享只读链接。
 • 用项目、子页面、收藏和表情图标整理全部内容。
 • 编辑历史和回收站，误删也能找回。
@@ -113,9 +113,9 @@ NoteFable 把 AI 對話和你的工作區放在一起：把回答存成筆記，
 • 用文字描述產生或修改圖片。
 
 存進工作區
-• 一鍵把回答存成筆記，或把整段對話整理成一頁筆記。
+• 把回答存成筆記，或把整段對話整理成一頁筆記。
 • 筆記：簡潔的區塊編輯器，支援標題、清單、待辦、程式碼、數學公式、圖片和檔案。
-• 投影片：版面、主題、文字、公式、圖片和形狀；全螢幕放映並查看演講備註，匯出 PDF 或 PowerPoint，也能分享放映連結。任何筆記也都能直接當投影片放映。
+• 投影片：版面、主題、文字、公式、圖片和形狀；全螢幕放映，新增演講備註，匯出 PDF 或 PowerPoint，也能分享放映連結。任何筆記也都能直接當投影片放映。
 • 白板：自由地畫，貼便利貼，放形狀、箭頭和圖片，在 PDF 頁面上批註，還能分享唯讀連結。
 • 用專案、子頁面、收藏和表情符號圖示整理全部內容。
 • 編輯紀錄和垃圾桶，誤刪也能找回。
@@ -158,9 +158,9 @@ NoteFable は AI チャットとワークスペースをひとつにまとめた
 • テキストから画像を生成・編集できます。
 
 ワークスペースに残す
-• 回答をワンタップでノートとして保存。チャット全体を 1 ページにまとめることもできます。
+• 回答をノートとして保存。チャット全体を 1 ページにまとめることもできます。
 • ノート：見出し・リスト・ToDo・コード・数式・画像・ファイルが使えるシンプルなブロックエディタ。
-• スライド：レイアウト・テーマ・テキスト・数式・画像・図形。発表者ノートを見ながら全画面で発表し、PDF や PowerPoint に書き出したり、リンクで共有したりできます。どのノートもそのままスライドとして発表できます。
+• スライド：レイアウト・テーマ・テキスト・数式・画像・図形。全画面で発表し、発表者ノートを書いたり、PDF や PowerPoint に書き出したり、リンクで共有したりできます。どのノートもそのままスライドとして発表できます。
 • ホワイトボード：自由に描いて、付箋・図形・矢印・画像を置き、PDF のページに書き込み、閲覧専用のリンクで共有できます。
 • プロジェクト・サブページ・お気に入り・絵文字アイコンですべてを整理。
 • 編集履歴とゴミ箱があるので、うっかり消しても戻せます。
@@ -203,9 +203,9 @@ NoteFable은 AI 채팅과 워크스페이스를 한곳에 모았습니다. 답�
 • 텍스트 설명으로 이미지를 만들고 편집할 수 있어요.
 
 워크스페이스에 남기기
-• 답변을 탭 한 번으로 노트로 저장하거나, 채팅 전체를 한 페이지로 정리하세요.
+• 답변을 노트로 저장하거나, 채팅 전체를 한 페이지로 정리하세요.
 • 노트: 제목, 목록, 할 일, 코드, 수식, 이미지, 파일을 쓸 수 있는 깔끔한 블록 편집기.
-• 슬라이드: 레이아웃, 테마, 텍스트, 수식, 이미지, 도형. 발표자 노트를 보며 전체 화면으로 발표하고, PDF나 PowerPoint로 내보내거나 링크로 공유할 수 있어요. 어떤 노트든 그대로 슬라이드로 발표할 수도 있어요.
+• 슬라이드: 레이아웃, 테마, 텍스트, 수식, 이미지, 도형. 발표자 노트를 작성하고 전체 화면으로 발표하며, PDF나 PowerPoint로 내보내거나 링크로 공유할 수 있어요. 어떤 노트든 그대로 슬라이드로 발표할 수도 있어요.
 • 화이트보드: 자유롭게 그리고, 메모지·도형·화살표·이미지를 놓고, PDF 페이지에 필기하고, 보기 전용 링크로 공유할 수 있어요.
 • 프로젝트, 하위 페이지, 즐겨찾기, 이모지 아이콘으로 모든 것을 정리하세요.
 • 편집 기록과 휴지통이 있어 실수로 지워도 되살릴 수 있어요.
@@ -248,9 +248,9 @@ PREGUNTA LO QUE QUIERAS
 • Crea y edita imágenes a partir de una descripción.
 
 GUÁRDALO EN TU ESPACIO
-• Guarda cualquier respuesta como nota con un toque o convierte un chat completo en una página.
+• Guarda cualquier respuesta como nota o convierte un chat completo en una página.
 • Notas: un editor de bloques limpio con títulos, listas, tareas, código, ecuaciones, imágenes y archivos.
-• Presentaciones con diseños, temas, texto, ecuaciones, imágenes y formas: presenta a pantalla completa con notas del orador, exporta a PDF o PowerPoint, o comparte un enlace para verlas. Cualquier nota también se puede presentar como diapositivas.
+• Presentaciones con diseños, temas, texto, ecuaciones, imágenes y formas: presenta a pantalla completa, añade notas del orador, exporta a PDF o PowerPoint, o comparte un enlace para verlas. Cualquier nota también se puede presentar como diapositivas.
 • Pizarras para pensar con libertad: dibuja, añade notas adhesivas, formas, flechas e imágenes, anota páginas de PDF y comparte un enlace de solo lectura.
 • Organízalo todo con proyectos, subpáginas, favoritos e iconos emoji.
 • Historial de ediciones y papelera, para que nada se pierda por error.
@@ -293,9 +293,9 @@ POSEZ VOS QUESTIONS
 • Créez et modifiez des images à partir d'une description.
 
 GARDEZ TOUT DANS VOTRE ESPACE
-• Enregistrez une réponse comme note en un geste, ou transformez toute une conversation en page.
+• Enregistrez une réponse comme note, ou transformez toute une conversation en page.
 • Notes : un éditeur par blocs épuré avec titres, listes, tâches, code, équations, images et fichiers.
-• Des présentations avec mises en page, thèmes, texte, équations, images et formes : présentez en plein écran avec les notes du présentateur, exportez en PDF ou PowerPoint, ou partagez un lien pour les consulter. Toute note peut aussi être présentée sous forme de diapositives.
+• Des présentations avec mises en page, thèmes, texte, équations, images et formes : présentez en plein écran, ajoutez des notes du présentateur, exportez en PDF ou PowerPoint, ou partagez un lien pour les consulter. Toute note peut aussi être présentée sous forme de diapositives.
 • Des tableaux blancs pour réfléchir librement : dessinez, ajoutez des notes adhésives, des formes, des flèches et des images, annotez des pages PDF et partagez un lien en lecture seule.
 • Organisez tout avec des projets, des sous-pages, des favoris et des icônes emoji.
 • Historique des modifications et corbeille : rien ne se perd par erreur.
@@ -338,9 +338,9 @@ FRAG, WAS DU WILLST
 • Erstelle und bearbeite Bilder anhand einer Beschreibung.
 
 ALLES IN DEINEM ARBEITSBEREICH
-• Speichere jede Antwort mit einem Tipp als Notiz oder mache aus einem ganzen Chat eine Seite.
+• Speichere jede Antwort als Notiz oder mache aus einem ganzen Chat eine Seite.
 • Notizen: ein übersichtlicher Block-Editor mit Überschriften, Listen, To-dos, Code, Formeln, Bildern und Dateien.
-• Präsentationen mit Layouts, Designs, Text, Formeln, Bildern und Formen: im Vollbild mit Sprechernotizen präsentieren, als PDF oder PowerPoint exportieren oder per Link teilen. Jede Notiz lässt sich auch als Folien präsentieren.
+• Präsentationen mit Layouts, Designs, Text, Formeln, Bildern und Formen: im Vollbild präsentieren, Sprechernotizen hinzufügen, als PDF oder PowerPoint exportieren oder per Link teilen. Jede Notiz lässt sich auch als Folien präsentieren.
 • Whiteboards zum freien Denken: zeichnen, Haftnotizen, Formen, Pfeile und Bilder hinzufügen, PDF-Seiten beschriften und einen schreibgeschützten Link teilen.
 • Ordne alles mit Projekten, Unterseiten, Favoriten und Emoji-Symbolen.
 • Bearbeitungsverlauf und Papierkorb, damit nichts versehentlich verloren geht.
@@ -383,9 +383,9 @@ PERGUNTE O QUE QUISER
 • Crie e edite imagens a partir de uma descrição.
 
 GUARDE TUDO NO SEU ESPAÇO
-• Salve qualquer resposta como nota com um toque ou transforme uma conversa inteira em uma página.
+• Salve qualquer resposta como nota ou transforme uma conversa inteira em uma página.
 • Notas: um editor de blocos simples com títulos, listas, tarefas, código, equações, imagens e arquivos.
-• Apresentações com layouts, temas, texto, equações, imagens e formas: apresente em tela cheia com notas do apresentador, exporte para PDF ou PowerPoint ou compartilhe um link para visualizá-las. Qualquer nota também pode ser apresentada como slides.
+• Apresentações com layouts, temas, texto, equações, imagens e formas: apresente em tela cheia, adicione notas do apresentador, exporte para PDF ou PowerPoint ou compartilhe um link para visualizá-las. Qualquer nota também pode ser apresentada como slides.
 • Quadros brancos para pensar livremente: desenhe, adicione notas adesivas, formas, setas e imagens, anote páginas de PDF e compartilhe um link somente leitura.
 • Organize tudo com projetos, subpáginas, favoritos e ícones de emoji.
 • Histórico de edições e lixeira, para nada se perder por engano.
@@ -428,9 +428,9 @@ CHIEDI QUALSIASI COSA
 • Crea e modifica immagini a partire da una descrizione.
 
 TUTTO NEL TUO SPAZIO
-• Salva qualsiasi risposta come nota con un tocco, o trasforma un'intera chat in una pagina.
+• Salva qualsiasi risposta come nota, o trasforma un'intera chat in una pagina.
 • Note: un editor a blocchi pulito con titoli, elenchi, attività, codice, equazioni, immagini e file.
-• Presentazioni con layout, temi, testo, formule, immagini e forme: presenta a schermo intero con le note del relatore, esporta in PDF o PowerPoint o condividi un link per vederle. Ogni nota si può anche presentare come diapositive.
+• Presentazioni con layout, temi, testo, formule, immagini e forme: presenta a schermo intero, aggiungi le note del relatore, esporta in PDF o PowerPoint o condividi un link per vederle. Ogni nota si può anche presentare come diapositive.
 • Lavagne per pensare liberamente: disegna, aggiungi note adesive, forme, frecce e immagini, annota pagine PDF e condividi un link di sola lettura.
 • Organizza tutto con progetti, sottopagine, preferiti e icone emoji.
 • Cronologia delle modifiche e cestino, così niente va perso per errore.
@@ -473,9 +473,9 @@ TANYA APA SAJA
 • Buat dan edit gambar dari deskripsi teks.
 
 SIMPAN DI RUANG KERJA
-• Simpan jawaban sebagai catatan dengan sekali ketuk, atau ubah seluruh chat menjadi satu halaman.
+• Simpan jawaban sebagai catatan, atau ubah seluruh chat menjadi satu halaman.
 • Catatan: editor blok yang rapi dengan judul, daftar, tugas, kode, persamaan, gambar, dan file.
-• Presentasi dengan tata letak, tema, teks, rumus, gambar, dan bentuk: presentasikan layar penuh dengan catatan pembicara, ekspor ke PDF atau PowerPoint, atau bagikan tautan untuk melihatnya. Catatan apa pun juga bisa dipresentasikan sebagai slide.
+• Presentasi dengan tata letak, tema, teks, rumus, gambar, dan bentuk: presentasikan layar penuh, tambahkan catatan pembicara, ekspor ke PDF atau PowerPoint, atau bagikan tautan untuk melihatnya. Catatan apa pun juga bisa dipresentasikan sebagai slide.
 • Papan tulis untuk berpikir bebas: menggambar, menambahkan catatan tempel, bentuk, panah, dan gambar, membuat catatan di halaman PDF, serta membagikan tautan hanya-baca.
 • Atur semuanya dengan proyek, subhalaman, favorit, dan ikon emoji.
 • Riwayat edit dan tempat sampah, jadi tidak ada yang hilang karena salah hapus.
@@ -518,9 +518,9 @@ HỎI BẤT CỨ ĐIỀU GÌ
 • Tạo và chỉnh sửa hình ảnh từ mô tả bằng chữ.
 
 LƯU VÀO KHÔNG GIAN
-• Lưu câu trả lời thành ghi chú chỉ với một chạm, hoặc biến cả cuộc trò chuyện thành một trang.
+• Lưu câu trả lời thành ghi chú, hoặc biến cả cuộc trò chuyện thành một trang.
 • Ghi chú: trình soạn thảo khối gọn gàng với tiêu đề, danh sách, việc cần làm, mã, công thức toán, hình ảnh và tệp.
-• Bản trình chiếu với bố cục, chủ đề, văn bản, công thức, hình ảnh và hình khối: trình chiếu toàn màn hình kèm ghi chú của người thuyết trình, xuất ra PDF hoặc PowerPoint, hoặc chia sẻ liên kết để xem. Mọi ghi chú cũng có thể trình chiếu như slide.
+• Bản trình chiếu với bố cục, chủ đề, văn bản, công thức, hình ảnh và hình khối: trình chiếu toàn màn hình, thêm ghi chú của người thuyết trình, xuất ra PDF hoặc PowerPoint, hoặc chia sẻ liên kết để xem. Mọi ghi chú cũng có thể trình chiếu như slide.
 • Bảng trắng để suy nghĩ tự do: vẽ, thêm ghi chú dán, hình, mũi tên và hình ảnh, ghi chú lên trang PDF và chia sẻ liên kết chỉ xem.
 • Sắp xếp mọi thứ bằng dự án, trang con, mục yêu thích và biểu tượng emoji.
 • Lịch sử chỉnh sửa và thùng rác, để không mất gì vì lỡ tay.
@@ -563,9 +563,9 @@ NoteFable รวมแชท AI และพื้นที่ทำงานข
 • สร้างและแก้ไขรูปภาพจากคำอธิบาย
 
 เก็บไว้ในพื้นที่ทำงาน
-• บันทึกคำตอบเป็นโน้ตได้ในแตะเดียว หรือเปลี่ยนแชททั้งหมดเป็นหนึ่งหน้า
+• บันทึกคำตอบเป็นโน้ต หรือเปลี่ยนแชททั้งหมดเป็นหนึ่งหน้า
 • โน้ต: ตัวแก้ไขแบบบล็อกที่เรียบง่าย มีหัวข้อ รายการ สิ่งที่ต้องทำ โค้ด สมการ รูปภาพ และไฟล์
-• ชุดสไลด์พร้อมเลย์เอาต์ ธีม ข้อความ สมการ รูปภาพ และรูปร่าง นำเสนอแบบเต็มจอพร้อมบันทึกผู้บรรยาย ส่งออกเป็น PDF หรือ PowerPoint หรือแชร์ลิงก์ให้ผู้อื่นดู โน้ตใดก็นำเสนอเป็นสไลด์ได้ทันที
+• ชุดสไลด์พร้อมเลย์เอาต์ ธีม ข้อความ สมการ รูปภาพ และรูปร่าง นำเสนอแบบเต็มจอ เพิ่มบันทึกผู้บรรยาย ส่งออกเป็น PDF หรือ PowerPoint หรือแชร์ลิงก์ให้ผู้อื่นดู โน้ตใดก็นำเสนอเป็นสไลด์ได้ทันที
 • ไวท์บอร์ดสำหรับคิดอย่างอิสระ: วาดได้ตามใจ เพิ่มโน้ตแปะ รูปทรง ลูกศร และรูปภาพ เขียนกำกับบนหน้า PDF และแชร์ลิงก์แบบดูอย่างเดียว
 • จัดระเบียบทุกอย่างด้วยโปรเจกต์ หน้าย่อย รายการโปรด และไอคอนอีโมจิ
 • มีประวัติการแก้ไขและถังขยะ ไม่ต้องกลัวลบผิด
@@ -608,9 +608,9 @@ NoteFable AI चैट और आपके वर्कस्पेस को �
 • टेक्स्ट में बताकर इमेज बनाएं और बदलें।
 
 वर्कस्पेस में सहेजें
-• किसी भी जवाब को एक टैप में नोट के रूप में सहेजें, या पूरी चैट को एक पेज बना दें।
+• किसी भी जवाब को नोट के रूप में सहेजें, या पूरी चैट को एक पेज बना दें।
 • नोट्स: हेडिंग, सूची, टू-डू, कोड, गणित के समीकरण, इमेज और फ़ाइलों वाला साफ़-सुथरा ब्लॉक एडिटर।
-• लेआउट, थीम, टेक्स्ट, गणितीय सूत्र, इमेज और आकृतियों वाले स्लाइड डेक: वक्ता नोट्स के साथ फ़ुल स्क्रीन में प्रस्तुत करें, PDF या PowerPoint में एक्सपोर्ट करें, या देखने के लिए लिंक शेयर करें। किसी भी नोट को सीधे स्लाइड की तरह भी प्रस्तुत किया जा सकता है।
+• लेआउट, थीम, टेक्स्ट, गणितीय सूत्र, इमेज और आकृतियों वाले स्लाइड डेक: फ़ुल स्क्रीन में प्रस्तुत करें, वक्ता नोट्स जोड़ें, PDF या PowerPoint में एक्सपोर्ट करें, या देखने के लिए लिंक शेयर करें। किसी भी नोट को सीधे स्लाइड की तरह भी प्रस्तुत किया जा सकता है।
 • खुलकर सोचने के लिए व्हाइटबोर्ड: ड्रॉ करें, स्टिकी नोट, आकृतियाँ, तीर और छवियाँ जोड़ें, PDF पेजों पर निशान लगाएँ और केवल देखने वाला लिंक साझा करें।
 • प्रोजेक्ट, सब-पेज, पसंदीदा और इमोजी आइकन से सब कुछ व्यवस्थित करें।
 • एडिट हिस्ट्री और ट्रैश, ताकि गलती से कुछ न खोए।
@@ -653,10 +653,10 @@ AI संदेशों और इमेज की दैनिक और म�
 • أنشئ الصور وعدّلها من وصف نصي.
 
 احفظه في مساحة العمل
-• احفظ أي إجابة كملاحظة بلمسة واحدة، أو حوّل محادثة كاملة إلى صفحة.
+• احفظ أي إجابة كملاحظة، أو حوّل محادثة كاملة إلى صفحة.
 • الملاحظات: محرر كتل بسيط يدعم العناوين والقوائم والمهام والشيفرات والمعادلات والصور والملفات.
-• مجموعات شرائح بتخطيطات وسمات ونصوص ومعادلات وصور وأشكال: اعرضها بملء الشاشة مع ملاحظات المتحدث، أو صدّرها بصيغة PDF أو PowerPoint، أو شارك رابطًا لعرضها. ويمكن أيضًا عرض أي ملاحظة كشرائح.
-• لوحات بيضاء للتفكير بحرية: ارسم وأضف ملاحظات لاصقة وأشكالًا وأسهمًا وصورًا، ودوّن على صفحات PDF، وشارك رابطًا للعرض فقط.
+• مجموعات شرائح بتخطيطات وسمات ونصوص ومعادلات وصور وأشكال: اعرضها بملء الشاشة، وأضف ملاحظات المتحدث، أو صدّرها بصيغة PDF أو PowerPoint، أو شارك رابطًا لعرضها. ويمكن أيضًا عرض أي ملاحظة كشرائح.
+• سبورات للتفكير بحرية: ارسم وأضف ملاحظات لاصقة وأشكالًا وأسهمًا وصورًا، ودوّن على صفحات PDF، وشارك رابطًا للعرض فقط.
 • نظّم كل شيء بالمشاريع والصفحات الفرعية والمفضلة وأيقونات الرموز التعبيرية.
 • سجل للتعديلات وسلة مهملات، فلا يضيع شيء بالخطأ.
 • استورد ملفات Markdown كملاحظات، وصدّر أي ملاحظة بصيغة Markdown.
@@ -698,9 +698,9 @@ HER ŞEYİ SOR
 • Metin açıklamasından görsel oluştur ve düzenle.
 
 ÇALIŞMA ALANINDA SAKLA
-• Herhangi bir yanıtı tek dokunuşla not olarak kaydet ya da bütün bir sohbeti sayfaya dönüştür.
+• Herhangi bir yanıtı not olarak kaydet ya da bütün bir sohbeti sayfaya dönüştür.
 • Notlar: başlık, liste, yapılacaklar, kod, denklem, görsel ve dosya içeren sade bir blok düzenleyici.
-• Düzenler, temalar, metin, formüller, görseller ve şekillerle slayt desteleri: konuşmacı notlarıyla tam ekran sun, PDF veya PowerPoint olarak dışa aktar ya da görüntülemek için bir bağlantı paylaş. Her not da slayt olarak sunulabilir.
+• Düzenler, temalar, metin, formüller, görseller ve şekillerle slayt desteleri: tam ekran sun, konuşmacı notları ekle, PDF veya PowerPoint olarak dışa aktar ya da görüntülemek için bir bağlantı paylaş. Her not da slayt olarak sunulabilir.
 • Özgürce düşünmek için beyaz tahtalar: çizin; yapışkan not, şekil, ok ve görsel ekleyin; PDF sayfalarına not alın ve salt okunur bir bağlantı paylaşın.
 • Her şeyi projeler, alt sayfalar, favoriler ve emoji simgeleriyle düzenle.
 • Düzenleme geçmişi ve çöp kutusu sayesinde yanlışlıkla hiçbir şey kaybolmaz.
@@ -743,9 +743,9 @@ NoteFable объединяет ИИ-чат и ваше «Пространств�
 • Создавайте и редактируйте изображения по текстовому описанию.
 
 ВСЁ В «ПРОСТРАНСТВЕ»
-• Сохраняйте любой ответ как заметку одним нажатием или превращайте весь чат в страницу.
+• Сохраняйте любой ответ как заметку или превращайте весь чат в страницу.
 • Заметки: удобный блочный редактор с заголовками, списками, задачами, кодом, формулами, изображениями и файлами.
-• Презентации с макетами, темами, текстом, формулами, изображениями и фигурами: показывайте их на весь экран с заметками докладчика, экспортируйте в PDF или PowerPoint или делитесь ссылкой для просмотра. Любую заметку тоже можно показать как слайды.
+• Презентации с макетами, темами, текстом, формулами, изображениями и фигурами: показывайте их на весь экран, добавляйте заметки докладчика, экспортируйте в PDF или PowerPoint или делитесь ссылкой для просмотра. Любую заметку тоже можно показать как слайды.
 • Доски для свободных идей: рисуйте, добавляйте стикеры, фигуры, стрелки и изображения, делайте пометки на страницах PDF и делитесь ссылкой только для просмотра.
 • Упорядочивайте всё с помощью проектов, подстраниц, избранного и значков-эмодзи.
 • История правок и корзина — ничего не пропадёт по ошибке.

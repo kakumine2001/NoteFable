@@ -29,7 +29,7 @@ export default function LegalNoticePage() {
           <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a>
           <br />お問い合わせはメールでお願いします。
         </Row>
-        <Row term="サービス名">NoteFable Pro（AI チャットとノートのアプリ NoteFable の有料プラン）</Row>
+        <Row term="サービス名">NoteFable Pro（AI チャットとノート・スライド・ホワイトボードのアプリ NoteFable の有料プラン）</Row>
         <Row term="販売価格">
           {PRICE}。
           <br />Android アプリから Google Play で購入する場合は、購入画面に表示される価格（日本では{PRICE}）となります。

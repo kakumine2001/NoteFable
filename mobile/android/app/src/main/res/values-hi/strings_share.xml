@@ -11,7 +11,7 @@
     <string name="share_public_link">सार्वजनिक लिंक</string>
     <string name="share_copy_link">लिंक कॉपी करें</string>
     <string name="share_open_link">लिंक खोलें</string>
-    <string name="share_include_subpages">उप-पृष्ठ शामिल करें</string>
+    <string name="share_include_subpages">सब-पेज शामिल करें</string>
     <string name="share_link_expires">लिंक समाप्ति</string>
     <string name="share_never">कभी नहीं</string>
     <string name="share_1h">1 घंटा</string>
@@ -21,9 +21,9 @@
     <string name="share_custom_date">कस्टम तिथि…</string>
     <string name="share_set">सेट करें</string>
     <string name="share_expires_time">समाप्ति: %1$s</string>
-    <string name="share_via_parent">मूल पृष्ठ के माध्यम से साझा (%1$s)</string>
-    <string name="share_excluded_parent">मूल पृष्ठ साझाकरण से बाहर (%1$s)</string>
-    <string name="share_exclude_from_parent">मूल पृष्ठ साझाकरण से बाहर रखें</string>
+    <string name="share_via_parent">मूल पेज के माध्यम से साझा (%1$s)</string>
+    <string name="share_excluded_parent">मूल पेज साझाकरण से बाहर (%1$s)</string>
+    <string name="share_exclude_from_parent">मूल पेज साझाकरण से बाहर रखें</string>
     <string name="share_load_failed">साझाकरण सेटिंग्स लोड नहीं हो सकीं।</string>
     <string name="share_update_failed">साझाकरण सेटिंग्स अपडेट नहीं हो सकीं।</string>
 </resources>

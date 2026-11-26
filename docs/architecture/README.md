@@ -89,7 +89,7 @@ flowchart LR
 | `src/app/api/images/route.ts` | 图片生成 / 图片编辑主流程 |
 | `src/app/privacy/page.tsx`、`src/app/terms/page.tsx`、`src/app/legal-notice/page.tsx`、`src/app/delete-account/page.tsx` | 公开的隐私权政策、服务条款、特定商取引法に基づく表記（日文）与账号删除说明页 |
 | `src/app/api/sessions/*` | 会话列表、历史消息、会话图标、拖动重排、停止生成（`stop`）、版本切换（`versions`）、分支（`branch`）、导出（`export`）与整理成笔记（`page`） |
-| `src/app/api/pages/*` | 工作区页面 CRUD、版本检查、分组（`groups`）、拖动重排、子页面/收藏/页面设置/复制/图标、侧栏改名（`[pageId]/title`）、公开分享（`[pageId]/share`）、封面与附件（`covers`、`files`）、幻灯片用的聊天图片（`chat-images`）与 AI 生图（`images`）、画成图（`diagram`）、原生回答保存（`from-answer`）、回收站（`trash`）、编辑历史（`revisions`）、Markdown 导出（`export`）与导入（`import`）；页面 AI 面板的对话恢复走 `GET /api/sessions?noteId=` |
+| `src/app/api/pages/*` | 工作区页面 CRUD、版本检查、分组（`groups`）、拖动重排、子页面/收藏/页面设置/复制/图标、侧栏改名（`[pageId]/title`）、公开分享（`[pageId]/share`）、封面与附件（`covers`、`files`）、幻灯片用的聊天图片（`chat-images`）、工作区 AI 生图（`images`）、画成图（`diagram`）、原生回答保存（`from-answer`）、回收站（`trash`）、编辑历史（`revisions`）、Markdown 导出（`export`）与导入（`import`）；页面 AI 面板的对话恢复走 `GET /api/sessions?noteId=` |
 | `src/lib/note-io.ts` | 笔记的 Markdown 导出格式、导入的个数 / 大小 / 扩展名上限与标题提取（[notes-flow.md](notes-flow.md#markdown-导出与导入)） |
 | `src/lib/session-messages.ts` | 读取一个会话当前显示的消息（附件、附加笔记、提案）的函数，`GET /api/sessions/:id/messages` 使用 |
 | `src/components/split-note-pane.tsx`、`src/lib/split-view.ts` | 桌面端聊天右侧的笔记面板，以及分屏开关、所开笔记和比例的本机保存（[chat-flow.md](chat-flow.md#聊天与笔记分屏)） |

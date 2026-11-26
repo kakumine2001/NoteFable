@@ -84,7 +84,7 @@
     <string name="notes_list_empty">Deine Notizen erscheinen hier.</string>
     <string name="trash">Papierkorb</string>
     <string name="trash_note_title">Seite in den Papierkorb verschieben?</string>
-    <string name="trash_note_body">„%1$s“ wird in den Papierkorb verschoben. Du kannst die Notiz %2$d Tage lang wiederherstellen.</string>
+    <string name="trash_note_body">„%1$s“ wird in den Papierkorb verschoben. Du kannst die Seite %2$d Tage lang wiederherstellen.</string>
     <string name="cancel">Abbrechen</string>
     <string name="move_to_trash">In den Papierkorb verschieben</string>
     <string name="move_to_project">In Projekt verschieben</string>

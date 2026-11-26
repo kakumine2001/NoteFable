@@ -374,7 +374,7 @@ export async function runPageTool(name: string, value: unknown, ctx: ToolContext
       if (query === null) return { content: "query must be a string.", isError: true, label: msg("Invalid page search") };
       const results = await searchPages(ctx.userId, query);
       return {
-        content: JSON.stringify({ results, ...(results.length ? {} : { note: "No matching notes." }) }),
+        content: JSON.stringify({ results, ...(results.length ? {} : { note: "No matching pages." }) }),
         label: query ? fmt("Searched pages for “{query}”", { query }) : msg("Listed recent pages"),
       };
     }

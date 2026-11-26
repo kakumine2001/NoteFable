@@ -138,7 +138,7 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 | `POST /api/pages/files` | 上传图片块/文件块的文件，返回 `{ url, name, size, kind }`，规则见“图片与文件”；存储用量放不下时 413 `code: "storage_limit"` |
 | `GET /api/pages/files?key=&name=` | 只返回当前用户自己的上传文件 |
 | `GET /api/pages/chat-images` / `POST /api/pages/chat-images` | 幻灯片的“聊天里的图片”：列出本人聊天里的图片附件 / 把一张复制成笔记文件，返回 `{ url, name, size }`（[slides.md](slides.md#图片)） |
-| `POST /api/pages/images` | 幻灯片的 “AI 生成图片” `{ prompt, size }`：计一次图片生成次数，结果存成笔记文件，返回 `{ url, name, size, prompt }`（[slides.md](slides.md#图片)） |
+| `POST /api/pages/images` | 工作区（笔记 / 白板 / 幻灯片）的 “AI 生成图片” `{ prompt, size }`：计一次图片生成次数，结果存成笔记文件，返回 `{ url, name, mimeType, size, prompt, reportToken }`（[image-flow.md](image-flow.md)、[slides.md](slides.md#图片)） |
 | `POST /api/pages/groups` | 新建分组 `{ name }` |
 | `PATCH` / `DELETE /api/pages/groups/:groupId` | 重命名 / 删除自己的分组 |
 | `PUT /api/pages/:id/group` | 把页面（连同子页面）移入自己的分组，或用 `{ groupId: null }` 移出；页面同时脱离父页面成为最上位。响应 `{ id, groupId, parentId: null, ids }` |
@@ -219,7 +219,7 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 
 面板标题栏有三个按钮：这篇笔记的聊天（时钟图标，列出 `GET /api/sessions?noteId=` 返回的会话，按最近更新排序，点一条就读取 `GET /api/sessions/:id/messages` 接着聊）、新聊天（清空面板，下一次发送新建会话；旧会话仍在列表里）和关闭。第一次打开面板时自动接着这篇笔记最近的一段聊天；标题栏显示当前会话的标题。常用按钮发出的长指令在重新读取时显示回按钮的名称（`restoreNoteChatMessages`）。`/note-embed`（Android / iOS 的笔记编辑页）用的是同一个面板。
 
-**选中文字 / 选区与吉祥物互动。** 编辑器的格式工具栏最前面有 **Ask AI**（`note-editor.tsx` 的 `NoteAskAiContext`；选中的是图片 / 文件块时没有），块选择浮动栏与 `⋮⋮` 菜单也有 **Ask NoteFable**。只要笔记（块选区）或白板 / 幻灯片（画布选区）存在实时选区且面板尚未展开，右下角 AI 吉祥物按钮即触发一次轻弹与光圈脉冲（`.note-ai-fab.is-perked`，尊重减少动态效果设置），并在按钮面向画面中央的一侧弹出可点击的 **Ask NoteFable** 气泡（`.note-ai-bubble`，`bubblePlacement` 随拖动位置和 LTR/RTL 自动翻转，附带选区数量标签与 `×` 关闭键）。点击气泡或 **Ask AI** 后打开面板并聚焦输入框，所选内容作为引用条显示在输入框上方（× 移除），下面是针对这段文字的按钮：Improve writing、Fix spelling & grammar、Make it shorter、Explain、Translate（后两个要求模型只回答、不改笔记）；面板还没有消息时，原来针对整篇笔记的常用按钮在有引用期间收起。发送时用聊天引用追问同一个 `composeQuotedMessage` 把引用写成 Markdown 引用块放在发言前面，并多带一个表单字段 `noteSelection=1`；服务端在 `buildInstructions()` 里“用户正在这篇笔记里提问”那一句后面再加一句，要求回答和 `propose_note_edit` 只针对与这段摘录对应的块，除非用户明确要求改别处（原文见 [provider-requests.md](provider-requests.md#笔记助手会话多出的指令)）。`noteSelection` 只在带 `noteId` 时生效。服务端接受这次发送后引用条自动清掉。引用按 Markdown 摘录传给模型，不依附块位置。桌面分屏的笔记面板里没有助手面板，Ask AI 改为把引用交给左边的聊天输入框（[chat-flow.md](chat-flow.md#聊天与笔记分屏)）。两项在 `/note-embed` 里同样可用，所以 Android 和 iOS 的编辑器也有。
+**选中文字 / 选区与吉祥物互动。** 编辑器的格式工具栏最前面有 **Ask NoteFable**（`note-editor.tsx` 的 `NoteAskAiContext`；选中的是图片 / 文件块时没有），块选择浮动栏与 `⋮⋮` 菜单也有 **Ask NoteFable**。只要笔记（块选区）或白板 / 幻灯片（画布选区）存在实时选区且面板尚未展开，右下角 AI 吉祥物按钮即触发一次轻弹与光圈脉冲（`.note-ai-fab.is-perked`，尊重减少动态效果设置），并在按钮面向画面中央的一侧弹出可点击的 **Ask NoteFable** 气泡（`.note-ai-bubble`，`bubblePlacement` 随拖动位置和 LTR/RTL 自动翻转，附带选区数量标签与 `×` 关闭键）。点击气泡或 **Ask AI** 后打开面板并聚焦输入框，所选内容作为引用条显示在输入框上方（× 移除），下面是针对这段文字的按钮：Improve writing、Fix spelling & grammar、Make it shorter、Explain、Translate（后两个要求模型只回答、不改笔记）；面板还没有消息时，原来针对整篇笔记的常用按钮在有引用期间收起。发送时用聊天引用追问同一个 `composeQuotedMessage` 把引用写成 Markdown 引用块放在发言前面，并多带一个表单字段 `noteSelection=1`；服务端在 `buildInstructions()` 里“用户正在这篇笔记里提问”那一句后面再加一句，要求回答和 `propose_note_edit` 只针对与这段摘录对应的块，除非用户明确要求改别处（原文见 [provider-requests.md](provider-requests.md#笔记助手会话多出的指令)）。`noteSelection` 只在带 `noteId` 时生效。服务端接受这次发送后引用条自动清掉。引用按 Markdown 摘录传给模型，不依附块位置。桌面分屏的笔记面板里没有助手面板，Ask AI 改为把引用交给左边的聊天输入框（[chat-flow.md](chat-flow.md#聊天与笔记分屏)）。两项在 `/note-embed` 里同样可用，所以 Android 和 iOS 的编辑器也有。
 
 AI 的修改默认仍然只是“编辑案”：面板里显示同样的提案卡片，点 Apply 才会写入，写入走 `/api/proposals/:id/apply`，打开的编辑器通过 `notefable:page-updated` 事件更新到最新内容；AI 在读完之后笔记又被改过（或笔记已进 Trash），则应用时返回 409（或 404），需要重新要求。打开“自动应用”时，对这篇（没有锁定的）页面的编辑案和新建的页面立即写入（同样经过版本检查、同样写历史）；对别的页面的编辑案仍要用户点 Apply。适用前会把被覆盖的状态存成一份 `AI_EDIT` 历史，卡片上的 Undo 一键回到适用之前（页面之后被改过时改用“编辑历史”）。AI 写过的页面（`aiUpdatedAt`）在“…”菜单里多一项 “Report AI content”。
 
@@ -252,7 +252,7 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 - **AI 按钮的图标。** 页面打开时，`window.NoteFableNative.appIcon` 存在就调用它，拿到应用设置里选的角色或图片（预设角色 `character:<id>` 或图片的 data URL，默认角色 Quill 是空字符串；`readNativeAppIcon`），用 `saveAppIcon` 写进这个 WebView 的 `localStorage`（`notefable:app-icon`），AI 按钮和面板标题随之显示它。读到的值不是预设角色也不是图片（如旧版表情）时按默认角色 Quill 处理；没有这个方法的旧版应用不改已有的值。
 - **AI 模型。** 右下角 AI 助手用 URL 里的 `model` / `reasoning`（`readEmbedModelPreference`，再用 `resolveModelPreference` 按服务端模型列表核对：没有的模型不用，选不了的强度换成默认）；没带或无效时用这个 WebView 里最后一次的选择（localStorage），再没有就用服务端默认。
 - **外观。** 根布局的内联脚本（`THEME_INIT_SCRIPT`）在第一次绘制前就按 URL 的 `theme` 上色（没带或无效时用这个 WebView 的 `localStorage` 里的 `notefable:theme:v1`，再没有就跟随系统）。页面挂载后，`window.NoteFableNative.theme` 存在就读它（`readNativeTheme`，值为 `light` / `dark` / `system`，其他值不认），没有再用 URL 的 `theme`；读到的值用 `saveThemePreference` 写进这个 WebView 的 `localStorage` 并应用到 `<html>` 的 `data-theme`，BlockNote 编辑器跟着换。应用传的是它自己界面实际显示的 `light` / `dark`，所以编辑器和原生界面总是同一种外观。
-- **AI 助手。** 选中文字的 Ask AI、对话恢复和 New chat 与网页相同（见“页面里的 AI 助手”）。
+- **AI 助手。** 选中文字的 Ask NoteFable、对话恢复和 New chat 与网页相同（见“页面里的 AI 助手”）。
 
 **网页 → 应用**：存在 `window.NoteFableNative`（Android 为 `@JavascriptInterface`，iOS 由 `NoteEditorWebView` 注入转发到 `window.webkit.messageHandlers` 的垫片）时，调用 `window.NoteFableNative.postMessage(JSON.stringify(msg))`，`msg` 为：
 
@@ -266,7 +266,7 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 | `{type:"pagesChanged"}` | 网页新建了页面（笔记 AI 面板的“画成图”画好了白板）。App 刷新笔记列表（`refresh()`）；不认识的旧版 App 忽略 |
 | `{type:"flushed", requestId, ok, kept?}` | 对 `flush(requestId)` 的回复；`ok` 为 false 时带 `kept` |
 | `{type:"storageLimit", tier, used, limit}` | 编辑器里的图片、文件、封面、图标或 AI 面板的附件因存储空间不够被拒绝（`used` / `limit` 是字节）。只在 App 声明了 `window.NoteFableNative.canShowStorageLimit()` 时发；App 在编辑器上方显示与聊天相同的存储提示（登录 / 升级）。没有这个方法的旧版 App 不收到，网页在编辑器里只说明原因 |
-| `{type:"usageLimit", tier, kind, pageId?}` | 编辑器里的 AI 面板（`kind = "chat"`）或幻灯片 AI 生图对话框（`kind = "image"`）撞到 429 `usage_limit`（附带源页面 `pageId` 以便原生过滤切页后晚到的旧响应）。只在 App 声明了 `window.NoteFableNative.canShowUsageLimit()` 时发；App 在编辑器上方显示原生登录（游客）或升级/只读上限提示（免费会员）。被拒草稿在 `/note-embed` 下经 `pending-draft` 写入带 2 小时有效期的 `localStorage`，原生登录后重建 WebView 再打开同一页面时仍能恢复。没有这个方法的旧版 App 不收到，网页在 WebView 内只展示原因并保留草稿，不弹网页登录 |
+| `{type:"usageLimit", tier, kind, pageId?}` | 编辑器里的 AI 面板（`kind = "chat"`）或工作区 AI 生图对话框（`kind = "image"`）撞到 429 `usage_limit`（附带源页面 `pageId` 以便原生过滤切页后晚到的旧响应）。只在 App 声明了 `window.NoteFableNative.canShowUsageLimit()` 时发；App 在编辑器上方显示原生登录（游客）或升级/只读上限提示（免费会员）。被拒草稿在 `/note-embed` 下经 `pending-draft` 写入带 2 小时有效期的 `localStorage`，原生登录后重建 WebView 再打开同一页面时仍能恢复。没有这个方法的旧版 App 不收到，网页在 WebView 内只展示原因并保留草稿，不弹网页登录 |
 | `{type:"drawing", active}` | 白板正在用绘图工具（抓手以外）。App 据此避开系统的边缘返回手势（Android 每条边 200dp），旧版 App 忽略 |
 | `{type:"fileStart", id, name, mime, size}` → `{type:"fileChunk", id, index, data}` ×n → `{type:"fileEnd", id}`（失败时 `{type:"fileAbort", id}`） | 把导出的文件（白板的 PNG / SVG / PDF 等）交给 App 保存：`data` 是每块原始 512 KiB 的 base64。只在 App 声明了 `window.NoteFableNative.canSaveFile()` 时发（`src/lib/export-file.ts`）；旧版 App 里网页提示更新 |
 | `{type:"trashed"}` | 预留：内嵌页目前不提供移入 Trash 的入口，Trash 由应用在 flush 成功后调用 `DELETE /api/pages/:id` |

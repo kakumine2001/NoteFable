@@ -84,7 +84,7 @@
 "notes_list_empty" = "작성한 노트가 여기에 표시됩니다.";
 "trash" = "휴지통";
 "trash_note_title" = "페이지를 휴지통으로 이동할까요?";
-"trash_note_body" = "“%1$s” 노트가 휴지통으로 이동됩니다. %2$d일 동안 복원할 수 있어요.";
+"trash_note_body" = "“%1$s” 페이지가 휴지통으로 이동됩니다. %2$d일 동안 복원할 수 있어요.";
 "cancel" = "취소";
 "move_to_trash" = "휴지통으로 이동";
 "move_to_project" = "프로젝트로 이동";

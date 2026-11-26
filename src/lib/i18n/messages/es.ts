@@ -695,7 +695,7 @@ export const es: Record<string, string> = {
   "Choose a character": "Elegir un personaje",
   "AI reply": "Respuesta de la IA",
   "Revise": "Revisa",
-  "Make": "Crear",
+  "Make": "Crea",
   "Turn notes into slides and diagrams.": "Convierte tus notas en diapositivas y diagramas.",
   "Sunlight": "Luz solar",
   "Air scatters blue": "El aire dispersa el azul",

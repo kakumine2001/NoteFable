@@ -89,7 +89,7 @@
     <string name="move_to_trash">Çöp Kutusu\'na taşı</string>
     <string name="move_to_project">Projeye taşı</string>
     <string name="move_title_to_project">%1$s öğesini bir projeye taşı</string>
-    <string name="move_title_to_trash">%1$s notunu Çöp Kutusu\'na taşı</string>
+    <string name="move_title_to_trash">%1$s sayfasını Çöp Kutusu\'na taşı</string>
     <string name="rename_project">Projeyi yeniden adlandır</string>
     <string name="create">Oluştur</string>
     <string name="save">Kaydet</string>
@@ -117,8 +117,8 @@
     <string name="delete_forever_q">Kalıcı olarak silinsin mi?</string>
     <string name="delete_forever">Kalıcı olarak sil</string>
     <string name="restore">Geri yükle</string>
-    <string name="restore_title">“%1$s” notunu geri yükle</string>
-    <string name="delete_title_forever">“%1$s” notunu kalıcı olarak sil</string>
+    <string name="restore_title">“%1$s” sayfasını geri yükle</string>
+    <string name="delete_title_forever">“%1$s” sayfasını kalıcı olarak sil</string>
     <string name="deleted_today">Bugün silindi</string>
     <string name="deleted_one_day">1 gün önce silindi</string>
     <string name="deleted_days">%1$d gün önce silindi</string>

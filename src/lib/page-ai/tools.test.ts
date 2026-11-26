@@ -107,7 +107,7 @@ describe("page tools", () => {
     expect(result).toMatchObject({ isError: true, content: "Page not found." });
 
     mocks.queryRaw.mockResolvedValue([]);
-    expect(JSON.parse((await runPageTool("search_notes", { query: "" }, ctx)).content).note).toBe("No matching notes.");
+    expect(JSON.parse((await runPageTool("search_notes", { query: "" }, ctx)).content).note).toBe("No matching pages.");
     // 空の検索では ORDER BY に数値リテラル（列番号扱い）を入れない。
     expect((mocks.queryRaw.mock.calls.at(-1)?.[0] as { sql: string }).sql).toMatch(/ORDER BY p\."updatedAt" DESC/);
   });

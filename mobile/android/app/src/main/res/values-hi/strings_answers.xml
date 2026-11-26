@@ -7,7 +7,7 @@
     <string name="activity_searching_query">“%1$s” खोजा जा रहा है</string>
     <string name="activity_reading_host">%1$s पढ़ा जा रहा है</string>
     <string name="activity_scanning_host">%1$s देखा जा रहा है</string>
-    <string name="activity_searching_notes">आपके पेज में खोज जारी है</string>
+    <string name="activity_searching_notes">आपके पेजों में खोज जारी है</string>
     <string name="activity_reading_note">आपका पेज पढ़ा जा रहा है</string>
     <string name="activity_one_search">1 खोज</string>
     <string name="activity_searches">%1$s खोजें</string>

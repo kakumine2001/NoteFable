@@ -690,7 +690,7 @@ export const ru: Record<string, string> = {
   "{term} scattering · Scattering ∝ 1/λ⁴…": "Рассеяние {term} · Рассеяние ∝ 1/λ⁴…",
   "{title} (only the beginning was shared)": "{title} (передано только начало)",
   "“{name}” will be deleted. Its pages are kept and move out of the project.": "Проект «{name}» будет удалён. Страницы сохранятся и будут вынесены из проекта.",
-  "“{title}” will be moved to Trash. You can restore it for {count} days.": "Заметка «{title}» будет перемещена в корзину. Её можно восстановить в течение {count} дн.",
+  "“{title}” will be moved to Trash. You can restore it for {count} days.": "Страница «{title}» будет перемещена в корзину. Её можно восстановить в течение {count} дн.",
   "＋ New project": "＋ Новый проект",
   "Choose a character": "Выбрать персонажа",
   "AI reply": "Ответ ИИ",
