@@ -194,7 +194,7 @@ jobs:
             majors: "27"
             device-family: iPad
             variants: light
-            scenes: settings settings-plan sign-in
+            scenes: chat chat-scrolled chat-composer drawer search workspace workspace-scrolled editor settings settings-plan sign-in
             artifact: ios-screenshots-ipad
     env:
       NF_IOS_MAJORS: ${{ matrix.majors }}

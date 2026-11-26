@@ -201,9 +201,10 @@ struct ActionsMenuLayer: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .frame(width: configuration.width, height: min(contentHeight ?? maxHeight, maxHeight))
-        .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: Sm.border)
+        // 先裁内容再上玻璃（玻璃自己的边缘和高光不被裁掉）；普通玻璃、不可交互；自定义阴影只在非原生玻璃时画。
         .clipShape(shape)
-        .shadow(color: Sm.menuShadow, radius: 16, x: 0, y: 8)
+        .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: Sm.border)
+        .nfChromeShadow(Sm.menuShadow, radius: 16, y: 8)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(configuration.label ?? "")
         .accessibilityAddTraits(.isModal)

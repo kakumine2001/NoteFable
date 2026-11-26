@@ -222,12 +222,15 @@ model NoteRevision {
 
 // ホワイトボード・スライドの本体。ノートの本文（NotePage.blocks）とは別の表に置き、一覧・検索・ページの読み込みで大きな本体を運ばない。
 // 検索・意味検索・チャットの文脈は data から取り出した文字（segments: [{ id, text }]）だけを使い、本体（線の点など）は走査しない。
+// バックリンクは data から取り出したページへのリンク（links: href の配列、extractCanvasLinks）だけを読む。
 // 版（競合の判定）は NotePage.version を使う。ページを完全に削除するとカスケードで消える。
 model NoteCanvas {
   noteId    String   @id
   data      Json
   // data から取り出した文字。id はホワイトボードの要素、またはスライドのページ（検索結果からそこへ移動する）。
   segments  Json
+  // data にあるアプリ内のページへのリンク（view=pages を含む href の配列）。バックリンクが読む。
+  links     Json     @default("[]")
   // data の JSON の SHA-256（16 進）。応答だけ失われた保存の再送を、本体を読み直さずに見分ける。
   hash      String
   // data の JSON のバイト数（上限の確認と調査用）。

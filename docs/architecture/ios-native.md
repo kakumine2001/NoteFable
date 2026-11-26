@@ -7,8 +7,15 @@
 iOS 客户端是 Android 客户端（[android-native.md](android-native.md)）的对照移植，两端是同一套行为（界面外壳按下面第二条走 iOS 原生）：
 
 - 只通过服务器 API 工作（REST + SSE，默认主机 `https://app.notefable.com`），不改后端。模型列表来自 `GET /api/models`，读不到时用和 Android 共用的 `models.json`。
-- 界面按三端分界（[android-native.md](android-native.md#三端一致与原生分界)）：功能范围、入口、17 种语言的文案和术语、数据与编辑器能力、品牌色和角色形象与网页 / Android 相同；材质、导航容器、手势、动效、弹层呈现按 iOS 原生。外壳正按 #195 分阶段升级为 iOS 26 的 Liquid Glass：Phase 0 已落地规则与 CI 模拟器截图基建；**Phase 1** 已落地 `DesignSystem/LiquidGlass.swift` 兼容层（iOS 26+ 使用 `.glassEffect(_:in:)` / `GlassEffectContainer` / `.safeAreaBar(edge:)`，iOS 17–18 退回 `.regularMaterial` / `.ultraThinMaterial` + `.safeAreaInset(edge:)`，“降低透明度”及调试开关 `nfForceSolidChrome` 通过 `Glass.identity` 保持视图身份并退回实色底）、双层原生导航（底部 3 标签 `TabView`：聊天 / 工作区 / 搜索，iOS 26 用 `role: .search`、iOS 27 用 `role: .prominent` 保持独立圆形玻璃按钮样式，编辑页和幻灯片放映中收起并附带 iOS 26 降低透明度下的 `UITabBarController` 显隐修复；交互式行首推入圆角合并抽屉，同时呈现聊天与工作区目录并配备底部悬浮玻璃操作栏；合并后去掉了顶栏与侧栏重复搜索入口和 `WorkspaceSwitch`）、以及系统 `.sheet` 底部弹层（模型 / 附件 / 回收站，利用 `onDismiss` 衔接后续弹窗）、跨 `TabView` 的 `@Observable NFOverlayCenter` 浮层宿主、不拦截触摸的独立 `UIWindow` 提示条，以及应用内切换阿拉伯语时的 UIKit 窗口级 `semanticContentAttribute` 同步（`AppDrawer`、`LucideShape` 保持 `.fixed` 避免双重镜像）。Phase 2–3 将继续完成聊天悬浮玻璃顶栏/输入栏、工作区筛选与编辑器玻璃控件。外壳以外的内容（消息、列表、卡片、对话框里的排版、字号、间距）仍取网页和 Android 代码里记的测量值（1pt = 1 CSS px），不自创设计。浅色、深色两套颜色分别取自网页的 `:root` 和 `:root[data-theme="dark"]`；玻璃只当底，不改品牌色。
-- 聊天、侧栏、搜索、笔记列表、设置是原生界面；笔记编辑器和 Android 一样用 WebView（`WKWebView`）加载 `/note-embed`；桥消息（`EmbedMessage`）与 Android 相同，`openPage`（页面提及被点）走 `NotesViewModel.openNoteFromLink`。原生 → 网页的调用是 `Core/Notes/NoteEditor.swift` 的 `NoteEmbedScripts`（经 `NoteEditorBridge` ← `NoteEditorController` 执行）：`window.notefableEmbed` 的 `flush(requestId)` / `openHistory()` / `pageUpdated(page)` / `pageSettings(page)` / `appIcon(icon)` / `language(code)` / `theme(value)` / `reveal(id)`，约定见 `src/lib/native-bridge.ts`。页面图标是上传图片时（`Core/Models/Notes.swift` 的 `NoteIcons`），`NFIconTile` / `NoteIconGlyph` 用 `RemoteImage` 带 App 的 Cookie 读 `/api/pages/covers?key=`，和表情一样大、圆角 3；原生的图标选择器还只能选表情（**上传图片图标尚未实现**，编辑器里网页的选择器可以上传）。
+- 界面按三端分界（[android-native.md](android-native.md#三端一致与原生分界)）：功能范围、入口、17 种语言的文案和术语、数据与编辑器能力、品牌色和角色形象与网页 / Android 相同；材质、导航容器、手势、动效、弹层呈现按 iOS 原生。外壳按 #195 换成了 iOS 26 的 Liquid Glass（共用部件见下面“结构”里的“玻璃外壳”）。外壳以外的内容（消息、列表、卡片、对话框里的排版、字号、间距）仍取网页和 Android 代码里记的测量值（1pt = 1 CSS px），不自创设计。浅色、深色两套颜色分别取自网页的 `:root` 和 `:root[data-theme="dark"]`；玻璃只当底，不改品牌色。
+  - **三条渲染路径**（`NFChromePath`，界面和截图 READY 行的 `glass=` 用同一个判断）：iOS 26+ 原生 Liquid Glass（`.glassEffect(_:in:)` / `GlassEffectContainer`；浮动栏用 `.safeAreaBar(edge:)`，栏底就是系统的滚动边缘效果）；iOS 17–18 系统毛玻璃（控件 `.regularMaterial` / `.ultraThinMaterial`，栏底 `Material.bar` 加细线，浮动栏用 `.safeAreaInset(edge:)`）；“降低透明度”或调试开关 `nfForceSolidChrome` 时实色（栏底是页面的底色，控件是 `Sm.surface` 加描边，iOS 26+ 用 `Glass.identity` 关掉玻璃）。切换路径只换值、不换视图结构，输入框的内容和焦点、开着的选择器都不丢。
+  - **导航与弹层**：底部 3 标签 `TabView`（聊天 / 工作区 / 搜索；iOS 26 用 `role: .search`、iOS 27 用 `role: .prominent` 保持独立的圆形玻璃按钮；编辑页和幻灯片放映中收起，附带 iOS 26 降低透明度下的 `UITabBarController` 显隐修复）；交互式行首推入的圆角合并抽屉（聊天与工作区目录；没有 `WorkspaceSwitch`，搜索入口只在搜索标签和编辑页顶栏）；模型 / 附件 / 回收站是系统 `.sheet`（`onDismiss` 衔接后续弹窗）；跨 `TabView` 的 `@Observable NFOverlayCenter` 浮层宿主；不拦截触摸的独立 `UIWindow` 提示条；应用内切换阿拉伯语时同步 UIKit 窗口的 `semanticContentAttribute`（`AppDrawer`、`LucideShape` 保持 `.fixed` 避免双重镜像）。
+  - **聊天**：顶栏（高 56）浮在消息上：行首玻璃圆的菜单；正中玻璃胶囊，有 AI 角色（设置里选的图标，回答时跟着动）、聊天表情和标题、模型名和推理强度，点开模型抽屉，标题放得下时在整条栏的正中；行尾一个玻璃组装“新建聊天”和“…”（聊天的操作菜单，见下面“和 Android 行为不同的地方”）。空白首页只有菜单。消息列表铺满整屏、从顶栏和输入栏下面滚过（两条栏经安全区给消息让位），“滚动到底部”是玻璃圆。输入栏是浮在底部的玻璃卡片（圆角 30、内边距 10）：卡内依次是错误、引用、附上的页面、文件、“生成图片”标记、输入框、控件行和状态小字，上限提示在卡片上方；发送 / 停止键仍是实色的墨色圆。iOS 26+ 在聊天标签里往上翻旧消息时标签栏收起、回到最新处展开（`ChatChrome.tabBarMinimize = .onScrollUp`，其他标签 `.never`）。真机上出问题时的开关：`ChatChrome.composerUsesSystemBar` 改成 `false`（输入栏改用 `safeAreaInset`，没有滚动边缘效果）、`ChatChrome.tabBarMinimize` 改成 `.never`。
+  - **工作区、搜索、设置、抽屉**：都是浮动的玻璃顶栏，内容从下面滚过。工作区首页是菜单 + 页面类型筛选（分段玻璃胶囊，放不下时横向滚动；有两种以上页面类型、工作区又不是空的时才有），头部的 New project / Import Markdown 是可交互玻璃胶囊；搜索是菜单 + 玻璃检索框，下一行是标签的玻璃胶囊和项目 / 类型筛选（系统菜单，触发框是玻璃胶囊，不放进 `GlassEffectContainer`）；设置是关闭 / 返回玻璃圆 + 居中标题（换画面时顶栏不跟着横移，卡片和“未保存的更改”条保持不透明）；抽屉的品牌栏和底部操作栏浮在列表上，面板本身是实色 `Sm.sidebar`。
+  - **编辑页**：顶栏是两组玻璃，行首菜单、返回，行尾搜索、解锁（锁定时）、分享（公开时蓝图标加浅色圆底）、版本历史、“…”；中间是页面图标和标题，保存状态在标题下面；窗口窄时组里的按钮变窄，给标题至少留 44。顶栏不浮动：网页编辑器从顶栏下方开始。
+  - **浮层**：操作菜单、对话框（含登录、项目设置）、提示条、表情选择器都是普通玻璃（先裁内容再上玻璃；自定义阴影只在非原生路径画），玻璃卡片里的输入框自己铺 `Sm.surface` 底。
+  - **按窗口排版**：根视图量出整个窗口放进环境（`nfWindowFrame`），`.nfSheet` Fitted 高度的上限（窗口高的 88%，不低于 260）和提示条的位置按它算，“导入到”和“移到”对话框里列表的最高高度也按窗口高算（`nfWindowHeight`）；外壳不读 `UIScreen.main`。聊天消息列和输入卡片限宽 760（网页 `.notion-page-column` 的 47.5rem；窗口宽到 1440 起按网页的 `clamp(50rem, 48vw, 55rem)`），工作区首页连边距限宽 960（窗口窄于 640 时左右边距 20，否则 48）；滚动区和栏底仍铺满窗口。
+- 聊天、侧栏、搜索、笔记列表、设置是原生界面；笔记编辑器和 Android 一样用 WebView（`WKWebView`）加载 `/note-embed`；桥消息（`EmbedMessage`）与 Android 相同，`openPage`（页面提及被点）走 `NotesViewModel.openNoteFromLink`，`openChat`（笔记下方反向链接里的聊天被点）由 `NoteEditorWebView` 交给 `AppRouter.openChat`（和搜索结果相同：先保存笔记、切到聊天标签页，有 `messageId` 就滚到那条发言；bootstrap 声明 `canOpenChat()`）；抽屉和回收站盖在笔记上面时的改动让开着的笔记重读反向链接（`notefableEmbed.refreshBacklinks()`）：页面改名、换图标、复原在写入成功后（`NotesViewModel.refreshBacklinks`），聊天换图标在写入后（`ChatViewModel.onSessionIconSaved`），聊天改名、删除在抽屉关上时（`AppRouter.drawerOpen`）。原生 → 网页的调用是 `Core/Notes/NoteEditor.swift` 的 `NoteEmbedScripts`（经 `NoteEditorBridge` ← `NoteEditorController` 执行）：`window.notefableEmbed` 的 `flush(requestId)` / `openHistory()` / `pageUpdated(page)` / `pageSettings(page)` / `appIcon(icon)` / `language(code)` / `theme(value)` / `reveal(id)`，约定见 `src/lib/native-bridge.ts`。页面图标是上传图片时（`Core/Models/Notes.swift` 的 `NoteIcons`），`NFIconTile` / `NoteIconGlyph` 用 `RemoteImage` 带 App 的 Cookie 读 `/api/pages/covers?key=`，和表情一样大、圆角 3；原生的图标选择器还只能选表情（**上传图片图标尚未实现**，编辑器里网页的选择器可以上传）。
 - 编辑器里的分栏（`columnList` / `column`，见 [notes-flow.md](notes-flow.md)）由内嵌的网页编辑器处理，App 不读块的结构；手机宽度下栏竖着排，不能拖动调宽。
 - 页面类型（笔记 / 白板 / 幻灯片）的行为和 Android 相同，规则见 [android-native.md](android-native.md) 的“页面类型”一条和 [notes-flow.md](notes-flow.md) 的“页面类型”。对应的代码：`Core/Models/Notes.swift` 的 `PageKind`（缺字段、null、不认识或不是字符串的值都按笔记）和 `PageKindTable`（`features` 是网页 `PAGE_KIND_FEATURES` 那张表：`GET /api/pages` 的 `kinds` 一到就换成它，之前用安装包里与 Android 共用的 `page-kinds.json`）、`pageKindLabel`，`OpenNote.kind`（`ready` 带来时以它为准），菜单的开关 `NotePageToggle.visible(for:)`，检索结果的类型名 `SearchHit.kindLabel`；默认图标 `pageKindIcon`（`DesignSystem/Lucide.swift` 的 `Lucide.shapes` / `Lucide.presentation`），经 `NFIconTile` 的 `fallback` 和 `NoteIconGlyph` 的 `kind`。单元测试：`PageKindTests`，`NotesViewModelTests` 和 `SVGPathDataTests` 里的类型 / 图标路径各一条。图标、“…”菜单、分享按钮、检索的类型名这些界面改动只经过语法检查和 CI 编译，没在模拟器或真机上看过。
 - 白板（#152）：和笔记同一个 `WKWebView` 打开 `/note-embed?page=<id>`，网页显示白板编辑器，桥照旧。新建入口和分区见下面“分区与新建”一条。
@@ -59,7 +66,7 @@ mobile/ios/
   NoteFable/
     App/                 @main 入口
     Core/                不依赖 SwiftUI / UIKit：网络、接口、DTO、解析、ViewModel
-    DesignSystem/        Sm 颜色、Lucide 图标、角色形象、按钮 / 对话框 / 菜单 / 底部抽屉 / 提示
+    DesignSystem/        Sm 颜色、Lucide 图标、角色形象、玻璃外壳、按钮 / 对话框 / 菜单 / 底部抽屉 / 提示
     Features/            各界面（Root、Chat、Sidebar、Search、Notes、Account、Settings、Shared）
     Resources/           Assets.xcassets、17 种语言的 Localizable.strings
   Tests/NoteFableCoreTests/
@@ -77,7 +84,25 @@ mobile/ios/
   @Environment(AppRouter.self) private var router
   ```
 
-- **浮层与底部弹层**：模型、附件、回收站使用包装在 `.nfSheet` 里的系统 `.sheet`（Fitted 与 Medium/Large detent，iOS 26+ 保留系统 Liquid Glass，iOS 17–18 使用 `.regularMaterial`，降低透明度时使用实色底）；对话框、操作菜单、表情选择器、全屏面板（设置 / 登录 / 添加页面 / 项目设置）带 `.nfGlassBackground` 注册到根视图及各层 `.nfOverlayHost()` 的 `@Observable NFOverlayCenter`（用 `.global` 几何坐标跨越 `TabView` 边界，面板 < 对话框 < 菜单）；提示条（`ToastHostModifier`）画在不拦截触摸的独立 `ToastOverlayWindow`（`windowLevel = .normal + 10`）上，浮在系统 `.sheet` 和底部 Tab 栏之上。
+- **浮层与底部弹层**：模型、附件、回收站使用包装在 `.nfSheet` 里的系统 `.sheet`（Fitted 与 Medium/Large detent，iOS 26+ 保留系统 Liquid Glass，iOS 17–18 使用 `.regularMaterial`，降低透明度时使用实色底）；对话框、操作菜单、表情选择器、全屏面板（设置 / 登录 / 添加页面 / 项目设置）带 `.nfGlassBackground` 注册到根视图及各层 `.nfOverlayHost()` 的 `@Observable NFOverlayCenter`（用 `.global` 几何坐标跨越 `TabView` 边界，面板 < 对话框 < 菜单）；提示条（`ToastHostModifier`）画在不拦截触摸的独立 `ToastOverlayWindow`（`windowLevel = .normal + 10`，和根视图同一个场景、同样大小）上，浮在系统 `.sheet` 和底部 Tab 栏之上，摆放见下面的 `NFBottomChrome`。
+- **玻璃外壳**的共用部件在 `DesignSystem/LiquidGlass.swift` 和 `GlassChrome.swift`，界面层不自己判断系统版本和“降低透明度”：
+  - `NFChromePath`（`resolve(reduceTransparency:forceSolid:)`、`primaryInk` / `secondaryInk`）和环境值 `nfChromePath`：三条渲染路径的唯一判断；小块玻璃上的字和图标在原生路径用系统的 primary / secondary，其余用 `Sm.text` / `Sm.muted`。
+  - `nfForceSolidChrome`：调试 / CI 强制走实色（`-NFForceSolidChrome YES`）。
+  - `nfWindowFrame`：根视图（`.toastHost`）量出的整个窗口的 frame，含容器安全区。
+  - `NFChromeMetrics`：iOS 26 工具栏的尺寸（栏高 56、玻璃控件 44、左右 16 / 编辑页 12、间距和容器间距 8、组内按钮宽 40、非原生路径的控件阴影）。
+  - `NFGlassStyle` + `.nfGlassBackground(_:in:solidFill:tint:stroke:)`：任意形状的玻璃底（regular / clear / interactive），按路径换成毛玻璃或实色加描边。
+  - `NFGlassContainer`：iOS 26+ 外面包一层 `GlassEffectContainer`，更早的系统原样放。
+  - `.nfFloatingBar(edge:alignment:spacing:systemBar:content:)`：iOS 26+ 用 `safeAreaBar`（`systemBar: false` 时也用 `safeAreaInset`），更早用 `safeAreaInset`。
+  - `.nfBarBackdrop(_:solidFill:divider:)`：浮动栏自己那块的底：原生路径透明（交给滚动边缘效果），毛玻璃 `Material.bar`，实色 `solidFill`；后两种伸进安全区，可在内侧加细线。
+  - `.nfFloatingHeader(edge:solidFill:divider:spacing:systemBar:content:)`：`nfFloatingBar` + `nfBarBackdrop` + 铺满宽度，浮动栏的默认写法。
+  - `.nfGlassCapsule(_:solidFill:stroke:)`：不是按钮的玻璃胶囊（菜单的触发框、分段轨道、检索框）。
+  - `.nfChromeShadow(_:radius:x:y:)`：只在非原生路径画的阴影（原生路径只把颜色换成透明）。
+  - `NFGlassIconButton`：可交互玻璃圆按钮（原生路径不另加缩放和阴影）。
+  - `NFGlassGroup` / `NFGlassBarButton`：相邻几个按钮共用一个可交互玻璃胶囊（iOS 26 工具栏分组）；组里的按钮自己不带玻璃，可设颜色和“开着”的圆底。
+  - `.nfTabBarHidden(_:)`：收起 / 显示底部标签栏，含 iOS 26 降低透明度下的显隐修复；`NFTabBarMinimize` + `.nfTabBarMinimize(_:)`：iOS 26+ 的 `tabBarMinimizeBehavior`，更早的系统不做事。
+  - `.nfSheet(isPresented:detents:…)`（`NFSheetDetents`：`fitted` / `mediumAndLarge`）：系统 `.sheet`，Fitted 的高度最多到窗口高的 88%（不低于 260）。
+  - `NFGlassTabIcons`：把 Lucide 路径画成模板图片给 `TabView` 用。
+  - `NFBottomChrome` + `.nfReportsBottomChrome(_:)`：各标签页报告窗口底部被标签栏、浮动底栏和 Home 指示条挡住多少，提示条据此摆放（计算在 Core 的 `toastBottomClearance`，单元测试 `ToastClearanceTests`）。
 
 ### 和 Android 的对应
 
@@ -129,11 +154,15 @@ mobile/ios/
 - **撞到上限时的提示**：游客显示登录提示。已登录的免费用户在开放 App Store 购买时可以跳转到设置的方案页。笔记编辑器 WebView 里的 AI 面板或幻灯片 AI 生图撞 429 `usage_limit` 时，bootstrap 声明 `canShowUsageLimit()`，接收 `EmbedMessage.usageLimit(tier, kind, pageId?)` 核对当前编辑器与 `pageId`（过滤切页后晚到的旧页面响应）后写入 `NotesUiState.usageLimit`（与 `storageLimit` 互斥，换编辑器或换身份时清零），`NoteEditorScreen` 在顶栏下方用 `GuestLimitPrompt(usage:)` 呈现：游客显示原生登录入口，已登录免费用户可以跳转到方案页。被拒草稿由网页持久化到 `WKWebsiteDataStore.default()` 的 `localStorage`，登录重建 WebView 后重开原页面自动恢复。
 - **存储空间不够**（413 `storage_limit`）：和 Android 一样文字和附件留在输入栏、显示存储提示（`GuestLimitPrompt(storage:)`：用量、“删除不需要的文件”，游客有登录按钮），笔记编辑器里的上传被拒时网页经桥发 `storageLimit`（`canShowStorageLimit()`），编辑器顶栏下面显示同一个提示。开放 App Store 购买时，免费用户可以跳转到方案页。设置的方案卡片显示存储用量条（`PlanInfo.storage`）和说明。
 - **系统权限说明**（相机、存相册，`Info.plist`）目前只有英文，没有按语言的 `InfoPlist.strings`。
-- **表情选择器**在深色外观下仍是浅色的一块（和网页的 `Theme.LIGHT` 一样；Android 的跟着变深）。
+- **表情选择器**在深色外观下仍是浅色的一块：卡片连同玻璃固定取浅色 `colorScheme`，只有阴影跟着外观（和网页的 `Theme.LIGHT` 一样；Android 的跟着变深）。
 - **启动画面的底色**（`LaunchBackground`）跟随系统的深浅，不看 App 里选的外观：选的和系统不一样时，启动瞬间的底色与进入后的界面不同。
 - **导出笔记**：存好以后不另外提示；写入失败弹 “Could not export the page.” 的提示（Android 显示在笔记顶栏下面的提示条里）。导出、导入的其他错误和 Android 一样分别显示在编辑页顶栏下面和笔记的错误条里。
 - **白板页的边缘手势**：Android 只在网页报来正在用画画的工具（`drawing`）时让开屏幕边缘；iOS 在白板页一直关掉边缘返回和抽屉的边缘拉出（用手的工具时也一样），离开用顶栏的“<”。
 - **常驻复用 WebView 与就地切页（#176）**：与 Android 对齐，`RootView` 持有单个工作区级 `NoteEditorPool`（首次打开笔记时按需创建 `WKWebView`），直接切页与离开后短暂重开都复用同一个 `WKWebView` 并经 `window.notefableEmbed.openPage` 就地切换（命中网页端最多 8 篇的 LRU 缓存；旧版服务端或尚未挂好时回退到 Cookie 同步 + 整页加载）。离开编辑页停留在列表或聊天时调用 `close()` 卸载编辑器 DOM 仅保留轻量缓存，同时通过 `AppEnvironment.warmPageUpdated`、`NotesViewModel.notifyPageUpdated`（侧栏改图标，`PUT /api/pages/:id/icon` 返回的整篇页面，只推这次加载以来在这个 WKWebView 里打开过的页面）、`notifyPageSettings`（没打开着的那篇的收藏 / 显示设置 / 锁定）与 `notifyPagesTrashed` 把聊天提案更新、图标、设置和回收站清理同步进热缓存。`missing` 带 `id`，切页途中只认要打开的那一篇的；旧版服务端回退整页加载（`location.replace`）时记下之前的历史项数（`historyFloor`），边缘返回不会退回上一篇。换身份、退到后台（`scenePhase == .background` 且未打开笔记）、收到系统内存警告（`didReceiveMemoryWarningNotification` 且未打开笔记）、停靠空闲超过 120 秒、网页进程在停靠期间终止以及根视图销毁时彻底释放 `WKWebView`。
+- **聊天顶栏**：标题在正中的玻璃胶囊里，点胶囊打开模型抽屉，是输入栏模型按钮之外的第二个入口。行尾的“…”菜单（更改聊天图标、置顶 / 取消置顶、改名、移到项目、删除；菜单项和对话框与侧栏共用 `ChatSessionMenu` / `ChatActionDialog`）是 iOS 多出来的入口：网页和 Android 的置顶、改名、移到项目、删除只在侧栏聊天行的菜单里。有标题的聊天改图标也挪进了“…”（网页和 Android 用顶栏标题前的图标按钮），空白首页的标题块仍是图标按钮。还没保存的新聊天没有“…”。
+- **工作区的页面类型筛选**在浮动顶栏里、菜单旁边（网页和 Android 在首页的内容里，跟着列表滚动）。
+- **编辑页的保存状态**在标题下面（网页和 Android 是顶栏按钮中间的一个胶囊）。
+- **提示条的位置**：Android 用系统的 Toast；iOS 的提示条画在独立窗口里，放在当前标签页量到的底部遮挡上方 8（标签栏、浮动底栏和 Home 指示条，聊天里包括输入栏；`NFBottomChrome`），键盘开着时在键盘上方 12，没有标签栏时离底 16，还没量到时离底 84（`toastBottomClearance`）。
 
 ## 生成的文件
 
@@ -156,5 +185,9 @@ mobile/ios/
 - 界面层只能查语法：`swiftc -frontend -parse`（命令见 README）。**类型错误只有 CI 能发现**：改到 `mobile/ios/**` 的 PR 会在 `xcode-27` 镜像上跑 `swift test`、`xcodegen generate` 和模拟器无签名构建，失败时 “Compiler errors” 一步列出全部错误。macOS 机器按高倍率计分钟数，尽量攒够改动再推。
 
 有 Mac 时：`brew install xcodegen && cd mobile/ios && xcodegen generate && open NoteFable.xcodeproj`。
+
+界面截图：PR 带 `ios-screenshots` 标签时 CI 在模拟器上以 fixture 模式截图（变体和张数见 [ios.md](ios.md)，场景和启动参数见 [README](../../mobile/ios/README.md)）。玻璃外壳有专门的场景：`chat-scrolled`（消息滚到两条浮动栏下面，出现“滚动到底部”）、`chat-menu`（顶栏“…”菜单）、`emoji-picker`（改聊天图标）、`chat-composer`（输入卡片里有附上的页面、一张图片和两行草稿）、`chat-keyboard`（引用后输入框聚焦、键盘弹出）、`toast`（输入栏上方的提示条）、`chat-streamed`（新聊天里答完的回答）、`search-scrolled`、`settings-page`（“通用”页打开图标的角色选择、滚到卡片底）、`workspace-scrolled`、`editor-scrolled`（定位到行程的 Day 2）、`editor-locked`（锁定且公开的笔记）、`editor-whiteboard`、`editor-slides`。每个场景的 `NF_FIXTURE_READY` 行带 `glass=`（`NFChromePath`：iOS 26+ 应为 `native`，更早的系统为 `material`，“降低透明度”变体为 `solid`，不符时截图任务失败）、`keyboard=up|down`（`chat-keyboard` 没弹出软键盘时只记警告）和 `increaseContrast=`（`hc` 变体必须是 `true`）。
+
+截图看不出、要在 TestFlight 真机上看的：输入栏走 `safeAreaBar` 时是否跟着键盘升降（包括拖动列表收起键盘；不跟时把 `ChatChrome.composerUsesSystemBar` 改成 `false`）、聊天里标签栏随滚动收起和展开（不对时把 `ChatChrome.tabBarMinimize` 改成 `.never`）、可交互玻璃（顶栏圆钮、按钮组、标题胶囊）的按压反馈。App 同时面向 iPhone 和 iPad（`TARGETED_DEVICE_FAMILY` 为 `1,2`）。浮动外壳按当前窗口排版：聊天列和输入卡片收到网页的栏宽、工作区收到 960，弹层和对话框列表按窗口高度封顶；PR 检查的 iPad 截图覆盖聊天、抽屉、检索、工作区、编辑页和设置。iPad 上导航仍是推入式抽屉，`AGENTS.md` 要求的“放得下时侧栏 + 详情”的常驻侧栏还没做；iPad 横竖屏切换、调整过大小的多任务窗口、分屏和 iPhone Duo 折叠 / 展开也还没逐项验证。
 
 发布：只在需要上传 TestFlight 的 PR 里调高 `project.yml` 的 `CURRENT_PROJECT_VERSION`（[ios.md](ios.md)）。

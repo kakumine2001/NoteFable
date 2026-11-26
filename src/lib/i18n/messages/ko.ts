@@ -21,6 +21,7 @@ export const ko: Record<string, string> = {
   "Page title": "페이지 제목",
   "Rename page": "페이지 이름 바꾸기",
   "Table of contents": "목차",
+  "Backlinks": "백링크",
   "Visit website": "웹사이트 방문",
   "Account": "계정",
   "Actions": "작업",

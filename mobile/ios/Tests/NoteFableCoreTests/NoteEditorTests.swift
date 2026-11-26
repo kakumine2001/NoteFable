@@ -162,11 +162,12 @@ final class NoteEditorTests: XCTestCase {
         bridge.close()
         bridge.pageTrashed(["p1", "p2"])
         bridge.pageTrashed([])
+        bridge.refreshBacklinks()
         XCTAssertEqual(
             editor.calls,
             [
                 "history", #"updated:{"id":"p1"}"#, "icon:null", "icon:character:piko",
-                "lang:zh-Hant", "reveal:element_2", "openPage:p2:blk-1:gpt-5:high", "close", "trashed:p1,p2",
+                "lang:zh-Hant", "reveal:element_2", "openPage:p2:blk-1:gpt-5:high", "close", "trashed:p1,p2", "refreshBacklinks",
             ]
         )
     }

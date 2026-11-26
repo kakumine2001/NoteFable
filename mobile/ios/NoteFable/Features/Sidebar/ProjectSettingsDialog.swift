@@ -54,11 +54,12 @@ struct ProjectSettingsDialog: View {
                     if footerHeight != size.height { footerHeight = size.height }
                 }
         }
+        // 先裁内容再上玻璃（玻璃自己的边缘和高光不被裁掉）；自定义阴影只在非原生玻璃时画。
+        .clipShape(shape)
         .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: Sm.panelRing)
         .contentShape(shape)
         .onTapGesture {}
-        .clipShape(shape)
-        .shadow(color: Sm.panelShadow, radius: 10, x: 0, y: 4)
+        .nfChromeShadow(Sm.panelShadow, radius: 10, y: 4)
         .accessibilityAddTraits(.isModal)
     }
 

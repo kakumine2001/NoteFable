@@ -3,6 +3,7 @@ import { isImageIcon, parseCharacterIcon, saveAppIcon, toCharacterIcon } from "@
 import { parseThemePreference, saveThemePreference, type ThemePreference } from "@/lib/theme";
 import { pageSettingsOf, type NotePage, type NotePageSummary, type NoteSaveStatus, type PageKind } from "@/types/notes";
 import { PAGES_TRASHED_EVENT } from "@/lib/proposal-sync";
+import { dispatchBacklinksStale } from "@/lib/note-backlinks";
 import type { UsageKind, UsageTier } from "@/lib/usage-plans";
 
 // Android アプリ（mobile/android）の WebView にノートのエディターだけを載せる /note-embed と、アプリ側とのやり取り。
@@ -19,6 +20,8 @@ export type NativeMessage =
   | { type: "trashed" }
   // ノートの中のページのメンションを押した。アプリはそのページを開く（自分のページか、無いかはアプリ側で確かめる）。
   | { type: "openPage"; id: string }
+  // ノートの下のバックリンク（このページを使った会話）を押した。アプリはその会話を開き、messageId があればそこまで動かす。canOpenChat を持つアプリにだけ送る。
+  | { type: "openChat"; id: string; messageId?: string }
   // ページを新しく作った（ノートの AI パネルの「画成図」）。アプリは一覧を読み直す（知らない古いアプリは無視する）。
   | { type: "pagesChanged" }
   // kept: 保存できなかったが、下書きはこの WebView の localStorage に残っていて後で送り直す（衝突ではない）。アプリはこのとき離れてよい。
@@ -49,9 +52,10 @@ export type NativeMessage =
 // canShowStorageLimit は storageLimit を処理できるアプリだけが持つ（古いアプリには送らず、WebView の中に理由だけを出す）。
 // canShowUsageLimit は usageLimit を処理できるアプリだけが持つ（古いアプリには送らず、WebView 内でウェブのログイン画面を出さずに理由だけを出す）。
 // canPresent は放映（presentation）を、canSaveFile はファイルの保存（fileStart…fileEnd）を受け持てるアプリだけが持つ。
+// canOpenChat は openChat を処理できるアプリだけが持つ（古いアプリにはバックリンクの会話を出さない）。
 export type NativeHost = {
   postMessage: (json: string) => void; appIcon?: () => string; language?: () => string; theme?: () => string; canOpenPage?: () => boolean; canShowStorageLimit?: () => boolean;
-  canShowUsageLimit?: () => boolean; canPresent?: () => boolean; canSaveFile?: () => boolean;
+  canShowUsageLimit?: () => boolean; canPresent?: () => boolean; canSaveFile?: () => boolean; canOpenChat?: () => boolean;
 };
 // アプリ → web。アプリは evaluateJavascript で window.notefableEmbed.flush("<requestId>") などを呼ぶ。
 // pageUpdated はアプリのチャットで編集案を適用したときに、サーバーが返した新しいページ（JSON 文字列かオブジェクト）を渡す。
@@ -76,6 +80,8 @@ export type EmbedApi = {
   close: () => boolean;
   // アプリ側でゴミ箱へ移したページ（およびサブページ）の ID を知らせ、常駐 WebView 内のキャッシュを消す（未保存の下書きは復元時のため残す）。
   pageTrashed: (ids: unknown) => boolean;
+  // アプリの画面（ドロワー・ゴミ箱）で、ページや会話の名前・アイコンを変えた、消した、元に戻したので、バックリンクを読み直させる。
+  refreshBacklinks: () => boolean;
 };
 
 type BridgeWindow = { NoteFableNative?: unknown; notefableEmbed?: EmbedApi };
@@ -129,6 +135,13 @@ export function nativeCanOpenPage(target: BridgeWindow | undefined = browserWind
   const native = host(target);
   if (!native || typeof native.canOpenPage !== "function") return false;
   try { return native.canOpenPage() === true; } catch { return false; }
+}
+
+// アプリが会話を開けるか（openChat）。古いアプリや普通のブラウザでは false。
+export function nativeCanOpenChat(target: BridgeWindow | undefined = browserWindow()): boolean {
+  const native = host(target);
+  if (!native || typeof native.canOpenChat !== "function") return false;
+  try { return native.canOpenChat() === true; } catch { return false; }
 }
 
 // アプリが容量の上限の案内（storageLimit）を自分の画面で出せるか。古いアプリや普通のブラウザでは false。
@@ -310,7 +323,7 @@ export function dispatchPagesTrashed(ids: string[]) {
   window.dispatchEvent(new CustomEvent<{ ids: string[]; preserveDrafts?: boolean }>(PAGES_TRASHED_EVENT, { detail: { ids, preserveDrafts: true } }));
 }
 
-export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, theme = saveThemePreference, slides = dispatchSlidesCommand, openPage, close, pageTrashed = dispatchPagesTrashed, language, reveal = () => {}, post }: {
+export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, theme = saveThemePreference, slides = dispatchSlidesCommand, openPage, close, pageTrashed = dispatchPagesTrashed, refreshBacklinks = dispatchBacklinksStale, language, reveal = () => {}, post }: {
   flush: () => Promise<boolean>;
   reveal?: (target: string) => void;
   language?: (locale: Locale) => Promise<boolean>;
@@ -325,6 +338,7 @@ export function createEmbedApi({ flush, draftKept = () => false, openHistory, pa
   openPage?: (request: OpenPageRequest) => void;
   close?: () => void;
   pageTrashed?: (ids: string[]) => void;
+  refreshBacklinks?: () => void;
   post: (message: NativeMessage) => void;
 }): EmbedApi {
   return {
@@ -393,6 +407,10 @@ export function createEmbedApi({ flush, draftKept = () => false, openHistory, pa
       const ids = parseTrashedPageIds(value);
       if (!ids) return false;
       pageTrashed(ids);
+      return true;
+    },
+    refreshBacklinks() {
+      refreshBacklinks();
       return true;
     },
   };

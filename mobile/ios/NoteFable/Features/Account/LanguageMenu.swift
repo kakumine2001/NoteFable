@@ -87,6 +87,8 @@ private struct LanguageMenuContent: View {
             .focused($searching)
             .padding(8)
             .frame(minHeight: 36)
+            // 菜单是玻璃的：输入框自己铺白底，不然看着像个透明的洞（网页是白底菜单上的白底框）。
+            .background(Sm.surface, in: shape)
             .overlay { shape.strokeBorder(Sm.border, lineWidth: 1) }
             .contentShape(shape)
             .onTapGesture { searching = true }

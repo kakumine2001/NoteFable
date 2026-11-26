@@ -21,6 +21,7 @@ export const ptBR: Record<string, string> = {
   "Page title": "Título da página",
   "Rename page": "Renomear página",
   "Table of contents": "Sumário",
+  "Backlinks": "Links de entrada",
   "Visit website": "Visitar o site",
   "Account": "Conta",
   "Actions": "Ações",
