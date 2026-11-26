@@ -1375,6 +1375,8 @@ class NotesViewModelTest {
         val vm = notesVm(backend)
         val warmUpdated = mutableListOf<Pair<String, String>>()
         vm.notifyPageUpdated = { id, json -> warmUpdated += id to json }
+        var backlinkRefreshes = 0
+        vm.refreshBacklinks = { backlinkRefreshes++ }
         vm.openNote("a")
         advanceUntilIdle()
 
@@ -1393,6 +1395,8 @@ class NotesViewModelTest {
         assertEquals("Renamed page", vm.state.value.open?.title)
         assertTrue("renamePage:a:Renamed page:3" in backend.calls)
         assertEquals(listOf("a"), warmUpdated.map { it.first })
+        // 写入成功后让开着的笔记重读反向链接；没写成（草稿没存下）时不读。
+        assertEquals(1, backlinkRefreshes)
     }
 
     // ---- AI 生成幻灯片的向导（#150） ----

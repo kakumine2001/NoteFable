@@ -1,4 +1,6 @@
 export const ja: Record<string, string> = {
+  "Deleting your NoteFable account does not cancel an App Store subscription. Cancel it in the App Store to avoid renewal.": "NoteFable のアカウントを削除しても、App Store のサブスクリプションは解約されません。更新を止めるには App Store で解約してください。",
+  "Manage App Store Subscription": "App Store のサブスクリプションを管理",
   "Add headings to create a table of contents.": "見出しを追加すると目次が作成されます。",
   "Page title": "ページタイトル",
   "Rename page": "ページ名を変更",
@@ -69,6 +71,7 @@ export const ja: Record<string, string> = {
   "Blue": "青",
   "Both come from {term}. Air scatters short blue wavelengths the most, so at noon blue reaches you from every direction. At sunset the light crosses far more air, the blue is scattered away, and red is what is left.": "どちらも原因は{term}です。空気は波長の短い青い光を強く散乱させるため、昼間はあらゆる方向から青い光が届きます。夕方は光が大気を通る距離が長くなり、青い光が散乱して、赤い光が残ります。",
   "Table of contents": "目次",
+  "Backlinks": "バックリンク",
   "{term} scattering · Scattering ∝ 1/λ⁴…": "{term}散乱・散乱の強さ ∝ 1/λ⁴…",
   "Both come from {term} scattering. Air scatters…": "どちらも原因は{term}散乱です。空気は…",
   "3.2 {term} SCATTERING AND THE COLOUR OF…": "3.2 {term}散乱と色について…",

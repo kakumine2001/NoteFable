@@ -17,7 +17,7 @@ export function userStoragePrefixes(userId: string) {
 // 同じトランザクションで削除の印（deleted-accounts.ts）を付ける。返す cleanup は保存したファイルを消す処理で、
 // 応答を返したあとに呼ぶ（失敗しても行は戻さず、残ったパスを返す。行が無いのでもう誰からも読めない）。
 // tx を渡すと、その接続（呼び出し側のトランザクション）の中で消す（課金のロックの中で消すとき。接続を余分に取らない）。
-export async function deleteAccount(user: { id: string; googleSub: string | null; verifiedEmail: string | null }, tx?: Prisma.TransactionClient) {
+export async function deleteAccount(user: { id: string; googleSub: string | null; verifiedEmail: string | null; appleSub?: string | null }, tx?: Prisma.TransactionClient) {
   const db = tx ?? prisma;
   const [attachments, stored] = await Promise.all([
     db.attachment.findMany({

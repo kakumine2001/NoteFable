@@ -123,9 +123,10 @@ struct NFDialogLayer: View {
             .padding(24)
         }
         .frame(width: max(0, min(metrics.size.width - 48, 400)))
-        .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: Sm.panelRing)
+        // 先裁内容再上玻璃（玻璃自己的边缘和高光不被裁掉）；自定义阴影只在非原生玻璃时画。
         .clipShape(shape)
-        .shadow(color: Sm.panelShadow, radius: 10, x: 0, y: 4)
+        .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: Sm.panelRing)
+        .nfChromeShadow(Sm.panelShadow, radius: 10, y: 4)
         .accessibilityAddTraits(.isModal)
     }
 }

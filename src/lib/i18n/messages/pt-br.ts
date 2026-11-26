@@ -1,4 +1,6 @@
 export const ptBR: Record<string, string> = {
+  "Deleting your NoteFable account does not cancel an App Store subscription. Cancel it in the App Store to avoid renewal.": "Excluir a conta NoteFable não cancela uma assinatura da App Store. Cancele na App Store para evitar a renovação.",
+  "Manage App Store Subscription": "Gerenciar assinatura da App Store",
   "+{count} more": "+{count} mais",
   "1 day left": "Falta 1 dia",
   "1 emoji found. Use the up and down arrow keys to navigate.": "1 emoji encontrado. Use as setas para cima e para baixo para navegar.",
@@ -19,6 +21,7 @@ export const ptBR: Record<string, string> = {
   "Page title": "Título da página",
   "Rename page": "Renomear página",
   "Table of contents": "Sumário",
+  "Backlinks": "Links de entrada",
   "Visit website": "Visitar o site",
   "Account": "Conta",
   "Actions": "Ações",

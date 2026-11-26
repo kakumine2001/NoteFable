@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { signedInUser } from "@/app/api/billing/account";
+import { appleStatusNeedsRefresh, syncApplePurchase } from "@/lib/apple-app-store";
 import { claimPlayPurchase, isGooglePlayConfigured } from "@/lib/google-play-billing";
 import { msg } from "@/lib/i18n/translate";
 
@@ -14,11 +15,12 @@ export async function POST(request: Request) {
   if (!purchaseToken || purchaseToken.length > 4096) return NextResponse.json({ error: msg("Invalid purchase.") }, { status: 400 });
 
   try {
+    if (appleStatusNeedsRefresh(user)) await syncApplePurchase(user);
     const result = await claimPlayPurchase(user.id, purchaseToken);
     switch (result) {
       case "subscribed": return NextResponse.json({ plan: "pro" });
       case "pending": return NextResponse.json({ plan: "free", pending: true }, { status: 202 });
-      case "already-subscribed": return NextResponse.json({ error: msg("You're already subscribed to Pro on the web, so this Google Play purchase was stopped.") }, { status: 409 });
+      case "already-subscribed": return NextResponse.json({ error: user.subscriptionProvider === "apple" ? msg("You're already subscribed to Pro.") : msg("You're already subscribed to Pro on the web, so this Google Play purchase was stopped.") }, { status: 409 });
       case "not-yours": return NextResponse.json({ error: msg("This purchase belongs to another account.") }, { status: 403 });
       case "not-active": return NextResponse.json({ error: msg("This purchase is no longer active.") }, { status: 409 });
     }

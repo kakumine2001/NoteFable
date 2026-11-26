@@ -479,6 +479,8 @@
 "storage_limit_sign_in" = "Sign in to get %1$s of storage.";
 "storage_limit_upgrade" = "Get %1$s of storage with Pro for %2$s/month.";
 "storage_limit_delete" = "Delete files you no longer need to free up space.";
+"plan_manage_app_store" = "Manage App Store Subscription";
+"acct_delete_app_store_notice" = "Deleting your NoteFable account does not cancel an App Store subscription. Cancel it in the App Store to avoid renewal.";
 
 /* strings_report.xml */
 "report_answer" = "Report answer";
@@ -601,6 +603,11 @@
 "slides_export_pptx" = "Export PowerPoint (PPTX)";
 "slides_export_pptx_transition_note" = "Slide transitions aren’t included in PPTX export.";
 
+/* strings_slides_wizard.xml */
+"slides_generate" = "Generate slides";
+"slides_generate_from_chat" = "Make a slide deck from this chat";
+"slides_generate_with_ai" = "Generate with AI";
+
 /* strings_turns.xml */
 "regenerate" = "Regenerate";
 "branch_in_new_chat" = "Branch in new chat";
@@ -612,6 +619,9 @@
 "branch_title" = "Branch · %1$s";
 
 /* iOS only (scripts/ios-strings.ts) */
+"ios_restore_purchases" = "Restore Purchases";
+"ios_no_purchases" = "No active App Store subscription was found.";
+"ios_subscription_conflict" = "You already have Pro. Manage the separate purchase in App Store subscriptions.";
 "attach_source_photos" = "Photo Library";
 "attach_source_camera" = "Take Photo";
 "attach_source_files" = "Choose Files";

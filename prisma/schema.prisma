@@ -66,6 +66,10 @@ model User {
   deviceId           String   @unique
   // Google ログインと紐付けた場合だけ設定する。別端末でも同じ利用者として復元できる。
   googleSub          String?  @unique
+  appleSub           String?  @unique
+  appleRefreshToken  String?
+  appleAuthorizedAt  DateTime?
+  appleRevokedAt     DateTime?
   // 確認済みのメールアドレス（小文字）。メールの確認コードでログインした、または Google が確認済みとしたメール。
   // 同じアドレスなら Google でもメールでも同じ利用者になる。null は未ログイン（または未確認のメールだけの Google 利用者）。
   verifiedEmail      String?  @unique
@@ -95,6 +99,9 @@ model User {
   stripeSubscriptionId          String?   @unique
   // Google Play の購読の購入トークン（src/lib/google-play-billing.ts）。状態はアプリからの報告と RTDN で Google から写す。
   googlePurchaseToken           String?   @unique
+  appleOriginalTransactionId    String?   @unique
+  appleAppAccountToken          String?   @unique @db.Uuid
+  applePurchaseHoldUntil        DateTime?
   // Stripe の購読の状態（active / past_due / canceled など）。null は購読したことがない。
   subscriptionStatus            String?
   // いまの請求期間。PRO の月の上限はこの期間ごとに数える。
@@ -215,12 +222,15 @@ model NoteRevision {
 
 // ホワイトボード・スライドの本体。ノートの本文（NotePage.blocks）とは別の表に置き、一覧・検索・ページの読み込みで大きな本体を運ばない。
 // 検索・意味検索・チャットの文脈は data から取り出した文字（segments: [{ id, text }]）だけを使い、本体（線の点など）は走査しない。
+// バックリンクは data から取り出したページへのリンク（links: href の配列、extractCanvasLinks）だけを読む。
 // 版（競合の判定）は NotePage.version を使う。ページを完全に削除するとカスケードで消える。
 model NoteCanvas {
   noteId    String   @id
   data      Json
   // data から取り出した文字。id はホワイトボードの要素、またはスライドのページ（検索結果からそこへ移動する）。
   segments  Json
+  // data にあるアプリ内のページへのリンク（view=pages を含む href の配列）。バックリンクが読む。
+  links     Json     @default("[]")
   // data の JSON の SHA-256（16 進）。応答だけ失われた保存の再送を、本体を読み直さずに見分ける。
   hash      String
   // data の JSON のバイト数（上限の確認と調査用）。

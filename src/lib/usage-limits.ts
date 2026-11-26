@@ -19,6 +19,8 @@ export type UsageUser = {
   id: string;
   googleSub: string | null;
   verifiedEmail?: string | null;
+  appleSub?: string | null;
+  subscriptionProvider?: string | null;
   plan?: string | null;
   subscriptionPeriodStart?: Date | null;
   subscriptionPeriodEnd?: Date | null;
@@ -28,10 +30,13 @@ export function usageDay(now = new Date()) {
   return new Date(now.getTime() + DAY_OFFSET_MS).toISOString().slice(0, 10);
 }
 
-export function usageTier(user: { googleSub: string | null; verifiedEmail?: string | null; plan?: string | null }): UsageTier {
-  if (user.plan === "PRO") return "pro";
+type UsagePlanOwner = Omit<UsageUser, "id" | "subscriptionPeriodStart">;
+
+export function usageTier(user: UsagePlanOwner, now = Date.now()): UsageTier {
+  const appleExpired = user.subscriptionProvider === "apple" && (user.subscriptionPeriodEnd?.getTime() ?? 0) <= now;
+  if (user.plan === "PRO" && !appleExpired) return "pro";
   // Google でもメールでも、ログインしていれば会員。
-  return user.googleSub || user.verifiedEmail ? "member" : "guest";
+  return user.googleSub || user.verifiedEmail || user.appleSub ? "member" : "guest";
 }
 
 // 期間の初日（日本時間の日付）と、次に数え直す時刻。

@@ -95,6 +95,12 @@ private struct NoteFableWindow: View {
                     router.consumePendingShares()
                 }
             }
+            .task(id: app.account.state.user != nil ? app.identityGeneration : nil) {
+                guard !ScreenshotHooks.isActive, app.account.state.user != nil else { return }
+                await AppleSubscription.observe(api: app.accountApi) {
+                    app.onAppleBillingChanged()
+                }
+            }
             .task {
                 #if DEBUG
                 if let fixture = FixtureLaunch.current {

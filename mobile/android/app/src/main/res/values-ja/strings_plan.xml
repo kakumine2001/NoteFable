@@ -32,4 +32,6 @@
     <string name="storage_limit_sign_in">ログインすると %1$s まで保存できます。</string>
     <string name="storage_limit_upgrade">Pro（月額 %2$s）なら、%1$s まで保存できます。</string>
     <string name="storage_limit_delete">不要なファイルを削除すると、空き容量を増やせます。</string>
+    <string name="plan_manage_app_store">App Store のサブスクリプションを管理</string>
+    <string name="acct_delete_app_store_notice">NoteFable のアカウントを削除しても、App Store のサブスクリプションは解約されません。更新を止めるには App Store で解約してください。</string>
 </resources>

@@ -4,6 +4,8 @@
 
 `Message.activity` 为可空 TEXT，保存回答前的途中经过（推理摘要、Web 搜索、Pages 工具步骤的 `ActivityStep[]` JSON，不含已另存于 `NoteProposal` 的提案）；`Message.thinkingMs` 为可空 INTEGER，保存从请求开始到首个正文增量的毫秒数。两者仅用于显示，浏览器消息接口返回（经 `parseStoredActivity` 校验），聊天历史查询不 select、不回传给模型。新增字段通过 `20261014180000_message_activity` migration 部署。
 
+iOS Apple 登录把稳定的 Apple subject 存在 `User.appleSub`，授权撤销所需的 refresh token 加密后存在 `appleRefreshToken`。App Store 购买使用独立 UUID `appleAppAccountToken` 关联用户，`appleOriginalTransactionId` 记录 Apple 的原始交易。授权时间和撤销时间保护旧会话失效，待处理购买的保留期限用于防止重复订阅。新增列均可空，已有用户不需要回填。
+
 ## 实际生产数据库
 
 截至 2026-09-05 已通过 Neon 实际资源确认：
@@ -186,6 +188,7 @@ erDiagram
         string noteId PK, FK
         json data "whiteboard / slides content, at most 2 MB"
         json segments "extracted text [{ id, text }]"
+        json links "extracted in-app page links"
         string hash "SHA-256 of data"
         int size "bytes of data"
         datetime updatedAt
@@ -383,7 +386,7 @@ User 1 -> N StoredFile（SetNull）
 
 ### NoteCanvas
 
-白板和幻灯片的本体（`20261123000000_page_kinds` 新增）。`noteId` 是主键也是指向 `NotePage` 的外键（`ON DELETE CASCADE`：页面被永久删除时一起删除；放进 Trash 时保留）。`data` 是本体 JSON（最多 2 MB，形状与校验见 [notes-flow.md](notes-flow.md#页面类型笔记--白板--幻灯片)），`segments` 是每次保存时服务端从本体取出的文字 `[{ id, text }]`（`id` 是白板的元素或幻灯片的页），`hash` 是本体 JSON 的 SHA-256（判断保存的重发），`size` 是本体的字节数。版本（冲突判断）用 `NotePage.version`：保存在同一事务里先按版本条件更新 `NotePage`（标题、图标、`version + 1`），成功才写这一行。站内搜索、`search_notes`、语义搜索的索引、附加笔记和项目参考笔记只读 `segments`（SQL 里 `LEFT JOIN NoteCanvas c` 后读 `c."segments"`），列表和一般的页面读取不读这张表。复制页面时用 `INSERT … SELECT` 在数据库里复制。没有 `userId` 列：所有读取都经 `NotePage` 的 `userId` 限定（`note: { userId }` 或 JOIN）。
+白板和幻灯片的本体（`20261123000000_page_kinds` 新增）。`noteId` 是主键也是指向 `NotePage` 的外键（`ON DELETE CASCADE`：页面被永久删除时一起删除；放进 Trash 时保留）。`data` 是本体 JSON（最多 2 MB，形状与校验见 [notes-flow.md](notes-flow.md#页面类型笔记--白板--幻灯片)），`segments` 是每次保存时服务端从本体取出的文字 `[{ id, text }]`（`id` 是白板的元素或幻灯片的页），`links` 是同时取出的页面链接（`href` 字符串数组，只留含 `view=pages` 的：白板的元素链接和页面卡片、幻灯片的文字链接；反向链接只读这一列，`20261126000000_note_canvas_links` 新增并回填已有行），`hash` 是本体 JSON 的 SHA-256（判断保存的重发），`size` 是本体的字节数。版本（冲突判断）用 `NotePage.version`：保存在同一事务里先按版本条件更新 `NotePage`（标题、图标、`version + 1`），成功才写这一行。站内搜索、`search_notes`、语义搜索的索引、附加笔记和项目参考笔记只读 `segments`（SQL 里 `LEFT JOIN NoteCanvas c` 后读 `c."segments"`），列表和一般的页面读取不读这张表。复制页面时用 `INSERT … SELECT` 在数据库里复制。没有 `userId` 列：所有读取都经 `NotePage` 的 `userId` 限定（`note: { userId }` 或 JOIN）。
 
 ### StoredFile
 

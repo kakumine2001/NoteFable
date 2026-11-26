@@ -229,6 +229,11 @@ internal fun PlanSettings(state: PlanSettingsState) {
                     }
                 }
             }
+            current.appStoreManageUrl?.let { url ->
+                SettingsChip(Lucide.CreditCard, stringResource(R.string.plan_manage_app_store), Modifier.padding(top = 16.dp)) {
+                    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                }
+            }
             current.manageUrl?.let { url ->
                 SettingsChip(Lucide.CreditCard, stringResource(R.string.plan_manage_play), Modifier.padding(top = 16.dp)) {
                     runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }

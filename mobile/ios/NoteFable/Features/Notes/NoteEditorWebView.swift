@@ -259,6 +259,11 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
                     break
                 }
             }
+            if case .openChat(let id, let messageId) = message {
+                // 笔记下方反向链接里的聊天：和搜索结果一样，先保存笔记、切到聊天，再打开（有发言就滚到那里）。
+                self.router.openChat(id, messageId: messageId)
+                return
+            }
             self.app.notes.onEditorMessage(editor, message)
         })
     }
@@ -602,6 +607,10 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
 
     func slides(_ command: String) {
         run(NoteEmbedScripts.slides(command))
+    }
+
+    func refreshBacklinks() {
+        run(NoteEmbedScripts.refreshBacklinks)
     }
 
     private func run(_ script: String) {

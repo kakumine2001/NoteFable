@@ -146,12 +146,16 @@ private struct EmojiPopoverLayer: View {
         let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
         return EmojiPickerBody(current: current, height: size.pickerHeight, removeLabel: removeLabel, onClose: onClose, onPick: onPick)
             .frame(width: size.width)
+            // 先裁内容再上玻璃（玻璃自己的边缘和高光不被裁掉）。
+            .clipShape(shape)
             .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: Sm.panelRing)
             // 卡片上的空白处不算"点外面"。
             .contentShape(shape)
             .onTapGesture {}
-            .clipShape(shape)
-            .shadow(color: Sm.panelShadow, radius: 10, x: 0, y: 4)
+            // 网页的表情面板固定用浅色主题（Theme.LIGHT），深色外观下也是浅色的一块（和账号头像的表情页一样）：
+            // 里面的白色搜索框和分类标题条在深色下会变成浅底浅字。玻璃也在这里面，跟着取浅色；阴影在外面，照外观。
+            .environment(\.colorScheme, .light)
+            .nfChromeShadow(Sm.panelShadow, radius: 10, y: 4)
             .accessibilityElement(children: .contain)
             .accessibilityLabel(L("em_choose"))
     }

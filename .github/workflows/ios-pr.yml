@@ -189,6 +189,18 @@ jobs:
             runner: macos-15
             majors: "18"
             artifact: ios-screenshots-ios18
+          - label: iPad
+            runner: xcode-27
+            majors: "27"
+            device-family: iPad
+            variants: light
+            scenes: chat chat-scrolled chat-composer drawer search workspace workspace-scrolled editor settings settings-plan sign-in
+            artifact: ios-screenshots-ipad
+    env:
+      NF_IOS_MAJORS: ${{ matrix.majors }}
+      NF_DEVICE_FAMILY: ${{ matrix.device-family }}
+      NF_VARIANTS: ${{ matrix.variants }}
+      NF_SCENES: ${{ matrix.scenes }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -200,8 +212,6 @@ jobs:
           sudo dscacheutil -flushcache
           sudo killall -HUP mDNSResponder || true
       - name: Start booting the simulator in the background
-        env:
-          NF_IOS_MAJORS: ${{ matrix.majors }}
         # Output goes to a file: a background process holding the step's output pipe would keep the step open.
         run: |
           nohup bash mobile/ios/scripts/ci-screenshots.sh --boot-only >"$RUNNER_TEMP/boot.log" 2>&1 &
@@ -234,8 +244,6 @@ jobs:
           tar -xzf "$RUNNER_TEMP/app/NoteFable-sim.tgz" -C "$RUNNER_TEMP/app"
           test -x "$RUNNER_TEMP/app/NoteFable.app/NoteFable"
       - name: Capture fixture screenshots
-        env:
-          NF_IOS_MAJORS: ${{ matrix.majors }}
         run: |
           # Let the background boot finish first; if it failed, the capture run boots again and reports the error.
           pid=$(cat "$RUNNER_TEMP/boot.pid")

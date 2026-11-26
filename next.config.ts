@@ -9,6 +9,15 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return { beforeFiles: siteApiBlockRewrites(), afterFiles: [], fallback: [] };
   },
+  // iOS Universal Links は拡張子なしの /.well-known/apple-app-site-association に application/json を要求する。
+  async headers() {
+    return [
+      {
+        source: "/.well-known/apple-app-site-association",
+        headers: [{ key: "Content-Type", value: "application/json" }],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

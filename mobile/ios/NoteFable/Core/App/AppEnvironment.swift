@@ -99,6 +99,9 @@ final class AppEnvironment {
 
     /// 每换一次身份（登录、退出、删除账号）加一。界面用它清掉自己手上属于旧身份的状态（比如开着的「整理成笔记」窗口）。
     private(set) var identityGeneration = 0
+    private(set) var appleBillingGeneration = 0
+
+    func onAppleBillingChanged() { appleBillingGeneration += 1 }
 
     /// 安装包配了 Google 登录（Info.plist 的 `GIDClientID`）。
     var googleSignInConfigured: Bool { config.googleIOSClientId != nil }
@@ -232,6 +235,8 @@ final class AppEnvironment {
         )
         notes = NotesViewModel(backend: api, prefs: UserDefaultsNotesPrefs(defaults: defaults), noteIcons: noteIconApi)
         sidebar = SidebarViewModel(sessions: sessionsApi, projectsApi: projectsApi, chat: chat)
+        // 在抽屉里给聊天换图标后立刻关掉时，写入可能晚于抽屉关闭的通知。
+        chat.onSessionIconSaved = { [weak self] in self?.editorBridge?.refreshBacklinks() }
     }
 
     /// 全屏检索的 ViewModel：每次打开检索建一个（Android 的 SearchViewModel.Factory）。

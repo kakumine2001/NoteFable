@@ -21,6 +21,8 @@ type SplitNotePaneProps = {
   model: string;
   reasoning: string;
   onSelectNote: (id: string) => void;
+  // バックリンクの会話を左のチャットで開く。
+  onOpenChat: (id: string, messageId?: string) => void;
   onCreateNote: (parentId?: string) => void;
   onOpenFullView: (id: string) => void;
   onOpenHistory: (id: string) => void;
@@ -38,6 +40,7 @@ export function SplitNotePane({
   model,
   reasoning,
   onSelectNote,
+  onOpenChat,
   onCreateNote,
   onOpenFullView,
   onOpenHistory,
@@ -241,6 +244,7 @@ export function SplitNotePane({
             model={model}
             reasoning={reasoning}
             onOpen={onSelectNote}
+            onOpenChat={onOpenChat}
             onCreate={() => onCreateNote()}
             onWorkspaceChange={() => {}}
             onAskSelectionInChat={onAskSelectionInChat}

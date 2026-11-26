@@ -1,4 +1,6 @@
 export const ar: Record<string, string> = {
+  "Deleting your NoteFable account does not cancel an App Store subscription. Cancel it in the App Store to avoid renewal.": "حذف حساب NoteFable لا يلغي اشتراك App Store. ألغِ الاشتراك في App Store لتجنب تجديده.",
+  "Manage App Store Subscription": "إدارة اشتراك App Store",
   "+{count} more": "+{count} أخرى",
   "1 day left": "متبقٍ يوم واحد",
   "1 emoji found. Use the up and down arrow keys to navigate.": "تم العثور على رمز تعبيري واحد. استخدم سهمي الأعلى والأسفل للتنقل.",
@@ -19,6 +21,7 @@ export const ar: Record<string, string> = {
   "Page title": "عنوان الصفحة",
   "Rename page": "إعادة تسمية الصفحة",
   "Table of contents": "جدول المحتويات",
+  "Backlinks": "الروابط الخلفية",
   "Visit website": "زيارة الموقع الإلكتروني",
   "Account": "الحساب",
   "Actions": "الإجراءات",

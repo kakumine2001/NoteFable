@@ -59,7 +59,7 @@ describe("account profile", () => {
 
   it("shows no user when signed out", async () => {
     mocks.auth.mockResolvedValue(null);
-    expect(await (await GET()).json()).toEqual({ configured: true, google: true, email: false, user: null, googleClientId: "client-id" });
+    expect(await (await GET()).json()).toEqual({ configured: true, google: true, email: false, apple: false, appStoreBilling: false, user: null, googleClientId: "client-id" });
   });
 
   it("shows the Google name and photo by default", async () => {

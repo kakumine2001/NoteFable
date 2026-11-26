@@ -479,6 +479,8 @@
 "storage_limit_sign_in" = "%1$s depolama alanı için oturum açın.";
 "storage_limit_upgrade" = "Ayda %2$s karşılığında Pro ile %1$s depolama alanı edinin.";
 "storage_limit_delete" = "Yer açmak için artık ihtiyacınız olmayan dosyaları silin.";
+"plan_manage_app_store" = "App Store Aboneliğini Yönet";
+"acct_delete_app_store_notice" = "NoteFable hesabını silmek App Store aboneliğini iptal etmez. Yenilenmesini önlemek için App Store'dan iptal et.";
 
 /* strings_report.xml */
 "report_answer" = "Yanıtı bildir";
@@ -601,6 +603,11 @@
 "slides_export_pptx" = "PowerPoint (PPTX) olarak dışa aktar";
 "slides_export_pptx_transition_note" = "Slayt geçişleri PPTX dışa aktarımına dahil edilmez.";
 
+/* strings_slides_wizard.xml */
+"slides_generate" = "Slayt oluştur";
+"slides_generate_from_chat" = "Bu sohbetten bir slayt destesi oluştur";
+"slides_generate_with_ai" = "Yapay zekâyla oluştur";
+
 /* strings_turns.xml */
 "regenerate" = "Yeniden oluştur";
 "branch_in_new_chat" = "Yeni sohbette dallandır";
@@ -612,6 +619,9 @@
 "branch_title" = "Dal · %1$s";
 
 /* iOS only (scripts/ios-strings.ts) */
+"ios_restore_purchases" = "Satın Alımları Geri Yükle";
+"ios_no_purchases" = "Etkin App Store aboneliği bulunamadı.";
+"ios_subscription_conflict" = "Zaten Pro aboneliğin var. Ayrı satın alımı App Store aboneliklerinden yönet.";
 "attach_source_photos" = "Fotoğraf Arşivi";
 "attach_source_camera" = "Fotoğraf Çek";
 "attach_source_files" = "Dosya Seç";

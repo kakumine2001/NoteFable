@@ -7,16 +7,17 @@ import { prisma } from "@/lib/prisma";
 // 削除より前にログインした Cookie はここで無効とみなす。印は ID そのものではなく HMAC だけを持ち、400 日で消す。
 export const DELETED_ACCOUNT_RETENTION_DAYS = 400;
 
-type LoginId = { kind: "google"; sub: string } | { kind: "email"; email: string };
+type LoginId = { kind: "google" | "apple"; sub: string } | { kind: "email"; email: string };
 
 export function deletedAccountKey(id: LoginId) {
-  const value = id.kind === "google" ? `google:${id.sub}` : `email:${id.email}`;
+  const value = id.kind === "email" ? `email:${id.email}` : `${id.kind}:${id.sub}`;
   return createHmac("sha256", getCookieSecret()).update(`deleted-account:${value}`).digest("base64url");
 }
 
 // 削除する利用者のログイン ID 全部（Google と確認済みメールの両方を持つこともある）。
-export function deletedAccountKeys(user: { googleSub: string | null; verifiedEmail: string | null }) {
+export function deletedAccountKeys(user: { googleSub: string | null; verifiedEmail: string | null; appleSub?: string | null }) {
   const ids: LoginId[] = [];
+  if (user.appleSub) ids.push({ kind: "apple", sub: user.appleSub });
   if (user.googleSub) ids.push({ kind: "google", sub: user.googleSub });
   if (user.verifiedEmail) ids.push({ kind: "email", email: user.verifiedEmail });
   return ids.map(deletedAccountKey);

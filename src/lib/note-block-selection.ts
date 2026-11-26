@@ -260,6 +260,7 @@ const MARQUEE_BLOCKED_SELECTOR = [
   ".notes-storage-limit",
   ".notes-action-error",
   ".notion-warning",
+  ".notes-backlinks",
 ].join(", ");
 
 export function canStartMarqueeTarget(target: Element | null, workspaceEl: Element | null): boolean {

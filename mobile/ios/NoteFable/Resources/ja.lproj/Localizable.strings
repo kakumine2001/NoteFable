@@ -479,6 +479,8 @@
 "storage_limit_sign_in" = "ログインすると %1$s まで保存できます。";
 "storage_limit_upgrade" = "Pro（月額 %2$s）なら、%1$s まで保存できます。";
 "storage_limit_delete" = "不要なファイルを削除すると、空き容量を増やせます。";
+"plan_manage_app_store" = "App Store のサブスクリプションを管理";
+"acct_delete_app_store_notice" = "NoteFable のアカウントを削除しても、App Store のサブスクリプションは解約されません。更新を止めるには App Store で解約してください。";
 
 /* strings_report.xml */
 "report_answer" = "回答を報告";
@@ -601,6 +603,11 @@
 "slides_export_pptx" = "PowerPoint（PPTX）に書き出す";
 "slides_export_pptx_transition_note" = "PPTX 書き出しにはスライドの切り替え効果は含まれません。";
 
+/* strings_slides_wizard.xml */
+"slides_generate" = "スライドを生成";
+"slides_generate_from_chat" = "このチャットからスライドを作成";
+"slides_generate_with_ai" = "AI で生成";
+
 /* strings_turns.xml */
 "regenerate" = "回答を再生成";
 "branch_in_new_chat" = "新しいチャットで分岐";
@@ -612,6 +619,9 @@
 "branch_title" = "分岐 · %1$s";
 
 /* iOS only (scripts/ios-strings.ts) */
+"ios_restore_purchases" = "購入を復元";
+"ios_no_purchases" = "有効な App Store のサブスクリプションが見つかりませんでした。";
+"ios_subscription_conflict" = "すでに Pro を利用中です。別途購入した分は App Store のサブスクリプションで管理できます。";
 "attach_source_photos" = "写真ライブラリ";
 "attach_source_camera" = "写真を撮る";
 "attach_source_files" = "ファイルを選択";

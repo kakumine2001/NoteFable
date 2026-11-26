@@ -33,4 +33,6 @@
     <string name="storage_limit_sign_in">Entre para ter %1$s de armazenamento.</string>
     <string name="storage_limit_upgrade">Tenha %1$s de armazenamento com o Pro por %2$s/mês.</string>
     <string name="storage_limit_delete">Exclua os arquivos de que você não precisa mais para liberar espaço.</string>
+    <string name="plan_manage_app_store">Gerenciar assinatura da App Store</string>
+    <string name="acct_delete_app_store_notice">Excluir a conta NoteFable não cancela uma assinatura da App Store. Cancele na App Store para evitar a renovação.</string>
 </resources>

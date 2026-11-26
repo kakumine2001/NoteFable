@@ -1069,6 +1069,8 @@ final class NotesViewModelTests: XCTestCase {
         let vm = await notesVm(backend)
         var warmUpdated: [(String, String)] = []
         vm.notifyPageUpdated = { warmUpdated.append(($0, $1)) }
+        var backlinkRefreshes = 0
+        vm.refreshBacklinks = { backlinkRefreshes += 1 }
         vm.openNote("a")
         await notesSettle()
 
@@ -1088,6 +1090,8 @@ final class NotesViewModelTests: XCTestCase {
         XCTAssertEqual(vm.state.open?.title, "New Title")
         XCTAssertTrue(backend.calls.contains("renamePage:a:New Title:3"))
         XCTAssertEqual(warmUpdated.map(\.0), ["a"])
+        // 写入成功后让开着的笔记重读反向链接；没写成（草稿没存下）时不读。
+        XCTAssertEqual(backlinkRefreshes, 1)
     }
 
     func testRecentHomePagesSortsByUpdatedAtAndLimitsCount() {

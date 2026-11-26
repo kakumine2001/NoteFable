@@ -479,6 +479,8 @@
 "storage_limit_sign_in" = "Đăng nhập để có %1$s dung lượng lưu trữ.";
 "storage_limit_upgrade" = "Nhận %1$s dung lượng lưu trữ với gói Pro chỉ %2$s/tháng.";
 "storage_limit_delete" = "Xóa các tệp bạn không cần nữa để giải phóng dung lượng.";
+"plan_manage_app_store" = "Quản lý gói đăng ký App Store";
+"acct_delete_app_store_notice" = "Xóa tài khoản NoteFable không hủy gói đăng ký App Store. Hãy hủy trong App Store để tránh gia hạn.";
 
 /* strings_report.xml */
 "report_answer" = "Báo cáo câu trả lời";
@@ -601,6 +603,11 @@
 "slides_export_pptx" = "Xuất PowerPoint (PPTX)";
 "slides_export_pptx_transition_note" = "Hiệu ứng chuyển tiếp trang chiếu không được bao gồm khi xuất PPTX.";
 
+/* strings_slides_wizard.xml */
+"slides_generate" = "Tạo bản trình chiếu";
+"slides_generate_from_chat" = "Tạo bản trình chiếu từ đoạn chat này";
+"slides_generate_with_ai" = "Tạo bằng AI";
+
 /* strings_turns.xml */
 "regenerate" = "Tạo lại";
 "branch_in_new_chat" = "Tách nhánh sang đoạn chat mới";
@@ -612,6 +619,9 @@
 "branch_title" = "Nhánh · %1$s";
 
 /* iOS only (scripts/ios-strings.ts) */
+"ios_restore_purchases" = "Khôi phục giao dịch mua";
+"ios_no_purchases" = "Không tìm thấy gói đăng ký App Store đang hoạt động.";
+"ios_subscription_conflict" = "Bạn đã có Pro. Quản lý giao dịch mua riêng trong phần đăng ký App Store.";
 "attach_source_photos" = "Thư viện ảnh";
 "attach_source_camera" = "Chụp ảnh";
 "attach_source_files" = "Chọn tệp";

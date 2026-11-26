@@ -479,6 +479,8 @@
 "storage_limit_sign_in" = "Masuk untuk mendapatkan penyimpanan %1$s.";
 "storage_limit_upgrade" = "Dapatkan penyimpanan %1$s dengan Pro seharga %2$s/bulan.";
 "storage_limit_delete" = "Hapus file yang tidak lagi Anda perlukan untuk mengosongkan ruang.";
+"plan_manage_app_store" = "Kelola Langganan App Store";
+"acct_delete_app_store_notice" = "Menghapus akun NoteFable tidak membatalkan langganan App Store. Batalkan di App Store untuk mencegah perpanjangan.";
 
 /* strings_report.xml */
 "report_answer" = "Laporkan jawaban";
@@ -601,6 +603,11 @@
 "slides_export_pptx" = "Ekspor ke PowerPoint (PPTX)";
 "slides_export_pptx_transition_note" = "Transisi slide tidak disertakan saat mengekspor ke PPTX.";
 
+/* strings_slides_wizard.xml */
+"slides_generate" = "Buat slide";
+"slides_generate_from_chat" = "Buat presentasi dari chat ini";
+"slides_generate_with_ai" = "Buat dengan AI";
+
 /* strings_turns.xml */
 "regenerate" = "Buat ulang";
 "branch_in_new_chat" = "Cabangkan di chat baru";
@@ -612,6 +619,9 @@
 "branch_title" = "Cabang · %1$s";
 
 /* iOS only (scripts/ios-strings.ts) */
+"ios_restore_purchases" = "Pulihkan Pembelian";
+"ios_no_purchases" = "Tidak ditemukan langganan App Store aktif.";
+"ios_subscription_conflict" = "Anda sudah memiliki Pro. Kelola pembelian terpisah di langganan App Store.";
 "attach_source_photos" = "Perpustakaan Foto";
 "attach_source_camera" = "Ambil Foto";
 "attach_source_files" = "Pilih File";

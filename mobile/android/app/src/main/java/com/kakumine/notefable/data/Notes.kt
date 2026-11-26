@@ -391,6 +391,11 @@ sealed interface EmbedMessage {
     data object Trashed : EmbedMessage
     /** 笔记里的页面提及被点了：打开那一页（和回答里的笔记链接一样走 openNoteFromLink）。 */
     data class OpenPage(val id: String) : EmbedMessage
+    /**
+     * 笔记下方反向链接里的聊天被点了：打开那段聊天（和搜索结果一样走 openChatLink），[messageId] 是附上这篇笔记的发言（有就滚到那里）。
+     * 只有声明了 `canOpenChat()` 的 App 才会收到。
+     */
+    data class OpenChat(val id: String, val messageId: String? = null) : EmbedMessage
     /** 网页那边新建了页面（笔记 AI 面板的「画成图」画好的白板）：刷新笔记列表。 */
     data object PagesChanged : EmbedMessage
     /** [kept]：没保存成功，但草稿已存在 WebView 里、之后会重试（不是冲突）。这时可以先离开。 */
@@ -449,6 +454,10 @@ sealed interface EmbedMessage {
                 "missing" -> Missing(obj.str("id")?.takeIf { it.isNotBlank() })
                 "trashed" -> Trashed
                 "openPage" -> OpenPage(obj.str("id")?.takeIf { it.isNotBlank() } ?: return@runCatching null)
+                "openChat" -> OpenChat(
+                    obj.text("id")?.takeIf { it.isNotBlank() } ?: return@runCatching null,
+                    obj.text("messageId")?.takeIf { it.isNotBlank() },
+                )
                 "pagesChanged" -> PagesChanged
                 "storageLimit" -> StorageLimit(
                     obj.str("tier") ?: return@runCatching null,
