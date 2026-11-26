@@ -5,6 +5,7 @@ import {
   AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalDistributeCenter, AlignStartHorizontal,
   AlignStartVertical, AlignVerticalDistributeCenter, ArrowDownToLine, ArrowUpToLine, ChevronDown, ChevronUp, ChevronsDown, ChevronsUp, Copy, Group,
   ExternalLink, Link2, Lock, LockOpen, Plus, Trash2, Ungroup, AlignLeft, AlignCenter, AlignRight, FlipHorizontal2, FlipVertical2,
+  ArrowLeftRight, CircleMinus, CirclePlus, GitBranchPlus, ListPlus, MoveRight,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { AppIcon } from "@/components/app-icon";
@@ -13,6 +14,8 @@ import { msg } from "@/lib/i18n/translate";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import type { WhiteboardActions } from "@/lib/whiteboard/excalidraw-bridge";
 import type { WhiteboardUiState } from "@/components/whiteboard/whiteboard-ui";
+import type { MindmapSelection } from "@/lib/whiteboard/mindmap/editing";
+import type { MindmapDirection } from "@/lib/whiteboard/mindmap/model";
 
 // ホワイトボードの見た目のパネル（色・太さ・線の種類・文字・重なり順・整列など）。選んでいる要素、または次に描く図形に効く。
 // 変更は Excalidraw の組み込みの操作（changeStrokeColor など）で行い、取り消しの履歴にも入る。
@@ -76,7 +79,16 @@ const ARROWHEADS: { value: string | null; label: string }[] = [
   { value: "dot", label: msg("Dot") }, { value: "bar", label: msg("Bar") },
 ];
 
-export function WhiteboardStylePanel({ ui, drawMode, compact, theme, actions, onLink, onOpenLink, onAskAi, textOnly = false }: {
+// 思考マップの節を 1 つ選んでいるときに、見た目のパネルの上に出す操作（浮かぶボタン・キーと同じ）。
+export type WhiteboardMindmapPanel = {
+  selection: MindmapSelection;
+  onAddChild: (nodeId: string) => void;
+  onAddSibling: (nodeId: string) => void;
+  onToggle: (nodeId: string) => void;
+  onDirection: (nodeId: string, direction: MindmapDirection) => void;
+};
+
+export function WhiteboardStylePanel({ ui, drawMode, compact, theme, actions, onLink, onOpenLink, onAskAi, mindmap, textOnly = false }: {
   ui: WhiteboardUiState;
   drawMode: "pen" | "highlighter" | null;
   compact: boolean;
@@ -85,6 +97,7 @@ export function WhiteboardStylePanel({ ui, drawMode, compact, theme, actions, on
   onLink: () => void;
   onOpenLink: (link: string) => void;
   onAskAi?: () => void;
+  mindmap?: WhiteboardMindmapPanel | null;
   // 文字の入力中（文字の見た目だけを出す）。
   textOnly?: boolean;
 }) {
@@ -150,6 +163,7 @@ export function WhiteboardStylePanel({ ui, drawMode, compact, theme, actions, on
       <div className="whiteboard-panel-head">
         {askAiButton}
         <Section label={t("Actions")}>{actionsButtons}</Section>
+        {mindmap && <MindmapSection mindmap={mindmap} />}
         {hasStyleControls && <hr className="whiteboard-panel-divider" />}
       </div>
     ))}
@@ -301,4 +315,24 @@ function Swatches({ picks, current, display, onPick }: { picks: string[]; curren
       </form>
     </div>}
   </div>;
+}
+
+// 思考マップの節の操作：子・兄弟を足す、畳む・広げる、枝の向き（木全体）。
+function MindmapSection({ mindmap }: { mindmap: WhiteboardMindmapPanel }) {
+  const t = useT();
+  const { selection } = mindmap;
+  return <Section label={t("Mind map")}>
+    <div className="whiteboard-actions-row" role="toolbar" aria-label={t("Mind map")}>
+      <IconAction label={`${t("Add child")} — Tab`} onClick={() => mindmap.onAddChild(selection.nodeId)}><GitBranchPlus size={15} /></IconAction>
+      {!selection.isRoot && <IconAction label={`${t("Add sibling")} — Enter`} onClick={() => mindmap.onAddSibling(selection.nodeId)}><ListPlus size={15} /></IconAction>}
+      {(selection.canCollapse || (selection.collapsed && selection.hasChildren)) && <IconAction label={selection.collapsed ? t("Expand branch") : t("Collapse branch")} onClick={() => mindmap.onToggle(selection.nodeId)}>
+        {selection.collapsed ? <CirclePlus size={15} /> : <CircleMinus size={15} />}
+      </IconAction>}
+    </div>
+    <Choice options={[
+      { value: "right", label: t("Branches on the right"), icon: <MoveRight size={16} /> },
+      { value: "both", label: t("Branches on both sides"), icon: <ArrowLeftRight size={16} /> },
+    ]}
+      current={selection.direction} onPick={(value) => mindmap.onDirection(selection.nodeId, value as MindmapDirection)} />
+  </Section>;
 }

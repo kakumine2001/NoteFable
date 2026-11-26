@@ -5,6 +5,7 @@ import { canvasStorage } from "@/lib/page-ai/storage";
 import { normalizeDeck, slideRows, type SlideElement } from "@/lib/slides/model";
 import type { RichBlock, RichDoc, RichInline } from "@/lib/slides/rich-text";
 import { pageCardOf } from "@/lib/whiteboard/links";
+import { mindmapIndent, mindmapStashOutline } from "@/lib/whiteboard/mindmap/model";
 
 // ホワイトボード・スライドのアダプター（構造化して読む）。編集（edit / create）と予覧（preview）は #153・#150 の後続 PR で足す。
 // 適用（validate / write / createPage / snapshot）は保存と同じ検証で、元に戻す・テストの偽アダプターでも使う。
@@ -93,6 +94,13 @@ function formatWhiteboardElement(element: RawElement, boundTexts: string[]): str
 
   if (combinedText) line += `: "${combinedText}"`;
   return line;
+}
+
+// 要素の行と、思考マップで畳んでいる節ならその下に隠れている文字の行（1 行ずつなので、読む上限は行の切れ目で効く）。
+function whiteboardElementLines(element: RawElement, boundTexts: string[]): string[] {
+  const hidden = mindmapStashOutline(element.id, element.customData)
+    .map(({ depth, text }) => `${mindmapIndent(depth)}- hidden in collapsed branch: "${inlineLine(text)}"`);
+  return [formatWhiteboardElement(element, boundTexts), ...hidden];
 }
 
 type WhiteboardSection = {
@@ -287,14 +295,14 @@ function readWhiteboard(page: AdapterPage, budget: number): string {
     sections.push({
       heading: `## Frame: ${frameNameOf(frame)} (id: ${frame.id})`,
       isFrame: true,
-      lines: children.map((child) => formatWhiteboardElement(child, boundTextByContainer.get(child.id) ?? [])),
+      lines: children.flatMap((child) => whiteboardElementLines(child, boundTextByContainer.get(child.id) ?? [])),
     });
   }
   if (unframed.length) {
     sections.push({
       heading: frames.length ? "## Unframed" : undefined,
       isFrame: false,
-      lines: unframed.map((element) => formatWhiteboardElement(element, boundTextByContainer.get(element.id) ?? [])),
+      lines: unframed.flatMap((element) => whiteboardElementLines(element, boundTextByContainer.get(element.id) ?? [])),
     });
   }
 
@@ -349,11 +357,11 @@ function readWhiteboard(page: AdapterPage, budget: number): string {
     if (endpointIds.has(element.id)) endpointElements.push(element);
   }
 
-  const formatFocusedLine = (element: RawElement) => {
-    const base = formatWhiteboardElement(element, boundTextByContainer.get(element.id) ?? []);
+  const formatFocusedLines = (element: RawElement) => {
+    const [base, ...hidden] = whiteboardElementLines(element, boundTextByContainer.get(element.id) ?? []);
     const frameId = typeof element.frameId === "string" ? element.frameId : null;
     const frame = frameId ? frameById.get(frameId) : undefined;
-    return frame ? `${base} [in frame: ${frameNameOf(frame)} (${frame.id})]` : base;
+    return [frame ? `${base} [in frame: ${frameNameOf(frame)} (${frame.id})]` : base, ...hidden];
   };
 
   const emittedIds = new Set<string>([...selectedIds, ...endpointIds]);
@@ -363,7 +371,7 @@ function readWhiteboard(page: AdapterPage, budget: number): string {
       heading: "## Selected",
       isFrame: false,
       lines: [
-        ...selectedElements.map(formatFocusedLine),
+        ...selectedElements.flatMap(formatFocusedLines),
         ...selectedEmptyFrames.map((frame) => `- frame (id: ${frame.id}): "${frameNameOf(frame)}" (empty)`),
       ],
     },
@@ -372,7 +380,7 @@ function readWhiteboard(page: AdapterPage, budget: number): string {
     prioritized.push({
       heading: "## Connected to selected",
       isFrame: false,
-      lines: endpointElements.map(formatFocusedLine),
+      lines: endpointElements.flatMap(formatFocusedLines),
     });
   }
   for (const frame of frames) {
@@ -382,7 +390,7 @@ function readWhiteboard(page: AdapterPage, budget: number): string {
     prioritized.push({
       heading: `## Frame: ${frameNameOf(frame)} (id: ${frame.id})`,
       isFrame: true,
-      lines: remainingChildren.map((child) => formatWhiteboardElement(child, boundTextByContainer.get(child.id) ?? [])),
+      lines: remainingChildren.flatMap((child) => whiteboardElementLines(child, boundTextByContainer.get(child.id) ?? [])),
     });
   }
   const remainingUnframed = unframed.filter((element) => !emittedIds.has(element.id));
@@ -390,7 +398,7 @@ function readWhiteboard(page: AdapterPage, budget: number): string {
     prioritized.push({
       heading: "## Unframed",
       isFrame: false,
-      lines: remainingUnframed.map((element) => formatWhiteboardElement(element, boundTextByContainer.get(element.id) ?? [])),
+      lines: remainingUnframed.flatMap((element) => whiteboardElementLines(element, boundTextByContainer.get(element.id) ?? [])),
     });
   }
 

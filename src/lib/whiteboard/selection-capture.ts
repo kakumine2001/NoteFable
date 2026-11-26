@@ -1,4 +1,5 @@
 import { isSelectionId, MAX_SELECTION_IDS } from "@/lib/page-ai/types";
+import { mindmapIndent, mindmapStashOutline } from "@/lib/whiteboard/mindmap/model";
 
 // 選区を AI へ送る PNG の長辺上限（D5）。モデル入力の解像度上限に収め、帯域とトークンを抑える。
 export const MAX_SELECTION_IMAGE_SIDE = 1568;
@@ -13,6 +14,7 @@ export type WhiteboardSelectableElement = {
   name?: string | null;
   text?: string;
   originalText?: string;
+  customData?: Record<string, unknown> | null;
 };
 
 // 選んでいる要素から、AI に渡す ID・文字・書き出し対象の要素一覧を組み立てる。
@@ -79,10 +81,9 @@ export function expandWhiteboardSelection<T extends WhiteboardSelectableElement>
     }
   }
 
-  // 枠の名前・テキスト・付箋・図形や矢印に付いた文字を順序通りに集める。
-  const lines: string[] = [];
-  const seenText = new Set<string>();
-  for (const element of expanded) {
+  // 枠の名前・テキスト・付箋・図形や矢印に付いた文字を順序通りに集める。思考マップで畳んでいる節は、その文字の下に
+  // 隠れている文字を字下げして並べる（長さは引用の上限 MAX_QUOTE_CHARS で切られる）。
+  const textOfElement = (element: T) => {
     const raw = element.type === "frame"
       ? (typeof element.name === "string" ? element.name : "")
       : element.type === "text" || element.type === "stickynote"
@@ -90,11 +91,32 @@ export function expandWhiteboardSelection<T extends WhiteboardSelectableElement>
           ? element.originalText
           : typeof element.text === "string" ? element.text : "")
         : "";
-    const trimmed = raw.trim();
-    if (trimmed && !seenText.has(trimmed)) {
-      seenText.add(trimmed);
-      lines.push(trimmed);
+    return raw.trim();
+  };
+  const boundText = new Map<string, T>();
+  for (const element of expanded) {
+    if (element.type === "text" && typeof element.containerId === "string") boundText.set(element.containerId, element);
+  }
+  const lines: string[] = [];
+  const seenText = new Set<string>();
+  const done = new Set<string>();
+  // keep：同じ文字が前にあっても省かない（隠れた文字がどの節の下かが分かるように）。
+  const add = (element: T, keep = false) => {
+    done.add(element.id);
+    const text = textOfElement(element);
+    if (text && (keep || !seenText.has(text))) {
+      seenText.add(text);
+      lines.push(text);
     }
+  };
+  for (const element of expanded) {
+    if (done.has(element.id)) continue;
+    const hidden = mindmapStashOutline(element.id, element.customData);
+    add(element);
+    if (!hidden.length) continue;
+    const label = boundText.get(element.id);
+    if (label) add(label, true);
+    for (const { depth, text } of hidden) lines.push(`${mindmapIndent(depth)}- ${text.replace(/\s*\r?\n\s*/g, " ")}`);
   }
 
   return { elements: expanded, ids, text: lines.join("\n") };

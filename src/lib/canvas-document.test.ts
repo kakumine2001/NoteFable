@@ -159,6 +159,29 @@ describe("text for search, semantic search and chat", () => {
     expect(segments.reduce((sum, segment) => sum + segment.text.length, 0)).toBeLessThanOrEqual(MAX_CANVAS_TEXT);
   });
 
+  it("files the text of a collapsed mindmap branch under the collapsed node", () => {
+    const collapsed = {
+      id: "node", type: "rectangle",
+      customData: { notefableMindmap: { v: 1, role: "node", tree: "node", parent: null, order: 0, collapsed: true, stash: [
+        { id: "child", type: "rectangle" }, { id: "child-t", type: "text", containerId: "child", text: "hidden idea", originalText: "hidden idea" },
+      ] } },
+    };
+    const segments = extractCanvasSegments("whiteboard", { elements: [collapsed, { id: "node-t", type: "text", containerId: "node", text: "Topic" }] });
+    expect(segments.map((segment) => segment.id)).toEqual(["node"]);
+    expect(segments[0].text.split(" ").sort()).toEqual(["Topic", "hidden", "idea"].sort());
+  });
+
+  it("keeps the title and every hidden topic of a large collapsed branch, split under the collapsed node", () => {
+    const stash = Array.from({ length: 300 }, (_, index) => ({ id: `c${index}`, type: "text", containerId: `n${index}`, text: `topic-${index} ${"x".repeat(40)}` }));
+    const collapsed = { id: "node", type: "rectangle", customData: { notefableMindmap: { v: 1, role: "node", tree: "node", parent: null, order: 0, collapsed: true, stash } } };
+    // 図形は、その図形の文字より前に並ぶ。
+    const segments = extractCanvasSegments("whiteboard", { elements: [collapsed, { id: "node-t", type: "text", containerId: "node", text: "Visible title" }] });
+    expect(segments.length).toBeGreaterThan(1);
+    expect(segments.every((segment) => segment.id === "node" && segment.text.length <= 8_000)).toBe(true);
+    expect(segments[0].text.startsWith("Visible title topic-0 ")).toBe(true);
+    expect(segments.at(-1)!.text).toContain("topic-299 ");
+  });
+
   it("turns segments into blocks the note search helpers understand, so hits point at elements or slides", () => {
     const segments = [{ id: "e1", text: "alpha" }, { id: "e2", text: "beta gamma" }];
     const blocks = canvasSearchBlocks(segments);
