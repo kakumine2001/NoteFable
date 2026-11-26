@@ -19,6 +19,11 @@ struct FixtureCatalog: Sendable {
         case guest
     }
 
+    enum Prompts {
+        static let streaming = "Compare Liquid Glass and earlier blur materials on iOS."
+        static let streamed = "Summarize Liquid Glass and blur materials on iOS."
+    }
+
     enum IDs {
         static let kyotoSession = "fx-session-kyoto"
         static let glassSession = "fx-session-glass"
@@ -43,6 +48,23 @@ struct FixtureCatalog: Sendable {
         static let routeAttachment = "fx-att-route"
         static let postcardImage = "fx-img-postcard"
     }
+
+    static let editorPages: [String: (title: String, icon: String?, kind: PageKind)] = [
+        IDs.tripPage: ("Kyoto trip plan", "🗺️", .note),
+        IDs.packingPage: ("Packing list", "🧳", .note),
+        IDs.glassPage: ("Liquid Glass checklist", "🫧", .note),
+        IDs.boardPage: ("Navigation sketch", nil, .whiteboard),
+        IDs.roadmapPage: ("Q4 roadmap", nil, .slides),
+    ]
+
+    private static let answerLead = "Liquid Glass "
+    private static let answerBody = """
+    refracts the content scrolling behind it, while earlier blur materials only frost the backdrop.
+
+    - **iOS 26+:** live refraction and interactive highlights.
+    - **iOS 17–18:** frosted system materials.
+    - **Reduce Transparency:** solid high-contrast surfaces.
+    """
 
     var account: Account
     var now: Date
@@ -200,6 +222,9 @@ struct FixtureCatalog: Sendable {
         case ("POST", "/api/native-auth/nonce"):
             return jsonReply(["nonce": "fx-nonce"])
 
+        case ("POST", "/api/native-auth/apple"):
+            return jsonReply(["nonce": "fx-apple-nonce"])
+
         case ("GET", "/api/auth/csrf"):
             return jsonReply(["csrfToken": "fx-csrf"])
 
@@ -242,7 +267,7 @@ struct FixtureCatalog: Sendable {
 
         if segments.count == 4, segments[0] == "api", segments[1] == "pages", segments[3] == "share", method == "GET" {
             let pageId = segments[2]
-            let shared = pageId == IDs.tripPage
+            let shared = pageId == IDs.tripPage || pageId == IDs.glassPage
             return jsonReply([
                 "share": [
                     "enabled": .bool(shared),
@@ -382,7 +407,7 @@ struct FixtureCatalog: Sendable {
                     [
                         "id": "fx-msg-live-1",
                         "role": "USER",
-                        "content": "Compare Liquid Glass and earlier blur materials on iOS.",
+                        "content": .string(Prompts.streamed),
                         "createdAt": .string(iso(-120)),
                         "attachments": [],
                         "generatedImages": [],
@@ -391,7 +416,7 @@ struct FixtureCatalog: Sendable {
                     [
                         "id": "fx-msg-live-2",
                         "role": "ASSISTANT",
-                        "content": "Liquid Glass refracts the content scrolling behind it, while earlier blur materials only frost the backdrop.",
+                        "content": .string(Self.answerLead + Self.answerBody),
                         "model": "gpt-6-luna",
                         "reasoningEffort": "medium",
                         "thinkingMs": 2100,
@@ -702,8 +727,8 @@ struct FixtureCatalog: Sendable {
                     "fullWidth": false,
                     "smallText": false,
                     "font": "default",
-                    "locked": false,
-                    "shareEnabled": false,
+                    "locked": true,
+                    "shareEnabled": true,
                     "shareExpiresAt": .null,
                     "aiUpdatedAt": .null,
                     "createdAt": .string(iso(-15 * 86400)),
@@ -870,12 +895,14 @@ struct FixtureCatalog: Sendable {
 
     private func chatStreamReply(for request: HTTPRequest) -> FixtureTransport.Reply {
         let sessionId = extractMultipartField("sessionId", from: request.body) ?? IDs.liveSession
+        let message = extractMultipartField("message", from: request.body)
+        let hold = streamHoldsOpen && message != Prompts.streamed
         var chunks: [Data] = [
             Data("data: {\"activity\":{\"type\":\"thought\",\"id\":\"fx-thought-live\",\"delta\":\"**Comparing materials**\\n\\nGlass refracts the content behind it while blur only frosts.\"}}\n\n".utf8),
-            Data("data: \"Liquid Glass \"\n\n".utf8),
-            Data("data: \"refracts the content scrolling behind it, while earlier blur materials only frost the backdrop.\\n\\n- **iOS 26+:** live refraction and interactive highlights.\\n- **iOS 17–18:** frosted system materials.\\n- **Reduce Transparency:** solid high-contrast surfaces.\"\n\n".utf8),
+            Data("data: \(JSONValue.string(Self.answerLead).encodedString())\n\n".utf8),
+            Data("data: \(JSONValue.string(Self.answerBody).encodedString())\n\n".utf8),
         ]
-        if !streamHoldsOpen {
+        if !hold {
             chunks.append(Data("data: [DONE]\n\n".utf8))
         }
         return FixtureTransport.Reply(
@@ -887,7 +914,7 @@ struct FixtureCatalog: Sendable {
             ],
             chunks: chunks,
             chunkGap: .milliseconds(80),
-            holdOpen: streamHoldsOpen
+            holdOpen: hold
         )
     }
 

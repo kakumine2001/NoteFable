@@ -3,8 +3,9 @@
 import { applyDarkModeFilter } from "@excalidraw/excalidraw";
 import {
   AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalDistributeCenter, AlignStartHorizontal,
-  AlignStartVertical, AlignVerticalDistributeCenter, ArrowDownToLine, ArrowUpToLine, ChevronDown, ChevronUp, ChevronsDown, ChevronsUp, Copy, Group,
-  ExternalLink, Link2, Lock, LockOpen, Plus, Trash2, Ungroup, AlignLeft, AlignCenter, AlignRight, FlipHorizontal2, FlipVertical2,
+  AlignStartVertical, AlignVerticalDistributeCenter, ArrowDownToLine, ArrowUpToLine, ChevronDown, ChevronUp, ChevronsDown, ChevronsUp, Copy, Flag, Group,
+  ExternalLink, ImagePlus, Link2, Lock, LockOpen, Plus, Trash2, Ungroup, AlignLeft, AlignCenter, AlignRight, FlipHorizontal2, FlipVertical2,
+  ArrowLeftRight, CircleMinus, CirclePlus, GitBranchPlus, ListPlus, MoveRight,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { AppIcon } from "@/components/app-icon";
@@ -13,6 +14,8 @@ import { msg } from "@/lib/i18n/translate";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import type { WhiteboardActions } from "@/lib/whiteboard/excalidraw-bridge";
 import type { WhiteboardUiState } from "@/components/whiteboard/whiteboard-ui";
+import type { MindmapSelection } from "@/lib/whiteboard/mindmap/editing";
+import type { MindmapDirection } from "@/lib/whiteboard/mindmap/model";
 
 // ホワイトボードの見た目のパネル（色・太さ・線の種類・文字・重なり順・整列など）。選んでいる要素、または次に描く図形に効く。
 // 変更は Excalidraw の組み込みの操作（changeStrokeColor など）で行い、取り消しの履歴にも入る。
@@ -76,7 +79,16 @@ const ARROWHEADS: { value: string | null; label: string }[] = [
   { value: "dot", label: msg("Dot") }, { value: "bar", label: msg("Bar") },
 ];
 
-export function WhiteboardStylePanel({ ui, drawMode, compact, theme, actions, onLink, onOpenLink, onAskAi, textOnly = false }: {
+// 思考マップの節を 1 つ選んでいるときに、見た目のパネルの上に出す操作（浮かぶボタン・キーと同じ）。
+export type WhiteboardMindmapPanel = {
+  selection: MindmapSelection;
+  onAddChild: (nodeId: string) => void;
+  onAddSibling: (nodeId: string) => void;
+  onToggle: (nodeId: string) => void;
+  onDirection: (nodeId: string, direction: MindmapDirection) => void;
+};
+
+export function WhiteboardStylePanel({ ui, drawMode, compact, theme, actions, onLink, onOpenLink, onAskAi, onTurnIntoImage, reportImageId, onReportImage, mindmap, textOnly = false, reportOnly = false }: {
   ui: WhiteboardUiState;
   drawMode: "pen" | "highlighter" | null;
   compact: boolean;
@@ -85,13 +97,29 @@ export function WhiteboardStylePanel({ ui, drawMode, compact, theme, actions, on
   onLink: () => void;
   onOpenLink: (link: string) => void;
   onAskAi?: () => void;
+  onTurnIntoImage?: () => void;
+  reportImageId?: string | null;
+  onReportImage?: (elementId: string) => void;
+  mindmap?: WhiteboardMindmapPanel | null;
   // 文字の入力中（文字の見た目だけを出す）。
   textOnly?: boolean;
+  // 読み取り専用やロック済み要素で AI 生成画像の報告だけを出す。
+  reportOnly?: boolean;
 }) {
   const t = useT();
   const [expanded, setExpanded] = useState(false);
   // スマホで広げた下のシートは、端末の「戻る」で畳む（アプリでも白板を閉じない）。
-  useBackToClose(compact && expanded, () => setExpanded(false));
+  useBackToClose(!reportOnly && compact && expanded, () => setExpanded(false));
+  if (reportOnly) {
+    if (!reportImageId || !onReportImage) return null;
+    return <div className={`whiteboard-panel is-report-only${compact ? " is-compact" : ""}`} role="region" aria-label={t("Image")} data-viewport-ui={compact ? "bottom" : "side"}
+      onKeyDown={(event) => event.stopPropagation()}>
+      <button type="button" className="whiteboard-panel-report" onClick={() => onReportImage(reportImageId)} title={t("Report image")}>
+        <Flag size={14} aria-hidden="true" />
+        <span>{t("Report image")}</span>
+      </button>
+    </div>;
+  }
   const { style } = ui;
   const types = new Set(ui.selectedCount ? ui.selectedTypes : [TOOL_ELEMENT[ui.tool] ?? ui.tool].filter(Boolean));
   if (textOnly) { types.clear(); types.add("text"); }
@@ -139,17 +167,41 @@ export function WhiteboardStylePanel({ ui, drawMode, compact, theme, actions, on
     </button>
   ) : null;
 
+  const turnIntoImageButton = onTurnIntoImage ? (
+    <button type="button" className="whiteboard-panel-sketch" onClick={onTurnIntoImage} title={t("Turn into image")}>
+      <ImagePlus size={15} aria-hidden="true" />
+      <span className="whiteboard-panel-sketch-label">{t("Turn into image")}</span>
+    </button>
+  ) : null;
+
+  const reportImageButton = reportImageId && onReportImage ? (
+    <button type="button" className="whiteboard-panel-report" onClick={() => onReportImage(reportImageId)} title={t("Report image")}>
+      <Flag size={14} aria-hidden="true" />
+      <span>{t("Report image")}</span>
+    </button>
+  ) : null;
+
   return <div className={`whiteboard-panel${compact ? " is-compact" : ""}${collapsed ? " is-collapsed" : ""}`} role="region" aria-label={t("Style")} data-viewport-ui={compact ? "bottom" : "side"}
     onKeyDown={(event) => event.stopPropagation()}>
     {selection && (collapsed ? (
-      <div className="whiteboard-compact-top">
-        {askAiButton}
-        {actionsButtons}
-      </div>
+      <>
+        <div className="whiteboard-compact-top">
+          {askAiButton}
+          {actionsButtons}
+        </div>
+        {(turnIntoImageButton || reportImageButton) && (
+          <div className="whiteboard-compact-secondary">
+            {turnIntoImageButton}
+            {reportImageButton}
+          </div>
+        )}
+      </>
     ) : (
       <div className="whiteboard-panel-head">
         {askAiButton}
+        {turnIntoImageButton}
         <Section label={t("Actions")}>{actionsButtons}</Section>
+        {mindmap && <MindmapSection mindmap={mindmap} />}
         {hasStyleControls && <hr className="whiteboard-panel-divider" />}
       </div>
     ))}
@@ -235,6 +287,7 @@ export function WhiteboardStylePanel({ ui, drawMode, compact, theme, actions, on
           <IconAction label={t("Distribute vertically")} onClick={() => run("distributeVertically")}><AlignVerticalDistributeCenter size={15} /></IconAction>
         </div>}
       </Section>}
+      {selection && reportImageButton && <div className="whiteboard-panel-foot">{reportImageButton}</div>}
     </>}
     {compact && <button type="button" className="whiteboard-panel-expand" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
       {expanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}<span>{expanded ? t("Fewer options") : t("More options")}</span>
@@ -301,4 +354,24 @@ function Swatches({ picks, current, display, onPick }: { picks: string[]; curren
       </form>
     </div>}
   </div>;
+}
+
+// 思考マップの節の操作：子・兄弟を足す、畳む・広げる、枝の向き（木全体）。
+function MindmapSection({ mindmap }: { mindmap: WhiteboardMindmapPanel }) {
+  const t = useT();
+  const { selection } = mindmap;
+  return <Section label={t("Mind map")}>
+    <div className="whiteboard-actions-row" role="toolbar" aria-label={t("Mind map")}>
+      <IconAction label={`${t("Add child")} — Tab`} onClick={() => mindmap.onAddChild(selection.nodeId)}><GitBranchPlus size={15} /></IconAction>
+      {!selection.isRoot && <IconAction label={`${t("Add sibling")} — Enter`} onClick={() => mindmap.onAddSibling(selection.nodeId)}><ListPlus size={15} /></IconAction>}
+      {(selection.canCollapse || (selection.collapsed && selection.hasChildren)) && <IconAction label={selection.collapsed ? t("Expand branch") : t("Collapse branch")} onClick={() => mindmap.onToggle(selection.nodeId)}>
+        {selection.collapsed ? <CirclePlus size={15} /> : <CircleMinus size={15} />}
+      </IconAction>}
+    </div>
+    <Choice options={[
+      { value: "right", label: t("Branches on the right"), icon: <MoveRight size={16} /> },
+      { value: "both", label: t("Branches on both sides"), icon: <ArrowLeftRight size={16} /> },
+    ]}
+      current={selection.direction} onPick={(value) => mindmap.onDirection(selection.nodeId, value as MindmapDirection)} />
+  </Section>;
 }

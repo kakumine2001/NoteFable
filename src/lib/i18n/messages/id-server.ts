@@ -109,6 +109,7 @@ export const idServer: Record<string, string> = {
   "Page not found": "Halaman tidak ditemukan",
   "Page not found in the trash.": "Halaman tidak ditemukan di sampah.",
   "Page not found.": "Halaman tidak ditemukan.",
+  "Note not found.": "Catatan tidak ditemukan.",
   "Note proposal rejected": "Usulan catatan baru ditolak",
   "Page title must be at most {max} characters.": "Judul halaman maksimal {max} karakter.",
   "Nothing to update.": "Tidak ada yang perlu diperbarui.",
@@ -271,4 +272,8 @@ export const idServer: Record<string, string> = {
   "Could not turn this into an editable diagram.": "Tidak dapat mengubahnya menjadi diagram yang bisa diedit.",
   "There is nothing to draw yet.": "Belum ada yang bisa digambar.",
   "This diagram was moved to the trash.": "Diagram ini sudah dipindahkan ke Sampah.",
+  "Could not generate slides. Try again.": "Tidak dapat membuat slide. Coba lagi.",
+  "There is nothing to make slides from yet.": "Belum ada yang bisa dijadikan slide.",
+  "These slides were moved to the trash.": "Slide ini sudah dipindahkan ke Sampah.",
+  "This request is still running. Try again in a moment.": "Permintaan ini masih diproses. Coba lagi beberapa saat lagi.",
 };

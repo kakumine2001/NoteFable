@@ -27,12 +27,18 @@ protocol NoteEditorBridge: AnyObject {
     func close()
     /// 移进回收站的页面从常驻 WebView 缓存里清掉（`window.notefableEmbed.pageTrashed`）。
     func pageTrashed(_ ids: [String])
+    /// 抽屉或回收站里改了页面、聊天（改名、换图标、删除、复原）：让网页重读笔记下方的反向链接（`window.notefableEmbed.refreshBacklinks`）。
+    func refreshBacklinks()
+    /// AI 生成幻灯片向导开着时的「返回」：关闭向导最上面一层（先选笔记层，其次向导，草稿保留）；没有可关的返回 false。
+    func slidesWizardBack() async -> Bool
 }
 
 extension NoteEditorBridge {
     func openPage(id: String, reveal: String?, model: String?, reasoning: String?) async -> Bool { false }
     func close() {}
     func pageTrashed(_ ids: [String]) {}
+    func refreshBacklinks() {}
+    func slidesWizardBack() async -> Bool { false }
 }
 
 /// 对网页执行的脚本。和 Android 端逐字相同，网页那边没有对应函数时什么都不做。
@@ -102,6 +108,9 @@ enum NoteEmbedScripts {
         "window.notefableEmbed&&window.notefableEmbed.reveal&&window.notefableEmbed.reveal(\(quote(id)))"
     }
 
+    /// 让网页重读反向链接（旧版网页没有这个函数时什么都不做）。
+    static let refreshBacklinks = "(function(){var e=window.notefableEmbed;if(e&&typeof e.refreshBacklinks==='function')e.refreshBacklinks()})()"
+
     /// 幻灯片的操作（JSON：{ action: "present" | "end" | "export", format? }）。
     static func slides(_ command: String) -> String {
         "(function(){var e=window.notefableEmbed;if(e&&typeof e.slides==='function')e.slides(\(quote(command)))})()"
@@ -145,6 +154,57 @@ enum NoteEmbedScripts {
         return "(function(){var e=window.notefableEmbed;if(e&&typeof e.pageTrashed==='function')return e.pageTrashed([\(valid.map(quote).joined(separator: ","))])===true;return false})()"
     }
 
+    /// 打开 AI 生成幻灯片向导的脚本（`window.notefableEmbed.slidesWizard`）。结果是 `"open"`（出来了）、`"loading"`（网页还没挂好，
+    /// 过一会儿再问）、`"unsupported"`（旧服务端没有向导）或 `"rejected"`。[source] 里有网页不认的 id 时返回 nil。
+    static func slidesWizardOpen(source: SlidesWizardSource, model: String? = nil, reasoning: String? = nil) -> String? {
+        var sourceFields: [String] = []
+        switch source {
+        case .new(let groupId, let parentId):
+            sourceFields.append("\"type\":\"new\"")
+            if let groupId {
+                guard isValidTargetId(groupId) else { return nil }
+                sourceFields.append("\"groupId\":\(quote(groupId))")
+            }
+            if let parentId {
+                guard isValidTargetId(parentId) else { return nil }
+                sourceFields.append("\"parentId\":\(quote(parentId))")
+            }
+        case .note(let pageId):
+            guard isValidTargetId(pageId) else { return nil }
+            sourceFields.append("\"type\":\"note\"")
+            sourceFields.append("\"pageId\":\(quote(pageId))")
+        case .chat(let sessionId):
+            guard isValidTargetId(sessionId) else { return nil }
+            sourceFields.append("\"type\":\"chat\"")
+            sourceFields.append("\"sessionId\":\(quote(sessionId))")
+        }
+        var requestFields = [
+            "\"action\":\"open\"",
+            "\"source\":{\(sourceFields.joined(separator: ","))}",
+        ]
+        if let model = model?.trimmingCharacters(in: .whitespacesAndNewlines), !model.isEmpty {
+            requestFields.append("\"model\":\(quote(model))")
+        }
+        if let reasoning = reasoning?.trimmingCharacters(in: .whitespacesAndNewlines), !reasoning.isEmpty {
+            requestFields.append("\"reasoning\":\(quote(reasoning))")
+        }
+        return "(function(){var e=window.notefableEmbed;if(!e)return 'loading';if(typeof e.slidesWizard!=='function')return 'unsupported';"
+            + "return e.slidesWizard({\(requestFields.joined(separator: ","))})===true?'open':'rejected'})()"
+    }
+
+    /// [slidesWizardOpen] 的执行结果（WKWebView 直接返回字符串）：true 打开了，false 打不开，nil 还要再问。
+    static func slidesWizardAnswer(_ result: String?) -> Bool? {
+        switch result {
+        case "open": return true
+        case "unsupported", "rejected": return false
+        default: return nil
+        }
+    }
+
+    /// 向导开着时的「返回」：关闭最上面一层（先选笔记层，其次向导，草稿保留）；没有可关的返回 false。
+    static let slidesWizardBack =
+        "(function(){var e=window.notefableEmbed;if(e&&typeof e.slidesWizard==='function')return e.slidesWizard({\"action\":\"back\"})===true;return false})()"
+
     /// 返回手势先交给网页：有打开的 <dialog>（版本历史等）就发 cancel 事件关最上面一层（等同网页里按 Esc），返回 true。
     static let closeTopDialog =
         "(function(){var d=document.querySelectorAll('dialog[open]');if(!d.length)return false;" +
@@ -158,12 +218,15 @@ enum NoteEmbedScripts {
     /// `canOpenPage()` 告诉网页这个 App 会处理 `openPage`（旧版没有，网页照旧用新窗口打开链接）；
     /// `canShowStorageLimit()` 告诉网页这个 App 会显示"存储空间不够"（`storageLimit`；旧版没有，网页在编辑器里只说明原因）；
     /// `canShowUsageLimit()` 告诉网页这个 App 会处理使用次数上限（`usageLimit`；旧版没有，网页在 WebView 里只说明原因）；
-    /// `canSaveFile()` 告诉网页这个 App 会收导出的文件（`fileStart` … `fileEnd`；旧版没有，网页提示先更新 App）。
+    /// `canSaveFile()` 告诉网页这个 App 会收导出的文件（`fileStart` … `fileEnd`；旧版没有，网页提示先更新 App）；
+    /// `canOpenChat()` 告诉网页这个 App 会处理 `openChat`（笔记下方反向链接里的聊天；旧版没有，网页不列聊天）；
+    /// `canShowSlidesWizard()` 告诉网页这个 App 会处理 AI 生成幻灯片的向导（`slidesWizard`；旧版没有，AI 面板不显示「生成幻灯片」）。
     static func bootstrap(handler: String, appIcon: String?, language: String, theme: String? = nil) -> String {
         "(function(){var icon=\(quote(appIcon ?? "")),lang=\(quote(language));window.NoteFableNative={" +
             "postMessage:function(json){window.webkit.messageHandlers[\(quote(handler))].postMessage(String(json))}," +
             "appIcon:function(){return icon},language:function(){return lang},canOpenPage:function(){return true}," +
-            "canShowStorageLimit:function(){return true},canShowUsageLimit:function(){return true},canPresent:function(){return true},canSaveFile:function(){return true}" +
+            "canShowStorageLimit:function(){return true},canShowUsageLimit:function(){return true},canPresent:function(){return true},canSaveFile:function(){return true}," +
+            "canOpenChat:function(){return true},canShowSlidesWizard:function(){return true}" +
             (theme.map { ",theme:function(){return \(quote($0))}" } ?? "") +
             "}})()"
     }
@@ -263,6 +326,11 @@ final class NoteEmbedBridge {
         editor?.slides(command)
     }
 
+    /// 抽屉、回收站里的改动：让开着的笔记重读反向链接。
+    func refreshBacklinks() {
+        editor?.refreshBacklinks()
+    }
+
     /// 别处（聊天里的提案）改了这篇笔记：把服务端返回的新版本交给网页，走网页 notefable:page-updated 的同一条路
     /// （没有未保存的编辑就换成新版本，有就提示冲突），否则编辑器还拿着旧版本，下次保存会 409。
     func pageUpdated(_ pageJson: String) {
@@ -315,6 +383,11 @@ final class NoteEmbedBridge {
         guard !ids.isEmpty else { return }
         editor?.pageTrashed(ids)
     }
+
+    /// 向导开着时的「返回」：关最上面一层（草稿保留）；没有可关的返回 false。
+    func slidesWizardBack() async -> Bool {
+        await editor?.slidesWizardBack() ?? false
+    }
 }
 
 extension NotesViewModel {
@@ -326,6 +399,7 @@ extension NotesViewModel {
             pushPageSettings = nil
             revealInEditor = nil
             sendSlidesCommand = nil
+            refreshBacklinks = nil
             presentationEnded()
             return
         }
@@ -333,5 +407,6 @@ extension NotesViewModel {
         pushPageSettings = { bridge.pageSettings($0) }
         revealInEditor = { bridge.reveal($0) }
         sendSlidesCommand = { bridge.slides($0) }
+        refreshBacklinks = { bridge.refreshBacklinks() }
     }
 }

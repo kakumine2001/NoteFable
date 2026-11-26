@@ -24,7 +24,12 @@ struct AppleSignInControl: UIViewRepresentable {
 
     func updateUIView(_ button: ASAuthorizationAppleIDButton, context: Context) {
         button.isEnabled = enabled
+        button.isUserInteractionEnabled = enabled
         context.coordinator.onPress = onPress
+    }
+
+    static func dismantleUIView(_ uiView: ASAuthorizationAppleIDButton, coordinator: Coordinator) {
+        coordinator.cancelPending()
     }
 
     @MainActor
@@ -36,6 +41,7 @@ struct AppleSignInControl: UIViewRepresentable {
         private var pending: CheckedContinuation<(code: String, name: String?)?, Error>?
 
         @objc func tap() {
+            guard pending == nil else { return }
             onPress? { nonce in try await self.request(nonce) }
         }
 
@@ -75,6 +81,11 @@ struct AppleSignInControl: UIViewRepresentable {
             } else {
                 complete(.failure(error))
             }
+        }
+
+        func cancelPending() {
+            guard pending != nil else { return }
+            complete(.failure(CancellationError()))
         }
 
         private func complete(_ result: Result<(code: String, name: String?)?, Error>) {

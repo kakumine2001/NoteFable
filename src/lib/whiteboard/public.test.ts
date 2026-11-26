@@ -60,4 +60,26 @@ describe("public whiteboards", () => {
     expect(JSON.stringify(scene)).not.toContain("/api/pages/files");
     expect(scene.appState).toEqual({ viewBackgroundColor: "#ffffff" });
   });
+
+  it("keeps collapsed mind map branches out of public scenes", () => {
+    const stash = [{ id: "hidden", type: "rectangle", customData: { notefableMindmap: { v: 1, role: "node", tree: "root", parent: "root", order: 0 } } }, { id: "hidden-t", type: "text", text: "secret" }];
+    const scene = publicWhiteboardScene({
+      elements: [{ id: "root", type: "rectangle", customData: { notefableMindmap: { v: 1, role: "node", tree: "root", parent: null, order: 0, collapsed: true, stash } } }],
+    }, "token", "page");
+    expect(JSON.stringify(scene)).not.toContain("secret");
+    expect(scene.elements[0].customData).toBeUndefined();
+  });
+
+  it("strips customData.generated from AI-generated whiteboard images on public shares", () => {
+    const scene = publicWhiteboardScene({
+      elements: [
+        image("ai", "a", { customData: { generated: { prompt: "Private internal prompt text" } } }),
+      ],
+      files: { a: { id: "a", mimeType: "image/png", dataURL: fileUrl } },
+    }, "tok", "page1");
+    expect(scene.elements).toHaveLength(1);
+    expect(scene.elements[0].customData).toBeUndefined();
+    expect(JSON.stringify(scene)).not.toContain("Private internal prompt text");
+    expect(JSON.stringify(scene)).not.toContain("generated");
+  });
 });

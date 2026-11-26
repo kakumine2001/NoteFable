@@ -602,6 +602,11 @@
 "slides_export_pptx" = "ส่งออกเป็น PowerPoint (PPTX)";
 "slides_export_pptx_transition_note" = "การเปลี่ยนสไลด์จะไม่รวมอยู่ในการส่งออก PPTX";
 
+/* strings_slides_wizard.xml */
+"slides_generate" = "สร้างสไลด์";
+"slides_generate_from_chat" = "สร้างชุดสไลด์จากแชทนี้";
+"slides_generate_with_ai" = "สร้างด้วย AI";
+
 /* strings_turns.xml */
 "regenerate" = "สร้างคำตอบใหม่";
 "branch_in_new_chat" = "แยกแขนงในแชทใหม่";

@@ -3,6 +3,7 @@ import { isImageIcon, parseCharacterIcon, saveAppIcon, toCharacterIcon } from "@
 import { parseThemePreference, saveThemePreference, type ThemePreference } from "@/lib/theme";
 import { pageSettingsOf, type NotePage, type NotePageSummary, type NoteSaveStatus, type PageKind } from "@/types/notes";
 import { PAGES_TRASHED_EVENT } from "@/lib/proposal-sync";
+import { dispatchBacklinksStale } from "@/lib/note-backlinks";
 import type { UsageKind, UsageTier } from "@/lib/usage-plans";
 
 // Android アプリ（mobile/android）の WebView にノートのエディターだけを載せる /note-embed と、アプリ側とのやり取り。
@@ -19,8 +20,14 @@ export type NativeMessage =
   | { type: "trashed" }
   // ノートの中のページのメンションを押した。アプリはそのページを開く（自分のページか、無いかはアプリ側で確かめる）。
   | { type: "openPage"; id: string }
-  // ページを新しく作った（ノートの AI パネルの「画成図」）。アプリは一覧を読み直す（知らない古いアプリは無視する）。
+  // ノートの下のバックリンク（このページを使った会話）を押した。アプリはその会話を開き、messageId があればそこまで動かす。canOpenChat を持つアプリにだけ送る。
+  | { type: "openChat"; id: string; messageId?: string }
+  // ページを新しく作った（ノートの AI パネルの「画成図」、AI のスライド生成）。アプリは一覧を読み直す（知らない古いアプリは無視する）。
   | { type: "pagesChanged" }
+  // 「AI でスライドを作る」の窓が出た・消えた（ノートの AI パネルから開いたときも）。open の間、アプリは自分の上部バーを隠し、
+  // 戻る操作を slidesWizard({ action: "back" }) に渡す。busy はまだ生成中（WebView をしばらく残してほしい）。canShowSlidesWizard を持つアプリにだけ送る。
+  | { type: "slidesWizard"; state: "open" }
+  | { type: "slidesWizard"; state: "closed"; busy: boolean }
   // kept: 保存できなかったが、下書きはこの WebView の localStorage に残っていて後で送り直す（衝突ではない）。アプリはこのとき離れてよい。
   | { type: "flushed"; requestId: string; ok: boolean; kept?: boolean }
   // ファイル置き場の容量が足りず、画像・ファイル・カバーのアップロードが断られた（used / limit はバイト）。
@@ -49,9 +56,12 @@ export type NativeMessage =
 // canShowStorageLimit は storageLimit を処理できるアプリだけが持つ（古いアプリには送らず、WebView の中に理由だけを出す）。
 // canShowUsageLimit は usageLimit を処理できるアプリだけが持つ（古いアプリには送らず、WebView 内でウェブのログイン画面を出さずに理由だけを出す）。
 // canPresent は放映（presentation）を、canSaveFile はファイルの保存（fileStart…fileEnd）を受け持てるアプリだけが持つ。
+// canShowSlidesWizard は slidesWizard の消息を処理して、スライド生成の窓を出し入れできるアプリだけが持つ
+// （持たない古いアプリの AI パネルには「Generate slides」を出さない）。
+// canOpenChat は openChat を処理できるアプリだけが持つ（古いアプリにはバックリンクの会話を出さない）。
 export type NativeHost = {
   postMessage: (json: string) => void; appIcon?: () => string; language?: () => string; theme?: () => string; canOpenPage?: () => boolean; canShowStorageLimit?: () => boolean;
-  canShowUsageLimit?: () => boolean; canPresent?: () => boolean; canSaveFile?: () => boolean;
+  canShowUsageLimit?: () => boolean; canPresent?: () => boolean; canSaveFile?: () => boolean; canShowSlidesWizard?: () => boolean; canOpenChat?: () => boolean;
 };
 // アプリ → web。アプリは evaluateJavascript で window.notefableEmbed.flush("<requestId>") などを呼ぶ。
 // pageUpdated はアプリのチャットで編集案を適用したときに、サーバーが返した新しいページ（JSON 文字列かオブジェクト）を渡す。
@@ -76,6 +86,12 @@ export type EmbedApi = {
   close: () => boolean;
   // アプリ側でゴミ箱へ移したページ（およびサブページ）の ID を知らせ、常駐 WebView 内のキャッシュを消す（未保存の下書きは復元時のため残す）。
   pageTrashed: (ids: unknown) => boolean;
+  // 「AI でスライドを作る」の窓（JSON 文字列でもよい）：{ action: "open", source, model?, reasoning? } で開き、
+  // { action: "back" } で一番上の面（ノートを選ぶ面、次に窓）を閉じる。何も開いていない・形が違うときは false。
+  // アプリはこの関数があるかで、ウェブが対応しているかを見分ける。
+  slidesWizard: (request: unknown) => boolean;
+  // アプリの画面（ドロワー・ゴミ箱）で、ページや会話の名前・アイコンを変えた、消した、元に戻したので、バックリンクを読み直させる。
+  refreshBacklinks: () => boolean;
 };
 
 type BridgeWindow = { NoteFableNative?: unknown; notefableEmbed?: EmbedApi };
@@ -131,6 +147,13 @@ export function nativeCanOpenPage(target: BridgeWindow | undefined = browserWind
   try { return native.canOpenPage() === true; } catch { return false; }
 }
 
+// アプリが会話を開けるか（openChat）。古いアプリや普通のブラウザでは false。
+export function nativeCanOpenChat(target: BridgeWindow | undefined = browserWindow()): boolean {
+  const native = host(target);
+  if (!native || typeof native.canOpenChat !== "function") return false;
+  try { return native.canOpenChat() === true; } catch { return false; }
+}
+
 // アプリが容量の上限の案内（storageLimit）を自分の画面で出せるか。古いアプリや普通のブラウザでは false。
 export function nativeCanShowStorageLimit(target: BridgeWindow | undefined = browserWindow()): boolean {
   const native = host(target);
@@ -150,6 +173,13 @@ export function nativeCanPresent(target: BridgeWindow | undefined = browserWindo
   const native = host(target);
   if (!native || typeof native.canPresent !== "function") return false;
   try { return native.canPresent() === true; } catch { return false; }
+}
+
+// アプリがスライド生成の窓の出し入れ（slidesWizard の消息）を受け持てるか。古いアプリや普通のブラウザでは false。
+export function nativeCanShowSlidesWizard(target: BridgeWindow | undefined = browserWindow()): boolean {
+  const native = host(target);
+  if (!native || typeof native.canShowSlidesWizard !== "function") return false;
+  try { return native.canShowSlidesWizard() === true; } catch { return false; }
 }
 
 // アプリの中（WebView）で開いているか。
@@ -310,7 +340,41 @@ export function dispatchPagesTrashed(ids: string[]) {
   window.dispatchEvent(new CustomEvent<{ ids: string[]; preserveDrafts?: boolean }>(PAGES_TRASHED_EVENT, { detail: { ids, preserveDrafts: true } }));
 }
 
-export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, theme = saveThemePreference, slides = dispatchSlidesCommand, openPage, close, pageTrashed = dispatchPagesTrashed, language, reveal = () => {}, post }: {
+export type SlidesWizardCommand =
+  | {
+    action: "open";
+    // 窓の入口（src/lib/slides-wizard-draft.ts の SlidesEntry と同じ形）。
+    source: { type: "new"; groupId: string | null; parentId: string | null } | { type: "note"; pageId: string } | { type: "chat"; sessionId: string };
+    model: string | null;
+    reasoning: string | null;
+  }
+  | { action: "back" };
+
+// アプリから渡されたスライド生成の窓の依頼を確かめる。知らない操作・入口、ID の形でない値は捨てる。
+export function parseSlidesWizardRequest(value: unknown): SlidesWizardCommand | null {
+  let raw: unknown = value;
+  if (typeof raw === "string") {
+    try { raw = JSON.parse(raw); } catch { return null; }
+  }
+  if (!raw || typeof raw !== "object") return null;
+  const candidate = raw as { action?: unknown; source?: unknown; model?: unknown; reasoning?: unknown };
+  if (candidate.action === "back") return { action: "back" };
+  if (candidate.action !== "open" || !candidate.source || typeof candidate.source !== "object") return null;
+  const source = candidate.source as { type?: unknown; groupId?: unknown; parentId?: unknown; pageId?: unknown; sessionId?: unknown };
+  const id = (item: unknown): item is string => typeof item === "string" && REVEAL_TARGET.test(item);
+  const text = (item: unknown) => (typeof item === "string" && item.trim() ? item.trim() : null);
+  const open = (parsed: Extract<SlidesWizardCommand, { action: "open" }>["source"]): SlidesWizardCommand =>
+    ({ action: "open", source: parsed, model: text(candidate.model), reasoning: text(candidate.reasoning) });
+  if (source.type === "note") return id(source.pageId) ? open({ type: "note", pageId: source.pageId }) : null;
+  if (source.type === "chat") return id(source.sessionId) ? open({ type: "chat", sessionId: source.sessionId }) : null;
+  if (source.type !== "new") return null;
+  const groupId = source.groupId ?? null;
+  const parentId = source.parentId ?? null;
+  if ((groupId !== null && !id(groupId)) || (parentId !== null && !id(parentId))) return null;
+  return open({ type: "new", groupId, parentId });
+}
+
+export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, theme = saveThemePreference, slides = dispatchSlidesCommand, openPage, close, pageTrashed = dispatchPagesTrashed, slidesWizard, refreshBacklinks = dispatchBacklinksStale, language, reveal = () => {}, post }: {
   flush: () => Promise<boolean>;
   reveal?: (target: string) => void;
   language?: (locale: Locale) => Promise<boolean>;
@@ -325,6 +389,9 @@ export function createEmbedApi({ flush, draftKept = () => false, openHistory, pa
   openPage?: (request: OpenPageRequest) => void;
   close?: () => void;
   pageTrashed?: (ids: string[]) => void;
+  // 開けた・閉じられたら true。
+  slidesWizard?: (command: SlidesWizardCommand) => boolean;
+  refreshBacklinks?: () => void;
   post: (message: NativeMessage) => void;
 }): EmbedApi {
   return {
@@ -393,6 +460,15 @@ export function createEmbedApi({ flush, draftKept = () => false, openHistory, pa
       const ids = parseTrashedPageIds(value);
       if (!ids) return false;
       pageTrashed(ids);
+      return true;
+    },
+    slidesWizard(value) {
+      if (!slidesWizard) return false;
+      const command = parseSlidesWizardRequest(value);
+      return command ? slidesWizard(command) : false;
+    },
+    refreshBacklinks() {
+      refreshBacklinks();
       return true;
     },
   };

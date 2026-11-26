@@ -566,9 +566,14 @@ protocol NotesBackend {
     /// [reveal] 是检索结果命中的块（笔记）或元素（白板）的 id（`NoteSearchResult.blockId`）：网页读好页面后滚动 / 移动到那里
     /// （src/components/note-embed.tsx）。空字符串当作没给。
     func noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?, theme: String?, reveal: String?) -> String
+    /// AI 生成幻灯片向导用的空白编辑器地址（`/note-embed?warm=1&lang=…&model=…&reasoning=…&theme=…`）。
+    func slidesWizardUrl(lang: String?, model: String?, reasoning: String?, theme: String?) -> String
 }
 
 extension NotesBackend {
+    func slidesWizardUrl(lang: String?, model: String? = nil, reasoning: String? = nil, theme: String? = nil) -> String {
+        noteEmbedUrl(pageId: "", lang: lang, model: model, reasoning: reasoning, theme: theme, reveal: nil)
+    }
     func createNote() async throws -> NotePageSummary {
         try await createNote(parentId: nil, kind: .note, groupId: nil)
     }
@@ -616,8 +621,14 @@ enum EmbedMessage: Equatable, Sendable {
     case trashed
     /// 笔记里的页面提及被点了：打开那一页（和回答里的笔记链接一样走 openNoteFromLink）。
     case openPage(id: String)
-    /// 网页那边新建了页面（笔记 AI 面板的「画成图」画好的白板）：刷新笔记列表。
+    /// 笔记下方反向链接里的聊天被点了：打开那段聊天（和搜索结果一样走 AppRouter.openChat），[messageId] 是附上这篇笔记的发言。
+    /// 只有 bootstrap 里声明了 `canOpenChat()` 的 App 才会收到。
+    case openChat(id: String, messageId: String? = nil)
+    /// 网页那边新建了页面（笔记 AI 面板的「画成图」画好的白板，或 AI 生成幻灯片做好了一套）：刷新笔记列表。
     case pagesChanged
+    /// AI 生成幻灯片的向导（#150，网页 SlidesWizardHost）出现（[open]）或消失。[busy]：消失时还有生成没完成（WebView 多留一会儿）。
+    /// 只有 bootstrap 里声明了 `canShowSlidesWizard()` 的 App 才会收到。
+    case slidesWizard(open: Bool, busy: Bool = false)
     /// [kept]：没保存成功，但草稿已存在 WebView 里、之后会重试（不是冲突）。这时可以先离开。
     case flushed(requestId: String, ok: Bool, kept: Bool = false)
     /// 笔记里的图片、文件、封面或图标因为文件存储空间不够上传失败（used / limit 是字节）。App 在编辑器上方显示提示。
@@ -665,8 +676,22 @@ enum EmbedMessage: Equatable, Sendable {
             case "openPage":
                 guard let id = try text(fields["id"]), !id.isEmpty else { return nil }
                 return .openPage(id: id)
+            case "openChat":
+                // 和 Android 一样（isNotBlank）：全是空白的当作没有。
+                func filled(_ value: String?) -> String? { value?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? value : nil }
+                guard let id = filled(fields["id"]?.stringValue) else { return nil }
+                return .openChat(id: id, messageId: filled(fields["messageId"]?.stringValue))
             case "pagesChanged":
                 return .pagesChanged
+            case "slidesWizard":
+                switch try text(fields["state"]) {
+                case "open":
+                    return .slidesWizard(open: true, busy: false)
+                case "closed":
+                    return .slidesWizard(open: false, busy: try flag(fields["busy"]))
+                default:
+                    return nil
+                }
             case "storageLimit":
                 guard let tier = try text(fields["tier"]), let used = fields["used"]?.intValue, let limit = fields["limit"]?.intValue else { return nil }
                 return .storageLimit(tier: tier, used: used, limit: limit)
@@ -736,4 +761,13 @@ enum EmbedMessage: Equatable, Sendable {
         default: return false
         }
     }
+}
+
+/// AI 生成幻灯片向导的入口，即 `window.notefableEmbed.slidesWizard({ action: "open", source })` 的 source
+/// （src/lib/native-bridge.ts 的 parseSlidesWizardRequest；Android `SlidesWizardSource`）。
+enum SlidesWizardSource: Equatable, Sendable {
+    /// 「新建幻灯片」处的「用 AI 生成」。[groupId] / [parentId] 是项目 / 页面行的"+"：整套建在那里。
+    case new(groupId: String? = nil, parentId: String? = nil)
+    case note(pageId: String)
+    case chat(sessionId: String)
 }

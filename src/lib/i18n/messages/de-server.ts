@@ -109,6 +109,7 @@ export const deServer: Record<string, string> = {
   "Page not found": "Seite nicht gefunden",
   "Page not found in the trash.": "Seite im Papierkorb nicht gefunden.",
   "Page not found.": "Seite nicht gefunden.",
+  "Note not found.": "Notiz nicht gefunden.",
   "Note proposal rejected": "Notizvorschlag abgelehnt",
   "Page title must be at most {max} characters.": "Der Seitentitel darf höchstens {max} Zeichen lang sein.",
   "Nothing to update.": "Nichts zu aktualisieren.",
@@ -271,4 +272,8 @@ export const deServer: Record<string, string> = {
   "Could not turn this into an editable diagram.": "Konnte nicht in ein bearbeitbares Diagramm umgewandelt werden.",
   "There is nothing to draw yet.": "Es gibt noch nichts zu zeichnen.",
   "This diagram was moved to the trash.": "Dieses Diagramm wurde in den Papierkorb verschoben.",
+  "Could not generate slides. Try again.": "Die Folien konnten nicht erstellt werden. Versuche es erneut.",
+  "There is nothing to make slides from yet.": "Es gibt noch nichts, woraus Folien erstellt werden können.",
+  "These slides were moved to the trash.": "Diese Folien wurden in den Papierkorb verschoben.",
+  "This request is still running. Try again in a moment.": "Diese Anfrage läuft noch. Versuche es gleich noch einmal.",
 };

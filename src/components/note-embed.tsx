@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "@/components/i18n-provider";
 import { DrawDiagramHost } from "@/components/draw-diagram-dialog";
 import { NoteHistoryDialog } from "@/components/note-history-dialog";
@@ -17,6 +17,8 @@ import { cancelWhiteboardReveal, requestWhiteboardReveal } from "@/lib/whiteboar
 import { flushCanvasEditors } from "@/lib/canvas-flush";
 import { cancelNativeExports } from "@/lib/export-file";
 import { closeDiagramDialog } from "@/lib/draw-diagram-jobs";
+import { SlidesWizardHost } from "@/components/slides-wizard";
+import { hideSlidesWizard, openSlidesWizard, slidesWizardBack } from "@/lib/slides-wizard-jobs";
 import { afterSheetHistory } from "@/lib/use-back-to-close";
 
 const noop = () => {};
@@ -41,6 +43,8 @@ function revealBlock(abortRef: { current: AbortController | null }, target: stri
 // ページ全体を再読み込みせずにキャッシュ済みのページへ即座に切り替える。
 // 中身は /app のスマホのノート画面の本文（封面・アイコン・題名・BlockNote・AI ボタン）と同じ部品で、上部バーとサイドバーはアプリ側が描く。
 // 保存・下書きの退避・衝突の扱いは useNotePages と NoteSaveQueue をそのまま使う。アプリとのやり取りは src/lib/native-bridge.ts。
+// AI のスライド生成の窓（SlidesWizardHost）は、ページを開いていない（温めただけ・閉じた）間も同じ位置に置き、
+// アプリが window.notefableEmbed.slidesWizard で開けるようにする。
 export function NoteEmbed() {
   const { t, locale, setPreference, changeError } = useI18n();
   const expectedPageRef = useRef<string | null>(null);
@@ -61,6 +65,7 @@ export function NoteEmbed() {
   const [model, setModel] = useState(defaultModel);
   const [reasoning, setReasoning] = useState<string>(() => getModelOption(defaultModel).defaultReasoning);
   const optionsRef = useRef(options);
+  const modelRef = useRef(model);
   const activeRef = useRef(active);
   // 開いたページの読み込みが終わってから動かす（ページの種類で動かし方が違う）。
   const revealRef = useRef<{ pageId: string; target: string } | null>(null);
@@ -82,9 +87,32 @@ export function NoteEmbed() {
 
   useEffect(() => {
     optionsRef.current = options;
+    modelRef.current = model;
     activeRef.current = active;
     backupErrorRef.current = notes.backupError;
-  }, [options, active, notes.backupError]);
+  }, [options, model, active, notes.backupError]);
+
+  // アプリが渡したモデルと推論強度にそろえる。渡されていない・今の一覧にないときは変えない。
+  const applyModel = useCallback((nextModel: string | null, nextReasoning: string | null) => {
+    if (!nextModel && !nextReasoning) return;
+    const params = new URLSearchParams();
+    if (nextModel) params.set("model", nextModel);
+    if (nextReasoning) params.set("reasoning", nextReasoning);
+    const resolved = resolveModelPreference(readEmbedModelPreference(params), optionsRef.current);
+    if (!resolved) return;
+    modelRef.current = resolved.model;
+    setModel(resolved.model);
+    setReasoning(resolved.reasoning);
+  }, []);
+
+  // スライド生成の材料に開いているノートがあれば、要求の前に入力中の内容を保存する。
+  const flushSlidesSource = useCallback(async (pageIds: string[]) => {
+    const queue = activeRef.current;
+    if (!queue || !pageIds.includes(queue.page.id)) return true;
+    const handed = await flushCanvasEditors();
+    const saved = await queue.flush();
+    return handed && saved;
+  }, []);
 
   // ページは静的に配るので、初回に開くノートは表示後に URL から読む（2 ページ目以降は openPage で切り替える）。
   useEffect(() => {
@@ -163,21 +191,16 @@ export function NoteEmbed() {
       cancelReveals(revealAbortRef);
       cancelNativeExports();
       setHistoryOpen(false);
-      // 「画成図」の窓は隠すだけ（要求と結果は残り、同じノートでもう一度選ぶと開き直す）。
+      // 「画成図」とスライド生成の窓は隠すだけ（要求と結果は残り、同じ入口でもう一度選ぶと開き直す）。
       closeDiagramDialog();
+      hideSlidesWizard();
       sent.current = { readyId: "", meta: "", state: "", goneId: "" };
       expectedPageRef.current = id;
       urlPageRef.current = id;
       openTokenRef.current += 1;
       setOpenToken(openTokenRef.current);
       revealRef.current = reveal ? { pageId: id, target: reveal } : null;
-      if (nextModel || nextReasoning) {
-        const params = new URLSearchParams();
-        if (nextModel) params.set("model", nextModel);
-        if (nextReasoning) params.set("reasoning", nextReasoning);
-        const resolved = resolveModelPreference(readEmbedModelPreference(params), optionsRef.current);
-        if (resolved) { setModel(resolved.model); setReasoning(resolved.reasoning); }
-      }
+      applyModel(nextModel, nextReasoning);
       setIdle(false);
       setPageId(id);
       void select(id, "none", { keepCurrent: false }).then((opened) => {
@@ -190,6 +213,7 @@ export function NoteEmbed() {
       cancelNativeExports();
       setHistoryOpen(false);
       closeDiagramDialog();
+      hideSlidesWizard();
       revealRef.current = null;
       expectedPageRef.current = null;
       urlPageRef.current = null;
@@ -198,8 +222,15 @@ export function NoteEmbed() {
       setPageId(null);
       deactivate();
     },
+    // スライド生成の窓。開いているページはそのまま（窓はその上に重なる）。「戻る」は一番上の面を閉じ、何もなければ false。
+    slidesWizard: (command) => {
+      if (command.action === "back") return slidesWizardBack();
+      applyModel(command.model, command.reasoning);
+      openSlidesWizard({ entry: command.source, model: modelRef.current });
+      return true;
+    },
     post: (message) => { postToNative(message); },
-  })), [deactivate, select, setPreference]);
+  })), [applyModel, deactivate, select, setPreference]);
 
   const title = active?.content.title;
   const icon = active?.content.icon;
@@ -266,11 +297,7 @@ export function NoteEmbed() {
     if (!opened && expectedPageRef.current === pageId) postToNative({ type: "missing", id: pageId });
   };
 
-  if (idle) {
-    return <main className="notion-workspace flex h-dvh" />;
-  }
-
-  return (
+  const page = idle ? <main className="notion-workspace flex h-dvh" /> : (
     <main className="notion-workspace flex h-dvh">
       <section className="notion-page">
         <div className="flex min-h-0 flex-1 flex-col">
@@ -289,4 +316,10 @@ export function NoteEmbed() {
       <DrawDiagramHost embedded />
     </main>
   );
+
+  return <>
+    {page}
+    {/* ページの有無で作り直されないよう、いつも同じ位置に置く（窓の open / closed の知らせと入力中の内容を保つ）。 */}
+    <SlidesWizardHost embedded flush={flushSlidesSource} />
+  </>;
 }

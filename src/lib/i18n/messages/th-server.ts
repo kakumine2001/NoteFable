@@ -109,6 +109,7 @@ export const thServer: Record<string, string> = {
   "Page not found": "ไม่พบหน้า",
   "Page not found in the trash.": "ไม่พบหน้านี้ในถังขยะ",
   "Page not found.": "ไม่พบหน้า",
+  "Note not found.": "ไม่พบโน้ต",
   "Note proposal rejected": "ข้อเสนอโน้ตใหม่ไม่ได้รับการอนุมัติ",
   "Page title must be at most {max} characters.": "ชื่อหน้ามีความยาวได้สูงสุด {max} ตัวอักษร",
   "Nothing to update.": "ไม่มีข้อมูลที่ต้องอัปเดต",
@@ -271,4 +272,8 @@ export const thServer: Record<string, string> = {
   "Could not turn this into an editable diagram.": "แปลงเป็นไดอะแกรมที่แก้ไขได้ไม่สำเร็จ",
   "There is nothing to draw yet.": "ยังไม่มีอะไรให้วาด",
   "This diagram was moved to the trash.": "ไดอะแกรมนี้ถูกย้ายไปที่ถังขยะแล้ว",
+  "Could not generate slides. Try again.": "สร้างสไลด์ไม่สำเร็จ โปรดลองอีกครั้ง",
+  "There is nothing to make slides from yet.": "ยังไม่มีเนื้อหาสำหรับทำสไลด์",
+  "These slides were moved to the trash.": "สไลด์นี้ถูกย้ายไปที่ถังขยะแล้ว",
+  "This request is still running. Try again in a moment.": "คำขอนี้ยังดำเนินการอยู่ กรุณาลองอีกครั้งในอีกสักครู่",
 };

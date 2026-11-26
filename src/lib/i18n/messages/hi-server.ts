@@ -109,6 +109,7 @@ export const hiServer: Record<string, string> = {
   "Page not found": "पेज नहीं मिला",
   "Page not found in the trash.": "ट्रैश में यह पेज नहीं मिला।",
   "Page not found.": "पेज नहीं मिला।",
+  "Note not found.": "नोट नहीं मिला।",
   "Note proposal rejected": "नए नोट का सुझाव अस्वीकार किया गया",
   "Page title must be at most {max} characters.": "पेज के शीर्षक में अधिकतम {max} अक्षर हो सकते हैं।",
   "Nothing to update.": "अपडेट करने के लिए कुछ नहीं है।",
@@ -271,4 +272,8 @@ export const hiServer: Record<string, string> = {
   "Could not turn this into an editable diagram.": "इसे बदलने योग्य डायग्राम में नहीं बदला जा सका।",
   "There is nothing to draw yet.": "अभी बनाने के लिए कुछ नहीं है।",
   "This diagram was moved to the trash.": "यह डायग्राम ट्रैश में भेज दिया गया है।",
+  "Could not generate slides. Try again.": "स्लाइड नहीं बनाई जा सकीं। फिर से कोशिश करें।",
+  "There is nothing to make slides from yet.": "स्लाइड बनाने के लिए अभी कुछ नहीं है।",
+  "These slides were moved to the trash.": "ये स्लाइड ट्रैश में भेज दी गई हैं।",
+  "This request is still running. Try again in a moment.": "यह अनुरोध अभी चल रहा है। थोड़ी देर बाद फिर से कोशिश करें।",
 };

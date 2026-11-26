@@ -77,9 +77,9 @@ enum ChatLocalImageLoader {
     }
 }
 
-// MARK: - 输入栏上方
+// MARK: - 输入卡片
 
-/// 输入栏上方的提示（.notion-error）：浅红底、圆角 4.8、内边距 8.8×10.4、字 12.8 / 行高 19.2，下距 12。
+/// 输入卡片顶部的提示（.notion-error）：浅红底、圆角 4.8、内边距 8.8×10.4、字 12.8 / 行高 19.2，下距 12。
 struct ComposerError: View {
     let text: String
 
@@ -280,7 +280,7 @@ struct ChatFileChip: View {
     }
 }
 
-/// 输入栏下方的小字（上距 8、左右 4、12 灰 / 行高 16）：已附上的数量和总大小，上传时是进度。
+/// 输入卡片控件下方的小字（上距 8、左右 4、12 灰 / 行高 16）：已附上的数量和总大小，上传时是进度。
 struct ComposerStatus: View {
     let files: [LocalFile]
     let upload: ChatUploadProgress?
@@ -357,6 +357,8 @@ struct AttachSheet: View {
     let onToggleImageMode: () -> Void
     /// 「整理成笔记」；nil 时没有这一行（空白的新聊天）。
     let onCreatePage: (() -> Void)?
+    /// 「生成幻灯片」（以这段对话为材料）；和「整理成笔记」同样的出现条件和禁用条件。
+    let onGenerateSlides: (() -> Void)?
     /// 当前聊天在发送（含上传附件）时这一行变淡（.45）不能点：最后的回答还没存下。
     let createPageEnabled: Bool
 
@@ -377,6 +379,13 @@ struct AttachSheet: View {
             if let onCreatePage {
                 SheetActionRow(L("create_page"), detail: L("create_page_title"), icon: Lucide.filePlus) {
                     closeThen(onCreatePage)
+                }
+                .disabled(!createPageEnabled)
+                .opacity(createPageEnabled ? 1 : 0.45)
+            }
+            if let onGenerateSlides {
+                SheetActionRow(L("slides_generate"), detail: L("slides_generate_from_chat"), icon: Lucide.presentation) {
+                    closeThen(onGenerateSlides)
                 }
                 .disabled(!createPageEnabled)
                 .opacity(createPageEnabled ? 1 : 0.45)

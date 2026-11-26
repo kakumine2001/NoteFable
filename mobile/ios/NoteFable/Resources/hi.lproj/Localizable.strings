@@ -602,6 +602,11 @@
 "slides_export_pptx" = "PowerPoint (PPTX) एक्सपोर्ट करें";
 "slides_export_pptx_transition_note" = "PPTX एक्सपोर्ट में स्लाइड ट्रांज़िशन शामिल नहीं होते हैं।";
 
+/* strings_slides_wizard.xml */
+"slides_generate" = "स्लाइड बनाएं";
+"slides_generate_from_chat" = "इस चैट से स्लाइड डेक बनाएं";
+"slides_generate_with_ai" = "AI से बनाएं";
+
 /* strings_turns.xml */
 "regenerate" = "फिर से जवाब बनाएँ";
 "branch_in_new_chat" = "नई चैट में शाखा बनाएँ";

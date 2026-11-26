@@ -30,12 +30,15 @@ import { ChatTitleIcon, ChatTopbarIcon } from "@/components/chat-icon";
 import { ChatMessage } from "@/components/chat-message";
 import { QuoteSelectionButton } from "@/components/quote-selection";
 import { composeQuotedMessage, normalizeQuote, splitQuotedMessage } from "@/lib/chat-quote";
+import { dispatchBacklinksStale } from "@/lib/note-backlinks";
 import { ANSWER_RESIZED_EVENT } from "@/components/assistant-markdown";
 import { TurnBusyContext, type TurnActions } from "@/components/turn-actions";
 import { AccountAppIconSync, AccountLocaleSync } from "@/components/account-button";
 import { CreatePageDialog } from "@/components/create-page-dialog";
 import { DrawDiagramHost } from "@/components/draw-diagram-dialog";
+import { SlidesWizardHost } from "@/components/slides-wizard";
 import { drawAnswerDiagram, drawNoteDiagram } from "@/lib/draw-diagram-jobs";
+import { openSlidesWizard } from "@/lib/slides-wizard-jobs";
 import { EmptyConversation, StarterPrompts } from "@/components/empty-conversation";
 import { BillingReturnNotice, GuestLimitPrompt, StorageLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
 import { AttachMenu, AttachSheet } from "@/components/attach-sheet";
@@ -135,6 +138,8 @@ async function saveSessionIcon(sessionId: string, icon: string | null) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ icon }),
     });
+    // 一覧のアイコンは保存の前に替わるので、保存できた後にもう一度、開いているノートのバックリンクを読み直させる。
+    if (response.ok) dispatchBacklinksStale();
     return response.ok;
   } catch {
     return false;
@@ -520,6 +525,8 @@ export default function Home() {
   const projectSync = useRef(new ChatProjectSync());
   const [sessionsReady, setSessionsReady] = useState(false);
   const [sessions, setSessions] = useState<Session[]>([]);
+  // 会話の一覧が変わった（送信・名前の変更・削除など）ら、開いているノートのバックリンク（このページを使った会話）を読み直す。
+  useEffect(() => { dispatchBacklinksStale(); }, [sessions]);
   const [chatProjects, setChatProjects] = useState<ChatProject[]>([]);
   const [chatProjectError, setChatProjectError] = useState("");
   useEffect(() => {
@@ -1968,6 +1975,8 @@ export default function Home() {
         body: JSON.stringify({ messageId }),
       });
       if (!response.ok) throw new Error(readErrorMessage(await readJsonObject(response), msg("Could not switch versions. Try again.")));
+      // 表示中の版が替わると、このページを添付した発言（active）も替わる。
+      dispatchBacklinksStale();
       cancelReveal();
       if (!await refreshSessionMessages(sessionId)) throw new Error(msg("Failed to load conversation."));
     } catch (error) {
@@ -2414,6 +2423,16 @@ export default function Home() {
       ? 0
       : Math.max(1, Math.round((now - activeStreamStartedAt) / 1000));
 
+  // 「新しいスライド」の AI 生成。作り先はプロジェクト・親ページの「+」から開いたときだけ渡る。
+  const generateSlides = (placement?: { groupId?: string; parentId?: string }) => openSlidesWizard({ entry: { type: "new", ...placement }, model });
+  // サーバーは保存済みのノートを読むので、材料に開いているページがあれば、要求の前に入力中の内容を保存する。
+  const flushSlidesSource = async (pageIds: string[]) => {
+    const queue = notes.active;
+    if (!queue || !pageIds.includes(queue.page.id)) return true;
+    await flushCanvasEditors();
+    return queue.flush();
+  };
+
   // デスクトップとモバイルで同じ会話履歴を使い、表示方法だけ切り替える。
   const closeSidebar = () => {
     if (window.matchMedia("(min-width: 1024px)").matches) setSidebarVisible(false);
@@ -2422,7 +2441,8 @@ export default function Home() {
   const sidebar = workspaceView === "pages" ? (
     <NotesSidebar pages={notes.pages} activeId={notes.openingId ?? (notesList ? null : notes.activeId)} busy={notes.busy}
       home={notesList && !notes.openingId} onHome={() => { setSidebarOpen(false); openNotesList(); }}
-      onCreate={(request) => { setSidebarOpen(false); createNote(request); }} onImport={(files) => void importMarkdownFiles(files)} onSearch={() => setSearchOpen(true)} onSelect={(id) => { setSidebarOpen(false); openNote(id); }}
+      onCreate={(request) => { setSidebarOpen(false); createNote(request); }}
+      onGenerateSlides={(placement) => { setSidebarOpen(false); generateSlides(placement); }} onImport={(files) => void importMarkdownFiles(files)} onSearch={() => setSearchOpen(true)} onSelect={(id) => { setSidebarOpen(false); openNote(id); }}
       onPrefetch={notes.prefetch} onCancelPrefetch={notes.cancelPrefetch}
       onDelete={deleteNote} onClose={closeSidebar} onWorkspaceChange={changeWorkspace}
       groups={notes.groups} groupError={notes.groupError} onReorder={notes.reorder} onMoveNote={notes.moveNote} onChangeIcon={notes.changeIcon} onRenamePage={notes.renamePage} onCreateGroup={notes.createGroup}
@@ -2459,6 +2479,10 @@ export default function Home() {
 
   // メッセージがない時は中央を空け、入力フォームを下部に大きく見せる。
   const emptyState = messages.length === 0;
+  // チャットの「＋」：Create page と同じく、発言がある会話のときだけ。
+  const generateSlidesFromChat = !emptyState && activeSession
+    ? () => openSlidesWizard({ entry: { type: "chat", sessionId: activeSession.id, title: activeSession.title }, model })
+    : undefined;
   // 空の会話の絵と書き出しの候補は、履歴を読んでいるあいだは出さない。
   const historyPending = historyPendingId !== null && historyPendingId === activeSessionId;
   const historyReady = !historyPending && (!activeSessionId || activeSessionId !== historyFailedId);
@@ -2633,6 +2657,7 @@ export default function Home() {
                 onAddSubpage={() => createNote({ parentId: activeSummary.id })}
                 // サーバーは保存済みのノートを読むので、入力中の内容を先に保存してから始める。
                 onDrawDiagram={() => void drawNoteDiagram(activeSummary.id, model, () => (notes.active?.page.id === activeSummary.id ? notes.active.flush() : Promise.resolve(true)))}
+                onGenerateSlides={() => openSlidesWizard({ entry: { type: "note", pageId: activeSummary.id, title: activeSummary.title, icon: activeSummary.icon }, model })}
                 onMove={() => setMovingNoteId(activeSummary.id)}
                 onExport={() => void notes.exportPage(activeSummary.id)}
                 onTrash={() => setTrashingNoteId(activeSummary.id)} />
@@ -2642,7 +2667,8 @@ export default function Home() {
 
         <div className={workspaceView === "pages" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
           {/* 分割表示の間は右側のペインが同じノートを開く。隠れたこちらにも編集画面を作ると、同じブロックが 2 つでき、検索結果の強調が見えない方に当たる。 */}
-          {!splitActive && <NotesWorkspace notes={notes} listMode={notesList} model={model} reasoning={reasoning} onModelChange={changeModel} onReasoningChange={changeReasoning} onOpen={openNote} onCreate={(request) => createNote(request)} onImport={(files) => void importMarkdownFiles(files)} onWorkspaceChange={changeWorkspace} />}
+          {!splitActive && <NotesWorkspace notes={notes} listMode={notesList} model={model} reasoning={reasoning} onModelChange={changeModel} onReasoningChange={changeReasoning} onOpen={openNote}
+            onOpenChat={(id, messageId) => void openChatFromLink(id, messageId)} onCreate={(request) => createNote(request)} onGenerateSlides={() => generateSlides()} onImport={(files) => void importMarkdownFiles(files)} onWorkspaceChange={changeWorkspace} />}
         </div>
 
         <div className={workspaceView === "chat" ? `notion-chat-workspace${emptyState ? " is-empty" : ""}` : "hidden"}
@@ -2862,6 +2888,7 @@ export default function Home() {
                   }}
                   onCreatePage={!emptyState && activeSession ? () => setCreatePageSessionId(activeSession.id) : undefined}
                   createPageDisabled={isActiveSessionBusy}
+                  onGenerateSlides={generateSlidesFromChat}
                 />
               )}
               <div className="col-span-3 row-start-1 min-w-0">
@@ -2985,6 +3012,7 @@ export default function Home() {
             onAttachPages={() => setPageDialogOpen(true)}
             onCreatePage={!emptyState && activeSession ? () => setCreatePageSessionId(activeSession.id) : undefined}
             createPageDisabled={isActiveSessionBusy}
+            onGenerateSlides={generateSlidesFromChat}
           />
           {pageDialogOpen && (
             <AttachPageDialog initial={attachedPages} onClose={() => setPageDialogOpen(false)}
@@ -3018,6 +3046,7 @@ export default function Home() {
             model={model}
             reasoning={reasoning}
             onSelectNote={(id) => openNoteInSplit(id)}
+            onOpenChat={(id, messageId) => void openChatFromLink(id, messageId)}
             onCreateNote={createNoteInSplit}
             onOpenFullView={(id) => openNoteFullView(id)}
             onOpenHistory={(id) => setHistoryNoteId(id)}
@@ -3040,6 +3069,8 @@ export default function Home() {
       )}
       {/* 「画成図」の窓（回答・ノートの「…」・ノートの AI パネルのどこから始めても、ここに出す）。 */}
       <DrawDiagramHost />
+      {/* AI のスライド生成の窓（チャットの「＋」・ノートの「…」と AI パネル・新規作成のどこから始めても、ここに出す）。 */}
+      <SlidesWizardHost flush={flushSlidesSource} />
       {importingFiles && <ImportTargetDialog groups={notes.groups} onClose={() => setImportingFiles(null)}
         onChoose={(groupId) => { const files = importingFiles; setImportingFiles(null); void importMarkdownFiles(files, groupId); }} />}
       {movingNote && <MoveNoteDialog page={movingNote} groups={notes.groups} error={notes.groupError} pages={notes.pages}

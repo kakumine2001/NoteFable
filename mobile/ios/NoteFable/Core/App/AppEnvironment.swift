@@ -235,6 +235,10 @@ final class AppEnvironment {
         )
         notes = NotesViewModel(backend: api, prefs: UserDefaultsNotesPrefs(defaults: defaults), noteIcons: noteIconApi)
         sidebar = SidebarViewModel(sessions: sessionsApi, projectsApi: projectsApi, chat: chat)
+        // 在抽屉里给聊天换图标后立刻关掉时，写入可能晚于抽屉关闭的通知。
+        chat.onSessionIconSaved = { [weak self] in self?.editorBridge?.refreshBacklinks() }
+        // 常驻侧栏里给聊天改名或删除时不会关闭抽屉，写入成功后直接让打开着的笔记重读反向链接。
+        sidebar.onSessionMutated = { [weak self] in self?.editorBridge?.refreshBacklinks() }
     }
 
     /// 全屏检索的 ViewModel：每次打开检索建一个（Android 的 SearchViewModel.Factory）。

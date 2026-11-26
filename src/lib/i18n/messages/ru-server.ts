@@ -109,6 +109,7 @@ export const ruServer: Record<string, string> = {
   "Page not found": "Страница не найдена",
   "Page not found in the trash.": "Страница не найдена в корзине.",
   "Page not found.": "Страница не найдена.",
+  "Note not found.": "Заметка не найдена.",
   "Note proposal rejected": "Предложение о создании заметки отклонено",
   "Page title must be at most {max} characters.": "Название страницы может содержать не более {max} символов.",
   "Nothing to update.": "Нет данных для обновления.",
@@ -271,4 +272,8 @@ export const ruServer: Record<string, string> = {
   "Could not turn this into an editable diagram.": "Не удалось превратить это в редактируемую схему.",
   "There is nothing to draw yet.": "Пока нечего рисовать.",
   "This diagram was moved to the trash.": "Эта схема перемещена в корзину.",
+  "Could not generate slides. Try again.": "Не удалось создать слайды. Попробуйте ещё раз.",
+  "There is nothing to make slides from yet.": "Пока не из чего делать слайды.",
+  "These slides were moved to the trash.": "Эти слайды перемещены в корзину.",
+  "This request is still running. Try again in a moment.": "Этот запрос ещё выполняется. Попробуйте снова через мгновение.",
 };

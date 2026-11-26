@@ -2,7 +2,8 @@
 # Fixture-mode screenshots of the Debug simulator build across iOS majors and UI variants.
 # Usage: ci-screenshots.sh <NoteFable.app> <out-dir>
 #        ci-screenshots.sh --boot-only   (CI: boot the simulators ahead of time, leave them running, capture nothing)
-# Env: NF_IOS_MAJORS, NF_VARIANTS, NF_SCENES, NF_DEVICE_FAMILY
+# Env: NF_IOS_MAJORS, NF_VARIANTS, NF_SCENES, NF_ALL_SCENES, NF_DEVICE_FAMILY
+# Every READY line must report the chrome path the app took (glass=native on iOS 26+, material below, solid for rt).
 # Written for macOS /bin/bash (bash 3.2): no mapfile, no associative arrays, no ${var,,}, no sort -V.
 set -euo pipefail
 
@@ -17,8 +18,10 @@ else
 fi
 
 read -r -a MAJORS   <<<"${NF_IOS_MAJORS:-26 18}"
+# ar-app and hc run only on request (NF_VARIANTS), to keep the default run short.
 read -r -a VARIANTS <<<"${NF_VARIANTS:-light dark ar rt}"
-DEFAULT_SCENES="chat-empty chat chat-streaming drawer workspace editor page-menu search model-sheet attach-sheet settings settings-plan sign-in"
+# chat-streaming stays last in the signed-in batch because its stream never ends.
+DEFAULT_SCENES="chat-empty chat chat-scrolled chat-menu emoji-picker chat-composer chat-keyboard toast model-sheet attach-sheet drawer search search-scrolled settings settings-page settings-plan workspace workspace-scrolled editor page-menu editor-scrolled editor-locked editor-whiteboard editor-slides chat-streamed chat-streaming sign-in"
 read -r -a SCENES   <<<"${NF_SCENES:-$DEFAULT_SCENES}"
 
 DEVICE_FAMILY="${NF_DEVICE_FAMILY:-iPhone}"
@@ -195,7 +198,16 @@ run_batch() {
   local udid=$1 major=$2 variant=$3 account=$4 probe_rt=$5
   shift 5
   local -a batch=("$@")
-  local csv="" s idx=0 log ack_dir app_data ready_line png
+  local csv="" s idx=0 log ack_dir app_data ready_line png expected_glass
+
+  # The chrome path every scene must report: Liquid Glass on iOS 26+, system materials below, solid under rt.
+  expected_glass=native
+  if [[ "$major" -lt 26 ]]; then
+    expected_glass=material
+  fi
+  if [[ "$variant" == "rt" ]]; then
+    expected_glass=solid
+  fi
 
   for s in "${batch[@]}"; do
     if [[ -z "$csv" ]]; then csv="$s"; else csv="${csv},${s}"; fi
@@ -262,6 +274,19 @@ run_batch() {
 
     printf 'ios%s\t%s\t%s\t%s\n' "$major" "$variant" "$s" "$ready_line" >>"$ready_summary_file"
 
+    if [[ "$ready_line" != *" glass=${expected_glass}"* ]]; then
+      echo "::error::ios${major} ${variant} ${s}: expected glass=${expected_glass} (${ready_line})"
+      failed=1
+    fi
+
+    if [[ "$variant" == "hc" && "$ready_line" != *" increaseContrast=true "* ]]; then
+      echo "::error::ios${major} ${variant} ${s}: Increase Contrast did not reach the app (${ready_line})"
+      failed=1
+    fi
+    if [[ "$s" == "chat-keyboard" && "$ready_line" != *" keyboard=up "* ]]; then
+      echo "::warning::ios${major} ${variant} ${s}: software keyboard is not visible (${ready_line})"
+    fi
+
     if [[ "$ready_line" == *"timeout=true"* ]]; then
       echo "::error::ios${major} ${variant} ${s} timed out waiting for readiness: ${ready_line}"
       failed=1
@@ -287,30 +312,29 @@ run_batch() {
 # Partition SCENES into signed-in and guest batches.
 declare -a SIGNED_IN_BATCH=()
 declare -a GUEST_BATCH=()
-if [[ -z "${NF_SCENES:-}" ]]; then
-  SIGNED_IN_BATCH=(chat-empty chat model-sheet attach-sheet drawer search settings settings-plan workspace editor page-menu chat-streaming)
-  GUEST_BATCH=(sign-in)
-else
-  for s in "${SCENES[@]}"; do
-    if [[ "$s" == "sign-in" ]]; then
-      GUEST_BATCH+=("$s")
-    else
-      SIGNED_IN_BATCH+=("$s")
-    fi
-  done
-fi
+for s in "${SCENES[@]}"; do
+  if [[ "$s" == "sign-in" ]]; then
+    GUEST_BATCH+=("$s")
+  else
+    SIGNED_IN_BATCH+=("$s")
+  fi
+done
 
-# Without NF_SCENES, only light takes every scene: the other variants take the scenes where they differ visibly.
-# "ar-app" (system English + in-app Arabic) looks the same as "ar", so it only runs when NF_VARIANTS names it.
-# NF_ALL_SCENES=1 takes every scene in every variant.
+# Without NF_SCENES, only light takes every scene: the other variants take the scenes where they differ visibly
+# (content scrolled under the floating glass bars, glass menus and pickers, the toast over the composer).
+# "ar-app" (system English + in-app Arabic) mirrors the layout through the app's own window sync, not the system
+# language, so it keeps a few chrome scenes. rt must start with a signed-in scene: the Reduce Transparency probe
+# runs on the first READY line. NF_ALL_SCENES=1 takes every scene in every variant.
 variant_scenes() {
   if [[ -n "${NF_SCENES:-}" || "${NF_ALL_SCENES:-0}" == "1" ]]; then
     return 0
   fi
   case "$1" in
-    dark)      echo "chat drawer workspace editor model-sheet settings" ;;
-    ar|ar-app) echo "chat drawer workspace settings" ;;
-    rt)        echo "chat drawer model-sheet" ;;
+    dark)   echo "chat chat-scrolled chat-menu emoji-picker chat-composer chat-keyboard model-sheet drawer search-scrolled settings settings-page workspace workspace-scrolled editor editor-scrolled editor-whiteboard" ;;
+    ar)     echo "chat chat-scrolled chat-menu chat-composer drawer search-scrolled settings workspace workspace-scrolled editor-locked" ;;
+    ar-app) echo "chat chat-menu model-sheet drawer workspace-scrolled" ;;
+    rt)     echo "chat chat-scrolled chat-keyboard toast model-sheet drawer search-scrolled settings-page workspace-scrolled editor-locked chat-streaming" ;;
+    hc)     echo "chat-scrolled drawer workspace-scrolled" ;;
   esac
 }
 
@@ -388,8 +412,12 @@ for major in "${MAJORS[@]}"; do
   xcrun simctl install "$udid" "$APP"
 
   for variant in "${VARIANTS[@]}"; do
-    mkdir -p "$OUT/ios${major}/${variant}"
     set_variant_environment "$udid" "$variant"
+    if [[ "$variant" == "hc" ]] && ! xcrun simctl ui "$udid" increase_contrast enabled >/dev/null; then
+      echo "::warning::ios${major} hc: this simulator could not enable Increase Contrast"
+      continue
+    fi
+    mkdir -p "$OUT/ios${major}/${variant}"
     select_variant_batches "$variant"
 
     rt_ok=1
@@ -428,6 +456,9 @@ for major in "${MAJORS[@]}"; do
     if [[ "$variant" == "rt" ]]; then
       xcrun simctl spawn "$udid" defaults write com.apple.Accessibility EnhancedBackgroundContrastEnabled -int 0 || true
     fi
+    if [[ "$variant" == "hc" ]]; then
+      xcrun simctl ui "$udid" increase_contrast disabled >/dev/null || echo "::warning::ios${major} hc: could not turn Increase Contrast off again"
+    fi
   done
 
   xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
@@ -454,10 +485,10 @@ if [[ -d "$HOME/Library/Logs/DiagnosticReports" ]]; then
 fi
 
 # Generate contact sheet HTML + GitHub step summary.
-python3 - "$OUT" "$ready_summary_file" "${GITHUB_STEP_SUMMARY:-}" <<'PY'
+python3 - "$OUT" "$ready_summary_file" "${GITHUB_STEP_SUMMARY:-}" "$DEFAULT_SCENES" <<'PY'
 import glob, html, os, sys
 
-out_dir, ready_file, summary_path = sys.argv[1], sys.argv[2], sys.argv[3]
+out_dir, ready_file, summary_path, default_scenes = sys.argv[1:]
 
 ready_rows = []
 if os.path.exists(ready_file):
@@ -468,12 +499,21 @@ if os.path.exists(ready_file):
                 ready_rows.append(parts)
 
 majors = sorted([d for d in os.listdir(out_dir) if d.startswith('ios') and os.path.isdir(os.path.join(out_dir, d))])
-variants_order = ['light', 'dark', 'ar', 'ar-app', 'rt']
-scenes_order = [
-    'chat-empty', 'chat', 'chat-streaming', 'drawer', 'workspace',
-    'editor', 'page-menu', 'search', 'model-sheet', 'attach-sheet',
-    'settings', 'settings-plan', 'sign-in',
-]
+variants_order = ['light', 'dark', 'ar', 'ar-app', 'hc', 'rt']
+scenes_order = default_scenes.split()
+
+def scene_rows(major):
+    # Known scenes in a fixed order, then any other scene captured for this runtime (never drop a PNG silently).
+    known = set(scenes_order)
+    extra = set()
+    for path in glob.glob(os.path.join(out_dir, major, '*', '*.png')):
+        name = os.path.basename(path)[:-len('.png')]
+        for suffix in ('-TIMEOUT', '-MISSING'):
+            if name.endswith(suffix):
+                name = name[:-len(suffix)]
+        if name not in known:
+            extra.add(name)
+    return scenes_order + sorted(extra)
 
 parts = [
     '<!doctype html><html lang="en"><head><meta charset="utf-8">',
@@ -502,7 +542,7 @@ for major in majors:
     for v in present_variants:
         parts.append(f'<th>{html.escape(v)}</th>')
     parts.append('</tr></thead><tbody>')
-    for s in scenes_order:
+    for s in scene_rows(major):
         parts.append(f'<tr><th class="scene">{html.escape(s)}</th>')
         for v in present_variants:
             rel = f'{major}/{v}/{s}.png'

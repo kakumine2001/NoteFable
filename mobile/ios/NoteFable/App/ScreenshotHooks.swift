@@ -8,9 +8,19 @@ enum ScreenshotScene: String, CaseIterable, Sendable {
     case chatEmpty = "chat-empty"
     case chat
     case chatStreaming = "chat-streaming"
+    case chatComposer = "chat-composer"
+    case chatKeyboard = "chat-keyboard"
+    case chatStreamed = "chat-streamed"
     case drawer
+    /// 宽屏（iPad）下手动收起常驻侧栏后的全宽聊天页（验证顶栏行首菜单按钮重新出现）。
+    case sidebarCollapsed = "sidebar-collapsed"
     case workspace
+    case workspaceScrolled = "workspace-scrolled"
     case editor
+    case editorScrolled = "editor-scrolled"
+    case editorLocked = "editor-locked"
+    case editorWhiteboard = "editor-whiteboard"
+    case editorSlides = "editor-slides"
     case pageMenu = "page-menu"
     case search
     case modelSheet = "model-sheet"
@@ -18,6 +28,19 @@ enum ScreenshotScene: String, CaseIterable, Sendable {
     case settings
     case settingsPlan = "settings-plan"
     case signIn = "sign-in"
+    // #195 Phase 2a：内容从浮动栏下面滚过、玻璃菜单 / 选择器、提示条的位置。
+    /// 京都聊天往上滚一段：消息在顶栏和输入栏下面，「滚到底部」按钮出现。
+    case chatScrolled = "chat-scrolled"
+    /// 京都聊天顶栏「…」菜单打开。
+    case chatMenu = "chat-menu"
+    /// 京都聊天的换图标选择器打开。
+    case emojiPicker = "emoji-picker"
+    /// 检索结果往上滚一段：结果在浮动的检索栏下面。
+    case searchScrolled = "search-scrolled"
+    /// 设置的「通用」页往上滚一段：内容在浮动的设置顶栏下面。
+    case settingsPage = "settings-page"
+    /// 京都聊天上显示一条提示条（量出来的输入栏上方位置）。
+    case toast
 }
 
 #if DEBUG

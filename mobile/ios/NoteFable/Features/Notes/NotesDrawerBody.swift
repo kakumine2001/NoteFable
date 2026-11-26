@@ -36,7 +36,7 @@ struct NotesDrawerBody: View {
                 NotesSidebarActionRow(icon: Lucide.upload, title: L("import_markdown")) { importing = true }
                     .disabled(busy)
                 NotesSidebarActionRow(icon: Lucide.trash2, title: L("trash")) {
-                    router.closeDrawer()
+                    router.dismissDrawer()
                     notes.openTrash()
                 }
             }
@@ -123,9 +123,15 @@ private struct NotesDrawerList: View {
         let notes = app.notes
         let isOpen = !state.collapsedSections.contains(section.kind)
         SidebarSectionDivider()
-        NotesSectionHeading(kind: section.kind, count: section.count, isOpen: isOpen, busy: busy, onToggle: { notes.toggleSection(section.kind) }) {
-            router.createNote(kind: section.kind)
-        }
+        NotesSectionHeading(
+            kind: section.kind,
+            count: section.count,
+            isOpen: isOpen,
+            busy: busy,
+            onToggle: { notes.toggleSection(section.kind) },
+            onCreate: { router.createNote(kind: section.kind) },
+            onGenerateSlides: section.kind == .slides ? { router.openSlidesWizard(.new()) } : nil
+        )
         .reorderDropZone(noteSectionZone(section.kind), in: reorder)
         if isOpen {
             ForEach(section.roots) { page in
@@ -193,9 +199,16 @@ private struct NotesDrawerList: View {
             .buttonStyle(.pressable(cornerRadius: 8))
             // 项目的“+”（网页项目行的 NewPageButton）：在这个项目的最上层新建，能建几种类型时先选类型。
             let newLabel = L("ws_new_page_in", group.name)
-            NewPageMenuAnchor(kinds: notes.state.kinds, label: newLabel, onCreate: { kind in
-                router.createNote(kind: kind, groupId: group.id)
-            }) { open in
+            NewPageMenuAnchor(
+                kinds: notes.state.kinds,
+                label: newLabel,
+                onCreate: { kind in
+                    router.createNote(kind: kind, groupId: group.id)
+                },
+                onGenerateSlides: {
+                    router.openSlidesWizard(.new(groupId: group.id))
+                }
+            ) { open in
                 NoteRowAction(icon: Lucide.plus, iconSize: 14, label: newLabel, action: open)
             }
             .disabled(busy)
@@ -286,9 +299,16 @@ private struct NotesDrawerRow: View {
                 iconButton
             }
             title(active: active, locked: busy || state.moveBusy.contains(page.id))
-            NewPageMenuAnchor(kinds: state.kinds, label: L("pg_add_page_inside_title", page.title), onCreate: { kind in
-                router.createNote(parentId: page.id, kind: kind)
-            }) { open in
+            NewPageMenuAnchor(
+                kinds: state.kinds,
+                label: L("pg_add_page_inside_title", page.title),
+                onCreate: { kind in
+                    router.createNote(parentId: page.id, kind: kind)
+                },
+                onGenerateSlides: {
+                    router.openSlidesWizard(.new(parentId: page.id))
+                }
+            ) { open in
                 NoteRowAction(icon: Lucide.plus, iconSize: 14, label: L("pg_add_page_inside_title", page.title), action: open)
             }
             .disabled(busy)

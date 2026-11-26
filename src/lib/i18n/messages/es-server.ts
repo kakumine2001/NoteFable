@@ -109,6 +109,7 @@ export const esServer: Record<string, string> = {
   "Page not found": "No se encontró la página",
   "Page not found in the trash.": "No se encontró la página en la papelera.",
   "Page not found.": "No se encontró la página.",
+  "Note not found.": "No se encontró la nota.",
   "Note proposal rejected": "Propuesta de nota rechazada",
   "Page title must be at most {max} characters.": "El título de la página puede tener como máximo {max} caracteres.",
   "Nothing to update.": "No hay nada que actualizar.",
@@ -271,4 +272,8 @@ export const esServer: Record<string, string> = {
   "Could not turn this into an editable diagram.": "No se pudo convertir en un diagrama editable.",
   "There is nothing to draw yet.": "Todavía no hay nada que dibujar.",
   "This diagram was moved to the trash.": "Este diagrama se movió a la papelera.",
+  "Could not generate slides. Try again.": "No se pudieron generar las diapositivas. Inténtalo de nuevo.",
+  "There is nothing to make slides from yet.": "Todavía no hay nada con lo que crear diapositivas.",
+  "These slides were moved to the trash.": "Estas diapositivas se movieron a la papelera.",
+  "This request is still running. Try again in a moment.": "Esta solicitud todavía se está procesando. Inténtalo de nuevo en unos instantes.",
 };

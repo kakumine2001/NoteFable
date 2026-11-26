@@ -3,8 +3,10 @@ import UIKit
 
 // 设置（网页 SettingsDialog 的手机宽度，Android ui/SettingsDialog.kt；从侧栏的账号行打开，登录后才有）。全屏，灰底（--notion-sidebar）。
 // 两级（和 ChatGPT、Claude 的手机 App 一样）：先是入口列表，点一行进那一栏自己的画面。
-// - 顶栏高 64、左右 16：行首 40 的圆按钮（白底、1px 细线；列表上是"关闭" X 18，一栏里是"返回" ArrowLeft 20），
-//   标题在整条顶栏的正中，17/650 墨色（列表上是"设置"，一栏里是那一栏的名字）；行尾空着（留 40，让标题居中）。
+// - 顶栏高 64、左右 16，浮在内容上面（#195 `nfFloatingHeader`）：卡片从它下面滚过（iOS 26 系统的滚动边缘效果；
+//   iOS 17–18 是 Material.bar 底；减弱透明度时是不透明的 --notion-sidebar 底，都没有分隔线）。顶栏不跟着换画面的横移走。
+//   行首 44 的玻璃圆按钮（`NFGlassIconButton`，1px 细线；列表上是"关闭" X 18，一栏里是"返回" ArrowLeft 20），
+//   标题在整条顶栏的正中，17/650 墨色（列表上是"设置"，一栏里是那一栏的名字；普通文字，不放在玻璃上）；行尾空着（留 44，让标题居中）。
 // - 下面是左右 16、上 8、下 32 的滚动区。名字、头像、语言保存失败的提示在它的最上面，列表和每一栏里都有。
 // - 入口列表（.settings-home）：账号行（头像、名字、邮箱，点了进"账号"），下面 24 是四行的卡片：通用、个性化、方案、账号。
 // - 一栏的画面只有那一栏的内容，没有栏标题（名字在顶栏上）。卡片都是白底、1px 细线、圆角 20：
@@ -75,13 +77,19 @@ struct SettingsScreen: View {
         let dirty = model.dirty
         let page = state.page
         GeometryReader { bounds in
-            let split = bounds.size.width >= 720
-            VStack(spacing: 0) {
-                topBar(page, split: split)
+            // 宽且足够高的窗口（iPad、展开态 iPhone Duo 竖/横屏）：左边常驻入口列表（260–280pt），右边是选中的一栏；窄屏或横屏手机维持两级切换。
+            let windowHeight = Double(bounds.size.height + bounds.safeAreaInsets.top + bounds.safeAreaInsets.bottom)
+            let availableWidth = Double(bounds.size.width)
+            let split = AdaptiveLayout.supportsDockedSidebar(
+                windowWidth: availableWidth,
+                windowHeight: windowHeight,
+                presenting: false
+            )
+            ScrollViewReader { proxy in
                 HStack(spacing: 0) {
                     if split {
                         scrollBody(account: account, dirty: dirty) { homeContent }
-                            .frame(width: 280)
+                            .frame(width: CGFloat(AdaptiveLayout.sidebarWidth(forWindowWidth: availableWidth)))
                         Divider()
                     }
                     // 入口列表和一栏的画面各是一个滚动区：换画面就是换一个新的，所以总是从最上面开始（网页 scrollTop = 0）。
@@ -109,9 +117,21 @@ struct SettingsScreen: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .task(id: ScreenshotHooks.sceneTick) {
+                    await showScreenshotPage(proxy)
+                }
+            }
+            // 顶栏浮在滚动区上面，放在 SettingsEntrance 外面：换画面时只有内容横移，顶栏不动。
+            .nfFloatingHeader(edge: .top, solidFill: Sm.sidebar, divider: false) {
+                topBar(page, split: split)
+                    .padding(.horizontal, NFChromeMetrics.sideInset)
+                    .frame(height: 64)
+                    // 浮动顶栏排在滚动区后面（safeAreaBar）：读屏仍然先念顶栏，换画面后从"返回"/"关闭"接着念。
+                    .accessibilityElement(children: .contain)
+                    .accessibilitySortPriority(1)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .overlay(alignment: .bottom) {
             ZStack {
                 if dirty {
@@ -135,32 +155,57 @@ struct SettingsScreen: View {
 
     // MARK: 顶栏
 
-    /// .settings-header（手机）：三列 40 | 1fr | 40、间距 8、左右 16、高 64。标题在中间那一列里居中，所以也在整条顶栏的正中。
+    /// .settings-header（手机）：三列 44 | 1fr | 44、间距 8（左右 16、高 64 由放它的地方加）。标题在中间那一列里居中，
+    /// 所以也在整条顶栏的正中。行首是玻璃圆按钮（这条顶栏唯一的玻璃，也放在一个 GlassEffectContainer 里）。
+    /// 宽窗口（左边常驻入口列表）时行首总是"关闭"，标题是右边那一栏的名字（还没选时是"通用"）。
     private func topBar(_ page: SettingsPage?, split: Bool) -> some View {
         let home = split || page == nil
-        return HStack(spacing: 8) {
-            SettingsBarButton(home ? Lucide.x : Lucide.arrowLeft, iconSize: home ? 18 : 20, label: L(home ? "close" : "back")) {
-                // 列表上是关闭（网页 closeAll），一栏里是回列表（网页 backHome）；拦不拦由模型决定。
-                if home {
-                    model.closeAll()
-                } else {
-                    model.backHome()
+        return NFGlassContainer(spacing: NFChromeMetrics.containerSpacing) {
+            HStack(spacing: 8) {
+                NFGlassIconButton(
+                    home ? Lucide.x : Lucide.arrowLeft,
+                    label: L(home ? "close" : "back"),
+                    size: NFChromeMetrics.control,
+                    iconSize: home ? 18 : 20,
+                    stroke: Sm.border
+                ) {
+                    // 列表上和宽窗口里是关闭（网页 closeAll），窄窗口的一栏里是回列表（网页 backHome）；拦不拦由模型决定。
+                    if split || model.state.page == nil {
+                        model.closeAll()
+                    } else {
+                        model.backHome()
+                    }
                 }
+                Text(L(page?.titleKey ?? (split ? "settings_general" : "acct_settings")))
+                    .font(.nf(17, weight: 650))
+                    .foregroundStyle(Sm.ink)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .accessibilityAddTraits(.isHeader)
+                // 行尾那一列空着，只为让标题居中。
+                Color.clear
+                    .frame(width: NFChromeMetrics.control, height: NFChromeMetrics.control)
+                    .accessibilityHidden(true)
             }
-            Text(L(page?.titleKey ?? (split ? "settings_general" : "acct_settings")))
-                .font(.nf(17, weight: 650))
-                .foregroundStyle(Sm.ink)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .accessibilityAddTraits(.isHeader)
-            // 行尾那一列空着，只为让标题居中。
-            Color.clear
-                .frame(width: 40, height: 40)
-                .accessibilityHidden(true)
         }
-        .padding(.horizontal, 16)
-        .frame(height: 64)
+    }
+
+    // MARK: 截图场景
+
+    /// settings-page：进"通用"，打开图标的角色选择（这一栏最长的样子），滚到这张卡片的底，让卡片从浮动顶栏下面过去。
+    /// 内容不够一屏时滚不动（系统把位置夹在范围里），画面停在原处。
+    private func showScreenshotPage(_ proxy: ScrollViewProxy) async {
+        guard ScreenshotHooks.isActive, ScreenshotHooks.scene == .settingsPage else { return }
+        try? await Task.sleep(for: .milliseconds(150))
+        guard !Task.isCancelled, ScreenshotHooks.consume(.settingsPage) else { return }
+        model.show(.general)
+        model.setAppIconPicking(true)
+        // 换画面的出场（200ms）走完、角色网格排好。
+        try? await Task.sleep(for: .milliseconds(450))
+        proxy.scrollTo(SettingsScreenshotAnchor.generalCard, anchor: .bottom)
+        try? await Task.sleep(for: .milliseconds(300))
+        ScreenshotHooks.markReady(.settingsPage)
     }
 
     // MARK: 滚动区
@@ -222,6 +267,8 @@ struct SettingsScreen: View {
                 SettingsRowDivider()
                 AppIconSettings(model: model)
             }
+            // 截图场景 settings-page 滚到这里（固定的 id，不影响视图的身份）。
+            .id(SettingsScreenshotAnchor.generalCard)
         case .personalization:
             SettingsCard(padded: true) {
                 CustomInstructionsSection(model: model)
@@ -247,6 +294,11 @@ struct SettingsScreen: View {
             .padding(.top, 24)
         }
     }
+}
+
+/// 截图场景里 `ScrollViewReader` 滚动的目标。
+private enum SettingsScreenshotAnchor {
+    static let generalCard = "settings-general-card"
 }
 
 // MARK: - 自定义指令

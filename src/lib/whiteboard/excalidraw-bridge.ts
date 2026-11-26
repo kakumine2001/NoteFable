@@ -9,7 +9,23 @@ type ActionManagerLike = {
   actions: Record<string, ActionLike | undefined>;
   executeAction: (action: ActionLike, source?: "ui" | "api" | "keyboard", value?: unknown) => void;
 };
-export type ExcalidrawAppLike = { actionManager: ActionManagerLike };
+// 文字の編集を始める口（App.text.startTextEditing）。Enter キーで図形の文字を編集するときに Excalidraw 自身が呼ぶもの。
+export type StartTextEditing = (options: {
+  sceneX: number;
+  sceneY: number;
+  container?: unknown;
+  textElement?: unknown;
+  initialSelection?: { start: number; end: number };
+}) => void;
+type HistoryLike = {
+  undo: (...args: unknown[]) => unknown;
+  redo: (...args: unknown[]) => unknown;
+};
+export type ExcalidrawAppLike = {
+  actionManager: ActionManagerLike;
+  text?: { startTextEditing?: StartTextEditing };
+  history?: HistoryLike;
+};
 
 type RegisterableApi = {
   registerAction: (action: never) => void;
@@ -23,17 +39,54 @@ export type WhiteboardActions = {
   run: (name: string, value?: unknown) => boolean;
   has: (name: string) => boolean;
   ready: () => boolean;
+  // 図形（container）の文字の編集を始める（思考マップの新しい節）。initialSelection で最初に選んでおく範囲。editor が無ければ false。
+  editText: (options: Parameters<StartTextEditing>[0]) => boolean;
+  // undo / redo で場面を戻したときに知らせる（片付け処理が取り消し・やり直しの場面を書き換えないため）。
+  onHistoryReplay: (listener: () => void) => () => void;
 };
 
 // api に橋渡しの操作を登録し、container の中でキー入力を 1 回だけ起こして editor を受け取る。
 export function connectWhiteboardActions(api: RegisterableApi, container: HTMLElement | null): WhiteboardActions {
   let app: ExcalidrawAppLike | null = null;
+  const historyListeners = new Set<() => void>();
+  let unhookHistory: (() => void) | null = null;
+  const syncHistoryHook = () => {
+    const history = app?.history;
+    if (!historyListeners.size) {
+      unhookHistory?.();
+      unhookHistory = null;
+      return;
+    }
+    if (unhookHistory || !history || typeof history.undo !== "function" || typeof history.redo !== "function") return;
+    const undoDesc = Object.getOwnPropertyDescriptor(history, "undo");
+    const redoDesc = Object.getOwnPropertyDescriptor(history, "redo");
+    const origUndo = history.undo;
+    const origRedo = history.redo;
+    const wrap = (fn: (...args: unknown[]) => unknown) => function (this: unknown, ...args: unknown[]) {
+      const result = fn.apply(this, args);
+      if (result !== undefined) {
+        for (const listener of historyListeners) listener();
+      }
+      return result;
+    };
+    history.undo = wrap(origUndo);
+    history.redo = wrap(origRedo);
+    unhookHistory = () => {
+      if (undoDesc) Object.defineProperty(history, "undo", undoDesc);
+      else delete (history as Partial<HistoryLike>).undo;
+      if (redoDesc) Object.defineProperty(history, "redo", redoDesc);
+      else delete (history as Partial<HistoryLike>).redo;
+    };
+  };
   const action = {
     name: "notefableBridge",
     label: "notefableBridge",
     trackEvent: false,
     keyTest: (event: KeyboardEvent, _appState: unknown, _elements: unknown, editor: unknown) => {
-      if (!app && isApp(editor)) app = editor;
+      if (!app && isApp(editor)) {
+        app = editor;
+        syncHistoryHook();
+      }
       return event.key === BRIDGE_KEY && false;
     },
     perform: () => false,
@@ -60,6 +113,22 @@ export function connectWhiteboardActions(api: RegisterableApi, container: HTMLEl
     ready() {
       capture();
       return app !== null;
+    },
+    editText(options) {
+      capture();
+      const start = app?.text?.startTextEditing;
+      if (typeof start !== "function") return false;
+      start(options);
+      return true;
+    },
+    onHistoryReplay(listener) {
+      capture();
+      historyListeners.add(listener);
+      syncHistoryHook();
+      return () => {
+        historyListeners.delete(listener);
+        syncHistoryHook();
+      };
     },
   };
 }

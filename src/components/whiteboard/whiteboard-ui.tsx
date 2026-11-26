@@ -2,7 +2,7 @@
 
 import {
   Circle, Diamond, Ellipsis, Eraser, FileDown, FileUp, Frame, Grid3x3, Hand, Highlighter, ImagePlus, Lasso, LocateFixed, Magnet, Map as MapIcon,
-  Maximize, Minus, MousePointer2, MoveUpRight, Pen, Redo2, Sparkles, Square, StickyNote, Type, Undo2, Upload, Wand2, ZoomIn, ZoomOut, Link2, PenTool, Palette, LockOpen,
+  Maximize, Minus, MousePointer2, MoveUpRight, Pen, Redo2, Square, StickyNote, Type, Undo2, Upload, Wand2, ZoomIn, ZoomOut, Link2, PenTool, Palette, LockOpen,
 } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { AnswerMenu } from "@/components/answer-actions";
@@ -12,7 +12,9 @@ import { PageKindIcon } from "@/components/page-kind-icon";
 import { FloatingEmojiPopover, floatingPositionFor, usePickerBackToClose, type FloatingPosition } from "@/components/emoji-picker";
 import { msg } from "@/lib/i18n/translate";
 import type { WhiteboardActions } from "@/lib/whiteboard/excalidraw-bridge";
-import { WhiteboardStylePanel, type WhiteboardStyle } from "@/components/whiteboard/whiteboard-style-panel";
+import { WhiteboardStylePanel, type WhiteboardMindmapPanel, type WhiteboardStyle } from "@/components/whiteboard/whiteboard-style-panel";
+import { TEMPLATE_ICONS, TEMPLATE_NAMES } from "@/components/whiteboard/whiteboard-mindmap";
+import { WHITEBOARD_TEMPLATES, type WhiteboardTemplate } from "@/lib/whiteboard/templates";
 import type { MentionPage } from "@/components/note-mention";
 
 // ホワイトボードの自前の画面（ツールバー・見た目のパネル・拡大縮小・メニュー・題名）。Excalidraw の既定の画面（ui={false} で消している）の代わり。
@@ -34,6 +36,8 @@ export type WhiteboardUiState = {
   tool: string;
   toolLocked: boolean;
   selectedCount: number;
+  // 白板に何も無い。
+  empty: boolean;
   selectedTypes: string[];
   groupSelected: boolean;
   allLocked: boolean;
@@ -47,6 +51,8 @@ export type WhiteboardUiState = {
   link: string | null;
   // 押したロック中の要素（またはグループ）の ID。
   lockedTarget: string | null;
+  // 単一選択中またはクリックしたロック中の AI 生成画像要素の ID。
+  reportableImageId: string | null;
   style: WhiteboardStyle;
 };
 
@@ -93,6 +99,12 @@ export type WhiteboardChromeProps = {
   onCanvasBackground: (color: string) => void;
   onPenMode: (penMode: boolean) => void;
   onAskAi?: () => void;
+  onTurnIntoImage?: () => void;
+  onReportImage?: (elementId: string) => void;
+  readonlyReportImageId?: string | null;
+  onInsertTemplate: (template: WhiteboardTemplate) => void;
+  // 思考マップの節を 1 つ選んでいるときの操作（見た目のパネルに出す）。
+  mindmap: WhiteboardMindmapPanel | null;
   minimapOpen: boolean;
   onToggleMinimap: () => void;
   // 表示中の範囲に図形が 1 つも無いとき「内容に戻る」を出す。
@@ -106,12 +118,21 @@ export type WhiteboardChromeProps = {
 export function WhiteboardChrome(props: WhiteboardChromeProps) {
   const { ui, editable, compact } = props;
   const t = useT();
+  const showEditablePanel = editable && (ui.selectedCount > 0 || isDrawingTool(ui.tool)) && !ui.editingText;
+  const reportOnlyImageId = !showEditablePanel && !ui.editingText
+    ? (ui.reportableImageId ?? (!editable ? props.readonlyReportImageId ?? null : null))
+    : null;
   return <>
     <WhiteboardTitle {...props} />
     <WhiteboardMenu {...props} />
     {editable && <WhiteboardToolbar {...props} />}
-    {editable && (ui.selectedCount > 0 || isDrawingTool(ui.tool)) && !ui.editingText && <WhiteboardStylePanel ui={ui} drawMode={props.drawMode} compact={compact} theme={props.theme}
-      actions={props.actions} onLink={props.onLink} onOpenLink={props.onOpenLink} onAskAi={props.onAskAi} />}
+    {showEditablePanel && <WhiteboardStylePanel ui={ui} drawMode={props.drawMode} compact={compact} theme={props.theme}
+      actions={props.actions} onLink={props.onLink} onOpenLink={props.onOpenLink} onAskAi={props.onAskAi}
+      onTurnIntoImage={props.onTurnIntoImage} reportImageId={ui.reportableImageId} onReportImage={props.onReportImage}
+      mindmap={props.mindmap} />}
+    {reportOnlyImageId && props.onReportImage && <WhiteboardStylePanel ui={ui} drawMode={props.drawMode} compact={compact} theme={props.theme}
+      actions={props.actions} onLink={props.onLink} onOpenLink={props.onOpenLink}
+      reportImageId={reportOnlyImageId} onReportImage={props.onReportImage} reportOnly />}
     {editable && ui.editingText && <WhiteboardStylePanel ui={ui} drawMode={props.drawMode} compact={compact} theme={props.theme} actions={props.actions} onLink={props.onLink} onOpenLink={props.onOpenLink} textOnly />}
     <WhiteboardZoomBar {...props} />
     {props.minimapOpen && props.minimap}
@@ -152,7 +173,7 @@ function ToolButton({ tool, active, onSelect, label }: { tool: WhiteboardTool; a
   </button>;
 }
 
-function WhiteboardToolbar({ ui, drawMode, compact, onSelectTool, onLink, onInsertPageCard, onGenerateImage, onImportPdf }: WhiteboardChromeProps) {
+function WhiteboardToolbar({ ui, drawMode, compact, onSelectTool, onLink, onInsertPageCard, onGenerateImage, onImportPdf, onInsertTemplate }: WhiteboardChromeProps) {
   const t = useT();
   const active = activeToolOf(ui, drawMode);
   const [shape, setShape] = useState<WhiteboardTool>("rectangle");
@@ -197,17 +218,22 @@ function WhiteboardToolbar({ ui, drawMode, compact, onSelectTool, onLink, onInse
           <Upload size={16} aria-hidden="true" /><span className="flex-1">{t("Upload image")}</span><kbd className="whiteboard-kbd">9</kbd>
         </button>
         <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onGenerateImage(); }}>
-          <Sparkles size={16} aria-hidden="true" /><span className="flex-1">{t("Generate with AI")}</span>
+          <ImagePlus size={16} aria-hidden="true" /><span className="flex-1">{t("Generate with AI")}</span>
         </button>
       </> : <>
         {extra.map((tool) => <button key={tool} type="button" role="menuitemradio" aria-checked={active === tool} className="chat-menu-item" onClick={() => pick(tool)}>
           {TOOL_ICONS[tool]}<span className="flex-1">{t(TOOL_LABELS[tool])}</span>{TOOL_KEYS[tool] && <kbd className="whiteboard-kbd">{TOOL_KEYS[tool]}</kbd>}
         </button>)}
         <hr className="chat-menu-divider" />
-        <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onGenerateImage(); }}><Sparkles size={18} /><span className="flex-1">{t("Generate with AI")}</span></button>
+        <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onGenerateImage(); }}><ImagePlus size={18} aria-hidden="true" /><span className="flex-1">{t("Generate with AI")}</span></button>
         <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onInsertPageCard(); }}><PageKindIcon kind="note" size={18} /><span className="flex-1">{t("Link to a page")}</span></button>
         {ui.selectedCount > 0 && <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onLink(); }}><Link2 size={18} /><span className="flex-1">{t("Add link")}</span></button>}
         <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onImportPdf(); }}><FileUp size={18} /><span className="flex-1">{t("Import PDF")}</span></button>
+        <hr className="chat-menu-divider" />
+        <div className="notes-menu-label">{t("Templates")}</div>
+        {WHITEBOARD_TEMPLATES.map((template) => <button key={template} type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onInsertTemplate(template); }}>
+          {TEMPLATE_ICONS[template]}<span className="flex-1">{t(TEMPLATE_NAMES[template])}</span>
+        </button>)}
       </>}
     </AnswerMenu>}
   </div>;
@@ -250,7 +276,7 @@ function WhiteboardMenu({ ui, editable, embedded, onExport, onImportPdf, onGener
       <button type="button" role="menuitem" className="chat-menu-item" onClick={run(() => onExport("pdf"))}><FileDown size={16} aria-hidden="true" />{t("Export as PDF")}</button>
       {editable && <>
         <hr className="chat-menu-divider" />
-        <button type="button" role="menuitem" className="chat-menu-item" onClick={run(onGenerateImage)}><Sparkles size={16} aria-hidden="true" />{t("Generate with AI")}</button>
+        <button type="button" role="menuitem" className="chat-menu-item" onClick={run(onGenerateImage)}><ImagePlus size={16} aria-hidden="true" />{t("Generate with AI")}</button>
         <button type="button" role="menuitem" className="chat-menu-item" onClick={run(onImportPdf)}><FileUp size={16} aria-hidden="true" />{t("Import PDF")}</button>
         <hr className="chat-menu-divider" />
         <MenuToggle icon={<Grid3x3 size={16} aria-hidden="true" />} label={t("Show grid")} checked={ui.grid} onToggle={() => actions?.run("gridMode")} />

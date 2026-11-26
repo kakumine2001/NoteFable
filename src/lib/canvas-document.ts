@@ -4,6 +4,7 @@ import { parseNoteFileUrl } from "@/lib/note-file-keys";
 import { fmt, msg } from "@/lib/i18n/translate";
 import { isCanvasKind, type CanvasKind, type PageKind } from "@/lib/page-kinds";
 import { WHITEBOARD_ELEMENT_TYPES } from "@/lib/whiteboard/scene";
+import { mindmapDataOf, type StashedElement } from "@/lib/whiteboard/mindmap/model";
 
 // ホワイトボードとスライドの本体（NoteCanvas.data）の形、検証、検索用の文字の取り出し（docs/architecture/notes-flow.md の「白板和幻灯片的数据」）。
 // エディター（#152・#149）がまだ無いので、形は外枠だけを決める：
@@ -77,7 +78,7 @@ function scan(kind: CanvasKind, value: unknown, files: Map<string, string>) {
       if (current.includes("\u0000") || LONE_SURROGATE.test(current)) throw invalid();
       if (!literalText && INLINE_DATA_URL.test(current)) throw new NoteValidationError(msg("Images must be uploaded, not embedded in the page."));
       // 先頭の空白も URL としては同じに読まれるので、空白を飛ばして見分ける（その形は parseNoteFileUrl が断る）。
-      if (current.trimStart().startsWith(FILE_URL_PREFIX)) {
+      if (!literalText && current.trimStart().startsWith(FILE_URL_PREFIX)) {
         const parsed = parseNoteFileUrl(current);
         if (!parsed || parsed === "empty") throw invalid();
         files.set(parsed.path, parsed.ownerId);
@@ -207,6 +208,8 @@ export function extractCanvasSegments(kind: CanvasKind, data: unknown): CanvasSe
     entry.texts.push(value);
     entry.length += value.length + 1;
   };
+  // 思考マップで畳んだ節が預かっている子孫。
+  const hidden: { id: string; stash: StashedElement[] }[] = [];
   if (kind === "whiteboard") {
     const elements = Array.isArray(data.elements) ? data.elements.filter((element) => object(element) && validId(element.id) && element.isDeleted !== true) as Record<string, unknown>[] : [];
     const ids = new Set(elements.map((element) => element.id as string));
@@ -214,6 +217,8 @@ export function extractCanvasSegments(kind: CanvasKind, data: unknown): CanvasSe
       const target = validId(element.containerId) && ids.has(element.containerId) ? element.containerId : element.id as string;
       add(target, typeof element.originalText === "string" ? element.originalText : element.text);
       add(element.id as string, element.name);
+      const mark = mindmapDataOf(element.customData);
+      if (mark?.role === "node" && mark.stash) hidden.push({ id: element.id as string, stash: mark.stash });
     }
   } else {
     const slides = Array.isArray(data.slides) ? data.slides.filter((slide) => object(slide) && validId(slide.id)) as Record<string, unknown>[] : [];
@@ -224,15 +229,34 @@ export function extractCanvasSegments(kind: CanvasKind, data: unknown): CanvasSe
       add(slide.id as string, slide.notes, index);
     });
   }
+  const all: CanvasSegment[] = [...byId].map(([id, { texts, index }]) => ({ id, text: cut(texts.join(" "), MAX_SEGMENT_TEXT), ...(index === undefined ? {} : { index }) }));
+  addHiddenSegments(all, hidden);
   const segments: CanvasSegment[] = [];
   let total = 0;
-  for (const [id, { texts, index }] of byId) {
-    const text = cut(texts.join(" "), MAX_SEGMENT_TEXT);
-    if (total + text.length > MAX_CANVAS_TEXT) break;
-    total += text.length;
-    segments.push({ id, text, ...(index === undefined ? {} : { index }) });
+  for (const segment of all) {
+    if (total + segment.text.length > MAX_CANVAS_TEXT) break;
+    total += segment.text.length;
+    segments.push(segment);
   }
   return segments;
+}
+
+// 畳んだ子孫の文字も、その節の文字として検索・AI に渡す（開くとその節に移動する）。節自身の文字の後ろに足し、1 つの上限を超える分は
+// 同じ ID の次のまとまりにする（大きい枝を畳んでも、隠れた文字や節の題名が落ちないように）。
+function addHiddenSegments(segments: CanvasSegment[], hidden: readonly { id: string; stash: StashedElement[] }[]) {
+  const last = new Map(segments.map((segment) => [segment.id, segment]));
+  for (const { id, stash } of hidden) {
+    for (const element of stash) {
+      const raw = typeof element.originalText === "string" ? element.originalText : element.text;
+      const text = typeof raw === "string" ? cut(clean(raw), MAX_SEGMENT_TEXT) : "";
+      if (!text) continue;
+      const current = last.get(id);
+      if (current && current.text.length + 1 + text.length <= MAX_SEGMENT_TEXT) { current.text += ` ${text}`; continue; }
+      const next = { id, text };
+      segments.push(next);
+      last.set(id, next);
+    }
+  }
 }
 
 // DB から読んだ segments を確かめる（壊れた要素は捨てる）。

@@ -109,6 +109,7 @@ export const viServer: Record<string, string> = {
   "Page not found": "Không tìm thấy trang",
   "Page not found in the trash.": "Không tìm thấy trang trong thùng rác.",
   "Page not found.": "Không tìm thấy trang.",
+  "Note not found.": "Không tìm thấy ghi chú.",
   "Note proposal rejected": "Đề xuất tạo ghi chú bị từ chối",
   "Page title must be at most {max} characters.": "Tiêu đề trang chỉ được tối đa {max} ký tự.",
   "Nothing to update.": "Không có nội dung nào cần cập nhật.",
@@ -271,4 +272,8 @@ export const viServer: Record<string, string> = {
   "Could not turn this into an editable diagram.": "Không thể chuyển thành sơ đồ có thể chỉnh sửa.",
   "There is nothing to draw yet.": "Chưa có gì để vẽ.",
   "This diagram was moved to the trash.": "Sơ đồ này đã được chuyển vào Thùng rác.",
+  "Could not generate slides. Try again.": "Không thể tạo bản trình chiếu. Hãy thử lại.",
+  "There is nothing to make slides from yet.": "Chưa có nội dung nào để tạo bản trình chiếu.",
+  "These slides were moved to the trash.": "Bản trình chiếu này đã được chuyển vào Thùng rác.",
+  "This request is still running. Try again in a moment.": "Yêu cầu này vẫn đang được xử lý. Hãy thử lại sau giây lát.",
 };

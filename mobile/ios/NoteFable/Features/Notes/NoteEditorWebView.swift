@@ -23,6 +23,11 @@ import WebKit
 @Observable
 final class NoteEditorPool {
     private static let idleTimeout: Duration = .seconds(120)
+    /// 关掉向导时还有 AI 生成在后台跑：多留一会儿，完成时 `pagesChanged` 能刷新列表。
+    private static let busyIdleTimeout: Duration = .seconds(360)
+
+    /// 每次新建或崩溃重建 WKWebView 加一，让等待打开向导的 `.task` 重新触发。
+    private(set) var generation = 0
 
     @ObservationIgnored private(set) var controller: NoteEditorController?
     @ObservationIgnored private var idleTask: Task<Void, Never>?
@@ -59,16 +64,20 @@ final class NoteEditorPool {
             existing.updateRouter(router)
             active = existing
         } else {
-            let created = NoteEditorController(app: app, router: router) { [weak self] in
-                self?.destroy()
-            }
+            let created = NoteEditorController(
+                app: app,
+                router: router,
+                onTerminatedWhileParked: { [weak self] in self?.destroy() },
+                onProcessRestarted: { [weak self] in self?.generation += 1 },
+                onWizardBusyChanged: { [weak self] in self?.rescheduleIdleIfParked() }
+            )
             controller = created
             active = created
         }
         return (active, mountToken)
     }
 
-    /// 离开编辑页但保留热缓存：卸载编辑器 DOM，开始 120 秒空闲倒计时，到期未重开则销毁。
+    /// 离开编辑页或全屏向导但保留热缓存：卸载编辑器 DOM，开始 120 秒（向导还在生成时 360 秒）空闲倒计时，到期未重开则销毁。
     /// 已经有更新的编辑页挂上了同一个 WebView（token 不对）时什么都不做，返回 false。
     @discardableResult
     func park(ifTokenMatches token: Int) -> Bool {
@@ -78,24 +87,62 @@ final class NoteEditorPool {
         guard let controller else { return true }
         controller.park()
         if controller.isLoaded {
-            idleTask = Task { @MainActor [weak self] in
-                do {
-                    try await Task.sleep(for: Self.idleTimeout)
-                } catch {
-                    return
-                }
-                guard let self, self.controller?.isParked == true else { return }
-                self.destroy()
-            }
+            scheduleIdle()
         } else {
             destroy()
         }
         return true
     }
 
-    /// 退到后台或收到内存警告时，如果当前没有打开笔记（只留着热缓存），立刻释放 WKWebView。
+    /// 全屏向导打不开（页面没加载成、旧服务端）：丢掉这个 WebView，下次重新加载。
+    func discardWizard() {
+        if controller?.isWizardActive == true { destroy() }
+    }
+
+    /// 网页还没出现向导就被用户关闭：如果这个 WebView 从未成功打开过页面或向导（比如离线加载失败），直接丢掉避免停靠坏页面。
+    func discardWizardIfUnready() {
+        if let controller, controller.isWizardActive, !controller.hasEverResponded { destroy() }
+    }
+
+    /// 用 `NoteEmbedScripts.slidesWizardOpen` 打开向导：冷启动时 `.task` 可能先于 `makeUIView` 执行，
+    /// 在池上一起等 `controller` 与 `webView` 就绪（每 250ms 轮询，最多 20 秒），避免 `controller == nil` 时提前退出一直停在加载中。
+    func openSlidesWizard(script: String) async -> Bool {
+        let deadline = ContinuousClock.now + NoteEditorController.wizardOpenTimeout
+        while !Task.isCancelled && ContinuousClock.now < deadline {
+            if let controller, let answer = await controller.tryOpenSlidesWizard(script: script) {
+                return answer
+            }
+            do {
+                try await Task.sleep(for: NoteEditorController.wizardPollInterval)
+            } catch {
+                return false
+            }
+        }
+        return false
+    }
+
+    private func rescheduleIdleIfParked() {
+        guard let controller, controller.isParked, controller.isLoaded else { return }
+        scheduleIdle()
+    }
+
+    private func scheduleIdle() {
+        idleTask?.cancel()
+        let timeout = (controller?.slidesWizardBusy == true) ? Self.busyIdleTimeout : Self.idleTimeout
+        idleTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(for: timeout)
+            } catch {
+                return
+            }
+            guard let self, self.controller?.isParked == true else { return }
+            self.destroy()
+        }
+    }
+
+    /// 退到后台或收到内存警告时，如果当前没有打开笔记或向导（只留着热缓存），立刻释放 WKWebView。
     func destroyIfParked() {
-        if controller?.isParked == true { destroy() }
+        if controller?.isParked == true, controller?.slidesWizardBusy != true { destroy() }
     }
 
     /// 彻底销毁常驻 WKWebView（换身份、空闲超时、内存压力、后台释放、根视图销毁）。
@@ -103,6 +150,7 @@ final class NoteEditorPool {
         idleTask?.cancel()
         idleTask = nil
         mountToken += 1
+        generation += 1
         controller?.teardown()
         controller = nil
     }
@@ -171,6 +219,10 @@ struct NoteEditorWebView: UIViewRepresentable {
 final class NoteEditorController: NSObject, NoteEditorBridge {
     /// `window.webkit.messageHandlers.<名字>`：网页的 `window.NoteFableNative.postMessage` 经它转过来。
     private static let handlerName = "notefableNative"
+    /// 全屏向导借用常驻 WebView 时的占位编辑器标识（没有打开任何页面）。
+    static let slidesWizardEditorId = "__slides_wizard__"
+    static let wizardOpenTimeout: Duration = .seconds(20)
+    static let wizardPollInterval: Duration = .milliseconds(250)
 
     /// 所有编辑器共用 App 的默认（落盘的）数据存储：Cookie 每次加载前换成 App 的；网页的本地草稿（localStorage）
     /// 和 Android 的 WebView 一样跨 App 重启保留，离开笔记再回来、网页进程崩溃、App 被系统杀掉后重新打开都还能恢复。
@@ -181,10 +233,12 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
     private let app: AppEnvironment
     private var router: AppRouter
     private let onTerminatedWhileParked: @MainActor () -> Void
+    private let onProcessRestarted: @MainActor () -> Void
+    private let onWizardBusyChanged: @MainActor () -> Void
     private var bridge: NoteEmbedBridge!
 
     private var webView: WKWebView?
-    /// 当前活跃的编辑器标识（`OpenNote.editor`）；停留在列表 / 聊天里只保留热缓存时为 nil。
+    /// 当前活跃的编辑器标识（`OpenNote.editor` 或 [slidesWizardEditorId]）；停留在列表 / 聊天里只保留热缓存时为 nil。
     private(set) var activeEditor: String?
     /// 当前活跃笔记的页面 id（用于渲染进程崩溃后重载）。
     private var currentPageId: String?
@@ -192,7 +246,14 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
     private var awaitingPageId: String?
     /// 是否已经为当前身份加载过 `/note-embed`（加载过后切页优先走 `openPage`）。
     private(set) var isLoaded = false
+    /// 网页里的 AI 幻灯片向导现在是否可见。
+    private(set) var slidesWizardVisible = false
+    /// 关掉向导时还有 AI 生成在后台跑。
+    private(set) var slidesWizardBusy = false
+    /// 这次加载的网页是否真的回应过（ready / slidesWizard open / openSlidesWizard 成功）：离线或加载失败停在错误页时为 false。
+    private(set) var hasEverResponded = false
     var isParked: Bool { activeEditor == nil }
+    var isWizardActive: Bool { activeEditor == Self.slidesWizardEditorId }
 
     /// 每开始一次加载（或销毁）加一：等 Cookie 期间又开始了新的加载时，旧的不再继续。
     private var loadRun = 0
@@ -214,17 +275,41 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
     /// 正在显示的网页提示框（alert / confirm / prompt）和按“取消”回答它的办法：切页或离开编辑页时关掉，网页不会一直等着。
     private var openDialog: (alert: UIAlertController, cancel: () -> Void)?
 
-    init(app: AppEnvironment, router: AppRouter, onTerminatedWhileParked: @escaping @MainActor () -> Void) {
+    init(
+        app: AppEnvironment,
+        router: AppRouter,
+        onTerminatedWhileParked: @escaping @MainActor () -> Void,
+        onProcessRestarted: @escaping @MainActor () -> Void,
+        onWizardBusyChanged: @escaping @MainActor () -> Void
+    ) {
         self.app = app
         self.router = router
         self.onTerminatedWhileParked = onTerminatedWhileParked
+        self.onProcessRestarted = onProcessRestarted
+        self.onWizardBusyChanged = onWizardBusyChanged
         super.init()
         // 消息按当前活跃编辑器转发，不按页面 id：换到副本后由 ViewModel 跟过去。
         self.bridge = NoteEmbedBridge(onMessage: { [weak self] message in
             guard let self else { return }
             if case .pagesChanged = message {
-                // 笔记 AI 面板的后台画成图可能在离开编辑页（常驻 WKWebView 停靠中）或切页途中完成：只要 WKWebView 还在就刷新列表。
-                if self.webView != nil { self.app.notes.refresh() }
+                // 笔记 AI 面板的后台画成图、AI 生成幻灯片可能在离开编辑页（常驻 WKWebView 停靠中）或切页途中完成：只要 WKWebView 还在就刷新列表。
+                if self.webView != nil {
+                    self.app.notes.refresh()
+                }
+                return
+            }
+            if case .slidesWizard(let open, let busy) = message {
+                guard self.webView != nil else { return }
+                self.hasEverResponded = true
+                self.slidesWizardVisible = open
+                self.slidesWizardBusy = open ? false : busy
+                self.onWizardBusyChanged()
+                if open {
+                    let editorForOpen = self.activeEditor == Self.slidesWizardEditorId ? nil : self.activeEditor
+                    self.app.notes.onSlidesWizardOpened(editor: editorForOpen)
+                } else {
+                    self.app.notes.onSlidesWizardClosed()
+                }
                 return
             }
             guard let editor = self.activeEditor else {
@@ -232,10 +317,24 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
                 if case .ready = message { self.bridge.close() }
                 return
             }
+            if editor == Self.slidesWizardEditorId {
+                switch message {
+                case .openPage(let id):
+                    self.slidesWizardVisible = false
+                    self.app.notes.dismissSlidesWizard()
+                    self.router.openNote(id)
+                case .usageLimit(let tier, let kind, _):
+                    self.app.notes.onWizardUsageLimit(tier: tier, kind: kind)
+                default:
+                    break
+                }
+                return
+            }
             if let expected = self.awaitingPageId {
                 switch message {
                 case .ready(let id, _, _, _, _):
                     if id != expected { return }
+                    self.hasEverResponded = true
                     self.awaitingPageId = nil
                     self.currentPageId = id
                     self.openedPageIds.insert(id)
@@ -259,6 +358,11 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
                     break
                 }
             }
+            if case .openChat(let id, let messageId) = message {
+                // 笔记下方反向链接里的聊天：和搜索结果一样，先保存笔记、切到聊天，再打开（有发言就滚到那里）。
+                self.router.openChat(id, messageId: messageId)
+                return
+            }
             self.app.notes.onEditorMessage(editor, message)
         })
     }
@@ -270,12 +374,22 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
     // MARK: - 建立、切页、停靠和销毁
 
     func attachView(open: OpenNote, appIcon: String?, language: String, theme: String, edgeBack: Bool) -> WKWebView {
-        if let existing = webView {
-            existing.removeFromSuperview()
-            show(open: open, appIcon: appIcon, language: language, theme: theme, edgeBack: edgeBack)
-            return existing
-        }
+        let webView = ensureWebView(edgeBack: edgeBack)
+        webView.removeFromSuperview()
+        show(open: open, appIcon: appIcon, language: language, theme: theme, edgeBack: edgeBack)
+        return webView
+    }
 
+    /// 全屏向导挂上常驻 WKWebView（没有打开任何页面时）。
+    func attachWizardView(appIcon: String?, language: String, theme: String) -> WKWebView {
+        let webView = ensureWebView(edgeBack: true)
+        webView.removeFromSuperview()
+        showWizard(appIcon: appIcon, language: language, theme: theme)
+        return webView
+    }
+
+    private func ensureWebView(edgeBack: Bool) -> WKWebView {
+        if let existing = webView { return existing }
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = ScreenshotHooks.isActive ? .nonPersistent() : Self.dataStore
         configuration.allowsInlineMediaPlayback = true
@@ -311,8 +425,70 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
 
         self.webView = webView
         bridge.attach(self)
-        show(open: open, appIcon: appIcon, language: language, theme: theme, edgeBack: edgeBack)
         return webView
+    }
+
+    func syncWizard(appIcon: String?, language: String, theme: String) {
+        if activeEditor != Self.slidesWizardEditorId {
+            showWizard(appIcon: appIcon, language: language, theme: theme)
+            return
+        }
+        if theme != pushedTheme {
+            pushedTheme = theme
+            bridge.pushTheme(theme)
+        }
+        if appIcon != pushedIcon {
+            pushedIcon = appIcon
+            bridge.pushAppIcon(appIcon)
+        }
+        if language != pushedLanguage {
+            pushedLanguage = language
+            bridge.pushLanguage(language)
+            edgePan?.edges = app.language.isRightToLeft ? .right : .left
+        }
+    }
+
+    private func showWizard(appIcon: String?, language: String, theme: String) {
+        openTask?.cancel()
+        openTask = nil
+        showEpoch += 1
+        dismissOpenDialog()
+
+        crashedEditor = nil
+        activeEditor = Self.slidesWizardEditorId
+        currentPageId = nil
+        awaitingPageId = nil
+        pushedIcon = appIcon
+        pushedLanguage = language
+        pushedTheme = theme
+        edgePan?.isEnabled = true
+        edgePan?.edges = app.language.isRightToLeft ? .right : .left
+        bridge.pushTheme(theme)
+        if app.editorBridge === bridge { app.registerEditor(nil) }
+
+        if isLoaded, webView != nil {
+            bridge.pushLanguage(language)
+            bridge.pushAppIcon(appIcon)
+        } else {
+            loadWizard()
+        }
+    }
+
+    /// 尝试执行一次 `NoteEmbedScripts.slidesWizardOpen`：网页未就绪或 `webView == nil` 返回 `nil` 供外层继续轮询；
+    /// 网页明确接受或拒绝返回 `true` / `false`。
+    func tryOpenSlidesWizard(script: String) async -> Bool? {
+        guard let webView else { return nil }
+        let raw: String? = await withCheckedContinuation { (done: CheckedContinuation<String?, Never>) in
+            webView.evaluateJavaScript(script) { result, _ in
+                done.resume(returning: result as? String)
+            }
+        }
+        guard let answer = NoteEmbedScripts.slidesWizardAnswer(raw) else { return nil }
+        if answer {
+            slidesWizardVisible = true
+            hasEverResponded = true
+        }
+        return answer
     }
 
     /// 设置里换了图标 / 界面语言 / 外观（或跟随系统时系统切了深浅）：推给网页（就地换，不重新加载笔记）。
@@ -413,6 +589,9 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         showEpoch += 1
         loadRun += 1
         isLoaded = false
+        slidesWizardVisible = false
+        slidesWizardBusy = false
+        hasEverResponded = false
         activeEditor = nil
         currentPageId = nil
         awaitingPageId = nil
@@ -454,6 +633,45 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
             theme: pushedTheme.isEmpty ? nil : pushedTheme, reveal: reveal
         )
         return URL(string: address)
+    }
+
+    private func wizardURL() -> URL? {
+        let chat = app.chat.state
+        let address = app.api.slidesWizardUrl(
+            lang: app.language.uiLocale, model: chat.selectedModel?.id, reasoning: chat.selectedReasoning,
+            theme: pushedTheme.isEmpty ? nil : pushedTheme
+        )
+        return URL(string: address)
+    }
+
+    private func loadWizard() {
+        guard let webView, let url = wizardURL() else { return }
+        loadRun += 1
+        let current = loadRun
+
+        let content = webView.configuration.userContentController
+        content.removeAllUserScripts()
+        content.addUserScript(WKUserScript(
+            source: NoteEmbedScripts.bootstrap(
+                handler: Self.handlerName, appIcon: app.appIcon.icon, language: app.language.uiLocale,
+                theme: pushedTheme.isEmpty ? nil : pushedTheme
+            ),
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        ))
+
+        let previous = Self.cookieChain
+        Self.cookieChain = Task { @MainActor [weak self] in
+            await previous?.value
+            guard let self, self.loadRun == current, self.activeEditor == Self.slidesWizardEditorId, self.webView != nil else { return }
+            let identity = self.app.identityGeneration
+            let cookies = URL(string: self.app.config.baseURL).map { self.app.cookies(for: $0) } ?? []
+            await NoteEditorController.replaceCookies(cookies)
+            guard self.loadRun == current, self.app.identityGeneration == identity, self.activeEditor == Self.slidesWizardEditorId, let webView = self.webView else { return }
+            self.isLoaded = true
+            self.historyFloor = webView.backForwardList.currentItem == nil ? 0 : webView.backForwardList.backList.count + 1
+            webView.load(URLRequest(url: url))
+        }
     }
 
     /// 换 Cookie、装好 `window.NoteFableNative`，再打开网页。
@@ -604,6 +822,19 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         run(NoteEmbedScripts.slides(command))
     }
 
+    func refreshBacklinks() {
+        run(NoteEmbedScripts.refreshBacklinks)
+    }
+
+    func slidesWizardBack() async -> Bool {
+        guard let webView else { return false }
+        return await withCheckedContinuation { (answer: CheckedContinuation<Bool, Never>) in
+            webView.evaluateJavaScript(NoteEmbedScripts.slidesWizardBack) { result, _ in
+                answer.resume(returning: (result as? Bool) == true)
+            }
+        }
+    }
+
     private func run(_ script: String) {
         webView?.evaluateJavaScript(script, completionHandler: nil)
     }
@@ -622,6 +853,20 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
             Task { @MainActor [weak notes] in
                 try? await Task.sleep(for: .milliseconds(1500))
                 if notes?.state.presenting == true { notes?.presentationEnded() }
+            }
+            return
+        }
+        // AI 幻灯片向导开着：优先关向导最上面一层（草稿保留），不离开笔记、也不走 WebView 的后退。
+        if let wizard = notes.state.slidesWizard {
+            if wizard.shown {
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    if !(await self.slidesWizardBack()) {
+                        self.app.notes.dismissSlidesWizard(wizard.request)
+                    }
+                }
+            } else if activeEditor == Self.slidesWizardEditorId {
+                notes.dismissSlidesWizard(wizard.request)
             }
             return
         }
@@ -790,6 +1035,20 @@ extension NoteEditorController: WKNavigationDelegate {
             onTerminatedWhileParked()
             return
         }
+        slidesWizardVisible = false
+        slidesWizardBusy = false
+        if editor == Self.slidesWizardEditorId {
+            isLoaded = false
+            showEpoch += 1
+            openTask?.cancel()
+            openTask = nil
+            bridge.release(self)
+            bridge.attach(self)
+            openedPageIds = []
+            loadWizard()
+            onProcessRestarted()
+            return
+        }
         // 拼了一半的导出文件不会再来了（新网页不知道它）：作废，不留下打开着的临时文件。
         app.notes.cancelExportTransfer(editor: editor)
         // 放映中的网页没了：先结束放映，重新加载失败也不会困在横屏全屏里。
@@ -806,6 +1065,7 @@ extension NoteEditorController: WKNavigationDelegate {
         // 新的网页进程从头加载：之前缓存的页面都没了，只剩这一篇。
         openedPageIds = [pageId]
         loadPage(pageId: pageId, reveal: nil)
+        onProcessRestarted()
     }
 }
 

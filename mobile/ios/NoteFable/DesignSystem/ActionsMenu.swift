@@ -201,9 +201,10 @@ struct ActionsMenuLayer: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .frame(width: configuration.width, height: min(contentHeight ?? maxHeight, maxHeight))
-        .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: Sm.border)
+        // 先裁内容再上玻璃（玻璃自己的边缘和高光不被裁掉）；普通玻璃、不可交互；自定义阴影只在非原生玻璃时画。
         .clipShape(shape)
-        .shadow(color: Sm.menuShadow, radius: 16, x: 0, y: 8)
+        .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: Sm.border)
+        .nfChromeShadow(Sm.menuShadow, radius: 16, y: 8)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(configuration.label ?? "")
         .accessibilityAddTraits(.isModal)
@@ -232,6 +233,7 @@ enum ActionsMenuItemRole {
 struct ActionsMenuItem: View {
     private let title: String
     private let icon: [String]?
+    private let leading: AnyView?
     private let role: ActionsMenuItemRole
     private let iconColor: Color?
     private let isBusy: Bool
@@ -252,11 +254,30 @@ struct ActionsMenuItem: View {
     ) {
         self.title = title
         self.icon = icon
+        self.leading = nil
         self.role = role
         self.iconColor = iconColor
         self.isBusy = isBusy
         self.value = value
         self.isSelected = isSelected
+        self.action = action
+    }
+
+    init<Leading: View>(
+        _ title: String,
+        role: ActionsMenuItemRole = .normal,
+        isBusy: Bool = false,
+        @ViewBuilder leading: () -> Leading,
+        action: @escaping () -> Void
+    ) {
+        self.title = title
+        self.icon = nil
+        self.leading = AnyView(leading())
+        self.role = role
+        self.iconColor = nil
+        self.isBusy = isBusy
+        self.value = nil
+        self.isSelected = false
         self.action = action
     }
 
@@ -270,6 +291,8 @@ struct ActionsMenuItem: View {
             HStack(spacing: 12) {
                 if isBusy {
                     Spinner(size: 16, color: color)
+                } else if let leading {
+                    leading
                 } else if let icon {
                     LucideIcon(icon, size: 16, color: isEnabled ? (iconColor ?? color) : color)
                 }

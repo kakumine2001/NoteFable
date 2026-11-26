@@ -109,6 +109,7 @@ export const frServer: Record<string, string> = {
   "Page not found": "Page introuvable",
   "Page not found in the trash.": "Page introuvable dans la corbeille.",
   "Page not found.": "Page introuvable.",
+  "Note not found.": "Note introuvable.",
   "Note proposal rejected": "Proposition de note refusée",
   "Page title must be at most {max} characters.": "Le titre de la page ne peut pas dépasser {max} caractères.",
   "Nothing to update.": "Rien à mettre à jour.",
@@ -271,4 +272,8 @@ export const frServer: Record<string, string> = {
   "Could not turn this into an editable diagram.": "Impossible de le convertir en diagramme modifiable.",
   "There is nothing to draw yet.": "Il n’y a encore rien à dessiner.",
   "This diagram was moved to the trash.": "Ce diagramme a été déplacé dans la corbeille.",
+  "Could not generate slides. Try again.": "Impossible de générer les diapositives. Réessayez.",
+  "There is nothing to make slides from yet.": "Il n’y a encore rien pour créer des diapositives.",
+  "These slides were moved to the trash.": "Ces diapositives ont été déplacées dans la corbeille.",
+  "This request is still running. Try again in a moment.": "Cette requête est toujours en cours. Réessayez dans un instant.",
 };

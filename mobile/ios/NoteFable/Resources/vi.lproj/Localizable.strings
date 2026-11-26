@@ -602,6 +602,11 @@
 "slides_export_pptx" = "Xuất PowerPoint (PPTX)";
 "slides_export_pptx_transition_note" = "Hiệu ứng chuyển tiếp trang chiếu không được bao gồm khi xuất PPTX.";
 
+/* strings_slides_wizard.xml */
+"slides_generate" = "Tạo bản trình chiếu";
+"slides_generate_from_chat" = "Tạo bản trình chiếu từ đoạn chat này";
+"slides_generate_with_ai" = "Tạo bằng AI";
+
 /* strings_turns.xml */
 "regenerate" = "Tạo lại";
 "branch_in_new_chat" = "Tách nhánh sang đoạn chat mới";

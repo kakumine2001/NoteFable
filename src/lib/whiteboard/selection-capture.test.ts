@@ -45,6 +45,35 @@ describe("expandWhiteboardSelection", () => {
   });
 });
 
+describe("collapsed mind map branches in a selection", () => {
+  it("adds the hidden text under the collapsed node, even when a label repeats", () => {
+    const stash = [
+      { id: "c1", type: "rectangle", customData: { notefableMindmap: { v: 1, role: "node", tree: "n1", parent: "n1", order: 0 } } },
+      { id: "c1-t", type: "text", containerId: "c1", originalText: "Evaporation" },
+      { id: "c2", type: "rectangle", customData: { notefableMindmap: { v: 1, role: "node", tree: "n1", parent: "c1", order: 0 } } },
+      { id: "c2-t", type: "text", containerId: "c2", originalText: "Heat" },
+    ];
+    const elements = [
+      { id: "s1", type: "stickynote", text: "Water" },
+      { id: "n1", type: "rectangle", customData: { notefableMindmap: { v: 1, role: "node", tree: "n1", parent: null, order: 0, collapsed: true, stash } } },
+      { id: "n1-t", type: "text", containerId: "n1", originalText: "Water" },
+    ];
+    const result = expandWhiteboardSelection(elements, new Set(["s1", "n1"]));
+    expect(result.text).toBe("Water\nWater\n  - Evaporation\n    - Heat");
+    expect(result.ids).toEqual(["s1", "n1"]);
+  });
+
+  it("caps the indentation of a very deep branch", () => {
+    const stash = Array.from({ length: 30 }, (_, index) => [
+      { id: `c${index}`, type: "rectangle", customData: { notefableMindmap: { v: 1, role: "node", tree: "n1", parent: index ? `c${index - 1}` : "n1", order: 0 } } },
+      { id: `c${index}-t`, type: "text", containerId: `c${index}`, originalText: `level ${index + 1}` },
+    ]).flat();
+    const elements = [{ id: "n1", type: "rectangle", customData: { notefableMindmap: { v: 1, role: "node", tree: "n1", parent: null, order: 0, collapsed: true, stash } } }];
+    const lines = expandWhiteboardSelection(elements, new Set(["n1"])).text.split("\n");
+    expect(lines).toContain(`${"  ".repeat(8)}- level 30`);
+  });
+});
+
 describe("selection image scaling", () => {
   it("keeps scaled long edge within MAX_SELECTION_IMAGE_SIDE (1568 px)", () => {
     const scaleSmall = selectionImageScale(400, 300);

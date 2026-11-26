@@ -262,16 +262,17 @@ function encodeHref(href: string) {
 }
 
 // 回答の出典は [タイトル](<URL>) の形で終わるが、取り込み側は <…> を読めない。通常の [タイトル](URL) に書き直す。
-function rewriteSingleLink(text: string) {
+function rewriteSingleLink(text: string, dropImages = false) {
   return text.replace(LINK, (_match, bang: string, label: string, destination: string) => {
+    if (bang && dropImages) return "";
     const href = encodeHref(destination.startsWith("<") ? destination.slice(1, -1) : destination);
     // 画像はノートの画像ブロックにできない（外部の URL）ので、リンクにする。
     return `[${label || (bang ? "Image" : href)}](${href})`;
   });
 }
 
-function rewriteLinks(text: string) {
-  return rewriteSingleLink(text)
+function rewriteLinks(text: string, dropImages = false) {
+  return rewriteSingleLink(text, dropImages)
     .replace(/<(https?:\/\/[^\s<>]+)>/g, (_match, url: string) => `[${url}](${encodeHref(url)})`);
 }
 
@@ -281,10 +282,10 @@ const BARE_URL_AT = /https?:\/\/[^\s<>]+/y;
 
 // コードの範囲（`…`）と行内の数式（$…$、$$…$$）には手を入れずに、それ以外の部分だけ書き直す。
 // URL やリンク先の中の $ は数式として切らない（<https://example.com/$user$/profile> を壊さないため）。
-function rewriteLine(line: string) {
+function rewriteLine(line: string, dropImages = false) {
   let out = "";
   let plain = "";
-  const flush = () => { out += rewriteLinks(plain); plain = ""; };
+  const flush = () => { out += rewriteLinks(plain, dropImages); plain = ""; };
   for (let index = 0; index < line.length; index++) {
     const char = line[index];
     if (char === "\\" && index + 1 < line.length) {
@@ -298,11 +299,11 @@ function rewriteLine(line: string) {
       LINK_AT.lastIndex = index;
       const hit = LINK_AT.exec(line);
       // リンクのラベル内（例: [`<https://example.com>`](https://other.com)）には自動リンク変換をかけない。
-      if (hit) { flush(); out += rewriteSingleLink(hit[0]); index += hit[0].length - 1; } else plain += char;
+      if (hit) { flush(); out += rewriteSingleLink(hit[0], dropImages); index += hit[0].length - 1; } else plain += char;
     } else if (char === "<") {
       AUTOLINK_AT.lastIndex = index;
       const hit = AUTOLINK_AT.exec(line);
-      if (hit) { flush(); out += rewriteLinks(hit[0]); index += hit[0].length - 1; } else plain += char;
+      if (hit) { flush(); out += rewriteLinks(hit[0], dropImages); index += hit[0].length - 1; } else plain += char;
     } else if (char === "h") {
       BARE_URL_AT.lastIndex = index;
       const hit = BARE_URL_AT.exec(line);
@@ -360,8 +361,8 @@ function emitCodeFence(out: string[], indent: string, language: string, body: st
 // - 表以外の本文は prepareMath で、チャットの画面と同じ書き方（$…$、$$ の行）にそろえる
 // - 出典などのリンクを通常の形へ
 // - コードの囲みは ``` に統一する（~~~ や言語の後ろの説明は読めず、閉じ忘れると以降が全部コードになる）
-export function prepareNoteMarkdown(markdown: string) {
-  return prepareMarkdown(markdown);
+export function prepareNoteMarkdown(markdown: string, options: { dropImages?: boolean } = {}) {
+  return prepareMarkdown(markdown, options);
 }
 
 // ブロックの入れ子の深さをノート保存の上限内に収め、必要なら先頭から切り詰める。
@@ -398,7 +399,7 @@ export function extractLeadingHeadingTitle(markdown: string, fallback: string): 
   return { title: pickTitle(found, "Untitled"), body: lines.join("\n") };
 }
 
-function prepareMarkdown(markdown: string) {
+function prepareMarkdown(markdown: string, { dropImages = false }: { dropImages?: boolean } = {}) {
   const rawLines = normalizeNewlines(markdown).split("\n");
   const out: string[] = [];
   let prose: string[] = [];
@@ -424,7 +425,7 @@ function prepareMarkdown(markdown: string) {
           continue;
         }
       }
-      out.push(rewriteLine(line));
+      out.push(rewriteLine(line, dropImages));
     }
   };
   let afterBreak = true;
@@ -467,12 +468,13 @@ function prepareMarkdown(markdown: string) {
       // 列をそろえた後のセル数が取り込み側の上限を超える表は、そろえずに元の行のまま渡す（取り込み側も表にしない）。
       // 先にそろえると、行数 × 見出しの列数のセルを作ってメモリを使い切る。
       if (rows.length * columns > MAX_PARSED_TABLE_CELLS) {
-        for (let at = start; at <= index; at++) out.push(rewriteLine(rawLines[at]));
+        for (let at = start; at <= index; at++) out.push(rewriteLine(rawLines[at], dropImages));
         afterBreak = false;
         continue;
       }
       const cell = (value: string) => escapeCellPipes(rewriteLine(
         unescapeNonMathPipes(prepareMath(value, { doubleBeforeDigit: true, inlineOnly: true }).text).replace(/\n/g, " "),
+        dropImages,
       ));
       const row = (cells: string[]) => `| ${Array.from({ length: columns }, (_, column) => cell(cells[column] ?? "")).join(" | ")} |`;
       out.push(row(rows[0]), `| ${Array.from({ length: columns }, () => "---").join(" | ")} |`);

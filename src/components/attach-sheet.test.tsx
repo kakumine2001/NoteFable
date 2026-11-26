@@ -127,4 +127,19 @@ describe("AttachMenu and AttachSheet Create page item", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onCreatePage).toHaveBeenCalledTimes(1);
   });
+
+  it("offers Generate slides next to Create page, disabled while the chat is busy", () => {
+    const onClose = vi.fn();
+    const onGenerateSlides = vi.fn();
+    const sheet = AttachSheet({
+      open: true, onClose, onFilesChange: vi.fn(), imageMode: false, onToggleImageMode: vi.fn(), onAttachPages: vi.fn(), onGenerateSlides,
+    });
+    (findButton(sheet, "Generate slides")?.props?.onClick as () => void)();
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onGenerateSlides).toHaveBeenCalledTimes(1);
+
+    const busy = AttachMenu({ disabled: false, onFilesChange: vi.fn(), onGenerateSlides, createPageDisabled: true });
+    expect(findButton(busy, "Generate slides")?.props?.disabled).toBe(true);
+    expect(findButton(AttachMenu({ disabled: false, onFilesChange: vi.fn() }), "Generate slides")).toBeNull();
+  });
 });

@@ -178,9 +178,50 @@ export type WhiteboardSelectionSnapshot = {
 // 外部画像の読み込みが止まっても送信を永久に塞がないよう、既定 5 秒で打ち切って null にフォールバックする。
 export const SELECTION_CAPTURE_TIMEOUT_MS = 5000;
 
+async function canvasToBlob(canvas: HTMLCanvasElement, mimeType: string, quality?: number): Promise<Blob | null> {
+  return new Promise<Blob | null>((resolve) => {
+    try {
+      canvas.toBlob((blob) => resolve(blob && blob.size > 0 ? blob : null), mimeType, quality);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+async function fitCanvasBlob(canvas: HTMLCanvasElement, maxBytes?: number): Promise<Blob | null> {
+  const png = await canvasToBlob(canvas, "image/png");
+  if (!png || !maxBytes || png.size <= maxBytes) return png;
+  // 写真などを含む選択範囲で PNG が上限を超えるときは、WebP / JPEG に変換して収める。
+  for (const [mimeType, quality] of [
+    ["image/webp", 0.9],
+    ["image/webp", 0.8],
+    ["image/jpeg", 0.88],
+    ["image/jpeg", 0.78],
+  ] as const) {
+    const candidate = await canvasToBlob(canvas, mimeType, quality);
+    if (candidate && candidate.size <= maxBytes) return candidate;
+  }
+  const smaller = clampImageDimensions(canvas.width, canvas.height, 1024);
+  if (!smaller.scaled) return png;
+  const resized = document.createElement("canvas");
+  try {
+    resized.width = smaller.width;
+    resized.height = smaller.height;
+    const ctx = resized.getContext("2d");
+    if (!ctx) return png;
+    ctx.drawImage(canvas, 0, 0, smaller.width, smaller.height);
+    const jpeg = await canvasToBlob(resized, "image/jpeg", 0.82);
+    return jpeg && jpeg.size <= maxBytes ? jpeg : (jpeg ?? png);
+  } finally {
+    resized.width = 0;
+    resized.height = 0;
+  }
+}
+
 export async function exportWhiteboardSelectionPng(
   snapshot: WhiteboardSelectionSnapshot,
   timeoutMs = SELECTION_CAPTURE_TIMEOUT_MS,
+  options?: { maxBytes?: number },
 ): Promise<Blob | null> {
   const elements = snapshot.elements.filter((element) => !isInvisiblySmallElement(element));
   if (!elements.length) return null;
@@ -216,13 +257,7 @@ export async function exportWhiteboardSelectionPng(
       ctx.drawImage(canvas, 0, 0, clamped.width, clamped.height);
       output = scaledCanvas;
     }
-    return await new Promise<Blob | null>((resolve) => {
-      try {
-        output.toBlob((blob) => resolve(blob && blob.size > 0 ? blob : null), "image/png");
-      } catch {
-        resolve(null);
-      }
-    });
+    return await fitCanvasBlob(output, options?.maxBytes);
   } finally {
     if (timer !== undefined) clearTimeout(timer);
     if (canvas) { canvas.width = 0; canvas.height = 0; }

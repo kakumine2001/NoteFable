@@ -201,7 +201,14 @@ class NotesApiTest {
         assertEquals(EmbedMessage.Trashed, EmbedMessage.parse("""{"type":"trashed"}"""))
         assertEquals(EmbedMessage.OpenPage("p2"), EmbedMessage.parse("""{"type":"openPage","id":"p2"}"""))
         assertEquals(null, EmbedMessage.parse("""{"type":"openPage","id":""}"""))
-        assertEquals(EmbedMessage.PagesChanged, EmbedMessage.parse("""{"type":"pagesChanged"}"""))
+        assertEquals(EmbedMessage.OpenChat("c1", "m1"), EmbedMessage.parse("""{"type":"openChat","id":"c1","messageId":"m1"}"""))
+        assertEquals(EmbedMessage.OpenChat("c1"), EmbedMessage.parse("""{"type":"openChat","id":"c1"}"""))
+        assertEquals(EmbedMessage.OpenChat("c1"), EmbedMessage.parse("""{"type":"openChat","id":"c1","messageId":""}"""))
+        assertNull(EmbedMessage.parse("""{"type":"openChat","id":""}"""))
+        assertNull(EmbedMessage.parse("""{"type":"openChat","id":5}"""))
+        assertNull(EmbedMessage.parse("""{"type":"openChat","id":"  "}"""))
+        assertEquals(EmbedMessage.OpenChat("c1"), EmbedMessage.parse("""{"type":"openChat","id":"c1","messageId":"  "}"""))
+        assertEquals(EmbedMessage.PagesChanged,EmbedMessage.parse("""{"type":"pagesChanged"}"""))
         assertEquals(EmbedMessage.Flushed("r1", true), EmbedMessage.parse("""{"type":"flushed","requestId":"r1","ok":true}"""))
         assertEquals(EmbedMessage.Flushed("r2", false), EmbedMessage.parse("""{"type":"flushed","requestId":"r2","ok":false}"""))
         assertEquals(EmbedMessage.Flushed("r3", false, kept = true), EmbedMessage.parse("""{"type":"flushed","requestId":"r3","ok":false,"kept":true}"""))
@@ -250,6 +257,30 @@ class NotesApiTest {
             """{"type":"fileChunk","id":"f","index":0}""",
         )
         for (json in malformed) assertNull(json, EmbedMessage.parse(json))
+    }
+
+    @Test
+    fun `parses the slides wizard appearing and disappearing`() {
+        assertEquals(EmbedMessage.SlidesWizard(open = true), EmbedMessage.parse("""{"type":"slidesWizard","state":"open"}"""))
+        assertEquals(EmbedMessage.SlidesWizard(open = false, busy = true), EmbedMessage.parse("""{"type":"slidesWizard","state":"closed","busy":true}"""))
+        assertEquals(EmbedMessage.SlidesWizard(open = false), EmbedMessage.parse("""{"type":"slidesWizard","state":"closed","busy":false}"""))
+        // busy 只认布尔值；不认识的 state 丢掉。
+        assertEquals(EmbedMessage.SlidesWizard(open = false), EmbedMessage.parse("""{"type":"slidesWizard","state":"closed","busy":"true"}"""))
+        assertNull(EmbedMessage.parse("""{"type":"slidesWizard","state":"hidden"}"""))
+        assertNull(EmbedMessage.parse("""{"type":"slidesWizard"}"""))
+        // 向导的上限提示不带 pageId。
+        assertEquals(EmbedMessage.UsageLimit("guest", "chat"), EmbedMessage.parse("""{"type":"usageLimit","tier":"guest","kind":"chat"}"""))
+    }
+
+    @Test
+    fun `the slides wizard loads a warm editor without a page`() {
+        val api = NoteFableApi("https://example.test", CookieJar.NO_COOKIES)
+        assertEquals("https://example.test/note-embed?warm=1&lang=ja", api.slidesWizardUrl("ja"))
+        assertEquals(
+            "https://example.test/note-embed?warm=1&lang=zh-Hant&model=gpt-5.5&reasoning=high&theme=dark",
+            api.slidesWizardUrl("zh-Hant", "gpt-5.5", "high", "dark"),
+        )
+        assertEquals("https://example.test/note-embed?warm=1&model=a%26b", api.slidesWizardUrl(null, "a&b"))
     }
 
     @Test

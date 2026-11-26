@@ -151,12 +151,13 @@ private struct NoteImportTargetDialog: View {
     let onChoose: (String?) -> Void
     let close: () -> Void
     @Environment(AppEnvironment.self) private var app
+    @Environment(\.nfWindowFrame) private var windowFrame
 
     var body: some View {
         let groups = app.notes.state.groups
         NFDialogTitle(L("import_to"))
-        // .notes-import-targets：最高 50dvh，行间距 2。
-        FittingScrollView(maxHeight: UIScreen.main.bounds.height * 0.5) {
+        // .notes-import-targets：最高 50dvh（按 App 窗口的高度，不按整块屏幕），行间距 2。
+        FittingScrollView(maxHeight: nfWindowHeight(windowFrame) * 0.5) {
             VStack(spacing: 2) {
                 NFOptionRow(L("no_project")) { onChoose(nil) }
                 ForEach(groups) { group in

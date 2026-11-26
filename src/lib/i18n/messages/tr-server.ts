@@ -109,6 +109,7 @@ export const trServer: Record<string, string> = {
   "Page not found": "Sayfa bulunamadı",
   "Page not found in the trash.": "Sayfa Çöp Kutusu'nda bulunamadı.",
   "Page not found.": "Sayfa bulunamadı.",
+  "Note not found.": "Not bulunamadı.",
   "Note proposal rejected": "Yeni not önerisi reddedildi",
   "Page title must be at most {max} characters.": "Sayfa başlığı en fazla {max} karakter olabilir.",
   "Nothing to update.": "Güncellenecek bir şey yok.",
@@ -271,4 +272,8 @@ export const trServer: Record<string, string> = {
   "Could not turn this into an editable diagram.": "Düzenlenebilir bir diyagrama dönüştürülemedi.",
   "There is nothing to draw yet.": "Henüz çizilecek bir şey yok.",
   "This diagram was moved to the trash.": "Bu diyagram Çöp Kutusu'na taşındı.",
+  "Could not generate slides. Try again.": "Slaytlar oluşturulamadı. Tekrar deneyin.",
+  "There is nothing to make slides from yet.": "Henüz slayta dönüştürülecek bir şey yok.",
+  "These slides were moved to the trash.": "Bu slaytlar Çöp Kutusu'na taşındı.",
+  "This request is still running. Try again in a moment.": "Bu istek hâlâ işleniyor. Biraz sonra tekrar deneyin.",
 };

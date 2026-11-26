@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mindmapSkeletons } from "@/lib/whiteboard/mindmap/elements";
 import { defaultMindmapDirection, layoutMindmap } from "@/lib/whiteboard/mindmap/layout";
-import { countMindmapNodes, limitMindmapTree, mindmapDataOf, MINDMAP_DATA_KEY, type MindmapTreeNode } from "@/lib/whiteboard/mindmap/model";
+import { countMindmapNodes, limitMindmapTree, mindmapDataOf, mindmapStashOutline, MINDMAP_DATA_KEY, type MindmapTreeNode } from "@/lib/whiteboard/mindmap/model";
 import { isMindmapSource, MindmapParseError, mindmapNodeText, parseMindmap } from "@/lib/whiteboard/mindmap/parse";
 import { estimateTextWidth, wrapText } from "@/lib/whiteboard/text-measure";
 
@@ -118,5 +118,18 @@ describe("mindmapSkeletons", () => {
     expect(mindmapDataOf({ [MINDMAP_DATA_KEY]: { v: 1, role: "node", tree: "t", parent: null, order: -1 } })).toBeNull();
     expect(mindmapDataOf({ [MINDMAP_DATA_KEY]: { v: 1, role: "edge", tree: "t", parent: "a" } })).toBeNull();
     expect(mindmapDataOf(null)).toBeNull();
+  });
+
+  it("terminates on a cyclic stash referencing the collapsed node itself", () => {
+    const cyclic = {
+      [MINDMAP_DATA_KEY]: {
+        v: 1, role: "node", tree: "n1", parent: null, order: 0, collapsed: true,
+        stash: [
+          { id: "n1", type: "rectangle", customData: { [MINDMAP_DATA_KEY]: { v: 1, role: "node", tree: "n1", parent: "n1", order: 0 } } },
+          { id: "t1", type: "text", containerId: "n1", originalText: "Loop" },
+        ],
+      },
+    };
+    expect(mindmapStashOutline("n1", cyclic)).toEqual([{ depth: 1, text: "Loop" }]);
   });
 });

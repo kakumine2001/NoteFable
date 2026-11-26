@@ -90,6 +90,7 @@ private struct SignInDialogCard: View {
     let onGoogle: () -> Void
 
     @Environment(AppEnvironment.self) private var app
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.layoutDirection) private var layoutDirection
     @FocusState private var focus: SignInFocus?
 
@@ -115,12 +116,21 @@ private struct SignInDialogCard: View {
                 .padding(.trailing, 12)
         }
         .frame(width: width)
-        .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: Sm.panelRing)
-        .contentShape(shape)
-        .onTapGesture {}
+        // 吸收卡片内部空白处的点击，防止透传到遮罩关掉弹窗；放在内容背后，避免与 Apple 系统按钮抢手势。
+        .background {
+            Color.clear
+                .contentShape(shape)
+                .onTapGesture {}
+                .accessibilityHidden(true)
+        }
+        // 先裁内容再上玻璃（玻璃自己的边缘和高光不被裁掉）；自定义阴影只在非原生玻璃时画。
         .clipShape(shape)
-        .shadow(color: Sm.panelShadow, radius: 10, x: 0, y: 4)
+        .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: Sm.panelRing)
+        .nfChromeShadow(Sm.panelShadow, radius: 10, y: 4)
         .accessibilityAddTraits(.isModal)
+        .task(id: model.showApple) {
+            if model.showApple { model.prepareAppleSignIn() }
+        }
         .task {
             // 只有邮箱时打开就聚焦邮箱输入框。等窗口进场后再设，太早会被忽略。
             guard model.autoFocusEmail, model.showEmail else { return }
@@ -143,13 +153,23 @@ private struct SignInDialogCard: View {
         SignInTitle(text: L("signin_title"))
         SignInSubtitle(text: L("signin_subtitle"))
         if model.showGoogle {
-            GoogleSignInButton(label: L(model.googleLabelKey), busy: model.googleBusy, cornerRadius: 8, action: onGoogle)
+            GoogleSignInButton(label: L(model.googleLabelKey), busy: model.googleBusy, loading: model.googleSigningIn, cornerRadius: 8, action: onGoogle)
         }
         if model.showApple {
-            AppleSignInControl(enabled: !model.locked) { request in
-                model.apple(request: request)
+            ZStack(alignment: .trailing) {
+                AppleSignInControl(enabled: !model.locked) { request in
+                    model.apple(request: request)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .opacity(model.locked ? 0.55 : 1)
+                if model.appleBusy {
+                    ProgressView()
+                        .tint(colorScheme == .dark ? .black : .white)
+                        .padding(.trailing, 14)
+                        .allowsHitTesting(false)
+                }
             }
-            .frame(height: 44)
             .padding(.top, model.showGoogle ? 8 : 0)
             if model.appleSignInFailed {
                 Text(L("sign_in_failed"))
@@ -333,6 +353,8 @@ private struct SignInField: View {
             .padding(.horizontal, 11.2)
             .frame(maxWidth: .infinity)
             .frame(height: 44)
+            // 卡片是玻璃的：输入框自己铺白底（和 `NFDialogTextField` 一样），不然看着像个透明的洞。
+            .background(Sm.surface, in: shape)
             .overlay { shape.strokeBorder(focused ? Sm.blue : Sm.borderStrong, lineWidth: focused ? 2 : 1) }
             .contentShape(shape)
             .onTapGesture { if enabled { focus.wrappedValue = field } }
@@ -389,6 +411,7 @@ private struct SignInSubmit: View {
 struct GoogleSignInButton: View {
     let label: String
     let busy: Bool
+    var loading: Bool = false
     var cornerRadius: CGFloat = 4
     let action: () -> Void
 
@@ -397,18 +420,25 @@ struct GoogleSignInButton: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius)
         Button(action: action) {
-            HStack(spacing: 10) {
-                GoogleLogo(size: 18)
-                Text(label)
-                    .font(.nf(15, weight: 500))
-                    .kerning(layoutDirection == .rightToLeft ? 0 : 0.25)
-                    .foregroundStyle(Color(argb: 0xFF1F1F1F))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+            ZStack(alignment: .trailing) {
+                HStack(spacing: 10) {
+                    GoogleLogo(size: 18)
+                    Text(label)
+                        .font(.nf(15, weight: 500))
+                        .kerning(layoutDirection == .rightToLeft ? 0 : 0.25)
+                        .foregroundStyle(Color(argb: 0xFF1F1F1F))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                .padding(.horizontal, 12)
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                if loading {
+                    ProgressView()
+                        .tint(Color(argb: 0xFF1F1F1F))
+                        .padding(.trailing, 14)
+                }
             }
-            .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity)
-            .frame(height: 44)
             .overlay { shape.strokeBorder(Color(argb: 0xFF747775), lineWidth: 1) }
         }
         .buttonStyle(.pressable(background: .white, cornerRadius: cornerRadius))

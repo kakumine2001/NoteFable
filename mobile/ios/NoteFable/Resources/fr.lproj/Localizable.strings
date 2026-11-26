@@ -602,6 +602,11 @@
 "slides_export_pptx" = "Exporter vers PowerPoint (PPTX)";
 "slides_export_pptx_transition_note" = "Les transitions entre diapositives ne sont pas incluses dans l’exportation PPTX.";
 
+/* strings_slides_wizard.xml */
+"slides_generate" = "Générer des diapositives";
+"slides_generate_from_chat" = "Créer une présentation à partir de cette discussion";
+"slides_generate_with_ai" = "Générer avec l’IA";
+
 /* strings_turns.xml */
 "regenerate" = "Régénérer";
 "branch_in_new_chat" = "Bifurquer dans une nouvelle discussion";

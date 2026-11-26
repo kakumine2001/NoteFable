@@ -32,7 +32,7 @@ import { chatsTurns, notePanelTurns } from "@/lib/session-turns";
 import { bubblePlacement, anchorAncestors, anchorFabPosition, clampFabPosition, FAB_DRAG_THRESHOLD, loadFabPosition, panelPlacement, saveFabPosition, type FabPosition } from "@/lib/fab-position";
 import { selectionKey } from "@/lib/canvas-selection-state";
 import { StorageLimitError, UsageLimitError, storageLimitErrorFrom, usageLimitErrorFrom } from "@/lib/usage-plans";
-import { nativeCanOpenPage, nativeCanShowStorageLimit, nativeCanShowUsageLimit, postToNative } from "@/lib/native-bridge";
+import { nativeCanOpenPage, nativeCanShowSlidesWizard, nativeCanShowStorageLimit, nativeCanShowUsageLimit, postToNative } from "@/lib/native-bridge";
 import { NoteIcon } from "@/components/note-icon";
 import { PageKindIcon } from "@/components/page-kind-icon";
 import { ProposalHostContext, type ProposalHost } from "@/components/page-proposal";
@@ -40,6 +40,7 @@ import { PAGE_KIND_FEATURES, type PageKind } from "@/lib/page-kinds";
 import { isSelectionId, MAX_SELECTION_IDS, type PageSelection } from "@/lib/page-ai/types";
 import { loadAutoApply, saveAutoApply } from "@/lib/ai-auto-apply";
 import { drawNoteDiagram } from "@/lib/draw-diagram-jobs";
+import { openSlidesWizard } from "@/lib/slides-wizard-jobs";
 
 type QuickAction = { label: string; prompt: string };
 
@@ -1006,6 +1007,10 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
               {/* 「画成図」はチャットへの頼み事ではない：ノートを保存してから、ノートの「…」と同じ要求と窓（DrawDiagramHost）を使う。 */}
               {pageKind === "note" && <button type="button" className="note-ai-chip" disabled={busy || loadingChat}
                 onClick={() => void drawNoteDiagram(noteId, model, flush)}>{t("Draw as diagram")}</button>}
+              {/* このノートを材料にした AI のスライド生成の窓（SlidesWizardHost）。保存は窓が要求の前に行う。
+                  アプリの中では、窓を出し入れできるアプリにだけ出す（古いアプリは窓から戻れない）。 */}
+              {pageKind === "note" && (!embedded || nativeCanShowSlidesWizard()) && <button type="button" className="note-ai-chip" disabled={busy || loadingChat}
+                aria-haspopup="dialog" onClick={() => openSlidesWizard({ entry: { type: "note", pageId: noteId, title: noteTitle }, model })}>{t("Generate slides")}</button>}
             </div>}
           </div>
         ) : <ProposalHostContext.Provider value={proposalHost}>{messages.map((message) => (

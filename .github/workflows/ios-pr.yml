@@ -193,8 +193,8 @@ jobs:
             runner: xcode-27
             majors: "27"
             device-family: iPad
-            variants: light
-            scenes: settings settings-plan sign-in
+            variants: light dark ar rt
+            scenes: chat chat-scrolled chat-composer sidebar-collapsed search workspace workspace-scrolled editor settings settings-plan sign-in
             artifact: ios-screenshots-ipad
     env:
       NF_IOS_MAJORS: ${{ matrix.majors }}

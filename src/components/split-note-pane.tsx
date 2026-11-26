@@ -7,6 +7,7 @@ import { NotePageMenu } from "@/components/note-page-menu";
 import { NotesWorkspace } from "@/components/notes-workspace";
 import { localizeSystemText } from "@/lib/i18n/translate";
 import { drawNoteDiagram } from "@/lib/draw-diagram-jobs";
+import { openSlidesWizard } from "@/lib/slides-wizard-jobs";
 import { dispatchSlidesCommand } from "@/lib/native-bridge";
 import { recentPages } from "@/lib/notes-home-text";
 import type { useNotePages } from "@/lib/use-note-pages";
@@ -20,6 +21,8 @@ type SplitNotePaneProps = {
   model: string;
   reasoning: string;
   onSelectNote: (id: string) => void;
+  // バックリンクの会話を左のチャットで開く。
+  onOpenChat: (id: string, messageId?: string) => void;
   onCreateNote: (parentId?: string) => void;
   onOpenFullView: (id: string) => void;
   onOpenHistory: (id: string) => void;
@@ -37,6 +40,7 @@ export function SplitNotePane({
   model,
   reasoning,
   onSelectNote,
+  onOpenChat,
   onCreateNote,
   onOpenFullView,
   onOpenHistory,
@@ -202,6 +206,7 @@ export function SplitNotePane({
               onAddSubpage={() => onCreateNote(activeSummary.id)}
               // サーバーは保存済みのノートを読むので、入力中の内容を先に保存してから始める（窓は page.tsx の DrawDiagramHost）。
               onDrawDiagram={() => void drawNoteDiagram(activeSummary.id, model, () => (notes.active?.page.id === activeSummary.id ? notes.active.flush() : Promise.resolve(true)))}
+              onGenerateSlides={() => openSlidesWizard({ entry: { type: "note", pageId: activeSummary.id, title: activeSummary.title, icon: activeSummary.icon }, model })}
               onMove={() => onMoveNote(activeSummary.id)}
               onExport={() => onExportNote(activeSummary.id)}
               onTrash={() => onTrashNote(activeSummary.id)}
@@ -239,6 +244,7 @@ export function SplitNotePane({
             model={model}
             reasoning={reasoning}
             onOpen={onSelectNote}
+            onOpenChat={onOpenChat}
             onCreate={() => onCreateNote()}
             onWorkspaceChange={() => {}}
             onAskSelectionInChat={onAskSelectionInChat}

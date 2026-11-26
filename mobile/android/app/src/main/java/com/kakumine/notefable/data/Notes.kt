@@ -391,6 +391,11 @@ sealed interface EmbedMessage {
     data object Trashed : EmbedMessage
     /** 笔记里的页面提及被点了：打开那一页（和回答里的笔记链接一样走 openNoteFromLink）。 */
     data class OpenPage(val id: String) : EmbedMessage
+    /**
+     * 笔记下方反向链接里的聊天被点了：打开那段聊天（和搜索结果一样走 openChatLink），[messageId] 是附上这篇笔记的发言（有就滚到那里）。
+     * 只有声明了 `canOpenChat()` 的 App 才会收到。
+     */
+    data class OpenChat(val id: String, val messageId: String? = null) : EmbedMessage
     /** 网页那边新建了页面（笔记 AI 面板的「画成图」画好的白板）：刷新笔记列表。 */
     data object PagesChanged : EmbedMessage
     /** [kept]：没保存成功，但草稿已存在 WebView 里、之后会重试（不是冲突）。这时可以先离开。 */
@@ -412,6 +417,11 @@ sealed interface EmbedMessage {
     data class Presentation(val state: String, val index: Int, val count: Int) : EmbedMessage
     /** 白板正在用画图的工具（手掌 / 平移以外的都算）：这期间 App 让开屏幕两侧的系统返回手势。 */
     data class Drawing(val active: Boolean) : EmbedMessage
+    /**
+     * AI 生成幻灯片的向导（#150，网页 SlidesWizardHost）出现（[open]）或消失。[busy]：消失时还有生成没完成（WebView 多留一会儿）。
+     * 只有声明了 `canShowSlidesWizard()` 的 App 才会收到。
+     */
+    data class SlidesWizard(val open: Boolean, val busy: Boolean = false) : EmbedMessage
 
     // 网页导出的文件（白板的 PNG / SVG / PDF，幻灯片的 PDF / PNG / PPTX）分块交给 App 保存（src/lib/export-file.ts）：
     // fileStart → fileChunk（[FileChunk.data] 是 base64，原始字节最多 512 KiB，[FileChunk.index] 从 0 起按顺序）×n → fileEnd；
@@ -444,6 +454,10 @@ sealed interface EmbedMessage {
                 "missing" -> Missing(obj.str("id")?.takeIf { it.isNotBlank() })
                 "trashed" -> Trashed
                 "openPage" -> OpenPage(obj.str("id")?.takeIf { it.isNotBlank() } ?: return@runCatching null)
+                "openChat" -> OpenChat(
+                    obj.text("id")?.takeIf { it.isNotBlank() } ?: return@runCatching null,
+                    obj.text("messageId")?.takeIf { it.isNotBlank() },
+                )
                 "pagesChanged" -> PagesChanged
                 "storageLimit" -> StorageLimit(
                     obj.str("tier") ?: return@runCatching null,
@@ -466,6 +480,11 @@ sealed interface EmbedMessage {
                     obj["kept"]?.jsonPrimitive?.booleanOrNull == true,
                 )
                 "drawing" -> Drawing(obj.flag("active") ?: return@runCatching null)
+                "slidesWizard" -> when (obj.text("state")) {
+                    "open" -> SlidesWizard(open = true)
+                    "closed" -> SlidesWizard(open = false, busy = obj.flag("busy") == true)
+                    else -> null
+                }
                 "fileStart" -> FileStart(
                     obj.fileId() ?: return@runCatching null,
                     obj.text("name") ?: return@runCatching null,
@@ -483,6 +502,18 @@ sealed interface EmbedMessage {
             }
         }.getOrNull()
     }
+}
+
+/**
+ * AI 生成幻灯片向导的入口，即 `window.notefableEmbed.slidesWizard({ action: "open", source })` 的 source
+ * （src/lib/native-bridge.ts 的 parseSlidesWizardRequest）。聊天固定用这段对话；笔记固定带这一篇（向导里可以再加）；
+ * 「新建」的一句话主题或自己选笔记。
+ */
+sealed interface SlidesWizardSource {
+    /** 「新建幻灯片」处的「用 AI 生成」。[groupId] / [parentId] 是项目 / 页面行的"+"：整套建在那里。 */
+    data class New(val groupId: String? = null, val parentId: String? = null) : SlidesWizardSource
+    data class Note(val pageId: String) : SlidesWizardSource
+    data class Chat(val sessionId: String) : SlidesWizardSource
 }
 
 /** 只需要知道成功与否的接口（`{ ok: true }` 之类），内容不用。 */

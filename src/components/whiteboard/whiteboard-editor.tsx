@@ -1,9 +1,11 @@
 "use client";
 
-import { CaptureUpdateAction, convertToExcalidrawElements, Excalidraw, FONT_FAMILY, getCommonBounds, getSceneVersion, newElementWith } from "@excalidraw/excalidraw";
+import { CaptureUpdateAction, convertToExcalidrawElements, Excalidraw, FONT_FAMILY, getCommonBounds, getSceneVersion, isInvisiblySmallElement, newElementWith } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI, AppState, BinaryFiles, BinaryFileData } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement, FileId, NonDeletedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import type { OnDuplicateData } from "@excalidraw/element";
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
+import { flushSync } from "react-dom";
 import "@excalidraw/excalidraw/index.css";
 import "./whiteboard.css";
 import { useI18n } from "@/components/i18n-provider";
@@ -21,17 +23,28 @@ import { getNativeExportEpoch, saveExportFile } from "@/lib/export-file";
 import { pageCardLabel, pageIdFromLink, pageLinkUrl } from "@/lib/whiteboard/links";
 import { importPdfPages, MAX_PDF_IMPORT_PAGES, type PdfImportResult } from "@/lib/whiteboard/pdf-import";
 import { consumeWhiteboardReveal, WHITEBOARD_REVEAL_EVENT, type WhiteboardRevealDetail } from "@/lib/whiteboard/reveal";
-import { fitStoredWhiteboard, isStoredFileUrl, sceneToStored, storedToScene, type StoredWhiteboard, type WhiteboardElement } from "@/lib/whiteboard/scene";
-import { MAX_CANVAS_BYTES } from "@/lib/canvas-document";
+import { fitStoredWhiteboard, generatedImageDataOf, isStoredFileUrl, sceneToStored, storedToScene, type StoredWhiteboard, type WhiteboardElement } from "@/lib/whiteboard/scene";
+import { chooseSketchAspectSize, hitTestGeneratedImage, placeSketchGeneratedImage, type SketchBounds } from "@/lib/whiteboard/sketch-to-image";
+import { MAX_CANVAS_BYTES, MAX_WHITEBOARD_ELEMENTS } from "@/lib/canvas-document";
 import { uploadWhiteboardImage } from "@/lib/whiteboard/upload";
 import { registerCanvasFlusher } from "@/lib/canvas-flush";
 import { WhiteboardChrome, toolType, type WhiteboardTool, type WhiteboardUiState } from "@/components/whiteboard/whiteboard-ui";
 import { WhiteboardLinkDialog } from "@/components/whiteboard/whiteboard-link-dialog";
+import { WhiteboardReportImageDialog } from "@/components/whiteboard/whiteboard-report-dialog";
 import { WorkspaceImageDialog } from "@/components/workspace-image-dialog";
-import { fitWhiteboardImageSize, type PageImage } from "@/lib/page-images";
+import { fitWhiteboardImageSize, type GenerateImageSize, type PageImage } from "@/lib/page-images";
 import { excalidrawLang, useKeepDocumentLanguage } from "@/components/whiteboard/excalidraw-locale";
 import { WhiteboardMinimap } from "@/components/whiteboard/whiteboard-minimap";
 import type { MentionPage } from "@/components/note-mention";
+import { applyMindmapChange, fitMindmapNodeToText, MindmapOverlay, templateLabels, WhiteboardTemplateStart, type MindmapOverlayModel } from "@/components/whiteboard/whiteboard-mindmap";
+import {
+  addMindmapChild, addMindmapSibling, collapsedMindmapNodes, collapseMindmapNode, deleteMindmapNodes, exceedsWhiteboardLimit, expandMindmapNode, expandWithFrameChildren,
+  findMindmapNode, includesMindmapNode, liveMindmapNodeIds, mindmapCutExtras, mindmapDropTarget, mindmapFinder, mindmapRemovalCleanup, mindmapRootsOf, mindmapSelection,
+  remapMindmapDuplicateScene, reparentMindmapNode, setMindmapDirection,
+  type MindmapChange, type SceneElement,
+} from "@/lib/whiteboard/mindmap/editing";
+import { MINDMAP_DATA_KEY, mindmapDataOf, type MindmapDirection } from "@/lib/whiteboard/mindmap/model";
+import { moveSkeletons, skeletonBounds, templateSkeletons, type WhiteboardTemplate } from "@/lib/whiteboard/templates";
 
 // ホワイトボードのエディター（Excalidraw をもとに、画面は NoteFable 自身のツールバーとパネル。docs/architecture/whiteboard.md）。
 // 動的に読み込む（SSR しない）。/app のノート画面・分割表示・/note-embed（アプリの WebView）で使う。
@@ -159,6 +172,11 @@ function revealIn(target: ExcalidrawImperativeAPI, elementId: string, animation 
   return true;
 }
 
+const asScene = (elements: readonly ExcalidrawElement[]) => elements as unknown as SceneElement[];
+const noChange = (): MindmapChange => ({ patches: new Map(), added: [], restored: [] });
+const EMPTY_MINDMAP: MindmapOverlayModel = { selection: null, collapsed: [] };
+const selectedIdsOf = (appState: AppState) => Object.keys(appState.selectedElementIds ?? {}).filter((id) => appState.selectedElementIds[id]);
+
 function randomId() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID().replace(/-/g, "") : Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
@@ -180,9 +198,16 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [linkDialog, setLinkDialog] = useState<{ mode: "link" | "card"; url?: string } | null>(null);
   const [generateImageOpen, setGenerateImageOpen] = useState(false);
+  const [sketchDialog, setSketchDialog] = useState<{ blob: Blob; previewUrl: string; bounds: SketchBounds; defaultSize: GenerateImageSize } | null>(null);
+  const [reportTarget, setReportTarget] = useState<{ elementId: string; fallbackReportToken?: string } | null>(null);
+  const [readonlyReportImageId, setReadonlyReportImageId] = useState<string | null>(null);
+  const sessionReportTokens = useRef(new Map<string, string>());
+  const sketchCapturing = useRef(false);
+  const readonlyPointerDown = useRef<{ x: number; y: number } | null>(null);
   // 初期値を 0 にすることで、動的読み込み中に AI パネルから送られた要求もマウント直後に開ける。
   const [dismissedGenerateSignal, setDismissedGenerateSignal] = useState(0);
   const showGenerateImageDialog = editable && (generateImageOpen || generateImageSignal > dismissedGenerateSignal);
+  useEffect(() => () => { if (sketchDialog) URL.revokeObjectURL(sketchDialog.previewUrl); }, [sketchDialog]);
   const [sceneVersion, setSceneVersion] = useState("0");
   const [contentHidden, setContentHidden] = useState(false);
   const [minimapOpen, setMinimapOpen] = useState(() => {
@@ -243,6 +268,14 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   const lastSize = useRef("");
   // 取り込み中の PDF（閉じたらやめる）。
   const pdfAbort = useRef<AbortController | null>(null);
+  // 思考マップ：浮かべるボタンに出す様子。
+  const [mindmap, setMindmap] = useState<MindmapOverlayModel>(EMPTY_MINDMAP);
+  const mindmapKey = useRef("");
+  const mindmapSelected = useRef("");
+  const [gestureActive, setGestureActive] = useState(false);
+  // 終わったときにすること（エディターの API がそろってから入れる）。
+  const mindmapEvents = useRef<{ gestureEnd: (ids: string[], dragged: boolean) => void; textEnd: (textId: string) => void }>({ gestureEnd: () => {}, textEnd: () => {} });
+  const [templateStartClosed, setTemplateStartClosed] = useState(false);
 
   const signatureOf = useCallback((elements: readonly ExcalidrawElement[], appState: AppState) => {
     const persisted = [appState.viewBackgroundColor, appState.gridModeEnabled, appState.gridSize, appState.gridStep, appState.objectsSnapModeEnabled];
@@ -550,9 +583,29 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     };
   }, [onSelectionChangeProp, readUi]);
 
+  // 思考マップの様子を読む。
+  const readMindmap = useCallback((elements: readonly ExcalidrawElement[], appState: AppState) => {
+    const busy = Boolean(appState.selectedElementsAreBeingDragged || appState.isResizing);
+    setGestureActive(busy);
+    if (busy) return;
+    const ids = selectedIdsOf(appState);
+    const selected = [...ids].sort().join(",");
+    // 描いている途中・文字を打っている途中は、版が 1 点・1 文字ごとに上がる。選択が同じなら読み直さず、終わってから読む。
+    if ((appState.newElement || appState.editingTextElement) && mindmapKey.current && selected === mindmapSelected.current) return;
+    const key = `${getSceneVersion(elements)}|${elements.length}|${selected}`;
+    if (key === mindmapKey.current) return;
+    mindmapKey.current = key;
+    mindmapSelected.current = selected;
+    const live = asScene(elements.filter((element) => !element.isDeleted));
+    const has = live.some((element) => element.customData && MINDMAP_DATA_KEY in element.customData);
+    const next: MindmapOverlayModel = has ? { selection: ids.length ? mindmapSelection(live, ids) : null, collapsed: collapsedMindmapNodes(live) } : EMPTY_MINDMAP;
+    setMindmap((current) => JSON.stringify(current) === JSON.stringify(next) ? current : next);
+  }, []);
+
   const handleChange = useCallback((elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
     latestScene.current = { elements, appState, files };
     readUi(elements, appState, files);
+    readMindmap(elements, appState);
     // Excalidraw 自身のエラー（大きすぎる画像など）。既定の画面を出していないので、こちらで知らせて消す。
     if (appState.errorMessage) {
       const message = appState.errorMessage;
@@ -583,7 +636,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
       if (editable) { ownEdit.current = true; touched.current = true; }
       scheduleSave();
     }
-  }, [api, editable, pageId, readUi, scheduleSave, signatureOf, startUploads, updateContentHidden]);
+  }, [api, editable, pageId, readMindmap, readUi, scheduleSave, signatureOf, startUploads, updateContentHidden]);
 
   // 開発中だけ、ブラウザーのコンソールから確かめられるよう editor の API を置く（本番のビルドには入らない）。
   useEffect(() => {
@@ -596,6 +649,236 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     if (!api) return;
     setActions(connectWhiteboardActions(api as never, containerRef.current?.querySelector(".excalidraw") as HTMLElement | null));
   }, [api]);
+
+  // ---- 思考マップのモード（子・兄弟を足す、消す、親を替える、畳む・広げる、向き。docs/architecture/whiteboard.md） ----
+  const editableRef = useRef(editable);
+  useEffect(() => { editableRef.current = editable; }, [editable]);
+  // 節の文字の編集を始める（selectAll：足したばかりの節の仮の文字を選んでおき、打てば置き換わる）。
+  const startEditingNode = useCallback((nodeId: string, selectAll = false) => {
+    requestAnimationFrame(() => {
+      if (!api || !mounted.current || !actions) return;
+      const elements = api.getSceneElements();
+      const container = elements.find((element) => element.id === nodeId);
+      if (!container || container.locked) return;
+      const textId = container.boundElements?.find((item) => item.type === "text")?.id;
+      const text = textId ? elements.find((element) => element.id === textId) : undefined;
+      if (text?.locked) return;
+      const length = text && "originalText" in text ? text.originalText.length : 0;
+      actions.editText({
+        sceneX: container.x + container.width / 2, sceneY: container.y + container.height / 2, container,
+        ...(text ? { textElement: text } : {}), ...(selectAll && text ? { initialSelection: { start: 0, end: length } } : {}),
+      });
+    });
+  }, [api, actions]);
+  const runMindmap = useCallback((change: MindmapChange, roots: Iterable<string> = [], options?: { capture?: boolean }) => {
+    if (!api || !mounted.current || !editableRef.current) return false;
+    // 畳んだ枝を広げると要素の上限を超えるときは、知らせて何もしない（超えたままでは保存できない）。
+    if (exceedsWhiteboardLimit(asScene(api.getSceneElements()), change)) {
+      setNotice({ text: msg("This branch can't be expanded: a whiteboard can hold up to {max} elements."), vars: { max: MAX_WHITEBOARD_ELEMENTS } });
+      return false;
+    }
+    const applied = applyMindmapChange(api, change, roots, options);
+    if (applied && change.edit) startEditingNode(change.edit, true);
+    return applied !== null;
+  }, [api, startEditingNode]);
+  const mindmapAddChild = useCallback((nodeId: string) => {
+    if (api) runMindmap(addMindmapChild(asScene(api.getSceneElements()), nodeId, t("New topic")));
+  }, [api, runMindmap, t]);
+  const mindmapAddSibling = useCallback((nodeId: string) => {
+    if (api) runMindmap(addMindmapSibling(asScene(api.getSceneElements()), nodeId, t("New topic")));
+  }, [api, runMindmap, t]);
+  const mindmapToggle = useCallback((nodeId: string) => {
+    if (!api) return;
+    const elements = asScene(api.getSceneElements());
+    const found = findMindmapNode(elements, nodeId);
+    if (!found) return;
+    const change = found.node.data.collapsed ? expandMindmapNode(elements, found.node.id) : collapseMindmapNode(elements, found.node.id);
+    runMindmap({ ...change, select: found.node.id });
+  }, [api, runMindmap]);
+  const mindmapDirection = useCallback((nodeId: string, direction: MindmapDirection) => {
+    if (api) runMindmap(setMindmapDirection(asScene(api.getSceneElements()), nodeId, direction));
+  }, [api, runMindmap]);
+  // 選んでいるのが思考マップの要素（節・節の文字・線）だけなら、節を子孫ごと消して置き直す（true）。ほかの図形も選んでいれば
+  // Excalidraw の削除に任せる（false。残る子孫と線は下の片付けで消える）。
+  const mindmapDeleteSelection = useCallback(() => {
+    if (!api || !editableRef.current) return false;
+    const elements = asScene(api.getSceneElements());
+    const ids = selectedIdsOf(api.getAppState());
+    if (!ids.length || !includesMindmapNode(elements, ids)) return false;
+    const find = mindmapFinder(elements);
+    const byId = new Map(elements.map((element) => [element.id, element]));
+    const onlyMindmap = ids.every((id) => {
+      const element = byId.get(id);
+      return !element || mindmapDataOf(element.customData) !== null || find(id) !== null;
+    });
+    if (!onlyMindmap) return false;
+    const change = deleteMindmapNodes(elements, ids);
+    // 選んだ節がロックされていて何も消さないときも、ここで受け止める（Excalidraw の削除に回さない）。
+    if (!change.patches.size) return ids.some((id) => find(id)?.node.element.locked);
+    const first = ids.map(find).find((found) => found !== null);
+    return runMindmap({ ...change, select: first?.node.parent?.id });
+  }, [api, runMindmap]);
+  const finishMindmapGesture = useCallback((ids: string[], dragged: boolean) => {
+    if (!api || !mounted.current || !editableRef.current) return;
+    const elements = asScene(api.getSceneElements());
+    // 枠を動かした・大きさを変えたときも、枠の中にある思考マップを置き直す（はみ出て枠の外にある子孫を置き去りにしない・収まらない節を枠から外す）。
+    const affected = expandWithFrameChildren(elements, ids);
+    if (!includesMindmapNode(elements, affected)) return;
+    const selection = mindmapSelection(elements, ids);
+    if (dragged && selection && !selection.isRoot) {
+      const target = mindmapDropTarget(elements, selection.nodeId);
+      const change = target ? reparentMindmapNode(elements, selection.nodeId, target) : null;
+      // 落とした先を広げられない（要素の上限）ときは、下の置き直しで元の場所に戻す。
+      if (change && runMindmap({ ...change, select: selection.nodeId }, [], { capture: false })) return;
+    }
+    runMindmap(noChange(), mindmapRootsOf(elements, affected), { capture: false });
+  }, [api, runMindmap]);
+  const finishMindmapTextEdit = useCallback((textId: string) => {
+    if (!api || !mounted.current || !editableRef.current) return;
+    const text = api.getSceneElementsIncludingDeleted().find((element) => element.id === textId) as { containerId?: string | null } | undefined;
+    if (!text?.containerId) return;
+    const elements = api.getSceneElements();
+    const found = findMindmapNode(asScene(elements), text.containerId);
+    if (!found) return;
+    // 文字に合わせて節の大きさを変え、木を置き直す。
+    runMindmap({ ...noChange(), patches: fitMindmapNodeToText(elements, found.node.id, found.node.depth) }, [found.tree.root.id], { capture: false });
+  }, [api, runMindmap]);
+  useEffect(() => { mindmapEvents.current = { gestureEnd: finishMindmapGesture, textEnd: finishMindmapTextEdit }; }, [finishMindmapGesture, finishMindmapTextEdit]);
+  // ドラッグ・大きさの変更の終わりには置き直し（ほかの節の上で離したら親を替える）、節の文字の編集の終わりにも置き直す。
+  // onStateChange は Excalidraw が取り消しの記録を作る直前に呼ばれるので、ここで待たずに場面を直すと、その操作と同じ 1 回の取り消しに
+  // まとまる（onChange の後に直すと 2 回になる）。呼ばれるのは Excalidraw の描き直しの途中なので、失敗しても投げない。
+  useEffect(() => {
+    if (!api) return;
+    const safely = (run: () => void) => {
+      try { run(); } catch (error) { console.error(error); }
+    };
+    let ids: string[] = [];
+    let dragged = false;
+    const offGesture = api.onStateChange(
+      (state: AppState) => Boolean(state.selectedElementsAreBeingDragged || state.isResizing),
+      (busy: boolean, state: AppState) => {
+        if (!busy) { safely(() => mindmapEvents.current.gestureEnd(ids, dragged)); return; }
+        ids = selectedIdsOf(state);
+        dragged = Boolean(state.selectedElementsAreBeingDragged);
+      },
+    );
+    let editing = api.getAppState().editingTextElement?.id ?? null;
+    const offText = api.onStateChange((state: AppState) => state.editingTextElement?.id ?? null, (next: string | null) => {
+      const previous = editing;
+      editing = next;
+      if (previous) safely(() => mindmapEvents.current.textEnd(previous));
+    });
+    return () => { offGesture(); offText(); };
+  }, [api]);
+  // Excalidraw の削除（ほかの図形と一緒に選んだとき）・切り取り・消しゴムで節が消えたら、子孫と線も片付ける。場面が変わるたびに
+  // onStateChange（取り消しの記録を作る直前）で見るので、消した操作と同じ 1 回の取り消しになる。
+  const historyReplay = useRef(false);
+  useEffect(() => actions?.onHistoryReplay(() => { historyReplay.current = true; }), [actions]);
+  useEffect(() => {
+    if (!api) return;
+    let topics = liveMindmapNodeIds(asScene(api.getSceneElementsIncludingDeleted()));
+    let seen = "";
+    return api.onStateChange({
+      predicate: () => true,
+      callback: () => {
+        // Excalidraw の描き直しの途中なので、失敗しても投げない。
+        try {
+          if (!mounted.current) return;
+          const replaying = historyReplay.current;
+          historyReplay.current = false;
+          // 描いている・動かしている間は節が消えないので、点や位置が変わるたびには読み直さない。
+          const appState = api.getAppState();
+          if (appState.newElement || appState.selectedElementsAreBeingDragged || appState.isResizing) return;
+          const elements = api.getSceneElementsIncludingDeleted();
+          const version = `${getSceneVersion(elements)}|${elements.length}`;
+          if (version === seen) return;
+          seen = version;
+          // 取り消し・やり直しは Excalidraw が戻した場面をそのまま残す（片付けや置き直しで別の線を足さない）。
+          if (replaying) {
+            topics = liveMindmapNodeIds(asScene(elements));
+            return;
+          }
+          const cleanup = editableRef.current ? mindmapRemovalCleanup(asScene(elements), topics) : null;
+          topics = liveMindmapNodeIds(asScene(elements));
+          if (!cleanup) return;
+          applyMindmapChange(api, cleanup.change, cleanup.roots, { capture: false });
+          topics = liveMindmapNodeIds(asScene(api.getSceneElementsIncludingDeleted()));
+        } catch (error) {
+          console.error(error);
+        }
+      },
+    });
+  }, [api]);
+  // 切り取りは、選んだ節の子孫も一緒に選んでから Excalidraw に任せる（貼り付けで枝ごと移る）。
+  useEffect(() => {
+    const root = containerRef.current;
+    if (!root || !api) return;
+    const widen = (event: Event) => {
+      const target = event.target as HTMLElement | null;
+      if (!editableRef.current || !target?.closest(".excalidraw") || target.closest("input, textarea, select, [contenteditable='true']")) return;
+      const appState = api.getAppState();
+      if (appState.editingTextElement) return;
+      const ids = selectedIdsOf(appState);
+      const extras = mindmapCutExtras(asScene(api.getSceneElements()), ids);
+      if (!extras.length) return;
+      // Excalidraw はこの出来事を受けてすぐに選択を読むので、待たずに反映する。
+      flushSync(() => api.updateScene({ appState: { selectedElementIds: Object.fromEntries([...ids, ...extras].map((id) => [id, true as const])) } }));
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "x") widen(event);
+    };
+    root.addEventListener("keydown", onKeyDown, true);
+    root.addEventListener("cut", widen, true);
+    return () => { root.removeEventListener("keydown", onKeyDown, true); root.removeEventListener("cut", widen, true); };
+  }, [api]);
+  // キー：Tab で子、Enter で兄弟（根では子）、F2 で文字の編集、Delete で子孫ごと消す。Excalidraw より先に受ける
+  // （Excalidraw の Tab は図形の種類の切り替え、Enter は文字の編集）。
+  useEffect(() => {
+    const root = containerRef.current;
+    if (!root || !api) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!editableRef.current || event.isComposing || event.altKey || event.metaKey || event.ctrlKey) return;
+      const target = event.target as HTMLElement | null;
+      if (!target?.closest(".excalidraw") || target.closest("input, textarea, select, [contenteditable='true']")) return;
+      const appState = api.getAppState();
+      if (appState.editingTextElement || appState.newElement || appState.selectedElementsAreBeingDragged || appState.openDialog) return;
+      const ids = selectedIdsOf(appState);
+      if (!ids.length) return;
+      let handled = false;
+      if (event.key === "Delete" || event.key === "Backspace") {
+        // 押しっぱなしの繰り返しは受け止めるだけにする。消すと親が選ばれるので、繰り返すと木をさかのぼって全部消える
+        // （Excalidraw に回すと、選ばれた親だけが消えて子がばらばらになる）。
+        handled = event.repeat ? includesMindmapNode(asScene(api.getSceneElements()), ids) : mindmapDeleteSelection();
+      }
+      else if (!event.shiftKey && (event.key === "Tab" || event.key === "Enter" || event.key === "F2")) {
+        const selection = mindmapSelection(asScene(api.getSceneElements()), ids);
+        if (selection) {
+          handled = true;
+          if (event.key === "Tab") mindmapAddChild(selection.nodeId);
+          else if (event.key === "Enter") mindmapAddSibling(selection.nodeId);
+          else startEditingNode(selection.nodeId);
+        }
+      }
+      if (handled) { event.preventDefault(); event.stopPropagation(); }
+    };
+    root.addEventListener("keydown", onKeyDown, true);
+    return () => root.removeEventListener("keydown", onKeyDown, true);
+  }, [api, mindmapAddChild, mindmapAddSibling, mindmapDeleteSelection, startEditingNode]);
+  // パネルの削除ボタンも、思考マップの節は子孫ごと消す。
+  const panelActions = useMemo<WhiteboardActions | null>(() => actions && {
+    ...actions,
+    run: (name, value) => (name === "deleteSelectedElements" && mindmapDeleteSelection()) || actions.run(name, value),
+  }, [actions, mindmapDeleteSelection]);
+  // 複製（Ctrl+D・Alt ドラッグ・貼り付け）した節の印を付け直す（親を一緒に複製しなかった節は新しい木の根になる）。
+  // Excalidraw は返した並びから次の場面を作るので、複製していない要素も含めて全部返す。
+  const onDuplicate = useCallback((next: readonly ExcalidrawElement[], _previous: readonly unknown[], data: OnDuplicateData) => {
+    const pairs = [...data.duplicateIdToOrigId].flatMap(([duplicateId, originalId]) => {
+      const from = data.originalElements.get(originalId);
+      const to = data.duplicateElements.get(duplicateId);
+      return from && to ? [{ from: from as unknown as SceneElement, to: to as unknown as SceneElement }] : [];
+    });
+    return remapMindmapDuplicateScene(next, pairs) ?? undefined;
+  }, []);
 
   // ---- 表示位置を覚える。見えている範囲に内容が無ければ「内容に戻る」を出す。 ----
   useEffect(() => {
@@ -826,6 +1109,25 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     api.selection.select(created[0].id);
   }, [api, sceneCenter, t]);
 
+  // ---- 学習テンプレート：画面の中央に置いて選ぶ（思考マップは根、ほかは枠） ----
+  const insertTemplate = useCallback((template: WhiteboardTemplate) => {
+    if (!api || !editableRef.current) return;
+    const skeletons = templateSkeletons(template, templateLabels(template, t));
+    const bounds = skeletonBounds(skeletons);
+    const center = sceneCenter();
+    const placed = moveSkeletons(skeletons, center.x - bounds.x - bounds.width / 2, center.y - bounds.y - bounds.height / 2);
+    const created = convertToExcalidrawElements(placed as never, { regenerateIds: false });
+    const pick = created.find((element) => element.type === "frame")
+      ?? created.find((element) => { const data = mindmapDataOf(element.customData); return data?.role === "node" && data.parent === null; });
+    api.updateScene({
+      elements: [...api.getSceneElementsIncludingDeleted(), ...created],
+      ...(pick ? { appState: { selectedElementIds: { [pick.id]: true }, selectedGroupIds: {}, editingGroupId: null } as never } : {}),
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+    });
+    api.setActiveTool({ type: "selection" });
+    api.setViewport({ target: created, fit: "scale-down", animation: true });
+  }, [api, sceneCenter, t]);
+
   // パネルの「リンクを開く」：アプリ内のページはその場で、外部のリンクは新しいタブで。
   const openLink = useCallback((link: string) => {
     const id = pageIdFromLink(link, window.location.origin);
@@ -919,40 +1221,110 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     }
   }, [api, busy, insertPdf, t]);
 
-  // ---- AI で作った画像を現在の視野の中央へ自然に置く ----
-  const insertGeneratedImage = useCallback((image: PageImage) => {
+  // ---- 選択したスケッチを浅色 PNG にして画像生成ダイアログを開く ----
+  const startTurnIntoImage = useCallback(async () => {
+    if (!api || !editable || busy || sketchCapturing.current) return;
+    const appState = api.getAppState();
+    const elements = api.getSceneElements();
+    const selectedIds = new Set(selectedIdsOf(appState));
+    const expanded = expandWhiteboardSelection(elements, selectedIds);
+    const visible = expanded.elements.filter((element) => !isInvisiblySmallElement(element));
+    if (!visible.length) {
+      setNotice({ text: msg("Could not capture the selected sketch. Try again.") });
+      return;
+    }
+    const [minX, minY, maxX, maxY] = getCommonBounds(visible);
+    const bounds: SketchBounds = { x: minX, y: minY, width: Math.max(1, maxX - minX), height: Math.max(1, maxY - minY) };
+    const allFiles = api.getFiles();
+    const snapFiles: BinaryFiles = {};
+    for (const element of visible) {
+      if (element.type === "image" && typeof element.fileId === "string" && allFiles[element.fileId]) {
+        snapFiles[element.fileId] = allFiles[element.fileId];
+      }
+    }
+    sketchCapturing.current = true;
+    try {
+      const blob = await exportWhiteboardSelectionPng({
+        elements: visible.map((element) => ({ ...element })) as NonDeletedExcalidrawElement[],
+        files: snapFiles,
+        viewBackgroundColor: "#ffffff",
+      }, undefined, { maxBytes: 3_500_000 });
+      if (!mounted.current) return;
+      if (!blob) {
+        setNotice({ text: msg("Could not capture the selected sketch. Try again.") });
+        return;
+      }
+      setSketchDialog({
+        blob,
+        previewUrl: URL.createObjectURL(blob),
+        bounds,
+        defaultSize: chooseSketchAspectSize(bounds.width, bounds.height),
+      });
+    } catch {
+      if (mounted.current) setNotice({ text: msg("Could not capture the selected sketch. Try again.") });
+    } finally {
+      sketchCapturing.current = false;
+    }
+  }, [api, editable, busy]);
+
+  // ---- AI で作った画像を現在の視野の中央、またはスケッチの右隣へ自然に置く ----
+  const insertGeneratedImage = useCallback((image: PageImage, placement?: SketchBounds) => {
     if (!api || !editable) return;
-    const { width, height } = fitWhiteboardImageSize(image.width, image.height);
-    const center = sceneCenter();
+    const box = placement
+      ? placeSketchGeneratedImage(placement, image.width, image.height)
+      : (() => {
+          const { width, height } = fitWhiteboardImageSize(image.width, image.height);
+          const center = sceneCenter();
+          return { x: Math.round(center.x - width / 2), y: Math.round(center.y - height / 2), width, height };
+        })();
     const fileId = randomId() as FileId;
     const imageId = randomId();
+    const generated = image.prompt?.trim() ? generatedImageDataOf({ generated: { prompt: image.prompt } }) : null;
     uploadedUrls.current.set(fileId, { url: image.url, mimeType: image.mimeType });
     knownFiles.current.add(fileId);
     uploads.current.set(fileId, { status: "done", url: image.url, mimeType: image.mimeType });
     api.addFiles([{ id: fileId, mimeType: image.mimeType as BinaryFileData["mimeType"], dataURL: image.url as BinaryFileData["dataURL"], created: Date.now() }]);
-    const created = convertToExcalidrawElements([{
+    const rawCreated = convertToExcalidrawElements([{
       type: "image",
       id: imageId,
-      x: Math.round(center.x - width / 2),
-      y: Math.round(center.y - height / 2),
-      width,
-      height,
+      x: box.x,
+      y: box.y,
+      width: box.width,
+      height: box.height,
       fileId,
       status: "saved",
+      ...(generated ? { customData: { generated } } : {}),
     }]);
+    const created = generated
+      ? rawCreated.map((element) => (element.type === "image"
+        ? { ...element, customData: { ...(element.customData ?? {}), generated } }
+        : element))
+      : rawCreated;
     const insertedId = created.find((element) => element.type === "image")?.id ?? imageId;
+    if (image.reportToken) sessionReportTokens.current.set(insertedId, image.reportToken);
     api.setActiveTool({ type: "selection" });
     api.updateScene({
       elements: [...api.getSceneElementsIncludingDeleted(), ...created],
       appState: { selectedElementIds: { [insertedId]: true } },
       captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     });
+    if (placement) {
+      const view = visibleRect(api.getAppState());
+      const outOfView = box.x + box.width > view.x + view.width || box.x < view.x || box.y < view.y || box.y + box.height > view.y + view.height;
+      if (outOfView) api.setViewport({ target: created, fit: "scale-down", animation: true });
+    }
     lastSignature.current = null;
     dirty.current = true;
     ownEdit.current = true;
     touched.current = true;
     scheduleSave();
   }, [api, editable, sceneCenter, scheduleSave]);
+
+  const openReportImage = useCallback((elementId: string) => {
+    // 挿入直後に報告された場合も保存を前倒しする。
+    flushPending();
+    setReportTarget({ elementId, fallbackReportToken: sessionReportTokens.current.get(elementId) });
+  }, [flushPending]);
 
   const toggleMinimap = useCallback(() => {
     setMinimapOpen((open) => {
@@ -965,6 +1337,26 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     // ツールバー・パネル・ズームのボタンを押してもフォーカスを画布から移さない。Excalidraw はキー（Delete・Ctrl+Z・矢印など）と貼り付けを
     // 自分の入れ物にフォーカスがある時だけ受けるので、ボタンがフォーカスを取ると、画布を押し直すまで効かなくなる。入力欄は除く。
     <div ref={containerRef} className={`whiteboard${embedded ? " is-embedded" : ""}${editable ? "" : " is-readonly"}${compact ? " is-compact" : narrow ? " is-narrow" : ""}${tight ? " is-tight" : ""}`} data-theme={theme}
+      onPointerDown={(event) => {
+        if (editable) return;
+        const target = event.target as HTMLElement;
+        if (!target.closest(".excalidraw") || target.closest("button, dialog, [role='menu'], [role='dialog']")) return;
+        readonlyPointerDown.current = { x: event.clientX, y: event.clientY };
+      }}
+      onPointerUp={(event) => {
+        const down = readonlyPointerDown.current;
+        readonlyPointerDown.current = null;
+        if (editable || !down || !api) return;
+        if (Math.hypot(event.clientX - down.x, event.clientY - down.y) > 6) return;
+        const canvasEl = containerRef.current?.querySelector(".excalidraw");
+        if (!canvasEl) return;
+        const rect = canvasEl.getBoundingClientRect();
+        const appState = api.getAppState();
+        const sceneX = (event.clientX - rect.left) / appState.zoom.value - appState.scrollX;
+        const sceneY = (event.clientY - rect.top) / appState.zoom.value - appState.scrollY;
+        const hit = hitTestGeneratedImage(api.getSceneElements(), { x: sceneX, y: sceneY });
+        setReadonlyReportImageId(hit);
+      }}
       onMouseDown={(event) => {
         const target = event.target as HTMLElement;
         if (!target.closest("button") || target.closest(".excalidraw, dialog, [role='menu'], [role='dialog'], input, textarea, select, [contenteditable='true']")) return;
@@ -983,11 +1375,15 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
         // 外部のページの埋め込みは作らない（URL を貼ってもリンクになる）。公開リンクで外部のページを開かせないため。
         validateEmbeddable={false}
         onChange={handleChange}
+        onDuplicate={onDuplicate as never}
         onLinkOpen={onLinkOpen}
         imageOptions={{ maxFileSizeBytes: MAX_NOTE_FILE_BYTES, maxWidthOrHeight: 2560 }}
         autoFocus={!embedded}
       />
-      {ui && api && <WhiteboardChrome ui={ui} drawMode={drawMode} editable={editable} embedded={embedded} compact={compact} theme={theme} actions={actions}
+      {api && <MindmapOverlay api={api} model={mindmap} editable={editable} hidden={gestureActive || Boolean(ui?.editingText)}
+        onAddChild={mindmapAddChild} onAddSibling={mindmapAddSibling} onToggle={mindmapToggle} />}
+      {ui && api && editable && ui.empty && !templateStartClosed && !busy && <WhiteboardTemplateStart onPick={insertTemplate} onClose={() => setTemplateStartClosed(true)} />}
+      {ui && api && <WhiteboardChrome ui={ui} drawMode={drawMode} editable={editable} embedded={embedded} compact={compact} theme={theme} actions={panelActions}
         title={props.title} icon={props.icon} onTitleChange={props.onTitleChange} onIconChange={props.onIconChange}
         onSelectTool={selectTool} onLink={openLinkDialog} onOpenLink={openLink} onUnlock={unlockTarget} onInsertPageCard={() => setLinkDialog({ mode: "card" })}
         onGenerateImage={() => setGenerateImageOpen(true)}
@@ -995,6 +1391,13 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
         onFitToContent={fitToContent} onCanvasBackground={(color) => api.updateScene({ appState: { viewBackgroundColor: color }, captureUpdate: CaptureUpdateAction.IMMEDIATELY })}
         onPenMode={(penMode) => api.updateScene({ appState: { penMode }, captureUpdate: CaptureUpdateAction.NEVER })}
         onAskAi={onAskAiProp ? askAiSelection : undefined}
+        onTurnIntoImage={editable ? () => { void startTurnIntoImage(); } : undefined}
+        onReportImage={openReportImage}
+        readonlyReportImageId={editable ? null : readonlyReportImageId}
+        onInsertTemplate={insertTemplate}
+        mindmap={editable && mindmap.selection ? {
+          selection: mindmap.selection, onAddChild: mindmapAddChild, onAddSibling: mindmapAddSibling, onToggle: mindmapToggle, onDirection: mindmapDirection,
+        } : null}
         minimapOpen={minimapOpen} onToggleMinimap={toggleMinimap} contentHidden={contentHidden} busy={busy} pages={props.pages} aiSlot={props.aiSlot}
         minimap={<WhiteboardMinimap api={api} version={sceneVersion} theme={theme} />} />}
       <input ref={pdfInputRef} type="file" accept="application/pdf,.pdf" className="sr-only" tabIndex={-1} aria-hidden="true"
@@ -1021,6 +1424,25 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
           onClose={() => { setGenerateImageOpen(false); setDismissedGenerateSignal(generateImageSignal); onConsumeGenerateImage?.(); }}
         />
       )}
+      {editable && sketchDialog && (
+        <WorkspaceImageDialog
+          pageId={pageId}
+          pageKind="whiteboard"
+          embedded={embedded}
+          defaultSize={sketchDialog.defaultSize}
+          referenceImage={{ blob: sketchDialog.blob, previewUrl: sketchDialog.previewUrl }}
+          onInsert={(image) => insertGeneratedImage(image, sketchDialog.bounds)}
+          onClose={() => setSketchDialog(null)}
+        />
+      )}
+      {reportTarget && (
+        <WhiteboardReportImageDialog
+          pageId={pageId}
+          elementId={reportTarget.elementId}
+          fallbackReportToken={reportTarget.fallbackReportToken}
+          onClose={() => setReportTarget(null)}
+        />
+      )}
       {notice && <div className="whiteboard-notice" role="alert"><span>{notice.vars ? t(notice.text, notice.vars) : localizeSystemText(notice.text, t)}</span><button type="button" className="notion-button" onClick={() => setNotice(null)}>{t("Close")}</button></div>}
     </div>
   );
@@ -1045,10 +1467,21 @@ function deriveUiState(selected: readonly NonDeletedExcalidrawElement[], appStat
   // 付箋の道具を選んでいる間は、付箋の色が次に置くものの色。
   const sticky = !selected.length && appState.activeTool.type === "stickynote";
   const stickyState = appState as AppState & { currentItemStickynoteStrokeColor?: string; currentItemStickynoteBackgroundColor?: string };
+  const singleGeneratedImageId = selected.length === 1
+    && selected[0].type === "image"
+    && generatedImageDataOf(selected[0].customData) !== null
+    ? selected[0].id
+    : null;
+  const lockedEl = !singleGeneratedImageId && appState.activeLockedId ? byId.get(appState.activeLockedId) : undefined;
+  const lockedGeneratedImageId = lockedEl && !lockedEl.isDeleted && lockedEl.type === "image" && generatedImageDataOf(lockedEl.customData) !== null
+    ? lockedEl.id
+    : null;
   return {
     tool: appState.activeTool.type,
     toolLocked: appState.activeTool.locked,
     selectedCount: selected.length,
+    // 白板に何も無い（「テンプレートから始める」を出す）。
+    empty: !elements.some((element) => !element.isDeleted),
     selectedTypes: [...new Set(selected.map((element) => element.type))].sort(),
     groupSelected: Object.keys(appState.selectedGroupIds ?? {}).some((id) => appState.selectedGroupIds[id]),
     allLocked: selected.length > 0 && selected.every((element) => element.locked),
@@ -1063,6 +1496,7 @@ function deriveUiState(selected: readonly NonDeletedExcalidrawElement[], appStat
     link: selected.length === 1 ? selected[0].link ?? null : null,
     // 押したロック中の要素（またはグループ）。Excalidraw の解除のポップアップは既定の画面にしか無いので、自前のボタンを出す。
     lockedTarget: appState.activeLockedId ?? null,
+    reportableImageId: singleGeneratedImageId ?? lockedGeneratedImageId,
     style: {
       strokeColor: common((element) => element.strokeColor, (sticky && stickyState.currentItemStickynoteStrokeColor) || appState.currentItemStrokeColor),
       backgroundColor: common((element) => element.backgroundColor, (sticky && stickyState.currentItemStickynoteBackgroundColor) || appState.currentItemBackgroundColor),

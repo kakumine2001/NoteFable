@@ -109,6 +109,7 @@ export const ptBRServer: Record<string, string> = {
   "Page not found": "Página não encontrada",
   "Page not found in the trash.": "Página não encontrada na lixeira.",
   "Page not found.": "Página não encontrada.",
+  "Note not found.": "Nota não encontrada.",
   "Note proposal rejected": "Proposta de nota recusada",
   "Page title must be at most {max} characters.": "O título da página deve ter no máximo {max} caracteres.",
   "Nothing to update.": "Nada para atualizar.",
@@ -271,4 +272,8 @@ export const ptBRServer: Record<string, string> = {
   "Could not turn this into an editable diagram.": "Não foi possível converter em um diagrama editável.",
   "There is nothing to draw yet.": "Ainda não há nada para desenhar.",
   "This diagram was moved to the trash.": "Este diagrama foi movido para a Lixeira.",
+  "Could not generate slides. Try again.": "Não foi possível gerar os slides. Tente novamente.",
+  "There is nothing to make slides from yet.": "Ainda não há nada para transformar em slides.",
+  "These slides were moved to the trash.": "Estes slides foram movidos para a Lixeira.",
+  "This request is still running. Try again in a moment.": "Esta solicitação ainda está em andamento. Tente novamente em instantes.",
 };

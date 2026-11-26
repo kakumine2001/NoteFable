@@ -73,7 +73,7 @@ describe("enabled Web/native language data", { timeout: 60_000 }, () => {
 
   it("validates XML well-formedness, key completeness, format specifiers, and ui_locale across all 17 Android values directories", () => {
     const fileNames = defaultStringXmlFileNames();
-    expect(fileNames.length).toBe(20);
+    expect(fileNames.length).toBe(21);
 
     const defaultByFile = new Map(
       fileNames.map((fileName) => [

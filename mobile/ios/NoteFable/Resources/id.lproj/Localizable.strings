@@ -602,6 +602,11 @@
 "slides_export_pptx" = "Ekspor ke PowerPoint (PPTX)";
 "slides_export_pptx_transition_note" = "Transisi slide tidak disertakan saat mengekspor ke PPTX.";
 
+/* strings_slides_wizard.xml */
+"slides_generate" = "Buat slide";
+"slides_generate_from_chat" = "Buat presentasi dari chat ini";
+"slides_generate_with_ai" = "Buat dengan AI";
+
 /* strings_turns.xml */
 "regenerate" = "Buat ulang";
 "branch_in_new_chat" = "Cabangkan di chat baru";

@@ -17,6 +17,21 @@ const page = (kind: "whiteboard" | "slides", overrides: Partial<AdapterPage> = {
   ...overrides,
 });
 
+// 子を畳んだ根（子の文字は customData の預かり分にだけある）。
+const collapsedBranch = (label: string) => {
+  const node = (id: string, parent: string, order: number) => ({ id, type: "rectangle", customData: { notefableMindmap: { v: 1, role: "node", tree: "n1", parent, order } } });
+  const text = (containerId: string, value: string) => ({ id: `${containerId}-t`, type: "text", containerId, text: value, originalText: value });
+  return [
+    {
+      id: "n1", type: "rectangle",
+      customData: { notefableMindmap: { v: 1, role: "node", tree: "n1", parent: null, order: 0, collapsed: true, stash: [
+        node("c2", "n1", 1), text("c2", "Rain"), node("c3", "c1", 0), text("c3", "Sun\nheat"), node("c1", "n1", 0), text("c1", "Evaporation"),
+      ] } },
+    },
+    text("n1", label),
+  ];
+};
+
 describe("canvasTextAdapter structured whiteboard read", () => {
   const adapter = canvasTextAdapter("whiteboard");
 
@@ -58,6 +73,39 @@ describe("canvasTextAdapter structured whiteboard read", () => {
     // Deleted elements are skipped.
     expect(result).not.toContain("del1");
     expect(result).not.toContain("Should vanish");
+  });
+
+  it("lists the text hidden in a collapsed mind map branch under its node, as a tree", () => {
+    const result = adapter.read(page("whiteboard", { data: { elements: collapsedBranch("Water cycle") } }));
+    expect(result).toContain([
+      '- rectangle (id: n1): "Water cycle"',
+      '  - hidden in collapsed branch: "Evaporation"',
+      '    - hidden in collapsed branch: "Sun / heat"',
+      '  - hidden in collapsed branch: "Rain"',
+    ].join("\n"));
+    // 白板に無い要素の ID は出さない。
+    expect(result).not.toContain("c1");
+  });
+
+  it("caps the indentation of a very deep hidden branch", () => {
+    const stash = Array.from({ length: 30 }, (_, index) => [
+      { id: `c${index}`, type: "rectangle", customData: { notefableMindmap: { v: 1, role: "node", tree: "n1", parent: index ? `c${index - 1}` : "n1", order: 0 } } },
+      { id: `c${index}-t`, type: "text", containerId: `c${index}`, originalText: `level ${index + 1}` },
+    ]).flat();
+    const elements = [{ id: "n1", type: "rectangle", customData: { notefableMindmap: { v: 1, role: "node", tree: "n1", parent: null, order: 0, collapsed: true, stash } } }];
+    const result = adapter.read(page("whiteboard", { data: { elements } }));
+    expect(result).toContain(`\n${"  ".repeat(8)}- hidden in collapsed branch: "level 30"`);
+  });
+
+  it("counts hidden branch lines against the read limit", () => {
+    const hidden = Array.from({ length: 5_000 }, (_, index) => ({
+      id: `h${index}`, type: "text", containerId: `c${index}`, originalText: `Hidden topic number ${index} ${"x".repeat(40)}`,
+    }));
+    const elements = [{ id: "n1", type: "rectangle", customData: { notefableMindmap: { v: 1, role: "node", tree: "n1", parent: null, order: 0, collapsed: true, stash: hidden } } }];
+    const result = adapter.read(page("whiteboard", { data: { elements } }));
+    expect(result.length).toBeLessThanOrEqual(MAX_READ_CHARS);
+    expect(result).toContain("Hidden topic number 0 ");
+    expect(result).toContain("[Truncated:");
   });
 
   it("falls back to page.segments when data is missing or malformed", () => {

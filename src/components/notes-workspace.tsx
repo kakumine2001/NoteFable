@@ -20,7 +20,8 @@ import type { useNotePages } from "@/lib/use-note-pages";
 import { useI18n, useT } from "@/components/i18n-provider";
 import { localizeSystemText } from "@/lib/i18n/translate";
 import { StorageLimitPrompt } from "@/components/guest-limit-prompt";
-import { nativeCanOpenPage, nativeCanShowStorageLimit, postToNative } from "@/lib/native-bridge";
+import { nativeCanOpenChat, nativeCanOpenPage, nativeCanShowStorageLimit, postToNative } from "@/lib/native-bridge";
+import { NoteBacklinksSection } from "@/components/note-backlinks";
 import { SLIDES_EVENTS } from "@/lib/slides/ai-context";
 import { creatablePageKinds, isCanvasKind, pageKindFeatures, pageKindOf } from "@/lib/page-kinds";
 import type { NewPageRequest } from "@/lib/workspace-sections";
@@ -133,7 +134,7 @@ function NoteSaveWarnings({ notes }: { notes: ReturnType<typeof useNotePages> })
   </>;
 }
 
-export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChange, onReasoningChange, onOpen, onCreate, onImport, onWorkspaceChange, embedded = false, split = false, onAskSelectionInChat }: {
+export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChange, onReasoningChange, onOpen, onOpenChat, onCreate, onGenerateSlides, onImport, onWorkspaceChange, embedded = false, split = false, onAskSelectionInChat }: {
   notes: ReturnType<typeof useNotePages>;
   listMode: boolean;
   // ノートの AI アシスタントが使うモデルと推論強度（チャットで選んでいるものと同じ）。
@@ -143,8 +144,12 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   onModelChange?: (model: string) => void;
   onReasoningChange?: (reasoning: string) => void;
   onOpen: (id: string) => void;
+  // バックリンクの会話を開く（messageId はそのページを添付した発言）。/note-embed では渡さず、アプリに openChat を送る。
+  onOpenChat?: (id: string, messageId?: string) => void;
   // 新しいページを作る（ホームと空状態の作成ボタン）。省略はプロジェクトなしのノート。
   onCreate: (request?: NewPageRequest) => void;
+  // ホームと空状態の「Generate with AI」（AI のスライド生成の窓）。
+  onGenerateSlides?: () => void;
   onImport?: (files: File[]) => void;
   onWorkspaceChange: (view: WorkspaceView) => void;
   // Android アプリの WebView に載せる 1 ページだけの画面（/note-embed）。ノートを開く前に Notes のホームを出さない。
@@ -236,7 +241,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
     {actionError && <div className="notes-action-error notes-column pt-6"><div className="notion-error" role="alert">{localizeSystemText(actionError, t)}<button type="button" className="notion-button ml-3" onClick={notes.dismissActionError}>{t("Close")}</button></div></div>}
     {listMode && (notes.pages.length > 0 || notes.groups.length > 0) ? (
       <NotesHome pages={notes.pages} groups={notes.groups} groupError={notes.groupError} busy={busy} onOpen={onOpen}
-        onPrefetch={notes.prefetch} onCancelPrefetch={notes.cancelPrefetch} onCreate={onCreate} onImport={onImport}
+        onPrefetch={notes.prefetch} onCancelPrefetch={notes.cancelPrefetch} onCreate={onCreate} onGenerateSlides={onGenerateSlides} onImport={onImport}
         onWorkspaceChange={onWorkspaceChange} onReorder={notes.reorder} onMoveNote={notes.moveNote} onCreateGroup={notes.createGroup} onMoveToPage={notes.moveToPage} />
     ) : loading && (!listMode || !(notes.pages.length || notes.groups.length)) ? <div className="notes-column pt-24"><p className="notes-loading">{listMode ? t("Loading pages…") : t("Loading page…")}</p></div>
     // ホワイトボード・スライドは種類ごとのエディター（canvas-editors.tsx）。エディターがまだ無い種類は読み取り専用の仮の画面
@@ -319,6 +324,11 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
           }}
           // 作成・削除の間（busy）に editable が切り替わると、エディターは内容が同じでも変更通知を出す。編集として扱うと、不要な保存（ゴミ箱へ移したノートへの保存を含む）が走る。
           onChange={(blocks) => { if (!isUnchanged(blocks, active.content.blocks)) active.edit({ ...active.content, blocks }); }} />
+        {/* バックリンク：このページを指すページと、このページを使った会話。埋め込みでは、開く手段をアプリが持つものだけを出す。 */}
+        <NoteBacklinksSection pageId={activeId} embedded={embedded}
+          onOpenPage={!embedded ? onOpen : nativeCanOpenPage() ? (id) => { postToNative({ type: "openPage", id }); } : undefined}
+          onOpenChat={!embedded ? onOpenChat
+            : nativeCanOpenChat() ? (id, messageId) => { postToNative(messageId ? { type: "openChat", id, messageId } : { type: "openChat", id }); } : undefined} />
       </div>
       {!embedded && !split && <NoteFloatingToc blocks={active.content.blocks} scrollRootRef={rootRef} activeId={activeId} />}
       <PageAssistant key={activeId} pageId={activeId} pageTitle={active.content.title} model={model} reasoning={reasoning}
@@ -341,7 +351,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
       <h1 className="notes-empty-title">{t("Workspace")}</h1>
       <p className="notes-empty-subtitle">{t("Write notes, build slide decks and sketch on whiteboards. In a note, type {key} for headings, lists, to-dos and code.").split("{key}").flatMap((part, index) => index ? [<kbd key={index} className="notes-kbd">/</kbd>, part] : [part])}</p>
       <div className="notes-empty-actions">
-        <NewPageButtons kinds={creatablePageKinds()} busy={busy} className="!mt-0" onCreate={(kind) => onCreate({ kind })} />
+        <NewPageButtons kinds={creatablePageKinds()} busy={busy} className="!mt-0" onCreate={(kind) => onCreate({ kind })} onGenerate={onGenerateSlides} />
         {onImport && <>
           <input ref={emptyImportRef} type="file" multiple accept=".md,.markdown,.txt,text/markdown,text/plain" className="sr-only"
             onChange={(event) => {

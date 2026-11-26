@@ -272,6 +272,30 @@ describe("file save capability", () => {
   });
 });
 
+describe("refresh backlinks", () => {
+  it("tells the open note to re-read its backlinks", async () => {
+    const { createEmbedApi } = await import("./native-bridge");
+    const refreshBacklinks = vi.fn();
+    const api = createEmbedApi({ flush: async () => true, openHistory: () => {}, post: () => {}, refreshBacklinks });
+    expect(api.refreshBacklinks()).toBe(true);
+    expect(refreshBacklinks).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("open chat capability", () => {
+  it("is reported only by apps that declare it, and posts openChat with the message", async () => {
+    const { nativeCanOpenChat, postToNative } = await import("./native-bridge");
+    const sent: string[] = [];
+    const postMessage = (json: string) => { sent.push(json); };
+    expect(nativeCanOpenChat({ NoteFableNative: { postMessage, canOpenChat: () => true } })).toBe(true);
+    expect(nativeCanOpenChat({ NoteFableNative: { postMessage } })).toBe(false);
+    expect(nativeCanOpenChat({ NoteFableNative: { postMessage, canOpenChat: () => { throw new Error("gone"); } } })).toBe(false);
+    expect(nativeCanOpenChat({})).toBe(false);
+    expect(postToNative({ type: "openChat", id: "c1", messageId: "m1" }, { NoteFableNative: { postMessage } })).toBe(true);
+    expect(JSON.parse(sent[0])).toEqual({ type: "openChat", id: "c1", messageId: "m1" });
+  });
+});
+
 describe("usage limit capability", () => {
   it("reports canShowUsageLimit only when declared and posts usageLimit payload", async () => {
     const { nativeCanShowUsageLimit } = await import("./native-bridge");
@@ -316,5 +340,45 @@ describe("embed persistent page switching bridge", () => {
     const minimal = createEmbedApi({ flush: async () => true, openHistory: () => {}, post: () => {} });
     expect(minimal.openPage("page_1")).toBe(false);
     expect(minimal.close()).toBe(false);
+  });
+});
+
+describe("slides wizard bridge", () => {
+  it("accepts only known sources with well-formed ids", async () => {
+    const { parseSlidesWizardRequest } = await import("./native-bridge");
+    expect(parseSlidesWizardRequest({ action: "back" })).toEqual({ action: "back" });
+    expect(parseSlidesWizardRequest(JSON.stringify({ action: "open", source: { type: "new" }, model: " luna ", reasoning: "" })))
+      .toEqual({ action: "open", source: { type: "new", groupId: null, parentId: null }, model: "luna", reasoning: null });
+    expect(parseSlidesWizardRequest({ action: "open", source: { type: "new", groupId: "g1", parentId: null } })).toMatchObject({ source: { groupId: "g1", parentId: null } });
+    expect(parseSlidesWizardRequest({ action: "open", source: { type: "note", pageId: "n1", extra: 1 } })).toMatchObject({ source: { type: "note", pageId: "n1" } });
+    expect(parseSlidesWizardRequest({ action: "open", source: { type: "chat", sessionId: "s1" } })).toMatchObject({ source: { type: "chat", sessionId: "s1" } });
+    for (const value of [
+      null, "back", "{broken", { action: "close" }, { action: "open" }, { action: "open", source: { type: "topic" } },
+      { action: "open", source: { type: "note" } }, { action: "open", source: { type: "chat", sessionId: "bad id" } },
+      { action: "open", source: { type: "new", parentId: "bad id" } }, { action: "open", source: { type: "new", groupId: 3 } },
+    ]) {
+      expect(parseSlidesWizardRequest(value)).toBeNull();
+    }
+  });
+
+  it("passes commands to the page and reports whether they did anything", () => {
+    const slidesWizard = vi.fn((command: { action: string }) => command.action === "open");
+    const api = createEmbedApi({ flush: async () => true, openHistory: () => {}, slidesWizard, post: () => {} });
+    expect(api.slidesWizard({ action: "open", source: { type: "note", pageId: "n1" } })).toBe(true);
+    expect(api.slidesWizard({ action: "back" })).toBe(false);
+    expect(api.slidesWizard({ action: "other" })).toBe(false);
+    expect(slidesWizard).toHaveBeenCalledTimes(2);
+    expect(createEmbedApi({ flush: async () => true, openHistory: () => {}, post: () => {} }).slidesWizard({ action: "back" })).toBe(false);
+  });
+
+  it("reports canShowSlidesWizard only when declared", async () => {
+    const { nativeCanShowSlidesWizard } = await import("./native-bridge");
+    const postMessage = vi.fn();
+    expect(nativeCanShowSlidesWizard({ NoteFableNative: { postMessage, canShowSlidesWizard: () => true } })).toBe(true);
+    expect(nativeCanShowSlidesWizard({ NoteFableNative: { postMessage } })).toBe(false);
+    expect(nativeCanShowSlidesWizard({ NoteFableNative: { postMessage, canShowSlidesWizard: () => { throw new Error("gone"); } } })).toBe(false);
+    expect(nativeCanShowSlidesWizard({})).toBe(false);
+    expect(postToNative({ type: "slidesWizard", state: "closed", busy: true }, { NoteFableNative: { postMessage } })).toBe(true);
+    expect(JSON.parse(postMessage.mock.calls[0][0])).toEqual({ type: "slidesWizard", state: "closed", busy: true });
   });
 });

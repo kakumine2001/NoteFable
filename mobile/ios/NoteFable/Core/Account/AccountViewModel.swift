@@ -1,6 +1,11 @@
 import Foundation
 import Observation
 
+enum SignInProvider: Equatable, Sendable {
+    case google
+    case apple
+}
+
 struct AccountUiState: Equatable, Sendable {
     /// 账号读到过（网页 account !== null）。读失败时保持原样：语言同步在读到之前什么都不做。
     var loaded = false
@@ -16,6 +21,8 @@ struct AccountUiState: Equatable, Sendable {
     var appleEnabled = false
     var appStoreBilling = false
     var signingIn = false
+    /// 当前正在走哪一家原生登录（Google / Apple），用于只在对应按钮上显示加载中。
+    var signingInProvider: SignInProvider? = nil
     /// 正在退出登录（网页 account-button.tsx 的 signingOut）：期间不再发起退出，界面语言也不跟着账号同步。
     var signingOut = false
     /// 上一次登录失败：按钮文字换成"登录失败，请重试"。
@@ -72,11 +79,20 @@ final class AccountViewModel {
 
     private(set) var state = AccountUiState()
 
+    /// 预取的 Apple 一次性校验码有效期（服务端 300 秒，这里留 2 分钟余量给 Face ID 与换令牌）。
+    static let appleNonceTtlSeconds: TimeInterval = 180
+
     @ObservationIgnored private let backend: AccountBackend
     @ObservationIgnored private let profile: AccountProfileBackend
     @ObservationIgnored private let requestGoogleIdToken: GoogleIdTokenRequest?
     @ObservationIgnored private let sleep: (Int) async throws -> Void
+    @ObservationIgnored private let now: () -> Date
     @ObservationIgnored private let work = PendingWork()
+
+    // 打开登录窗口时预取的 Apple nonce，点按钮时无需再等一次跨网往返即可立刻弹 Face ID。
+    @ObservationIgnored private var cachedAppleNonce: (value: String, fetchedAt: Date)?
+    @ObservationIgnored private var appleNonceTask: Task<String?, Never>?
+    @ObservationIgnored private var appleNonceGeneration = 0
 
     // 和网页 account-store 一样：服务端确认过的资料 + 还没确认的编辑，界面看到的是两者叠起来的结果（先显示，后保存）。
     @ObservationIgnored private var confirmed: AccountUser?
@@ -89,22 +105,28 @@ final class AccountViewModel {
     /// - Parameters:
     ///   - requestGoogleIdToken: 没配 Google 登录的安装包传 nil：登录窗口只有邮箱验证码。
     ///   - sleep: 等这么多毫秒（被取消时抛错）；测试里换成假的。
+    ///   - now: 当前时间（用于校验预取的 Apple nonce 是否过期）；测试里换成假的。
     init(
         backend: AccountBackend,
         profile: AccountProfileBackend,
         requestGoogleIdToken: GoogleIdTokenRequest? = nil,
-        sleep: @escaping (Int) async throws -> Void = { try await Task.sleep(nanoseconds: UInt64(max($0, 0)) * 1_000_000) }
+        sleep: @escaping (Int) async throws -> Void = { try await Task.sleep(nanoseconds: UInt64(max($0, 0)) * 1_000_000) },
+        now: @escaping () -> Date = Date.init
     ) {
         self.backend = backend
         self.profile = profile
         self.requestGoogleIdToken = requestGoogleIdToken
         self.sleep = sleep
+        self.now = now
         state.googleEnabled = requestGoogleIdToken != nil
         refresh()
     }
 
     /// 等自己发起的请求都结束（单元测试用）。
     func idle() async {
+        while let task = appleNonceTask {
+            _ = await task.value
+        }
         await work.idle()
     }
 
@@ -119,6 +141,13 @@ final class AccountViewModel {
         publish()
     }
 
+    private func invalidateAppleNonce() {
+        appleNonceGeneration += 1
+        appleNonceTask?.cancel()
+        appleNonceTask = nil
+        cachedAppleNonce = nil
+    }
+
     private func applyAccount(_ response: AccountResponse) {
         state.loaded = true
         state.configured = response.configured || response.apple == true
@@ -128,6 +157,9 @@ final class AccountViewModel {
         state.emailEnabled = response.email == true
         state.appleEnabled = response.apple == true
         state.appStoreBilling = response.appStoreBilling == true
+        if response.user != nil || !state.appleEnabled {
+            invalidateAppleNonce()
+        }
         setConfirmed(response.user)
     }
 
@@ -138,13 +170,69 @@ final class AccountViewModel {
         }
     }
 
+    private func isFreshAppleNonce(_ fetchedAt: Date) -> Bool {
+        let age = now().timeIntervalSince(fetchedAt)
+        return age >= 0 && age < Self.appleNonceTtlSeconds
+    }
+
+    /// 打开登录窗口时在后台预取 Apple 一次性校验码；失败静默忽略，点按钮时会正常现取。
+    func prepareAppleSignIn() {
+        guard state.appleEnabled, state.user == nil, !state.signingIn else { return }
+        if let cached = cachedAppleNonce, isFreshAppleNonce(cached.fetchedAt) {
+            return
+        }
+        cachedAppleNonce = nil
+        guard appleNonceTask == nil else { return }
+        appleNonceGeneration += 1
+        let generation = appleNonceGeneration
+        appleNonceTask = Task { @MainActor [weak self] in
+            guard let self else { return nil }
+            defer {
+                if self.appleNonceGeneration == generation {
+                    self.appleNonceTask = nil
+                }
+            }
+            do {
+                let nonce = try await self.backend.appleSignInNonce()
+                guard !Task.isCancelled, self.appleNonceGeneration == generation,
+                      self.state.appleEnabled, self.state.user == nil else { return nil }
+                self.cachedAppleNonce = (nonce, self.now())
+                return nonce
+            } catch {
+                return nil
+            }
+        }
+    }
+
+    private func takeAppleSignInNonce() async throws -> String {
+        if let cached = cachedAppleNonce {
+            cachedAppleNonce = nil
+            if isFreshAppleNonce(cached.fetchedAt) {
+                return cached.value
+            }
+        }
+        if let task = appleNonceTask {
+            let nonce = await task.value
+            if let nonce {
+                if cachedAppleNonce?.value == nonce { cachedAppleNonce = nil }
+                return nonce
+            }
+        }
+        return try await backend.appleSignInNonce()
+    }
+
     /// 先要 nonce，再让用户选账号，最后把令牌交给服务端。用户关掉选择框不算失败，也不通知。
     func signIn(onSignedIn: @escaping @MainActor () -> Void) {
         guard let requestGoogleIdToken, let clientId = state.googleClientId, !state.signingIn else { return }
         state.signingIn = true
+        state.signingInProvider = .google
         state.signInFailed = false
         work.launch { [weak self] in
             guard let self else { return }
+            defer {
+                self.state.signingIn = false
+                self.state.signingInProvider = nil
+            }
             do {
                 let nonce = try await self.backend.nativeSignInNonce()
                 if let idToken = try await requestGoogleIdToken(clientId, nonce) {
@@ -158,7 +246,6 @@ final class AccountViewModel {
             } catch {
                 self.state.signInFailed = true
             }
-            self.state.signingIn = false
         }
     }
 
@@ -169,11 +256,16 @@ final class AccountViewModel {
     ) {
         guard state.appleEnabled, !state.signingIn else { return }
         state.signingIn = true
+        state.signingInProvider = .apple
+        state.signInFailed = false
         work.launch { [weak self] in
             guard let self else { return }
-            defer { self.state.signingIn = false }
+            defer {
+                self.state.signingIn = false
+                self.state.signingInProvider = nil
+            }
             do {
-                let nonce = try await self.backend.appleSignInNonce()
+                let nonce = try await self.takeAppleSignInNonce()
                 guard let value = try await request(nonce) else { return }
                 try await beforeIdentityChange()
                 try await self.backend.appleSignIn(code: value.code, name: value.name)
@@ -276,6 +368,7 @@ final class AccountViewModel {
         }
         if let failure { return failure }
         await clearDeviceChoice()
+        invalidateAppleNonce()
         state.profileError = nil
         state.photoError = nil
         state.uploading = false
@@ -287,6 +380,7 @@ final class AccountViewModel {
     func signOut(clearDeviceChoice: @escaping @MainActor () async -> Void, onSignedOut: @escaping @MainActor () -> Void) {
         if state.signingOut { return }
         state.signingOut = true
+        invalidateAppleNonce()
         // 网页 settled()：刚改的名字 / 图标 / 照片先送完再退出（退出后再送会 401）。排队在这一刻就定下来。
         let settled = saves.enqueue {}
         work.launch { [weak self] in
