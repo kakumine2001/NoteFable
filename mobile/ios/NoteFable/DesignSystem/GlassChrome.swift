@@ -306,11 +306,38 @@ private struct NFBarBackdropModifier: ViewModifier {
     private func fill(_ path: NFChromePath) -> some View {
         switch path {
         case .native:
-            Color.clear
+            if edge == .top {
+                NFNativeTopFade(color: solidFill)
+            } else {
+                Color.clear
+            }
         case .material:
             Rectangle().fill(Material.bar)
         case .solid:
             Rectangle().fill(solidFill)
+        }
+    }
+}
+
+/// iOS 26.x: the system scroll-edge effect of a top `safeAreaBar` does not reach the status-bar strip, so text scrolling
+/// up shows sharply under the clock. Add a fade from the screen colour (opaque over the status bar) to clear at the bar's
+/// lower edge; the glass buttons still pick up the content behind their lower half. iOS 27 blurs that strip itself.
+private struct NFNativeTopFade: View {
+    let color: Color
+
+    var body: some View {
+        if #available(iOS 27.0, *) {
+            Color.clear
+        } else {
+            LinearGradient(
+                stops: [
+                    .init(color: color, location: 0),
+                    .init(color: color.opacity(0.9), location: 0.45),
+                    .init(color: color.opacity(0), location: 1),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
         }
     }
 }
