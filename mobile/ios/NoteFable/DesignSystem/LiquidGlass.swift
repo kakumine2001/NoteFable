@@ -684,8 +684,17 @@ private struct NFDismissCompletionObserver: UIViewControllerRepresentable {
             super.viewDidDisappear(animated)
             if isBeingDismissed || parent?.isBeingDismissed == true || parent?.presentingViewController == nil || view.window == nil {
                 let callback = onDismissed
-                DispatchQueue.main.async {
-                    callback?()
+                if let coordinator = parent?.transitionCoordinator ?? transitionCoordinator {
+                    coordinator.animate(alongsideTransition: nil) { context in
+                        guard !context.isCancelled else { return }
+                        DispatchQueue.main.async {
+                            callback?()
+                        }
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        callback?()
+                    }
                 }
             }
         }
@@ -792,6 +801,7 @@ private struct NFPopoverModifier<PopoverContent: View>: ViewModifier {
     }
 
     private func handlePopoverEnded(token: Int) {
+        guard token == dismissCoordinator.activeToken else { return }
         if isPresented && presentedMode == nil {
             dismissCoordinator.markOpened()
             presentedMode = desiredMode
@@ -901,7 +911,9 @@ private struct NFPopoverContainer<PopoverContent: View>: View {
                 if !asSheet {
                     let box = tokenBox
                     let onEnded = onPresentationEnded
-                    DispatchQueue.main.async {
+                    // Safety-net fallback if UIKit's viewDidDisappear never fires; delayed past the
+                    // dismissal animation so it never races NFDismissCompletionObserver or .fileExporter.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                         onEnded(box.value)
                     }
                 }
