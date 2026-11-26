@@ -129,9 +129,13 @@ final class SlidesBridgeTests: XCTestCase {
         XCTAssertEqual(vm.state.slidesWizard?.shown, true)
         vm.onWizardUsageLimit(tier: "guest", kind: "chat")
         XCTAssertEqual(vm.state.wizardUsageLimit, UsageLimitInfo(tier: "guest", kind: "chat"))
+        vm.onWizardStorageLimit(tier: "member", used: 100, limit: 200)
+        XCTAssertNil(vm.state.wizardUsageLimit)
+        XCTAssertEqual(vm.state.wizardStorageLimit, StorageLimitInfo(tier: "member", used: 100, limit: 200))
         vm.onSlidesWizardClosed()
         XCTAssertNil(vm.state.slidesWizard)
         XCTAssertNil(vm.state.wizardUsageLimit)
+        XCTAssertNil(vm.state.wizardStorageLimit)
 
         // 编辑器打开时，AI 面板自己发 slidesWizard open。
         vm.openNote("a")

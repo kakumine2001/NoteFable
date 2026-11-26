@@ -393,6 +393,30 @@ describe("cross-review fixes", () => {
     expect(result.slides[0].elements[0]).toMatchObject({ type: "whiteboard", pageId: "", frameId: "", frameName: "Sketch" });
   });
 
+  it("normalizes pendingImagePrompt only on empty image slots and strictly strips it from publicDeck", () => {
+    const normalized = normalizeDeck({
+      format: 1,
+      theme: { id: "simple", mode: "light" },
+      slides: [{
+        id: "s1",
+        layout: "imageText",
+        elements: [
+          { id: "emptyImg", type: "image", role: "image", x: 0, y: 0, w: 400, h: 400, rotation: 0, src: "", fit: "cover", radius: 16, pendingImagePrompt: "  A quiet\u0000 mountain lake  " },
+          { id: "filledImg", type: "image", role: "image", x: 0, y: 0, w: 400, h: 400, rotation: 0, src: FILE, fit: "cover", radius: 16, pendingImagePrompt: "Should disappear", generated: { prompt: "Done prompt" } },
+        ],
+      }],
+    });
+    const [emptyImg, filledImg] = normalized.slides[0].elements;
+    expect(emptyImg.type === "image" ? emptyImg.pendingImagePrompt : null).toBe("A quiet mountain lake");
+    expect(filledImg.type === "image" ? filledImg.pendingImagePrompt : "x").toBeUndefined();
+    expect(filledImg.type === "image" ? filledImg.generated : null).toEqual({ prompt: "Done prompt" });
+
+    const pub = publicDeck(normalized);
+    expect(JSON.stringify(pub)).not.toContain("pendingImagePrompt");
+    expect(JSON.stringify(pub)).not.toContain("mountain lake");
+    expect(JSON.stringify(pub)).not.toContain("Done prompt");
+  });
+
   it("normalizes slide transitions backward-compatibly, applies them via setTransition, and preserves them across clipboard & publicDeck", () => {
     const normalized = normalizeDeck({
       format: 1,

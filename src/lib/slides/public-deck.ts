@@ -17,9 +17,10 @@ export function publicDeck(data: unknown): Deck {
         ...rest,
         elements: slide.elements.map((element) => {
           if (element.type === "whiteboard") return { ...element, pageId: "", frameId: "" };
-          if (element.type !== "image" || !element.generated) return element;
-          const { generated: _generated, ...image } = element;
+          if (element.type !== "image" || (!element.generated && !element.pendingImagePrompt)) return element;
+          const { generated: _generated, pendingImagePrompt: _pendingImagePrompt, ...image } = element;
           void _generated;
+          void _pendingImagePrompt;
           return image;
         }),
       };
