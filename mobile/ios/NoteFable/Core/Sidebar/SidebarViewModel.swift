@@ -36,6 +36,8 @@ struct SidebarUiState: Equatable, Sendable {
     var reorderBusy = false
     /// 正在移动的聊天：这些行不能拖（网页每个 ReorderRowButton 自己的 busy）。
     var moveBusy: Set<String> = []
+    /// 正在保存置顶 / 取消置顶的聊天：防止同一聊天从侧栏和顶栏菜单并发提交覆盖写。
+    var pinBusy: Set<String> = []
     /// 拖动失败的行和原因（网页 ReorderRowButton 的 list-reorder-error）。
     var reorderError: SidebarReorderError? = nil
     /// 在项目里新建聊天失败（网页把它显示在输入栏上方；原生显示在侧栏 Projects 下面）。
@@ -224,8 +226,15 @@ final class SidebarViewModel {
     // ---- 聊天 ----
 
     /// 置顶 / 取消置顶（"…"菜单里的那一项，网页 onUpdate({pinned})）：服务端存好了才改本地列表。
+    /// 同一聊天的请求进行中时忽略重复触发，避免后发先至覆盖结果。
     func setPinned(_ id: String, _ pinned: Bool) async -> SidebarError? {
-        await guarded("sb_err_save_change") {
+        if state.pinBusy.contains(id) { return nil }
+        let gen = generation
+        state.pinBusy.insert(id)
+        defer {
+            if gen == generation { state.pinBusy.remove(id) }
+        }
+        return await guarded("sb_err_save_change") {
             try await self.sessions.updateSession(id: id, title: nil, pinned: pinned, project: nil)
             self.chat.patchSessions { list in
                 list.map { session in

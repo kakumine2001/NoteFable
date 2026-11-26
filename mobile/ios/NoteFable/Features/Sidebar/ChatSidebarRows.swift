@@ -210,6 +210,7 @@ struct ChatSessionMenuItems: View {
 
     var body: some View {
         let pinned = session.pinned
+        let pinBusy = app.sidebar.state.pinBusy.contains(session.id)
         if let onChangeIcon {
             Button(action: onChangeIcon) {
                 NFMenuLabel(title: L("em_change_chat_icon"), icon: Lucide.smile)
@@ -228,6 +229,7 @@ struct ChatSessionMenuItems: View {
         } label: {
             NFMenuLabel(title: L(pinned ? "sb_unpin" : "sb_pin"), icon: pinned ? Lucide.pinOff : Lucide.pin)
         }
+        .disabled(pinBusy)
         Button {
             onAction(.rename(session))
         } label: {

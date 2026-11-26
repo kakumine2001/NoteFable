@@ -8,24 +8,36 @@ import SwiftUI
 extension View {
     /// 贴着这个视图以原生自适应 Liquid Glass Popover / Sheet 弹出语言菜单。
     func languageMenu(isPresented: Binding<Bool>) -> some View {
-        nfPopover(
-            isPresented: isPresented,
-            width: 320,
-            arrowEdge: .top,
-            adaptCompactToSheet: true,
-            contentInsets: EdgeInsets(top: 10, leading: 10, bottom: 10, trailing: 10)
-        ) {
-            LanguageMenuContent(isPresented: isPresented)
-        }
+        modifier(LanguageMenuModifier(isPresented: isPresented))
+    }
+}
+
+/// 将搜索词保留在系统 `.popover` / `.sheet` 呈现边界之外，窗口跨 compact/regular 缩放或折叠时搜索输入不丢失。
+private struct LanguageMenuModifier: ViewModifier {
+    @Binding var isPresented: Bool
+    @State private var query = ""
+
+    func body(content: Content) -> some View {
+        content
+            .nfPopover(
+                isPresented: $isPresented,
+                width: 320,
+                arrowEdge: .top,
+                adaptCompactToSheet: true,
+                contentInsets: EdgeInsets(top: 10, leading: 10, bottom: 10, trailing: 10),
+                onDismiss: { query = "" }
+            ) {
+                LanguageMenuContent(isPresented: $isPresented, query: $query)
+            }
     }
 }
 
 private struct LanguageMenuContent: View {
     @Binding var isPresented: Bool
+    @Binding var query: String
 
     @Environment(AppEnvironment.self) private var app
     @Environment(\.nfChromePath) private var chromePath
-    @State private var query = ""
     @FocusState private var searching: Bool
 
     var body: some View {

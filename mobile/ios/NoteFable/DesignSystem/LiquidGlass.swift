@@ -601,11 +601,12 @@ private struct NFSheetChromeApplier: ViewModifier {
 
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
-            if useSolidChrome {
-                content.presentationBackground(Sm.surface)
-            } else {
-                // Leave presentationBackground unset on iOS 26+ so system Liquid Glass renders naturally.
-                content
+            // Keep a single structural branch so toggling Reduce Transparency never resets child state or focus;
+            // leaving presentationBackground unset lets iOS 26 render native Liquid Glass when transparent, while
+            // the full-bleed background fill provides opaque Sm.surface when Reduce Transparency / solid chrome is on.
+            content.background {
+                (useSolidChrome ? Sm.surface : Color.clear)
+                    .ignoresSafeArea()
             }
         } else {
             content.presentationBackground(useSolidChrome ? AnyShapeStyle(Sm.surface) : AnyShapeStyle(.regularMaterial))
@@ -614,6 +615,49 @@ private struct NFSheetChromeApplier: ViewModifier {
 }
 
 // MARK: - Native Adaptive Popovers
+
+@MainActor
+private final class NFDismissSignal {
+    private var fired = false
+
+    func reset() {
+        fired = false
+    }
+
+    func fire(_ callback: (() -> Void)?) {
+        guard !fired else { return }
+        fired = true
+        callback?()
+    }
+}
+
+private struct NFDismissCompletionObserver: UIViewControllerRepresentable {
+    let onDismissed: () -> Void
+
+    func makeUIViewController(context: Context) -> ObserverController {
+        let controller = ObserverController()
+        controller.onDismissed = onDismissed
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: ObserverController, context: Context) {
+        uiViewController.onDismissed = onDismissed
+    }
+
+    final class ObserverController: UIViewController {
+        var onDismissed: (() -> Void)?
+
+        override func viewDidDisappear(_ animated: Bool) {
+            super.viewDidDisappear(animated)
+            if isBeingDismissed || parent?.isBeingDismissed == true || parent?.presentingViewController == nil || view.window == nil {
+                let callback = onDismissed
+                DispatchQueue.main.async {
+                    callback?()
+                }
+            }
+        }
+    }
+}
 
 private struct NFPopoverModifier<PopoverContent: View>: ViewModifier {
     @Binding var isPresented: Bool
@@ -634,11 +678,13 @@ private struct NFPopoverModifier<PopoverContent: View>: ViewModifier {
         content
             .popover(isPresented: $isPresented, attachmentAnchor: .rect(.bounds), arrowEdge: arrowEdge) {
                 NFPopoverContainer(
+                    isPresented: $isPresented,
                     width: width,
                     adaptCompactToSheet: adaptCompactToSheet,
                     dismissDisabled: dismissDisabled,
                     contentInsets: contentInsets,
                     windowFrame: windowFrame,
+                    onDismiss: onDismiss,
                     content: popoverContent
                 )
                 .environment(\.layoutDirection, layoutDirection)
@@ -646,20 +692,17 @@ private struct NFPopoverModifier<PopoverContent: View>: ViewModifier {
                 .environment(\.nfForceSolidChrome, forceSolidChrome)
                 .environment(\.nfWindowFrame, windowFrame)
             }
-            .onChange(of: isPresented) { wasPresented, nowPresented in
-                if wasPresented && !nowPresented {
-                    onDismiss?()
-                }
-            }
     }
 }
 
 private struct NFPopoverContainer<PopoverContent: View>: View {
+    @Binding var isPresented: Bool
     let width: CGFloat?
     let adaptCompactToSheet: Bool
     let dismissDisabled: Bool
     let contentInsets: EdgeInsets
     let windowFrame: CGRect?
+    let onDismiss: (() -> Void)?
     let content: () -> PopoverContent
 
     @Environment(\.dismiss) private var dismiss
@@ -667,6 +710,7 @@ private struct NFPopoverContainer<PopoverContent: View>: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.nfForceSolidChrome) private var forceSolidChrome
     @State private var contentHeight: CGFloat = 240
+    @State private var dismissSignal = NFDismissSignal()
 
     private var useSolidChrome: Bool {
         reduceTransparency || forceSolidChrome
@@ -679,27 +723,51 @@ private struct NFPopoverContainer<PopoverContent: View>: View {
             .interactiveDismissDisabled(dismissDisabled)
             .modifier(NFPopoverAdaptationApplier(adaptCompactToSheet: adaptCompactToSheet))
             .modifier(NFSheetChromeApplier(useSolidChrome: useSolidChrome))
+            .background {
+                let binding = $isPresented
+                let signal = dismissSignal
+                let callback = onDismiss
+                NFDismissCompletionObserver {
+                    if !binding.wrappedValue { signal.fire(callback) }
+                }
+                .frame(width: 0, height: 0)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
+            .onAppear {
+                dismissSignal.reset()
+            }
+            .onDisappear {
+                let binding = $isPresented
+                let signal = dismissSignal
+                let callback = onDismiss
+                DispatchQueue.main.async {
+                    if !binding.wrappedValue { signal.fire(callback) }
+                }
+            }
     }
 
     @ViewBuilder
     private var popoverBody: some View {
         let maxHeight = max(240, nfWindowHeight(windowFrame) * 0.72)
         if adaptCompactToSheet {
-            if horizontalSizeClass == .compact {
-                VStack(alignment: .leading, spacing: 0) {
-                    content()
-                }
-                .nfOverlayContentDefaults()
-                .padding(contentInsets)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            } else {
-                VStack(alignment: .leading, spacing: 0) {
-                    content()
-                }
-                .nfOverlayContentDefaults()
-                .padding(contentInsets)
-                .frame(width: width ?? 360, height: min(460, maxHeight), alignment: .topLeading)
+            let compact = horizontalSizeClass == .compact
+            // Single structural branch so resizing across compact/regular size classes preserves picker state and focus.
+            VStack(alignment: .leading, spacing: 0) {
+                content()
             }
+            .nfOverlayContentDefaults()
+            .padding(contentInsets)
+            .frame(
+                width: compact ? nil : (width ?? 360),
+                height: compact ? nil : min(460, maxHeight),
+                alignment: .topLeading
+            )
+            .frame(
+                maxWidth: compact ? .infinity : nil,
+                maxHeight: compact ? .infinity : nil,
+                alignment: .topLeading
+            )
         } else {
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 0) {

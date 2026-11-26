@@ -35,6 +35,8 @@ struct AnswerActions: View {
     @State private var exportDocument: MarkdownExportDocument? = nil
     @State private var exportName = ""
     @State private var exporting = false
+    /// `.popover` 收起完成后立刻拉起 `.fileExporter` 的待导出载荷。
+    @State private var pendingExport: (document: MarkdownExportDocument, name: String)? = nil
 
     var body: some View {
         let copied = copiedTick > 0
@@ -58,7 +60,19 @@ struct AnswerActions: View {
                     NFIconButton(Lucide.ellipsis, label: L("answer_more_options"), size: 36, iconSize: 18, strokeWidth: 1.9) {
                         menuOpen = true
                     }
-                    .nfPopover(isPresented: $menuOpen, width: 256, arrowEdge: .top, adaptCompactToSheet: false) {
+                    .nfPopover(
+                        isPresented: $menuOpen,
+                        width: 256,
+                        arrowEdge: .top,
+                        adaptCompactToSheet: false,
+                        onDismiss: {
+                            guard let pending = pendingExport else { return }
+                            pendingExport = nil
+                            exportDocument = pending.document
+                            exportName = pending.name
+                            exporting = true
+                        }
+                    ) {
                         VStack(alignment: .leading, spacing: 0) {
                             menu(sessionId: sessionId)
                         }
@@ -83,7 +97,10 @@ struct AnswerActions: View {
             if !Task.isCancelled { copiedTick = 0 }
         }
         // 读取对话时离开这条回答（滚出屏幕）就不再弹出保存位置的选择。
-        .onDisappear { downloadTask?.cancel() }
+        .onDisappear {
+            downloadTask?.cancel()
+            pendingExport = nil
+        }
         .reportDialog(.answer(messageId: message.id), isPresented: $reporting)
         .fileExporter(
             isPresented: $exporting,
@@ -226,13 +243,17 @@ struct AnswerActions: View {
                 // 不管点的是哪条回答，都读这个对话保存在服务端的全部记录。
                 let export = try await exports.exportConversation(sessionId: sessionId, date: answerLocalDate())
                 if !Task.isCancelled {
-                    menuOpen = false
-                    // 等系统 .popover 收起动画结束，再弹出 UIDocumentPickerViewController（fileExporter）。
-                    try? await Task.sleep(for: .milliseconds(350))
-                    guard !Task.isCancelled else { return }
-                    exportDocument = MarkdownExportDocument(text: export.markdown)
-                    exportName = MarkdownExportDocument.baseName(export.fileName)
-                    exporting = true
+                    let document = MarkdownExportDocument(text: export.markdown)
+                    let name = MarkdownExportDocument.baseName(export.fileName)
+                    if menuOpen {
+                        // 等 `.popover` 的 UIKit 收起完成回调再拉起 `.fileExporter`，不依赖固定延时。
+                        pendingExport = (document, name)
+                        menuOpen = false
+                    } else {
+                        exportDocument = document
+                        exportName = name
+                        exporting = true
+                    }
                 }
             } catch is CancellationError {
                 // 离开了这条回答：不算失败。

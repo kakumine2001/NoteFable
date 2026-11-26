@@ -16,6 +16,8 @@ struct NotePageMenuButton: View {
     private let actions: NotePageMenuActions
     private let buttonWidth: CGFloat
     @State private var open = false
+    /// 菜单收起动画结束后再执行的动作（避免导出文件的 `.fileExporter` 或后续弹窗与 `.popover` 收起冲突）。
+    @State private var pendingAction: (() -> Void)? = nil
     /// "报告 AI 内容"的窗口（网页 NotePageMenu 的 reporting）。
     @State private var reporting = false
 
@@ -32,11 +34,33 @@ struct NotePageMenuButton: View {
         NFGlassBarButton(Lucide.ellipsis, label: label, width: buttonWidth) {
             if !actions.busy { open = true }
         }
-        .nfPopover(isPresented: $open, width: 268, arrowEdge: .top, adaptCompactToSheet: false) {
-            NotePageMenuContent(pageId: pageId, actions: actions, close: { open = false }, report: { reporting = true })
+        .nfPopover(
+            isPresented: $open,
+            width: 268,
+            arrowEdge: .top,
+            adaptCompactToSheet: false,
+            onDismiss: {
+                guard let action = pendingAction else { return }
+                pendingAction = nil
+                action()
+            }
+        ) {
+            NotePageMenuContent(
+                pageId: pageId,
+                actions: actions,
+                scheduleAfterDismiss: { action in
+                    pendingAction = action
+                    open = false
+                },
+                report: { reporting = true }
+            )
         }
         .reportDialog(.page(pageId: pageId), isPresented: $reporting)
+        .onDisappear {
+            pendingAction = nil
+        }
         .onChange(of: ScreenshotHooks.dismissTick) { _, _ in
+            pendingAction = nil
             open = false
         }
         .task(id: ScreenshotHooks.sceneTick) {
@@ -57,7 +81,7 @@ struct NotePageMenuButton: View {
 private struct NotePageMenuContent: View {
     let pageId: String
     let actions: NotePageMenuActions
-    let close: () -> Void
+    let scheduleAfterDismiss: (@escaping () -> Void) -> Void
     /// 打开"报告 AI 内容"的窗口。
     let report: () -> Void
     @Environment(AppEnvironment.self) private var app
@@ -92,12 +116,11 @@ private struct NotePageMenuContent: View {
         }
     }
 
-    /// 关掉菜单再执行。
+    /// 先收起 `.popover`，等 UIKit 收起完成后再执行动作（避免和 `.fileExporter` 等系统弹窗抢呈现）。
     private func run(_ action: @escaping () -> Void) -> () -> Void {
-        let close = self.close
+        let schedule = self.scheduleAfterDismiss
         return {
-            close()
-            action()
+            schedule(action)
         }
     }
 

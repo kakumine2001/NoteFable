@@ -18,26 +18,28 @@ private let emojiTopID = "nf-emoji-top"
 struct EmojiGrid: View {
     let catalog: EmojiCatalog
     let height: CGFloat?
+    let draft: EmojiPickerDraft
     let onPick: (String) -> Void
 
     @Environment(AppEnvironment.self) private var app
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var recent: [String] = []
-    @State private var query = ""
-    @State private var tone: SkinTone = .neutral
     @State private var toneOpen = false
     @State private var sections: [EmojiGridSection] = []
     @State private var activeCategory: String?
     @State private var variations: EmojiVariationTarget?
     @FocusState private var searchFocused: Bool
 
-    init(catalog: EmojiCatalog, height: CGFloat? = nil, onPick: @escaping (String) -> Void) {
+    init(catalog: EmojiCatalog, height: CGFloat? = nil, draft: EmojiPickerDraft, onPick: @escaping (String) -> Void) {
         self.catalog = catalog
         self.height = height
+        self.draft = draft
         self.onPick = onPick
     }
 
     var body: some View {
+        let query = draft.query
+        let tone = draft.tone
         GeometryReader { proxy in
             // grid auto-fill：左右各 10 之间放得下几个 34 就几个（412 宽的手机上是 10 个）。
             let columns = emojiColumns(width: proxy.size.width)
@@ -74,7 +76,7 @@ struct EmojiGrid: View {
     }
 
     private func rebuild() {
-        sections = emojiGridSections(catalog: catalog, recent: recent, tone: tone, query: query)
+        sections = emojiGridSections(catalog: catalog, recent: recent, tone: draft.tone, query: draft.query)
         if let activeCategory, !sections.contains(where: { $0.category == activeCategory }) {
             self.activeCategory = nil
         }
@@ -102,11 +104,12 @@ struct EmojiGrid: View {
     // MARK: 头部：搜索框 + 肤色
 
     private func header(_ scroller: ScrollViewProxy) -> some View {
-        HStack(spacing: 0) {
-            EmojiSearchField(icons: catalog.icons, query: $query, focused: $searchFocused)
-            EmojiSkinTonePicker(tone: tone, open: toneOpen, reduceMotion: reduceMotion) { picked in
+        @Bindable var draft = draft
+        return HStack(spacing: 0) {
+            EmojiSearchField(icons: catalog.icons, query: $draft.query, focused: $searchFocused)
+            EmojiSkinTonePicker(tone: draft.tone, open: toneOpen, reduceMotion: reduceMotion) { picked in
                 if toneOpen {
-                    tone = picked
+                    draft.tone = picked
                     toneOpen = false
                 } else {
                     toneOpen = true

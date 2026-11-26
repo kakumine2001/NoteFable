@@ -1,3 +1,4 @@
+import Observation
 import SwiftUI
 
 // 表情选择器（网页 src/components/emoji-picker.tsx + full-emoji-picker.tsx，基于 emoji-picker-react；Android ui/EmojiPicker.kt）。
@@ -27,22 +28,47 @@ extension View {
         removeLabel: String? = nil,
         onPick: @escaping (String?) -> Void
     ) -> some View {
-        nfPopover(
-            isPresented: isPresented,
-            width: 380,
-            arrowEdge: .top,
-            adaptCompactToSheet: true,
-            contentInsets: EdgeInsets(top: 8, leading: 0, bottom: 0, trailing: 0)
-        ) {
-            EmojiPickerBody(
-                current: current,
-                removeLabel: removeLabel,
-                onClose: { isPresented.wrappedValue = false },
-                onPick: onPick
-            )
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel(L("em_choose"))
-        }
+        modifier(EmojiPickerModifier(isPresented: isPresented, current: current, removeLabel: removeLabel, onPick: onPick))
+    }
+}
+
+/// 跨系统 `.popover` / `.sheet` 呈现边界保留表情搜索词与肤色选择，窗口尺寸类切换时不丢输入。
+@MainActor
+@Observable
+final class EmojiPickerDraft {
+    var query = ""
+    var tone: SkinTone = .neutral
+
+    init() {}
+}
+
+private struct EmojiPickerModifier: ViewModifier {
+    @Binding var isPresented: Bool
+    let current: String?
+    let removeLabel: String?
+    let onPick: (String?) -> Void
+    @State private var draft = EmojiPickerDraft()
+
+    func body(content: Content) -> some View {
+        content
+            .nfPopover(
+                isPresented: $isPresented,
+                width: 380,
+                arrowEdge: .top,
+                adaptCompactToSheet: true,
+                contentInsets: EdgeInsets(top: 8, leading: 0, bottom: 0, trailing: 0),
+                onDismiss: { draft.query = "" }
+            ) {
+                EmojiPickerBody(
+                    current: current,
+                    removeLabel: removeLabel,
+                    draft: draft,
+                    onClose: { isPresented = false },
+                    onPick: onPick
+                )
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel(L("em_choose"))
+            }
     }
 }
 
@@ -55,10 +81,12 @@ struct EmojiPickerBody: View {
     private let current: String?
     private let height: CGFloat?
     private let removeLabel: String?
+    private let externalDraft: EmojiPickerDraft?
     private let onClose: () -> Void
     private let onPick: (String?) -> Void
 
     @Environment(AppEnvironment.self) private var app
+    @State private var localDraft = EmojiPickerDraft()
     @State private var load: EmojiCatalogLoad = .loading
     @State private var attempt = 0
 
@@ -66,12 +94,14 @@ struct EmojiPickerBody: View {
         current: String?,
         height: CGFloat? = nil,
         removeLabel: String? = nil,
+        draft: EmojiPickerDraft? = nil,
         onClose: @escaping () -> Void = {},
         onPick: @escaping (String?) -> Void
     ) {
         self.current = current
         self.height = height
         self.removeLabel = removeLabel
+        self.externalDraft = draft
         self.onClose = onClose
         self.onPick = onPick
     }
@@ -122,7 +152,7 @@ struct EmojiPickerBody: View {
                 .font(.nf(14))
                 .foregroundStyle(Sm.muted)
         case .ready(let catalog):
-            EmojiGrid(catalog: catalog, height: height) { emoji in
+            EmojiGrid(catalog: catalog, height: height, draft: externalDraft ?? localDraft) { emoji in
                 onPick(emoji)
                 onClose()
             }
