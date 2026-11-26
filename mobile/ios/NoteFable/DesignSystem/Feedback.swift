@@ -116,6 +116,7 @@ private struct ToastHostModifier: ViewModifier {
     let tabBarVisible: Bool
     let tab: AppTab
     @State private var controller = ToastWindowController()
+    @State private var windowFrame: CGRect?
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.locale) private var locale
@@ -132,6 +133,23 @@ private struct ToastHostModifier: ViewModifier {
         )
         content
             .environment(center)
+            .environment(\.nfWindowFrame, windowFrame)
+            .background {
+                GeometryReader { proxy in
+                    let frame = proxy.frame(in: .global)
+                    ToastWindowAnchor { window in
+                        controller.attach(to: window, center: center, env: env)
+                    }
+                    .onChange(of: frame, initial: true) { _, next in
+                        if !next.isEmpty { windowFrame = next }
+                        controller.resize()
+                    }
+                }
+                // Only the measurement covers the whole window. The app still avoids the keyboard.
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
             .onAppear {
                 controller.sync(center: center, env: env)
             }
@@ -144,6 +162,34 @@ private struct ToastHostModifier: ViewModifier {
             .onDisappear {
                 controller.teardown()
             }
+    }
+}
+
+/// Uses the window that hosts this root to place the toast overlay in the same scene and frame.
+private struct ToastWindowAnchor: UIViewRepresentable {
+    let onAttach: (UIWindow) -> Void
+
+    func makeUIView(context: Context) -> AnchorView {
+        let view = AnchorView()
+        view.onAttach = onAttach
+        return view
+    }
+
+    func updateUIView(_ view: AnchorView, context: Context) {
+        view.onAttach = onAttach
+    }
+
+    final class AnchorView: UIView {
+        var onAttach: ((UIWindow) -> Void)?
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            // Wait for SwiftUI's update pass to finish before installing another hosting controller.
+            DispatchQueue.main.async { [weak self] in
+                guard let self, let window = self.window else { return }
+                self.onAttach?(window)
+            }
+        }
     }
 }
 
@@ -165,30 +211,42 @@ private final class ToastOverlayWindow: UIWindow {
 
 @MainActor
 private final class ToastWindowController {
+    private weak var sourceWindow: UIWindow?
     private var window: ToastOverlayWindow?
     private var hosting: UIHostingController<ToastOverlayRootView>?
 
+    func attach(to sourceWindow: UIWindow, center: ToastCenter, env: ToastOverlayEnvironment) {
+        self.sourceWindow = sourceWindow
+        sync(center: center, env: env)
+    }
+
     func sync(center: ToastCenter, env: ToastOverlayEnvironment) {
-        guard let scene = activeWindowScene() else { return }
-        let rootView = ToastOverlayRootView(center: center, env: env)
+        guard let sourceWindow, let scene = sourceWindow.windowScene else { return }
         if let existingWindow = window, existingWindow.windowScene === scene, let hosting {
-            hosting.rootView = rootView
+            resize()
+            hosting.rootView = ToastOverlayRootView(center: center, env: env, window: existingWindow)
             applyTraits(to: existingWindow, hosting: hosting, env: env)
             if existingWindow.isHidden { existingWindow.isHidden = false }
             return
         }
         teardown()
-        let host = UIHostingController(rootView: rootView)
-        host.view.backgroundColor = .clear
         let overlay = ToastOverlayWindow(windowScene: scene)
+        overlay.frame = sourceWindow.frame
         overlay.windowLevel = .normal + 10
         overlay.backgroundColor = .clear
         overlay.isUserInteractionEnabled = false
+        let host = UIHostingController(rootView: ToastOverlayRootView(center: center, env: env, window: overlay))
+        host.view.backgroundColor = .clear
         overlay.rootViewController = host
         applyTraits(to: overlay, hosting: host, env: env)
         overlay.isHidden = false
         self.window = overlay
         self.hosting = host
+    }
+
+    func resize() {
+        guard let window, let sourceWindow, window.frame != sourceWindow.frame else { return }
+        window.frame = sourceWindow.frame
     }
 
     func teardown() {
@@ -208,16 +266,12 @@ private final class ToastWindowController {
         hosting.view.semanticContentAttribute = attr
         hosting.traitOverrides.layoutDirection = dir
     }
-
-    private func activeWindowScene() -> UIWindowScene? {
-        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-        return scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
-    }
 }
 
 private struct ToastOverlayRootView: View {
     let center: ToastCenter
     let env: ToastOverlayEnvironment
+    weak var window: ToastOverlayWindow?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -225,14 +279,13 @@ private struct ToastOverlayRootView: View {
         // 只有提示条窗口的这个根视图读 NFBottomChrome：标签页量到的遮挡变了只重画这里，不牵动 RootView。
         let obstruction = NFBottomChrome.shared.obstruction(for: env.tab)
         GeometryReader { proxy in
-            let hostFrame = proxy.frame(in: .global)
-            let keyboardInset = max(0, hostFrame.maxY - keyboardTop)
+            let hostBottomGap = proxy.safeAreaInsets.bottom
             let bottomPadding = toastBottomClearance(
-                keyboardInset: keyboardInset,
+                keyboardInset: keyboardInset(screenTop: keyboardTop, hostBottomGap: hostBottomGap),
                 tabBarVisible: env.tabBarVisible,
                 obstructionFromScreenBottom: obstruction,
-                // 这一层只忽略键盘、不忽略容器安全区，底边停在主屏指示条上方；量到的遮挡却是从屏幕底边算的，减去这段差。
-                hostBottomGap: max(0, UIScreen.main.bounds.height - hostFrame.maxY)
+                // The host ends at the container safe area. The obstruction includes that bottom inset.
+                hostBottomGap: hostBottomGap
             )
             ZStack(alignment: .bottom) {
                 Color.clear
@@ -253,6 +306,12 @@ private struct ToastOverlayRootView: View {
         .environment(\.layoutDirection, env.layoutDirection)
         .environment(\.locale, env.locale)
         .environment(\.nfForceSolidChrome, env.forceSolidChrome)
+    }
+
+    private func keyboardInset(screenTop: CGFloat, hostBottomGap: CGFloat) -> CGFloat {
+        guard screenTop.isFinite, let window, let scene = window.windowScene else { return 0 }
+        let localTop = scene.screen.coordinateSpace.convert(CGPoint(x: 0, y: screenTop), to: window).y
+        return max(0, window.bounds.maxY - hostBottomGap - localTop)
     }
 }
 
