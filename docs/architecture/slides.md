@@ -32,7 +32,7 @@
 - **演讲者备注**：每页一段纯文字（最多 20,000 字符），在单页编辑下方。
 - **撤销 / 重做**：编辑器自己保存之前的本体（连续的同类操作——打字、备注、方向键移动——合并成一步）。保存交给 `NotesWorkspace` 的保存队列（`onChange(data)`）。
 - **快捷键**：Ctrl/⌘+Z / Shift+Z / Y 撤销重做，Ctrl/⌘+M 新页，Ctrl/⌘+D 复制，Ctrl/⌘+G / Shift+G 组合 / 取消，Ctrl/⌘+] / [（加 Shift 到最前 / 最后）层级，Delete 删除，方向键微移（Shift 大步），Enter 编辑文字，Esc 取消选择，T / R / O / L 插入文字 / 矩形 / 椭圆 / 线，Ctrl/⌘+C / X / V 复制粘贴元素或页（也能粘贴图片和纯文字），F5 从头放映、Shift+F5 从当前页放映。作用对象按焦点决定（`src/lib/slides/editor-keys.ts`）：在总览或页带（缩略图列表）里，以及页的右键菜单，Delete / Ctrl/⌘+D / C / X / A 只作用于所选页，绝不落到元素选择上；在单页画面才作用于所选元素。切到总览、在缩略图上选页（含 Shift / Ctrl 多选）时清掉元素选择和文字编辑。
-- **拖动**：移动 / 缩放 / 旋转 / 线端点的草稿只记几何差分（`GeometryPatch`：x、y、w、h、rotation，文字框的 autoHeight，线的 flipH / flipV），预览和松手提交都叠到最新的元素上，拖动中送达的 AI 配图（`src`、清掉 `pendingImagePrompt`）不会被拖动开始时的旧占位覆盖。
+- **拖动**：移动 / 缩放 / 旋转 / 线端点的草稿只记几何差分（`GeometryPatch`：x、y、w、h、rotation，文字框的 autoHeight，线的 flipH / flipV），预览和松手提交都叠到最新的元素上（提交以函数形式交给 `commitSlide`，按保存时最新的页计算，`replaceSlide`），拖动中送达的 AI 配图（`src`、清掉 `pendingImagePrompt`）不会被拖动开始时的旧占位覆盖。
 - **只读**：锁定的页面、Trash 里的页面和历史预览不能编辑（`editable: false`），仍可放映和导出。
 - **检索跳转**：搜索命中幻灯片时 `blockId` 是页的 ID；`revealNoteBlock` 发 `notefable:reveal-canvas-item`，编辑器打开那一页并高亮缩略图（`src/lib/search-reveal.ts` 的 `canvasItemSelector`）。
 

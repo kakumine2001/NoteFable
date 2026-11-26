@@ -121,7 +121,7 @@ export function SlideStage({
   editingId: string | null;
   editSelectAll: boolean;
   onSelect: (ids: Set<string>) => void;
-  onCommit: (next: Slide, merge?: string) => void;
+  onCommit: (next: Slide | ((latest: Slide) => Slide), merge?: string) => void;
   onStartEdit: (id: string, selectAll?: boolean) => void;
   onStopEdit: () => void;
   onTextChange: (id: string, doc: RichDoc, height?: number) => void;
@@ -189,9 +189,13 @@ export function SlideStage({
     const pending = draftRef.current;
     setDraft(null);
     if (!current || !commit || !pending?.size || current.kind === "marquee") return;
-    // 最新の要素（slide）に、ドラッグで変えた値だけを重ねる。
-    const elements = applyGeometryPatches(slide.elements, pending);
-    if (elements !== slide.elements) onCommit({ ...slide, elements });
+    // 最新の要素に、ドラッグで変えた値だけを重ねる。指を離した時点でまだ描いていない変更（直前に届いた AI の配図など）も
+    // 消さないよう、描いている slide ではなく保存する時点の最新の枚に重ねる関数で渡す。
+    if (applyGeometryPatches(slide.elements, pending) === slide.elements) return;
+    onCommit((latest) => {
+      const elements = applyGeometryPatches(latest.elements, pending);
+      return elements === latest.elements ? latest : { ...latest, elements };
+    });
   }
 
   function onPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
