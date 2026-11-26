@@ -33,7 +33,7 @@
     <string name="activity_thought_process">思考过程</string>
     <string name="proposal_discarded">已放弃</string>
     <string name="proposal_minimize">最小化</string>
-    <string name="proposal_expand">扩写</string>
+    <string name="proposal_expand">展开</string>
     <string name="proposal_open">打开</string>
     <string name="proposal_discard">放弃</string>
     <string name="proposal_open_note">打开笔记</string>

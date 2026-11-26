@@ -104,6 +104,7 @@ export const deServer: Record<string, string> = {
   "No changes supplied.": "Keine Änderungen übermittelt.",
   "Not found.": "Nicht gefunden.",
   "Note changed since it was read": "Die Notiz wurde seit dem Lesen geändert",
+  "Page changed since it was read": "Die Seite wurde seit dem Lesen geändert",
   "Note content exceeds 1 MiB.": "Der Notizinhalt überschreitet 1 MiB.",
   "Note not found": "Notiz nicht gefunden",
   "Page not found": "Seite nicht gefunden",

@@ -465,7 +465,7 @@ User 1 -> N StoredFile（SetNull）
 | reason | 何时写入 |
 | --- | --- |
 | `AUTO` | 手动编辑的自动保存（`PATCH /api/pages/:id`）。**每个笔记最多每 10 分钟一份**（`AUTO_REVISION_INTERVAL_MS`），而不是每次保存一份；保存前由一条 `INSERT ... SELECT ... FOR UPDATE` 从已保存的行直接复制，正文不进应用内存。已保存的版本与请求的 `version` 不一致（冲突、响应丢失后的重发）、笔记在 Trash、正文为空数组时不写 |
-| `AI_EDIT` | 适用 AI 编辑提案（`POST /api/proposals/:id/apply`，或 AI 面板开着“自动应用”时在 `/api/chat` 里直接适用）、覆盖笔记之前，写在适用提案的同一个事务里；写入失败整体回滚时这份历史一起消失，重试不会重复 |
+| `AI_EDIT` | 适用 AI 编辑提案（`POST /api/proposals/:id/apply`，或 AI 面板开着“自动应用”时在 `/api/chat` 里直接适用）、覆盖页面之前，写在适用提案的同一个事务里；写入失败整体回滚时这份历史一起消失，重试不会重复 |
 | `RESTORE` | 从历史恢复（`POST /api/pages/:id/revisions/:revisionId/restore`）或撤销 AI 的编辑提案（`POST /api/proposals/:id/undo`）、覆盖页面之前，写“恢复前”的当前状态，所以恢复本身也可以再恢复回去；与恢复写入在同一事务，版本被抢先修改（409）时一起回滚 |
 
 **保留：** 白板 / 幻灯片每页最多 10 份（自动保存 5 份、`AI_EDIT` / `RESTORE` 5 份，自动快照最短间隔 30 分钟，`revisionLimits`），因为一份最多 2 MB。笔记每篇最多 50 份（`MAX_REVISIONS_PER_NOTE`），按类别分开计数：`AUTO` 最新 30 份（`MAX_AUTO_REVISIONS_PER_NOTE`，超过 90 天的也删除），`AI_EDIT` / `RESTORE` 合计最新 20 份（`MAX_MARKED_REVISIONS_PER_NOTE`），写入后按 `createdAt` 从旧到新裁剪，所以连续的自动保存不会把“AI 编辑前”的快照挤出去。自动快照在 `PATCH /api/pages/:id` 的事务里用 SAVEPOINT 包裹，失败时回滚到保存点并只记录日志，保存本身照常成功。历史随笔记走：笔记放进 Trash 时历史保留，复原后继续可用；笔记被永久删除时历史级联删除。历史读取接口只给“活着的”笔记（Trash 里的笔记返回 404）。快照 SQL 使用 `gen_random_uuid()`（PostgreSQL 13+，Neon 与本地 18 均满足），并明确限定 schema（`notefable`）。

@@ -157,6 +157,7 @@ export const jaServer: Record<string, string> = {
   "Listed recent pages": "最近のページを一覧しました",
   "Name must be 1–{max} characters with no control characters.": "名前は 1〜{max} 文字で、制御文字は使えません。",
   "Note changed since it was read": "読み込んだ後にノートが変更されました",
+  "Page changed since it was read": "読み込んだ後にページが変更されました",
   "Note not found": "ノートが見つかりません",
   "Page not found": "ページが見つかりません",
   "Note proposal rejected": "ノート作成の提案が受け付けられませんでした",

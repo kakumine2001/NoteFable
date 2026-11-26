@@ -33,7 +33,7 @@
     <string name="activity_thought_process">Ход размышления</string>
     <string name="proposal_discarded">Отклонено</string>
     <string name="proposal_minimize">Свернуть</string>
-    <string name="proposal_expand">Расширить текст</string>
+    <string name="proposal_expand">Развернуть</string>
     <string name="proposal_open">Открыть</string>
     <string name="proposal_discard">Отклонить</string>
     <string name="proposal_open_note">Открыть заметку</string>

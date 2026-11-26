@@ -104,6 +104,7 @@ export const idServer: Record<string, string> = {
   "No changes supplied.": "Tidak ada perubahan yang dikirimkan.",
   "Not found.": "Tidak ditemukan.",
   "Note changed since it was read": "Catatan telah berubah sejak dibaca",
+  "Page changed since it was read": "Halaman telah berubah sejak dibaca",
   "Note content exceeds 1 MiB.": "Isi catatan melebihi 1 MiB.",
   "Note not found": "Catatan tidak ditemukan",
   "Page not found": "Halaman tidak ditemukan",

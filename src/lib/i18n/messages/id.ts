@@ -1136,7 +1136,7 @@ export const id: Record<string, string> = {
   "Tell the AI how to change this page. Its changes are applied right away, and you can undo them.": "Beri tahu AI cara mengubah halaman ini. Perubahannya langsung diterapkan, dan Anda bisa membatalkannya.",
   "Tell the AI how to change this page. You review its proposal before anything changes.": "Beri tahu AI cara mengubah halaman ini. Anda meninjau usulannya sebelum ada yang berubah.",
   "Selected items": "Item yang dipilih",
-  "{count} items selected": "{count} item dipilih",
+  "Selected items: {count}": "{count} item dipilih",
   "Update": "Perbarui",
   "Move": "Pindahkan",
   "Reorder": "Ubah urutan",

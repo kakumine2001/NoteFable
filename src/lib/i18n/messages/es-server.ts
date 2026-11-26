@@ -104,6 +104,7 @@ export const esServer: Record<string, string> = {
   "No changes supplied.": "No se enviaron cambios.",
   "Not found.": "No encontrado.",
   "Note changed since it was read": "La nota cambió después de leerse",
+  "Page changed since it was read": "La página cambió después de leerse",
   "Note content exceeds 1 MiB.": "El contenido de la nota supera 1 MiB.",
   "Note not found": "No se encontró la nota",
   "Page not found": "No se encontró la página",

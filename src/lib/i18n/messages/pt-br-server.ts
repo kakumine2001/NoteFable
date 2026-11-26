@@ -104,6 +104,7 @@ export const ptBRServer: Record<string, string> = {
   "No changes supplied.": "Nenhuma alteração foi enviada.",
   "Not found.": "Não encontrado.",
   "Note changed since it was read": "A nota foi alterada desde que foi lida",
+  "Page changed since it was read": "A página foi alterada desde que foi lida",
   "Note content exceeds 1 MiB.": "O conteúdo da nota excede 1 MiB.",
   "Note not found": "Nota não encontrada",
   "Page not found": "Página não encontrada",

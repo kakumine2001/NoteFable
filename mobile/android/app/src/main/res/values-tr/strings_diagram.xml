@@ -3,7 +3,7 @@
 <resources>
     <string name="diagram_draw">Diyagram olarak çiz</string>
     <string name="diagram_working">Diyagram çiziliyor…</string>
-    <string name="diagram_description">Yapay zeka bunu yeni bir beyaz tahtada düzenlenebilir bir diyagrama dönüştürür. 1 sohbet mesajı olarak sayılır.</string>
+    <string name="diagram_description">Yapay zekâ bunu yeni bir beyaz tahtada düzenlenebilir bir diyagrama dönüştürür. 1 sohbet mesajı olarak sayılır.</string>
     <string name="diagram_done">Diyagram hazır.</string>
     <string name="diagram_open">Beyaz tahtayı aç</string>
     <string name="diagram_partial">İçerik çok uzun olduğu için yalnızca ilk bölüm çizildi.</string>

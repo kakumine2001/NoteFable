@@ -104,6 +104,7 @@ export const trServer: Record<string, string> = {
   "No changes supplied.": "Kaydedilecek değişiklik yok.",
   "Not found.": "Bulunamadı.",
   "Note changed since it was read": "Not okunduktan sonra değiştirildi",
+  "Page changed since it was read": "Sayfa okunduktan sonra değiştirildi",
   "Note content exceeds 1 MiB.": "Not içeriği 1 MiB sınırını aşıyor.",
   "Note not found": "Not bulunamadı",
   "Page not found": "Sayfa bulunamadı",

@@ -33,7 +33,7 @@
     <string name="activity_thought_process">생각 과정</string>
     <string name="proposal_discarded">취소됨</string>
     <string name="proposal_minimize">최소화</string>
-    <string name="proposal_expand">길게 쓰기</string>
+    <string name="proposal_expand">펼치기</string>
     <string name="proposal_open">열기</string>
     <string name="proposal_discard">버리기</string>
     <string name="proposal_open_note">노트 열기</string>

@@ -104,6 +104,7 @@ export const ruServer: Record<string, string> = {
   "No changes supplied.": "Нет изменений для сохранения.",
   "Not found.": "Не найдено.",
   "Note changed since it was read": "Заметка изменилась с момента чтения",
+  "Page changed since it was read": "Страница изменилась с момента чтения",
   "Note content exceeds 1 MiB.": "Содержимое заметки превышает 1 MiB.",
   "Note not found": "Заметка не найдена",
   "Page not found": "Страница не найдена",

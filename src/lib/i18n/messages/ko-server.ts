@@ -104,6 +104,7 @@ export const koServer: Record<string, string> = {
   "No changes supplied.": "저장할 변경사항이 없어요.",
   "Not found.": "찾을 수 없어요.",
   "Note changed since it was read": "읽은 후 노트가 변경됨",
+  "Page changed since it was read": "읽은 후 페이지가 변경됨",
   "Note content exceeds 1 MiB.": "노트 내용이 1 MiB를 초과해요.",
   "Note not found": "노트를 찾을 수 없음",
   "Page not found": "페이지를 찾을 수 없음",

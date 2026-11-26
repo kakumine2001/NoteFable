@@ -234,7 +234,7 @@
 "activity_thought_process" = "Ход размышления";
 "proposal_discarded" = "Отклонено";
 "proposal_minimize" = "Свернуть";
-"proposal_expand" = "Расширить текст";
+"proposal_expand" = "Развернуть";
 "proposal_open" = "Открыть";
 "proposal_discard" = "Отклонить";
 "proposal_open_note" = "Открыть заметку";

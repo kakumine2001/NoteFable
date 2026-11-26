@@ -157,6 +157,7 @@ export const zhServer: Record<string, string> = {
   "Listed recent pages": "列出了最近的页面",
   "Name must be 1–{max} characters with no control characters.": "名称需为 1–{max} 个字符，且不能包含控制字符。",
   "Note changed since it was read": "读取后笔记已被修改",
+  "Page changed since it was read": "读取后页面已被修改",
   "Note not found": "找不到笔记",
   "Page not found": "找不到页面",
   "Note proposal rejected": "新建笔记的建议未通过",

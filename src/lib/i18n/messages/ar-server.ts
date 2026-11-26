@@ -104,6 +104,7 @@ export const arServer: Record<string, string> = {
   "No changes supplied.": "لا توجد تغييرات لحفظها.",
   "Not found.": "غير موجود.",
   "Note changed since it was read": "تغيّرت الملاحظة بعد قراءتها",
+  "Page changed since it was read": "تغيّرت الصفحة بعد قراءتها",
   "Note content exceeds 1 MiB.": "يتجاوز محتوى الملاحظة 1 MiB.",
   "Note not found": "لم يتم العثور على الملاحظة",
   "Page not found": "لم يتم العثور على الصفحة",

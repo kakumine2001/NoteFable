@@ -104,6 +104,7 @@ export const frServer: Record<string, string> = {
   "No changes supplied.": "Aucune modification fournie.",
   "Not found.": "Introuvable.",
   "Note changed since it was read": "La note a été modifiée depuis sa lecture",
+  "Page changed since it was read": "La page a été modifiée depuis sa lecture",
   "Note content exceeds 1 MiB.": "Le contenu de la note dépasse 1 MiB.",
   "Note not found": "Note introuvable",
   "Page not found": "Page introuvable",

@@ -301,7 +301,7 @@ async function runEdit(adapter: PageAdapter, value: unknown, ctx: ToolContext): 
       : `This page is ${KIND_NAMES[kind]}, not ${KIND_NAMES[adapter.kind]}, so ${tool} cannot change it. Tell the user it cannot be edited from chat yet.`);
   }
   if (page.version !== raw.version) {
-    return toolError(`The page changed after you read it (it is now version ${page.version}). Call read_note again and redo the edits.`, msg("Note changed since it was read"));
+    return toolError(`The page changed after you read it (it is now version ${page.version}). Call read_note again and redo the edits.`, kind === "note" ? msg("Note changed since it was read") : msg("Page changed since it was read"));
   }
   const draft = await adapter.edit!.propose(ctx, page, value);
   if (draft.unchanged) {

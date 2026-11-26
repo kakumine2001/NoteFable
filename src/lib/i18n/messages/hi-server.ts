@@ -104,6 +104,7 @@ export const hiServer: Record<string, string> = {
   "No changes supplied.": "सहेजने के लिए कोई बदलाव नहीं दिया गया।",
   "Not found.": "नहीं मिला।",
   "Note changed since it was read": "पढ़े जाने के बाद से नोट में बदलाव हो चुका है",
+  "Page changed since it was read": "पढ़े जाने के बाद से पेज में बदलाव हो चुका है",
   "Note content exceeds 1 MiB.": "नोट की सामग्री 1 MiB से अधिक है।",
   "Note not found": "नोट नहीं मिला",
   "Page not found": "पेज नहीं मिला",

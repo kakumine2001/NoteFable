@@ -104,6 +104,7 @@ export const viServer: Record<string, string> = {
   "No changes supplied.": "Không có thay đổi nào để lưu.",
   "Not found.": "Không tìm thấy.",
   "Note changed since it was read": "Ghi chú đã thay đổi kể từ lúc được đọc",
+  "Page changed since it was read": "Trang đã thay đổi kể từ lúc được đọc",
   "Note content exceeds 1 MiB.": "Nội dung ghi chú vượt quá 1 MiB.",
   "Note not found": "Không tìm thấy ghi chú",
   "Page not found": "Không tìm thấy trang",

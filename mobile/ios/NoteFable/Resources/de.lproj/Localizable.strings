@@ -234,7 +234,7 @@
 "activity_thought_process" = "Gedankengang";
 "proposal_discarded" = "Verworfen";
 "proposal_minimize" = "Minimieren";
-"proposal_expand" = "Ausführlicher formulieren";
+"proposal_expand" = "Ausklappen";
 "proposal_open" = "Öffnen";
 "proposal_discard" = "Verwerfen";
 "proposal_open_note" = "Notiz öffnen";

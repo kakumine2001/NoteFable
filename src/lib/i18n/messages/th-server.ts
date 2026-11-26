@@ -104,6 +104,7 @@ export const thServer: Record<string, string> = {
   "No changes supplied.": "ไม่มีข้อมูลการเปลี่ยนแปลงที่ส่งมา",
   "Not found.": "ไม่พบข้อมูล",
   "Note changed since it was read": "โน้ตถูกแก้ไขหลังจากที่อ่านไปแล้ว",
+  "Page changed since it was read": "หน้าถูกแก้ไขหลังจากที่อ่านไปแล้ว",
   "Note content exceeds 1 MiB.": "เนื้อหาโน้ตมีขนาดเกิน 1 MiB",
   "Note not found": "ไม่พบโน้ต",
   "Page not found": "ไม่พบหน้า",

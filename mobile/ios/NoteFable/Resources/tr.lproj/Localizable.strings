@@ -324,7 +324,7 @@
 /* strings_diagram.xml */
 "diagram_draw" = "Diyagram olarak çiz";
 "diagram_working" = "Diyagram çiziliyor…";
-"diagram_description" = "Yapay zeka bunu yeni bir beyaz tahtada düzenlenebilir bir diyagrama dönüştürür. 1 sohbet mesajı olarak sayılır.";
+"diagram_description" = "Yapay zekâ bunu yeni bir beyaz tahtada düzenlenebilir bir diyagrama dönüştürür. 1 sohbet mesajı olarak sayılır.";
 "diagram_done" = "Diyagram hazır.";
 "diagram_open" = "Beyaz tahtayı aç";
 "diagram_partial" = "İçerik çok uzun olduğu için yalnızca ilk bölüm çizildi.";

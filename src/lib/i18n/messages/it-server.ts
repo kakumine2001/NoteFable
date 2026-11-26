@@ -104,6 +104,7 @@ export const itServer: Record<string, string> = {
   "No changes supplied.": "Nessuna modifica fornita.",
   "Not found.": "Non trovato.",
   "Note changed since it was read": "La nota è stata modificata dopo la lettura",
+  "Page changed since it was read": "La pagina è stata modificata dopo la lettura",
   "Note content exceeds 1 MiB.": "Il contenuto della nota supera 1 MiB.",
   "Note not found": "Nota non trovata",
   "Page not found": "Pagina non trovata",

@@ -1030,7 +1030,7 @@ export default function Home() {
     const icon = notes.active?.content.icon ?? summary?.icon ?? null;
     const ids = [...new Set((selection.ids ?? []).filter(isSelectionId))].slice(0, MAX_SELECTION_IDS);
     const quoteText = normalizeQuote(selection.text)
-      || (ids.length ? `${title} (${t("{count} items selected", { count: ids.length })})` : "");
+      || (ids.length ? `${title} (${t("Selected items: {count}", { count: ids.length })})` : "");
     if (quoteText) quoteSelection(quoteText);
     else {
       setSplitSelection(null);

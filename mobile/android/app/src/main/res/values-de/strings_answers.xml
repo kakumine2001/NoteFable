@@ -33,7 +33,7 @@
     <string name="activity_thought_process">Gedankengang</string>
     <string name="proposal_discarded">Verworfen</string>
     <string name="proposal_minimize">Minimieren</string>
-    <string name="proposal_expand">Ausführlicher formulieren</string>
+    <string name="proposal_expand">Ausklappen</string>
     <string name="proposal_open">Öffnen</string>
     <string name="proposal_discard">Verwerfen</string>
     <string name="proposal_open_note">Notiz öffnen</string>

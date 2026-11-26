@@ -1137,7 +1137,7 @@ export const ja: Record<string, string> = {
   "Tell the AI how to change this page. Its changes are applied right away, and you can undo them.": "このページをどう変えたいか AI に伝えてください。変更はすぐに反映され、元に戻せます。",
   "Tell the AI how to change this page. You review its proposal before anything changes.": "このページをどう変えたいか AI に伝えてください。変更される前に、AI の提案を確認できます。",
   "Selected items": "選択した項目",
-  "{count} items selected": "{count} 件を選択中",
+  "Selected items: {count}": "{count} 件を選択中",
   "Update": "更新",
   "Move": "移動",
   "Reorder": "並べ替え",
