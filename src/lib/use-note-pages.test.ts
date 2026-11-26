@@ -125,11 +125,25 @@ vi.mock("@/lib/view-transition", () => ({
 }));
 
 const sheetCleanupMock = vi.hoisted(() => ({ isCleanup: false }));
-vi.mock("@/lib/use-back-to-close", () => ({
-  restoreSheetMarker: vi.fn(),
-  afterSheetHistory: (cb: () => void) => cb(),
-  isSheetCleanupPopState: () => sheetCleanupMock.isCleanup,
-}));
+const sheetHistory = vi.hoisted(() => ({ restoreSheetMarker: (() => {}) as () => void }));
+vi.mock("@/lib/use-back-to-close", async () => {
+  const { vi: mocks } = await import("vitest");
+  const restoreSheetMarker = mocks.fn();
+  sheetHistory.restoreSheetMarker = restoreSheetMarker;
+  return {
+    restoreSheetMarker,
+    afterSheetHistory: (cb: () => void) => cb(),
+    isSheetCleanupPopState: () => sheetCleanupMock.isCleanup,
+    // 本物と同じく null で置き換えてから目印を積み直してもらう（積み直し自体は use-back-to-close.test.ts で確かめる）。
+    replaceSheetUrl: (update: (url: URL) => boolean, after?: () => void) => {
+      const url = new URL(window.location.href);
+      if (!update(url)) return;
+      window.history.replaceState(null, "", url);
+      restoreSheetMarker();
+      after?.();
+    },
+  };
+});
 
 const preloadPageEditor = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/preload-editor", () => ({
@@ -1034,5 +1048,108 @@ describe("useNotePages instant switching & prefetch", () => {
     await flushMicrotasks();
 
     expect(hook.current.pages[0]?.locked).toBe(true);
+  });
+
+  it("keeps a failed trash out of the list-load error and does not close anything", async () => {
+    createFakeBrowser();
+    const pageA = makePage("a", "Alpha", 1);
+    vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+      if (url === "/api/pages") return Promise.resolve(jsonResponse({ pages: [makeSummary(pageA)], groups: [] }));
+      if (url === "/api/pages/a" && init?.method === "DELETE") return Promise.resolve(jsonResponse({ error: "Trash is unavailable." }, 503));
+      if (url === "/api/pages/a") return Promise.resolve(jsonResponse({ page: pageA }));
+      return Promise.reject(new Error(`unexpected ${url}`));
+    }));
+    const hook = hookRuntime.mount(() => useNotePages(true));
+    await flushMicrotasks();
+    await hook.current.select("a", "push");
+    await flushMicrotasks();
+
+    expect(await hook.current.remove("a")).toBe(false);
+    await flushMicrotasks();
+    expect(hook.current.trashError).toBe("Trash is unavailable.");
+    // 一覧の読み込み失敗（「再試行」で一覧を読み直す帯）には出さない。
+    expect(hook.current.error).toBe("");
+    expect(hook.current.activeId).toBe("a");
+    expect(hook.current.pages.map((page) => page.id)).toEqual(["a"]);
+    hook.current.clearTrashError();
+    await flushMicrotasks();
+    expect(hook.current.trashError).toBe("");
+  });
+
+  it("keeps pages created or renamed while a trash request is in flight", async () => {
+    createFakeBrowser();
+    const pageA = makePage("a", "Alpha", 1);
+    const pageB = makePage("b", "Beta", 1);
+    const pageChild = { ...makePage("c", "Child", 1), parentId: "a" };
+    const deleteA = deferred<Response>();
+    vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+      if (url === "/api/pages") return Promise.resolve(jsonResponse({ pages: [makeSummary(pageA), makeSummary(pageB), makeSummary(pageChild)], groups: [] }));
+      if (url === "/api/pages/a" && init?.method === "DELETE") return deleteA.promise;
+      return Promise.reject(new Error(`unexpected ${url}`));
+    }));
+    const hook = hookRuntime.mount(() => useNotePages(true));
+    await flushMicrotasks();
+
+    const removing = hook.current.remove("a");
+    await flushMicrotasks();
+    // 待っている間に、チャットから新しいページが作られ、別のページの名前が変わった。
+    window.dispatchEvent(new CustomEvent("notefable:page-created", { detail: makePage("n", "New", 1) }));
+    window.dispatchEvent(new CustomEvent("notefable:page-updated", { detail: makePage("b", "Beta renamed", 2) }));
+    await flushMicrotasks();
+    deleteA.resolve(jsonResponse({ ids: ["c"] }));
+    expect(await removing).toBe(true);
+    await flushMicrotasks();
+    const byId = new Map(hook.current.pages.map((page) => [page.id, page]));
+    expect([...byId.keys()].sort()).toEqual(["b", "n"]);
+    expect(byId.get("b")?.title).toBe("Beta renamed");
+  });
+
+  it("removes the trashed note from the URL without dropping the drawer's Back marker", async () => {
+    const { history } = createFakeBrowser("https://app.notefable.com/app?view=pages&page=a");
+    const pageA = makePage("a", "Alpha", 1);
+    vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+      if (url === "/api/pages") return Promise.resolve(jsonResponse({ pages: [makeSummary(pageA)], groups: [] }));
+      if (url === "/api/pages/a" && init?.method === "DELETE") return Promise.resolve(jsonResponse({ ids: [] }));
+      if (url === "/api/pages/a") return Promise.resolve(jsonResponse({ page: pageA }));
+      return Promise.reject(new Error(`unexpected ${url}`));
+    }));
+    const hook = hookRuntime.mount(() => useNotePages(true));
+    await flushMicrotasks();
+    expect(hook.current.activeId).toBe("a");
+    // モバイルのドロワーが開いている（目印の履歴にいる）。
+    history.pushState({ notefableSheet: true }, "");
+    vi.mocked(sheetHistory.restoreSheetMarker).mockClear();
+
+    expect(await hook.current.remove("a")).toBe(true);
+    await flushMicrotasks();
+    expect(hook.current.activeId).toBeNull();
+    expect(window.location.href).toBe("https://app.notefable.com/app?view=pages");
+    expect(sheetHistory.restoreSheetMarker).toHaveBeenCalledTimes(1);
+  });
+
+  it("restores the sheet marker when AI-undo trashing or a missing note cleans the URL", async () => {
+    const { history } = createFakeBrowser("https://app.notefable.com/app?view=pages&page=gone");
+    const pageA = makePage("a", "Alpha", 1);
+    vi.stubGlobal("fetch", vi.fn((url: string) => {
+      if (url === "/api/pages") return Promise.resolve(jsonResponse({ pages: [makeSummary(pageA)], groups: [] }));
+      if (url === "/api/pages/a") return Promise.resolve(jsonResponse({ page: pageA }));
+      return Promise.reject(new Error(`unexpected ${url}`));
+    }));
+    history.pushState({ notefableSheet: true }, "");
+    vi.mocked(sheetHistory.restoreSheetMarker).mockClear();
+    const hook = hookRuntime.mount(() => useNotePages(true));
+    await flushMicrotasks();
+    // 一覧に無いノートを指す URL：page= を外し、目印は積み直してもらう。
+    expect(window.location.href).toBe("https://app.notefable.com/app?view=pages");
+    expect(sheetHistory.restoreSheetMarker).toHaveBeenCalledTimes(1);
+
+    await hook.current.select("a", "push");
+    await flushMicrotasks();
+    history.pushState({ notefableSheet: true }, "");
+    vi.mocked(sheetHistory.restoreSheetMarker).mockClear();
+    window.dispatchEvent(new CustomEvent(PAGES_TRASHED_EVENT, { detail: { ids: ["a"] } }));
+    await flushMicrotasks();
+    expect(window.location.href).toBe("https://app.notefable.com/app?view=pages");
+    expect(sheetHistory.restoreSheetMarker).toHaveBeenCalledTimes(1);
   });
 });

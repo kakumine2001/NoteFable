@@ -289,3 +289,18 @@ describe("public share scrolling", () => {
     expect(declarations(slidesCss, /\.public-slides-topbar/).flex).toBe("none");
   });
 });
+
+describe("public note toggles and the table of contents", () => {
+  it("tells each toggle which headings it hides, including nested toggles and columns", async () => {
+    const { headingTargetsIn } = await import("./public-note-view");
+    const heading = (id: string, children: Block[] = []): Block => ({ id, type: "heading", props: { level: 2 }, content: [text(id)], children });
+    const children: Block[] = [
+      paragraph([text("intro")]),
+      { id: "inner", type: "toggleListItem", props: {}, content: [text("inner")], children: [heading("deep")] },
+      heading("toggle-heading", [heading("under-toggle-heading")]),
+      { id: "cols", type: "columnList", props: {}, children: [{ id: "col", type: "column", props: {}, children: [heading("in-column")] }] },
+    ];
+    expect(headingTargetsIn(children as never)).toEqual(["heading-deep", "heading-toggle-heading", "heading-under-toggle-heading", "heading-in-column"]);
+    expect(headingTargetsIn(undefined)).toEqual([]);
+  });
+});
