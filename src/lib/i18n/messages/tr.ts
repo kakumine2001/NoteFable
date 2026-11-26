@@ -1239,4 +1239,10 @@ export const tr: Record<string, string> = {
   "Regenerate outline": "Ana hattı yeniden oluştur",
   "Make a slide deck from this chat": "Bu sohbetten bir slayt destesi oluştur",
   "Generating slides…": "Slaytlar oluşturuluyor…",
+  "Turn into image": "Görsele dönüştür",
+  "Turn sketch into image": "Çizimi görsele dönüştür",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "İsteğe bağlı bir açıklama veya stil ekleyin. Her görsel planınızdan bir görsel oluşturma hakkı kullanır.",
+  "Selected sketch": "Seçilen çizim",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "İsteğe bağlı: suluboya illüstrasyon, sade 3B render, mimari diyagram…",
+  "Could not capture the selected sketch. Try again.": "Seçilen çizim yakalanamadı. Tekrar deneyin.",
 };

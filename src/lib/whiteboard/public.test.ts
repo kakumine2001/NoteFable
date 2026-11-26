@@ -69,4 +69,17 @@ describe("public whiteboards", () => {
     expect(JSON.stringify(scene)).not.toContain("secret");
     expect(scene.elements[0].customData).toBeUndefined();
   });
+
+  it("strips customData.generated from AI-generated whiteboard images on public shares", () => {
+    const scene = publicWhiteboardScene({
+      elements: [
+        image("ai", "a", { customData: { generated: { prompt: "Private internal prompt text" } } }),
+      ],
+      files: { a: { id: "a", mimeType: "image/png", dataURL: fileUrl } },
+    }, "tok", "page1");
+    expect(scene.elements).toHaveLength(1);
+    expect(scene.elements[0].customData).toBeUndefined();
+    expect(JSON.stringify(scene)).not.toContain("Private internal prompt text");
+    expect(JSON.stringify(scene)).not.toContain("generated");
+  });
 });

@@ -61,12 +61,35 @@ export function fitWhiteboardImageSize(naturalWidth: number, naturalHeight: numb
 }
 
 // AI で画像を 1 枚生成して note-files へ保存する（生成回数を 1 回使う）。
-export async function generatePageImage(prompt: string, size: GenerateImageSize): Promise<PageImage> {
-  const response = await fetch("/api/pages/images", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, size }),
-  });
+// referenceImage があるとき（ホワイトボードのスケッチ変換）は multipart/form-data で送り、参照画像自体はサーバーへ保存しない。
+export async function generatePageImage(
+  prompt: string,
+  size: GenerateImageSize,
+  options?: { referenceImage?: Blob | File },
+): Promise<PageImage> {
+  const reference = options?.referenceImage;
+  let response: Response;
+  if (reference) {
+    const form = new FormData();
+    form.set("size", size);
+    if (prompt) form.set("prompt", prompt);
+    const mime = reference.type || "image/png";
+    const fallbackName = mime === "image/webp" ? "sketch.webp" : mime === "image/jpeg" ? "sketch.jpg" : "sketch.png";
+    const file = reference instanceof File
+      ? reference
+      : new File([reference], fallbackName, { type: mime });
+    form.set("referenceImage", file, file.name || fallbackName);
+    response = await fetch("/api/pages/images", {
+      method: "POST",
+      body: form,
+    });
+  } else {
+    response = await fetch("/api/pages/images", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, size }),
+    });
+  }
   const data = await response.json().catch(() => null) as { url?: string; name?: string; mimeType?: string; error?: string; prompt?: string; reportToken?: string } | null;
   const usage = usageLimitErrorFrom(response.status, data);
   if (usage) throw usage;

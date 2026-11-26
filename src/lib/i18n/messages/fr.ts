@@ -1239,4 +1239,10 @@ export const fr: Record<string, string> = {
   "Regenerate outline": "Régénérer le plan",
   "Make a slide deck from this chat": "Créer une présentation à partir de cette discussion",
   "Generating slides…": "Génération des diapositives…",
+  "Turn into image": "Transformer en image",
+  "Turn sketch into image": "Transformer le croquis en image",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "Ajoutez une description ou un style facultatif. Chaque image utilise une génération d’image de votre forfait.",
+  "Selected sketch": "Croquis sélectionné",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "Facultatif : illustration à l’aquarelle, rendu 3D épuré, schéma d’architecture…",
+  "Could not capture the selected sketch. Try again.": "Impossible de capturer le croquis sélectionné. Réessayez.",
 };

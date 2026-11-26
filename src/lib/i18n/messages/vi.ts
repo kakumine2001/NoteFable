@@ -1239,4 +1239,10 @@ export const vi: Record<string, string> = {
   "Regenerate outline": "Tạo lại dàn ý",
   "Make a slide deck from this chat": "Tạo bản trình chiếu từ đoạn chat này",
   "Generating slides…": "Đang tạo bản trình chiếu…",
+  "Turn into image": "Biến thành ảnh",
+  "Turn sketch into image": "Biến phác thảo thành ảnh",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "Thêm mô tả hoặc phong cách tùy chọn. Mỗi ảnh sử dụng một lượt tạo ảnh trong gói của bạn.",
+  "Selected sketch": "Phác thảo đã chọn",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "Tùy chọn: minh họa màu nước, dựng hình 3D gọn gàng, sơ đồ kiến trúc…",
+  "Could not capture the selected sketch. Try again.": "Không thể chụp phần phác thảo đã chọn. Hãy thử lại.",
 };

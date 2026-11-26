@@ -1240,4 +1240,10 @@ export const ja: Record<string, string> = {
   "Regenerate outline": "構成を作り直す",
   "Make a slide deck from this chat": "このチャットからスライドを作成",
   "Generating slides…": "スライドを生成中…",
+  "Turn into image": "画像にする",
+  "Turn sketch into image": "スケッチを画像にする",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "説明やテイストを追加できます（任意）。画像はプランの画像生成回数を 1 回使います。",
+  "Selected sketch": "選択したスケッチ",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "任意：水彩イラスト、すっきりした 3D レンダー、構成図…",
+  "Could not capture the selected sketch. Try again.": "選択したスケッチを取得できませんでした。もう一度お試しください。",
 };
