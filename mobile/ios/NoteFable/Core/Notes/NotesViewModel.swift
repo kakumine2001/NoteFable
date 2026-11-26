@@ -35,6 +35,9 @@ final class NotesViewModel {
     @ObservationIgnored var revealInEditor: (@MainActor (String) -> Void)?
     /// 幻灯片的放映 / 导出（"…"菜单、放映中的返回）：交给网页编辑器（window.notefableEmbed.slides）。由界面在编辑器打开时设置。
     @ObservationIgnored var sendSlidesCommand: (@MainActor (String) -> Void)?
+    /// 别的页面改了名、换了图标或从回收站复原了（服务端写入成功之后）：让网页编辑器重读笔记下方的反向链接
+    /// （window.notefableEmbed.refreshBacklinks）。由界面在编辑器打开时设置。
+    @ObservationIgnored var refreshBacklinks: (@MainActor () -> Void)?
     /// 有页面移进了回收站（本地删除、聊天提案撤销）：通知常驻 WebView 清理对应缓存（即使当前未停留在编辑页）。
     @ObservationIgnored var notifyPagesTrashed: (@MainActor ([String]) -> Void)?
     /// 侧栏改了一篇的图标（服务端版本号加一）：把服务端返回的整篇页面 JSON 交给常驻 WebView 的缓存，下次从缓存打开时就是新版本。
@@ -391,6 +394,8 @@ final class NotesViewModel {
         case .missing: onEditorMissing(editor)
         case .trashed: onEditorTrashed(editor)
         case .openPage(let id): openNoteFromLink(id)
+        // 打开聊天要切标签页，由界面层（NoteEditorWebView）交给 AppRouter.openChat，不会走到这里。
+        case .openChat: break
         case .pagesChanged: refresh()
         case .storageLimit(let tier, let used, let limit):
             // 已经关掉或换走的编辑器晚到的消息不收。
@@ -702,6 +707,7 @@ final class NotesViewModel {
                     if state.open?.id == pageId { state.open?.title = page.title }
                 }
                 if let json = written.json { self.notifyPageUpdated?(pageId, json) }
+                self.refreshBacklinks?()
             }, value: true)
         } ?? false
     }
@@ -1072,6 +1078,7 @@ final class NotesViewModel {
                 }
                 if !applied { return false }
                 if let json = written.json { notifyPageUpdated?(pageId, json) }
+                refreshBacklinks?()
             }
             ok = true
             return true
@@ -1243,6 +1250,7 @@ final class NotesViewModel {
                     let remaining = state.trash?.items?.filter { $0.id != id }
                     state.trash?.items = remaining
                 }
+                self.refreshBacklinks?()
             }
         }
     }

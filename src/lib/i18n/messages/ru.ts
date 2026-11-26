@@ -21,6 +21,7 @@ export const ru: Record<string, string> = {
   "Page title": "Название страницы",
   "Rename page": "Переименовать страницу",
   "Table of contents": "Оглавление",
+  "Backlinks": "Обратные ссылки",
   "Visit website": "Перейти на сайт",
   "Account": "Аккаунт",
   "Actions": "Действия",
