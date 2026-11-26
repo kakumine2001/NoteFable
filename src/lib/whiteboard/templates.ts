@@ -91,7 +91,7 @@ function comparison(labels: TemplateLabels, newId: () => string): MindmapSkeleto
     for (let row = 0; row < 4; row++) {
       const text = row === 0 ? header[column] : column === 0 ? labels.comparison.point(row) : "";
       parts.push(box(newId(), x, row * 90, width, 90, text, {
-        fill: row === 0 ? "#f1f3f5" : "transparent", valign: "middle", align: column === 0 || row === 0 ? "left" : "left",
+        fill: row === 0 ? "#f1f3f5" : "transparent", valign: "middle",
         color: row === 0 ? TEXT : MUTED, fontSize: row === 0 ? 22 : 18,
       }));
     }
