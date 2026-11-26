@@ -237,6 +237,64 @@ button.whiteboard-zoom-value:hover { background: var(--notion-hover); }
   display: inline-grid;
   place-items: center;
 }
+.whiteboard-panel-sketch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 34px;
+  padding-block: 5px;
+  padding-inline: 10px;
+  border-radius: 9px;
+  border: 1px solid var(--notion-border-strong);
+  background: var(--notion-hover);
+  color: var(--notion-text);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+  transition: background-color .14s ease, border-color .14s ease;
+}
+.whiteboard-panel-sketch:hover { background: var(--notion-active); border-color: var(--nf-accent-line); }
+.whiteboard-panel-sketch:focus-visible { outline: 2px solid var(--nf-accent-line); outline-offset: 1px; }
+.whiteboard-panel-sketch-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.whiteboard-panel-foot {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--notion-border);
+}
+.whiteboard-panel-report {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 32px;
+  padding-inline: 10px;
+  border-radius: 8px;
+  background: var(--notion-hover);
+  color: var(--notion-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  transition: background-color .14s ease, color .14s ease;
+}
+.whiteboard-panel-report:hover { background: var(--notion-active); color: var(--notion-text); }
+.whiteboard-panel-report:focus-visible { outline: 2px solid var(--nf-accent-line); outline-offset: 1px; }
+.whiteboard-panel.is-report-only { padding: 8px; }
+.whiteboard-compact-secondary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.whiteboard-compact-secondary .whiteboard-panel-sketch,
+.whiteboard-compact-secondary .whiteboard-panel-report {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 0;
+  min-height: 32px;
+  font-size: 12.5px;
+}
 .whiteboard-actions-row {
   display: flex;
   flex-wrap: nowrap;
@@ -596,6 +654,12 @@ button.whiteboard-mindmap-badge:hover { background: var(--notion-hover); color: 
   width: auto;
   max-height: min(52vh, 420px);
   padding: 8px 10px 6px;
+}
+.whiteboard.is-readonly.is-compact .whiteboard-panel.is-report-only {
+  bottom: var(--wb-bottom);
+  inset-inline-start: 8px;
+  inset-inline-end: 72px;
+  padding: 6px;
 }
 .whiteboard.is-compact .whiteboard-panel.is-collapsed .whiteboard-section { display: inline-block; vertical-align: top; margin: 0 10px 4px 0; }
 [dir="rtl"] .whiteboard.is-compact .whiteboard-panel.is-collapsed .whiteboard-section { margin: 0 0 4px 10px; }

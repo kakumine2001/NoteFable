@@ -1252,4 +1252,10 @@ export const it: Record<string, string> = {
   "Generated {total} slide images.": "Generate {total} immagini delle diapositive.",
   "{count} slide images left to generate (up to {count} image credits).": "Restano {count} immagini delle diapositive da generare (fino a {count} crediti immagine).",
   "Could not save the generated image. Try again.": "Impossibile salvare l’immagine generata. Riprova.",
+  "Turn into image": "Trasforma in immagine",
+  "Turn sketch into image": "Trasforma lo schizzo in immagine",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "Aggiungi una descrizione o uno stile facoltativo. Ogni immagine usa una generazione di immagini del tuo piano.",
+  "Selected sketch": "Schizzo selezionato",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "Facoltativo: illustrazione ad acquerello, render 3D pulito, diagramma di architettura…",
+  "Could not capture the selected sketch. Try again.": "Impossibile acquisire lo schizzo selezionato. Riprova.",
 };

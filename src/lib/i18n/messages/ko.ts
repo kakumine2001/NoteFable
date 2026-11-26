@@ -1252,4 +1252,10 @@ export const ko: Record<string, string> = {
   "Generated {total} slide images.": "슬라이드 이미지 {total}장을 모두 생성했습니다.",
   "{count} slide images left to generate (up to {count} image credits).": "생성할 슬라이드 이미지가 {count}장 남았습니다(최대 이미지 크레딧 {count}회).",
   "Could not save the generated image. Try again.": "생성된 이미지를 저장하지 못했습니다. 다시 시도하세요.",
+  "Turn into image": "이미지로 변환",
+  "Turn sketch into image": "스케치를 이미지로 변환",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "설명이나 스타일을 선택적으로 추가하세요. 이미지마다 요금제의 이미지 생성 1회를 사용합니다.",
+  "Selected sketch": "선택한 스케치",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "선택 사항: 수채화 일러스트, 깔끔한 3D 렌더링, 아키텍처 다이어그램…",
+  "Could not capture the selected sketch. Try again.": "선택한 스케치를 캡처할 수 없습니다. 다시 시도해 주세요.",
 };

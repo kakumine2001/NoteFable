@@ -1252,4 +1252,10 @@ export const hi: Record<string, string> = {
   "Generated {total} slide images.": "{total} स्लाइड चित्र बन गए हैं।",
   "{count} slide images left to generate (up to {count} image credits).": "{count} स्लाइड चित्र बनाने बाकी हैं (अधिकतम {count} चित्र क्रेडिट)।",
   "Could not save the generated image. Try again.": "बनाया गया चित्र सहेजा नहीं जा सका। फिर से कोशिश करें।",
+  "Turn into image": "चित्र में बदलें",
+  "Turn sketch into image": "स्केच को चित्र में बदलें",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "वैकल्पिक विवरण या शैली जोड़ें। हर चित्र आपके प्लान के एक इमेज जनरेशन का उपयोग करता है।",
+  "Selected sketch": "चयनित स्केच",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "वैकल्पिक: वॉटरकलर चित्र, साफ 3D रेंडर, आर्किटेक्चर आरेख…",
+  "Could not capture the selected sketch. Try again.": "चयनित स्केच कैप्चर नहीं हो सका। फिर प्रयास करें।",
 };

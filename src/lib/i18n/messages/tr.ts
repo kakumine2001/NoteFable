@@ -1252,4 +1252,10 @@ export const tr: Record<string, string> = {
   "Generated {total} slide images.": "{total} slayt görseli oluşturuldu.",
   "{count} slide images left to generate (up to {count} image credits).": "Oluşturulacak {count} slayt görseli kaldı (en fazla {count} görsel kredisi).",
   "Could not save the generated image. Try again.": "Oluşturulan görsel kaydedilemedi. Tekrar deneyin.",
+  "Turn into image": "Görsele dönüştür",
+  "Turn sketch into image": "Çizimi görsele dönüştür",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "İsteğe bağlı bir açıklama veya stil ekleyin. Her görsel planınızdan bir görsel oluşturma hakkı kullanır.",
+  "Selected sketch": "Seçilen çizim",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "İsteğe bağlı: suluboya illüstrasyon, sade 3B render, mimari diyagram…",
+  "Could not capture the selected sketch. Try again.": "Seçilen çizim yakalanamadı. Tekrar deneyin.",
 };

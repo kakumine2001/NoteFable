@@ -1252,4 +1252,10 @@ export const ru: Record<string, string> = {
   "Generated {total} slide images.": "Создано {total} изображений слайдов.",
   "{count} slide images left to generate (up to {count} image credits).": "Осталось создать {count} изображений слайдов (до {count} генераций изображений).",
   "Could not save the generated image. Try again.": "Не удалось сохранить созданное изображение. Попробуйте ещё раз.",
+  "Turn into image": "Превратить в изображение",
+  "Turn sketch into image": "Превратить набросок в изображение",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "Добавьте описание или стиль (необязательно). Каждое изображение расходует 1 генерацию изображений из вашего тарифа.",
+  "Selected sketch": "Выбранный набросок",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "Необязательно: акварельная иллюстрация, аккуратный 3D-рендер, архитектурная схема…",
+  "Could not capture the selected sketch. Try again.": "Не удалось захватить выбранный набросок. Попробуйте ещё раз.",
 };

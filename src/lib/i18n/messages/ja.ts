@@ -1253,4 +1253,10 @@ export const ja: Record<string, string> = {
   "Generated {total} slide images.": "{total} 枚のスライド画像を生成しました。",
   "{count} slide images left to generate (up to {count} image credits).": "未生成のスライド画像が {count} 枚あります（最大 {count} 回分の画像生成枠）。",
   "Could not save the generated image. Try again.": "生成した画像を保存できませんでした。もう一度お試しください。",
+  "Turn into image": "画像にする",
+  "Turn sketch into image": "スケッチを画像にする",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "説明やテイストを追加できます（任意）。画像はプランの画像生成回数を 1 回使います。",
+  "Selected sketch": "選択したスケッチ",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "任意：水彩イラスト、すっきりした 3D レンダー、構成図…",
+  "Could not capture the selected sketch. Try again.": "選択したスケッチを取得できませんでした。もう一度お試しください。",
 };

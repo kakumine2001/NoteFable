@@ -1252,4 +1252,10 @@ export const vi: Record<string, string> = {
   "Generated {total} slide images.": "Đã tạo {total} hình ảnh trang chiếu.",
   "{count} slide images left to generate (up to {count} image credits).": "Còn {count} hình ảnh trang chiếu chưa tạo (tối đa {count} lượt tạo ảnh).",
   "Could not save the generated image. Try again.": "Không thể lưu hình ảnh đã tạo. Vui lòng thử lại.",
+  "Turn into image": "Biến thành ảnh",
+  "Turn sketch into image": "Biến phác thảo thành ảnh",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "Thêm mô tả hoặc phong cách tùy chọn. Mỗi ảnh sử dụng một lượt tạo ảnh trong gói của bạn.",
+  "Selected sketch": "Phác thảo đã chọn",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "Tùy chọn: minh họa màu nước, dựng hình 3D gọn gàng, sơ đồ kiến trúc…",
+  "Could not capture the selected sketch. Try again.": "Không thể chụp phần phác thảo đã chọn. Hãy thử lại.",
 };

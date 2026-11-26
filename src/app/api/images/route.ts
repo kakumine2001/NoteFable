@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { splitQuotedMessage } from "@/lib/chat-quote";
 import { getOrCreateUser } from "@/lib/auth";
 import { clientNetworkKey, consumeUsage, refundUsage, usageLimitResponse, type UsageTicket } from "@/lib/usage-limits";
-import { optionalEnv, requireEnv } from "@/lib/env";
 import {
   AttachmentValidationError,
   isImageFile,
@@ -10,7 +9,6 @@ import {
   validateMultipartRequestSize,
 } from "@/lib/files";
 import {
-  DEFAULT_IMAGE_MODEL,
   type ModelOption,
   normalizeModel,
   normalizeReasoning,
@@ -22,10 +20,10 @@ import { assertStorageRoom, discardStoredFiles, storageLimitResponse, storeFile 
 import { StorageLimitError } from "@/lib/usage-plans";
 import { buildImageContext } from "@/lib/image-context";
 import { loadChatUploads, parseUploadReferences } from "@/lib/chat-uploads";
-import { buildUpstreamErrorMessage, sanitizeErrorMessage } from "@/lib/upstream-errors";
+import { sanitizeErrorMessage } from "@/lib/upstream-errors";
 import { msg } from "@/lib/i18n/translate";
 import { getModelRegistry } from "@/lib/model-registry";
-import { createImageApiGeneration, findGeneratedImage, type ImageApiResponse } from "@/lib/image-generation";
+import { createImageApiEdit, createImageApiGeneration, findGeneratedImage, type ImageApiResponse } from "@/lib/image-generation";
 
 // 生成画像の取り出しは共通のモジュール（src/lib/image-generation.ts）。テストからはここ経由でも読める。
 export { findGeneratedImage };
@@ -151,14 +149,6 @@ function summarizeImageApiResponse(data?: ImageApiResponse) {
   };
 }
 
-function toImageApiSize(size: ImageSize) {
-  return size;
-}
-
-function toImageApiQuality(quality: ImageQuality) {
-  return quality;
-}
-
 async function prepareImageInputs(files: File[]) {
   // 参照画像はDB保存より先に、上流 Images API へ渡せる Buffer として組み立てる。
   const inputs: ImageInputAttachment[] = [];
@@ -183,56 +173,6 @@ async function prepareImageInputs(files: File[]) {
 function isSupportedImageGenerationInput(file: File) {
   // Images API が安定して受け取る画像形式だけを許可する。
   return SUPPORTED_IMAGE_GENERATION_INPUT_TYPES.has(file.type || "application/octet-stream");
-}
-
-async function createImageApiEdit(
-  prompt: string,
-  size: ImageSize,
-  quality: ImageQuality,
-  imageInputs: ImageInputAttachment[],
-) {
-  // 参照画像つき生成は Images API の edit endpoint を使う。
-  // Responses 経由だと互換プロキシで HTML timeout が返ることがある。
-  const apiKey = requireEnv("OPENAI_API_KEY");
-  const baseURL = optionalEnv("OPENAI_BASE_URL") || "https://api.openai.com/v1";
-  const formData = new FormData();
-
-  formData.append("model", optionalEnv("OPENAI_IMAGE_MODEL") || DEFAULT_IMAGE_MODEL);
-  formData.append("prompt", prompt);
-  formData.append("n", "1");
-  formData.append("size", toImageApiSize(size));
-  formData.append("quality", toImageApiQuality(quality));
-  formData.append("output_format", "png");
-
-  for (const image of imageInputs) {
-    const blob = new Blob([new Uint8Array(image.buffer)], { type: image.mimeType });
-    formData.append("image", blob, image.filename);
-  }
-
-  const response = await fetch(`${baseURL.replace(/\/$/, "")}/images/edits`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: formData,
-  });
-
-  const text = await response.text();
-  let data: ImageApiResponse = {};
-
-  try {
-    data = text ? (JSON.parse(text) as ImageApiResponse) : {};
-  } catch {
-    data = {};
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      data.error?.message ?? buildUpstreamErrorMessage("OpenAI", response.status, text),
-    );
-  }
-
-  return data;
 }
 
 export async function POST(request: Request) {

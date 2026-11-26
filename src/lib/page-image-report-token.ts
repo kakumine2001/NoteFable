@@ -7,13 +7,29 @@ export type PageImageReportClaims = { userId: string; path: string; prompt: stri
 
 const AUDIENCE = "notefable-page-image-report";
 const MAX_PROMPT_CHARS = 4_000;
+// Base64url 化しても MAX_REPORT_TOKEN_CHARS（8,192）に収まるよう、JWT 内の prompt は UTF-8 4,000 バイト以内に切る。
+const MAX_PROMPT_UTF8_BYTES = 4_000;
 const key = () => new TextEncoder().encode(getCookieSecret());
+
+function clipUtf8(text: string, maxBytes: number): string {
+  const sliced = text.slice(0, MAX_PROMPT_CHARS);
+  if (Buffer.byteLength(sliced, "utf8") <= maxBytes) return sliced;
+  let bytes = 0;
+  let end = 0;
+  for (const ch of sliced) {
+    const size = Buffer.byteLength(ch, "utf8");
+    if (bytes + size > maxBytes) break;
+    bytes += size;
+    end += ch.length;
+  }
+  return sliced.slice(0, end);
+}
 
 export async function issuePageImageReportToken(userId: string, payload: { path: string; prompt: string }): Promise<string> {
   const claims: PageImageReportClaims = {
     userId,
     path: payload.path,
-    prompt: payload.prompt.slice(0, MAX_PROMPT_CHARS),
+    prompt: clipUtf8(payload.prompt, MAX_PROMPT_UTF8_BYTES),
   };
   return new SignJWT(claims)
     .setProtectedHeader({ alg: "HS256" })

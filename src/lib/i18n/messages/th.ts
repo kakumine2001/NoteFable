@@ -1252,4 +1252,10 @@ export const th: Record<string, string> = {
   "Generated {total} slide images.": "สร้างรูปภาพสไลด์ครบ {total} รูปแล้ว",
   "{count} slide images left to generate (up to {count} image credits).": "เหลือรูปภาพสไลด์อีก {count} รูปที่ยังไม่ได้สร้าง (สูงสุด {count} เครดิตสร้างภาพ)",
   "Could not save the generated image. Try again.": "ไม่สามารถบันทึกรูปภาพที่สร้างได้ ลองอีกครั้ง",
+  "Turn into image": "แปลงเป็นรูปภาพ",
+  "Turn sketch into image": "แปลงภาพร่างเป็นรูปภาพ",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "เพิ่มคำอธิบายหรือสไตล์ได้ (ไม่บังคับ) แต่ละรูปจะใช้สิทธิ์สร้างรูปภาพ 1 ครั้งจากแผนของคุณ",
+  "Selected sketch": "ภาพร่างที่เลือก",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "ไม่บังคับ: ภาพวาดสีน้ำ เรนเดอร์ 3 มิติแบบเรียบสะอาด แผนภาพสถาปัตยกรรม…",
+  "Could not capture the selected sketch. Try again.": "ไม่สามารถจับภาพร่างที่เลือกได้ โปรดลองอีกครั้ง",
 };

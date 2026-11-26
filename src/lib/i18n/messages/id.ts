@@ -1252,4 +1252,10 @@ export const id: Record<string, string> = {
   "Generated {total} slide images.": "Berhasil membuat {total} gambar slide.",
   "{count} slide images left to generate (up to {count} image credits).": "Tersisa {count} gambar slide untuk dibuat (hingga {count} kredit gambar).",
   "Could not save the generated image. Try again.": "Tidak dapat menyimpan gambar yang dibuat. Coba lagi.",
+  "Turn into image": "Ubah jadi gambar",
+  "Turn sketch into image": "Ubah sketsa jadi gambar",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "Tambahkan deskripsi atau gaya opsional. Setiap gambar menggunakan satu kuota pembuatan gambar dari paket Anda.",
+  "Selected sketch": "Sketsa terpilih",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "Opsional: ilustrasi cat air, render 3D rapi, diagram arsitektur…",
+  "Could not capture the selected sketch. Try again.": "Tidak dapat mengambil sketsa yang dipilih. Coba lagi.",
 };

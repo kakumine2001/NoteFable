@@ -1252,4 +1252,10 @@ export const de: Record<string, string> = {
   "Generated {total} slide images.": "{total} Folienbilder generiert.",
   "{count} slide images left to generate (up to {count} image credits).": "Noch {count} Folienbilder zu generieren (bis zu {count} Bildguthaben).",
   "Could not save the generated image. Try again.": "Das generierte Bild konnte nicht gespeichert werden. Bitte erneut versuchen.",
+  "Turn into image": "In Bild umwandeln",
+  "Turn sketch into image": "Skizze in Bild umwandeln",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "Füge optional eine Beschreibung oder einen Stil hinzu. Jedes Bild verbraucht eine Bildgenerierung aus deinem Tarif.",
+  "Selected sketch": "Ausgewählte Skizze",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "Optional: Aquarellillustration, klares 3D-Rendering, Architekturdiagramm …",
+  "Could not capture the selected sketch. Try again.": "Die ausgewählte Skizze konnte nicht erfasst werden. Versuche es erneut.",
 };

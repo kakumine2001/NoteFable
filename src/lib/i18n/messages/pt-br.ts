@@ -1252,4 +1252,10 @@ export const ptBR: Record<string, string> = {
   "Generated {total} slide images.": "{total} imagens de slides geradas.",
   "{count} slide images left to generate (up to {count} image credits).": "Restam {count} imagens de slides para gerar (até {count} créditos de imagem).",
   "Could not save the generated image. Try again.": "Não foi possível salvar a imagem gerada. Tente novamente.",
+  "Turn into image": "Transformar em imagem",
+  "Turn sketch into image": "Transformar esboço em imagem",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "Adicione uma descrição ou estilo opcional. Cada imagem usa uma geração de imagem do seu plano.",
+  "Selected sketch": "Esboço selecionado",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "Opcional: ilustração em aquarela, renderização 3D limpa, diagrama de arquitetura…",
+  "Could not capture the selected sketch. Try again.": "Não foi possível capturar o esboço selecionado. Tente novamente.",
 };

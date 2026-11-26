@@ -1261,4 +1261,10 @@ export const zh: Record<string, string> = {
   "Generated {total} slide images.": "已生成全部 {total} 张配图。",
   "{count} slide images left to generate (up to {count} image credits).": "还有 {count} 张幻灯片配图待生成（最多消耗 {count} 次生图额度）。",
   "Could not save the generated image. Try again.": "无法保存生成的图片，请重试。",
+  "Turn into image": "变成图片",
+  "Turn sketch into image": "将草图变成图片",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "可补充说明或风格（可选）。每张图片会使用套餐中的 1 次生图额度。",
+  "Selected sketch": "已选草图",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "可选：水彩插画、简洁 3D 渲染、架构示意图…",
+  "Could not capture the selected sketch. Try again.": "无法导出所选草图，请重试。",
 };

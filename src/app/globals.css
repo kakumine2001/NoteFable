@@ -3600,6 +3600,31 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
   overflow-y: auto;
 }
 .ws-image-muted { margin: 6px 0 10px; color: var(--notion-muted); font-size: 13px; line-height: 1.45; }
+.ws-image-reference {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding: 8px 10px 10px;
+  border: 1px solid var(--notion-border);
+  border-radius: 10px;
+  background: var(--notion-sidebar);
+}
+.ws-image-reference-label {
+  color: var(--notion-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+.ws-image-reference-img {
+  display: block;
+  max-width: 100%;
+  max-height: 140px;
+  width: auto;
+  height: auto;
+  margin-inline: auto;
+  border-radius: 6px;
+  background: #ffffff;
+  object-fit: contain;
+}
 .ws-image-prompt { min-height: 84px; resize: vertical; line-height: 1.45; }
 .ws-image-sizes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .ws-image-size {
