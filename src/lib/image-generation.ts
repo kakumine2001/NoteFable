@@ -26,7 +26,16 @@ export function findGeneratedImage(data?: ImageApiResponse): string | undefined 
   return image?.b64_json;
 }
 
-export async function createImageApiGeneration(prompt: string, size: GenerationSize, quality: GenerationQuality) {
+export type ImageApiRequestOptions = {
+  signal?: AbortSignal;
+};
+
+export async function createImageApiGeneration(
+  prompt: string,
+  size: GenerationSize,
+  quality: GenerationQuality,
+  options?: ImageApiRequestOptions,
+) {
   // テキストだけの画像生成は Images API を使う。互換プロキシ経由の Responses 画像ツールは
   // 同期完了前に 524 HTML で切られることがある。
   const apiKey = requireEnv("OPENAI_API_KEY");
@@ -43,6 +52,7 @@ export async function createImageApiGeneration(prompt: string, size: GenerationS
       quality,
       output_format: "png",
     }),
+    ...(options?.signal ? { signal: options.signal } : {}),
   });
 
   const text = await response.text();
@@ -57,6 +67,7 @@ export async function createImageApiEdit(
   size: GenerationSize,
   quality: GenerationQuality,
   imageInputs: readonly ImageEditInput[],
+  options?: ImageApiRequestOptions,
 ) {
   // 参照画像つき生成は Images API の /images/edits を使う。
   // Responses 経由だと互換プロキシで HTML timeout が返ることがある。
@@ -82,6 +93,7 @@ export async function createImageApiEdit(
       Authorization: `Bearer ${apiKey}`,
     },
     body: formData,
+    ...(options?.signal ? { signal: options.signal } : {}),
   });
 
   const text = await response.text();

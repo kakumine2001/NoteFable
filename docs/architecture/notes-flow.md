@@ -151,7 +151,7 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 | `POST /api/pages/files` | 上传图片块/文件块的文件，返回 `{ url, name, size, kind }`，规则见“图片与文件”；存储用量放不下时 413 `code: "storage_limit"` |
 | `GET /api/pages/files?key=&name=` | 只返回当前用户自己的上传文件 |
 | `GET /api/pages/chat-images` / `POST /api/pages/chat-images` | 幻灯片的“聊天里的图片”：列出本人聊天里的图片附件 / 把一张复制成笔记文件，返回 `{ url, name, size }`（[slides.md](slides.md#图片)） |
-| `POST /api/pages/images` | 幻灯片的 “AI 生成图片” `{ prompt, size }`：计一次图片生成次数，结果存成笔记文件，返回 `{ url, name, size, prompt }`（[slides.md](slides.md#图片)） |
+| `POST /api/pages/images` | 工作区（笔记 / 白板 / 幻灯片）的“AI 生成图片”和白板“草图变图片”：JSON `{ prompt, size }` 走 `/images/generations`，multipart（可选 `referenceImage` PNG/JPEG/WebP ≤ 4 MiB，不落库 + 可选 `prompt` + `size`含 `auto`）走 `/images/edits`；计一次生图次数、失败退还，结果存成笔记文件，返回 `{ url, name, mimeType, size, prompt, reportToken }`（[image-flow.md](image-flow.md#2-图片生成)） |
 | `POST /api/pages/groups` | 新建分组 `{ name }` |
 | `PATCH` / `DELETE /api/pages/groups/:groupId` | 重命名 / 删除自己的分组 |
 | `PUT /api/pages/:id/group` | 把页面（连同子页面）移入自己的分组，或用 `{ groupId: null }` 移出；页面同时脱离父页面成为最上位。响应 `{ id, groupId, parentId: null, ids }` |

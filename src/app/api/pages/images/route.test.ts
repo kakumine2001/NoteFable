@@ -87,7 +87,12 @@ describe("POST /api/pages/images", () => {
     expect(typeof json.reportToken).toBe("string");
     expect(json.reportToken.length).toBeGreaterThan(20);
     expect(json.url).toContain("/api/pages/files?key=note-files%2Fuser-1%2F");
-    expect(mocks.createImageApiGeneration).toHaveBeenCalledWith("A calm lighthouse", "1024x1024", "auto");
+    expect(mocks.createImageApiGeneration).toHaveBeenCalledWith(
+      "A calm lighthouse",
+      "1024x1024",
+      "auto",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
     expect(mocks.storeFile).toHaveBeenCalledWith(
       { id: "user-1" },
       expect.objectContaining({ kind: "NOTE_FILE", mimeType: "image/png" }),
@@ -147,7 +152,8 @@ describe("POST /api/pages/images", () => {
       expect.stringContaining("sketch"),
       "auto",
       "auto",
-      [expect.objectContaining({ mimeType: "image/jpeg" })],
+      [expect.objectContaining({ filename: "sketch.jpg", mimeType: "image/jpeg" })],
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });
 

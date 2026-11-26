@@ -11,7 +11,7 @@ import { isSameOrigin } from "@/lib/native-google-login";
 import { clientNetworkKey, consumeReportQuota, refundUsage } from "@/lib/usage-limits";
 
 // AI が作った内容を開発者に通報する：回答（「…」メニューの「回答を報告」）、AI の提案カード、AI が書いたページ（ページの「…」メニュー）、
-// スライドの AI で作った画像（スライドの画像の設定）。
+// スライドやホワイトボードの AI で作った画像（pageId + elementId）、ワークスペース画像生成プレビュー（pageId + reportToken）。
 // 未ログインでも、自分のものなら送れる。ネイティブアプリの要求は Origin を付けないので通す。
 export async function POST(request: NextRequest) {
   if (!isSameOrigin(request.headers.get("origin"), request.headers.get("host"))) {

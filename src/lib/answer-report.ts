@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 
 // AI が作った内容の通報（Google Play の AI 生成コンテンツのポリシー：アプリ内で不快な AI 出力を開発者に知らせられること）。
 // 対象は 5 つ：チャットの回答（messageId）、AI の提案カード（proposalId：ページの編集・新規の案）、AI が書いたページ（pageId）、
-// スライドの AI で作った画像（pageId + elementId）、ワークスペースの画像生成プレビュー（pageId + reportToken）。
+// スライド・ホワイトボードの AI で作った画像（pageId + elementId）、ワークスペースの画像生成プレビュー（pageId + reportToken）。
 // 通報は開発者のメールに送るだけで、データベースには残さない。
 export const MAX_REPORT_REASON = 1000;
 const MAX_ANSWER_CHARS = 20_000;
@@ -26,7 +26,7 @@ export type ReportInput = { target: ReportTarget; reason: string };
 
 const validId = (value: unknown, max: number): value is string => typeof value === "string" && value.length > 0 && value.length <= max;
 
-// 本文の形。通報する対象（messageId・proposalId・pageId のどれか 1 つ。pageId に elementId を添えるとスライドの画像、
+// 本文の形。通報する対象（messageId・proposalId・pageId のどれか 1 つ。pageId に elementId を添えるとスライド・ホワイトボードの AI 画像、
 // reportToken を添えるとワークスペースで生成した画像）と、任意の理由。
 export function parseReport(body: unknown): { ok: true; data: ReportInput } | { ok: false } {
   if (!body || typeof body !== "object") return { ok: false };
@@ -39,7 +39,7 @@ export function parseReport(body: unknown): { ok: true; data: ReportInput } | { 
   if (text.length > MAX_REPORT_REASON) return { ok: false };
   if (elementId !== undefined && reportToken !== undefined) return { ok: false };
   if (elementId !== undefined) {
-    // 画像の要素はスライドのページと一緒にだけ。
+    // 画像の要素はスライド・ホワイトボードのページと一緒にだけ。
     if (kind !== "page" || !validId(id, 64) || !validId(elementId, 120)) return { ok: false };
     return { ok: true, data: { target: { kind: "slideImage", pageId: id, elementId }, reason: text } };
   }

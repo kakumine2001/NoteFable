@@ -1248,7 +1248,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
         elements: visible.map((element) => ({ ...element })) as NonDeletedExcalidrawElement[],
         files: snapFiles,
         viewBackgroundColor: "#ffffff",
-      });
+      }, undefined, { maxBytes: 3_500_000 });
       if (!mounted.current) return;
       if (!blob) {
         setNotice({ text: msg("Could not capture the selected sketch. Try again.") });

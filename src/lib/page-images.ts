@@ -73,10 +73,12 @@ export async function generatePageImage(
     const form = new FormData();
     form.set("size", size);
     if (prompt) form.set("prompt", prompt);
+    const mime = reference.type || "image/png";
+    const fallbackName = mime === "image/webp" ? "sketch.webp" : mime === "image/jpeg" ? "sketch.jpg" : "sketch.png";
     const file = reference instanceof File
       ? reference
-      : new File([reference], "sketch.png", { type: reference.type || "image/png" });
-    form.set("referenceImage", file, file.name || "sketch.png");
+      : new File([reference], fallbackName, { type: mime });
+    form.set("referenceImage", file, file.name || fallbackName);
     response = await fetch("/api/pages/images", {
       method: "POST",
       body: form,
