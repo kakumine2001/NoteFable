@@ -1271,4 +1271,11 @@ export const th: Record<string, string> = {
   "Selected sketch": "ภาพร่างที่เลือก",
   "Optional: watercolor illustration, clean 3D render, architectural diagram…": "ไม่บังคับ: ภาพวาดสีน้ำ เรนเดอร์ 3 มิติแบบเรียบสะอาด แผนภาพสถาปัตยกรรม…",
   "Could not capture the selected sketch. Try again.": "ไม่สามารถจับภาพร่างที่เลือกได้ โปรดลองอีกครั้ง",
+  "Ask AI to edit this slide deck…": "ขอให้ AI แก้ไขงานนำเสนอนี้…",
+  "Change tone": "เปลี่ยนน้ำเสียง",
+  "Merge slides": "รวมสไลด์",
+  "Restyle deck": "เปลี่ยนสไตล์ทั้งหมด",
+  "Rewrite": "เขียนใหม่",
+  "Split into two slides": "แบ่งเป็นสองสไลด์",
+  "Write speaker notes": "เขียนบันทึกผู้บรรยาย",
 };

@@ -516,7 +516,7 @@ function readSlidesSegments(segments: CanvasSegment[], budget: number, focusIds?
   return out.join("\n");
 }
 
-function readSlides(page: AdapterPage, budget: number): string {
+export function readSlides(page: AdapterPage, budget: number): string {
   if (!isRecord(page.data) || !Array.isArray(page.data.slides)) {
     return readSlidesSegments(page.segments ?? [], budget, page.focusIds);
   }

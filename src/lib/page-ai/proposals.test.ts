@@ -706,4 +706,53 @@ describe("canvas proposal before/after versioned preview (proposalContent)", () 
     expect(db.revisions).toHaveLength(2);
     expect(db.revisions[1]).toMatchObject({ reason: "RESTORE", version: 2, data: wbAfter });
   });
+
+  it("serves before/after content for slides proposals, applies with AI_EDIT revision, undoes cleanly, and refuses auto-apply on locked slide decks", async () => {
+    const slidesBefore = { format: 1, theme: { id: "simple", mode: "light" }, slides: [{ id: "s1", layout: "title", elements: [] }] };
+    const slidesAfter = { format: 1, theme: { id: "tech", mode: "dark" }, slides: [{ id: "s1", layout: "title", elements: [] }] };
+    db.pages.push({ kind: "slides", id: "deck_lock", userId: "u1", title: "Deck", icon: null, blocks: [], version: 2, deletedAt: null, locked: true });
+    db.canvases.push({ noteId: "deck_lock", data: slidesBefore, segments: [], hash: "h", size: 10 });
+
+    const view = await saveProposal("u1", "s1", {
+      kind: "EDIT",
+      pageKind: "slides",
+      page: { id: "deck_lock", title: "Deck", version: 2 },
+      draft: {
+        changes: [{ op: "update", block: 0, before: "Theme: simple (light)", after: "Theme: tech (dark)" }],
+        focusIds: ["s1"],
+        proposed: { title: "Deck", data: slidesAfter },
+      },
+    });
+
+    // Pending before/after preview serves live slides before and proposed slides after with focusIds.
+    expect(await proposalContent("u1", view.id, "before")).toMatchObject({
+      ok: true,
+      content: { kind: "edit", pageKind: "slides", status: "pending", side: "before", data: slidesBefore, focusIds: ["s1"] },
+    });
+    expect(await proposalContent("u1", view.id, "after")).toMatchObject({
+      ok: true,
+      content: { kind: "edit", pageKind: "slides", status: "pending", side: "after", data: slidesAfter, focusIds: ["s1"] },
+    });
+
+    // Auto-apply refuses a locked slide deck cleanly and keeps proposal pending.
+    expect(await applyProposal("u1", view.id, { auto: true })).toMatchObject({ ok: false, httpStatus: 409 });
+    expect(db.proposals.find((p) => p.id === view.id)?.status).toBe("PENDING");
+    expect(db.canvases[0].data).toEqual(slidesBefore);
+
+    // Manual apply creates AI_EDIT revision, bumps version, and before preview reads from revision snapshot.
+    const applied = await applyProposal("u1", view.id);
+    expect(applied).toMatchObject({ ok: true, kind: "edit", page: { id: "deck_lock", version: 3, data: slidesAfter } });
+    expect(db.revisions).toHaveLength(1);
+    expect(db.revisions[0]).toMatchObject({ reason: "AI_EDIT", version: 2, data: slidesBefore });
+    expect(await proposalContent("u1", view.id, "before")).toMatchObject({
+      ok: true,
+      content: { status: "applied", side: "before", data: slidesBefore },
+    });
+
+    // Undo restores slidesBefore and records RESTORE revision.
+    const undone = await undoProposal("u1", view.id);
+    expect(undone).toMatchObject({ ok: true, status: "undone", page: { id: "deck_lock", version: 4, data: slidesBefore } });
+    expect(db.revisions).toHaveLength(2);
+    expect(db.revisions[1]).toMatchObject({ reason: "RESTORE", version: 3, data: slidesAfter });
+  });
 });

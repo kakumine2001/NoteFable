@@ -1271,4 +1271,11 @@ export const ptBR: Record<string, string> = {
   "Selected sketch": "Esboço selecionado",
   "Optional: watercolor illustration, clean 3D render, architectural diagram…": "Opcional: ilustração em aquarela, renderização 3D limpa, diagrama de arquitetura…",
   "Could not capture the selected sketch. Try again.": "Não foi possível capturar o esboço selecionado. Tente novamente.",
+  "Ask AI to edit this slide deck…": "Peça à IA para editar esta apresentação…",
+  "Change tone": "Mudar o tom",
+  "Merge slides": "Mesclar slides",
+  "Restyle deck": "Mudar estilo",
+  "Rewrite": "Reescrever",
+  "Split into two slides": "Dividir em dois slides",
+  "Write speaker notes": "Escrever notas do apresentador",
 };

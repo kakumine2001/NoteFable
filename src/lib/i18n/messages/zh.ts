@@ -1280,4 +1280,11 @@ export const zh: Record<string, string> = {
   "Selected sketch": "已选草图",
   "Optional: watercolor illustration, clean 3D render, architectural diagram…": "可选：水彩插画、简洁 3D 渲染、架构示意图…",
   "Could not capture the selected sketch. Try again.": "无法导出所选草图，请重试。",
+  "Ask AI to edit this slide deck…": "让 AI 编辑这套幻灯片…",
+  "Change tone": "调整语气",
+  "Merge slides": "合并幻灯片",
+  "Restyle deck": "整套换风格",
+  "Rewrite": "改写",
+  "Split into two slides": "拆成两页",
+  "Write speaker notes": "写演讲备注",
 };

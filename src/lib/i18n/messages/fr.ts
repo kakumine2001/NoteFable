@@ -1271,4 +1271,11 @@ export const fr: Record<string, string> = {
   "Selected sketch": "Croquis sélectionné",
   "Optional: watercolor illustration, clean 3D render, architectural diagram…": "Facultatif : illustration à l’aquarelle, rendu 3D épuré, schéma d’architecture…",
   "Could not capture the selected sketch. Try again.": "Impossible de capturer le croquis sélectionné. Réessayez.",
+  "Ask AI to edit this slide deck…": "Demander à l'IA de modifier cette présentation…",
+  "Change tone": "Changer le ton",
+  "Merge slides": "Fusionner les diapositives",
+  "Restyle deck": "Changer le style",
+  "Rewrite": "Réécrire",
+  "Split into two slides": "Diviser en deux diapositives",
+  "Write speaker notes": "Rédiger les notes du présentateur",
 };

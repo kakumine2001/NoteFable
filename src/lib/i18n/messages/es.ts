@@ -1271,4 +1271,11 @@ export const es: Record<string, string> = {
   "Selected sketch": "Boceto seleccionado",
   "Optional: watercolor illustration, clean 3D render, architectural diagram…": "Opcional: ilustración en acuarela, render 3D limpio, diagrama de arquitectura…",
   "Could not capture the selected sketch. Try again.": "No se pudo capturar el boceto seleccionado. Inténtalo de nuevo.",
+  "Ask AI to edit this slide deck…": "Pide a la IA que edite esta presentación…",
+  "Change tone": "Cambiar el tono",
+  "Merge slides": "Combinar diapositivas",
+  "Restyle deck": "Cambiar estilo",
+  "Rewrite": "Reescribir",
+  "Split into two slides": "Dividir en dos diapositivas",
+  "Write speaker notes": "Escribir notas del orador",
 };

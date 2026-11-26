@@ -1272,4 +1272,11 @@ export const ja: Record<string, string> = {
   "Selected sketch": "選択したスケッチ",
   "Optional: watercolor illustration, clean 3D render, architectural diagram…": "任意：水彩イラスト、すっきりした 3D レンダー、構成図…",
   "Could not capture the selected sketch. Try again.": "選択したスケッチを取得できませんでした。もう一度お試しください。",
+  "Ask AI to edit this slide deck…": "AI にこのスライドの編集を頼む…",
+  "Change tone": "トーンを変える",
+  "Merge slides": "スライドを統合",
+  "Restyle deck": "スタイルを一括変更",
+  "Rewrite": "書き直す",
+  "Split into two slides": "2 枚に分割",
+  "Write speaker notes": "発表者ノートを書く",
 };

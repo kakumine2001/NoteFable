@@ -117,7 +117,8 @@ const FALLBACK_ROLES: Record<Role, Role[]> = {
 // 置き場所の要素に中身があるか（空の置き場所は版式を替えると消える）。
 export function placeholderHasContent(element: SlideElement): boolean {
   if (element.type === "text" || element.type === "shape") return !isRichDocEmpty(element.doc);
-  if (element.type === "image" || element.type === "whiteboard") return !!element.src;
+  if (element.type === "image") return Boolean(element.src || element.pendingImagePrompt);
+  if (element.type === "whiteboard") return Boolean(element.src);
   return true;
 }
 

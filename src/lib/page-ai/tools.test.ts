@@ -120,7 +120,7 @@ describe("page tools", () => {
     expect(result.content).toContain("[Truncated");
   });
 
-  it("shows a whiteboard with edit instructions and a slide deck as structured read-only content with IDs", async () => {
+  it("shows whiteboards and slide decks as structured content with edit instructions and IDs", async () => {
     mocks.findFirst.mockResolvedValue({ id: "w1", kind: "whiteboard", title: "Plan", version: 2, blocks: [], updatedAt, canvas: { segments: [{ id: "e1", text: "Goal" }, { id: "e2", text: "Risks" }] } });
     mocks.canvas.mockResolvedValue({
       data: {
@@ -153,6 +153,7 @@ describe("page tools", () => {
     const deck = await runPageTool("read_note", { noteId: "s1" }, ctx);
     expect(mocks.canvas).toHaveBeenCalledWith(expect.objectContaining({ where: { noteId: "s1", note: { userId: "mine", deletedAt: null } } }));
     expect(deck.content).toContain("This page is a slide deck, not a note.");
+    expect(deck.content).toContain("propose_slides_edit");
     expect(deck.content).toContain("## Slide 1 (id: a, layout: blank)\n- Intro");
     expect(deck.content).toContain("## Slide 2 (id: b, layout: blank) [hidden]\n(no text)");
     expect(deck.content).toContain("## Slide 3 (id: c, layout: blank)\n- Summary");

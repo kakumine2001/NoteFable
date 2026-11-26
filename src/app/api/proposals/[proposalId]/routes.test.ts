@@ -106,6 +106,23 @@ describe("GET /api/proposals/:id/content", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
     expect(await response.json()).toEqual(payload);
+
+    const slidesPayload = {
+      kind: "edit",
+      pageKind: "slides",
+      status: "pending",
+      side: "before",
+      title: "Q4 Deck",
+      changes: [{ op: "update", block: 0, target: { type: "slide", number: 1 }, before: "Old", after: "New" }],
+      focusIds: ["s1"],
+      data: { format: 1, theme: { id: "simple", mode: "light" }, slides: [{ id: "s1", layout: "title", elements: [] }] },
+    };
+    mocks.content.mockResolvedValue({ ok: true, content: slidesPayload });
+    const slidesRes = await get("?side=before");
+    expect(mocks.content).toHaveBeenCalledWith("u1", "prop1", "before");
+    expect(slidesRes.status).toBe(200);
+    expect(slidesRes.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(await slidesRes.json()).toEqual(slidesPayload);
   });
 
   it("rejects invalid side params, forwards 404/400 errors, and answers 503 on DB error", async () => {

@@ -70,10 +70,11 @@ const WHITEBOARD_ACTIONS = [
   { label: msg("Suggest next steps"), prompt: "Suggest concrete next steps based on this whiteboard, in its own language. Do not change it." },
 ] as const;
 const SLIDES_ACTIONS = [
+  { label: msg("Restyle deck"), prompt: "Restyle this entire slide deck by choosing a better built-in theme, light or dark mode, and per-slide layouts using propose_slides_edit (restyle_deck). Do not change any slide text or speaker notes." },
   { label: msg("Summarize"), prompt: "Summarize this slide deck in a few bullet points, in its own language. Do not change it." },
   { label: msg("Suggest improvements"), prompt: "Suggest how to improve this slide deck (structure, clarity and wording), in its own language. Do not change it." },
 ] as const;
-// ホワイトボード・スライドで選んだ要素・スライドについての頼み事（ホワイトボードの「Group & organize」は propose_whiteboard_edit を使う）。
+// ホワイトボード・スライドで選んだ要素・スライドについての頼み事（編集系アクションはそれぞれの propose_*_edit を使う）。
 const WHITEBOARD_SELECTION_ACTIONS = [
   { label: msg("Summarize"), prompt: "Summarize the selected items in their own language. Do not change the page unless asked." },
   { label: msg("Explain"), prompt: "Explain the selected items clearly in their own language. Do not change the page unless asked." },
@@ -86,10 +87,13 @@ const LEGACY_WHITEBOARD_PROMPTS: readonly QuickAction[] = [
   { label: msg("Group & organize"), prompt: "Suggest how to group and organize the selected items, in their own language. Do not change the page unless asked." },
 ];
 const SLIDES_SELECTION_ACTIONS = [
-  { label: msg("Summarize"), prompt: "Summarize the selected items in their own language. Do not change the page unless asked." },
-  { label: msg("Explain"), prompt: "Explain the selected items clearly in their own language. Do not change the page unless asked." },
-  { label: msg("Find gaps"), prompt: "Point out what is missing or unclear in the selected items, in their own language. Do not change the page unless asked." },
-  { label: msg("Suggest next steps"), prompt: "Suggest concrete next steps based on the selected items, in their own language. Do not change the page unless asked." },
+  { label: msg("Rewrite"), prompt: "Rewrite the selected slide or elements to be clearer and more engaging using propose_slides_edit, keeping the same language." },
+  { label: msg("Make it shorter"), prompt: "Make the selected slide or elements shorter and punchier without losing the key points using propose_slides_edit, keeping the same language." },
+  { label: msg("Expand"), prompt: "Expand the selected slide or elements with clearer detail and supporting points using propose_slides_edit, keeping the same language." },
+  { label: msg("Change tone"), prompt: "Adjust the tone of the selected slide or elements to be more polished and clear for a presentation using propose_slides_edit, keeping the same language." },
+  { label: msg("Write speaker notes"), prompt: "Write clear, natural speaker notes for the selected slide(s) using propose_slides_edit, keeping the same language." },
+  { label: msg("Split into two slides"), prompt: "Split the selected slide into two focused, well-balanced slides using propose_slides_edit (split_slide), keeping the same language." },
+  { label: msg("Merge slides"), prompt: "Merge the selected slides into one concise, well-structured slide using propose_slides_edit (merge_slides), keeping the same language." },
 ] as const;
 
 const ACTION_LABEL_BY_PROMPT = new Map<string, string>(
@@ -112,7 +116,7 @@ const KIND_TEXT: Record<PageKind, { title: string; placeholder: string; history:
     readOnly: msg("Ask the AI about this whiteboard. It can read the text on it but can't change it yet."),
   },
   slides: {
-    title: msg("Ask AI about this slide deck"), placeholder: msg("Ask AI about this slide deck…"), history: msg("Chats on this page"),
+    title: msg("Ask AI about this slide deck"), placeholder: msg("Ask AI to edit this slide deck…"), history: msg("Chats on this page"),
     readOnly: msg("Ask the AI about this slide deck. It can read the text on it but can't change it yet."),
   },
 };

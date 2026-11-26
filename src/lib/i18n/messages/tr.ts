@@ -1271,4 +1271,11 @@ export const tr: Record<string, string> = {
   "Selected sketch": "Seçilen çizim",
   "Optional: watercolor illustration, clean 3D render, architectural diagram…": "İsteğe bağlı: suluboya illüstrasyon, sade 3B render, mimari diyagram…",
   "Could not capture the selected sketch. Try again.": "Seçilen çizim yakalanamadı. Tekrar deneyin.",
+  "Ask AI to edit this slide deck…": "AI'dan bu sunumu düzenlemesini isteyin…",
+  "Change tone": "Tonu değiştir",
+  "Merge slides": "Slaytları birleştir",
+  "Restyle deck": "Stili yenile",
+  "Rewrite": "Yeniden yaz",
+  "Split into two slides": "İki slayta böl",
+  "Write speaker notes": "Konuşmacı notları yaz",
 };

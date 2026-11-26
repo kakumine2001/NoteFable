@@ -20,6 +20,7 @@ import { SlideStage, type StageHandle } from "@/components/slides/slide-stage";
 import type { TextCommands } from "@/components/slides/text-editor";
 import { useAccount } from "@/lib/account-store";
 import type { CanvasData } from "@/lib/canvas-document";
+import { registerCanvasFlusher } from "@/lib/canvas-flush";
 import { getNativeExportEpoch } from "@/lib/export-file";
 import { localizeSystemText } from "@/lib/i18n/translate";
 import { nativeCanPresent, nativeCanShowUsageLimit, postToNative } from "@/lib/native-bridge";
@@ -58,6 +59,8 @@ type History = { deck: Deck; past: Deck[]; future: Deck[]; merge: string | null;
 const HISTORY_LIMIT = 100;
 // 同じ操作（文字の入力・ノート・矢印キーでの移動など）が続く間は、取り消しを 1 回分にまとめる。
 const MERGE_MS = 1500;
+// 提案の適用・元に戻す・編集画面を閉じる前の flush で、アップロード中の画像を待つ時間。
+const UPLOAD_FLUSH_WAIT_MS = 10_000;
 
 function isTypingTarget(target: EventTarget | null) {
   const element = target as HTMLElement | null;
@@ -78,11 +81,60 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   const [history, setHistory] = useState<History>({ deck: initial.deck, past: [], future: [], merge: null, mergedAt: 0 });
   const deck = history.deck;
   const sent = useRef<Deck | null>(initial.seeded ? null : initial.deck);
+  const onChangeRef = useRef(onChange);
+  useLayoutEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+  // 待ったあと（アップロード・生成の完了）や同期 flush に、いま最新の本体を読むため。
+  const deckRef = useRef(deck);
+  useLayoutEffect(() => { deckRef.current = deck; }, [deck]);
+  const mounted = useRef(true);
+  const uploadTasks = useRef(new Set<Promise<void>>());
+
+  const flushPending = useCallback(() => {
+    const latest = deckRef.current;
+    if (sent.current === latest) return;
+    sent.current = latest;
+    onChangeRef.current(latest as unknown as CanvasData);
+  }, []);
+
   useEffect(() => {
-    if (sent.current === deck) return;
-    sent.current = deck;
-    onChange(deck as unknown as CanvasData);
-  }, [deck, onChange]);
+    flushPending();
+  }, [deck, flushPending]);
+
+  // 閉じる時・画面が隠れる時・提案の適用/元に戻す前に、まだ保存キューへ渡していない変更とアップロード中画像を渡し切る。
+  const flushRef = useRef(flushPending);
+  useLayoutEffect(() => { flushRef.current = flushPending; }, [flushPending]);
+  useEffect(() => {
+    mounted.current = true;
+    const onVisibility = () => { if (document.visibilityState === "hidden") flushRef.current(); };
+    const onPageHide = () => flushRef.current();
+    window.addEventListener("visibilitychange", onVisibility, true);
+    window.addEventListener("pagehide", onPageHide, true);
+    return () => {
+      mounted.current = false;
+      window.removeEventListener("visibilitychange", onVisibility, true);
+      window.removeEventListener("pagehide", onPageHide, true);
+      flushRef.current();
+    };
+  }, []);
+  useEffect(() => registerCanvasFlusher(
+    async () => {
+      flushRef.current();
+      if (!uploadTasks.current.size) return true;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([
+        Promise.allSettled([...uploadTasks.current]),
+        new Promise<void>((resolve) => { timer = setTimeout(resolve, UPLOAD_FLUSH_WAIT_MS); }),
+      ]);
+      clearTimeout(timer);
+      flushRef.current();
+      return uploadTasks.current.size === 0;
+    },
+    () => {
+      flushRef.current();
+      return uploadTasks.current.size > 0;
+    },
+    pageId,
+  ), [pageId]);
 
   // 新しい本体か、最新の本体から新しい本体を作る関数（アップロードの完了など、待ったあとの変更は関数で渡す）。
   // 読み取り専用（ロック中・作成や削除の途中）のあいだは、どこから来た変更も受け付けない（保存もされない）。
@@ -90,21 +142,35 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   useLayoutEffect(() => { editableRef.current = editable; }, [editable]);
   const commit = useCallback((change: Deck | ((deck: Deck) => Deck), merge?: string) => {
     if (!editableRef.current) return;
+    const prev = deckRef.current;
+    const next = typeof change === "function" ? change(prev) : change;
+    if (next === prev) return;
+    deckRef.current = next;
     setHistory((current) => {
-      const next = typeof change === "function" ? change(current.deck) : change;
-      if (next === current.deck) return current;
       const now = Date.now();
       const merging = !!merge && current.merge === merge && now - current.mergedAt < MERGE_MS;
       return { deck: next, past: merging ? current.past : [...current.past, current.deck].slice(-HISTORY_LIMIT), future: [], merge: merge ?? null, mergedAt: now };
     });
   }, []);
   // 文字の編集中は閉じてから戻す（開いている文字の編集は外からの変更を取り込まない）。
-  const undo = useCallback(() => { setEditing(null); setHistory((current) => (current.past.length ? { deck: current.past[current.past.length - 1], past: current.past.slice(0, -1), future: [current.deck, ...current.future], merge: null, mergedAt: 0 } : current)); }, []);
-  const redo = useCallback(() => { setEditing(null); setHistory((current) => (current.future.length ? { deck: current.future[0], past: [...current.past, current.deck], future: current.future.slice(1), merge: null, mergedAt: 0 } : current)); }, []);
-
-  // 待ったあと（アップロード・生成の完了）に、いま見えている本体を読むため。
-  const deckRef = useRef(deck);
-  useLayoutEffect(() => { deckRef.current = deck; }, [deck]);
+  const undo = useCallback(() => {
+    setEditing(null);
+    setHistory((current) => {
+      if (!current.past.length) return current;
+      const next = current.past[current.past.length - 1];
+      deckRef.current = next;
+      return { deck: next, past: current.past.slice(0, -1), future: [current.deck, ...current.future], merge: null, mergedAt: 0 };
+    });
+  }, []);
+  const redo = useCallback(() => {
+    setEditing(null);
+    setHistory((current) => {
+      if (!current.future.length) return current;
+      const next = current.future[0];
+      deckRef.current = next;
+      return { deck: next, past: [...current.past, current.deck], future: current.future.slice(1), merge: null, mergedAt: 0 };
+    });
+  }, []);
 
   // AI スライド生成の逐页配図（slides-image-jobs.ts）と同期する：開いている間はエディターの commit 経由で差し込み、409 競合や再マウントを防ぐ。
   const { account } = useAccount();
@@ -400,14 +466,24 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     if (!images.length) { setNotice(t("Choose a PNG, JPEG, WebP or GIF image.")); return; }
     setNotice("");
     const slideId = current?.id ?? null;
-    for (const [index, file] of images.entries()) {
-      try {
-        const image = await uploadSlideImage(file);
-        placeImage(image, index === 0 ? target : null, at ? { x: at.x + index * 24, y: at.y + index * 24 } : undefined, slideId);
-      } catch (caught) {
-        if (!(caught instanceof StorageLimitError)) setNotice(caught instanceof Error ? caught.message : t("Upload failed. Try again."));
-        return;
+    const task = (async () => {
+      for (const [index, file] of images.entries()) {
+        try {
+          const image = await uploadSlideImage(file);
+          if (!mounted.current) return;
+          placeImage(image, index === 0 ? target : null, at ? { x: at.x + index * 24, y: at.y + index * 24 } : undefined, slideId);
+        } catch (caught) {
+          if (!mounted.current) return;
+          if (!(caught instanceof StorageLimitError)) setNotice(caught instanceof Error ? caught.message : t("Upload failed. Try again."));
+          return;
+        }
       }
+    })();
+    uploadTasks.current.add(task);
+    try {
+      await task;
+    } finally {
+      uploadTasks.current.delete(task);
     }
   }, [current, placeImage, t]);
 
