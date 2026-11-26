@@ -1239,4 +1239,10 @@ export const es: Record<string, string> = {
   "Regenerate outline": "Regenerar esquema",
   "Make a slide deck from this chat": "Crear una presentación a partir de este chat",
   "Generating slides…": "Generando diapositivas…",
+  "Turn into image": "Convertir en imagen",
+  "Turn sketch into image": "Convertir boceto en imagen",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "Añade una descripción o estilo opcional. Cada imagen usa una generación de imágenes de tu plan.",
+  "Selected sketch": "Boceto seleccionado",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "Opcional: ilustración en acuarela, render 3D limpio, diagrama de arquitectura…",
+  "Could not capture the selected sketch. Try again.": "No se pudo capturar el boceto seleccionado. Inténtalo de nuevo.",
 };

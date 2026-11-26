@@ -1239,4 +1239,10 @@ export const ko: Record<string, string> = {
   "Regenerate outline": "개요 다시 생성",
   "Make a slide deck from this chat": "이 채팅으로 슬라이드 만들기",
   "Generating slides…": "슬라이드를 생성하는 중…",
+  "Turn into image": "이미지로 변환",
+  "Turn sketch into image": "스케치를 이미지로 변환",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "설명이나 스타일을 선택적으로 추가하세요. 이미지마다 요금제의 이미지 생성 1회를 사용합니다.",
+  "Selected sketch": "선택한 스케치",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "선택 사항: 수채화 일러스트, 깔끔한 3D 렌더링, 아키텍처 다이어그램…",
+  "Could not capture the selected sketch. Try again.": "선택한 스케치를 캡처할 수 없습니다. 다시 시도해 주세요.",
 };

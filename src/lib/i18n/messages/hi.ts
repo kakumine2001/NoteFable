@@ -1239,4 +1239,10 @@ export const hi: Record<string, string> = {
   "Regenerate outline": "रूपरेखा फिर बनाएं",
   "Make a slide deck from this chat": "इस चैट से स्लाइड डेक बनाएं",
   "Generating slides…": "स्लाइड बनाई जा रही हैं…",
+  "Turn into image": "चित्र में बदलें",
+  "Turn sketch into image": "स्केच को चित्र में बदलें",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "वैकल्पिक विवरण या शैली जोड़ें। हर चित्र आपके प्लान के एक इमेज जनरेशन का उपयोग करता है।",
+  "Selected sketch": "चयनित स्केच",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "वैकल्पिक: वॉटरकलर चित्र, साफ 3D रेंडर, आर्किटेक्चर आरेख…",
+  "Could not capture the selected sketch. Try again.": "चयनित स्केच कैप्चर नहीं हो सका। फिर प्रयास करें।",
 };

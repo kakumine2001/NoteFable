@@ -158,6 +158,25 @@ export function slideImageReportEmail(report: { userId: string; signedIn: boolea
   return { subject: `[NoteFable] Reported slide image ${plain(report.pageId)}/${plain(report.elementId)}`, text: lines.join("\n") };
 }
 
+// ホワイトボードの AI で作った画像の報告メール。作るときの説明（プロンプト）と保存先のパスを付ける。
+export function whiteboardImageReportEmail(report: { userId: string; signedIn: boolean; pageId: string; elementId: string; prompt: string; path: string; reason: string }) {
+  const lines = [
+    `Reason: ${report.reason || "(none given)"}`,
+    "",
+    `User: ${report.userId} (${report.signedIn ? "signed in" : "anonymous"})`,
+    `Whiteboard: ${report.pageId}`,
+    `Image element: ${report.elementId}`,
+    "",
+    "--- Image prompt ---",
+    clip(report.prompt, MAX_PROMPT_CHARS),
+    "",
+    "--- Image (storage path) ---",
+    report.path,
+  ];
+  const plain = (value: string) => value.replace(/[\u0000-\u001f\u007f]+/g, " ");
+  return { subject: `[NoteFable] Reported whiteboard image ${plain(report.pageId)}/${plain(report.elementId)}`, text: lines.join("\n") };
+}
+
 // ワークスペース（ノート・ホワイトボード・スライド）の AI 生成画像の報告メール。
 export function pageImageReportEmail(report: { userId: string; signedIn: boolean; pageId: string; pageKind: PageKind; prompt: string; path: string; reason: string }) {
   const lines = [

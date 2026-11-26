@@ -1239,4 +1239,10 @@ export const th: Record<string, string> = {
   "Regenerate outline": "สร้างโครงร่างใหม่",
   "Make a slide deck from this chat": "สร้างชุดสไลด์จากแชทนี้",
   "Generating slides…": "กำลังสร้างสไลด์…",
+  "Turn into image": "แปลงเป็นรูปภาพ",
+  "Turn sketch into image": "แปลงภาพร่างเป็นรูปภาพ",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "เพิ่มคำอธิบายหรือสไตล์ได้ (ไม่บังคับ) แต่ละรูปจะใช้สิทธิ์สร้างรูปภาพ 1 ครั้งจากแผนของคุณ",
+  "Selected sketch": "ภาพร่างที่เลือก",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "ไม่บังคับ: ภาพวาดสีน้ำ เรนเดอร์ 3 มิติแบบเรียบสะอาด แผนภาพสถาปัตยกรรม…",
+  "Could not capture the selected sketch. Try again.": "ไม่สามารถจับภาพร่างที่เลือกได้ โปรดลองอีกครั้ง",
 };

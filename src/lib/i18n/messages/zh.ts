@@ -1248,4 +1248,10 @@ export const zh: Record<string, string> = {
   "Regenerate outline": "重新生成大纲",
   "Make a slide deck from this chat": "用这段聊天做一份幻灯片",
   "Generating slides…": "正在生成幻灯片…",
+  "Turn into image": "变成图片",
+  "Turn sketch into image": "将草图变成图片",
+  "Add an optional description or style. Each image uses one image generation from your plan.": "可补充说明或风格（可选）。每张图片会使用套餐中的 1 次生图额度。",
+  "Selected sketch": "已选草图",
+  "Optional: watercolor illustration, clean 3D render, architectural diagram…": "可选：水彩插画、简洁 3D 渲染、架构示意图…",
+  "Could not capture the selected sketch. Try again.": "无法导出所选草图，请重试。",
 };

@@ -1,6 +1,6 @@
 "use client";
 
-import { CaptureUpdateAction, convertToExcalidrawElements, Excalidraw, FONT_FAMILY, getCommonBounds, getSceneVersion, newElementWith } from "@excalidraw/excalidraw";
+import { CaptureUpdateAction, convertToExcalidrawElements, Excalidraw, FONT_FAMILY, getCommonBounds, getSceneVersion, isInvisiblySmallElement, newElementWith } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI, AppState, BinaryFiles, BinaryFileData } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement, FileId, NonDeletedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { OnDuplicateData } from "@excalidraw/element";
@@ -23,14 +23,16 @@ import { getNativeExportEpoch, saveExportFile } from "@/lib/export-file";
 import { pageCardLabel, pageIdFromLink, pageLinkUrl } from "@/lib/whiteboard/links";
 import { importPdfPages, MAX_PDF_IMPORT_PAGES, type PdfImportResult } from "@/lib/whiteboard/pdf-import";
 import { consumeWhiteboardReveal, WHITEBOARD_REVEAL_EVENT, type WhiteboardRevealDetail } from "@/lib/whiteboard/reveal";
-import { fitStoredWhiteboard, isStoredFileUrl, sceneToStored, storedToScene, type StoredWhiteboard, type WhiteboardElement } from "@/lib/whiteboard/scene";
+import { fitStoredWhiteboard, generatedImageDataOf, isStoredFileUrl, sceneToStored, storedToScene, type StoredWhiteboard, type WhiteboardElement } from "@/lib/whiteboard/scene";
+import { chooseSketchAspectSize, hitTestGeneratedImage, placeSketchGeneratedImage, type SketchBounds } from "@/lib/whiteboard/sketch-to-image";
 import { MAX_CANVAS_BYTES, MAX_WHITEBOARD_ELEMENTS } from "@/lib/canvas-document";
 import { uploadWhiteboardImage } from "@/lib/whiteboard/upload";
 import { registerCanvasFlusher } from "@/lib/canvas-flush";
 import { WhiteboardChrome, toolType, type WhiteboardTool, type WhiteboardUiState } from "@/components/whiteboard/whiteboard-ui";
 import { WhiteboardLinkDialog } from "@/components/whiteboard/whiteboard-link-dialog";
+import { WhiteboardReportImageDialog } from "@/components/whiteboard/whiteboard-report-dialog";
 import { WorkspaceImageDialog } from "@/components/workspace-image-dialog";
-import { fitWhiteboardImageSize, type PageImage } from "@/lib/page-images";
+import { fitWhiteboardImageSize, type GenerateImageSize, type PageImage } from "@/lib/page-images";
 import { excalidrawLang, useKeepDocumentLanguage } from "@/components/whiteboard/excalidraw-locale";
 import { WhiteboardMinimap } from "@/components/whiteboard/whiteboard-minimap";
 import type { MentionPage } from "@/components/note-mention";
@@ -196,9 +198,16 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [linkDialog, setLinkDialog] = useState<{ mode: "link" | "card"; url?: string } | null>(null);
   const [generateImageOpen, setGenerateImageOpen] = useState(false);
+  const [sketchDialog, setSketchDialog] = useState<{ blob: Blob; previewUrl: string; bounds: SketchBounds; defaultSize: GenerateImageSize } | null>(null);
+  const [reportTarget, setReportTarget] = useState<{ elementId: string; fallbackReportToken?: string } | null>(null);
+  const [readonlyReportImageId, setReadonlyReportImageId] = useState<string | null>(null);
+  const sessionReportTokens = useRef(new Map<string, string>());
+  const sketchCapturing = useRef(false);
+  const readonlyPointerDown = useRef<{ x: number; y: number } | null>(null);
   // 初期値を 0 にすることで、動的読み込み中に AI パネルから送られた要求もマウント直後に開ける。
   const [dismissedGenerateSignal, setDismissedGenerateSignal] = useState(0);
   const showGenerateImageDialog = editable && (generateImageOpen || generateImageSignal > dismissedGenerateSignal);
+  useEffect(() => () => { if (sketchDialog) URL.revokeObjectURL(sketchDialog.previewUrl); }, [sketchDialog]);
   const [sceneVersion, setSceneVersion] = useState("0");
   const [contentHidden, setContentHidden] = useState(false);
   const [minimapOpen, setMinimapOpen] = useState(() => {
@@ -1212,40 +1221,110 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     }
   }, [api, busy, insertPdf, t]);
 
-  // ---- AI で作った画像を現在の視野の中央へ自然に置く ----
-  const insertGeneratedImage = useCallback((image: PageImage) => {
+  // ---- 選択したスケッチを浅色 PNG にして画像生成ダイアログを開く ----
+  const startTurnIntoImage = useCallback(async () => {
+    if (!api || !editable || busy || sketchCapturing.current) return;
+    const appState = api.getAppState();
+    const elements = api.getSceneElements();
+    const selectedIds = new Set(selectedIdsOf(appState));
+    const expanded = expandWhiteboardSelection(elements, selectedIds);
+    const visible = expanded.elements.filter((element) => !isInvisiblySmallElement(element));
+    if (!visible.length) {
+      setNotice({ text: msg("Could not capture the selected sketch. Try again.") });
+      return;
+    }
+    const [minX, minY, maxX, maxY] = getCommonBounds(visible);
+    const bounds: SketchBounds = { x: minX, y: minY, width: Math.max(1, maxX - minX), height: Math.max(1, maxY - minY) };
+    const allFiles = api.getFiles();
+    const snapFiles: BinaryFiles = {};
+    for (const element of visible) {
+      if (element.type === "image" && typeof element.fileId === "string" && allFiles[element.fileId]) {
+        snapFiles[element.fileId] = allFiles[element.fileId];
+      }
+    }
+    sketchCapturing.current = true;
+    try {
+      const blob = await exportWhiteboardSelectionPng({
+        elements: visible.map((element) => ({ ...element })) as NonDeletedExcalidrawElement[],
+        files: snapFiles,
+        viewBackgroundColor: "#ffffff",
+      });
+      if (!mounted.current) return;
+      if (!blob) {
+        setNotice({ text: msg("Could not capture the selected sketch. Try again.") });
+        return;
+      }
+      setSketchDialog({
+        blob,
+        previewUrl: URL.createObjectURL(blob),
+        bounds,
+        defaultSize: chooseSketchAspectSize(bounds.width, bounds.height),
+      });
+    } catch {
+      if (mounted.current) setNotice({ text: msg("Could not capture the selected sketch. Try again.") });
+    } finally {
+      sketchCapturing.current = false;
+    }
+  }, [api, editable, busy]);
+
+  // ---- AI で作った画像を現在の視野の中央、またはスケッチの右隣へ自然に置く ----
+  const insertGeneratedImage = useCallback((image: PageImage, placement?: SketchBounds) => {
     if (!api || !editable) return;
-    const { width, height } = fitWhiteboardImageSize(image.width, image.height);
-    const center = sceneCenter();
+    const box = placement
+      ? placeSketchGeneratedImage(placement, image.width, image.height)
+      : (() => {
+          const { width, height } = fitWhiteboardImageSize(image.width, image.height);
+          const center = sceneCenter();
+          return { x: Math.round(center.x - width / 2), y: Math.round(center.y - height / 2), width, height };
+        })();
     const fileId = randomId() as FileId;
     const imageId = randomId();
+    const generated = image.prompt?.trim() ? generatedImageDataOf({ generated: { prompt: image.prompt } }) : null;
     uploadedUrls.current.set(fileId, { url: image.url, mimeType: image.mimeType });
     knownFiles.current.add(fileId);
     uploads.current.set(fileId, { status: "done", url: image.url, mimeType: image.mimeType });
     api.addFiles([{ id: fileId, mimeType: image.mimeType as BinaryFileData["mimeType"], dataURL: image.url as BinaryFileData["dataURL"], created: Date.now() }]);
-    const created = convertToExcalidrawElements([{
+    const rawCreated = convertToExcalidrawElements([{
       type: "image",
       id: imageId,
-      x: Math.round(center.x - width / 2),
-      y: Math.round(center.y - height / 2),
-      width,
-      height,
+      x: box.x,
+      y: box.y,
+      width: box.width,
+      height: box.height,
       fileId,
       status: "saved",
+      ...(generated ? { customData: { generated } } : {}),
     }]);
+    const created = generated
+      ? rawCreated.map((element) => (element.type === "image"
+        ? { ...element, customData: { ...(element.customData ?? {}), generated } }
+        : element))
+      : rawCreated;
     const insertedId = created.find((element) => element.type === "image")?.id ?? imageId;
+    if (image.reportToken) sessionReportTokens.current.set(insertedId, image.reportToken);
     api.setActiveTool({ type: "selection" });
     api.updateScene({
       elements: [...api.getSceneElementsIncludingDeleted(), ...created],
       appState: { selectedElementIds: { [insertedId]: true } },
       captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     });
+    if (placement) {
+      const view = visibleRect(api.getAppState());
+      const outOfView = box.x + box.width > view.x + view.width || box.x < view.x || box.y < view.y || box.y + box.height > view.y + view.height;
+      if (outOfView) api.setViewport({ target: created, fit: "scale-down", animation: true });
+    }
     lastSignature.current = null;
     dirty.current = true;
     ownEdit.current = true;
     touched.current = true;
     scheduleSave();
   }, [api, editable, sceneCenter, scheduleSave]);
+
+  const openReportImage = useCallback((elementId: string) => {
+    // 挿入直後に報告された場合も保存を前倒しする。
+    flushPending();
+    setReportTarget({ elementId, fallbackReportToken: sessionReportTokens.current.get(elementId) });
+  }, [flushPending]);
 
   const toggleMinimap = useCallback(() => {
     setMinimapOpen((open) => {
@@ -1258,6 +1337,26 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     // ツールバー・パネル・ズームのボタンを押してもフォーカスを画布から移さない。Excalidraw はキー（Delete・Ctrl+Z・矢印など）と貼り付けを
     // 自分の入れ物にフォーカスがある時だけ受けるので、ボタンがフォーカスを取ると、画布を押し直すまで効かなくなる。入力欄は除く。
     <div ref={containerRef} className={`whiteboard${embedded ? " is-embedded" : ""}${editable ? "" : " is-readonly"}${compact ? " is-compact" : narrow ? " is-narrow" : ""}${tight ? " is-tight" : ""}`} data-theme={theme}
+      onPointerDown={(event) => {
+        if (editable) return;
+        const target = event.target as HTMLElement;
+        if (!target.closest(".excalidraw") || target.closest("button, dialog, [role='menu'], [role='dialog']")) return;
+        readonlyPointerDown.current = { x: event.clientX, y: event.clientY };
+      }}
+      onPointerUp={(event) => {
+        const down = readonlyPointerDown.current;
+        readonlyPointerDown.current = null;
+        if (editable || !down || !api) return;
+        if (Math.hypot(event.clientX - down.x, event.clientY - down.y) > 6) return;
+        const canvasEl = containerRef.current?.querySelector(".excalidraw");
+        if (!canvasEl) return;
+        const rect = canvasEl.getBoundingClientRect();
+        const appState = api.getAppState();
+        const sceneX = (event.clientX - rect.left) / appState.zoom.value - appState.scrollX;
+        const sceneY = (event.clientY - rect.top) / appState.zoom.value - appState.scrollY;
+        const hit = hitTestGeneratedImage(api.getSceneElements(), { x: sceneX, y: sceneY });
+        setReadonlyReportImageId(hit);
+      }}
       onMouseDown={(event) => {
         const target = event.target as HTMLElement;
         if (!target.closest("button") || target.closest(".excalidraw, dialog, [role='menu'], [role='dialog'], input, textarea, select, [contenteditable='true']")) return;
@@ -1292,6 +1391,9 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
         onFitToContent={fitToContent} onCanvasBackground={(color) => api.updateScene({ appState: { viewBackgroundColor: color }, captureUpdate: CaptureUpdateAction.IMMEDIATELY })}
         onPenMode={(penMode) => api.updateScene({ appState: { penMode }, captureUpdate: CaptureUpdateAction.NEVER })}
         onAskAi={onAskAiProp ? askAiSelection : undefined}
+        onTurnIntoImage={editable ? () => { void startTurnIntoImage(); } : undefined}
+        onReportImage={openReportImage}
+        readonlyReportImageId={editable ? null : readonlyReportImageId}
         onInsertTemplate={insertTemplate}
         mindmap={editable && mindmap.selection ? {
           selection: mindmap.selection, onAddChild: mindmapAddChild, onAddSibling: mindmapAddSibling, onToggle: mindmapToggle, onDirection: mindmapDirection,
@@ -1322,6 +1424,25 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
           onClose={() => { setGenerateImageOpen(false); setDismissedGenerateSignal(generateImageSignal); onConsumeGenerateImage?.(); }}
         />
       )}
+      {editable && sketchDialog && (
+        <WorkspaceImageDialog
+          pageId={pageId}
+          pageKind="whiteboard"
+          embedded={embedded}
+          defaultSize={sketchDialog.defaultSize}
+          referenceImage={{ blob: sketchDialog.blob, previewUrl: sketchDialog.previewUrl }}
+          onInsert={(image) => insertGeneratedImage(image, sketchDialog.bounds)}
+          onClose={() => setSketchDialog(null)}
+        />
+      )}
+      {reportTarget && (
+        <WhiteboardReportImageDialog
+          pageId={pageId}
+          elementId={reportTarget.elementId}
+          fallbackReportToken={reportTarget.fallbackReportToken}
+          onClose={() => setReportTarget(null)}
+        />
+      )}
       {notice && <div className="whiteboard-notice" role="alert"><span>{notice.vars ? t(notice.text, notice.vars) : localizeSystemText(notice.text, t)}</span><button type="button" className="notion-button" onClick={() => setNotice(null)}>{t("Close")}</button></div>}
     </div>
   );
@@ -1346,6 +1467,15 @@ function deriveUiState(selected: readonly NonDeletedExcalidrawElement[], appStat
   // 付箋の道具を選んでいる間は、付箋の色が次に置くものの色。
   const sticky = !selected.length && appState.activeTool.type === "stickynote";
   const stickyState = appState as AppState & { currentItemStickynoteStrokeColor?: string; currentItemStickynoteBackgroundColor?: string };
+  const singleGeneratedImageId = selected.length === 1
+    && selected[0].type === "image"
+    && generatedImageDataOf(selected[0].customData) !== null
+    ? selected[0].id
+    : null;
+  const lockedEl = !singleGeneratedImageId && appState.activeLockedId ? byId.get(appState.activeLockedId) : undefined;
+  const lockedGeneratedImageId = lockedEl && !lockedEl.isDeleted && lockedEl.type === "image" && generatedImageDataOf(lockedEl.customData) !== null
+    ? lockedEl.id
+    : null;
   return {
     tool: appState.activeTool.type,
     toolLocked: appState.activeTool.locked,
@@ -1366,6 +1496,7 @@ function deriveUiState(selected: readonly NonDeletedExcalidrawElement[], appStat
     link: selected.length === 1 ? selected[0].link ?? null : null,
     // 押したロック中の要素（またはグループ）。Excalidraw の解除のポップアップは既定の画面にしか無いので、自前のボタンを出す。
     lockedTarget: appState.activeLockedId ?? null,
+    reportableImageId: singleGeneratedImageId ?? lockedGeneratedImageId,
     style: {
       strokeColor: common((element) => element.strokeColor, (sticky && stickyState.currentItemStickynoteStrokeColor) || appState.currentItemStrokeColor),
       backgroundColor: common((element) => element.backgroundColor, (sticky && stickyState.currentItemStickynoteBackgroundColor) || appState.currentItemBackgroundColor),

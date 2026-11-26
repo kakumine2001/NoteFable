@@ -211,4 +211,49 @@ describe("WorkspaceImageDialog", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(hooks.savePendingDraft).not.toHaveBeenCalledWith(expect.any(String), "", expect.anything());
   });
+
+  it("supports sketch-to-image mode with optional description and sketch preview", async () => {
+    const sketchBlob = new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], { type: "image/png" });
+    const generated: PageImage = {
+      url: "/api/pages/files?key=note-files%2Fu1%2Fsketch-gen.png&name=ai-image.png",
+      name: "ai-image.png",
+      width: 1536,
+      height: 1024,
+      mimeType: "image/png",
+      prompt: "Turn this whiteboard sketch into a clean illustration.",
+      reportToken: "tok-sketch",
+    };
+    hooks.generatePageImage.mockResolvedValueOnce(generated);
+    const onInsert = vi.fn();
+    const onClose = vi.fn();
+
+    const render = () => {
+      hooks.index = 0;
+      return WorkspaceImageDialog({
+        pageId: "wb2",
+        pageKind: "whiteboard",
+        defaultSize: "1024x1024",
+        referenceImage: { blob: sketchBlob, previewUrl: "blob:sketch-preview" },
+        onInsert,
+        onClose,
+      });
+    };
+
+    const initialTree = render();
+    expect(collectText(initialTree)).toContain("Turn sketch into image");
+    const sketchImg = findNode(initialTree, (el) => el.type === "img" && el.props?.src === "blob:sketch-preview");
+    expect(sketchImg).not.toBeNull();
+    const generateBtn = findNode(initialTree, (el) => el.type === "button" && collectText(el.props?.children).includes("Generate"));
+    expect(generateBtn?.props?.disabled).toBe(false);
+
+    const form = findNode(initialTree, (el) => el.type === "form");
+    await (form?.props?.onSubmit as (e: { preventDefault: () => void }) => Promise<void>)({ preventDefault: vi.fn() });
+
+    expect(hooks.generatePageImage).toHaveBeenCalledWith("", "1024x1024", { referenceImage: sketchBlob });
+    const previewTree = render();
+    const insertButton = findNode(previewTree, (el) => el.type === "button" && collectText(el.props?.children).includes("Insert"));
+    (insertButton?.props?.onClick as () => void)();
+    expect(onInsert).toHaveBeenCalledWith(generated);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });

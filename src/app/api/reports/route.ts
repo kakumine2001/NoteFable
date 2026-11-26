@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findReportedAnswer, findReportedPage, findReportedPageImage, findReportedProposal, pageImageReportEmail, pageReportEmail, parseReport, proposalReportEmail, reportEmail, sendReport, slideImageReportEmail } from "@/lib/answer-report";
+import { findReportedAnswer, findReportedPage, findReportedPageImage, findReportedProposal, pageImageReportEmail, pageReportEmail, parseReport, proposalReportEmail, reportEmail, sendReport, slideImageReportEmail, whiteboardImageReportEmail } from "@/lib/answer-report";
 import { readCanvasData } from "@/lib/canvas-store";
-import { parseNoteFileUrl } from "@/lib/note-file-keys";
+import { isImageExtension, parseNoteFileUrl } from "@/lib/note-file-keys";
 import { normalizeDeck } from "@/lib/slides/model";
+import { generatedImageDataOf, storedToScene } from "@/lib/whiteboard/scene";
 import { getOrCreateUser, isAccountUser } from "@/lib/auth";
 import { EmailSendError } from "@/lib/email-login";
 import { msg } from "@/lib/i18n/translate";
@@ -44,14 +45,30 @@ export async function POST(request: NextRequest) {
     if (!image) return NextResponse.json({ error: msg("This image is no longer available.") }, { status: 404 });
     email = pageImageReportEmail({ userId: user.id, signedIn, pageId: image.pageId, pageKind: image.pageKind, prompt: image.prompt, path: image.path, reason });
   } else {
-    // スライドの AI で作った画像：自分の（ゴミ箱に無い）スライドの中の、AI で作った印のある画像だけ。
-    const deck = normalizeDeck(await readCanvasData(user.id, target.pageId));
-    const element = deck.slides.flatMap((slide) => slide.elements).find((entry) => entry.id === target.elementId);
-    const file = element?.type === "image" && element.generated ? parseNoteFileUrl(element.src) : null;
-    if (!element || element.type !== "image" || !element.generated || !file || file === "empty") {
+    // スライドまたはホワイトボードの AI で作った画像：自分の（ゴミ箱に無い）ページの中の、AI で作った印のある画像だけ。
+    const canvas = await readCanvasData(user.id, target.pageId);
+    if (!canvas) {
       return NextResponse.json({ error: msg("This image is no longer available.") }, { status: 404 });
     }
-    email = slideImageReportEmail({ userId: user.id, signedIn, pageId: target.pageId, elementId: element.id, prompt: element.generated.prompt, path: file.path, reason });
+    if (Array.isArray(canvas.elements) && canvas.slides === undefined) {
+      const scene = storedToScene(canvas);
+      const element = scene.elements.find((entry) => entry.id === target.elementId);
+      const generated = element?.type === "image" ? generatedImageDataOf(element.customData) : null;
+      const storedFile = element?.type === "image" && typeof element.fileId === "string" ? scene.files[element.fileId] : undefined;
+      const file = storedFile ? parseNoteFileUrl(storedFile.dataURL) : null;
+      if (!element || !generated || !file || file === "empty" || file.ownerId !== user.id || !isImageExtension(file.extension)) {
+        return NextResponse.json({ error: msg("This image is no longer available.") }, { status: 404 });
+      }
+      email = whiteboardImageReportEmail({ userId: user.id, signedIn, pageId: target.pageId, elementId: element.id, prompt: generated.prompt, path: file.path, reason });
+    } else {
+      const deck = normalizeDeck(canvas);
+      const element = deck.slides.flatMap((slide) => slide.elements).find((entry) => entry.id === target.elementId);
+      const file = element?.type === "image" && element.generated ? parseNoteFileUrl(element.src) : null;
+      if (!element || element.type !== "image" || !element.generated || !file || file === "empty" || file.ownerId !== user.id) {
+        return NextResponse.json({ error: msg("This image is no longer available.") }, { status: 404 });
+      }
+      email = slideImageReportEmail({ userId: user.id, signedIn, pageId: target.pageId, elementId: element.id, prompt: element.generated.prompt, path: file.path, reason });
+    }
   }
 
   const ticket = await consumeReportQuota(user, clientNetworkKey(request));
