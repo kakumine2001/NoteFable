@@ -99,6 +99,9 @@ struct NotesHomeView: View {
             WorkspaceHomeBar(kinds: filterKinds, activeFilter: activeFilter) { kindFilter = $0 }
                 .frame(maxWidth: Self.columnMaxWidth)
                 .frame(maxWidth: .infinity)
+                // 浮动顶栏排在滚动区后面（safeAreaBar）：读屏仍先念菜单和类型筛选，再进列表。
+                .accessibilityElement(children: .contain)
+                .accessibilitySortPriority(1)
         }
     }
 }
@@ -430,33 +433,28 @@ private struct RecentNotesCarousel: View {
     }
 }
 
+/// 头部的胶囊按钮（New project / Import Markdown）：它们是随列表滚动的内容，不是浮动外壳，所以保持网页的白底细线样式，
+/// 不用玻璃（滚到玻璃顶栏下面时不会出现玻璃叠玻璃）。
 private struct NotesHomeUtilPill: View {
     let icon: [String]
     let title: String
     let busy: Bool
     let action: () -> Void
-    @Environment(\.nfChromePath) private var chromePath
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
-                LucideIcon(icon, size: 14, color: chromePath == .native ? chromePath.secondaryInk : Sm.faint)
+                LucideIcon(icon, size: 14, color: Sm.faint)
                 Text(title)
                     .font(.nf(13, weight: 520))
-                    .foregroundStyle(chromePath.secondaryInk)
+                    .foregroundStyle(Sm.muted)
                     .lineLimit(1)
             }
             .padding(.horizontal, 11.2)
             .frame(height: 34.4)
         }
-        // iOS 26 的可交互玻璃按下时自己会鼓起：那条路上不再叠灰底和缩放（和 AccountRow、NFGlassIconButton 一样）。
-        .buttonStyle(.pressable(
-            pressedBackground: chromePath == .native ? nil : Sm.hover,
-            cornerRadius: 17.2,
-            scale: chromePath == .native ? 1 : 0.98,
-            disabledOpacity: 0.5
-        ))
-        .nfGlassBackground(.interactive, in: Capsule(), solidFill: Sm.surface, stroke: Sm.border)
+        .buttonStyle(.pressable(background: Sm.surface, cornerRadius: 17.2, scale: 0.98, disabledOpacity: 0.5))
+        .overlay { Capsule().strokeBorder(Sm.border, lineWidth: 1).allowsHitTesting(false) }
         .disabled(busy)
     }
 }

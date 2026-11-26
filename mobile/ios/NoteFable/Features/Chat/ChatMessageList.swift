@@ -220,7 +220,7 @@ private struct ChatRevealFlashModifier: ViewModifier {
 
 /// "滚动到底部"（.notion-scroll-bottom 里的 .notion-icon-button）：40 的玻璃圆（iOS 26 Liquid Glass；iOS 17–18 毛玻璃；
 /// “降低透明度”时白底加描边），ArrowDown 20 / 描边 2.1。离开底部时 150ms 淡入 + 从 .95 放大。
-/// 按钮贴近输入栏，放在列表底部再往下偏移 4。
+/// 按钮在列表可见区的底边上方 8：整颗圆都在浮动输入栏的上面（不被输入栏的底条、分隔线或点按区挡住）。
 private struct ChatScrollToBottomButton: View {
     let visible: Bool
     let action: () -> Void
@@ -233,6 +233,6 @@ private struct ChatScrollToBottomButton: View {
             .animation(NFMotion.unlessReduced(Animation.timingCurve(0.4, 0, 0.2, 1, duration: 0.15), reduceMotion), value: visible)
             .allowsHitTesting(visible)
             .accessibilityHidden(!visible)
-            .offset(y: 4)
+            .padding(.bottom, 8)
     }
 }

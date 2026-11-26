@@ -36,6 +36,7 @@ struct SignInButton: View {
     private let subtle: Bool
     private let glassStyle: Bool
     private let action: () -> Void
+    @Environment(\.nfChromePath) private var chromePath
 
     init(cornerRadius: CGFloat? = nil, subtle: Bool = false, glassStyle: Bool = false, action: @escaping () -> Void) {
         self.subtle = subtle
@@ -59,7 +60,12 @@ struct SignInButton: View {
                 .frame(height: 40)
                 .nfGlassBackground(.interactive, in: Capsule(), solidFill: Sm.surface, stroke: Sm.borderStrong)
             }
-            .buttonStyle(.pressable(pressedBackground: nil, cornerRadius: 20, scale: 0.97))
+            // iOS 26 的可交互玻璃自己给按压反馈；毛玻璃和实色时用灰底加缩放。
+            .buttonStyle(.pressable(
+                pressedBackground: chromePath == .native ? nil : Sm.hover,
+                cornerRadius: 20,
+                scale: chromePath == .native ? 1 : 0.97
+            ))
         } else if subtle {
             let shape = RoundedRectangle(cornerRadius: cornerRadius)
             Button(action: action) {
@@ -97,9 +103,12 @@ private struct AccountProfileRow: View {
     let user: AccountUser
     let glassStyle: Bool
     let action: () -> Void
+    @Environment(\.nfChromePath) private var chromePath
 
     var body: some View {
         let name = user.rowName ?? L("account")
+        // iOS 26 的可交互玻璃按下时自己鼓起：那条路上不叠灰底、不缩放；毛玻璃和实色时照旧给灰底和缩放。
+        let nativeGlass = glassStyle && chromePath == .native
         Button(action: action) {
             HStack(spacing: 8.8) {
                 UserAvatar(user: user, size: 22)
@@ -115,8 +124,11 @@ private struct AccountProfileRow: View {
             .frame(height: glassStyle ? 40 : 44)
             .modifier(AccountProfileBackground(glassStyle: glassStyle))
         }
-        // 玻璃胶囊是可交互玻璃，按下时自己有反馈：不再叠一层灰底（和上面的玻璃“登录”按钮一样）。
-        .buttonStyle(.pressable(pressedBackground: glassStyle ? nil : Sm.hover, cornerRadius: glassStyle ? 20 : 4.8, scale: glassStyle ? 0.97 : 1))
+        .buttonStyle(.pressable(
+            pressedBackground: nativeGlass ? nil : Sm.hover,
+            cornerRadius: glassStyle ? 20 : 4.8,
+            scale: (glassStyle && !nativeGlass) ? 0.97 : 1
+        ))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(name + " · " + L("acct_settings"))
         .accessibilityAddTraits(.isButton)

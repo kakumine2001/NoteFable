@@ -52,6 +52,17 @@ private struct NFWindowFrameKey: EnvironmentKey {
     static let defaultValue: CGRect? = nil
 }
 
+/// Height of the app window for layout caps (dialog lists, sheets): the measured root frame (`nfWindowFrame`), or the
+/// foreground window before the first measurement. Never the screen: iPad multitasking and iPhone Duo windows are smaller.
+@MainActor
+func nfWindowHeight(_ frame: CGRect?) -> CGFloat {
+    if let frame, frame.height > 0 { return frame.height }
+    let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+    let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+    let window = scene?.windows.first { $0.isKeyWindow } ?? scene?.windows.first
+    return window?.bounds.height ?? 600
+}
+
 // MARK: - Metrics
 
 /// iOS 26 toolbar metrics for floating chrome.
@@ -275,7 +286,8 @@ private struct NFBarBackdropModifier: ViewModifier {
     func body(content: Content) -> some View {
         let path = NFChromePath.resolve(reduceTransparency: reduceTransparency, forceSolid: forceSolidChrome)
         let innerEdge: Alignment = (edge == .top) ? .bottom : .top
-        let outerEdges: Edge.Set = (edge == .top) ? .top : .bottom
+        // The strip also runs under the side safe areas (landscape iPhone / unfolded iPhone Duo), not only the outer edge.
+        let outerEdges: Edge.Set = (edge == .top) ? [.top, .horizontal] : [.bottom, .horizontal]
         content
             .background {
                 ZStack(alignment: innerEdge) {
@@ -369,9 +381,10 @@ private struct NFReportsBottomChromeModifier: ViewModifier {
         content
             .background {
                 GeometryReader { proxy in
-                    // y in the app's SwiftUI coordinate space where this view's bottom safe area starts, whether its
-                    // frame stops above the bars or runs under them (then the bars are part of its safe area).
-                    let unobstructedMaxY = proxy.frame(in: .global).maxY - proxy.safeAreaInsets.bottom
+                    // This reader respects the safe area, so its frame already ends where the bottom safe area
+                    // (bottom bars, tab bar, keyboard, home indicator) starts; `safeAreaInsets.bottom` only reports
+                    // that excluded strip, so subtracting it again would count the bars twice.
+                    let unobstructedMaxY = proxy.frame(in: .global).maxY
                     let obstruction = windowFrame.map { ($0.maxY - unobstructedMaxY).rounded() }
                     Color.clear
                         .onChange(of: obstruction, initial: true) { _, value in

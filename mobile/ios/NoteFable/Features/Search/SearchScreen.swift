@@ -152,6 +152,8 @@ private struct SearchPanel: View {
                 .padding(4)
                 .nfGlassCapsule()
             }
+            // 窄屏放不下时先省略右边的筛选，不省略标签名。
+            .layoutPriority(1)
             Spacer(minLength: 8)
             // 筛选是系统菜单：放在 GlassEffectContainer 外面。
             if state.scope == .chats && !view.projectOptions.isEmpty {
@@ -292,6 +294,8 @@ private struct GlassSearchField: View {
             Color.clear
                 .contentShape(Capsule())
                 .onTapGesture { focused = true }
+                // 读屏只念输入框和清除键，这层空白不单独成为一个可点的元素。
+                .accessibilityHidden(true)
         }
         .nfGlassCapsule()
     }
