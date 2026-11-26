@@ -35,8 +35,11 @@ export function createHeadingRevealer(win: RevealWindow, doc: RevealDocument) {
   let listening = false;
 
   function request(id: string | null) {
-    // 画面にある見出しは、ブラウザがそのままスクロールする。
-    if (!id || doc.getElementById(id)) return;
+    // ページ内の見出し以外へのリンクや画面にある見出しは、ブラウザに任せる（前の指定も残さない）。
+    if (!id || doc.getElementById(id)) {
+      pending = null;
+      return;
+    }
     pending = id;
     for (const subscriber of [...subscribers]) if (subscriber.ids.has(id)) subscriber.open(id);
   }
@@ -47,8 +50,12 @@ export function createHeadingRevealer(win: RevealWindow, doc: RevealDocument) {
     if (mouse.defaultPrevented || mouse.button > 0 || mouse.metaKey || mouse.ctrlKey || mouse.shiftKey || mouse.altKey) return;
     const target = event.target as { closest?: (selector: string) => Element | null } | null;
     const link = typeof target?.closest === "function" ? target.closest("a[href*='#']") : null;
+    if (!link) return;
+    // 別のタブ・窓で開くリンク（target="_blank" など）は、この画面のトグルを開かない。
+    const opensIn = link.getAttribute("target");
+    if (opensIn && opensIn !== "_self") return;
     // 同じハッシュをもう一度押したときは hashchange が来ないので、クリックでも見る。
-    if (link) request(hashTargetId(link.getAttribute("href"), win.location.href));
+    request(hashTargetId(link.getAttribute("href"), win.location.href));
   };
 
   return {
@@ -68,6 +75,8 @@ export function createHeadingRevealer(win: RevealWindow, doc: RevealDocument) {
       return () => {
         subscribers.delete(subscriber);
         if (subscribers.size || !listening) return;
+        // 別のページへ移った（トグルが全部無くなった）。果たしていない指定を次のページへ持ち越さない。
+        pending = null;
         listening = false;
         win.removeEventListener("hashchange", onHashChange);
         doc.removeEventListener("click", onClick);

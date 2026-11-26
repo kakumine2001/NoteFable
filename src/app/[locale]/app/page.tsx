@@ -81,7 +81,7 @@ import { cancelCanvasReveal, revealChatMessage, revealNoteBlock } from "@/lib/se
 import { cancelWhiteboardReveal, requestWhiteboardReveal } from "@/lib/whiteboard/reveal";
 import { flushCanvasEditors } from "@/lib/canvas-flush";
 import { getSubmissionValidationError } from "@/lib/submission-validation";
-import { afterSheetHistory, replaceSheetUrl, restoreSheetMarker, useBackToClose } from "@/lib/use-back-to-close";
+import { afterSheetHistory, isSheetCleanupPopState, replaceSheetUrl, restoreSheetMarker, useBackToClose } from "@/lib/use-back-to-close";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { StorageLimitError, UsageLimitError, storageLimitErrorFrom, usageLimitErrorFrom, type UsageKind } from "@/lib/usage-plans";
 import { readModelPreference, resolveModelPreference, saveModelPreference } from "@/lib/model-preference";
@@ -231,7 +231,12 @@ export default function Home() {
       else if (animate && isPhone && list !== shownRef.current.list) runTransition(apply, "back");
       else runTransition(apply, "back", false);
     }
-    const onPopState = () => syncWorkspace(true);
+    // シート・ドロワーの目印を退ける history.back()（後始末・replaceSheetUrl）は「戻る」ではない。戻った先の URL は
+    // このあと書き換えられることがある（ゴミ箱に入ったノートの page= を外すなど）ので、ここでは画面を決めない。
+    const onPopState = (event: PopStateEvent) => {
+      if (isSheetCleanupPopState(event)) return;
+      syncWorkspace(true);
+    };
     queueMicrotask(() => syncWorkspace(false));
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
@@ -2303,10 +2308,10 @@ export default function Home() {
       linkOpenersRef.current.projects();
     }
     // AI の提案で作ったページを「元に戻す」でゴミ箱へ移した：参照ノートの件数を合わせ、開いていたページが消えたら一覧に戻す。
-    // 一覧と URL は use-note-pages.ts が先に直すので、その後で一覧の表示を決め直す。
+    // 一覧と URL は use-note-pages.ts が先に直す（URL はシートの目印を退けてから書き換えることがある）ので、書き終わってから一覧の表示を決め直す。
     function onPagesTrashed() {
       linkOpenersRef.current.projects();
-      queueMicrotask(() => linkOpenersRef.current.notesList());
+      queueMicrotask(() => afterSheetHistory(() => linkOpenersRef.current.notesList()));
     }
     function onNoteChatSaved(event: Event) {
       const id = detailOf(event)?.id;

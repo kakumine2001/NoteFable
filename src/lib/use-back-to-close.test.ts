@@ -51,11 +51,14 @@ function fakeBrowser(entries: Entry[]) {
 
 const NOTE = "https://app.notefable.com/app?view=pages&page=x";
 const HOME = "https://app.notefable.com/app?view=pages";
+const MARKER = { notefableSheet: true };
 const dropPage = (url: URL) => {
   if (url.searchParams.get("page") !== "x") return false;
   url.searchParams.delete("page");
   return true;
 };
+// Notes のホームからノート x を開いたところ（[ホーム, x]）。
+const opened = () => fakeBrowser([{ state: null, href: HOME }, { state: null, href: NOTE }]);
 
 describe("replaceSheetUrl", () => {
   beforeEach(() => {
@@ -68,63 +71,96 @@ describe("replaceSheetUrl", () => {
     vi.unstubAllGlobals();
   });
 
-  it("keeps the drawer's Back marker when a trashed note's URL is cleaned up while the drawer is open", async () => {
-    const browser = fakeBrowser([{ state: null, href: NOTE }]);
+  it("rewrites the note entry under a confirm dialog's marker, so Back after closing never reaches the trashed note", async () => {
+    const browser = opened();
     const { replaceSheetUrl, useBackToClose } = await import("./use-back-to-close");
-    const closeDrawer = vi.fn();
-    useBackToClose(true, closeDrawer);
-    expect(browser.current()).toEqual({ state: { notefableSheet: true }, href: NOTE });
+    useBackToClose(true, vi.fn());
+    expect(browser.stack).toEqual([{ state: null, href: HOME }, { state: null, href: NOTE }, { state: MARKER, href: NOTE }]);
 
     const after = vi.fn();
     replaceSheetUrl(dropPage, after);
-    expect(after).toHaveBeenCalledTimes(1);
-    expect(browser.current().href).toBe(HOME);
+    // ゴミ箱へ移せたので確認の小窓が閉じる（目印を退ける history.back は replaceSheetUrl がもう始めている）。
+    cleanups.pop()!();
     vi.runAllTimers();
-    // 目印が積み直され、「戻る」はドロワーを閉じるだけで、ゴミ箱に入ったノートの URL へは戻らない。
-    expect(browser.current()).toEqual({ state: { notefableSheet: true }, href: HOME });
-    browser.userBack();
-    expect(closeDrawer).toHaveBeenCalledTimes(1);
-    expect(browser.current().href).toBe(HOME);
+    expect(browser.history.back).toHaveBeenCalledTimes(1);
+    expect(after).toHaveBeenCalledTimes(1);
+    // 退けた目印（「進む」の先）も書き換え済み。どこにもゴミ箱のノートの URL は残らない。
+    expect(browser.stack).toEqual([{ state: null, href: HOME }, { state: null, href: HOME }, { state: MARKER, href: HOME }]);
+    expect(browser.current()).toEqual({ state: null, href: HOME });
   });
 
-  it("waits for a closing drawer's in-flight history cleanup and rewrites the entry underneath", async () => {
-    const browser = fakeBrowser([{ state: null, href: NOTE }]);
+  it("keeps an open drawer's marker on top of the rewritten entry", async () => {
+    const browser = opened();
+    const { replaceSheetUrl, useBackToClose } = await import("./use-back-to-close");
+    const closeDrawer = vi.fn();
+    useBackToClose(true, closeDrawer);
+
+    replaceSheetUrl(dropPage);
+    vi.runAllTimers();
+    expect(browser.stack).toEqual([{ state: null, href: HOME }, { state: null, href: HOME }, { state: MARKER, href: HOME }]);
+    expect(browser.current()).toEqual({ state: MARKER, href: HOME });
+    expect(closeDrawer).not.toHaveBeenCalled();
+    // 「戻る」はドロワーを閉じるだけ。
+    browser.userBack();
+    expect(closeDrawer).toHaveBeenCalledTimes(1);
+    expect(browser.current()).toEqual({ state: null, href: HOME });
+  });
+
+  it("takes over a closed drawer's scheduled cleanup and rewrites the entry underneath", async () => {
+    const browser = opened();
     const { replaceSheetUrl, useBackToClose } = await import("./use-back-to-close");
     useBackToClose(true, vi.fn());
-    // ドロワーを閉じ、目印を外す history.back が走った（popstate はまだ）ところで URL を片付ける。
+    // ドロワーを閉じた（目印を外す history.back が予約された）直後に URL を片付ける。
     cleanups.pop()!();
+    const after = vi.fn();
+    replaceSheetUrl(dropPage, after);
+    vi.runAllTimers();
+    expect(browser.history.back).toHaveBeenCalledTimes(1);
+    expect(after).toHaveBeenCalledTimes(1);
+    expect(browser.stack).toEqual([{ state: null, href: HOME }, { state: null, href: HOME }, { state: MARKER, href: HOME }]);
+    expect(browser.current()).toEqual({ state: null, href: HOME });
+  });
+
+  it("waits for an in-flight cleanup back and rewrites the entry it lands on", async () => {
+    const browser = opened();
+    const { replaceSheetUrl, useBackToClose } = await import("./use-back-to-close");
+    useBackToClose(true, vi.fn());
+    cleanups.pop()!();
+    // 後始末の history.back が走った（popstate はまだ）。
     vi.runOnlyPendingTimers();
     expect(browser.history.back).toHaveBeenCalledTimes(1);
     const after = vi.fn();
     replaceSheetUrl(dropPage, after);
     expect(browser.history.replaceState).not.toHaveBeenCalled();
     vi.runAllTimers();
+    expect(browser.history.back).toHaveBeenCalledTimes(1);
     expect(after).toHaveBeenCalledTimes(1);
-    expect(browser.stack).toEqual([{ state: null, href: HOME }, { state: { notefableSheet: true }, href: NOTE }]);
+    // 進行中の history.back がもう目印を離れたので、「進む」の先の目印だけは書き換えられない。
+    expect(browser.stack).toEqual([{ state: null, href: HOME }, { state: null, href: HOME }, { state: MARKER, href: NOTE }]);
     expect(browser.current()).toEqual({ state: null, href: HOME });
   });
 
-  it("rewrites a marker whose cleanup is only scheduled in place, like page URL sync does", async () => {
-    const browser = fakeBrowser([{ state: null, href: NOTE }]);
+  it("does not move history when the URL does not need rewriting", async () => {
+    const browser = fakeBrowser([{ state: null, href: HOME }]);
     const { replaceSheetUrl, useBackToClose } = await import("./use-back-to-close");
     useBackToClose(true, vi.fn());
-    cleanups.pop()!();
-    replaceSheetUrl(dropPage);
-    vi.runAllTimers();
-    // 目印は書き換えで消えたので、後始末の history.back は走らない（ゴミ箱のノートの URL へ戻らない）。
-    expect(browser.history.back).not.toHaveBeenCalled();
-    expect(browser.current()).toEqual({ state: null, href: HOME });
-  });
-
-  it("replaces the URL in place without a marker, and skips when the URL no longer points at the note", async () => {
-    const browser = fakeBrowser([{ state: null, href: NOTE }]);
-    const { replaceSheetUrl } = await import("./use-back-to-close");
-    replaceSheetUrl(dropPage);
-    vi.runAllTimers();
-    expect(browser.stack).toEqual([{ state: null, href: HOME }]);
     const after = vi.fn();
     replaceSheetUrl(dropPage, after);
-    expect(browser.history.replaceState).toHaveBeenCalledTimes(1);
+    vi.runAllTimers();
+    expect(browser.history.back).not.toHaveBeenCalled();
+    expect(browser.history.replaceState).not.toHaveBeenCalled();
     expect(after).not.toHaveBeenCalled();
+    expect(browser.stack).toEqual([{ state: null, href: HOME }, { state: MARKER, href: HOME }]);
+  });
+
+  it("replaces the URL in place when no sheet is open", async () => {
+    const browser = opened();
+    const { replaceSheetUrl } = await import("./use-back-to-close");
+    const after = vi.fn();
+    replaceSheetUrl(dropPage, after);
+    expect(after).toHaveBeenCalledTimes(1);
+    vi.runAllTimers();
+    expect(browser.history.back).not.toHaveBeenCalled();
+    expect(browser.stack).toEqual([{ state: null, href: HOME }, { state: null, href: HOME }]);
   });
 });

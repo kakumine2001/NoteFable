@@ -18,7 +18,8 @@ function fakePage(hash = "") {
     getElementById: (id: string) => elements.get(id) ?? null,
   } as unknown as Parameters<typeof createHeadingRevealer>[1];
   const fire = (type: string, event: Partial<MouseEvent> = {}) => { for (const listener of listeners.get(type) ?? []) listener({ type, button: 0, ...event } as Event); };
-  const link = (href: string) => ({ closest: () => ({ getAttribute: () => href }) }) as unknown as EventTarget;
+  const link = (href: string, target: string | null = null) =>
+    ({ closest: () => ({ getAttribute: (name: string) => name === "href" ? href : name === "target" ? target : null }) }) as unknown as EventTarget;
   const show = (id: string) => { const element = { scrollIntoView: vi.fn() }; elements.set(id, element); return element; };
   return { win, doc, location, fire, link, show, listeners };
 }
@@ -72,9 +73,36 @@ describe("public note heading links into closed toggles", () => {
     expect(second).toHaveBeenCalledWith("heading-b");
     // 新しいタブで開く操作や、画面に出ている見出しへのリンクはブラウザに任せる。
     page.fire("click", { target: page.link("#heading-a"), ctrlKey: true });
+    page.fire("click", { target: page.link("#heading-a", "_blank") });
+    expect(first).toHaveBeenCalledTimes(2);
+    page.fire("click", { target: page.link("#heading-a", "_self") });
+    expect(first).toHaveBeenCalledTimes(3);
     page.show("heading-a");
     page.fire("click", { target: page.link("#heading-a") });
-    expect(first).toHaveBeenCalledTimes(2);
+    expect(first).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not carry an unfulfilled request over to the next page or past a visible heading", () => {
+    const page = fakePage("#heading-gone");
+    const revealer = createHeadingRevealer(page.win, page.doc);
+    const stop = revealer.subscribe(["heading-x"], vi.fn());
+    // 指定は果たされないまま、トグルが全部無くなった（別の公開ページへ移った）。
+    stop();
+    page.location.hash = "";
+    const next = vi.fn();
+    revealer.subscribe(["heading-gone"], next);
+    expect(next).not.toHaveBeenCalled();
+
+    // 見えている見出しへのリンクを押したら、前の指定は消える。
+    const other = fakePage();
+    const second = createHeadingRevealer(other.win, other.doc);
+    second.subscribe(["heading-a"], vi.fn());
+    other.fire("click", { target: other.link("#heading-hidden") });
+    other.show("heading-seen");
+    other.fire("click", { target: other.link("#heading-seen") });
+    const late = vi.fn();
+    second.subscribe(["heading-hidden"], late);
+    expect(late).not.toHaveBeenCalled();
   });
 
   it("stops listening when the last toggle goes away", () => {

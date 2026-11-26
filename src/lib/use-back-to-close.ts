@@ -47,10 +47,12 @@ function onPopState(event: PopStateEvent) {
     ownBack = false;
     ownBackEvent = event;
     queueMicrotask(() => { if (ownBackEvent === event) ownBackEvent = null; });
-    // 退けた目印のあとに別のシートが開いていた（目印を積み損ねた）場合は積み直す。
-    restoreSheetMarker();
     // 元の履歴に戻った。Next.js がこの popstate を処理し終えてから、待っていた書き換えをする。
-    setTimeout(flushAfterBack);
+    // 退けた目印のあとに別のシートが開いていた（目印を積み損ねた）・まだ開いている場合は、書き換えた後の URL で積み直す。
+    setTimeout(() => {
+      flushAfterBack();
+      restoreSheetMarker();
+    });
     return;
   }
   // 端末の「戻る」: 目印が外れたので、一番上のシートを閉じる。
@@ -87,10 +89,24 @@ export function restoreSheetMarker() {
   });
 }
 
-// 今の履歴の URL を書き換える（開いていたノートがゴミ箱に入った・見つからないときに page= を外すなど）。update が false を返したら書かない。
-// シートの目印の上にいるなら、目印ごと置き換えてから、まだ開いているシートのために目印を積み直す（openNote などと同じ）。
-// 目印を null で上書きしたままにすると、「戻る」でシートが閉じずに書き換える前の URL へ戻ってしまう。
-// 閉じたシートの目印を外す history.back() が予約・進行中なら、それが終わって元の履歴に戻ってから書き換える（syncPageUrl と同じ）。
+// 目印を外す history.back()。popstate は onPopState が受け、待っている書き換え（afterBack）を流す。
+function stepBackPastMarker() {
+  ownBack = true;
+  window.history.back();
+  // popstate が来なかったときに次の本物の「戻る」を飲み込まないよう、一定時間後に解除する。
+  setTimeout(() => {
+    if (!ownBack) return;
+    ownBack = false;
+    flushAfterBack();
+    restoreSheetMarker();
+  }, 1000);
+}
+
+// 今の履歴の URL を書き換える（開いていたノートがゴミ箱に入った・見つからないときに page= を外すなど）。update が false を返したら書かない（履歴も動かさない）。
+// シートの目印は、その下の（書き換えたい URL の）履歴の上に積んである。目印だけを書き換えると、シートを閉じた後や「戻る」で
+// 書き換える前の URL（ゴミ箱に入ったノート）へ戻ってしまう。そこで目印の上にいるときは、目印の URL も書き換えてから
+// history.back() で目印を退け、その下の履歴を書き換え、まだ開いているシートがあれば目印を積み直す。
+// 閉じたシートの目印を外す history.back() が進行中なら、それが終わって元の履歴に戻ってから書き換える。
 export function replaceSheetUrl(update: (url: URL) => boolean, afterReplace?: () => void) {
   const apply = () => {
     const url = new URL(window.location.href);
@@ -99,8 +115,26 @@ export function replaceSheetUrl(update: (url: URL) => boolean, afterReplace?: ()
     restoreSheetMarker();
     afterReplace?.();
   };
-  if (hasMarker() && !isSheetCleanupPopState()) apply();
-  else afterSheetHistory(apply);
+  const target = new URL(window.location.href);
+  if (!update(target)) return;
+  if (ownBack) {
+    afterBack.push(apply);
+    return;
+  }
+  if (!hasMarker()) {
+    // 目印は画面遷移で置き換わっている。予約された後始末（あれば）は何もせずに待っている書き換えを流す。
+    afterSheetHistory(apply);
+    return;
+  }
+  // 閉じたシートの後始末が予約されていたら、ここで代わりに目印を退ける（シートが開き直したときも書き換えを待たせない）。
+  if (pendingBack !== null) {
+    clearTimeout(pendingBack);
+    pendingBack = null;
+  }
+  // 「進む」で書き換える前の URL に戻らないよう、退ける目印の URL も書き換えておく。
+  window.history.replaceState(window.history.state, "", target);
+  afterBack.push(apply);
+  stepBackPastMarker();
 }
 
 function listen() {
@@ -141,16 +175,11 @@ export function useBackToClose(open: boolean, onClose: () => boolean | void) {
       if (sheet.closedByBack || openSheets.length > 0) return;
       pendingBack = setTimeout(() => {
         pendingBack = null;
+        // 目印を退ける history.back() がもう進行中（replaceSheetUrl）なら、その popstate が待っている書き換えを流す。
+        if (ownBack) return;
         // 画面遷移が目印を置き換えていたら何もしない。
         if (openSheets.length === 0 && hasMarker()) {
-          ownBack = true;
-          window.history.back();
-          // popstate が来なかったときに次の本物の「戻る」を飲み込まないよう、一定時間後に解除する。
-          setTimeout(() => {
-            if (!ownBack) return;
-            ownBack = false;
-            flushAfterBack();
-          }, 1000);
+          stepBackPastMarker();
         } else {
           flushAfterBack();
         }
