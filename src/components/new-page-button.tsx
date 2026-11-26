@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useId, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { AnswerMenu } from "@/components/answer-actions";
 import { AppIcon } from "@/components/app-icon";
 import { useT } from "@/components/i18n-provider";
@@ -11,11 +11,12 @@ import { PAGE_KIND_LABELS, PAGE_KIND_NEW_LABELS, type PageKind } from "@/lib/pag
 // （ノートしか作れない間は今までの「New note」と同じ 1 回の操作）。2 つ以上なら、押すと種類のメニュー（ノート・スライド・ホワイトボード）を開く。
 // サイドバーの「新建」、プロジェクトの「+」、ページ行の「+」と、スライドの分区の「+」が使う。ホームの作成ボタンは種類が決まっているので使わない。
 // スライドを作れる所で onGenerate を渡すと、メニューの最後に「Generate with AI」（AI のスライド生成の窓）を出す。
-export function NewPageButton({ kinds, busy, onCreate, onGenerate, className, label, title = label, menuLabel, children }: {
+export function NewPageButton({ kinds, busy, onCreate, onGenerate, onOpenChange, className, label, title = label, menuLabel, children }: {
   kinds: readonly PageKind[];
   busy: boolean;
   onCreate: (kind: PageKind) => void;
   onGenerate?: () => void;
+  onOpenChange?: (open: boolean) => void;
   className: string;
   // ボタンの読み上げ名（中身がアイコンだけのとき）と、ツールチップ（省略は label）。
   label?: string;
@@ -27,6 +28,10 @@ export function NewPageButton({ kinds, busy, onCreate, onGenerate, className, la
   const t = useT();
   const id = useId();
   const [menu, setMenu] = useState<{ anchor: DOMRect; trigger: HTMLButtonElement; focusLast: boolean } | null>(null);
+  const onOpenChangeRef = useRef(onOpenChange);
+  useEffect(() => { onOpenChangeRef.current = onOpenChange; }, [onOpenChange]);
+  useEffect(() => { onOpenChangeRef.current?.(Boolean(menu)); }, [menu]);
+  useEffect(() => () => { onOpenChangeRef.current?.(false); }, []);
   const generate = onGenerate && kinds.includes("slides") ? onGenerate : null;
   const multiple = kinds.length > 1 || generate !== null;
   // 種類が 1 つだけのメニュー（スライドの分区）は「New slide deck」と作る操作の名前にする。

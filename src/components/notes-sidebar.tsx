@@ -66,6 +66,8 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
   const [moving, setMoving] = useState<NotePageSummary | null>(null);
   const [renamingPage, setRenamingPage] = useState<NotePageSummary | null>(null);
   const [rowMenu, setRowMenu] = useState<{ page: NotePageSummary; anchor: DOMRect; trigger: HTMLButtonElement; focusLast: boolean } | null>(null);
+  const [addMenuTarget, setAddMenuTarget] = useState<string | null>(null);
+  const setAddMenuOpen = (key: string) => (open: boolean) => setAddMenuTarget((current) => (open ? key : current === key ? null : current));
   const [naming, setNaming] = useState<{ mode: "create" } | { mode: "rename"; group: NoteGroupSummary } | null>(null);
   const [deletingGroup, setDeletingGroup] = useState<NoteGroupSummary | null>(null);
   // 折りたたみの状態は端末に覚えておく。この側のパネルは Notes に切り替えた後にだけ作られるので、初期値で読んでもサーバー描画とずれない。
@@ -142,7 +144,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
     </div>;
   };
   const row = (page: NotePageSummary, open = false) => {
-    const menuOpen = rowMenu?.page.id === page.id;
+    const menuOpen = rowMenu?.page.id === page.id || addMenuTarget === `page:${page.id}`;
     return (
     // data-page-kind はこのページが並ぶ分区（拖動したときに放せる分区）、data-drop-kind は分区の最上位の行（同じ分区のページだけを前後に放せる）。
     <div key={page.id} className={`notion-session-row vt-row group${activeId === page.id ? " is-active" : ""}${menuOpen ? " is-menu-open" : ""}`} style={rowName(`nrow-${page.id}`)} data-order-id={page.id} data-order-scope="note"
@@ -183,7 +185,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
           }}>
           <Ellipsis size={14} />
         </button>
-        <NewPageButton kinds={kinds} busy={busy} onCreate={(kind) => create({ kind, parentId: page.id })} onGenerate={generate({ parentId: page.id })} className="notion-row-action"
+        <NewPageButton kinds={kinds} busy={busy} onCreate={(kind) => create({ kind, parentId: page.id })} onGenerate={generate({ parentId: page.id })} onOpenChange={setAddMenuOpen(`page:${page.id}`)} className="notion-row-action"
           label={t("Add a page inside {title}", { title: page.title })} title={t("Add a page inside")} menuLabel={t("Add a page inside {title}", { title: page.title })}><Plus size={14} /></NewPageButton>
       </span>
     </div>
@@ -251,7 +253,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
             const open = !collapsed[group.id];
             return (
               <div key={group.id}>
-                <div className="notion-session-row sidebar-project-row group" data-note-group-drop={group.id}>
+                <div className={`notion-session-row sidebar-project-row group${addMenuTarget === `group:${group.id}` ? " is-menu-open" : ""}`} data-note-group-drop={group.id}>
                   <button type="button" onClick={() => toggle(group.id)} aria-expanded={open} className="chat-project-toggle" title={group.name}>
                     <ChevronRight size={13} className={`sidebar-chevron rtl-mirror${open ? " is-open" : ""}`} />
                     <Folder size={14.5} className="shrink-0 text-[var(--notion-muted)]" />
@@ -259,7 +261,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
                     <span className="sidebar-count-pill">{total}</span>
                   </button>
                   <span className="sidebar-row-actions">
-                    <NewPageButton kinds={kinds} busy={busy} onCreate={(kind) => create({ kind, groupId: group.id })} onGenerate={generate({ groupId: group.id })} className="notion-row-action"
+                    <NewPageButton kinds={kinds} busy={busy} onCreate={(kind) => create({ kind, groupId: group.id })} onGenerate={generate({ groupId: group.id })} onOpenChange={setAddMenuOpen(`group:${group.id}`)} className="notion-row-action"
                       label={t("New page in {name}", { name: group.name })} menuLabel={t("New page in {name}", { name: group.name })}><Plus size={14} /></NewPageButton>
                     <button type="button" onClick={() => setNaming({ mode: "rename", group })} className="notion-row-action" aria-label={t("Rename {name}", { name: group.name })}><Pencil size={13} /></button>
                     <button type="button" onClick={() => setDeletingGroup(group)} className="notion-row-action is-danger" aria-label={t("Delete project {name}", { name: group.name })}><Trash2 size={13.5} /></button>
