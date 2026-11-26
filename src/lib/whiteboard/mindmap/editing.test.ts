@@ -636,6 +636,11 @@ describe("removing a topic with Excalidraw's delete, cut or eraser", () => {
     expect(next).not.toBeNull();
     expect(nodeData(next, "n4").order).toBe(0);
     expect(relayoutMindmap(next, "n1").patches.size).toBe(0);
+    // 最後の子と線を一緒に消したときも（兄弟順に空きは出ないが）木を置き直す。
+    const removedLast = excalidrawDelete(elements, "n4", edgeOf(elements, "n4").id, "sticky");
+    const nextLast = cleanUp(elements, removedLast)!;
+    expect(nextLast).not.toBeNull();
+    expect(relayoutMindmap(nextLast, "n1").patches.size).toBe(0);
   });
 
   it("keeps a locked descendant and its branch as their own mind map", () => {

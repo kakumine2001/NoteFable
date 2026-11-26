@@ -650,9 +650,10 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
       if (!api || !mounted.current || !actions) return;
       const elements = api.getSceneElements();
       const container = elements.find((element) => element.id === nodeId);
-      if (!container) return;
+      if (!container || container.locked) return;
       const textId = container.boundElements?.find((item) => item.type === "text")?.id;
       const text = textId ? elements.find((element) => element.id === textId) : undefined;
+      if (text?.locked) return;
       const length = text && "originalText" in text ? text.originalText.length : 0;
       actions.editText({
         sceneX: container.x + container.width / 2, sceneY: container.y + container.height / 2, container,
@@ -1100,7 +1101,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
       ?? created.find((element) => { const data = mindmapDataOf(element.customData); return data?.role === "node" && data.parent === null; });
     api.updateScene({
       elements: [...api.getSceneElementsIncludingDeleted(), ...created],
-      ...(pick ? { appState: { selectedElementIds: { [pick.id]: true } } as never } : {}),
+      ...(pick ? { appState: { selectedElementIds: { [pick.id]: true }, selectedGroupIds: {}, editingGroupId: null } as never } : {}),
       captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     });
     api.setActiveTool({ type: "selection" });

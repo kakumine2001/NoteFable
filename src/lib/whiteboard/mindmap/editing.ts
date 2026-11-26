@@ -512,10 +512,15 @@ export function mindmapRemovalCleanup(elements: readonly SceneElement[], before:
   for (const id of change.patches.keys()) {
     if (deleted.has(id)) change.patches.delete(id);
   }
+  const roots = new Set(found.map(({ tree }) => tree.root.id));
   // まだ残っている子孫・線、消えた親を指したままの節、空きのある兄弟順があるときだけ片付ける
   // （畳んだ直後は、預けた節に結び付いた利用者の矢印だけが残りうるので、矢印の解除だけでは動かさない）。
   const unfinished = [...change.patches.values()].some((values) => values.isDeleted === true || "customData" in values);
-  return unfinished ? { change, roots: new Set(found.map(({ tree }) => tree.root.id)) } : null;
+  if (unfinished) return { change, roots };
+  // 最後の子とその線を一緒に消したとき（混在削除・切り取り・消しゴム）は兄弟順が変わらないが、木がずれたまま残る。
+  // 畳んだ直後・取り消し・やり直しはもう並んでいるので relayoutMindmaps が空になり、何もしない。
+  const relayout = relayoutMindmaps(elements, roots);
+  return relayout.patches.size || relayout.added.length ? { change: emptyChange(), roots } : null;
 }
 
 // 切り取り（Ctrl+X）の前に一緒に選ぶ要素：切り取る節（選んだ節と、選んだ枠の中の節）の子孫（ロックした枝は除く）と、その節どうしの線。
