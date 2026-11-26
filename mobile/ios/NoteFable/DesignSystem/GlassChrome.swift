@@ -40,6 +40,16 @@ extension EnvironmentValues {
     var nfChromePath: NFChromePath {
         NFChromePath.resolve(reduceTransparency: accessibilityReduceTransparency, forceSolid: nfForceSolidChrome)
     }
+
+    /// The app window's full frame in the root SwiftUI coordinate space, including container safe areas.
+    var nfWindowFrame: CGRect? {
+        get { self[NFWindowFrameKey.self] }
+        set { self[NFWindowFrameKey.self] = newValue }
+    }
+}
+
+private struct NFWindowFrameKey: EnvironmentKey {
+    static let defaultValue: CGRect? = nil
 }
 
 // MARK: - Metrics
@@ -119,7 +129,7 @@ extension View {
         modifier(NFTabBarMinimizeModifier(behavior: behavior))
     }
 
-    /// Reports how much of the screen bottom is covered by this tab's chrome (tab bar + bottom floating bars + home
+    /// Reports how much of the window bottom is covered by this tab's chrome (tab bar + bottom floating bars + home
     /// indicator) to `NFBottomChrome.shared`. Put it on the content view *inside* the bars.
     func nfReportsBottomChrome(_ tab: AppTab) -> some View {
         modifier(NFReportsBottomChromeModifier(tab: tab))
@@ -228,7 +238,7 @@ struct NFGlassBarButton: View {
 
 // MARK: - Bottom Obstruction (Toast Placement)
 
-/// Per-tab bottom obstruction for toast placement: how many points from the screen bottom each tab's chrome covers
+/// Per-tab bottom obstruction for toast placement: how many points from the window bottom each tab's chrome covers
 /// (tab bar, bottom floating bars, home indicator). Tabs report through `nfReportsBottomChrome(_:)`; the toast host
 /// reads `obstruction(for:)` and passes it to `toastBottomClearance` (Core). A tab that never reported reads nil.
 @MainActor
@@ -353,18 +363,19 @@ private struct NFGlassEffectIDModifier: ViewModifier {
 @MainActor
 private struct NFReportsBottomChromeModifier: ViewModifier {
     let tab: AppTab
+    @Environment(\.nfWindowFrame) private var windowFrame
 
     func body(content: Content) -> some View {
         content
             .background {
                 GeometryReader { proxy in
-                    // y (screen coordinates) where this view's bottom safe area starts: the same whether the view's
+                    // y in the app's SwiftUI coordinate space where this view's bottom safe area starts, whether its
                     // frame stops above the bars or runs under them (then the bars are part of its safe area).
                     let unobstructedMaxY = proxy.frame(in: .global).maxY - proxy.safeAreaInsets.bottom
-                    let obstruction = (UIScreen.main.bounds.height - unobstructedMaxY).rounded()
+                    let obstruction = windowFrame.map { ($0.maxY - unobstructedMaxY).rounded() }
                     Color.clear
                         .onChange(of: obstruction, initial: true) { _, value in
-                            NFBottomChrome.shared.report(value, for: tab)
+                            if let value { NFBottomChrome.shared.report(value, for: tab) }
                         }
                 }
                 .allowsHitTesting(false)

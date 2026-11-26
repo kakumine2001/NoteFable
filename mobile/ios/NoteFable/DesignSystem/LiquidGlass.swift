@@ -392,6 +392,7 @@ private struct NFSheetModifier<SheetContent: View>: ViewModifier {
     @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.locale) private var locale
     @Environment(\.nfForceSolidChrome) private var forceSolidChrome
+    @Environment(\.nfWindowFrame) private var windowFrame
 
     func body(content: Content) -> some View {
         content.sheet(isPresented: $isPresented, onDismiss: onDismiss) {
@@ -400,6 +401,7 @@ private struct NFSheetModifier<SheetContent: View>: ViewModifier {
                 showsDragIndicator: showsDragIndicator,
                 dismissDisabled: dismissDisabled,
                 contentInsets: contentInsets,
+                windowHeight: windowFrame?.height,
                 content: sheetContent
             )
             .environment(\.layoutDirection, layoutDirection)
@@ -414,15 +416,23 @@ private struct NFSheetContainer<SheetContent: View>: View {
     let showsDragIndicator: Bool
     let dismissDisabled: Bool
     let contentInsets: EdgeInsets
+    let windowHeight: CGFloat?
     let content: () -> SheetContent
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.nfForceSolidChrome) private var forceSolidChrome
-    @State private var fittedHeight: CGFloat = 320
+    @State private var contentHeight: CGFloat = 320
 
     private var useSolidChrome: Bool {
         reduceTransparency || forceSolidChrome
+    }
+
+    private var fittedHeight: CGFloat {
+        let preferredHeight = max(140, contentHeight)
+        guard let windowHeight else { return preferredHeight }
+        let maxHeight = min(windowHeight, max(260, windowHeight * 0.88))
+        return min(maxHeight, preferredHeight)
     }
 
     var body: some View {
@@ -447,9 +457,8 @@ private struct NFSheetContainer<SheetContent: View>: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(contentInsets)
                 .nfOnSizeChange { size in
-                    let height = clampedFittedHeight(size.height)
-                    if abs(fittedHeight - height) > 0.5 {
-                        fittedHeight = height
+                    if abs(contentHeight - size.height) > 0.5 {
+                        contentHeight = size.height
                     }
                 }
             }
@@ -461,12 +470,6 @@ private struct NFSheetContainer<SheetContent: View>: View {
             .nfOverlayContentDefaults()
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-    }
-
-    private func clampedFittedHeight(_ raw: CGFloat) -> CGFloat {
-        let screenHeight = UIScreen.main.bounds.height
-        let maxHeight = max(260, screenHeight * 0.88)
-        return min(maxHeight, max(140, raw))
     }
 }
 
