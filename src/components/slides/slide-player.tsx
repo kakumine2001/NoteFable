@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 import { useT } from "@/components/i18n-provider";
 import { SlideFrame } from "@/components/slides/slide-render";
 import { useBackToClose } from "@/lib/use-back-to-close";
-import { playerAction, type PlayerAction } from "@/lib/slides/player-keys";
+import { isPlayerControlTarget, playerAction, type PlayerAction } from "@/lib/slides/player-keys";
 import { slideTransitionClass, type Deck, type Slide } from "@/lib/slides/model";
 
 function prefersReducedMotion(): boolean {
@@ -146,10 +146,8 @@ export function SlidePlayer({ deck, startId, onExit, onChange, allowPresenter = 
     const target = presenter ? [window, presenter] : [window];
     const onKey = (event: KeyboardEvent) => {
       // 放映オーバーレイ（または発表者ビュー）の内側にあるボタン等にフォーカスがあるときだけ、スペース・Enter をその操作に任せる。
-      // 背後のメニューボタン等にフォーカスが残っていても、放映を邪魔しない。
-      const insidePlayer = event.target instanceof Element
-        && Boolean(root.current?.contains(event.target) || presenter?.document.body?.contains(event.target));
-      const onControl = insidePlayer && !!event.target.closest("button, a, input, textarea, select, [role='button']");
+      // 背後のメニューボタン等にフォーカスが残っていても、放映を邪魔しない。発表者ビュー（別のウィンドウ）の要素もここで見分ける。
+      const onControl = isPlayerControlTarget(event.target, [root.current, presenter?.document.body]);
       if (onControl && !digits.length && (event.key === " " || event.key === "Spacebar" || event.key === "Enter")) return;
       const action = playerAction(event, digits.length > 0);
       if (!action) return;
