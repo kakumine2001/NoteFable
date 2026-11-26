@@ -152,6 +152,26 @@ final class FixtureTransportTests: XCTestCase {
         XCTAssertEqual(account.user?.locale, "ar")
     }
 
+    func testEditorPagesMatchWorkspacePayload() async throws {
+        let catalog = FixtureCatalog(now: Self.fixedNow, image: Self.samplePNG)
+        let api = makeApi(FixtureTransport(catalog: catalog), baseUrl: FixtureMode.baseURL)
+        let notes = try await api.notes()
+
+        XCTAssertEqual(Set(FixtureCatalog.editorPages.keys), Set(notes.pages.map(\.id)))
+        for page in notes.pages {
+            let editorPage = try XCTUnwrap(FixtureCatalog.editorPages[page.id])
+            XCTAssertEqual(editorPage.title, page.title, page.id)
+            XCTAssertEqual(editorPage.icon, page.icon, page.id)
+            XCTAssertEqual(editorPage.kind, page.kind, page.id)
+        }
+
+        let locked = try XCTUnwrap(notes.pages.first { $0.id == FixtureCatalog.IDs.glassPage })
+        XCTAssertTrue(locked.locked)
+        XCTAssertTrue(locked.shareEnabled)
+        let share = try await api.getShare(id: locked.id)
+        XCTAssertTrue(share.enabled)
+    }
+
     func testChatStreamYieldsEventsAndHoldsOpenUntilCancelled() async throws {
         let catalog = FixtureCatalog(account: .signedIn, now: Self.fixedNow, image: Self.samplePNG, streamHoldsOpen: true)
         let transport = FixtureTransport(catalog: catalog)
@@ -162,7 +182,8 @@ final class FixtureTransportTests: XCTestCase {
         var text = ""
         var streamFinished = false
         let streamTask = Task {
-            for try await event in api.streamChat(ChatRequest(message: "Hi", sessionId: nil, model: "gpt-6-luna", reasoning: "medium")) {
+            let request = ChatRequest(message: FixtureCatalog.Prompts.streaming, sessionId: nil, model: "gpt-6-luna", reasoning: "medium")
+            for try await event in api.streamChat(request) {
                 switch event {
                 case .started(let sid):
                     XCTAssertEqual(sid, FixtureCatalog.IDs.liveSession)
@@ -190,6 +211,36 @@ final class FixtureTransportTests: XCTestCase {
         XCTAssertFalse(streamFinished)
         streamTask.cancel()
         _ = await streamTask.result
+    }
+
+    func testStreamedPromptCompletesWhileHoldOpenEnabled() async throws {
+        let catalog = FixtureCatalog(now: Self.fixedNow, image: Self.samplePNG, streamHoldsOpen: true)
+        let api = makeApi(FixtureTransport(catalog: catalog), baseUrl: FixtureMode.baseURL)
+        let request = ChatRequest(message: FixtureCatalog.Prompts.streamed, sessionId: nil, model: "gpt-6-luna", reasoning: "medium")
+        var streamedText = ""
+        var finished = false
+        let streamTask = Task {
+            for try await event in api.streamChat(request) {
+                if case .delta(let chunk) = event { streamedText += chunk }
+            }
+            finished = true
+        }
+        defer { streamTask.cancel() }
+
+        for _ in 0..<200 {
+            if finished { break }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        guard finished else {
+            XCTFail("The completed-stream prompt did not finish.")
+            return
+        }
+        try await streamTask.value
+
+        XCTAssertTrue(streamedText.contains("Liquid Glass"))
+        let history = try await api.messages(sessionId: FixtureCatalog.IDs.liveSession)
+        XCTAssertEqual(history.first?.content, FixtureCatalog.Prompts.streamed)
+        XCTAssertEqual(history.last?.content, streamedText)
     }
 
     func testUnknownHostTriggersOnMissAndReturns404() async throws {
