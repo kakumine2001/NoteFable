@@ -8,6 +8,18 @@ export function updateSlide(deck: Deck, slideId: string, update: (slide: Slide) 
   return { ...deck, slides: deck.slides.map((slide) => (slide.id === slideId ? update(slide) : slide)) };
 }
 
+// 1 枚を、新しい枚か「最新の枚から新しい枚を作る関数」で置き換える。何も変わらなければ同じ本体を返す（取り消しの段を増やさない）。
+export function replaceSlide(deck: Deck, slideId: string, next: Slide | ((latest: Slide) => Slide)): Deck {
+  let changed = false;
+  const slides = deck.slides.map((slide) => {
+    if (slide.id !== slideId) return slide;
+    const updated = typeof next === "function" ? next(slide) : next;
+    if (updated !== slide) changed = true;
+    return updated;
+  });
+  return changed ? { ...deck, slides } : deck;
+}
+
 export function updateElements(slide: Slide, ids: Set<string>, update: (element: SlideElement) => SlideElement): Slide {
   return { ...slide, elements: slide.elements.map((element) => (ids.has(element.id) ? update(element) : element)) };
 }

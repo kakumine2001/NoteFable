@@ -203,3 +203,44 @@ export function lineFromEndpoints(x1: number, y1: number, x2: number, y2: number
 export function intersects(a: Box, b: Box) {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
+
+// ドラッグ（移動・大きさ・回転・線の端）で変えた値だけ。指を離すとき、この差分だけを最新の要素に重ねる。
+// 動かしている間に別の所（AI の配図の生成など）で要素が変わっても、その変更（画像・プロンプトなど）を古い状態で上書きしない。
+export type GeometryPatch = Partial<{ x: number; y: number; w: number; h: number; rotation: number; autoHeight: boolean; flipH: boolean; flipV: boolean }>;
+const GEOMETRY_KEYS = ["x", "y", "w", "h", "rotation", "autoHeight", "flipH", "flipV"] as const;
+
+export function geometryPatch(start: SlideElement, dragged: SlideElement): GeometryPatch {
+  const before = start as unknown as Record<string, unknown>;
+  const after = dragged as unknown as Record<string, unknown>;
+  const patch: Record<string, unknown> = {};
+  for (const key of GEOMETRY_KEYS) {
+    if (key in after && after[key] !== before[key]) patch[key] = after[key];
+  }
+  return patch as GeometryPatch;
+}
+
+// その要素に無い値（文字枠でない要素の autoHeight、線でない要素の flipH など）は付けない。何も変わらなければ同じ要素を返す。
+export function applyGeometryPatch(element: SlideElement, patch: GeometryPatch): SlideElement {
+  const current = element as unknown as Record<string, unknown>;
+  let next: Record<string, unknown> | null = null;
+  for (const key of GEOMETRY_KEYS) {
+    const value = patch[key];
+    if (value === undefined || !(key in current) || current[key] === value) continue;
+    next ??= { ...current };
+    next[key] = value;
+  }
+  return next ? (next as unknown as SlideElement) : element;
+}
+
+// 何も変わらなければ同じ配列を返す。
+export function applyGeometryPatches(elements: SlideElement[], patches: ReadonlyMap<string, GeometryPatch>): SlideElement[] {
+  let changed = false;
+  const next = elements.map((element) => {
+    const patch = patches.get(element.id);
+    if (!patch) return element;
+    const patched = applyGeometryPatch(element, patch);
+    if (patched !== element) changed = true;
+    return patched;
+  });
+  return changed ? next : elements;
+}

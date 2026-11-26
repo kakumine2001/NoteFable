@@ -13,7 +13,7 @@ import { CANVAS_DRAFT_PREFIX, canvasSaveBody, canvasSavedPage, newPageBody, pars
 import { PAGES_TRASHED_EVENT, PAGES_WILL_CHANGE_EVENT, PAGES_WILL_TRASH_EVENT, type PagesWillTrashDetail } from "@/lib/proposal-sync";
 import { preloadPageEditor } from "@/lib/preload-editor";
 import { dispatchBacklinksStale } from "@/lib/note-backlinks";
-import { afterSheetHistory, isSheetCleanupPopState, restoreSheetMarker } from "@/lib/use-back-to-close";
+import { afterSheetHistory, isSheetCleanupPopState, replaceSheetUrl, restoreSheetMarker } from "@/lib/use-back-to-close";
 import type { NoteContent, NoteGroupSummary, NotePage, NotePageSettings, NotePageSummary } from "@/types/notes";
 import { fmt, msg } from "@/lib/i18n/translate";
 
@@ -67,6 +67,8 @@ export function useNotePages(
   const [error, setError] = useState("");
   // 書き出し・取り込みの失敗。一覧の読み込み失敗（error）と分けて、画面を隠さず、閉じられる帯で出す。
   const [actionError, setActionError] = useState("");
+  // ゴミ箱へ移す操作の失敗。確認の小窓の中に出す（一覧の読み込み失敗とは分け、「再試行」で一覧を読み直させない）。
+  const [trashError, setTrashError] = useState("");
   const [backupError, setBackupError] = useState("");
   const [editorEpoch, setEditorEpoch] = useState(0);
   const [, refresh] = useState(0);
@@ -419,12 +421,12 @@ export function useNotePages(
             // 別の未キャッシュページへ移動中（pendingId）なら、URL 変更や popstate でその遷移をキャンセルしない。
             if (!pendingId.current || pendingId.current === id) {
               setError(caught instanceof Error ? caught.message : msg("Failed to open note."));
-              const url = new URL(window.location.href);
-              if (url.searchParams.get("page") === id) {
+              // ドロワーなどが開いていても「戻る」の目印を消さない（replaceSheetUrl）。
+              replaceSheetUrl((url) => {
+                if (url.searchParams.get("page") !== id) return false;
                 url.searchParams.delete("page");
-                window.history.replaceState(window.history.state, "", url);
-                window.dispatchEvent(new Event("popstate"));
-              }
+                return true;
+              }, () => window.dispatchEvent(new Event("popstate")));
               onMissingRef.current?.(id);
             }
           }
@@ -526,9 +528,12 @@ export function useNotePages(
         displayedId.current = null; setActiveId(null); setActive(undefined);
         if (requested) {
           // 存在しない（削除済みなど）ノートを指す URL を開いた：指定を外して Notes のホームに戻す。
-          url.searchParams.delete("page");
-          window.history.replaceState(null, "", url);
-          window.dispatchEvent(new Event("popstate"));
+          // ドロワーなどが開いていても「戻る」の目印を消さない（replaceSheetUrl）。
+          replaceSheetUrl((current) => {
+            if (current.searchParams.get("page") !== requested) return false;
+            current.searchParams.delete("page");
+            return true;
+          }, () => window.dispatchEvent(new Event("popstate")));
         }
       }
     } catch (caught) {
@@ -659,13 +664,13 @@ export function useNotePages(
         setActiveId(null);
         setActive(undefined);
       }
-      // URL がゴミ箱へ移ったページを指していたら外す（開いている途中のページも）。
-      const url = new URL(window.location.href);
-      const requested = url.searchParams.get("page");
-      if (requested && removed.has(requested)) {
+      // URL がゴミ箱へ移ったページを指していたら外す（開いている途中のページも）。ドロワーなどの「戻る」の目印は残す。
+      replaceSheetUrl((url) => {
+        const requested = url.searchParams.get("page");
+        if (!requested || !removed.has(requested)) return false;
         url.searchParams.delete("page");
-        window.history.replaceState(null, "", url);
-      }
+        return true;
+      });
     }
     function onPagesWillChange(event: Event) {
       const detail = (event as CustomEvent<PagesWillTrashDetail | undefined>).detail;
@@ -790,11 +795,12 @@ export function useNotePages(
   }
 
   // ノートをゴミ箱へ移す（サーバーの DELETE は deletedAt を付けるだけで、30 日間は復元できる）。名前は従来どおり remove。
+  // 失敗の理由は trashError に出す（確認の小窓の中に出す）。一覧の読み込み失敗（error）に出すと、その「再試行」が一覧の読み直しになってしまう。
   async function remove(id: string): Promise<boolean> {
     if (actionBusy.current) return false;
     actionBusy.current = true;
     setBusy(true);
-    setError("");
+    setTrashError("");
     try {
       // ホワイトボードなどのエディターがまだ渡していない変更も先に渡してもらう（src/lib/canvas-flush.ts）。
       // 待っても終わらない画像のアップロードがあれば、ゴミ箱へ移さない（移すと画像の入っていない版が残る）。
@@ -802,7 +808,8 @@ export function useNotePages(
       const queue = queues.current.get(id);
       if (queue && !(await queue.flush())) throw new Error(msg("Resolve the unsaved draft before moving this note to Trash."));
       // サブページも一緒にゴミ箱へ入る。開いている（未保存の）サブページも先に保存する。
-      for (const childId of descendantIdsOf(pages, id)) {
+      // 待っている間に増えた・動いたサブページも含めるよう、最新の一覧（pagesRef）から辿る。
+      for (const childId of descendantIdsOf(pagesRef.current, id)) {
         const child = queues.current.get(childId);
         if (child && !(await child.flush())) throw new Error(msg("Resolve the unsaved draft before moving this note to Trash."));
       }
@@ -819,18 +826,23 @@ export function useNotePages(
           localStorage.removeItem(CANVAS_DRAFT_PREFIX + removedId);
         } catch { /* ゴミ箱へ移した後の古い下書きは、復元後の本文に重ねない。 */ }
       }
-      const remaining = pages.filter((page) => !removed.has(page.id));
-      runTransition(() => setPages(remaining), "list");
-      if (activeId && removed.has(activeId)) {
+      // 保存・DELETE を待っている間に作られた・復元された・名前や並びが変わったページを、古い一覧で上書きしない。
+      runTransition(() => setPages((current) => current.filter((page) => !removed.has(page.id))), "list");
+      createdWhileLoading.current = createdWhileLoading.current.filter((page) => !removed.has(page.id));
+      if (displayedId.current && removed.has(displayedId.current)) {
         displayedId.current = null;
         setActiveId(null);
         setActive(undefined);
-        const url = new URL(window.location.href);
-        url.searchParams.delete("page");
-        window.history.replaceState(null, "", url);
       }
+      // URL がゴミ箱へ移ったページを指していたら外す。ドロワーなどの「戻る」の目印は残す（replaceSheetUrl）。
+      replaceSheetUrl((url) => {
+        const requested = url.searchParams.get("page");
+        if (!requested || !removed.has(requested)) return false;
+        url.searchParams.delete("page");
+        return true;
+      });
       return true;
-    } catch (caught) { setError(caught instanceof Error ? caught.message : msg("Failed to move the note to Trash.")); return false; }
+    } catch (caught) { setTrashError(caught instanceof Error && caught.message ? caught.message : msg("Failed to move the note to Trash.")); return false; }
     finally { actionBusy.current = false; setBusy(false); }
   }
 
@@ -1104,5 +1116,5 @@ export function useNotePages(
     if (displayedId.current === queue.page.id) setEditorEpoch((value) => value + 1);
   }
 
-  return { pages, groups, groupError, reorder, createGroup, renameGroup, deleteGroup, moveNote, moveToPage, setFavorite, updateSettings, applyShareMeta: applyMeta, flushSubtree, duplicate, changeIcon, renamePage, exportPage, importMarkdown, checkImportFiles, ensureListLoaded, activeId, active, loading, listLoading, openingId, busy, error, actionError, dismissActionError: () => setActionError(""), backupError, editorEpoch, select, prefetch, cancelPrefetch, hasCached, cancelPending, deactivate, setPageShown, create, remove, load, loadLatest };
+  return { pages, groups, groupError, reorder, createGroup, renameGroup, deleteGroup, moveNote, moveToPage, setFavorite, updateSettings, applyShareMeta: applyMeta, flushSubtree, duplicate, changeIcon, renamePage, exportPage, importMarkdown, checkImportFiles, ensureListLoaded, activeId, active, loading, listLoading, openingId, busy, error, actionError, dismissActionError: () => setActionError(""), trashError, clearTrashError: () => setTrashError(""), backupError, editorEpoch, select, prefetch, cancelPrefetch, hasCached, cancelPending, deactivate, setPageShown, create, remove, load, loadLatest };
 }

@@ -93,6 +93,21 @@ function mathRenderer(katex: KatexApi): MathRenderer {
   };
 }
 
+// トグルの中（入れ子のトグル・段組みの中も含む）にある見出しの要素 id。目次のリンクや URL の #heading-… で指されたときに、
+// 閉じたトグルを開いて見出しを出すのに使う（PublicToggleBlock）。
+export function headingTargetsIn(blocks: RenderBlock[] | undefined): string[] {
+  const ids: string[] = [];
+  const walk = (list: RenderBlock[] | undefined) => {
+    if (!Array.isArray(list)) return;
+    for (const block of list) {
+      if (block.type === "heading" && block.id) ids.push(`heading-${block.id}`);
+      walk(block.children);
+    }
+  };
+  walk(blocks);
+  return ids;
+}
+
 function colorStyle(textColor?: unknown, backgroundColor?: unknown): CSSProperties | undefined {
   const text = noteColor(textColor);
   const background = noteColor(backgroundColor);
@@ -242,7 +257,7 @@ function renderBlock(block: RenderBlock, numberIndex: number, ctx: RenderContext
       if (props.isToggleable) {
         return (
           <div key={block.id} className="public-note-block" style={blockStyle}>
-            <PublicToggleBlock header={headingEl}>{renderedChildren}</PublicToggleBlock>
+            <PublicToggleBlock header={headingEl} revealIds={headingTargetsIn(block.children)}>{renderedChildren}</PublicToggleBlock>
           </div>
         );
       }
@@ -288,7 +303,7 @@ function renderBlock(block: RenderBlock, numberIndex: number, ctx: RenderContext
     case "toggleListItem":
       return (
         <div key={block.id} className="public-note-block" style={blockStyle}>
-          <PublicToggleBlock header={<div className="public-note-list-text">{renderInline(block.content, ctx.math)}</div>}>
+          <PublicToggleBlock header={<div className="public-note-list-text">{renderInline(block.content, ctx.math)}</div>} revealIds={headingTargetsIn(block.children)}>
             {renderedChildren}
           </PublicToggleBlock>
         </div>
