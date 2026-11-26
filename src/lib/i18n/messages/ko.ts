@@ -174,7 +174,7 @@ export const ko: Record<string, string> = {
   "Create note": "노트 만들기",
   "Create page": "노트로 정리",
   "Created": "생성됨",
-  "Created “{title}” in Workspace.": "워크스페이스에 “{title}” 노트를 만들었어요.",
+  "Created “{title}” in Workspace.": "워크스페이스에 “{title}” 페이지를 만들었어요.",
   "Ctrl K": "Ctrl K",
   "Current emoji": "현재 이모지",
   "Current language": "현재 언어",

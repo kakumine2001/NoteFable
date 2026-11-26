@@ -76,6 +76,10 @@ export default function PrivacyPage() {
             (it can include encrypted reasoning) and send it back to the same provider on later turns so long chats keep working. It is not shown in the app.
           </li>
           <li>
+            <strong>Usage limits.</strong> We count your messages, images and reports to apply the limits. For people who are not signed in, we also keep these
+            counts against a keyed hash of the network address (not the address itself).
+          </li>
+          <li>
             <strong>Usage and performance data.</strong> We use Vercel Web Analytics and Speed Insights to count page views and measure loading speed.
             This data is aggregated and does not use cookies.
           </li>
@@ -143,7 +147,7 @@ export default function PrivacyPage() {
       <LegalSection title="6. Retention and deletion">
         <p>
           We keep your data until you delete it. You can delete a chat in NoteFable. That removes it from your account in our database, including the
-          messages and note edit proposals tied to that chat. A deleted page (a note, slide deck or whiteboard) first goes to Trash, where you can restore it. It is permanently removed,
+          messages and AI page proposals tied to that chat. A deleted page (a note, slide deck or whiteboard) first goes to Trash, where you can restore it. It is permanently removed,
           with its history and search vectors, when you delete it from Trash, or after 30 days the next time Trash is opened or another page is deleted. Copies of uploaded images, generated images, page files and cover images can remain in file storage
           until we remove them. Signing out does not delete anything.
         </p>
@@ -152,7 +156,7 @@ export default function PrivacyPage() {
           permanently deletes your account and everything in it: chats, messages, notes, slide decks, whiteboards, page history, projects, uploaded and generated images, files, your profile
           and settings. It also ends a Pro subscription bought on the website immediately, deletes your customer record at Stripe, and stops a Google Play subscription from renewing. Apple subscriptions are managed in the App Store. We request revocation of Apple sign-in authorization during deletion. If Apple is unavailable, you can revoke access in your Apple Account settings. Payment providers retain payment records as the law requires. Database backups that may still contain it are overwritten within 30 days. To keep other signed-in devices from re-creating the account, we keep a one-way hash of linked sign-in identifiers (not the ID or address itself) for 400 days. If you cannot sign in, email
           {" "}<a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a> from the account’s address and we will delete it within 30 days.
-          Data you used without signing in is tied only to your browser or app: delete its chats and Workspace pages in NoteFable, or clear the app’s data. See
+          Data you used without signing in is tied only to your browser or app: delete its chats, projects and Workspace pages in NoteFable and empty the Trash (clearing cookies or the app’s data only removes your access; it does not delete the data on our servers). See
           {" "}<Link href="/delete-account">notefable.com/delete-account</Link>.
         </p>
       </LegalSection>

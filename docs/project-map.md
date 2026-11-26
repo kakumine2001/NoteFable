@@ -17,9 +17,10 @@ flowchart LR
   Server --> DB["数据库 Neon<br/>账号、聊天、工作区页面、订阅"]
   Server --> Blob["文件仓库 Vercel Blob<br/>图片和附件本身"]
   Server --> AI["AI<br/>OpenAI、Anthropic、DeepSeek"]
-  Server -- 登录确认、发信、付款通知 --> Login["Google 登录 / Resend 发信"]
-  Server -- 登录确认、付款通知 --> Stripe["Stripe<br/>网页收款"]
-  Server -- 登录确认、付款通知 --> Play["Google Play<br/>发布安卓 App、App 内收款"]
+  Server -- 登录确认、发信 --> Login["Google 登录 / Apple 登录（iOS） / Resend 发信"]
+  Server -- 付款确认与通知 --> Stripe["Stripe<br/>网页收款"]
+  Server -- 付款确认与通知 --> Play["Google Play<br/>发布安卓 App、App 内收款"]
+  Server -- 付款确认与通知 --> AppStore["App Store<br/>发布 iOS App、App 内收款"]
 ```
 
 ## 网站和服务器
@@ -48,6 +49,7 @@ flowchart LR
 - **不登录（匿名）**：第一次打开时，服务器发一个随机编号存在浏览器或 App 里（Cookie，小纸条）。聊天和工作区页面都挂在这个编号下，清掉 Cookie 就找不回来了。
 - **Google 登录**：用 Google 账号证明“我是我”。
 - **邮箱验证码登录**：服务器用 Resend（发信服务）把 6 位数字发到邮箱，填对就登录。
+- **Apple 登录**（只在 iOS App 里，服务端配置齐全后开放）：用 Apple 账户证明“我是我”。它单独算一个账户，不和 Google / 邮箱账户合并；网页和安卓没有这个入口。
 
 Google 登录要在 Google Cloud 登记“谁可以用我的登录”，这叫 **OAuth 客户端**。现在有三个：
 
@@ -68,7 +70,7 @@ Google 登录要在 Google Cloud 登记“谁可以用我的登录”，这叫 *
 - **编辑器例外**：笔记、白板和幻灯片的编辑页是在 App 里嵌了一个小浏览器（Android `WebView` / iOS `WKWebView`），打开工作区的 `/note-embed`。这些编辑器太复杂，原生重写工作量太大，各端也一定会不一致。
 - **模型列表**：能选哪些 AI 模型由服务器决定，App 每次打开时去要，不写死在 App 里。
 - **外观和 Markdown**：网页、安卓和 iOS 都能选“跟随系统 / 浅色 / 深色”（只记在当前这台设备上，不跟着账号走），也都能把一篇笔记导出成 Markdown 文件、把 Markdown 文件导入成笔记。
-- **只有网页才有的**：电脑宽度下在聊天旁边并排打开一篇笔记的“分屏”。手机屏幕放不下，所以两个 App 没有。
+- **只有网页才有的**：电脑宽度下在聊天旁边并排打开一个工作区页面（笔记、白板或幻灯片）的“分屏”。手机屏幕放不下，所以两个 App 没有。
 - **iOS 现状**：代码在 CI 上跑通 Core 单元测试、模拟器构建和截图；合入调高构建号的 PR 后由 GitHub Actions 自动上传 TestFlight，构建已装到真机，界面还没逐项验收。Sign in with Apple 和 App Store 内购已经接好（配置齐全后开放），还要真机和沙盒验收；通用链接网站端已配好，同样待真机验证（见 [ios.md](architecture/ios.md) 和 [ios-native.md](architecture/ios-native.md)）。
 
 ## 签名（用印章来理解）
@@ -114,11 +116,12 @@ Pro 每月 ¥300（含税），只提高使用上限和文件存储容量（单�
 
 （数字以 `src/lib/usage-plans.ts` 为准。）
 
-- **为什么两套收钱方式**：Google 规定 App 里卖数字内容必须用 Google Play 结算（Google 抽 15%），不能引导去网页付款。网页上用 Stripe（手续费低）。
+- **为什么三套收钱方式**：Google 和 Apple 规定 App 里卖数字内容要走各自商店的结算（Google Play 结算、App Store 内购，商店会抽成，Google 抽 15%），不能引导去网页付款。网页上用 Stripe（手续费低）。
 - **网页（Stripe）付款后**：Stripe 自动通知网站（Webhook，Stripe 主动发来的消息）→ 网站把这个人改成 Pro。续费、解约、扣款失败也走这条路。
 - **App（Google Play）付款后**：App 把“购买凭证”发给网站 → 网站拿凭证去问 Google 是不是真的 → 是就改成 Pro。续费和解约由 Google 通过 Pub/Sub（Google 的消息传递服务）通知网站。
-- **解约**：都是用到已付的月底再停。网页的由网站代码自动守住 Stripe 的这个设置；Play 的本来就是这样。
-- **删除账号**：网页买的订阅立即结束，并删掉 Stripe 上的客户记录；Play 买的停止续费。已付的部分不退。
+- **App（App Store）付款后**：iOS App 把 Apple 签名的交易发给网站 → 网站验证签名并向 Apple 查订阅状态 → 有效就改成 Pro。续费、退款和撤销由 Apple 的服务器通知告诉网站。
+- **解约**：都是用到已付的月底再停。网页的由网站代码自动守住 Stripe 的这个设置；Play 和 App Store 的本来就是这样。
+- **删除账号**：网页买的订阅立即结束，并删掉 Stripe 上的客户记录；Play 买的停止续费；App Store 买的服务器取消不了，要自己在 App Store 的订阅里取消。已付的部分不退。
 
 详细规则见 [billing.md](architecture/billing.md)。
 
@@ -136,7 +139,7 @@ Pro 每月 ¥300（含税），只提高使用上限和文件存储容量（单�
 | Vercel | 网站运行、密钥等环境变量 | 分域（`notefable.com` / `app.notefable.com`）、Stripe 3 项、Google Play 3 项均已设置 |
 | Stripe | 网页收款 | 本人确认（KYC）完成，收款和打款有效；解约用到月底；4 个网址已填 |
 | Google Cloud | Google 登录、Play 通知的传递 | OAuth 客户端 3 个（Web + Android + iOS）；Pub/Sub 已接到 `app.notefable.com` |
-| Play Console | 上架、App 内收款 | 应用签名已启用；订阅商品 `notefable_pro`（`monthly` + 30 天免费试用）已启用；调高 versionCode 的 PR 合入后自动发布到内部测试和 Alpha 封闭测试（仓库当前版本 1.0.17，versionCode 27；Play 上的状态以 Console 为准）；通过 Testers Community 开展 16 天封闭测试（2026-11-22 启动） |
+| Play Console | 上架、App 内收款 | 应用签名已启用；订阅商品 `notefable_pro`（`monthly` + 30 天免费试用）已启用；调高 versionCode 的 PR 合入后自动发布到内部测试和 Alpha 封闭测试（仓库当前版本 1.0.18，versionCode 28；Play 上的状态以 Console 为准）；通过 Testers Community 开展 16 天封闭测试（2026-11-22 启动） |
 
 Stripe 还有 4 项没亲眼确认（商品价格、Webhook、扣款失败后的处理、网站连的是不是正式账户）。最省事的确认办法：用自己的卡真买一次 Pro，确认变成 Pro 后解约，再在 Stripe 退款。
 
@@ -146,7 +149,7 @@ Stripe 还有 4 项没亲眼确认（商品价格、Webhook、扣款失败后的
 
 - [x] Play Console 启用订阅 `notefable_pro`（`monthly` 与 30 天免费试用）
 - [x] 填 Play Console 的应用内容声明和商店介绍（答案在 [docs/play-store/](play-store/console-answers.md)）
-- [x] 启动 14 天封闭测试（2026-11-22 起通过 Testers Community 在 Alpha 轨道进行；仓库当前版本 1.0.17（versionCode 27）；期间再发 2–3 次更新）
+- [x] 启动 14 天封闭测试（2026-11-22 起通过 Testers Community 在 Alpha 轨道进行；仓库当前版本 1.0.18（versionCode 28）；期间再发 2–3 次更新）
 - [ ] 从 Play 测试轨道在真机走完 Google 登录与购买/取消/删号全流程验证
 - [ ] 封闭测试满 14 天后在 Play Console 申请正式上架
 - [x] （iOS）注册 Apple Developer 账号并配置 `appstore-publish` 密钥，发 TestFlight 真机验证（2026-11-24 build 2 已装到真机）
@@ -176,5 +179,6 @@ Stripe 还有 4 项没亲眼确认（商品价格、Webhook、扣款失败后的
 - [architecture/billing.md](architecture/billing.md)：收费、Stripe、Google Play 结算
 - [architecture/i18n.md](architecture/i18n.md)：17 种界面语言与 RTL
 - [play-store/](play-store/console-answers.md)：Play Console 要填的答案和商店介绍
+- [app-store/listing.md](app-store/listing.md)：App Store 产品页要填的文字
 - [architecture/deployment.md](architecture/deployment.md)：服务器、分域和环境变量
 - [architecture/README.md](architecture/README.md)：所有架构文档的入口

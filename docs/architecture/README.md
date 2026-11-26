@@ -22,9 +22,9 @@
 4. [provider-requests.md](provider-requests.md) — 三家模型的上游请求结构、工具循环与压缩续传
 5. [database.md](database.md) — Neon 里有哪些表、关系是什么
 6. [deployment.md](deployment.md) — GitHub、Vercel、Neon 如何组合；Google / 邮箱登录配置
-7. [notes-flow.md](notes-flow.md) — 站内页面、区块编辑、自动保存与冲突恢复、Trash 与编辑历史、Markdown 导出 / 导入、笔记里的 AI 助手（选中文字提问与对话恢复）
-   - [whiteboard.md](whiteboard.md) — 白板：Excalidraw 开发版快照、自己的工具栏、保存与图片、PDF 导入、PNG / SVG / PDF 导出、公开只读链接、App 里的手势与文件保存
-   - [slides.md](slides.md) — 幻灯片：数据形状、编辑器（版式、主题、富文本与公式、自由摆放）、图片（上传、聊天里的图片、AI 生成）、放映与演讲者视图、PDF / PNG / PPTX 导出、公开放映链接、App 里的放映与文件保存
+7. [notes-flow.md](notes-flow.md) — 站内页面、区块编辑、自动保存与冲突恢复、Trash 与编辑历史、Markdown 导出 / 导入、反向链接、页面里的 AI 助手（选中文字提问与对话恢复）
+   - [whiteboard.md](whiteboard.md) — 白板：Excalidraw 开发版快照、自己的工具栏、保存与图片、PDF 导入、PNG / SVG / PDF 导出、公开只读链接、App 里的手势与文件保存、画成图、思维导图模式与学习模板、草图变图片与 AI 图片举报
+   - [slides.md](slides.md) — 幻灯片：数据形状、编辑器（版式、主题、富文本与公式、自由摆放）、图片（上传、聊天里的图片、AI 生成）、放映与演讲者视图、PDF / PNG / PPTX 导出、公开放映链接、App 里的放映与文件保存、AI 生成幻灯片
 8. [android.md](android.md) — Android 开发环境、APK 交付、App 内登录、手机网页排版
 9. [android-native.md](android-native.md) — Kotlin / Compose 客户端、模型列表与网页界面对齐
 10. [ios.md](ios.md) — iOS PR 检查、App Store Connect / TestFlight 自动打包上传与云端签名
@@ -89,18 +89,18 @@ flowchart LR
 | `src/app/api/images/route.ts` | 图片生成 / 图片编辑主流程 |
 | `src/app/privacy/page.tsx`、`src/app/terms/page.tsx`、`src/app/legal-notice/page.tsx`、`src/app/delete-account/page.tsx` | 公开的隐私权政策、服务条款、特定商取引法に基づく表記（日文）与账号删除说明页 |
 | `src/app/api/sessions/*` | 会话列表、历史消息、会话图标、拖动重排、停止生成（`stop`）、版本切换（`versions`）、分支（`branch`）、导出（`export`）与整理成笔记（`page`） |
-| `src/app/api/pages/*` | 工作区页面 CRUD、版本检查、分组（`groups`）、拖动重排、子页面/收藏/页面设置/复制/图标、侧栏改名（`[pageId]/title`）、公开分享（`[pageId]/share`）、封面与附件（`covers`、`files`）、幻灯片用的聊天图片（`chat-images`）、工作区 AI 生图（`images`）、画成图（`diagram`）、原生回答保存（`from-answer`）、回收站（`trash`）、编辑历史（`revisions`）、Markdown 导出（`export`）与导入（`import`）；页面 AI 面板的对话恢复走 `GET /api/sessions?noteId=` |
+| `src/app/api/pages/*` | 工作区页面 CRUD、版本检查、分组（`groups`）、拖动重排、子页面/收藏/页面设置/复制/图标、侧栏改名（`[pageId]/title`）、公开分享（`[pageId]/share`）、封面与附件（`covers`、`files`）、幻灯片用的聊天图片（`chat-images`）、工作区 AI 生图（`images`）、画成图（`diagram`）、AI 生成幻灯片（`slides/outline`、`slides/deck`）、反向链接（`[pageId]/backlinks`）、原生回答保存（`from-answer`）、回收站（`trash`）、编辑历史（`revisions`）、Markdown 导出（`export`）与导入（`import`）；页面 AI 面板的对话恢复走 `GET /api/sessions?noteId=` |
 | `src/lib/note-io.ts` | 笔记的 Markdown 导出格式、导入的个数 / 大小 / 扩展名上限与标题提取（[notes-flow.md](notes-flow.md#markdown-导出与导入)） |
 | `src/lib/session-messages.ts` | 读取一个会话当前显示的消息（附件、附加笔记、提案）的函数，`GET /api/sessions/:id/messages` 使用 |
-| `src/components/split-note-pane.tsx`、`src/lib/split-view.ts` | 桌面端聊天右侧的笔记面板，以及分屏开关、所开笔记和比例的本机保存（[chat-flow.md](chat-flow.md#聊天与笔记分屏)） |
+| `src/components/split-note-pane.tsx`、`src/lib/split-view.ts` | 桌面端聊天右侧的页面面板，以及分屏开关、所开页面和比例的本机保存（[chat-flow.md](chat-flow.md#聊天与页面分屏)） |
 | `src/lib/theme.ts`、`src/lib/theme-init.ts`、`src/components/theme-settings.tsx`、`src/app/globals.css` 的 `:root[data-theme="dark"]` | 外观（跟随系统 / 浅色 / 深色）：本机偏好、首次绘制前写 `data-theme` 的内联脚本、设置里的“外观”一行和深色色板（访客的入口在 `help-menu.tsx`） |
 | `src/lib/page-ai/*`、`src/app/api/proposals/*` | AI 操控底座：各页面类型的适配器、工具定义、提案的保存 / 应用 / 放弃 / 撤销与接口 |
 | `src/lib/note-tree.ts`、`src/lib/note-tree-server.ts`、`src/lib/note-trash.ts`、`src/lib/note-revisions.ts` | 子页面树与元数据、Trash 保留期与惰性清理、编辑历史快照与裁剪 |
 | `src/components/note-trash-dialog.tsx`、`src/components/note-history-dialog.tsx`、`src/components/page-assistant.tsx`、`src/components/page-proposal.tsx` | Trash 对话框、编辑历史/恢复对话框、页面里的 AI 面板与通用提案卡片 |
 | `src/components/note-editor.tsx` | 客户端区块编辑器及允许的区块类型 |
 | `src/lib/page-kinds.ts`、`src/lib/canvas-document.ts` | 页面类型（笔记 / 白板 / 幻灯片）与各类型能用的功能表、白板 / 幻灯片本体（`NoteCanvas`）的校验和检索文字提取（[notes-flow.md](notes-flow.md#页面类型笔记--白板--幻灯片)） |
-| `src/lib/whiteboard/`、`src/components/whiteboard/` | 白板：Excalidraw 场景的保存形、编辑器与工具栏、PDF 导入与导出、公开只读视图、画成图的 Mermaid 转换与思维导图引擎（[whiteboard.md](whiteboard.md)） |
-| `src/lib/slides/`、`src/components/slides/`、`src/components/public-slides-view.tsx` | 幻灯片的数据形状与纯函数、编辑器、放映、导出和公开放映页（[slides.md](slides.md)） |
+| `src/lib/whiteboard/`、`src/components/whiteboard/` | 白板：Excalidraw 场景的保存形、编辑器与工具栏、PDF 导入与导出、公开只读视图、画成图的 Mermaid 转换、思维导图引擎与编辑模式、学习模板、草图变图片（[whiteboard.md](whiteboard.md)） |
+| `src/lib/slides/`、`src/components/slides/`、`src/components/public-slides-view.tsx` | 幻灯片的数据形状与纯函数、编辑器、放映、导出、公开放映页和 AI 生成幻灯片（向导另在 `src/components/slides-wizard.tsx`、`src/lib/slides-wizard-*.ts`，[slides.md](slides.md)） |
 | `src/lib/note-save-queue.ts` | 自动保存队列、重试和冲突状态 |
 | `src/lib/custom-instructions.ts`、`src/app/api/custom-instructions/route.ts`、`src/components/settings-dialog.tsx`、`src/lib/settings-navigation.ts` | 已登录用户的自定义指令与设置界面（通用/个性化/方案/账号，手机两级导航），整合个人资料（`profile-settings.tsx`）、语言、外观（`theme-settings.tsx`）、AI 角色图标（`app-icon-settings.tsx`）、方案（`plan-settings.tsx`）与退出/删号 |
 | `src/lib/characters.ts`、`src/lib/app-icon.ts` | 7 个预设 AI 角色与本机图标配置 |
@@ -112,6 +112,7 @@ flowchart LR
 | `src/lib/google-auth.ts`、`src/app/api/auth/[...nextauth]/route.ts` | Auth.js（JWT 会话）的 Google 登录；未配置环境变量时停用 |
 | `src/lib/email-login.ts`、`src/app/api/auth/email/*`、`src/components/sign-in-dialog.tsx` | 邮箱验证码登录（发码、校验、签发同样的会话 Cookie）和登录弹窗（Google / 邮箱）；配置见 [deployment.md](deployment.md) |
 | `src/lib/native-google-login.ts`、`src/app/api/native-auth/*` | Android / iOS 原生 App 内的 Google 登录：校验端侧 ID 令牌后签发同样的会话 Cookie（见 [android.md](android.md)、[ios-native.md](ios-native.md)） |
+| `src/lib/native-apple-login.ts`、`src/app/api/native-auth/apple` | iOS 原生 App 内的 Apple 登录（服务端配置齐全后开放）；账户按 `appleSub` 单独识别（见 [ios-native.md](ios-native.md)） |
 | `src/lib/usage-plans.ts`、`src/lib/usage-limits.ts`、`src/lib/billing.ts`、`src/lib/google-play-billing.ts`、`src/lib/subscription-state.ts`、`src/app/api/billing/*` | 各档位用量上限计数、Stripe 网页订阅、Google Play 订阅与 RTDN 同步（[billing.md](billing.md)） |
 | `src/lib/models.ts`、`src/lib/model-registry.ts`、`src/app/api/models/route.ts` | 内置模型能力、推理档位与 `NOTEFABLE_MODELS` 服务端模型注册表 |
 | `src/lib/claude-image.ts` | Claude 模型图片副本压缩与尺寸控制，原图保留 |

@@ -304,7 +304,7 @@
 "create_page_title" = "이 채팅을 노트로 정리";
 "create_page_body" = "NoteFable이 선택한 모델을 사용해 이 대화를 깔끔하게 정리된 노트로 다시 작성해 워크스페이스에 저장합니다. 매우 긴 채팅은 최근 메시지를 우선으로 길이에 맞게 요약됩니다. 오늘 메시지 한도에서 1회가 차감됩니다.";
 "create_page_working" = "노트를 작성하는 중… 1분 정도 걸릴 수 있어요. 이 창을 닫아도 완성되면 워크스페이스에 나타납니다.";
-"create_page_done" = "워크스페이스에 “%1$s” 노트를 만들었어요.";
+"create_page_done" = "워크스페이스에 “%1$s” 페이지를 만들었어요.";
 "create_page_partial" = "대화가 길어 일부 내용은 생략되었어요.";
 "open_page" = "노트 열기";
 "language_current" = "언어: %1$s";

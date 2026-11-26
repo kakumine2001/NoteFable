@@ -49,7 +49,7 @@ sequenceDiagram
 
 附件里的图片会留在文件仓库，计入用户的文件存储（[database.md](database.md#storedfile)）：`POST /api/uploads` 发上传凭证前先检查这批图片放不放得下（文本、PDF 只取文字，不算），放不下返回 413 `{ error, code: "storage_limit", tier, used, limit }`；`/api/chat` 保存图片时再逐张检查（并发时的最后一道），放不下时退还这次次数并返回同样的 413。网页（`/app` 和笔记 AI 面板）收到时不发送，文字和附件留在输入栏，输入栏上方显示 `StorageLimitPrompt`（用量、游客的登录按钮、免费用户的 Pro 升级按钮、“删除不需要的文件”）；Android / iOS 相同（iOS 的升级按钮只在开放 App Store 购买时给已登录的免费用户显示，点了打开设置的方案页）。
 
-`/api/chat` 在调用模型前预占一次聊天额度（未登录与免费登录按天计，Pro 按账期计），笔记内 AI 助手和“整理成笔记”（Create page，见下文）也使用同一份额度。满额时返回 `429`（`{ error, code: "usage_limit", tier, kind }`）；游客看到可关闭的登录引导（`GuestLimitPrompt`，点开与侧栏相同的 Google / 邮箱登录弹窗），已登录免费用户在启用订阅时看到升级引导（`UpgradePrompt`）。流式回答必须正常完成；失败或取消且没有交付正文或编辑提案时退还次数，已经交付的部分正文或提案仍计数。具体档位、并发控制与重置时间见[用量计数](database.md#usagecounter)与[付费方案](billing.md)。
+`/api/chat` 在调用模型前预占一次聊天额度（未登录与免费登录按天计，Pro 按账期计），页面里的 AI 助手、“整理成笔记”（Create page，见下文）、画成图和 AI 生成幻灯片（大纲、整套各 1 次）也使用同一份额度。满额时返回 `429`（`{ error, code: "usage_limit", tier, kind }`）；游客看到可关闭的登录引导（`GuestLimitPrompt`，点开与侧栏相同的 Google / 邮箱登录弹窗），已登录免费用户在启用订阅时看到升级引导（`UpgradePrompt`）。流式回答必须正常完成；失败或取消且没有交付正文或编辑提案时退还次数，已经交付的部分正文或提案仍计数。具体档位、并发控制与重置时间见[用量计数](database.md#usagecounter)与[付费方案](billing.md)。
 
 `src/app/[locale]/app/page.tsx`（`/app` 工作区）和 `src/components/page-assistant.tsx`（页面的 AI 面板）会构建：
 
@@ -395,7 +395,7 @@ data: {"activity":{"type":"context","id":"project-context","projectName":"…","
 
 新对话按最近编辑时间显示最多 4 个页面（任意类型）。桌面端在输入框下方展示，手机端在上方的可滚动区域展示，给键盘和输入框留出空间。客户端通过 `GET /api/pages?recent=1` 获取本人未删除的最近 4 个页面，只取 ID、类型、标题、图标、封面和编辑时间，后台创建或更新页面后刷新，没有页面时隐藏整块。卡片尺寸固定（Web、Android、iOS 都是 152×108），每张卡顶部都有封面条，没有封面时用页面类型色的渐变，所以有无封面、哪种页面混在一起时卡片上下端也对齐；长标题单行省略。点卡片会切换输入框上方的页面标签并聚焦输入框，与“添加页面”窗口共用选择和 5 个的上限。右上角的 ↗ 单独打开页面，“All pages” 进入工作区首页。已有消息的对话不显示卡片。
 
-用户可以把自己已有的页面（笔记、白板、幻灯片）附加到一条发言上，让 AI 把它们当作这段对话的参考内容。入口在附加菜单：手机的“＋”底部弹层（`src/components/attach-sheet.tsx`）里 “Attach pages” 一行（与 “Add files or photos”、“Create an image” 以及有消息时的 “Create page” 并列），桌面聊天在输入框下方工具栏提供带文字的 “Attach pages” 按钮（窄屏用 `@media` 隐藏，改走弹层），桌面的“＋”菜单（同一文件里的 `AttachMenu`）提供 “Add files or photos”、“Create an image” 和有消息时的 “Create page”（在笔记 AI 助手面板的窄输入框里则由 `AttachMenu` 提供 “Add files or photos” 和 “Attach pages”）；图片模式开启后，手机和桌面都在输入框上方显示可取消的标签。两者打开同一个选择对话框（`src/components/attach-page-dialog.tsx`，沿用项目设置里参考笔记的列表、筛选和样式），读取 `GET /api/pages`，每条发言最多选 5 篇（`MAX_MESSAGE_NOTES`）。选中的笔记显示为输入框上方的标签，点一下移除；打开对话框时，已选但已进入 Trash 的笔记会被去掉，标题按最新的显示。图片生成模式不读笔记，带着笔记发送时提示先移除或关闭图片生成，不静默丢弃。因使用上限被拒绝时，笔记和文本、附件一起回到输入框。
+用户可以把自己已有的页面（笔记、白板、幻灯片）附加到一条发言上，让 AI 把它们当作这段对话的参考内容。入口在附加菜单：手机的“＋”底部弹层（`src/components/attach-sheet.tsx`）里 “Attach pages” 一行（与 “Add files or photos”、“Create an image” 以及有消息时的 “Create page”、“Generate slides” 并列），桌面聊天在输入框下方工具栏提供带文字的 “Attach pages” 按钮（窄屏用 `@media` 隐藏，改走弹层），桌面的“＋”菜单（同一文件里的 `AttachMenu`）提供 “Add files or photos”、“Create an image” 和有消息时的 “Create page”、“Generate slides”（在页面 AI 面板的窄输入框里则由 `AttachMenu` 提供 “Add files or photos”、“Attach pages” 和可编辑页面的 “Generate an image”）；图片模式开启后，手机和桌面都在输入框上方显示可取消的标签。两者打开同一个选择对话框（`src/components/attach-page-dialog.tsx`，沿用项目设置里参考笔记的列表、筛选和样式），读取 `GET /api/pages`，每条发言最多选 5 篇（`MAX_MESSAGE_NOTES`）。选中的笔记显示为输入框上方的标签，点一下移除；打开对话框时，已选但已进入 Trash 的笔记会被去掉，标题按最新的显示。图片生成模式不读笔记，带着笔记发送时提示先移除或关闭图片生成，不静默丢弃。因使用上限被拒绝时，笔记和文本、附件一起回到输入框。
 
 - **请求**：`/api/chat` 的表单字段 `pages` 是笔记 ID 的 JSON 数组（缺省或空表示没有）。格式不对、ID 为空或超过 64 字符时 400 `Attached pages must be a list of page IDs.`，去重后超过 5 篇时 400 `You can attach up to 5 pages to a message.`。随后在计数使用量之前只保留属于当前用户、不在 Trash 的笔记（`liveOwnedNoteIds`，保持顺序）；其他 ID（他人的、不存在的、选好后才放进 Trash 的）直接丢掉，不记录也不发送，发言照常发出，不会因此丢掉草稿。
 - **保存**：只把 `(messageId, noteId, position)` 写进 `MessageNote`（与用户消息同一个 `create`），**不复制笔记正文**，见 [database.md](database.md#messagenote)。`GET /api/sessions/:id/messages` 为每条消息返回 `pages: [{ id, title, icon }]`（按附加顺序，只含本人不在 Trash 的笔记，标题和图标每次从笔记读取），用户发言下方显示为可点的标签，点击派发 `notefable:open-note` 打开笔记。
@@ -464,7 +464,7 @@ AI 的 `search_notes` 工具（`src/lib/page-ai/tools.ts`）现在与站内搜�
 
 两者都用 `MutationObserver` 最多等 4 秒让元素出现（刚打开笔记或会话时还没渲染），出现后再等两个动画帧让“滚到会话末尾”之类的自动滚动先结束，然后 `scrollIntoView` 到屏幕中央，并给元素加 `search-reveal-flash` 样式 2 秒（系统开启“减少动态效果”时不播动画，只有静态高亮）；超时或被中止返回 `false`。因为会话历史一次读取全部消息，命中的消息一定在页面里。标题命中的结果没有锚点，直接打开会话或笔记开头。附件命中的结果，`messageId` 是附件所属的那条消息，所以同样滚到那条消息（不会定位到附件内部）。
 
-## 回答的复制、保存到 Notes 与 Markdown 导出
+## 回答的复制、保存为笔记与 Markdown 导出
 
 每条已完成、有正文的 AI 回答下面只保留 **Copy** 和三个点 **More options** 两个图标（`src/components/answer-actions.tsx`；重新生成过的回答前面另有版本切换，菜单最上面的 Regenerate / Branch in new chat 见“停止、编辑、重新生成与分支”）。三个点菜单使用现有的菜单样式，里面提供 **Save to page**、保存成功后的 **Open saved page** 和 **Download conversation**；保存时菜单保留进度及错误提示。菜单支持方向键、Home/End、Esc、点外侧及 Android 返回键关闭，并避免超出屏幕。目的是不必再请 AI 重述，就能把好的回答直接用到工作里：复制、存成笔记、导出文件可直接操作。复制和保存页面只处理点选的回答；下载会包含这个聊天从头到尾的全部已保存提问和回答。都使用保存的正文原文（Markdown），不读取渲染后的 HTML。
 
@@ -474,7 +474,7 @@ AI 的 `search_notes` 工具（`src/lib/page-ai/tools.ts`）现在与站内搜�
 - **Download conversation**：点击时从现有的 `GET /api/sessions/:sessionId/messages` 获取完整已保存历史（同一套所有权校验，`cache: no-store`，30 秒超时），不受点选的回答位置影响。`conversationToMarkdownFile` 按 API 返回的时间顺序写出所有 USER / ASSISTANT 消息，以 `## You` / `## NoteFable` 区分，不导出内部 SYSTEM 消息或压缩状态。正文不截断，保留代码和出处链接；附件保留名称，图片链接转成本站绝对 URL，仍需原账号或设备权限查看，不打包二进制文件。文件以会话标题命名（沿用 `answerFileName` 的安全文件名规则），末尾附原会话链接，不带单条消息锚点。下载期间菜单显示 Downloading… 并阻止重复点击；读取失败保留菜单并显示可重试错误，离开会话后不触发迟到的下载。文件通过 Markdown Blob 和隐藏的 `<a download>` 下载，10 秒后释放对象 URL。Android App 不在本机拼 Markdown，而是读 `GET /api/sessions/:sessionId/export?date=YYYY-MM-DD`（同一套所有权校验，只读 USER / ASSISTANT，服务端用同一个 `conversationToMarkdownFile` / `answerFileName`，返回 `{ fileName, markdown }`），见 [android-native.md](android-native.md)。
 - **Save to page**：在三个点菜单里直接新建一篇笔记，不再弹出确认。浏览器里 `answerToNoteContent` 把回答转成 `{ title, blocks }`，再 `POST /api/pages`（body `{ title, icon: null, cover: null, coverPosition: null, blocks }`，与手动新建同一个接口，服务端照常用 `validateNoteContent` 重新校验），成功返回 201 `{ page }`。随后派发 `notefable:page-created`（detail 是返回的页面），`use-note-pages.ts` 据此把新笔记加进侧栏；菜单项变成 “Saved to page”，下面出现 “Open saved page” 链接（`/?view=pages&page=<id>`：普通左键点击派发 `notefable:open-note` `{ id }` 在页面内打开，带修饰键或中键点击走 href）。失败时菜单项变成 “Retry saving to page”，菜单内显示原因：413 “This answer is too large to save as a note.”，400 显示服务端消息，其余（503、网络错误、响应不是 JSON）显示 “Could not save to page. Try again.”。保存中、已保存的状态放在模块级 Map（键 `${sessionId}\n${messageId}`），切换会话或重新挂载都保留，所以不会重复新建；**刷新页面就丢了**，再点一次会建第二篇——服务端没有去重，也没有记录“这条回答已存过”。Android App 没有浏览器端的转换，改用 `POST /api/pages/from-answer`（`{ markdown, sessionId, messageId, savedOn }`）：服务端核对会话归属（取标题和链接），用同一个 `answerToNoteContent` 生成块，再经 `validateNoteContent` 和与 `POST /api/pages` 共用的 `createNotePage` 新建。保存后又被移进 Trash 的笔记，“Open saved page” 仍在，点开会走既有的笔记打开失败处理。
 
-- **Report answer**（Google Play 的 AI 生成内容政策：应用内可以把冒犯性的 AI 输出报告给开发者）：菜单最后一项，打开对话框（理由选填，最多 1000 字），`POST /api/reports { messageId, reason }`。服务端只接受当前用户自己会话里的 ASSISTANT 消息（否则 404），每人每天 10 次、未登录时同一网络每天 20 次（`REPORT_LIMITS`，`UsageCounter` 的 `kind = report`，超出 429；邮件发送失败退还），然后用 Resend 把理由、用户 ID、会话 / 消息 ID、模型、时间、前一条用户消息（截到 4000 字）和回答（截到 20000 字）发到 `LEGAL_CONTACT_EMAIL`（`src/lib/answer-report.ts`）。报告不入库；邮件发送失败返回 502，本地没有 Resend 密钥时打印到服务器日志。成功后对话框换成“已发送”和“完成”。只有已保存到服务端的回答（cuid）才显示这一项，流式输出刚结束、还是临时 ID 的回答不显示。没有操作行的已保存 AI 输出（例如只有生成图片的回答）在下面单独显示一个旗子按钮（`ReportAnswerButton`；Android 为 `ReportOnlyAction`，iOS 为 `AnswerReportOnlyAction`），报告邮件里附上回答中图片的存储路径（笔记 AI 助手面板里，刚生成的回复用的是客户端临时 UUID，不显示这个按钮；面板打开时从服务端恢复的历史回复带数据库 ID，会显示）。Android 和 iOS 原生 App 的回答菜单有同样的一项（Android 为 `ui/ReportDialog.kt`）。幻灯片里用 AI 生成的图片也走这个接口：`{ pageId, elementId, reason }`，只接受本人不在 Trash 里的幻灯片中带 `generated` 的图片元素（否则 404 “This image is no longer available.”），邮件附上生成时的说明和文件路径（`slideImageReportEmail`），次数与回答的举报共用（[slides.md](slides.md#图片)）。
+- **Report answer**（Google Play 的 AI 生成内容政策：应用内可以把冒犯性的 AI 输出报告给开发者）：菜单最后一项，打开对话框（理由选填，最多 1000 字），`POST /api/reports { messageId, reason }`。服务端只接受当前用户自己会话里的 ASSISTANT 消息（否则 404），每人每天 10 次、未登录时同一网络每天 20 次（`REPORT_LIMITS`，`UsageCounter` 的 `kind = report`，超出 429；邮件发送失败退还），然后用 Resend 把理由、用户 ID、会话 / 消息 ID、模型、时间、前一条用户消息（截到 4000 字）和回答（截到 20000 字）发到 `LEGAL_CONTACT_EMAIL`（`src/lib/answer-report.ts`）。报告不入库；邮件发送失败返回 502，本地没有 Resend 密钥时打印到服务器日志。成功后对话框换成“已发送”和“完成”。只有已保存到服务端的回答（cuid）才显示这一项，流式输出刚结束、还是临时 ID 的回答不显示。没有操作行的已保存 AI 输出（例如只有生成图片的回答）在下面单独显示一个旗子按钮（`ReportAnswerButton`；Android 为 `ReportOnlyAction`，iOS 为 `AnswerReportOnlyAction`），报告邮件里附上回答中图片的存储路径（笔记 AI 助手面板里，刚生成的回复用的是客户端临时 UUID，不显示这个按钮；面板打开时从服务端恢复的历史回复带数据库 ID，会显示）。Android 和 iOS 原生 App 的回答菜单有同样的一项（Android 为 `ui/ReportDialog.kt`）。幻灯片和白板里用 AI 生成的图片也走这个接口：`{ pageId, elementId, reason }`，只接受本人不在 Trash 里的页面中带生成标记的图片元素（幻灯片的 `generated`、白板的 `customData.generated`；否则 404 “This image is no longer available.”），邮件附上生成时的说明和文件路径（`slideImageReportEmail` / `whiteboardImageReportEmail`）；工作区生图对话框里的预览用 `{ pageId, reportToken, reason }`（`pageImageReportEmail`）。次数与回答的举报共用（[slides.md](slides.md#图片)、[whiteboard.md](whiteboard.md#保存)）。
 
 ### 保存出来的笔记
 
@@ -503,14 +503,14 @@ AI 的 `search_notes` 工具（`src/lib/page-ai/tools.ts`）现在与站内搜�
 - **显示**：`splitQuotedMessage` 只在发言开头是引用块、后面隔一个空行还有正文时才分开；提问气泡里引用灰字在上（全文，不折叠），正文在下。自己手写的引用开头的发言也会这样显示。编辑发言时编辑框里是完整原文（含 `> `）。服务端的临时标题（`/api/chat` 与 `/api/images` 的 `makeTitle`）用引用后面的提问。
 - **上传附件期间**：引用不能移除或替换（发出的内容已定）。
 - **被拒绝时**：放回输入框的是提问，引用回到输入框上方（等待期间已经选了别的引用时保留它，被拒的提问连同引用块整段放回输入框）；没有引用时放回打的原文；登录前暂存的草稿（`savePendingDraft`）带着引用块，回来时同样拆开。
-- **同一格式的其他用法**：笔记编辑器里选中文字的 “Ask NoteFable” 也用 `normalizeQuote` 和 `composeQuotedMessage`。在笔记助手面板里发送时另带 `noteSelection=1`（[notes-flow.md](notes-flow.md#页面里的-ai-助手)）；在桌面分屏的页面面板里则直接成为聊天输入框上方的引用条，按普通发言发送（见“聊天与笔记分屏”）。
+- **同一格式的其他用法**：笔记编辑器里选中文字的 “Ask NoteFable” 也用 `normalizeQuote` 和 `composeQuotedMessage`。在笔记助手面板里发送时另带 `noteSelection=1`（[notes-flow.md](notes-flow.md#页面里的-ai-助手)）；在桌面分屏的页面面板里则直接成为聊天输入框上方的引用条，按普通发言发送（见“聊天与页面分屏”）。
 - Android：`ui/QuoteSelection.kt`，见 [android-native.md](android-native.md#回答体验)。
 
 ## 拖放添加文件
 
 有鼠标的设备上，把文件拖到聊天视图（`.notion-page` 整块，含顶栏和输入框）时显示虚线框的 “Drop files to attach”，放下后与 “＋” 选择文件、粘贴图片走同一个 `addUploadFiles`（同样的数量、大小、类型校验和错误提示）。只处理拖进来的是文件（`dataTransfer.types` 含 `Files`）的情况，拖文字不受影响；上传中不接收。拖到受理范围外（侧栏等）放下时，窗口级的 `dragover` / `drop` 只阻止浏览器打开文件、离开页面。Android 不适用。
 
-## 聊天与笔记分屏
+## 聊天与页面分屏
 
 视口宽度 1100px 以上（`SPLIT_VIEW_MEDIA_QUERY`，`src/lib/split-view.ts`）时，Chat 视图的顶栏在搜索按钮旁多一个分屏按钮（`aria-pressed`）。打开后工作区（`.workspace-split-shell`）分成左边的聊天、一条分隔线和右边的页面面板 `SplitNotePane`（`src/components/split-note-pane.tsx`，笔记、白板、幻灯片都能打开）。窄于 1100px 时按钮和面板都不出现（保存的开关不变，变宽后恢复）；手机宽度和原生 App 没有这个功能。
 

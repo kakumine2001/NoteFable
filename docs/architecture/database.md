@@ -359,7 +359,7 @@ User 1 -> N StoredFile（SetNull）
 
 ### UsageCounter
 
-用量计数，`(key, kind, day)` 为主键。`key` 是 `user:<User.id>`，或未登录用户所在网络的 `ip:<HMAC>`（用 Cookie 签名密钥对 IP 做 HMAC，不存原始 IP；IPv6 取前 64 位）；`kind` 是 `chat`（每次发送，包括笔记内 AI 助手和每次“整理成笔记”）或 `image`（每次生成；图片的每日上限用这一行），按月计的免费额度用 `image:month`（未登录的网络上限也用这个名字，`key` 不同），Pro 用 `chat:pro` / `image:pro`；`day` 是日本时间的日期，按月计时是这个周期的第一天（免费是自然月 1 日，Pro 是账期开始日）。没有外键，删除用户不会级联。上限和档位写在 `src/lib/usage-plans.ts`，计数逻辑在 `src/lib/usage-limits.ts`，定价依据见 [billing.md](billing.md)：
+用量计数，`(key, kind, day)` 为主键。`key` 是 `user:<User.id>`，或未登录用户所在网络的 `ip:<HMAC>`（用 Cookie 签名密钥对 IP 做 HMAC，不存原始 IP；IPv6 取前 64 位）；`kind` 是 `chat`（每次发送，包括页面里的 AI 助手；每次“整理成笔记”和画成图；AI 生成幻灯片的大纲和整套各一次）或 `image`（每次生成；图片的每日上限用这一行），按月计的免费额度用 `image:month`（未登录的网络上限也用这个名字，`key` 不同），Pro 用 `chat:pro` / `image:pro`；`day` 是日本时间的日期，按月计时是这个周期的第一天（免费是自然月 1 日，Pro 是账期开始日）。没有外键，删除用户不会级联。上限和档位写在 `src/lib/usage-plans.ts`，计数逻辑在 `src/lib/usage-limits.ts`，定价依据见 [billing.md](billing.md)：
 
 | 档位 | 条件 | 聊天 | 图片 |
 | --- | --- | --- | --- |
@@ -367,7 +367,7 @@ User 1 -> N StoredFile（SetNull）
 | member | 已登录（Google、Apple 或邮箱） | 40 / 天 | 20 / 月，且 5 / 天 |
 | pro | `plan = PRO` | 2000 / 账期 | 60 / 账期，且 10 / 天 |
 
-上限为 0 时直接拒绝，不写行（`INSERT` 本身不受 `WHERE` 限制）。图片一次生成同时计月（账期）和当天两行（`USAGE_DAILY_LIMITS`）。未登录用户清 Cookie 就会变成新用户，所以同一 IP 的未登录用户还共享一个更大的上限（聊天 100 / 天、图片 30 / 月）；登录后不受这个限制。计数用带条件的 `INSERT … ON CONFLICT DO UPDATE … WHERE count < limit`，并发请求也不会超额；多个计数在同一事务里，任一满额就整体回滚。`/api/chat`、`/api/images` 和 `/api/sessions/:id/page` 满额时返回 429（`code: "usage_limit"`）。没能交付任何内容的失败（聊天在正文和提案出现前失败或取消、图片生成或保存失败、会话不存在、附件处理失败）会退还这一次。按天计的行超过 7 天、按月计的行超过 62 天，在计数时以 1% 的概率顺带删除（没有定时任务）。设置里的“方案”经 `GET /api/billing` 读本期用量（`usageSummary`）。`kind = report` 的行是“报告回答”的每日次数（`REPORT_LIMITS`：每个用户 10 次，未登录时同一网络 20 次，`consumeReportQuota`），不属于用量档位。
+上限为 0 时直接拒绝，不写行（`INSERT` 本身不受 `WHERE` 限制）。图片一次生成同时计月（账期）和当天两行（`USAGE_DAILY_LIMITS`）。未登录用户清 Cookie 就会变成新用户，所以同一 IP 的未登录用户还共享一个更大的上限（聊天 100 / 天、图片 30 / 月）；登录后不受这个限制。计数用带条件的 `INSERT … ON CONFLICT DO UPDATE … WHERE count < limit`，并发请求也不会超额；多个计数在同一事务里，任一满额就整体回滚。`/api/chat`、`/api/images`、`/api/sessions/:id/page`、`/api/pages/images`、`/api/pages/diagram` 和 `/api/pages/slides/outline` / `deck` 满额时返回 429（`code: "usage_limit"`）。没能交付任何内容的失败（聊天在正文和提案出现前失败或取消、图片生成或保存失败、会话不存在、附件处理失败）会退还这一次。按天计的行超过 7 天、按月计的行超过 62 天，在计数时以 1% 的概率顺带删除（没有定时任务）。设置里的“方案”经 `GET /api/billing` 读本期用量（`usageSummary`）。`kind = report` 的行是举报（回答与 AI 内容共用）的每日次数（`REPORT_LIMITS`：每个用户 10 次，未登录时同一网络 20 次，`consumeReportQuota`），不属于用量档位。
 
 `kind` 以 `req:` 开头的行不是用量，而是“同一请求不重复扣费”的标记（`src/lib/usage-requests.ts`，目前只有幻灯片大纲）：`key = user:<id>`（删除账号时一起删掉），`kind = req:slides-outline:<clientRequestId>:<来源、选项、模型的哈希>`，`day` 是第一次请求的日本时间日期（跨天重试仍用同一行）。`count = 0` 表示生成中，`1` 起表示已返回结果（1 + 免费重跑次数，最多 3 次，之后重新扣费）；`updatedAt` 超过 300 秒的生成中标记视为原请求已中断。首次请求失败时删掉标记（并退还额度）。认领在带 `pg_advisory_xact_lock` 的事务里做。超过 7 天随按天的行一起清理。
 
@@ -387,7 +387,7 @@ User 1 -> N StoredFile（SetNull）
 
 `parentId`、`favoritedAt`、`fullWidth`、`smallText`、`font`、`locked`（`20261116000000_note_page_tree_settings` 追加，索引 `(parentId)`）。`parentId` 是自引用外键，指向父页面（子页面），父页面行被永久删除时置空（`SetNull`）；子页面的 `groupId` 与最上位的祖先一致。`favoritedAt` 非空即为收藏。其余四列是页面的显示设置和锁定。这些都是元数据：由专用接口用原生 SQL 写入，不增加 `version`、不刷新 `updatedAt`（与重排相同），子树的查询用 `WITH RECURSIVE`（`src/lib/note-tree-server.ts`）。规则见 [notes-flow.md](notes-flow.md#子页面收藏与页面设置)。
 
-`aiUpdatedAt`（可空，`20261124000000_page_ai_harness` 追加）是 AI 最后一次写这页内容的时间：适用（含自动应用）AI 提案、Create page 或画成图（`POST /api/pages/diagram`）建页时设置，撤销不清除。非空的页面在“…”菜单里显示 “Report AI content”（Google Play 的 AI 生成内容政策），页面摘要（`PAGE_SUMMARY_SELECT`）带着它。
+`aiUpdatedAt`（可空，`20261124000000_page_ai_harness` 追加）是 AI 最后一次写这页内容的时间：适用（含自动应用）AI 提案，或 Create page、画成图（`POST /api/pages/diagram`）、AI 生成幻灯片（`POST /api/pages/slides/deck`）建页时设置，撤销不清除。非空的页面在“…”菜单里显示 “Report AI content”（Google Play 的 AI 生成内容政策），页面摘要（`PAGE_SUMMARY_SELECT`）带着它。
 
 `kind`（枚举 `PageKind`：`note` / `whiteboard` / `slides`，默认 `note`，`20261123000000_page_kinds` 追加）是页面类型，新建后不变。白板和幻灯片的 `blocks` 是空数组，本体在 `NoteCanvas`；类型的规则见 [notes-flow.md](notes-flow.md#页面类型笔记--白板--幻灯片)。读取正文的代码要按 `kind` 分开处理：笔记读 `blocks`，白板 / 幻灯片的检索和聊天上下文读 `NoteCanvas.segments`，不要遍历 `NoteCanvas.data`。
 

@@ -21,7 +21,7 @@ Play Console → 应用内容（App content）里各个声明的填写方式。�
 - 用户之间互动 / 分享内容：仅支持单向公开只读链接（用户可手动将自己的笔记、白板或幻灯片发布为公开网页链接供他人浏览，幻灯片是放映视图；无评论、聊天室、公开目录或多人协作）。发布后如涉及 Play Console 问卷更新，需同步核对“用户分享内容”一栏。
 - 分享用户位置：否。
 - 数字商品购买：是（Pro 月额订阅，走 Google Play 结算）。
-- 应用含有 AI 生成内容：是。回答和图片由 OpenAI / Anthropic / DeepSeek 生成，经过各提供商的安全过滤；应用内可以举报回答、AI 对页面的修改提案、AI 写过的页面以及工作区（笔记、白板、幻灯片）里 AI 生成的图片（见下面"AI 生成内容"）。
+- 应用含有 AI 生成内容：是。回答由 OpenAI / Anthropic / DeepSeek、图片由 OpenAI 生成，经过各提供商的安全过滤；应用内可以举报回答、AI 对页面的修改提案、AI 写过的页面以及工作区（笔记、白板、幻灯片）里 AI 生成的图片（见下面"AI 生成内容"）。
 
 预计分级：IARC 3+ / Everyone 或 12+（以问卷结果为准）。
 
@@ -73,7 +73,7 @@ Play Console → 应用内容（App content）里各个声明的填写方式。�
 
 ## AI 生成内容
 
-Google Play 的 AI 生成内容政策要求能在应用内举报冒犯性的 AI 内容。App 和网页里所有 AI 生成的内容都能在应用内举报，不需要离开应用：
+Google Play 的 AI 生成内容政策要求能在应用内举报冒犯性的 AI 内容。App 和网页里的 AI 生成内容都能在应用内举报，不需要离开应用（例外：AI 幻灯片向导的大纲步骤没有单独的举报入口，生成整套后才能在页面上举报）：
 
 - 每条回答：三点菜单里的"举报"。
 - AI 对页面的修改和新建提案（聊天里和页面 AI 面板里的提案卡片）：卡片标题栏的旗帜按钮"举报 AI 内容"。
@@ -81,7 +81,7 @@ Google Play 的 AI 生成内容政策要求能在应用内举报冒犯性的 AI 
 
 提交后服务端把被举报的内容（回答和提问、提案的改前改后、页面当前的文字和 AI 改动记录）和理由发给开发者邮箱。
 
-工作区（笔记、白板、幻灯片）里用 AI 生成的图片也能举报：生成结果预览框内提供"Report image"入口（幻灯片已插入的图片选中后也可在设置栏或右键菜单点"Report image"），服务端校验归属后把图片的说明（提示词）、文件位置和理由发给开发者邮箱（App 里的工作区编辑器是同一个网页编辑器，同样可用）。
+工作区（笔记、白板、幻灯片）里用 AI 生成的图片也能举报：生成结果预览框内提供"Report image"入口（已插入幻灯片或白板的图片选中后也能举报：幻灯片在设置栏或右键菜单、白板在样式面板点"Report image"；笔记里的图片只能在插入前的预览框里举报），服务端校验归属后把图片的说明（提示词）、文件位置和理由发给开发者邮箱（App 里的工作区编辑器是同一个网页编辑器，同样可用）。
 
 商店详情保存时的"AI 素材申告"（AI アセットの申告）选"不给素材加标签"：截图从 App 实际界面截取，外框用 HTML 模板生成；图标、置顶大图和角色都是代码绘制的矢量图，都没有用图片生成 AI。截图里出现的 AI 回答是 App 功能本身的画面。以后如果商店图片改用生成式 AI 制作或修改，改选"给 AI 素材加标签"，并逐张标注。
 
@@ -95,7 +95,7 @@ Google Play 的 AI 生成内容政策要求能在应用内举报冒犯性的 AI 
 
 已完成（2026-11-17）：开发者账号、创建应用（NoteFable，`com.kakumine.notefable`）、订阅商品 `notefable_pro` 的创建、RTDN 和服务端环境变量（见 [billing.md](../architecture/billing.md#配置google-play)）、商店文字和图片、隐私政策 / 服务条款 / 特商法页面里的订阅说明。
 
-已完成（2026-11-20–22）：1.0.12（versionCode 22）起在内部测试和封闭测试（Alpha 轨道）完全发布，仓库当前版本为 1.0.17（versionCode 27），Play 上的实际版本以 Console 为准；订阅 `notefable_pro` 的基础方案 `monthly` 与 30 天免费试用 `free-trial-30d` 已启用；Play Console 的应用内容声明和商店介绍已填写；封闭测试已于 2026-11-22 通过 Testers Community 启动（15 名测试人员，16 天，见 `AGENTS.md`）。之后提高 versionCode 的 PR 合入 main 时，GitHub Actions 自动同时发布到内部测试和 Alpha（见 [android.md](../architecture/android.md#正式签名与-google-play)），不用再手动上传 AAB。
+已完成（2026-11-20–22）：1.0.12（versionCode 22）起在内部测试和封闭测试（Alpha 轨道）完全发布，仓库当前版本为 1.0.18（versionCode 28），Play 上的实际版本以 Console 为准；订阅 `notefable_pro` 的基础方案 `monthly` 与 30 天免费试用 `free-trial-30d` 已启用；Play Console 的应用内容声明和商店介绍已填写；封闭测试已于 2026-11-22 通过 Testers Community 启动（15 名测试人员，16 天，见 `AGENTS.md`）。之后提高 versionCode 的 PR 合入 main 时，GitHub Actions 自动同时发布到内部测试和 Alpha（见 [android.md](../architecture/android.md#正式签名与-google-play)），不用再手动上传 AAB。
 
 剩下的（都要在 Play Console 上由所有者操作）：
 

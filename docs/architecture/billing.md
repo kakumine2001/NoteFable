@@ -16,7 +16,7 @@ NoteFable 的收费只有一种：月额订阅 **Pro**，每月 ¥300（税込�
 - 图片有两层上限：月（账期）总量和每日张数，任何一层满了就拒绝，提示句会说明是今天的还是本月的。每日上限让用户每天都能用，月总量控制成本（一张图约 ¥4–8，是聊天的几十倍）。设置的“方案”里 Pro 显示两条图片生成用量（本期 / 今日），免费方案平时只显示今日图片生成（后台仍执行月总量上限，触顶时补显示满额的本月条）。
 - 同一网络的未登录用户另有共同上限：聊天 100 / 天，图片 30 / 月（未登录清 Cookie 就是新用户，图片靠这个上限兜底；登录后不受限）。网络按 IPv4 地址或 IPv6 的前 64 位计（`networkAddress`），在自己的 /64 里换地址逃不掉；换 IP（代理）仍然逃得掉，没有全站的未登录总量上限。
 - 免费的月用量（40 × 31 = 1,240 条）低于 Pro，测试会检查。
-- **文件存储**是这个用户放在文件仓库里的全部文件的合计（聊天附件图片、生成的图片、笔记的图片和文件、封面和页面图标、头像、设置里的图标；1 MB = 1 MiB，界面写作 MB / GB）。工作区上传（笔记文件、封面、图标，以及白板 / 幻灯片的图片）单个最多 4 MB，聊天附件仍是单个 20 MB。放不下时新的上传（和图片生成）被拒绝：413 `{ error, code: "storage_limit", tier, used, limit }`，三端显示用量和原因，游客另有登录按钮、免费用户另有 Pro 升级按钮（网页 Stripe、Android Play；iOS App Store）；服务端的句子不提升级。已有的文件不受影响。删掉的文件在不再被引用约一周后才释放空间（编辑历史、Trash 里的笔记仍算引用）。设置的“方案”页显示“存储”用量条（`GET /api/billing` 的 `storage: { used, limit }`，字节）。成本参考：Vercel Blob 按存储量和操作次数计费，Pro 的 10 GB 存满时主要是存储费；清理任务每天的 `list()` 次数很少（[database.md](database.md#storedfile)）。
+- **文件存储**是这个用户放在文件仓库里的全部文件的合计（聊天附件图片、生成的图片、工作区页面的图片和文件、封面和页面图标、头像、设置里的图标；1 MB = 1 MiB，界面写作 MB / GB）。工作区上传（笔记文件、封面、图标，以及白板 / 幻灯片的图片）单个最多 4 MB，聊天附件仍是单个 20 MB。放不下时新的上传（和图片生成）被拒绝：413 `{ error, code: "storage_limit", tier, used, limit }`，三端显示用量和原因，游客另有登录按钮、免费用户另有 Pro 升级按钮（网页 Stripe、Android Play；iOS App Store）；服务端的句子不提升级。已有的文件不受影响。删掉的文件在不再被引用约一周后才释放空间（编辑历史、Trash 里的页面仍算引用）。设置的“方案”页显示“存储”用量条（`GET /api/billing` 的 `storage: { used, limit }`，字节）。成本参考：Vercel Blob 按存储量和操作次数计费，Pro 的 10 GB 存满时主要是存储费；清理任务每天的 `list()` 次数很少（[database.md](database.md#storedfile)）。
 
 ### 定价依据（2026-11 查价）
 
@@ -107,7 +107,7 @@ GOOGLE_PLAY_PRODUCT_ID            # 可选，默认 notefable_pro
 
 已经建好的（2026-11-17）：
 
-- Play Console：App `NoteFable`（`com.kakumine.notefable`），已不再是草稿应用（2026-11-20 发布 1.0.12 至内部测试与 Alpha，仓库当前版本为 1.0.17 / versionCode 27，Play 上的实际版本以 Console 为准），之后的版本由 GitHub Actions 同时发布到内部测试和 Alpha（见 [android.md](android.md#正式签名与-google-play)）；订阅 `notefable_pro` 的基础方案 `monthly`（按月自动续订、宽限期 7 天、日本 ¥300，其他国家按汇率换算），已启用；上面有免费试用优惠 `free-trial-30d`（资格“新客户获取：没用过这个订阅”，30 天，已启用）；收益化设置里开了实时通知，主题 `projects/studymate-511413/topics/play-rtdn`。
+- Play Console：App `NoteFable`（`com.kakumine.notefable`），已不再是草稿应用（2026-11-20 发布 1.0.12 至内部测试与 Alpha，仓库当前版本为 1.0.18 / versionCode 28，Play 上的实际版本以 Console 为准），之后的版本由 GitHub Actions 同时发布到内部测试和 Alpha（见 [android.md](android.md#正式签名与-google-play)）；订阅 `notefable_pro` 的基础方案 `monthly`（按月自动续订、宽限期 7 天、日本 ¥300，其他国家按汇率换算），已启用；上面有免费试用优惠 `free-trial-30d`（资格“新客户获取：没用过这个订阅”，30 天，已启用）；收益化设置里开了实时通知，主题 `projects/studymate-511413/topics/play-rtdn`。
 - Play Console 用户：`play-billing@studymate-511413.iam.gserviceaccount.com`，权限“查看销售数据…”和“管理订单和订阅”。
 - Google Cloud 项目 `studymate-511413`：开了 Google Play Android Developer API 和 Pub/Sub；服务账号 `play-billing`（JSON 密钥已下载，只放 Vercel）、`pubsub-push`（无密钥，Pub/Sub 服务代理有它的 Token Creator）；主题 `play-rtdn`（`google-play-developer-notifications@system.gserviceaccount.com` 是发布者）；push 订阅 `play-rtdn-push` → `https://app.notefable.com/api/billing/google/notify`，用 `pubsub-push` 做 OIDC 认证，audience 同地址。
 - 测试：把测试账号加到“许可测试”，App 必须从 Play 的测试轨道安装（Drive 的 APK 不能购买）。
