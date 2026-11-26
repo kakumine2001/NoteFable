@@ -1,5 +1,7 @@
 // 英文界面文案为键；{name} 等占位符由 createTranslator 插入。
 export const zh: Record<string, string> = {
+  "Deleting your NoteFable account does not cancel an App Store subscription. Cancel it in the App Store to avoid renewal.": "删除 NoteFable 账号不会取消 App Store 订阅。请在 App Store 取消订阅，以免续费。",
+  "Manage App Store Subscription": "管理 App Store 订阅",
   "Add headings to create a table of contents.": "添加标题即可生成目录。",
   "Page title": "页面标题",
   "Rename page": "重命名页面",

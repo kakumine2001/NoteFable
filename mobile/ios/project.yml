@@ -17,7 +17,7 @@ settings:
   base:
     SWIFT_VERSION: "5.0"
     MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "4"
+    CURRENT_PROJECT_VERSION: "5"
     ENABLE_USER_SCRIPT_SANDBOXING: YES
 
 packages:
@@ -72,7 +72,7 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # 系统弹出的界面（提示框、确认菜单、选字光标）没单独设 tint 时用的强调色：AccentColor（#2383E2），不是系统蓝。
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        TARGETED_DEVICE_FAMILY: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
         GENERATE_INFOPLIST_FILE: NO
         SWIFT_EMIT_LOC_STRINGS: NO
 
@@ -93,7 +93,7 @@ targets:
         CODE_SIGN_ENTITLEMENTS: ShareExtension/Support/ShareExtension.entitlements
         APPLICATION_EXTENSION_API_ONLY: YES
         SKIP_INSTALL: YES
-        TARGETED_DEVICE_FAMILY: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
         GENERATE_INFOPLIST_FILE: NO
         SWIFT_EMIT_LOC_STRINGS: NO
 

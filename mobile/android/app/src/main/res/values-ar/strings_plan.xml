@@ -33,4 +33,6 @@
     <string name="storage_limit_sign_in">سجّل الدخول للحصول على %1$s من مساحة التخزين.</string>
     <string name="storage_limit_upgrade">احصل على %1$s من مساحة التخزين مع Pro مقابل %2$s شهرياً.</string>
     <string name="storage_limit_delete">احذف الملفات التي لم تعد بحاجة إليها لتحرير مساحة.</string>
+    <string name="plan_manage_app_store">إدارة اشتراك App Store</string>
+    <string name="acct_delete_app_store_notice">حذف حساب NoteFable لا يلغي اشتراك App Store. ألغِ الاشتراك في App Store لتجنب تجديده.</string>
 </resources>

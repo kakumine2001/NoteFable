@@ -33,4 +33,6 @@
     <string name="storage_limit_sign_in">%1$s depolama alanı için oturum açın.</string>
     <string name="storage_limit_upgrade">Ayda %2$s karşılığında Pro ile %1$s depolama alanı edinin.</string>
     <string name="storage_limit_delete">Yer açmak için artık ihtiyacınız olmayan dosyaları silin.</string>
+    <string name="plan_manage_app_store">App Store Aboneliğini Yönet</string>
+    <string name="acct_delete_app_store_notice">NoteFable hesabını silmek App Store aboneliğini iptal etmez. Yenilenmesini önlemek için App Store\'dan iptal et.</string>
 </resources>

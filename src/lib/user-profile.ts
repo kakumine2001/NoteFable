@@ -7,6 +7,7 @@ export const MAX_DISPLAY_NAME = 40;
 // サイドバーの「プロフィール」で使う、ログイン中の利用者の見え方。
 // displayName / icon は利用者が自分で決めた値（null は Google の名前・写真を使う）。
 export type AccountUser = {
+  appleProfile?: true;
   // 画面に出す名前（displayName があればそれ、なければ Google の名前）。
   name: string | null;
   googleName: string | null;
@@ -73,11 +74,12 @@ export function avatarVersion(storagePath: string | null) {
 export function toAccountUser(
   // locale が undefined なら、返す locale も undefined（分からない）にする。
   row: { displayName: string | null; avatarIcon: string | null; avatarImage: string | null; locale?: string | null },
-  google: { name?: string | null; email?: string | null; image?: string | null },
+  google: { name?: string | null; email?: string | null; image?: string | null; appleProfile?: true },
 ): AccountUser {
   const version = avatarVersion(row.avatarImage);
   return {
     name: row.displayName ?? google.name ?? null,
+    ...(google.appleProfile ? { appleProfile: true as const } : {}),
     googleName: google.name ?? null,
     email: google.email ?? null,
     image: google.image ?? null,

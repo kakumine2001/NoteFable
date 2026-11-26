@@ -61,7 +61,7 @@ export function createNonce(now = Date.now()) {
   return { nonce, cookieValue: `${payload}.${nonceSignature(payload)}` };
 }
 
-export function readNonce(cookieValue: string | undefined, now = Date.now()) {
+export function readNonceDetails(cookieValue: string | undefined, now = Date.now()) {
   const [nonce, issuedAt, signature, ...rest] = (cookieValue ?? "").split(".");
   if (!nonce || !issuedAt || !signature || rest.length) return null;
 
@@ -69,8 +69,13 @@ export function readNonce(cookieValue: string | undefined, now = Date.now()) {
   const actual = Buffer.from(signature);
   if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) return null;
 
-  const age = now - Number(issuedAt);
-  return age >= -60_000 && age <= NONCE_MAX_AGE * 1000 ? nonce : null;
+  const timestamp = Number(issuedAt);
+  const age = now - timestamp;
+  return age >= -60_000 && age <= NONCE_MAX_AGE * 1000 ? { nonce, timestamp } : null;
+}
+
+export function readNonce(cookieValue: string | undefined, now = Date.now()) {
+  return readNonceDetails(cookieValue, now)?.nonce ?? null;
 }
 
 // 署名・有効期限・発行元・宛先（自分の Web クライアント ID）・nonce を確認する。トークンが不正なら null。

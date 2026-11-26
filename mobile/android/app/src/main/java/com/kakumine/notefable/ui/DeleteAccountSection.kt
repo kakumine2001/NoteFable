@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -65,6 +66,7 @@ internal fun DeleteAccountSection(
 ) {
     val system = rememberSystemText()
     val deleting = state.deleting
+    val links = LocalUriHandler.current
 
     Column(Modifier.fillMaxWidth()) {
         if (!state.confirming) {
@@ -73,6 +75,13 @@ internal fun DeleteAccountSection(
         }
         Column(Modifier.fillMaxWidth().background(DangerFill).padding(horizontal = 16.dp, vertical = 14.dp)) {
             Text(stringResource(R.string.acct_delete_account_warning), color = Sm.Text, fontSize = 14.sp, lineHeight = 21.sp)
+            SettingsHelpText(stringResource(R.string.acct_delete_app_store_notice))
+            NotionButton(
+                stringResource(R.string.plan_manage_app_store),
+                onClick = { runCatching { links.openUri("https://apps.apple.com/account/subscriptions") } },
+                enabled = !deleting,
+                modifier = Modifier.padding(top = 8.dp),
+            )
             state.error?.let {
                 Text(
                     (it as? ApiException)?.serverMessage()?.let(system::localize) ?: stringResource(R.string.acct_err_delete_account),

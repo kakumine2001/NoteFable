@@ -1,4 +1,6 @@
 export const ja: Record<string, string> = {
+  "Deleting your NoteFable account does not cancel an App Store subscription. Cancel it in the App Store to avoid renewal.": "NoteFable のアカウントを削除しても、App Store のサブスクリプションは解約されません。更新を止めるには App Store で解約してください。",
+  "Manage App Store Subscription": "App Store のサブスクリプションを管理",
   "Add headings to create a table of contents.": "見出しを追加すると目次が作成されます。",
   "Page title": "ページタイトル",
   "Rename page": "ページ名を変更",

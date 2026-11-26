@@ -4,6 +4,7 @@ import type { JWT } from "next-auth/jwt";
 import Google from "next-auth/providers/google";
 import { isAuthoritativeGoogleEmail } from "@/lib/email-address";
 import { optionalEnv } from "@/lib/env";
+import { isAppleLoginConfigured } from "@/lib/apple-identity-config";
 import { loginTimestamp } from "@/lib/login-time";
 
 // Google ログインに必要な環境変数がそろっているか。未設定でも匿名利用はそのまま動かす。
@@ -22,13 +23,14 @@ export function isEmailLoginConfigured() {
 
 // どちらかのログインが使えるか。ログイン Cookie（Auth.js の JWT）を読むかどうかはこれで決める。
 export function isAccountLoginConfigured() {
-  return isGoogleLoginConfigured() || isEmailLoginConfigured();
+  return isGoogleLoginConfigured() || isEmailLoginConfigured() || isAppleLoginConfigured();
 }
 
 declare module "next-auth" {
   interface Session {
     // メールの確認コードでログインしたときのアドレス（小文字）。Google ログインでは undefined。
     loginEmail?: string;
+    appleSub?: string;
     // Google のアドレスが Gmail / Workspace の確認済みアドレスか。そのときだけ、同じアドレスのメールログインの利用者とまとめる。
     googleEmailVerified?: boolean;
     // ログイン Cookie を発行した時刻（秒、loginTimestamp）。削除したアカウントの古い Cookie を見分ける（deleted-accounts.ts）。
@@ -53,6 +55,8 @@ export const authCallbacks = {
     if (session.user && typeof token.googleSub === "string") {
       session.user.id = token.googleSub;
       session.googleEmailVerified = token.googleEmailVerified === true;
+    } else if (typeof token.appleSub === "string") {
+      session.appleSub = token.appleSub;
     } else if (typeof token.loginEmail === "string") {
       session.loginEmail = token.loginEmail;
     }

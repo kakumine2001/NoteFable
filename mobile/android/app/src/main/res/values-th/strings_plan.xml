@@ -33,4 +33,6 @@
     <string name="storage_limit_sign_in">ลงชื่อเข้าใช้เพื่อรับพื้นที่จัดเก็บ %1$s</string>
     <string name="storage_limit_upgrade">รับพื้นที่จัดเก็บ %1$s ด้วย Pro ในราคา %2$s/เดือน</string>
     <string name="storage_limit_delete">ลบไฟล์ที่ไม่ต้องการแล้วเพื่อเพิ่มพื้นที่ว่าง</string>
+    <string name="plan_manage_app_store">จัดการการสมัครสมาชิก App Store</string>
+    <string name="acct_delete_app_store_notice">การลบบัญชี NoteFable ไม่ได้ยกเลิกการสมัครสมาชิก App Store ยกเลิกใน App Store เพื่อป้องกันการต่ออายุ</string>
 </resources>

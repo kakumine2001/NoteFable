@@ -1,8 +1,9 @@
 import Stripe from "stripe";
+import { refreshAppleBillingOwner } from "@/lib/apple-app-store";
 import { optionalEnv } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 import { PRO_TRIAL_DAYS } from "@/lib/usage-plans";
-import { isProStatus, readOwner, subscriptionAction, withUserBillingLock, writeSubscription, type BillingTx } from "@/lib/subscription-state";
+import { applePurchasePending, isProStatus, readOwner, subscriptionAction, withUserBillingLock, writeSubscription, type BillingTx } from "@/lib/subscription-state";
 
 export { isProStatus };
 
@@ -42,6 +43,7 @@ export function isTrialEligible(user: { subscriptionStatus: string | null }) {
 
 // 申し込みの前に、まだ課金の続く購読（どちらの購入元でも）があったときに投げる（画面には「すでに Pro」と返す）。
 export class AlreadySubscribedError extends Error {}
+export class ApplePurchasePendingError extends Error {}
 // 申し込みを待っている間にアカウントが削除された。
 export class AccountGoneError extends Error {}
 
@@ -80,8 +82,9 @@ function customerIdOf(subscription: Stripe.Subscription) {
 // 購読を持ち主の行に写す。ロックの中で、持ち主を読み直してから。
 // 別の購読（Google Play も含む）が PRO の間にもう 1 つ課金の続く Stripe の購読ができていたら、二重課金なのでその新しい方を止める。
 async function applySubscription(tx: BillingTx, userId: string, subscription: Stripe.Subscription) {
-  const owner = await readOwner(tx, { id: userId });
-  if (!owner) return null;
+  const snapshot = await readOwner(tx, { id: userId });
+  if (!snapshot) return null;
+  const owner = await refreshAppleBillingOwner(tx, snapshot);
   const period = subscriptionPeriod(subscription);
   const update = {
     provider: "stripe" as const,
@@ -92,7 +95,10 @@ async function applySubscription(tx: BillingTx, userId: string, subscription: St
     cancelAt: scheduledEnd(subscription, period.end),
   };
   const action = subscriptionAction(owner, update);
-  if (action === "duplicate") await stopDuplicate(subscription);
+  if (action === "duplicate" || (isProStatus(update.status) && owner.stripeSubscriptionId !== subscription.id && applePurchasePending(owner))) {
+    await stopDuplicate(subscription);
+    return owner.id;
+  }
   // 止めた 2 つ目の購読の返金が前回失敗していたら、ここでやり直す（取り消したあとは PRO でないので stale になる）。
   if (action === "stale" && subscription.metadata?.[DUPLICATE_MARK] === "1") await refundDuplicate(subscription);
   if (action === "write") await writeSubscription(tx, owner, update);
@@ -144,6 +150,15 @@ async function expireOpenCheckouts(customer: string) {
   }
 }
 
+// StoreKit を開く前に、まだ支払えるウェブ Checkout を止めて実際の購読を確かめる。呼び出し元が利用者のロックを保持する。
+export async function blockApplePurchaseForStripe(tx: BillingTx, userId: string, customer: string) {
+  await expireOpenCheckouts(customer);
+  const live = (await customerSubscriptions(customer)).filter((subscription) => !ENDED_STATUSES.has(subscription.status));
+  if (!live.length) return false;
+  await applySubscription(tx, userId, preferred(live));
+  return true;
+}
+
 // 申し込み。ロックの中で行を読み直し、すでに PRO なら断る。前に開いた決済画面を先に閉じてから
 // Stripe の購読を確かめる（閉じる間に支払われた画面の購読も見つかる）。課金の続く購読がなければ新しい決済画面を 1 つだけ作る。
 export async function createCheckoutUrl(userId: string, origin: string) {
@@ -151,9 +166,10 @@ export async function createCheckoutUrl(userId: string, origin: string) {
   const result = await withUserBillingLock(userId, async (tx): Promise<{ url: string } | { conflict: true }> => {
     const row = await tx.user.findUnique({
       where: { id: userId },
-      select: { id: true, stripeCustomerId: true, verifiedEmail: true, email: true, subscriptionStatus: true },
+      select: { id: true, stripeCustomerId: true, verifiedEmail: true, email: true, subscriptionStatus: true, applePurchaseHoldUntil: true },
     });
     if (!row) throw new AccountGoneError();
+    if (applePurchasePending(row)) throw new ApplePurchasePendingError();
     if (isProStatus(row.subscriptionStatus)) return { conflict: true };
     const customer = await ensureCustomer(tx, row);
     await expireOpenCheckouts(customer);
