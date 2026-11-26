@@ -1184,7 +1184,7 @@ export const ko: Record<string, string> = {
   "Add sibling": "같은 수준 항목 추가",
   "Collapse branch": "가지 접기",
   "Expand branch": "가지 펼치기",
-  "{count} hidden topics": "숨겨진 주제 {count}개",
+  "Hidden topics: {count}": "숨겨진 주제: {count}",
   "Branches on both sides": "가지를 양쪽에",
   "Branches on the right": "가지를 오른쪽에",
   "New topic": "새 주제",

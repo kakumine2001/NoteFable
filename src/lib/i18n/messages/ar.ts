@@ -1184,7 +1184,7 @@ export const ar: Record<string, string> = {
   "Add sibling": "إضافة عنصر في المستوى نفسه",
   "Collapse branch": "طي الفرع",
   "Expand branch": "توسيع الفرع",
-  "{count} hidden topics": "{count} موضوعات مخفية",
+  "Hidden topics: {count}": "المواضيع المخفية: {count}",
   "Branches on both sides": "الفروع على الجانبين",
   "Branches on the right": "الفروع على اليمين",
   "New topic": "موضوع جديد",

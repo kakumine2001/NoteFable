@@ -101,7 +101,7 @@ export function MindmapOverlay({ api, model, editable, hidden, onAddChild, onAdd
     {model.collapsed.map((node) => {
       const left = node.side === "left" ? node.box.x : node.box.x + node.box.width;
       const position = at(left, node.box.y + node.box.height / 2);
-      const label = t("{count} hidden topics", { count: node.hidden });
+      const label = t("Hidden topics: {count}", { count: node.hidden });
       const style = { left: position.left, top: position.top };
       const className = `whiteboard-mindmap-badge${node.side === "left" ? " is-left" : ""}`;
       return editable

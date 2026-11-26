@@ -1184,7 +1184,7 @@ export const ptBR: Record<string, string> = {
   "Add sibling": "Adicionar irmão",
   "Collapse branch": "Recolher ramo",
   "Expand branch": "Expandir ramo",
-  "{count} hidden topics": "{count} tópicos ocultos",
+  "Hidden topics: {count}": "Tópicos ocultos: {count}",
   "Branches on both sides": "Ramos nos dois lados",
   "Branches on the right": "Ramos à direita",
   "New topic": "Novo tópico",

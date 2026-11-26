@@ -1184,7 +1184,7 @@ export const de: Record<string, string> = {
   "Add sibling": "Gleichrangigen Punkt hinzufügen",
   "Collapse branch": "Zweig einklappen",
   "Expand branch": "Zweig ausklappen",
-  "{count} hidden topics": "{count} ausgeblendete Themen",
+  "Hidden topics: {count}": "Ausgeblendete Themen: {count}",
   "Branches on both sides": "Zweige auf beiden Seiten",
   "Branches on the right": "Zweige rechts",
   "New topic": "Neues Thema",

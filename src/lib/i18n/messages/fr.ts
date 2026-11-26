@@ -1184,7 +1184,7 @@ export const fr: Record<string, string> = {
   "Add sibling": "Ajouter un frère",
   "Collapse branch": "Replier la branche",
   "Expand branch": "Déplier la branche",
-  "{count} hidden topics": "{count} sujets masqués",
+  "Hidden topics: {count}": "Sujets masqués : {count}",
   "Branches on both sides": "Branches des deux côtés",
   "Branches on the right": "Branches à droite",
   "New topic": "Nouveau sujet",

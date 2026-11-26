@@ -1193,7 +1193,7 @@ export const zh: Record<string, string> = {
   "Add sibling": "添加同级节点",
   "Collapse branch": "折叠分支",
   "Expand branch": "展开分支",
-  "{count} hidden topics": "已隐藏 {count} 个主题",
+  "Hidden topics: {count}": "已隐藏的主题：{count}",
   "Branches on both sides": "分支在两侧",
   "Branches on the right": "分支在右侧",
   "New topic": "新主题",

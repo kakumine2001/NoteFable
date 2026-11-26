@@ -1184,7 +1184,7 @@ export const vi: Record<string, string> = {
   "Add sibling": "Thêm nút cùng cấp",
   "Collapse branch": "Thu gọn nhánh",
   "Expand branch": "Mở rộng nhánh",
-  "{count} hidden topics": "{count} chủ đề bị ẩn",
+  "Hidden topics: {count}": "Chủ đề bị ẩn: {count}",
   "Branches on both sides": "Nhánh ở hai bên",
   "Branches on the right": "Nhánh ở bên phải",
   "New topic": "Chủ đề mới",

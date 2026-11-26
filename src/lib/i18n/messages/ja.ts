@@ -1185,7 +1185,7 @@ export const ja: Record<string, string> = {
   "Add sibling": "兄弟を追加",
   "Collapse branch": "枝を折りたたむ",
   "Expand branch": "枝を展開",
-  "{count} hidden topics": "{count} 件のトピックを非表示中",
+  "Hidden topics: {count}": "非表示のトピック：{count}",
   "Branches on both sides": "枝を両側に",
   "Branches on the right": "枝を右側に",
   "New topic": "新しいトピック",

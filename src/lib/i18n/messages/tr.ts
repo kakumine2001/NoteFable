@@ -1184,7 +1184,7 @@ export const tr: Record<string, string> = {
   "Add sibling": "Eş düzey öğe ekle",
   "Collapse branch": "Dalı daralt",
   "Expand branch": "Dalı genişlet",
-  "{count} hidden topics": "{count} gizli konu",
+  "Hidden topics: {count}": "Gizli konular: {count}",
   "Branches on both sides": "Dallar iki yanda",
   "Branches on the right": "Dallar sağda",
   "New topic": "Yeni konu",

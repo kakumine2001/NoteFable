@@ -1184,7 +1184,7 @@ export const hi: Record<string, string> = {
   "Add sibling": "समान स्तर जोड़ें",
   "Collapse branch": "शाखा समेटें",
   "Expand branch": "शाखा फैलाएँ",
-  "{count} hidden topics": "{count} छिपे विषय",
+  "Hidden topics: {count}": "छिपे विषय: {count}",
   "Branches on both sides": "दोनों तरफ़ शाखाएँ",
   "Branches on the right": "दाईं ओर शाखाएँ",
   "New topic": "नया विषय",

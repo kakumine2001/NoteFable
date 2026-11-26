@@ -1184,7 +1184,7 @@ export const th: Record<string, string> = {
   "Add sibling": "เพิ่มหัวข้อระดับเดียวกัน",
   "Collapse branch": "ยุบกิ่ง",
   "Expand branch": "ขยายกิ่ง",
-  "{count} hidden topics": "ซ่อน {count} หัวข้อ",
+  "Hidden topics: {count}": "หัวข้อที่ซ่อนอยู่: {count}",
   "Branches on both sides": "แตกกิ่งทั้งสองข้าง",
   "Branches on the right": "แตกกิ่งด้านขวา",
   "New topic": "หัวข้อใหม่",

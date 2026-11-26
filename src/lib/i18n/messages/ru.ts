@@ -1184,7 +1184,7 @@ export const ru: Record<string, string> = {
   "Add sibling": "Добавить соседний",
   "Collapse branch": "Свернуть ветвь",
   "Expand branch": "Развернуть ветвь",
-  "{count} hidden topics": "Скрыто тем: {count}",
+  "Hidden topics: {count}": "Скрыто тем: {count}",
   "Branches on both sides": "Ветви с обеих сторон",
   "Branches on the right": "Ветви справа",
   "New topic": "Новая тема",

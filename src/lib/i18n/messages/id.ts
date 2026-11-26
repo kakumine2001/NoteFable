@@ -1184,7 +1184,7 @@ export const id: Record<string, string> = {
   "Add sibling": "Tambah saudara",
   "Collapse branch": "Ciutkan cabang",
   "Expand branch": "Bentangkan cabang",
-  "{count} hidden topics": "{count} topik tersembunyi",
+  "Hidden topics: {count}": "Topik tersembunyi: {count}",
   "Branches on both sides": "Cabang di kedua sisi",
   "Branches on the right": "Cabang di kanan",
   "New topic": "Topik baru",

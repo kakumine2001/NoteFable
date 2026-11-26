@@ -1184,7 +1184,7 @@ export const es: Record<string, string> = {
   "Add sibling": "Añadir hermano",
   "Collapse branch": "Contraer rama",
   "Expand branch": "Expandir rama",
-  "{count} hidden topics": "{count} temas ocultos",
+  "Hidden topics: {count}": "Temas ocultos: {count}",
   "Branches on both sides": "Ramas a ambos lados",
   "Branches on the right": "Ramas a la derecha",
   "New topic": "Nuevo tema",
