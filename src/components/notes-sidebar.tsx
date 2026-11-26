@@ -15,7 +15,7 @@ import { ancestorsOf, childrenByParent, rootPages } from "@/lib/note-tree";
 import { creatablePageKinds, PAGE_KIND_NEW_LABELS, PAGE_KIND_SECTION_LABELS, type PageKind } from "@/lib/page-kinds";
 import { sectionKindOf, workspaceSections, type NewPageRequest } from "@/lib/workspace-sections";
 import { NewPageButton } from "@/components/new-page-button";
-import { useExpandedPages } from "@/lib/use-expanded-pages";
+import { revealAncestorsOnce, useExpandedPages } from "@/lib/use-expanded-pages";
 import { rowName } from "@/lib/view-transition";
 import { TRASH_RETENTION_DAYS, type NoteGroupSummary, type NotePageSummary } from "@/types/notes";
 import { useT } from "@/components/i18n-provider";
@@ -118,8 +118,12 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
   const sections = workspaceSections(pages, groups, kinds);
   const sectionOf = new Map(sections.flatMap((section) => section.roots.map((page) => [page.id, section] as const)));
   const favorites = pages.filter((page) => page.favoritedAt).sort((a, b) => (a.favoritedAt ?? "").localeCompare(b.favoritedAt ?? ""));
-  // 開いているページの祖先は、閉じていても開いて見せる。
-  const activeAncestors = new Set(activeId ? ancestorsOf(pages, activeId).map((page) => page.id) : []);
+  // 開いているページへ移動したときだけ祖先を自動展開する（その後ユーザーが矢印で折りたたむ操作は妨げない）。
+  useEffect(() => {
+    const activeLoaded = Boolean(activeId && pages.some((page) => page.id === activeId));
+    const ancestorIds = activeLoaded && activeId ? ancestorsOf(pages, activeId).map((page) => page.id) : [];
+    revealAncestorsOnce(activeId, ancestorIds, activeLoaded);
+  }, [activeId, pages]);
   // キーボードでの並べ替えは、同じ親・同じグループの兄弟の中で動かす。
   const known = new Set(pages.map((page) => page.id));
   // プロジェクトなしの最上位は、同じ分区の中だけで動かす。
@@ -135,7 +139,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
   const tree = (page: NotePageSummary): ReactNode => {
     const kids = children.get(page.id) ?? [];
     // Notion と同じく、どのページにも開閉の矢印を出す（サブページがなければ「No pages inside」）。
-    const open = !!expanded[page.id] || (kids.length > 0 && activeAncestors.has(page.id));
+    const open = !!expanded[page.id];
     return <div key={page.id}>
       {row(page, open)}
       {open && <div className="notes-group-members notes-subpages">
