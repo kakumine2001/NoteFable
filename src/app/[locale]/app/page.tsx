@@ -81,7 +81,7 @@ import { cancelCanvasReveal, revealChatMessage, revealNoteBlock } from "@/lib/se
 import { cancelWhiteboardReveal, requestWhiteboardReveal } from "@/lib/whiteboard/reveal";
 import { flushCanvasEditors } from "@/lib/canvas-flush";
 import { getSubmissionValidationError } from "@/lib/submission-validation";
-import { afterSheetHistory, restoreSheetMarker, useBackToClose } from "@/lib/use-back-to-close";
+import { afterSheetHistory, isSheetCleanupPopState, restoreSheetMarker, useBackToClose } from "@/lib/use-back-to-close";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { StorageLimitError, UsageLimitError, storageLimitErrorFrom, usageLimitErrorFrom, type UsageKind } from "@/lib/usage-plans";
 import { readModelPreference, resolveModelPreference, saveModelPreference } from "@/lib/model-preference";
@@ -231,7 +231,11 @@ export default function Home() {
       else if (animate && isPhone && list !== shownRef.current.list) runTransition(apply, "back");
       else runTransition(apply, "back", false);
     }
-    const onPopState = () => syncWorkspace(true);
+    const onPopState = (event: PopStateEvent) => {
+      // シート・ドロワーを閉じた後始末（history.back）はユーザーの「戻る」ではないので、新規作成や遷移中の画面をホームへ戻さない。
+      if (isSheetCleanupPopState(event)) return;
+      syncWorkspace(true);
+    };
     queueMicrotask(() => syncWorkspace(false));
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);

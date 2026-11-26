@@ -515,14 +515,16 @@ export function useNotePages(
       const known = new Set<string>(data.pages.map((page: NotePageSummary) => page.id));
       const extra = createdWhileLoading.current.filter((page) => !known.has(page.id));
       createdWhileLoading.current = [];
-      setPages(extra.length ? [...extra, ...data.pages].sort(byPosition) : data.pages);
+      const merged = extra.length ? [...extra, ...data.pages].sort(byPosition) : data.pages;
+      setPages(merged);
       setGroups(data.groups ?? []);
       const url = new URL(window.location.href);
       const inPagesView = url.searchParams.get("view") === "pages";
       const requested = inPagesView ? url.searchParams.get("page") : null;
-      const id = data.pages.find((page: NotePageSummary) => page.id === requested)?.id;
-      if (id) await select(id, "replace");
-      else if (inPagesView) {
+      const id = merged.find((page: NotePageSummary) => page.id === requested)?.id;
+      if (id) {
+        if (displayedId.current !== id) await select(id, "replace");
+      } else if (inPagesView && (!displayedId.current || !merged.some((page: NotePageSummary) => page.id === displayedId.current))) {
         displayedId.current = null; setActiveId(null); setActive(undefined);
         if (requested) {
           // 存在しない（削除済みなど）ノートを指す URL を開いた：指定を外して Notes のホームに戻す。
@@ -740,6 +742,7 @@ export function useNotePages(
         }
       }
       invalidatePageCache(page.id);
+      if (!loaded.current) createdWhileLoading.current.push(page);
       const queue = install(page);
       runTransition(() => upsertSummary(page), "list");
       ++navigation.current;

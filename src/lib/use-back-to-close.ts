@@ -19,21 +19,28 @@ const hasMarker = () => !!window.history.state?.notefableSheet;
 // いま届いた popstate がシート・ドロワーの後始末（history.back）によるものか。
 // リスナーの登録順に関わらず判定できるよう、処理中（ownBack）と同一イベント配送中（ownBackEvent）の両方を見る。
 export function isSheetCleanupPopState(event?: Event): boolean {
+  if (event && !event.isTrusted) return false;
   return ownBack || (Boolean(event) && ownBackEvent === event);
 }
 
 // 目印を外す history.back() を待っている処理（afterSheetHistory）。
 let afterBack: (() => void)[] = [];
+// popstate 後に setTimeout で flushAfterBack を待っている間のタイマー。
+// ownBack が false に戻った直後〜flushAfterBack 実行前の呼び出しが、先に並んだ URL 書き換えを追い越さないように保つ。
+let pendingFlush: ReturnType<typeof setTimeout> | null = null;
 function flushAfterBack() {
-  const callbacks = afterBack;
-  afterBack = [];
-  callbacks.forEach((callback) => callback());
+  pendingFlush = null;
+  while (afterBack.length > 0) {
+    const callbacks = afterBack;
+    afterBack = [];
+    callbacks.forEach((callback) => callback());
+  }
 }
 
-// シートを閉じたあとに今の履歴（URL）を書き換えたいとき用。閉じたシートの目印を外す history.back() が予約中・進行中なら、
-// それが終わって元の履歴に戻ってから呼ぶ（先に書き換えると、戻った先は書き換える前の URL のまま）。なければすぐ呼ぶ。
+// シートを閉じたあとに今の履歴（URL）を書き換えたいとき用。閉じたシートの目印を外す history.back() が予約中・進行中、
+// または戻り後の実行待ちの間は後ろに並べ、終わってから登録順に呼ぶ。なければすぐ呼ぶ。
 export function afterSheetHistory(callback: () => void) {
-  if (pendingBack === null && !ownBack) {
+  if (pendingBack === null && !ownBack && pendingFlush === null) {
     callback();
     return;
   }
@@ -50,7 +57,7 @@ function onPopState(event: PopStateEvent) {
     // 退けた目印のあとに別のシートが開いていた（目印を積み損ねた）場合は積み直す。
     restoreSheetMarker();
     // 元の履歴に戻った。Next.js がこの popstate を処理し終えてから、待っていた書き換えをする。
-    setTimeout(flushAfterBack);
+    if (pendingFlush === null) pendingFlush = setTimeout(flushAfterBack);
     return;
   }
   // 端末の「戻る」: 目印が外れたので、一番上のシートを閉じる。
@@ -114,6 +121,7 @@ export function useBackToClose(open: boolean, onClose: () => boolean | void) {
       // 閉じた直後に別のシートが開いた（行を切り替えた、開発時の再実行など）。
       clearTimeout(pendingBack);
       pendingBack = null;
+      if (afterBack.length > 0 && pendingFlush === null) pendingFlush = setTimeout(flushAfterBack);
     }
     // 目印が残っていればそれを使い回し、無ければ（その間に「戻る」で外れた場合など）積む。
     if (!hasMarker()) window.history.pushState(MARKER, "");

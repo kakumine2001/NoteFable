@@ -163,11 +163,26 @@ const SLASH_LOOK: Record<string, { icon: ReactNode; hint?: string }> = {
   columns_4: { icon: <Columns4 size={18} /> },
 };
 
+// スラッシュメニュー・メンションメニューの選択項目を、メニュー自身のスクロール領域の中だけで見せる。
+// element.scrollIntoView() は Floating UI の配置前の位置（top: 0）に反応して .notes-workspace ごと先頭へスクロールしてしまう。
+export function scrollSelectedOptionIntoView(list: HTMLElement | null) {
+  if (!list) return;
+  const item = list.querySelector<HTMLElement>('[aria-selected="true"]');
+  if (!item) return;
+  const listRect = list.getBoundingClientRect();
+  const itemRect = item.getBoundingClientRect();
+  if (itemRect.top < listRect.top) {
+    list.scrollTop += itemRect.top - listRect.top;
+  } else if (itemRect.bottom > listRect.bottom) {
+    list.scrollTop += itemRect.bottom - listRect.bottom;
+  }
+}
+
 function SlashMenu({ items, selectedIndex, onItemClick }: SuggestionMenuProps<SlashItem>) {
   const t = useT();
   const listRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+    scrollSelectedOptionIntoView(listRef.current);
   }, [selectedIndex]);
   if (!items.length) return <div className="notes-slash-menu"><div className="notes-slash-empty">{t("No results")}</div></div>;
   return <div ref={listRef} className="notes-slash-menu" role="listbox" id="bn-suggestion-menu">
@@ -324,18 +339,33 @@ function NoteSideMenu() {
   const hovered = useExtensionState(SideMenuExtension, { editor, selector: (state) => state?.block });
   const selectionCtx = useContext(BlockSelectionContext);
   const isHoveredSelected = Boolean(hovered && selectionCtx?.selectedIdSet.has(hovered.id));
+  // BlockNote の SideMenuView は document capture で任意の keydown を受けてメニューを隠す。
+  // Alt+クリックで上に追加しようとして Alt キーだけ押したときに「+」が消えないようにする。
+  useEffect(() => {
+    const keepVisibleOnAlt = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Alt" || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (sideMenu?.store.state?.show && editor.isFocused()) {
+        event.stopPropagation();
+      }
+    };
+    window.addEventListener("keydown", keepVisibleOnAlt, true);
+    return () => window.removeEventListener("keydown", keepVisibleOnAlt, true);
+  }, [editor, sideMenu]);
   return <SideMenu>
-    <Components.SideMenu.Button className="bn-button" label={t("Click to add below. Alt-click to add above.")} icon={<Plus size={18} strokeWidth={1.8} />}
-      onClick={(event) => {
-        const block = hovered && editor.getBlock(hovered.id);
-        if (!block) return;
-        selectionCtx?.clearSelection();
-        const empty = Array.isArray(block.content) && block.content.length === 0;
-        const target = !event.altKey && empty ? block : editor.insertBlocks([{ type: "paragraph" }], block, event.altKey ? "before" : "after")[0];
-        editor.focus();
-        editor.setTextCursorPosition(target);
-        editor.getExtension(SuggestionMenu)?.openSuggestionMenu("/");
-      }} />
+    <span className="contents" onMouseDown={(event) => event.preventDefault()}>
+      <Components.SideMenu.Button className="bn-button" label={t("Click to add below. Alt-click to add above.")} icon={<Plus size={18} strokeWidth={1.8} />}
+        onClick={(event) => {
+          const block = hovered && editor.getBlock(hovered.id);
+          if (!block) return;
+          selectionCtx?.clearSelection();
+          const empty = Array.isArray(block.content) && block.content.length === 0;
+          const target = !event.altKey && empty ? block : editor.insertBlocks([{ type: "paragraph" }], block, event.altKey ? "before" : "after")[0];
+          // 先にカーソルを挿入先へ移してからフォーカスし、前のカーソル位置（文書先頭など）へスクロールさせない。
+          editor.setTextCursorPosition(target);
+          editor.focus();
+          editor.getExtension(SuggestionMenu)?.openSuggestionMenu("/");
+        }} />
+    </span>
     {isHoveredSelected ? (
       <Components.Generic.Menu.Root
         onOpenChange={(open) => { if (open) sideMenu?.freezeMenu(); else sideMenu?.unfreezeMenu(); }}
@@ -606,7 +636,7 @@ function MentionMenu({ items, selectedIndex, onItemClick }: SuggestionMenuProps<
   const t = useT();
   const listRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+    scrollSelectedOptionIntoView(listRef.current);
   }, [selectedIndex]);
   if (!items.length) return <div className="notes-slash-menu"><div className="notes-slash-empty">{t("No results")}</div></div>;
   return <div ref={listRef} className="notes-slash-menu" role="listbox" id="bn-suggestion-menu">

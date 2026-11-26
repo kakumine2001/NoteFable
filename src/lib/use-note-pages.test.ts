@@ -1035,4 +1035,36 @@ describe("useNotePages instant switching & prefetch", () => {
 
     expect(hook.current.pages[0]?.locked).toBe(true);
   });
+
+  it("keeps a page created while the initial list load is still in flight", async () => {
+    createFakeBrowser("https://app.notefable.com/app?view=pages");
+    const existing = makePage("old", "Old", 1);
+    const created = makePage("fresh", "Untitled", 1);
+    const listFetch = deferred<Response>();
+
+    vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+      if (url === "/api/pages" && (!init?.method || init.method === "GET")) return listFetch.promise;
+      if (url === "/api/pages" && init?.method === "POST") return Promise.resolve(jsonResponse({ page: created }, 201));
+      return Promise.reject(new Error(`unexpected ${init?.method ?? "GET"} ${url}`));
+    }));
+
+    const hook = hookRuntime.mount(() => useNotePages(true));
+    await flushMicrotasks();
+    expect(hook.current.listLoading).toBe(true);
+
+    // User clicks New note before GET /api/pages finishes.
+    await hook.current.create(false, null, "note", null);
+    await flushMicrotasks();
+    expect(hook.current.activeId).toBe("fresh");
+    expect(window.location.href).toContain("page=fresh");
+
+    // Now the older GET /api/pages resolves without "fresh".
+    listFetch.resolve(jsonResponse({ pages: [existing], groups: [] }));
+    await flushMicrotasks();
+
+    expect(hook.current.activeId).toBe("fresh");
+    expect(hook.current.active?.page.id).toBe("fresh");
+    expect(hook.current.pages.map((p) => p.id)).toContain("fresh");
+    expect(window.location.href).toContain("page=fresh");
+  });
 });
