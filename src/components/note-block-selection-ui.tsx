@@ -753,7 +753,7 @@ export function useNoteBlockSelection({
   useEffect(() => {
     const isBlockedElement = (el: Element | null) => {
       if (!el) return false;
-      if (el.closest(".note-ai-panel, .note-ai-bubble, .note-ai-fab, .notes-header, .notes-math-popover, [role='dialog'], [role='menu'], [role='listbox'], #bn-suggestion-menu")) return true;
+      if (el.closest(".note-ai-panel, .note-ai-bubble, .note-ai-fab, .notes-header, .notes-math-popover, dialog, [role='dialog'], [role='menu'], [role='listbox'], #bn-suggestion-menu")) return true;
       if (el.closest("input, textarea, select")) return true;
       if (el instanceof HTMLElement && el.isContentEditable && !el.closest(".bn-editor")) return true;
       return false;

@@ -911,6 +911,7 @@ export const tr: Record<string, string> = {
   "Portrait": "Dikey",
   "Generating…": "Oluşturuluyor…",
   "Generate": "Oluştur",
+  "Generate again": "Tekrar oluştur",
   "Report image": "Görseli bildir",
   "Report sent": "Bildirim gönderildi",
   "Thanks. We’ll review this image.": "Teşekkürler. Bu görseli inceleyeceğiz.",

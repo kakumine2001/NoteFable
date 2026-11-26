@@ -514,6 +514,7 @@ export const zhHant: Record<string, string> = {
   "Gallery": "相簿",
   "General": "通用",
   "Generate": "生成",
+  "Generate again": "重新生成",
   "Generate an image": "生成圖片",
   "Generate with AI": "用 AI 生成",
   "Generated image": "生成的圖片",

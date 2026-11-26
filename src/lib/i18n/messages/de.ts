@@ -911,6 +911,7 @@ export const de: Record<string, string> = {
   "Portrait": "Hochformat",
   "Generating…": "Wird generiert…",
   "Generate": "Generieren",
+  "Generate again": "Erneut generieren",
   "Report image": "Bild melden",
   "Report sent": "Meldung gesendet",
   "Thanks. We’ll review this image.": "Danke. Wir prüfen dieses Bild.",

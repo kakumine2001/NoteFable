@@ -911,6 +911,7 @@ export const th: Record<string, string> = {
   "Portrait": "แนวตั้ง",
   "Generating…": "กำลังสร้าง…",
   "Generate": "สร้าง",
+  "Generate again": "สร้างอีกครั้ง",
   "Report image": "รายงานรูปภาพ",
   "Report sent": "ส่งรายงานแล้ว",
   "Thanks. We’ll review this image.": "ขอบคุณ เราจะตรวจสอบรูปภาพนี้",

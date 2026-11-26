@@ -911,6 +911,7 @@ export const hi: Record<string, string> = {
   "Portrait": "पोर्ट्रेट",
   "Generating…": "बना रहे हैं…",
   "Generate": "बनाएं",
+  "Generate again": "फिर से बनाएँ",
   "Report image": "इमेज की रिपोर्ट करें",
   "Report sent": "रिपोर्ट भेज दी गई",
   "Thanks. We’ll review this image.": "धन्यवाद। हम इस इमेज की समीक्षा करेंगे।",

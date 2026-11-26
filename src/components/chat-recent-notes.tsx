@@ -60,23 +60,21 @@ export function ChatRecentNotes({ selected, disabled, lastEditor, onToggle, onOp
       const resolvedKind = pageKindOf({ kind });
       const preset = isPresetCover(cover) ? NOTE_COVERS[cover] : null;
       const imageUrl = coverImageUrl(cover);
-      const hasCover = Boolean(preset || imageUrl);
-      return <li key={id} className={hasCover ? "has-cover" : undefined}>
-        <button type="button" className={`notes-recent-card${hasCover ? " has-cover" : ""}`} aria-pressed={attached}
+      // Every card keeps the same strip (the cover, or a kind-tinted one) so the row stays one size.
+      return <li key={id}>
+        <button type="button" className="notes-recent-card" aria-pressed={attached}
           disabled={disabled || (!attached && selected.length >= MAX_MESSAGE_NOTES)}
           onClick={() => onToggle({ id, kind, title, icon })}>
-          {hasCover && (
-            <span className="chat-recent-cover" style={preset ? { background: preset } : undefined} aria-hidden="true">
-              {/* eslint-disable-next-line @next/next/no-img-element -- 所有者確認付き API から返す private 画像のため next/image の最適化は使わない */}
-              {imageUrl ? <img src={imageUrl} alt="" draggable={false} loading="lazy" className="notes-recent-cover-image" style={{ objectPosition: `center ${coverPosition ?? 50}%` }} /> : null}
-            </span>
-          )}
-          <span aria-hidden="true" className={`chat-recent-icon${icon ? "" : ` is-${resolvedKind}`}`}><NoteIcon icon={icon} fallback={<PageKindIcon kind={resolvedKind} size={17} />} /></span>
+          <span className={`chat-recent-cover is-${resolvedKind}`} style={preset ? { background: preset } : undefined} aria-hidden="true">
+            {/* eslint-disable-next-line @next/next/no-img-element -- 所有者確認付き API から返す private 画像のため next/image の最適化は使わない */}
+            {imageUrl ? <img src={imageUrl} alt="" draggable={false} loading="lazy" className="notes-recent-cover-image" style={{ objectPosition: `center ${coverPosition ?? 50}%` }} /> : null}
+          </span>
+          <span aria-hidden="true" className="chat-recent-icon"><NoteIcon icon={icon} fallback={<PageKindIcon kind={resolvedKind} size={17} />} /></span>
           <span className="chat-recent-title">{name}</span>
           <span className="chat-recent-action">{attached && <Check size={12} aria-hidden="true" />}<span>{attached ? t("Attached") : t("Attach")}</span></span>
         </button>
         <button type="button" className="chat-recent-open" aria-label={t("Open {title}", { title: name })} onClick={() => onOpen(id)}>
-          <ArrowUpRight size={16} aria-hidden="true" />
+          <span className="chat-recent-open-chip"><ArrowUpRight size={14} aria-hidden="true" /></span>
         </button>
       </li>;
     })}</ul>

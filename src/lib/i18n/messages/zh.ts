@@ -920,6 +920,7 @@ export const zh: Record<string, string> = {
   "Portrait": "纵向",
   "Generating…": "正在生成…",
   "Generate": "生成",
+  "Generate again": "重新生成",
   "Report image": "举报图片",
   "Report sent": "举报已发送",
   "Thanks. We’ll review this image.": "谢谢，我们会检查这张图片。",
