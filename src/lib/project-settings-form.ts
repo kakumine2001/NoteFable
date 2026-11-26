@@ -18,3 +18,8 @@ export function projectSettingsDismissStep({ busy, dirty }: { busy: boolean; dir
   if (busy) return "stay";
   return dirty ? "confirm" : "close";
 }
+
+// 「未保存の変更」の確認を出した回数。変更を元に戻したら 0 に戻す（次に書き換えたときに、閉じようとしていないのに確認が出ないように）。
+export function projectSettingsAttention(attention: number, dirty: boolean): number {
+  return dirty ? attention : 0;
+}

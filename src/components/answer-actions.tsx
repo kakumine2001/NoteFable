@@ -7,6 +7,7 @@ import { answerConversationUrl, answerFileName, answerToNoteContent, conversatio
 import { writeClipboardText } from "@/lib/clipboard";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import { watchMenuDismiss } from "@/lib/menu-dismiss";
+import { menuPosition } from "@/lib/menu-position";
 import { useT } from "@/components/i18n-provider";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
 import { TurnBusyContext, VersionNav, type TurnActions } from "@/components/turn-actions";
@@ -119,11 +120,9 @@ export function AnswerMenu({ id, anchor, trigger, focusLast, onClose, children, 
     };
     const position = () => {
       const bounds = dialog.getBoundingClientRect();
-      const at = currentAnchor();
-      const below = at.bottom + 4;
-      const rtl = document.documentElement.dir === "rtl";
-      dialog.style.left = `${Math.max(8, Math.min(rtl ? at.right - bounds.width : at.left, window.innerWidth - bounds.width - 8))}px`;
-      dialog.style.top = `${Math.max(8, below + bounds.height <= window.innerHeight - 8 ? below : at.top - bounds.height - 4)}px`;
+      const { left, top } = menuPosition(currentAnchor(), bounds, { width: window.innerWidth, height: window.innerHeight }, document.documentElement.dir === "rtl");
+      dialog.style.left = `${left}px`;
+      dialog.style.top = `${top}px`;
     };
     position();
     const observer = new ResizeObserver(position);

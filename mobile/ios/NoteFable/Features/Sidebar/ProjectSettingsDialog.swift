@@ -3,7 +3,7 @@ import SwiftUI
 // 项目设置（网页 ChatProjectSettings，dialog.chat-project-settings 的手机尺寸；Android ui/ProjectSettings.kt）：
 // 宽 374（412 屏宽时，左右各 19；最宽 544）、无内边距、圆角 8、--notion-shadow；遮罩 rgba(15,15,15,.2)；最高到可用高度 − 38。
 // 头部 16 / 16 / 8（标题 16 / 600 + 项目名 13 灰）；正文左右 16、上 4、下 16、可滚动；
-// 底部上边 1px 线、内边距 12 / 16 / 16，取消 / 保存靠右。点遮罩关闭；保存中整个窗口锁住，不能关。
+// 底部上边 1px 线、内边距 12 / 16 / 16，取消 / 保存靠右。点遮罩关闭；保存中整个窗口锁住，不能关；有没保存的改动时先确认。
 // 状态和规则在 Core 的 `ProjectSettingsModel`（打开时读详情和笔记，失败可以重试；保存只发改了的字段）。
 //
 // 这个窗口有固定的头尾、中间滚动，放不进 `.nfDialog` 的卡片（整卡滚动、内边距 24），所以借“全屏面板”那一层：
@@ -15,6 +15,7 @@ struct ProjectSettingsDialog: View {
     let model: ProjectSettingsModel
 
     @Environment(AppEnvironment.self) private var app
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var headerHeight: CGFloat = 0
     @State private var footerHeight: CGFloat = 0
 
@@ -83,13 +84,28 @@ struct ProjectSettingsDialog: View {
         .padding(.bottom, 8)
     }
 
+    // 没保存就想关时，底栏换成“未保存的更改”+ 放弃 / 保存（网页 .project-settings-unsaved），每次想关晃一下并念出来。
     private func footer(_ state: ProjectSettingsState) -> some View {
         HStack(spacing: 8) {
-            Spacer(minLength: 0)
-            NotionButton(L("cancel")) { model.close() }
-                .disabled(state.busy)
+            if model.confirming {
+                Text(L("settings_unsaved"))
+                    .font(.nf(14, weight: 500))
+                    .foregroundStyle(Sm.text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                NotionButton(L("proposal_discard")) { model.discard() }
+                    .disabled(state.busy)
+            } else {
+                Spacer(minLength: 0)
+                NotionButton(L("cancel")) { model.close() }
+                    .disabled(state.busy)
+            }
             NotionButton(L(state.busy ? "sb_saving" : "save"), kind: .primary) { model.save() }
                 .disabled(!model.canSave)
+        }
+        .modifier(SettingsShakeEffect(progress: CGFloat(state.attention)))
+        .animation(reduceMotion || state.attention == 0 ? nil : .linear(duration: 0.36), value: state.attention)
+        .onChange(of: state.attention) { _, value in
+            if value > 0 { UIAccessibility.post(notification: .announcement, argument: L("settings_unsaved")) }
         }
         .padding(.horizontal, 16)
         .padding(.top, 12)

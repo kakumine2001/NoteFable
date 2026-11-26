@@ -1458,6 +1458,8 @@ export default function Home() {
     let requestSessionId = activeSessionIdRef.current;
     let requestSessionKey = getMessagesKey(requestSessionId);
     const initialRequestSessionKey = requestSessionKey;
+    // 送信の始めに取った initialRequestSessionKey のロックをまだ持っているか（新規チャットは会話ができた時点で手放す）。
+    let holdsInitialKey = true;
     if (
       !userContent ||
       uploadProgress ||
@@ -1603,6 +1605,9 @@ export default function Home() {
       requestSessionId = session.id;
       requestSessionKey = session.id;
       submittingSessionKeysRef.current.add(requestSessionKey);
+      // 送信は作った会話のものになった。未保存の新規チャットのロックは外し、裏で返答を待つ間も新しいチャットから送れるようにする。
+      submittingSessionKeysRef.current.delete(initialRequestSessionKey);
+      holdsInitialKey = false;
       setSessions((current) =>
         current.some((item) => item.id === session.id) ? current : [session, ...current],
       );
@@ -1662,28 +1667,26 @@ export default function Home() {
         isImageTurn: imageGenerationMode,
       },
     ]);
-    submittedInputRestoreGuardRef.current = {
-      value: submittedInputValue,
-      expiresAt: new Date().getTime() + INPUT_RESTORE_GUARD_MS,
-    };
     const liveInputValue = inputRef.current?.value ?? input;
     const remainingInput = remainingComposerText(liveInputValue, submittedInputValue);
-    setInput(remainingInput);
-    if (inputRef.current) {
-      inputRef.current.value = remainingInput;
+    // 送った本文が入力欄に残っているときだけ外す。別の下書きに書き換わっていたら触らない
+    // （値を入れ直すとカーソルや変換中の文字が崩れ、復元ガードが同じ文字の入力を消してしまう）。
+    if (remainingInput !== liveInputValue) {
+      submittedInputRestoreGuardRef.current = {
+        value: submittedInputValue,
+        expiresAt: new Date().getTime() + INPUT_RESTORE_GUARD_MS,
+      };
+      setInput(remainingInput);
+      if (inputRef.current) {
+        inputRef.current.value = remainingInput;
+      }
     }
-    if (navigatedAway) {
-      // 入力欄は会話をまたいで同じものなので、移った先で足した添付・ページ・引用・選区は残し、送った分だけを外す。
-      setFiles((current) => withoutSent(current, submittedFiles, (item) => item.id));
-      setAttachedPages((current) => withoutSent(current, submittedPages, (page) => page.id));
-      if (submittedQuote) setQuote((current) => (current === submittedQuote ? null : current));
-      if (splitSelection) setSplitSelection((current) => (current === splitSelection ? null : current));
-    } else {
-      setFiles([]);
-      setAttachedPages([]);
-      if (submittedQuote) setQuote(null);
-      if (splitSelection) setSplitSelection(null);
-    }
+    // 会話を作るのを待つ間（アップロードの表示はもう消えている）や、別の会話へ移った先で足した添付・ページ・引用・選区は残し、
+    // 送った分だけを外す（入力欄は会話をまたいで同じもの）。
+    setFiles((current) => withoutSent(current, submittedFiles, (item) => item.id));
+    setAttachedPages((current) => withoutSent(current, submittedPages, (page) => page.id));
+    if (submittedQuote) setQuote((current) => (current === submittedQuote ? null : current));
+    if (splitSelection) setSplitSelection((current) => (current === splitSelection ? null : current));
 
     const streamStartedAt = new Date().getTime();
     startStreamingSession(requestSessionKey, streamStartedAt);
@@ -1880,7 +1883,8 @@ export default function Home() {
       if (pendingOutcome) flashCharacterOutcome(requestSessionKey, pendingOutcome);
       // 送信ロックはコントロールが使えるようになった時点で外す。cleanup（最大 10 秒）の完了を待つと、
       // その間 Send を押しても無言で弾かれてしまう。
-      submittingSessionKeysRef.current.delete(initialRequestSessionKey);
+      // 手放した新規チャットのロックは、その後に新規チャットから始めた別の送信のものなので触らない。
+      if (holdsInitialKey) submittingSessionKeysRef.current.delete(initialRequestSessionKey);
       submittingSessionKeysRef.current.delete(requestSessionKey);
       await cleanupClientUploads(uploadedTickets);
     }

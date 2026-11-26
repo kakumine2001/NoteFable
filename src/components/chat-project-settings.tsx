@@ -5,7 +5,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import "@/components/chat-project-settings.css";
 import type { ChatProject } from "@/components/chat-actions";
 import { useBackToClose } from "@/lib/use-back-to-close";
-import { projectSettingsChanges, projectSettingsDismissStep } from "@/lib/project-settings-form";
+import { projectSettingsAttention, projectSettingsChanges, projectSettingsDismissStep } from "@/lib/project-settings-form";
 import { MAX_PROJECT_INSTRUCTIONS, MAX_PROJECT_NOTES, type ChatProjectDetail, type ChatProjectSummary } from "@/types/chat";
 import { useT } from "@/components/i18n-provider";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
@@ -49,7 +49,10 @@ export function ChatProjectSettings({ project, onClose, onSaved }: {
   }, []);
   const changes = loaded ? projectSettingsChanges(loaded.initial, instructions, selected.map((note) => note.id)) : {};
   const dirty = Object.keys(changes).length > 0;
-  const confirming = attention > 0 && dirty;
+  // 変更を元に戻したら確認をやめる（描画中に合わせる。effect を待つと、次の 1 文字で確認が一瞬出てしまう）。
+  const settledAttention = projectSettingsAttention(attention, dirty);
+  if (settledAttention !== attention) setAttention(settledAttention);
+  const confirming = settledAttention > 0;
   // Esc・戻る・外側のクリック・「キャンセル」。閉じなかったときは false を返す（useBackToClose は「戻る」の登録と履歴の目印を保つ）。
   const dismiss = () => {
     const step = projectSettingsDismissStep({ busy: locked.current, dirty });
