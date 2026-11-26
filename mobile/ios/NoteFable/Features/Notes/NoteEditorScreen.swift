@@ -2,9 +2,8 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 // 笔记编辑页（Android ui/NoteEditor.kt 的 NoteEditorScreen）：原生顶栏 + WebView 里的网页编辑器。
-// 顶栏与网页手机版笔记页一致（高 56、左右 10.4）：菜单 40（图标 20）、间距 12、“<”返回列表 40（图标 22）、间距 12、
-// 笔记图标（表情 15 / 页面类型图标 15）+ 间距 6 + 标题 14 灰；右侧搜索 40、间距 8、（锁定时）锁按钮高 32（Lock 14）、间距 8、
-// 分享（Globe 15）、间距 8、版本历史 40、间距 8、保存状态 14 灰（出错 / 冲突时 #b45309）、间距 8、“…”页面菜单 40（菜单宽 248）。
+// 原生顶栏高 56：行首玻璃组是菜单和返回，行尾是搜索、解锁（锁定时）、分享、版本历史和“…”。
+// 页面图标和标题在中间，保存状态排在标题下方。顶栏仍占原来的高度，WebView 从顶栏下方开始。
 // 白板和幻灯片都能公开（`PageKindFeatures.publicShare`）。白板是网页的白板编辑器，编辑页不做边缘返回（`PageKind.capturesEdgeSwipes`，
 // 离开用“<”）；幻灯片打开网页的幻灯片编辑器。
 // “…”菜单的“导出 Markdown”：先让网页保存，再向服务端要 `{ fileName, markdown }`，交给系统的“存储到文件”（UTF-8 的 .md）。
@@ -161,88 +160,99 @@ struct NoteEditorScreen: View {
         let actions = menuActions(state)
         // 页面类型：列表里有这一篇就用列表的，否则用打开时知道的（检索结果、网页的 ready 消息）。
         let kind = page?.kind ?? open.kind
-        return HStack(spacing: 0) {
-            NFIconButton(Lucide.menu, label: L("open_menu")) { router.openDrawer() }
-            NFIconButton(Lucide.chevronLeft, label: L("all_notes"), iconSize: 22) { notes.closeNote() }
-                .padding(.leading, 12)
-            NFIconTile(emoji: open.icon, fallback: pageKindIcon(kind), box: 20, glyph: 15)
-                .padding(.leading, 12)
-            Text(open.title.isEmpty ? L("workspace") : open.title)
-                .font(.nf(14))
-                .nfLineHeight(20, fontSize: 14)
-                .foregroundStyle(Sm.muted)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, 6)
-            NFIconButton(Lucide.search, label: L("search_chats_and_notes")) { router.openSearch() }
-                .padding(.leading, 8)
-            if page?.locked == true {
-                lockButton(actions)
-                    .padding(.leading, 8)
+        // 只有有公开视图的类型能公开（按服务端的 kinds 表；现在笔记、白板、幻灯片都能公开），网页同样按这张表显示分享按钮。
+        let sharePage = kind.features.publicShare ? page : nil
+        let locked = page?.locked == true
+        // 固定有菜单、返回、搜索、历史四项。
+        let buttonCount = 4 + (locked ? 1 : 0) + (sharePage == nil ? 0 : 1) + (page == nil ? 0 : 1)
+        let sideInset = NFChromeMetrics.compactSideInset
+        let gap = NFChromeMetrics.gap
+
+        return GeometryReader { proxy in
+            // 两组各有 4pt 内边距；窄窗口缩按钮宽度，给标题留 44pt，菜单触发器仍是同一个视图。
+            let buttonSpace = proxy.size.width - 2 * sideInset - 2 * gap - 8 - 44
+            let buttonWidth = min(NFChromeMetrics.groupItemWidth, max(0, buttonSpace / CGFloat(buttonCount)))
+            NFGlassContainer(spacing: NFChromeMetrics.containerSpacing) {
+                HStack(spacing: gap) {
+                    NFGlassGroup {
+                        NFGlassBarButton(Lucide.menu, label: L("open_menu"), width: buttonWidth) {
+                            router.openDrawer()
+                        }
+                        NFGlassBarButton(Lucide.chevronLeft, label: L("all_notes"), width: buttonWidth, iconSize: 22) {
+                            notes.closeNote()
+                        }
+                    }
+                    titleBlock(kind: kind, saveState: state.saveState)
+                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                    NFGlassGroup {
+                        NFGlassBarButton(Lucide.search, label: L("search_chats_and_notes"), width: buttonWidth) {
+                            router.openSearch()
+                        }
+                        if locked {
+                            NFGlassBarButton(Lucide.lock, label: L("pg_unlock_page"), width: buttonWidth, iconSize: 14) {
+                                actions.onSettings(NotePageSettings(locked: false))
+                            }
+                        }
+                        if let sharePage {
+                            let shared = sharePage.isShared()
+                            NFGlassBarButton(
+                                Lucide.globe, label: L("share_action"), width: buttonWidth, iconSize: 15,
+                                color: shared ? Sm.blue : nil, activeFill: shared ? Sm.accentSoft : nil
+                            ) {
+                                dialog = .share(pageId: sharePage.id, kind: sharePage.kind)
+                            }
+                        }
+                        NFGlassBarButton(Lucide.history, label: L("version_history"), width: buttonWidth) {
+                            app.editorBridge?.openHistory()
+                        }
+                        if let page {
+                            NotePageMenuButton(pageId: page.id, actions: actions, buttonWidth: buttonWidth)
+                        }
+                    }
+                }
             }
-            // 只有有公开视图的类型能公开（按服务端的 kinds 表；现在笔记、白板、幻灯片都能公开），网页同样按这张表显示分享按钮。
-            if let page, kind.features.publicShare {
-                shareButton(page)
-                    .padding(.leading, 8)
+            .padding(.horizontal, sideInset)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(height: NFChromeMetrics.barHeight)
+        .nfBarBackdrop(.top)
+    }
+
+    private func titleBlock(kind: PageKind, saveState: String?) -> some View {
+        let statusText = noteSaveStateText(saveState)
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                NFIconTile(emoji: open.icon, fallback: pageKindIcon(kind), box: 16, glyph: 13)
+                Text(open.title.isEmpty ? L("workspace") : open.title)
+                    .font(.nf(14))
+                    .nfLineHeight(20, fontSize: 14)
+                    .foregroundStyle(Sm.muted)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
             }
-            NFIconButton(Lucide.history, label: L("version_history")) { app.editorBridge?.openHistory() }
-                .padding(.leading, 8)
-            let statusText = noteSaveStateText(state.saveState)
             if !statusText.isEmpty {
-                let isWarning = noteSaveStateIsWarning(state.saveState)
+                let isWarning = noteSaveStateIsWarning(saveState)
                 let dotColor: Color = isWarning
                     ? Color(argb: 0xFFD97706)
-                    : (state.saveState == "saving" || state.saveState == "unsaved") ? Sm.blue : Color(argb: 0xFF10B981)
+                    : (saveState == "saving" || saveState == "unsaved") ? Sm.blue : Color(argb: 0xFF10B981)
                 let pillBg = isWarning ? Color(light: 0x1FD97706, dark: 0x29F59E0B) : Sm.hover
-                HStack(spacing: 5.5) {
+                HStack(spacing: 4) {
                     Circle()
                         .fill(dotColor)
                         .frame(width: 6, height: 6)
                         .accessibilityHidden(true)
                     Text(statusText)
-                        .font(.nf(12, weight: 520))
+                        .font(.nf(11, weight: 520))
                         .foregroundStyle(isWarning ? Sm.kindSlidesText : Sm.muted)
                         .lineLimit(1)
+                        .truncationMode(.tail)
+                        .accessibilityAddTraits(.updatesFrequently)
                 }
-                .padding(.horizontal, 8)
-                .frame(height: 24)
+                .padding(.horizontal, 6)
+                .frame(height: 18)
                 .background(pillBg, in: Capsule())
-                .layoutPriority(1)
-                .padding(.leading, 8)
-            }
-            if let page {
-                NotePageMenuButton(pageId: page.id, actions: actions)
-                    .padding(.leading, 8)
             }
         }
-        .padding(.horizontal, 10.4)
-        .frame(height: 56)
-    }
-
-    private func shareButton(_ page: NotePageSummary) -> some View {
-        let dialogBinding = $dialog
-        return Button {
-            dialogBinding.wrappedValue = .share(pageId: page.id, kind: page.kind)
-        } label: {
-            LucideIcon(Lucide.globe, size: 15, color: page.isShared() ? Sm.blue : Sm.muted)
-                .padding(.horizontal, 8)
-                .frame(height: 32)
-        }
-        .buttonStyle(.pressable(cornerRadius: 6))
-        .accessibilityLabel(L("share_action"))
-    }
-
-    /// 锁定中（网页 .notes-locked-button，手机只有锁的图标）：高 32、左右 8、圆角 6、Lock 14 灰；点一下解锁。
-    private func lockButton(_ actions: NotePageMenuActions) -> some View {
-        Button {
-            actions.onSettings(NotePageSettings(locked: false))
-        } label: {
-            LucideIcon(Lucide.lock, size: 14, color: Sm.muted)
-                .padding(.horizontal, 8)
-                .frame(height: 32)
-        }
-        .buttonStyle(.pressable(cornerRadius: 6))
-        .accessibilityLabel(L("pg_unlock_page"))
     }
 
     /// “…”菜单各项的动作（Android NoteFableRoot.kt 里传给 NoteEditorScreen 的 NotePageMenuActions）。
