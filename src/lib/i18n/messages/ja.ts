@@ -1246,6 +1246,7 @@ export const ja: Record<string, string> = {
   "Generating slide images… ({done}/{total})": "スライドの画像を生成中…（{done}/{total}）",
   "Current slide: {title}": "現在のスライド：{title}",
   "Stop": "停止",
+  "Stopping after this slide…": "このスライドの後に停止中…",
   "Resume": "再開",
   "Dismiss": "閉じる",
   "Generated {done} of {total} slide images. {remaining} remaining.": "{total} 枚中 {done} 枚の画像を生成しました。残り {remaining} 枚です。",

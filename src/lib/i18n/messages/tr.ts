@@ -1245,6 +1245,7 @@ export const tr: Record<string, string> = {
   "Generating slide images… ({done}/{total})": "Slayt görselleri oluşturuluyor… ({done}/{total})",
   "Current slide: {title}": "Geçerli slayt: {title}",
   "Stop": "Durdur",
+  "Stopping after this slide…": "Bu slayttan sonra durduruluyor…",
   "Resume": "Devam et",
   "Dismiss": "Kapat",
   "Generated {done} of {total} slide images. {remaining} remaining.": "{total} slayt görselinden {done} tanesi oluşturuldu. {remaining} kaldı.",

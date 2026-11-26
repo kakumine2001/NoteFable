@@ -1245,6 +1245,7 @@ export const hi: Record<string, string> = {
   "Generating slide images… ({done}/{total})": "स्लाइड चित्र बनाए जा रहे हैं… ({done}/{total})",
   "Current slide: {title}": "वर्तमान स्लाइड: {title}",
   "Stop": "रोकें",
+  "Stopping after this slide…": "इस स्लाइड के बाद रुक रहा है…",
   "Resume": "जारी रखें",
   "Dismiss": "खारिज करें",
   "Generated {done} of {total} slide images. {remaining} remaining.": "{total} में से {done} स्लाइड चित्र बन गए हैं। {remaining} शेष हैं।",

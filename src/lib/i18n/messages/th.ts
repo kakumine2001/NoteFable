@@ -1245,6 +1245,7 @@ export const th: Record<string, string> = {
   "Generating slide images… ({done}/{total})": "กำลังสร้างรูปภาพสไลด์… ({done}/{total})",
   "Current slide: {title}": "สไลด์ปัจจุบัน: {title}",
   "Stop": "หยุด",
+  "Stopping after this slide…": "กำลังหยุดหลังสไลด์นี้…",
   "Resume": "ทำต่อ",
   "Dismiss": "ปิด",
   "Generated {done} of {total} slide images. {remaining} remaining.": "สร้างรูปภาพสไลด์แล้ว {done} จาก {total} รูป เหลืออีก {remaining} รูป",

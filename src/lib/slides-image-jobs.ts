@@ -18,6 +18,8 @@ export type SlideImageJob = {
   completed: number;
   remaining: number;
   currentSlideTitle: string | null;
+  // 停止ボタンが押され、進行中の 1 枚の保存完了を待って停止する途中。
+  stopping?: boolean;
   error?: string;
   usageLimit?: { tier: UsageTier; kind: "image"; message: string };
   storageLimit?: { tier: UsageTier; used: number; limit: number; message: string };
@@ -30,7 +32,12 @@ export type SlideImageEditorHandle = {
 
 type ActiveRun = {
   controller: AbortController;
-  stopped: boolean;
+  // 利用者の「停止」要求。進行中の 1 枚（既に課金済み）は中断せず保存まで終えてから止める。
+  stopRequested: boolean;
+  // resetSlideImageJobs や開始前の中断による即時停止。
+  aborted: boolean;
+  // まだ画像生成リクエストを出していない初期取得（resumeSlideImageJob の待機）か。
+  preFlight?: boolean;
   generation: number;
 };
 
@@ -108,20 +115,31 @@ export function stopSlideImageJob(pageId: string) {
   const run = runs.get(pageId);
   const current = jobs.get(pageId);
   if (!run || !current || current.status !== "working") return;
-  run.stopped = true;
-  runs.delete(pageId);
-  run.controller.abort();
+  run.stopRequested = true;
+  if (run.preFlight) {
+    run.aborted = true;
+    runs.delete(pageId);
+    run.controller.abort();
+    setJob(pageId, {
+      ...current,
+      status: "stopped",
+      stopping: false,
+      currentSlideTitle: null,
+    });
+    return;
+  }
+  // 進行中の /api/pages/images は既にサーバー側で課金されるため abort せず、この 1 枚を保存してから止める。
   setJob(pageId, {
     ...current,
-    status: "stopped",
-    currentSlideTitle: null,
+    stopping: true,
   });
 }
 
 export function resetSlideImageJobs() {
   generation += 1;
   for (const run of runs.values()) {
-    run.stopped = true;
+    run.stopRequested = true;
+    run.aborted = true;
     run.controller.abort();
   }
   runs.clear();
@@ -155,17 +173,17 @@ async function persistGeneratedImage(
   image: { url: string; name?: string; prompt: string },
   signal: AbortSignal,
   initialPage?: NotePage,
-): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+): Promise<{ ok: true; applied: boolean } | { ok: false; status: number; error: string }> {
   const liveEditor = editors.get(pageId);
   if (liveEditor) {
-    liveEditor.applyImage({
+    const applied = liveEditor.applyImage({
       slideId: task.slideId,
       elementId: task.elementId,
       url: image.url,
       name: image.name,
       prompt: image.prompt,
     });
-    return { ok: true };
+    return { ok: true, applied };
   }
 
   let currentPage = initialPage;
@@ -183,7 +201,7 @@ async function persistGeneratedImage(
       name: image.name,
       prompt: image.prompt,
     });
-    if (!applied) return { ok: true };
+    if (!applied) return { ok: true, applied: false };
 
     const response = await fetch(`/api/pages/${encodeURIComponent(pageId)}`, {
       method: "PATCH",
@@ -217,7 +235,7 @@ async function persistGeneratedImage(
     };
     dispatchPageUpdated(updatedPage);
     postToNative({ type: "pagesChanged" });
-    return { ok: true };
+    return { ok: true, applied: true };
   }
   return { ok: false, status: 409, error: SAVE_FAILED };
 }
@@ -237,13 +255,27 @@ async function runTasks(pageId: string, tasks: PendingSlideImageTask[], priorCom
   }
 
   const controller = new AbortController();
-  const run: ActiveRun = { controller, stopped: false, generation };
+  const run: ActiveRun = { controller, stopRequested: false, aborted: false, generation };
   runs.set(pageId, run);
-  const isActive = () => !run.stopped && run.generation === generation && runs.get(pageId) === run;
+  const isAlive = () => !run.aborted && run.generation === generation && runs.get(pageId) === run;
 
   let completed = priorCompleted;
   let total = priorCompleted + tasks.length;
   let remaining = tasks.length;
+
+  const finishStopped = () => {
+    if (!isAlive()) return;
+    runs.delete(pageId);
+    setJob(pageId, {
+      pageId,
+      status: remaining > 0 ? "stopped" : "done",
+      stopping: false,
+      total,
+      completed,
+      remaining,
+      currentSlideTitle: null,
+    });
+  };
 
   setJob(pageId, {
     pageId,
@@ -256,11 +288,16 @@ async function runTasks(pageId: string, tasks: PendingSlideImageTask[], priorCom
 
   try {
     for (let index = 0; index < tasks.length; index++) {
-      if (!isActive()) return;
+      if (!isAlive()) return;
+      if (run.stopRequested) {
+        finishStopped();
+        return;
+      }
       const task = tasks[index];
       setJob(pageId, {
         pageId,
         status: "working",
+        stopping: run.stopRequested,
         total,
         completed,
         remaining,
@@ -278,7 +315,11 @@ async function runTasks(pageId: string, tasks: PendingSlideImageTask[], priorCom
         }
       } else {
         const loaded = await fetchLivePage(pageId, controller.signal);
-        if (!isActive()) return;
+        if (!isAlive()) return;
+        if (run.stopRequested) {
+          finishStopped();
+          return;
+        }
         if (!("page" in loaded)) {
           runs.delete(pageId);
           setJob(pageId, {
@@ -307,7 +348,7 @@ async function runTasks(pageId: string, tasks: PendingSlideImageTask[], priorCom
         signal: controller.signal,
       });
       const data = await response.json().catch(() => null) as { url?: string; name?: string; prompt?: string; error?: string } | null;
-      if (!isActive()) return;
+      if (!isAlive()) return;
 
       const usageLimit = usageLimitErrorFrom(response.status, data);
       if (usageLimit) {
@@ -362,7 +403,7 @@ async function runTasks(pageId: string, tasks: PendingSlideImageTask[], priorCom
         controller.signal,
         cachedPage,
       );
-      if (!isActive()) return;
+      if (!isAlive()) return;
       if (!saved.ok) {
         runs.delete(pageId);
         setJob(pageId, {
@@ -377,8 +418,16 @@ async function runTasks(pageId: string, tasks: PendingSlideImageTask[], priorCom
         return;
       }
 
-      completed += 1;
+      if (saved.applied) {
+        completed += 1;
+      } else {
+        total = Math.max(completed, total - 1);
+      }
       remaining = Math.max(0, remaining - 1);
+      if (run.stopRequested) {
+        finishStopped();
+        return;
+      }
       setJob(pageId, {
         pageId,
         status: remaining > 0 ? "working" : "done",
@@ -389,7 +438,7 @@ async function runTasks(pageId: string, tasks: PendingSlideImageTask[], priorCom
       });
     }
 
-    if (!isActive()) return;
+    if (!isAlive()) return;
     runs.delete(pageId);
     setJob(pageId, {
       pageId,
@@ -400,7 +449,7 @@ async function runTasks(pageId: string, tasks: PendingSlideImageTask[], priorCom
       currentSlideTitle: null,
     });
   } catch (error) {
-    if (!isActive()) return;
+    if (!isAlive()) return;
     runs.delete(pageId);
     if (isAbortError(error)) {
       setJob(pageId, {
@@ -446,7 +495,7 @@ export async function resumeSlideImageJob(pageId: string) {
 
   // 取得中の二重クリックを防ぐため、仮の working を立てる。
   const controller = new AbortController();
-  const placeholderRun: ActiveRun = { controller, stopped: false, generation: started };
+  const placeholderRun: ActiveRun = { controller, stopRequested: false, aborted: false, preFlight: true, generation: started };
   runs.set(pageId, placeholderRun);
   setJob(pageId, {
     pageId,
@@ -459,7 +508,7 @@ export async function resumeSlideImageJob(pageId: string) {
 
   try {
     const loaded = await fetchLivePage(pageId, controller.signal);
-    if (placeholderRun.stopped || started !== generation || runs.get(pageId) !== placeholderRun) return;
+    if (placeholderRun.aborted || placeholderRun.stopRequested || started !== generation || runs.get(pageId) !== placeholderRun) return;
     runs.delete(pageId);
     if (!("page" in loaded)) {
       setJob(pageId, {
@@ -476,7 +525,7 @@ export async function resumeSlideImageJob(pageId: string) {
     const tasks = pendingSlideImageTasks(loaded.deck);
     await runTasks(pageId, tasks, priorCompleted);
   } catch (error) {
-    if (placeholderRun.stopped || started !== generation || runs.get(pageId) !== placeholderRun) return;
+    if (placeholderRun.aborted || placeholderRun.stopRequested || started !== generation || runs.get(pageId) !== placeholderRun) return;
     runs.delete(pageId);
     setJob(pageId, {
       pageId,

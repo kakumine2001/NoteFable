@@ -150,13 +150,23 @@ describe("slides-image-jobs", () => {
     unregister();
   });
 
-  it("stops cleanly on user Stop, keeps generated images, and resumes remaining slides without double-charging", async () => {
-    let serverDeck = makeDeck();
+  it("finishes saving the in-flight slide on user Stop and resumes remaining slides without double-charging", async () => {
+    let serverDeck = buildAiDeck({
+      title: "Solar System",
+      theme: { id: "simple", mode: "light" },
+      slides: [
+        { title: "Inner Planets", body: "- Mercury and Venus", notes: "", imagePrompt: "Clean illustration of inner rocky planets" },
+        { title: "Gas Giants", body: "- Jupiter and Saturn", notes: "", imagePrompt: "Clean illustration of ringed gas giant" },
+        { title: "Ice Giants", body: "- Uranus and Neptune", notes: "", imagePrompt: "Clean illustration of blue ice giant" },
+      ],
+    }).deck;
     let serverVersion = 1;
     const tasks = pendingSlideImageTasks(serverDeck);
+    expect(tasks).toHaveLength(3);
     const imagePrompts: string[] = [];
     let holdSecondImage: ((response: Response) => void) | null = null;
     let secondAborted = false;
+    const FILE_3 = "/api/pages/files?key=note-files%2Fu1%2F00000000-0000-4000-8000-000000000003.png&name=three.png";
 
     const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async (url, init) => {
       if (url === `/api/pages/${PAGE_ID}` && (!init?.method || init.method === "GET")) {
@@ -177,7 +187,7 @@ describe("slides-image-jobs", () => {
             });
           });
         }
-        return json(200, { url: FILE_2, name: "two.png", prompt });
+        return json(200, { url: FILE_3, name: "three.png", prompt });
       }
       if (url === `/api/pages/${PAGE_ID}` && init?.method === "PATCH") {
         serverVersion += 1;
@@ -191,26 +201,66 @@ describe("slides-image-jobs", () => {
     startSlideImageJob(PAGE_ID, tasks);
     await settle(8);
     expect(holdSecondImage).not.toBeNull();
-    expect(getSlideImageJob(PAGE_ID)).toMatchObject({ status: "working", completed: 1, remaining: 1, total: 2 });
+    expect(getSlideImageJob(PAGE_ID)).toMatchObject({ status: "working", completed: 1, remaining: 2, total: 3 });
 
+    // Clicking Stop waits for the already-billed in-flight image to finish and persist, then stops before slide 3.
     stopSlideImageJob(PAGE_ID);
-    await settle(6);
-    expect(secondAborted).toBe(true);
-    expect(getSlideImageJob(PAGE_ID)).toMatchObject({ status: "stopped", completed: 1, remaining: 1, total: 2 });
-    // First slide image stayed intact on serverDeck!
-    expect(pendingSlideImageTasks(serverDeck)).toHaveLength(1);
-    expect(pendingSlideImageTasks(serverDeck)[0].slideTitle).toBe("Gas Giants");
+    expect(secondAborted).toBe(false);
+    expect(getSlideImageJob(PAGE_ID)).toMatchObject({ status: "working", stopping: true, completed: 1, remaining: 2, total: 3 });
 
-    // Resume only generates the remaining slide (never re-charges slide 1).
+    holdSecondImage!(json(200, { url: FILE_2, name: "two.png", prompt: "Clean illustration of ringed gas giant" }));
+    await settle(10);
+    expect(secondAborted).toBe(false);
+    expect(getSlideImageJob(PAGE_ID)).toMatchObject({ status: "stopped", stopping: false, completed: 2, remaining: 1, total: 3 });
+    // Both slide 1 and slide 2 were saved cleanly; only slide 3 remains pending.
+    expect(pendingSlideImageTasks(serverDeck)).toHaveLength(1);
+    expect(pendingSlideImageTasks(serverDeck)[0].slideTitle).toBe("Ice Giants");
+
+    // Resume only generates slide 3 — slide 2 is NEVER requested a second time.
     await resumeSlideImageJob(PAGE_ID);
-    await settle(8);
+    await settle(10);
     expect(imagePrompts).toEqual([
       "Clean illustration of inner rocky planets",
       "Clean illustration of ringed gas giant",
-      "Clean illustration of ringed gas giant",
+      "Clean illustration of blue ice giant",
     ]);
-    expect(getSlideImageJob(PAGE_ID)).toMatchObject({ status: "done", completed: 2, remaining: 0, total: 2 });
+    expect(getSlideImageJob(PAGE_ID)).toMatchObject({ status: "done", completed: 3, remaining: 0, total: 3 });
     expect(pendingSlideImageTasks(serverDeck)).toEqual([]);
+  });
+
+  it("does not count discarded images when the user removes or fills a slide while generating", async () => {
+    let liveDeck = makeDeck();
+    const tasks = pendingSlideImageTasks(liveDeck);
+    const unregister = registerSlideImageEditor(PAGE_ID, {
+      getDeck: () => liveDeck,
+      applyImage: ({ slideId }) => {
+        // Simulate user having deleted slide 1 while its image was in flight.
+        if (slideId === tasks[0].slideId) return false;
+        liveDeck = {
+          ...liveDeck,
+          slides: liveDeck.slides.map((s) => (s.id !== slideId ? s : {
+            ...s,
+            elements: s.elements.map((e) => (e.type === "image"
+              ? { ...e, src: FILE_2, generated: { prompt: tasks[1].prompt }, pendingImagePrompt: undefined }
+              : e)),
+          })),
+        };
+        return true;
+      },
+    });
+
+    const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async (url, init) => {
+      if (url === "/api/pages/images" && init?.method === "POST") {
+        return json(200, { url: FILE_1, name: "ai-image.png" });
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    startSlideImageJob(PAGE_ID, tasks);
+    await settle(10);
+    expect(getSlideImageJob(PAGE_ID)).toMatchObject({ status: "done", completed: 1, total: 1, remaining: 0 });
+    unregister();
   });
 
   it("handles 429 usage_limit and 413 storage_limit cleanly without losing earlier images", async () => {

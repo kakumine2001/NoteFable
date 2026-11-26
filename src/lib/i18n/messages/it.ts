@@ -1245,6 +1245,7 @@ export const it: Record<string, string> = {
   "Generating slide images… ({done}/{total})": "Generazione delle immagini delle diapositive… ({done}/{total})",
   "Current slide: {title}": "Diapositiva corrente: {title}",
   "Stop": "Interrompi",
+  "Stopping after this slide…": "Interruzione dopo questa diapositiva…",
   "Resume": "Riprendi",
   "Dismiss": "Ignora",
   "Generated {done} of {total} slide images. {remaining} remaining.": "Generate {done} di {total} immagini delle diapositive. Ne restano {remaining}.",

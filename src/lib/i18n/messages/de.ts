@@ -1245,6 +1245,7 @@ export const de: Record<string, string> = {
   "Generating slide images… ({done}/{total})": "Folienbilder werden generiert … ({done}/{total})",
   "Current slide: {title}": "Aktuelle Folie: {title}",
   "Stop": "Stoppen",
+  "Stopping after this slide…": "Stoppt nach dieser Folie…",
   "Resume": "Fortsetzen",
   "Dismiss": "Verwerfen",
   "Generated {done} of {total} slide images. {remaining} remaining.": "{done} von {total} Folienbildern generiert. {remaining} verbleibend.",

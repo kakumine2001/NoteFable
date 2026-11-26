@@ -1245,6 +1245,7 @@ export const ptBR: Record<string, string> = {
   "Generating slide images… ({done}/{total})": "Gerando imagens dos slides… ({done}/{total})",
   "Current slide: {title}": "Slide atual: {title}",
   "Stop": "Parar",
+  "Stopping after this slide…": "Parando após este slide…",
   "Resume": "Retomar",
   "Dismiss": "Dispensar",
   "Generated {done} of {total} slide images. {remaining} remaining.": "{done} de {total} imagens de slides geradas. {remaining} restantes.",

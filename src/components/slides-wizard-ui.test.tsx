@@ -23,6 +23,7 @@ vi.mock("@/components/i18n-provider", () => ({
 vi.mock("@/lib/use-back-to-close", () => ({ useBackToClose: vi.fn() }));
 const bridge = vi.hoisted(() => ({ canOpen: false, canShowWizard: false, canShowLimit: false, canShowStorageLimit: false, posted: [] as unknown[] }));
 vi.mock("@/lib/native-bridge", () => ({
+  dispatchPageUpdated: vi.fn(),
   nativeCanOpenPage: () => bridge.canOpen,
   nativeCanShowSlidesWizard: () => bridge.canShowWizard,
   nativeCanShowUsageLimit: () => bridge.canShowLimit,
@@ -344,18 +345,31 @@ describe("Generate slides window: usage limit and the app", () => {
   });
 
   it("shows live image progress, Stop/Resume controls, and native image usageLimit / storageLimit prompts on the done screen", async () => {
-    const liveDeck = {
+    let serverVersion = 1;
+    let liveDeck: Record<string, unknown> = {
       format: 1,
       theme: { id: "simple", mode: "light" },
-      slides: [{
-        id: "s1",
-        layout: "imageText",
-        elements: [{ id: "img1", type: "image", role: "image", x: 0, y: 0, w: 400, h: 400, rotation: 0, src: "", fit: "cover", radius: 16, pendingImagePrompt: "Antibody diagram" }],
-      }],
+      slides: [
+        {
+          id: "s1",
+          layout: "imageText",
+          elements: [{ id: "img1", type: "image", role: "image", x: 0, y: 0, w: 400, h: 400, rotation: 0, src: "", fit: "cover", radius: 16, pendingImagePrompt: "Antibody diagram" }],
+        },
+        {
+          id: "s2",
+          layout: "imageText",
+          elements: [{ id: "img2", type: "image", role: "image", x: 0, y: 0, w: 400, h: 400, rotation: 0, src: "", fit: "cover", radius: 16, pendingImagePrompt: "Memory cells" }],
+        },
+      ],
     };
     fetchMock.mockImplementation((url, init) => {
       if (init?.method === "POST") return new Promise<Response>((resolve) => { pending.push({ resolve }); });
-      if (url === `/api/pages/${SLIDES.id}`) return Promise.resolve(json(200, { page: { ...SLIDES, version: 1, data: liveDeck } }));
+      if (url === `/api/pages/${SLIDES.id}` && init?.method === "PATCH") {
+        serverVersion += 1;
+        liveDeck = (JSON.parse(String(init.body)) as { data: Record<string, unknown> }).data;
+        return Promise.resolve(json(200, { version: serverVersion }));
+      }
+      if (url === `/api/pages/${SLIDES.id}`) return Promise.resolve(json(200, { page: { ...SLIDES, version: serverVersion, data: liveDeck } }));
       return Promise.resolve(json(200, { scope: "scope-a" }));
     });
 
@@ -365,18 +379,24 @@ describe("Generate slides window: usage limit and the app", () => {
     void requestSlides("deck");
     await respond(201, {
       page: SLIDES,
-      imageTasks: [{ slideId: "s1", elementId: "img1", slideTitle: "How they work", prompt: "Antibody diagram" }],
+      imageTasks: [
+        { slideId: "s1", elementId: "img1", slideTitle: "How they work", prompt: "Antibody diagram" },
+        { slideId: "s2", elementId: "img2", slideTitle: "Immune memory", prompt: "Memory cells" },
+      ],
     });
     // Working state shows live progress + Stop + Open slides.
     let tree = dialog();
-    expect(textOf(tree)).toContain("Generating slide images… (0/1)");
+    expect(textOf(tree)).toContain("Generating slide images… (0/2)");
     expect(textOf(tree)).toContain("Current slide: How they work");
     expect(labels(tree)).toEqual(expect.arrayContaining(["Stop", "Close", "Open slides"]));
 
-    // Stopping keeps already-generated progress and offers Resume.
+    // Stopping waits for the in-flight image to finish and persist, then stops before slide 2.
     click(byLabel(tree, "Stop"));
     tree = dialog();
-    expect(textOf(tree)).toContain("Generated 0 of 1 slide images. 1 remaining.");
+    expect(labels(tree)).toEqual(expect.arrayContaining(["Stopping after this slide…", "Close", "Open slides"]));
+    await respond(200, { url: "/api/pages/files?key=note-files%2Fu1%2F00000000-0000-4000-8000-000000000001.png&name=ai-image.png", name: "ai-image.png", prompt: "Antibody diagram" });
+    tree = dialog();
+    expect(textOf(tree)).toContain("Generated 1 of 2 slide images. 1 remaining.");
     expect(labels(tree)).toEqual(expect.arrayContaining(["Resume", "Close", "Open slides"]));
 
     // Resuming and hitting 429 usage_limit shows GuestLimitPrompt on web and sends kind:"image" to native.

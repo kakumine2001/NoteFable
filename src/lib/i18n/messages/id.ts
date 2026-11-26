@@ -1245,6 +1245,7 @@ export const id: Record<string, string> = {
   "Generating slide images… ({done}/{total})": "Membuat gambar slide… ({done}/{total})",
   "Current slide: {title}": "Slide saat ini: {title}",
   "Stop": "Hentikan",
+  "Stopping after this slide…": "Berhenti setelah slide ini…",
   "Resume": "Lanjutkan",
   "Dismiss": "Tutup",
   "Generated {done} of {total} slide images. {remaining} remaining.": "Berhasil membuat {done} dari {total} gambar slide. Tersisa {remaining}.",

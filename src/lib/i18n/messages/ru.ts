@@ -1245,6 +1245,7 @@ export const ru: Record<string, string> = {
   "Generating slide images… ({done}/{total})": "Генерация изображений слайдов… ({done}/{total})",
   "Current slide: {title}": "Текущий слайд: {title}",
   "Stop": "Остановить",
+  "Stopping after this slide…": "Остановка после этого слайда…",
   "Resume": "Продолжить",
   "Dismiss": "Скрыть",
   "Generated {done} of {total} slide images. {remaining} remaining.": "Создано {done} из {total} изображений слайдов. Осталось: {remaining}.",

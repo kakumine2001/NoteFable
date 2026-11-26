@@ -732,7 +732,9 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
             {imageJob.currentSlideTitle && <span className="slides-image-banner-sub">{t("Current slide: {title}", { title: imageJob.currentSlideTitle })}</span>}
           </div>
           <div className="slides-image-banner-actions">
-            <button type="button" className="notion-button" onClick={() => stopSlideImageJob(pageId)}>{t("Stop")}</button>
+            <button type="button" className="notion-button" disabled={Boolean(imageJob.stopping)} onClick={() => stopSlideImageJob(pageId)}>
+              {imageJob.stopping ? t("Stopping after this slide…") : t("Stop")}
+            </button>
           </div>
         </div>
       ) : editable && pendingImages.length > 0 ? (

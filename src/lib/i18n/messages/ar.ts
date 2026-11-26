@@ -1245,6 +1245,7 @@ export const ar: Record<string, string> = {
   "Generating slide images… ({done}/{total})": "جارٍ إنشاء صور الشرائح… ({done}/{total})",
   "Current slide: {title}": "الشريحة الحالية: {title}",
   "Stop": "إيقاف",
+  "Stopping after this slide…": "جارٍ الإيقاف بعد هذه الشريحة…",
   "Resume": "استئناف",
   "Dismiss": "تجاهل",
   "Generated {done} of {total} slide images. {remaining} remaining.": "تم إنشاء {done} من {total} صورة للشرائح. يتبقى {remaining}.",

@@ -1245,6 +1245,7 @@ export const ko: Record<string, string> = {
   "Generating slide images… ({done}/{total})": "슬라이드 이미지 생성 중… ({done}/{total})",
   "Current slide: {title}": "현재 슬라이드: {title}",
   "Stop": "중지",
+  "Stopping after this slide…": "이 슬라이드 후 중지 중…",
   "Resume": "계속하기",
   "Dismiss": "닫기",
   "Generated {done} of {total} slide images. {remaining} remaining.": "슬라이드 이미지 {total}장 중 {done}장을 생성했습니다. {remaining}장 남았습니다.",

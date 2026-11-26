@@ -1181,6 +1181,7 @@ export const zhHant: Record<string, string> = {
   "Sticky note": "便利貼",
   "Stop": "停止",
   "Stop generating": "停止生成",
+  "Stopping after this slide…": "完成當前投影片後停止…",
   "Storage": "儲存空間",
   "Stored file exceeds its declared size.": "已儲存的檔案超過了宣告的大小。",
   "Stored image not found.": "找不到已儲存的圖片。",

@@ -1254,6 +1254,7 @@ export const zh: Record<string, string> = {
   "Generating slide images… ({done}/{total})": "正在生成幻灯片配图…（{done}/{total}）",
   "Current slide: {title}": "当前页：{title}",
   "Stop": "停止",
+  "Stopping after this slide…": "完成当前幻灯片后停止…",
   "Resume": "继续生成",
   "Dismiss": "关闭提示",
   "Generated {done} of {total} slide images. {remaining} remaining.": "已生成 {done}/{total} 张配图，还剩 {remaining} 张。",

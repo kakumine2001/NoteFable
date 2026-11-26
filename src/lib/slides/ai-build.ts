@@ -106,7 +106,7 @@ export function applyGeneratedSlideImage(
   const src = safeImageSrc(input.url);
   if (!src) return { deck, applied: false };
   const prompt = cleanText(input.prompt).trim().slice(0, 4000);
-  const alt = oneLine((input.name ?? "").replace(/\.[a-z0-9]+$/i, "") || prompt).slice(0, 500);
+  const alt = oneLine(prompt || (input.name ?? "").replace(/\.[a-z0-9]+$/i, "")).slice(0, 500);
   let applied = false;
   const slides = deck.slides.map((slide) => {
     if (slide.id !== input.slideId) return slide;

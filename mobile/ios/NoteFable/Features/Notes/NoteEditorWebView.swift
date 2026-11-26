@@ -136,7 +136,12 @@ final class NoteEditorPool {
                 return
             }
             guard let self, self.controller?.isParked == true else { return }
-            self.destroy()
+            // 逐页配图等长时间后台任务仍在进行时续期，避免中途销毁 WebView 导致已扣费的图片丢失。
+            if self.controller?.slidesWizardBusy == true {
+                self.scheduleIdle()
+            } else {
+                self.destroy()
+            }
         }
     }
 

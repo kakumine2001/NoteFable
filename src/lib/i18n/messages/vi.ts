@@ -1245,6 +1245,7 @@ export const vi: Record<string, string> = {
   "Generating slide images… ({done}/{total})": "Đang tạo hình ảnh trang chiếu… ({done}/{total})",
   "Current slide: {title}": "Trang chiếu hiện tại: {title}",
   "Stop": "Dừng",
+  "Stopping after this slide…": "Đang dừng sau trang chiếu này…",
   "Resume": "Tiếp tục",
   "Dismiss": "Bỏ qua",
   "Generated {done} of {total} slide images. {remaining} remaining.": "Đã tạo {done}/{total} hình ảnh trang chiếu. Còn lại {remaining}.",

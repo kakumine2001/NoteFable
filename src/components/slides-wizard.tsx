@@ -221,7 +221,9 @@ function SlidesWizardDialog({ view, embedded, flush }: { view: SlidesWizardView;
       </div>
       <div className="slides-wizard-footer">
         {imageJob?.status === "working" && donePageId && (
-          <button type="button" className="notion-button slides-wizard-reset" onClick={() => stopSlideImageJob(donePageId)}>{t("Stop")}</button>
+          <button type="button" className="notion-button slides-wizard-reset" disabled={Boolean(imageJob.stopping)} onClick={() => stopSlideImageJob(donePageId)}>
+            {imageJob.stopping ? t("Stopping after this slide…") : t("Stop")}
+          </button>
         )}
         {imageJob && (imageJob.status === "stopped" || imageJob.status === "error") && imageJob.remaining > 0 && donePageId && (
           <button type="button" className="notion-button slides-wizard-reset" onClick={() => void resumeSlideImageJob(donePageId)}>{t("Resume")}</button>
