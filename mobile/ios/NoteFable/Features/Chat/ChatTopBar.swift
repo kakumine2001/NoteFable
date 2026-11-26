@@ -75,8 +75,6 @@ struct ChatTopBar: View {
                 .emojiPicker(isPresented: $pickingIcon, current: icon) { picked in
                     app.chat.changeIcon(picked)
                 }
-                // 胶囊不在了（换成新聊天）：选择器的开关也归位，下次出现时不自己弹出来。
-                .onDisappear { pickingIcon = false }
                 .accessibilitySortPriority(1)
             }
         }
@@ -88,6 +86,13 @@ struct ChatTopBar: View {
         .animation(NFMotion.unlessReduced(NFMotion.cssEase(0.18), reduceMotion), value: showTrailing)
         .nfDialog(item: $dialog, dismissDisabled: dialog?.runner.busy ?? false) { item in
             ChatActionDialog(item: item)
+        }
+        // 切到空聊天或换会话时收起表情选择器（不在 if let title 上用 onDisappear，避免退场动画晚到误关新打开的选择器）。
+        .onChange(of: title == nil) { _, isNil in
+            if isNil { pickingIcon = false }
+        }
+        .onChange(of: session?.id) { _, _ in
+            pickingIcon = false
         }
         // 登录 / 退出后：旧身份的对话框和选择器都关掉（和侧栏一样）。
         .onChange(of: app.identityGeneration) { _, _ in
