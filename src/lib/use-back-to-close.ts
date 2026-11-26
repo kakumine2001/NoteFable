@@ -24,23 +24,22 @@ export function isSheetCleanupPopState(event?: Event): boolean {
 }
 
 // 目印を外す history.back() を待っている処理（afterSheetHistory）。
-let afterBack: (() => void)[] = [];
+const afterBack: (() => void)[] = [];
 // popstate 後に setTimeout で flushAfterBack を待っている間のタイマー。
 // ownBack が false に戻った直後〜flushAfterBack 実行前の呼び出しが、先に並んだ URL 書き換えを追い越さないように保つ。
 let pendingFlush: ReturnType<typeof setTimeout> | null = null;
 function flushAfterBack() {
   pendingFlush = null;
-  while (afterBack.length > 0) {
-    const callbacks = afterBack;
-    afterBack = [];
-    callbacks.forEach((callback) => callback());
+  while (afterBack.length > 0 && pendingBack === null && !ownBack) {
+    const callback = afterBack.shift()!;
+    callback();
   }
 }
 
 // シートを閉じたあとに今の履歴（URL）を書き換えたいとき用。閉じたシートの目印を外す history.back() が予約中・進行中、
 // または戻り後の実行待ちの間は後ろに並べ、終わってから登録順に呼ぶ。なければすぐ呼ぶ。
 export function afterSheetHistory(callback: () => void) {
-  if (pendingBack === null && !ownBack && pendingFlush === null) {
+  if (pendingBack === null && !ownBack && pendingFlush === null && afterBack.length === 0) {
     callback();
     return;
   }
@@ -72,7 +71,9 @@ function onPopState(event: PopStateEvent) {
     return;
   }
   // 下にまだシートがあれば、次の「戻る」でそれを閉じられるよう目印を積み直す。
+  // 最後のシートが「戻る」で閉じたなら目印は外れたので、待っていた履歴書き換えを実行する。
   if (openSheets.length > 0) window.history.pushState(MARKER, "");
+  else if (afterBack.length > 0 && pendingFlush === null) pendingFlush = setTimeout(flushAfterBack);
 }
 
 // シートが開いているときの Esc は一番上の 1 枚だけを閉じる。capture で受けて止めるので、同じ Esc でポップオーバーなどが重ねて閉じない。
@@ -119,9 +120,9 @@ export function useBackToClose(open: boolean, onClose: () => boolean | void) {
     listen();
     if (pendingBack !== null) {
       // 閉じた直後に別のシートが開いた（行を切り替えた、開発時の再実行など）。
+      // 目印はまだ履歴の上に残るので、afterBack はこのシートが閉じて目印が外れるまで保留する。
       clearTimeout(pendingBack);
       pendingBack = null;
-      if (afterBack.length > 0 && pendingFlush === null) pendingFlush = setTimeout(flushAfterBack);
     }
     // 目印が残っていればそれを使い回し、無ければ（その間に「戻る」で外れた場合など）積む。
     if (!hasMarker()) window.history.pushState(MARKER, "");

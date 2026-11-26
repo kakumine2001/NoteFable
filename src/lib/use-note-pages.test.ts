@@ -1067,4 +1067,54 @@ describe("useNotePages instant switching & prefetch", () => {
     expect(hook.current.pages.map((p) => p.id)).toContain("fresh");
     expect(window.location.href).toContain("page=fresh");
   });
+
+  it("does not resurrect a page created and trashed during initial load, and keeps sidebar updates made before load finishes", async () => {
+    createFakeBrowser("https://app.notefable.com/app?view=pages&page=old");
+    const existing = makePage("old", "Old", 1);
+    const trashed = makePage("temp", "Temp", 1);
+    const kept = makePage("kept", "Untitled", 1);
+    const listFetch = deferred<Response>();
+    let createCount = 0;
+
+    vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+      if (url === "/api/pages" && (!init?.method || init.method === "GET")) return listFetch.promise;
+      if (url === "/api/pages" && init?.method === "POST") {
+        createCount += 1;
+        return Promise.resolve(jsonResponse({ page: createCount === 1 ? trashed : kept }, 201));
+      }
+      if (url === "/api/pages/temp" && init?.method === "DELETE") {
+        return Promise.resolve(jsonResponse({ ids: ["temp"] }));
+      }
+      if (url === "/api/pages/kept/favorite" && init?.method === "PUT") {
+        return Promise.resolve(jsonResponse({ page: { ...kept, favoritedAt: "2026-11-26T00:00:00.000Z" } }));
+      }
+      return Promise.reject(new Error(`unexpected ${init?.method ?? "GET"} ${url}`));
+    }));
+
+    const hook = hookRuntime.mount(() => useNotePages(true));
+    await flushMicrotasks();
+
+    // Create "temp" and trash it before GET /api/pages finishes.
+    await hook.current.create(false, null, "note", null);
+    await flushMicrotasks();
+    await hook.current.remove("temp");
+    await flushMicrotasks();
+
+    // Create "kept" and favorite it before GET /api/pages finishes; also leave URL pointing at "old"
+    // (simulating deferred syncPageUrl waiting on sheet cleanup).
+    await hook.current.create(false, null, "note", null);
+    await flushMicrotasks();
+    await hook.current.setFavorite("kept", true);
+    await flushMicrotasks();
+    window.history.replaceState(null, "", "https://app.notefable.com/app?view=pages&page=old");
+
+    // Resolve initial GET /api/pages with only "old".
+    listFetch.resolve(jsonResponse({ pages: [existing], groups: [] }));
+    await flushMicrotasks();
+
+    // "temp" must not come back; "kept" must retain its favorite and remain active instead of reverting to "old".
+    expect(hook.current.pages.map((p) => p.id).sort()).toEqual(["kept", "old"]);
+    expect(hook.current.pages.find((p) => p.id === "kept")?.favoritedAt).toBe("2026-11-26T00:00:00.000Z");
+    expect(hook.current.activeId).toBe("kept");
+  });
 });

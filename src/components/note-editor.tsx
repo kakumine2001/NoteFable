@@ -339,7 +339,7 @@ function NoteSideMenu() {
   const hovered = useExtensionState(SideMenuExtension, { editor, selector: (state) => state?.block });
   const selectionCtx = useContext(BlockSelectionContext);
   const isHoveredSelected = Boolean(hovered && selectionCtx?.selectedIdSet.has(hovered.id));
-  // BlockNote の SideMenuView は document capture で任意の keydown を受けてメニューを隠す。
+  // BlockNote の SideMenuView は document capture で任意の keydown を受けてメニューを隠す（menuFrozen も見ない）。
   // Alt+クリックで上に追加しようとして Alt キーだけ押したときに「+」が消えないようにする。
   useEffect(() => {
     const keepVisibleOnAlt = (event: globalThis.KeyboardEvent) => {

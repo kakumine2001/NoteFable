@@ -126,8 +126,8 @@ describe("useBackToClose and afterSheetHistory", () => {
     expect(order).toEqual(["write-url", "sync-list"]);
   });
 
-  it("flushes queued afterSheetHistory callbacks if another sheet opens while pendingBack is cancelled", async () => {
-    setupFakeWindow();
+  it("keeps afterSheetHistory queued while a replacement sheet holds the marker and flushes once Back closes it", async () => {
+    const win = setupFakeWindow();
     const mod = await import("./use-back-to-close");
     const order: string[] = [];
 
@@ -137,9 +137,45 @@ describe("useBackToClose and afterSheetHistory", () => {
     mod.afterSheetHistory(() => order.push("queued-during-pending-back"));
     expect(order).toEqual([]);
 
-    // Another sheet opens before pendingBack fires, cancelling pendingBack.
+    // Another sheet opens before pendingBack fires, cancelling pendingBack while keeping the marker on top.
     mod.useBackToClose(true, vi.fn());
+    vi.advanceTimersByTime(10);
+    // Must stay queued while the replacement sheet's marker is still on top of history.
+    expect(order).toEqual([]);
+
+    // User presses Back: the marker is popped and the replacement sheet closes -> queued callback flushes.
+    win.history.back();
+    win.dispatchPopState(true);
     vi.advanceTimersByTime(1);
     expect(order).toEqual(["queued-during-pending-back"]);
+  });
+
+  it("stops flushing afterSheetHistory if a callback triggers a new pendingBack", async () => {
+    const win = setupFakeWindow();
+    const mod = await import("./use-back-to-close");
+    const order: string[] = [];
+
+    mod.useBackToClose(true, vi.fn());
+    hookHarness.unmountLast();
+    vi.advanceTimersByTime(1);
+
+    mod.afterSheetHistory(() => {
+      order.push("first");
+      // Synchronously open and close a new sheet so pendingBack becomes active again.
+      mod.useBackToClose(true, vi.fn());
+      hookHarness.unmountLast();
+    });
+    mod.afterSheetHistory(() => order.push("second"));
+
+    win.dispatchPopState(true);
+    vi.advanceTimersByTime(1);
+    // "first" ran and scheduled a new pendingBack, so "second" must wait for that back to finish.
+    expect(order).toEqual(["first"]);
+
+    // Second history.back() fires and browser delivers its popstate.
+    vi.advanceTimersByTime(1);
+    win.dispatchPopState(true);
+    vi.advanceTimersByTime(1);
+    expect(order).toEqual(["first", "second"]);
   });
 });
