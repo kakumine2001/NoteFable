@@ -65,23 +65,22 @@ struct ChatWorkspace: View {
                         }
                     )
                 }
+                // 输入卡片自己带一个 GlassEffectContainer（ChatComposer），这里不再套第二层。
                 .nfFloatingHeader(edge: .bottom, divider: true, systemBar: ChatChrome.composerUsesSystemBar) {
-                    NFGlassContainer(spacing: NFChromeMetrics.containerSpacing) {
-                        ChatComposer(
-                            bottomPadding: keyboardUp ? 16 : 8,
-                            focusRequest: focusRequest,
-                            onFocusChange: { value in composerFocused = value },
-                            onModelClick: {
-                                // 键盘开着时抽屉会浮在键盘上面：先收起（网页 openSheet 的 blur）。
-                                hideKeyboard()
-                                modelSheetOpen = true
-                            },
-                            onAddClick: {
-                                hideKeyboard()
-                                attachSheetOpen = true
-                            }
-                        )
-                    }
+                    ChatComposer(
+                        bottomPadding: keyboardUp ? 16 : 8,
+                        focusRequest: focusRequest,
+                        onFocusChange: { value in composerFocused = value },
+                        onModelClick: {
+                            // 键盘开着时抽屉会浮在键盘上面：先收起（网页 openSheet 的 blur）。
+                            hideKeyboard()
+                            modelSheetOpen = true
+                        },
+                        onAddClick: {
+                            hideKeyboard()
+                            attachSheetOpen = true
+                        }
+                    )
                 }
         }
         .background(Sm.background)

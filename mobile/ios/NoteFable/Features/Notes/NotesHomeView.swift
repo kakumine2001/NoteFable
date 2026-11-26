@@ -95,8 +95,10 @@ struct NotesHomeView: View {
         }
         .nfReportsBottomChrome(.workspace)
         .nfFloatingHeader(edge: .top) {
+            // 按钮行跟内容一样收窄，底条（降低透明度 / iOS 17–18）仍铺满窗口宽度。
             WorkspaceHomeBar(kinds: filterKinds, activeFilter: activeFilter) { kindFilter = $0 }
                 .frame(maxWidth: Self.columnMaxWidth)
+                .frame(maxWidth: .infinity)
         }
     }
 }
