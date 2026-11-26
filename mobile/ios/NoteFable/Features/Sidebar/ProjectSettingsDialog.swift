@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // 项目设置（网页 ChatProjectSettings，dialog.chat-project-settings 的手机尺寸；Android ui/ProjectSettings.kt）：
 // 宽 374（412 屏宽时，左右各 19；最宽 544）、无内边距、圆角 8、--notion-shadow；遮罩 rgba(15,15,15,.2)；最高到可用高度 − 38。
