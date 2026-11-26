@@ -452,7 +452,7 @@ for major in "${MAJORS[@]}"; do
       xcrun simctl spawn "$udid" defaults write com.apple.Accessibility EnhancedBackgroundContrastEnabled -int 0 || true
     fi
     if [[ "$variant" == "hc" ]]; then
-      xcrun simctl ui "$udid" increase_contrast disabled >/dev/null
+      xcrun simctl ui "$udid" increase_contrast disabled >/dev/null || echo "::warning::ios${major} hc: could not turn Increase Contrast off again"
     fi
   done
 

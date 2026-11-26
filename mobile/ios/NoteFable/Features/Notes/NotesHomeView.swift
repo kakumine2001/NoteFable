@@ -449,7 +449,13 @@ private struct NotesHomeUtilPill: View {
             .padding(.horizontal, 11.2)
             .frame(height: 34.4)
         }
-        .buttonStyle(.pressable(pressedBackground: Sm.hover, cornerRadius: 17.2, scale: 0.98, disabledOpacity: 0.5))
+        // iOS 26 的可交互玻璃按下时自己会鼓起：那条路上不再叠灰底和缩放（和 AccountRow、NFGlassIconButton 一样）。
+        .buttonStyle(.pressable(
+            pressedBackground: chromePath == .native ? nil : Sm.hover,
+            cornerRadius: 17.2,
+            scale: chromePath == .native ? 1 : 0.98,
+            disabledOpacity: 0.5
+        ))
         .nfGlassBackground(.interactive, in: Capsule(), solidFill: Sm.surface, stroke: Sm.border)
         .disabled(busy)
     }

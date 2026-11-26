@@ -136,14 +136,17 @@ enum FixtureEditorPage {
             if(block){block.scrollIntoView({block:"start"});}
           }
           function openPage(o){
-            if(!o||!Object.prototype.hasOwnProperty.call(pages,o.id)){return false;}
-            var page=pages[o.id];
+            if(!o||!o.id){return false;}
+            var known=Object.prototype.hasOwnProperty.call(pages,o.id);
+            // 目录外的页面（例如流程里新建的笔记）按空白笔记处理，照样回 ready，原生端不会一直等到超时。
+            var page=known?pages[o.id]:{title:o.title||"",icon:o.icon||null,kind:o.kind||"note"};
             document.getElementById("page-title").textContent=page.title;
             var icon=document.getElementById("page-icon");
             icon.textContent=page.icon||"";
             icon.hidden=!page.icon;
-            var template=document.getElementById("body-"+(page.kind==="note"?o.id:page.kind));
-            document.getElementById("page-content").replaceChildren(template.content.cloneNode(true));
+            var template=known?document.getElementById("body-"+(page.kind==="note"?o.id:page.kind)):null;
+            var content=document.getElementById("page-content");
+            if(template){content.replaceChildren(template.content.cloneNode(true));}else{content.replaceChildren();}
             window.scrollTo(0,0);
             reveal(o.reveal);
             post({type:"ready",page:{id:o.id,title:page.title,icon:page.icon,kind:page.kind}});
@@ -168,7 +171,9 @@ enum FixtureEditorPage {
             openHistory:function(){}
           };
           var id=\(quotedId);
-          if(!openPage({id:id,reveal:new URLSearchParams(location.search).get("reveal")})){
+          if(Object.prototype.hasOwnProperty.call(pages,id)){
+            openPage({id:id,reveal:new URLSearchParams(location.search).get("reveal")});
+          }else{
             post({type:"missing",id:id});
           }
         })();

@@ -4,7 +4,8 @@ import SwiftUI
 /// 消息从下面滚过去。高度在任何状态下都是 56（空白、读取中、发送中、有没有标题和“…”都一样），顶部安全区不会变，列表不跳。
 /// - 行首：玻璃圆的菜单（44，图标 20），打开侧栏。
 /// - 正中：有标题时是玻璃胶囊（`ChatSessionCapsule`）：AI 角色（28，回答时跟着动）+ 聊天图标和标题 + 模型 / 推理强度，
-///   点开和输入栏模型按钮同一个模型抽屉。两边各留 92（行尾两键的胶囊 84 + 间距 8），所以胶囊真正居中，从右到左时一样。
+///   点开和输入栏模型按钮同一个模型抽屉。标题放得下时两边各留 92（行尾两键的胶囊 84 + 间距 8），胶囊真正居中；
+///   放不下时两边只让出各自按钮的宽度（`ViewThatFits`），从右到左时一样。
 /// - 行尾：一个玻璃胶囊装“新建聊天”和“…”（iOS 26 工具栏的分组）。“…”菜单只是侧栏行菜单的另一个入口：改聊天图标、
 ///   置顶 / 取消置顶、改名、移到项目、删除，对话框和侧栏共用（`ChatSessionMenu`、`ChatActionDialog`）。
 /// 空白首页（没有消息）和网页一样只有菜单：不放标题、“新建聊天”（已经在新聊天里）和“…”。
@@ -60,14 +61,23 @@ struct ChatTopBar: View {
                     }
                 }
                 if let title {
-                    ChatSessionCapsule(title: title, icon: icon, onModelClick: onModelClick)
-                        .emojiPicker(isPresented: $pickingIcon, current: icon) { picked in
-                            app.chat.changeIcon(picked)
-                        }
-                        // 胶囊不在了（换成新聊天）：选择器的开关也归位，下次出现时不自己弹出来。
-                        .onDisappear { pickingIcon = false }
-                        .accessibilitySortPriority(1)
-                        .padding(.horizontal, Self.capsuleReserve)
+                    let leading = NFChromeMetrics.control + NFChromeMetrics.gap
+                    let trailing = showTrailing ? Self.capsuleReserve : leading
+                    // 放得下完整标题时两边让出同样的宽度，胶囊在整条栏的正中；放不下（窄窗口、长标题）时
+                    // 两边只让出各自按钮的宽度，标题多占一些再省略。
+                    ViewThatFits(in: .horizontal) {
+                        ChatSessionCapsule(title: title, icon: icon, onModelClick: onModelClick)
+                            .padding(.horizontal, max(leading, trailing))
+                        ChatSessionCapsule(title: title, icon: icon, onModelClick: onModelClick)
+                            .padding(.leading, leading)
+                            .padding(.trailing, trailing)
+                    }
+                    .emojiPicker(isPresented: $pickingIcon, current: icon) { picked in
+                        app.chat.changeIcon(picked)
+                    }
+                    // 胶囊不在了（换成新聊天）：选择器的开关也归位，下次出现时不自己弹出来。
+                    .onDisappear { pickingIcon = false }
+                    .accessibilitySortPriority(1)
                 }
             }
             // 读屏按 菜单 → 标题胶囊 → 新建聊天 → “…” 的顺序念（胶囊叠在按钮行上面，否则会排到最后）。

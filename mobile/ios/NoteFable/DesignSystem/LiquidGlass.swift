@@ -430,9 +430,17 @@ private struct NFSheetContainer<SheetContent: View>: View {
 
     private var fittedHeight: CGFloat {
         let preferredHeight = max(140, contentHeight)
-        guard let windowHeight else { return preferredHeight }
-        let maxHeight = min(windowHeight, max(260, windowHeight * 0.88))
+        // 根视图还没量到窗口（第一次排版前、或不在 RootView 下的弹层）时，退回当前前台窗口的高度，弹层仍不会超出屏幕。
+        guard let height = windowHeight ?? Self.foregroundWindowHeight() else { return preferredHeight }
+        let maxHeight = min(height, max(260, height * 0.88))
         return min(maxHeight, preferredHeight)
+    }
+
+    private static func foregroundWindowHeight() -> CGFloat? {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+        let window = scene?.windows.first { $0.isKeyWindow } ?? scene?.windows.first
+        return window.map { $0.bounds.height }
     }
 
     var body: some View {
