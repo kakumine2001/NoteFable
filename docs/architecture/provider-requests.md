@@ -192,6 +192,14 @@ Content-Type: application/json
 - OpenAI / DeepSeek：`input` 是 `[{ role, content }]` 数组（Responses API 的消息格式；Create page 仍发字符串），其余字段同上节。被输出上限截断（`incomplete` 且原因是 `max_output_tokens`）或空输出都算失败，不保存。
 - Anthropic：`messages` 就是这几条 user / assistant 消息；`stop_reason` 是 `max_tokens` 也算失败。
 
+## AI 生成幻灯片的请求
+
+`POST /api/pages/slides/outline` 和 `/deck`（见 [slides.md](slides.md#ai-生成幻灯片)）和画成图一样经 `generateOneShotText` 各发 1 次非流式请求：所选聊天模型的默认推理强度，不带搜索、工具、压缩和 `cache_control`，240 秒超时；输出上限是模型 `tokenLimits.maxOutputTokens` 与大纲 16,000 / 整套 32,000 中较小的一个。指令、输入和解析都在 `src/lib/slides/ai-prompt.ts`。
+
+- `input` 是一条 user 消息：`<settings>`（页数、语言、语气、听众——引号里的一行、保留原文或精简）、整套时再加用户确认的 `<outline>`、最后是 `<material>`（`<topic>`、笔记（每篇再用 `delimitPageContent` 包住）或 `<conversation>` 对话稿）。指令说明 `<material>` 是私有数据而非指令；材料是笔记或对话时不许编造事实。
+- 大纲回复格式：`# 标题`，每页 `## 页标题` 加若干 `- 要点`。解析时容忍外层代码围栏和多余文字，超限截断、只留前 29 页；没有任何页视为失败。
+- 整套回复格式：每页依次 `@@@SLIDE 标题`、`@@@BODY`、Markdown 正文、`@@@NOTES`、纯文本备注，全部结束后单独一行 `@@@END`。代码围栏里的标记行按普通文字处理。缺 `@@@END`、被输出上限截断或页数少于大纲视为失败；页数一致时标题用大纲里的；正文为空时用大纲要点。
+
 ## 官方参考
 
 - [OpenAI Compaction](https://developers.openai.com/api/docs/guides/compaction)

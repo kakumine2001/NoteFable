@@ -362,6 +362,8 @@ User 1 -> N StoredFile（SetNull）
 
 上限为 0 时直接拒绝，不写行（`INSERT` 本身不受 `WHERE` 限制）。图片一次生成同时计月（账期）和当天两行（`USAGE_DAILY_LIMITS`）。未登录用户清 Cookie 就会变成新用户，所以同一 IP 的未登录用户还共享一个更大的上限（聊天 100 / 天、图片 30 / 月）；登录后不受这个限制。计数用带条件的 `INSERT … ON CONFLICT DO UPDATE … WHERE count < limit`，并发请求也不会超额；多个计数在同一事务里，任一满额就整体回滚。`/api/chat`、`/api/images` 和 `/api/sessions/:id/page` 满额时返回 429（`code: "usage_limit"`）。没能交付任何内容的失败（聊天在正文和提案出现前失败或取消、图片生成或保存失败、会话不存在、附件处理失败）会退还这一次。按天计的行超过 7 天、按月计的行超过 62 天，在计数时以 1% 的概率顺带删除（没有定时任务）。设置里的“方案”经 `GET /api/billing` 读本期用量（`usageSummary`）。`kind = report` 的行是“报告回答”的每日次数（`REPORT_LIMITS`：每个用户 10 次，未登录时同一网络 20 次，`consumeReportQuota`），不属于用量档位。
 
+`kind` 以 `req:` 开头的行不是用量，而是“同一请求不重复扣费”的标记（`src/lib/usage-requests.ts`，目前只有幻灯片大纲）：`key = user:<id>`（删除账号时一起删掉），`kind = req:slides-outline:<clientRequestId>:<来源、选项、模型的哈希>`，`day` 是第一次请求的日本时间日期（跨天重试仍用同一行）。`count = 0` 表示生成中，`1` 起表示已返回结果（1 + 免费重跑次数，最多 3 次，之后重新扣费）；`updatedAt` 超过 300 秒的生成中标记视为原请求已中断。首次请求失败时删掉标记（并退还额度）。认领在带 `pg_advisory_xact_lock` 的事务里做。超过 7 天随按天的行一起清理。
+
 ### EmailLoginCode
 
 邮箱登录的验证码（`src/lib/email-login.ts`）。只存 `codeHash`（`AUTH_SECRET` 为密钥的 HMAC），不存验证码本身；`expiresAt` 为发出后 10 分钟，`attempts` 记错误次数（满 5 次作废），`requesterHash` 是对 `clientNetworkKey`（IPv4 或 IPv6 前 64 位的 HMAC）再用 `AUTH_SECRET` 做的 HMAC，只用来限流（同一邮箱每分钟 1 次、每小时 5 次；同一 IP 每小时 20 次）。验证成功后把这个邮箱所有还能用的验证码标成已使用（`attempts` 设为 1000 并过期；不删除，否则限流的计数会被清零；用 `attempts` 而不是时间来判断，所以同一个码同时提交两次只有一次成功）；任何一个未过期、还有剩余次数的验证码都能用，所以别人替你再要一个新码不会让你手上的码失效；输错时这些码的次数一起加 1；过期 1 小时以上的行在发新码时以 5% 的概率顺带删除（没有定时任务）。没有外键。

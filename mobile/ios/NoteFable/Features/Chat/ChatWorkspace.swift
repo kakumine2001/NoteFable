@@ -257,6 +257,7 @@ private struct ChatAttachSheetContent: View {
             onAttachPages: onAttachPages,
             onToggleImageMode: { app.chat.setImageMode(!app.chat.state.imageMode) },
             onCreatePage: createPageAction(state),
+            onGenerateSlides: generateSlidesAction(state),
             // 网页：当前聊天在发送（含上传附件）时不能点，最后的回答还没存下。
             createPageEnabled: !state.sending && state.upload == nil
         )
@@ -268,5 +269,13 @@ private struct ChatAttachSheetContent: View {
         guard let sessionId = state.activeSessionId, !isEmptyChat else { return nil }
         let router = self.router
         return { router.createPageSessionId = sessionId }
+    }
+
+    /// 「生成幻灯片」：和「整理成笔记」同样的出现条件，打开以当前对话为材料的向导。
+    private func generateSlidesAction(_ state: ChatUiState) -> (() -> Void)? {
+        let isEmptyChat = state.messages.isEmpty && !state.messagesLoading && !state.messagesFailed
+        guard let sessionId = state.activeSessionId, !isEmptyChat else { return nil }
+        let router = self.router
+        return { router.openSlidesWizard(.chat(sessionId: sessionId)) }
     }
 }

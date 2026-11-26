@@ -39,9 +39,11 @@ struct NoteEditorScreen: View {
         let page = state.pages.first(where: { $0.id == open.id })
         // 页面类型：列表里有这一篇就用列表的，否则用打开时知道的（检索结果、网页的 ready 消息）。
         let kind = page?.kind ?? open.kind
+        let editorWizard = state.slidesWizard?.editor == open.editor ? state.slidesWizard : nil
+        let wizardShown = editorWizard?.shown == true
         VStack(spacing: 0) {
-            if !state.presenting { topBar(state, page: page) }
-            if !state.presenting, let notice = state.notice ?? state.error {
+            if !state.presenting && !wizardShown { topBar(state, page: page) }
+            if !state.presenting && !wizardShown, let notice = state.notice ?? state.error {
                 // 离开时没能保存等提示：点一下收起。
                 Button {
                     notes.dismissNotice()
@@ -69,9 +71,21 @@ struct NoteEditorScreen: View {
                 open: open, pool: editorPool, app: app, router: router,
                 appIcon: app.appIcon.icon, language: app.language.uiLocale,
                 theme: (colorScheme == .dark ? ResolvedTheme.dark : ResolvedTheme.light).rawValue,
-                edgeBack: !kind.capturesEdgeSwipes
+                edgeBack: !kind.capturesEdgeSwipes || wizardShown
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background {
+                if let editorWizard {
+                    SlidesWizardOverlayLauncher(
+                        wizard: editorWizard,
+                        pool: editorPool,
+                        model: app.chat.state.selectedModel?.id,
+                        reasoning: app.chat.state.selectedReasoning,
+                        onShown: { notes.onSlidesWizardShown($0) },
+                        onFailed: { notes.dismissSlidesWizard($0) }
+                    )
+                }
+            }
         }
         // 幻灯片放映中：横屏、隐藏状态栏和主屏幕指示条、屏幕常亮（Android 的 PresentationMode）。
         .background(state.presenting ? Color.black : Color.clear)
@@ -163,8 +177,9 @@ struct NoteEditorScreen: View {
         // 只有有公开视图的类型能公开（按服务端的 kinds 表；现在笔记、白板、幻灯片都能公开），网页同样按这张表显示分享按钮。
         let sharePage = kind.features.publicShare ? page : nil
         let locked = page?.locked == true
-        // 固定有菜单、返回、搜索、历史四项。
-        let buttonCount = 4 + (locked ? 1 : 0) + (sharePage == nil ? 0 : 1) + (page == nil ? 0 : 1)
+        let showsSidebarToggle = !router.isSidebarDockedVisible
+        // 固定有返回、搜索、历史三项；侧栏未常驻展开时再加行首菜单一项。
+        let buttonCount = (showsSidebarToggle ? 4 : 3) + (locked ? 1 : 0) + (sharePage == nil ? 0 : 1) + (page == nil ? 0 : 1)
         let sideInset = NFChromeMetrics.compactSideInset
         let gap = NFChromeMetrics.gap
 
@@ -175,8 +190,10 @@ struct NoteEditorScreen: View {
             NFGlassContainer(spacing: NFChromeMetrics.containerSpacing) {
                 HStack(spacing: gap) {
                     NFGlassGroup {
-                        NFGlassBarButton(Lucide.menu, label: L("open_menu"), width: buttonWidth) {
-                            router.openDrawer()
+                        if showsSidebarToggle {
+                            NFGlassBarButton(Lucide.menu, label: L("open_menu"), width: buttonWidth) {
+                                router.openSidebar()
+                            }
                         }
                         NFGlassBarButton(Lucide.chevronLeft, label: L("all_notes"), width: buttonWidth, iconSize: 22) {
                             notes.closeNote()
@@ -283,7 +300,9 @@ struct NoteEditorScreen: View {
             onSlides: { command in notes.slidesCommand(command) },
             // 「画成图」：先让网页保存（服务端读已保存的正文），存不上就在顶栏下面提示、不开始；进度窗口挂在根上。
             onDrawDiagram: { _ = router.drawDiagramFromNote(id) },
-            drawingDiagram: app.diagrams.job(.note(pageId: id)) == .working
+            drawingDiagram: app.diagrams.job(.note(pageId: id)) == .working,
+            // 「生成幻灯片」：盖在当前编辑器上打开向导，读这篇之前由网页自己保存。
+            onGenerateSlides: { router.openSlidesWizard(.note(pageId: id)) }
         )
     }
 }

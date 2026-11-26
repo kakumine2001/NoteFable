@@ -153,6 +153,9 @@ final class SidebarViewModel {
     /// 身份代数：登录 / 退出后，旧身份下发出的请求结果直接丢弃。
     @ObservationIgnored private var generation = 0
 
+    /// 聊天改名或删除写入服务端成功后通知（例如常驻侧栏里操作时，让旁边开着的笔记编辑器立即重读反向链接）。
+    @ObservationIgnored var onSessionMutated: (@MainActor () -> Void)?
+
     init(sessions: SessionsBackend, projectsApi: ProjectsBackend, chat: SidebarChatHost) {
         self.sessions = sessions
         self.projectsApi = projectsApi
@@ -245,6 +248,7 @@ final class SidebarViewModel {
                     return next
                 }
             }
+            self.onSessionMutated?()
         }
     }
 
@@ -276,6 +280,7 @@ final class SidebarViewModel {
         return await guarded("sb_err_delete_chat") {
             try await self.sessions.deleteSession(id: id)
             self.chat.onSessionDeleted(id)
+            self.onSessionMutated?()
         }
     }
 

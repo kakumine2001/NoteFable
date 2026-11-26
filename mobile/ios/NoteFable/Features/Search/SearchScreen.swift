@@ -72,7 +72,7 @@ private struct SearchPanel: View {
         let view = model.view(currentProjectId: currentProjectId, chatFirst: chatFirst)
 
         // 结果区是底：顶栏浮在它上面，结果的滚动区一直铺到屏幕顶，从玻璃顶栏下面滚过；
-        // 空 / 失败 / 检索中的说明排在顶栏下面（顶栏算在安全区里）。
+        // 空 / 失败 / 检索中的说明排在顶栏下面（顶栏算在安全区里）。滚动区铺满详情宽度，内容列在宽窗口下收窄到 760pt 居中。
         results(state, view)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             // 底部被标签栏挡住多少（提示条的位置）：放在顶栏里面的内容上。
@@ -85,6 +85,8 @@ private struct SearchPanel: View {
                 .padding(.horizontal, NFChromeMetrics.sideInset)
                 .padding(.top, 6)
                 .padding(.bottom, 8)
+                .frame(maxWidth: 760)
+                .frame(maxWidth: .infinity)
                 // 浮动顶栏排在结果后面（safeAreaBar）：读屏仍然先念顶栏（抽屉、检索框、标签），和原来在最上面时一样。
                 .accessibilityElement(children: .contain)
                 .accessibilitySortPriority(1)
@@ -125,8 +127,10 @@ private struct SearchPanel: View {
     private func inputRow(_ state: SearchUiState, _ view: SearchView) -> some View {
         NFGlassContainer(spacing: NFChromeMetrics.containerSpacing) {
             HStack(spacing: NFChromeMetrics.gap) {
-                NFGlassIconButton(Lucide.menu, label: L("open_menu"), size: NFChromeMetrics.control, iconSize: 20) {
-                    router.openDrawer()
+                if !router.isSidebarDockedVisible {
+                    NFGlassIconButton(Lucide.menu, label: L("open_menu"), size: NFChromeMetrics.control, iconSize: 20) {
+                        router.openSidebar()
+                    }
                 }
                 GlassSearchField(
                     text: Binding(get: { model.state.input }, set: { model.setInput($0) }),
@@ -204,6 +208,8 @@ private struct SearchPanel: View {
             .padding(.horizontal, 19.2)
             .padding(.top, 25.6)
             .padding(.bottom, 20)
+            .frame(maxWidth: 760, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .center)
         case .noResults(let query):
             SearchEmptyBlock(title: L("search_no_results", query), message: L("search_no_results_body"))
         case .results:
@@ -403,6 +409,8 @@ private struct SearchEmptyBlock<Action: View>: View {
         .padding(.horizontal, 19.2)
         .padding(.top, 25.6)
         .padding(.bottom, 20)
+        .frame(maxWidth: 760, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 }
 
@@ -483,6 +491,8 @@ private struct SearchResultList: View {
                 .padding(.horizontal, 6.4)
                 .padding(.top, 5.6)
                 .padding(.bottom, 12)
+                .frame(maxWidth: 760, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .center)
             }
             .scrollDismissesKeyboard(.interactively)
             // 检索中的旧结果淡到 0.5：.search-list.is-stale 的 transition 只写在 is-stale 上，所以变淡用 120ms ease，恢复是立即的。

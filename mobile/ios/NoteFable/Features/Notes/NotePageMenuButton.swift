@@ -172,6 +172,9 @@ private struct NotePageMenuContent: View {
                 isBusy: actions.drawingDiagram, action: run(onDrawDiagram)
             )
         }
+        if notePageDrawable(page), let onGenerateSlides = actions.onGenerateSlides {
+            ActionsMenuItem(L("slides_generate"), icon: Lucide.presentation, action: run(onGenerateSlides))
+        }
         ActionsMenuItem(L("pg_move_to"), icon: Lucide.folderInput, action: run(actions.onMove))
         if page.kind.features.markdownExport {
             ActionsMenuItem(L("export_markdown"), icon: Lucide.download, action: run(actions.onExport))

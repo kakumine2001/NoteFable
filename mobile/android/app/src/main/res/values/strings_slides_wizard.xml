@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- AI 生成幻灯片（#150）的原生入口。向导本身是网页（/note-embed）；这里只有入口的文字，原句和中 / 日译文取自网页字典
+     src/lib/i18n/messages/{zh,ja}.ts。values / values-zh / values-ja 三份的键一一对应。 -->
+<resources>
+    <string name="slides_generate">Generate slides</string>
+    <string name="slides_generate_from_chat">Make a slide deck from this chat</string>
+    <string name="slides_generate_with_ai">Generate with AI</string>
+</resources>

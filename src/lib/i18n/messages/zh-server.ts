@@ -266,4 +266,8 @@ export const zhServer: Record<string, string> = {
   "Could not turn this into an editable diagram.": "没能把它转换成可编辑的图。",
   "There is nothing to draw yet.": "还没有可以画的内容。",
   "This diagram was moved to the trash.": "这张图已移到回收站。",
+  "Could not generate slides. Try again.": "没能生成幻灯片，请重试。",
+  "There is nothing to make slides from yet.": "还没有可以做成幻灯片的内容。",
+  "These slides were moved to the trash.": "这份幻灯片已移到回收站。",
+  "This request is still running. Try again in a moment.": "这个请求还在处理中，请稍后再试。",
 };

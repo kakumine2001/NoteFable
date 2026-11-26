@@ -11,7 +11,11 @@ private final class FakeAccount: AccountBackend {
     var failAccountTimes = 0
     var failDelete: Error?
     var emailEnabled: Bool?
+    var appleEnabled: Bool?
     var failEmail: Error?
+    var failAppleNonce = false
+    var appleNonceGate: TestGate?
+    var appleNonceSeq = 0
     /// 设了以后退出登录要等它。
     var signOutGate: TestGate?
 
@@ -20,12 +24,27 @@ private final class FakeAccount: AccountBackend {
             failAccountTimes -= 1
             throw TestIOError()
         }
-        return AccountResponse(configured: true, user: user, googleClientId: "web-client", email: emailEnabled)
+        return AccountResponse(configured: true, user: user, googleClientId: "web-client", email: emailEnabled, apple: appleEnabled)
     }
 
     func nativeSignInNonce() async throws -> String {
         calls.append("nonce")
         return "n1"
+    }
+
+    func appleSignInNonce() async throws -> String {
+        appleNonceSeq += 1
+        let id = "an\(appleNonceSeq)"
+        calls.append("appleNonce:\(id)")
+        await appleNonceGate?.pass()
+        if failAppleNonce { throw TestIOError(message: "nonce failed") }
+        return id
+    }
+
+    func appleSignIn(code: String, name: String?) async throws {
+        calls.append("appleSignIn:\(code):\(name ?? "")")
+        if failSignIn { throw TestIOError(message: "rejected") }
+        user = AccountUser(name: name ?? "Ann", email: "apple@example.test")
     }
 
     func nativeSignIn(idToken: String) async throws {
@@ -601,5 +620,124 @@ final class AccountViewModelTests: XCTestCase {
         await vm.idle()
         XCTAssertEqual(vm.state.localeSyncKey.saved, .code("ja"), "the account keeps the language the server has")
         XCTAssertEqual(vm.state.profileError, .couldNotSave)
+    }
+
+    @MainActor
+    func testPrefetchedAppleNonceIsConsumedImmediatelyAndOnlyOnce() async {
+        let backend = FakeAccount()
+        backend.appleEnabled = true
+        var clock = Date(timeIntervalSince1970: 1_000)
+        let vm = AccountViewModel(backend: backend, profile: FakeProfile(backend), sleep: { _ in }, now: { clock })
+        await vm.idle()
+
+        vm.prepareAppleSignIn()
+        await vm.idle()
+        XCTAssertEqual(backend.calls, ["appleNonce:an1"])
+        // 未过期时再次预取不会重复发请求。
+        vm.prepareAppleSignIn()
+        await vm.idle()
+        XCTAssertEqual(backend.calls, ["appleNonce:an1"])
+
+        var seenNonces: [String] = []
+        var providerDuringRequest: SignInProvider?
+        // 第一次点：直接用预取好的 an1，不发第二次 nonce 请求；取消不算失败。
+        vm.signInWithApple(
+            request: { nonce in
+                seenNonces.append(nonce)
+                providerDuringRequest = vm.state.signingInProvider
+                return nil
+            },
+            beforeIdentityChange: {},
+            onSignedIn: {}
+        )
+        await vm.idle()
+        XCTAssertEqual(seenNonces, ["an1"])
+        XCTAssertEqual(providerDuringRequest, .apple)
+        XCTAssertNil(vm.state.signingInProvider)
+        XCTAssertEqual(backend.calls, ["appleNonce:an1"])
+        XCTAssertFalse(vm.state.signInFailed)
+
+        // 第二次点：上一次已消费，这次现取 an2 并完成登录。
+        let events = Events()
+        vm.signInWithApple(
+            request: { nonce in
+                seenNonces.append(nonce)
+                return ("code-1", "Kaku")
+            },
+            beforeIdentityChange: { events.add("flush") },
+            onSignedIn: { events.add("signedIn") }
+        )
+        await vm.idle()
+        XCTAssertEqual(seenNonces, ["an1", "an2"])
+        XCTAssertEqual(backend.calls, ["appleNonce:an1", "appleNonce:an2", "appleSignIn:code-1:Kaku"])
+        XCTAssertEqual(events.list, ["flush", "signedIn"])
+        XCTAssertEqual(vm.state.user?.name, "Kaku")
+        XCTAssertNil(vm.state.signingInProvider)
+
+        // 避免编译器报 clock 未变。
+        clock = clock.addingTimeInterval(1)
+    }
+
+    @MainActor
+    func testAppleSignInReusesInFlightPrefetchAndRefetchesWhenExpiredOrFailed() async {
+        let backend = FakeAccount()
+        backend.appleEnabled = true
+        var clock = Date(timeIntervalSince1970: 2_000)
+        let vm = AccountViewModel(backend: backend, profile: FakeProfile(backend), sleep: { _ in }, now: { clock })
+        await vm.idle()
+
+        // 1. 预取还在路上就点了 Apple 登录：复用这次在途请求，不发第二份。
+        let gate = TestGate()
+        backend.appleNonceGate = gate
+        vm.prepareAppleSignIn()
+        await gate.entered()
+        var received: [String] = []
+        vm.signInWithApple(
+            request: { nonce in
+                received.append(nonce)
+                return nil
+            },
+            beforeIdentityChange: {},
+            onSignedIn: {}
+        )
+        gate.open()
+        await vm.idle()
+        XCTAssertEqual(received, ["an1"])
+        XCTAssertEqual(backend.calls, ["appleNonce:an1"])
+
+        // 2. 预取超过有效期后丢弃并现取新值。
+        backend.appleNonceGate = nil
+        vm.prepareAppleSignIn()
+        await vm.idle()
+        clock = clock.addingTimeInterval(AccountViewModel.appleNonceTtlSeconds + 1)
+        vm.signInWithApple(
+            request: { nonce in
+                received.append(nonce)
+                return nil
+            },
+            beforeIdentityChange: {},
+            onSignedIn: {}
+        )
+        await vm.idle()
+        XCTAssertEqual(received, ["an1", "an3"])
+        XCTAssertEqual(backend.calls, ["appleNonce:an1", "appleNonce:an2", "appleNonce:an3"])
+
+        // 3. 后台预取失败不报错；真正点按钮时照常重试。
+        backend.failAppleNonce = true
+        vm.prepareAppleSignIn()
+        await vm.idle()
+        XCTAssertFalse(vm.state.signInFailed)
+        backend.failAppleNonce = false
+        vm.signInWithApple(
+            request: { nonce in
+                received.append(nonce)
+                return nil
+            },
+            beforeIdentityChange: {},
+            onSignedIn: {}
+        )
+        await vm.idle()
+        XCTAssertEqual(received.last, "an5")
+        XCTAssertFalse(vm.state.signInFailed)
     }
 }

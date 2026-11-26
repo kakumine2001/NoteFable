@@ -129,7 +129,10 @@ final class FixtureLaunch {
     func apply(app: AppEnvironment, router: AppRouter) async {
         let baseDeadline = Date().addingTimeInterval(30)
         let baseReady = await poll(until: baseDeadline) {
-            app.account.state.loaded && !app.chat.state.sessionsLoading && !app.chat.state.models.isEmpty
+            app.account.state.loaded
+                && !app.chat.state.sessionsLoading
+                && !app.chat.state.models.isEmpty
+                && (!router.isSidebarVisible || app.notes.state.loaded)
         }
 
         for (idx, target) in scenes.enumerated() {
@@ -220,7 +223,11 @@ final class FixtureLaunch {
             }
         }
         if router.drawerOpen {
-            router.closeDrawer()
+            router.dismissDrawer()
+            try? await Task.sleep(for: .milliseconds(350))
+        }
+        if router.sidebarDocked && !router.dockedSidebarVisible && target != .sidebarCollapsed {
+            router.openSidebar()
             try? await Task.sleep(for: .milliseconds(350))
         }
         if router.settingsOpen {
@@ -325,8 +332,14 @@ final class FixtureLaunch {
                     && !app.chat.state.messagesLoading
                     && !app.chat.state.messages.isEmpty
             }
-            router.openDrawer()
-            return chatLoaded && router.drawerOpen
+            router.openSidebar()
+            return chatLoaded && router.isSidebarVisible
+
+        case .sidebarCollapsed:
+            let shown = await openKyoto(app: app, router: router, deadline: deadline)
+            router.closeSidebar()
+            try? await Task.sleep(for: .milliseconds(350))
+            return shown && !router.isSidebarVisible
 
         case .workspace, .workspaceScrolled:
             router.selectTab(.workspace)

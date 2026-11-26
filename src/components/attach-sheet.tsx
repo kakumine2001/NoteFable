@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, FilePlus, FileText, ImagePlus, Paperclip, Plus } from "lucide-react";
+import { Check, FilePlus, FileText, ImagePlus, Paperclip, Plus, Presentation } from "lucide-react";
 import { type ChangeEvent, type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useBackToClose } from "@/lib/use-back-to-close";
@@ -8,7 +8,7 @@ import { useSwipeDismiss } from "@/lib/use-swipe-dismiss";
 import { ATTACHMENT_ACCEPT } from "@/lib/client-files";
 import { useT } from "@/components/i18n-provider";
 
-// スマホで「＋」を押したときに画面下から出るシート。ファイルを足すか、自分のノートを添付するか、画像を作るモードに切り替えるか、会話をノートにまとめるかを選ぶ。
+// スマホで「＋」を押したときに画面下から出るシート。ファイルを足すか、自分のノートを添付するか、画像を作るモードに切り替えるか、会話をノート・スライドにまとめるかを選ぶ。
 // 画像作成の行は、選んでいるチャットモデルに関係なく常に出す（画像生成は OpenAI の画像 API を直接呼ぶ）。
 export function AttachSheet({
   open,
@@ -19,6 +19,7 @@ export function AttachSheet({
   onAttachPages,
   onCreatePage,
   createPageDisabled = false,
+  onGenerateSlides,
 }: {
   open: boolean;
   onClose: () => void;
@@ -30,6 +31,8 @@ export function AttachSheet({
   // 会話全体をノートにまとめるダイアログを開く。メッセージがある会話のときだけ渡す。
   onCreatePage?: () => void;
   createPageDisabled?: boolean;
+  // この会話から AI がスライドを作る窓を開く。onCreatePage と同じ条件で渡し、送信中などは createPageDisabled で押せなくする。
+  onGenerateSlides?: () => void;
 }) {
   const t = useT();
   useBackToClose(open, onClose);
@@ -113,6 +116,25 @@ export function AttachSheet({
             </span>
           </button>
         )}
+
+        {onGenerateSlides && (
+          <button
+            type="button"
+            className="attach-row"
+            aria-haspopup="dialog"
+            disabled={createPageDisabled}
+            onClick={() => {
+              onClose();
+              onGenerateSlides();
+            }}
+          >
+            <Presentation size={22} />
+            <span>
+              <strong>{t("Generate slides")}</strong>
+              <small>{t("Make a slide deck from this chat")}</small>
+            </span>
+          </button>
+        )}
       </div>
     </div>,
     document.body,
@@ -131,6 +153,7 @@ export function AttachMenu({
   onAttachPages,
   onCreatePage,
   createPageDisabled = false,
+  onGenerateSlides,
   className = "relative col-start-1 row-start-2",
   backToClose = false,
 }: {
@@ -143,6 +166,7 @@ export function AttachMenu({
   onAttachPages?: () => void;
   onCreatePage?: () => void;
   createPageDisabled?: boolean;
+  onGenerateSlides?: () => void;
   className?: string;
   // スマホのシートの中で使うとき：端末の「戻る」と Esc で、下のシートより先にこのメニューだけを閉じる。
   backToClose?: boolean;
@@ -319,6 +343,25 @@ export function AttachMenu({
               <span>
                 <strong>{t("Create page")}</strong>
                 <small>{t("Create a page from this chat")}</small>
+              </span>
+            </button>
+          )}
+          {onGenerateSlides && (
+            <button
+              type="button"
+              role="menuitem"
+              aria-haspopup="dialog"
+              className="attach-row"
+              disabled={createPageDisabled}
+              onClick={() => {
+                setOpen(false);
+                onGenerateSlides();
+              }}
+            >
+              <Presentation size={18} />
+              <span>
+                <strong>{t("Generate slides")}</strong>
+                <small>{t("Make a slide deck from this chat")}</small>
               </span>
             </button>
           )}

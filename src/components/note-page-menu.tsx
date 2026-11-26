@@ -5,6 +5,7 @@ import { useCallback, useId, useState, type ReactNode } from "react";
 import { AnswerMenu, ReportDialog } from "@/components/answer-actions";
 import { useDiagramJob } from "@/components/draw-diagram-dialog";
 import { diagramKey } from "@/lib/draw-diagram-jobs";
+import { useSlidesJobState } from "@/components/slides-wizard";
 import { useT } from "@/components/i18n-provider";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
 import { pageKindFeatures, pageKindOf } from "@/lib/page-kinds";
@@ -25,7 +26,8 @@ function ToggleItem({ icon, label, checked, onToggle }: { icon?: ReactNode; labe
 // ページの種類で出す項目を変える：書体・小さい文字・全幅・Markdown の書き出しはノートだけ（PAGE_KIND_FEATURES）。
 // AI が内容を書いたページ（aiUpdatedAt あり）には「AI の内容を報告」を出す（Google Play の AI 生成コンテンツのポリシー）。
 // 「画成図」はノートだけ（ホワイトボード・スライドには出さない）。押したらノートを保存してから始める（onDrawDiagram）。
-export function NotePageMenu({ page, busy, error, onSettings, onPresent, onFavorite, onDuplicate, onAddSubpage, onDrawDiagram, onMove, onExport, onTrash }: {
+// 「Generate slides」もノートだけ。このノートを材料にした AI のスライド生成の窓を開く（onGenerateSlides）。
+export function NotePageMenu({ page, busy, error, onSettings, onPresent, onFavorite, onDuplicate, onAddSubpage, onDrawDiagram, onGenerateSlides, onMove, onExport, onTrash }: {
   page: NotePageSummary;
   busy: boolean;
   error: string;
@@ -35,6 +37,7 @@ export function NotePageMenu({ page, busy, error, onSettings, onPresent, onFavor
   onDuplicate: () => void;
   onAddSubpage: () => void;
   onDrawDiagram?: () => void;
+  onGenerateSlides?: () => void;
   onMove: () => void;
   onExport?: () => void;
   onTrash: () => void;
@@ -48,6 +51,8 @@ export function NotePageMenu({ page, busy, error, onSettings, onPresent, onFavor
   const features = pageKindFeatures(kind);
   const canDraw = !!onDrawDiagram && kind === "note";
   const diagram = useDiagramJob(canDraw ? diagramKey({ type: "note", pageId: page.id }) : null);
+  const canGenerate = !!onGenerateSlides && kind === "note";
+  const generating = useSlidesJobState(canGenerate ? `note:${page.id}` : null) === "working";
   const close = useCallback(() => setMenu(null), []);
   // 操作を選んだらメニューを閉じてから実行する（ダイアログ・画面遷移と重ならないように）。
   const run = (action: () => void) => () => { close(); action(); };
@@ -91,6 +96,10 @@ export function NotePageMenu({ page, busy, error, onSettings, onPresent, onFavor
       {canDraw && onDrawDiagram && <button type="button" role="menuitem" className="chat-menu-item" aria-busy={diagram?.status === "working"} onClick={run(onDrawDiagram)}>
         {diagram?.status === "working" ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <Workflow size={16} aria-hidden="true" />}
         {diagram?.status === "working" ? t("Drawing a diagram…") : t("Draw as diagram")}
+      </button>}
+      {canGenerate && onGenerateSlides && <button type="button" role="menuitem" className="chat-menu-item" aria-haspopup="dialog" aria-busy={generating} onClick={run(onGenerateSlides)}>
+        {generating ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <Presentation size={16} aria-hidden="true" />}
+        {generating ? t("Generating slides…") : t("Generate slides")}
       </button>}
       <button type="button" role="menuitem" className="chat-menu-item" onClick={run(onMove)}><FolderInput size={16} aria-hidden="true" />{t("Move to")}</button>
       {onExport && features.markdownExport && <button type="button" role="menuitem" className="chat-menu-item" onClick={run(onExport)}><Download size={16} aria-hidden="true" />{t("Export Markdown")}</button>}

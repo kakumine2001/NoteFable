@@ -266,4 +266,8 @@ export const koServer: Record<string, string> = {
   "Could not turn this into an editable diagram.": "편집 가능한 다이어그램으로 변환하지 못했습니다.",
   "There is nothing to draw yet.": "아직 그릴 내용이 없습니다.",
   "This diagram was moved to the trash.": "이 다이어그램은 휴지통으로 이동되었습니다.",
+  "Could not generate slides. Try again.": "슬라이드를 생성하지 못했습니다. 다시 시도하세요.",
+  "There is nothing to make slides from yet.": "아직 슬라이드로 만들 내용이 없습니다.",
+  "These slides were moved to the trash.": "이 슬라이드는 휴지통으로 이동되었습니다.",
+  "This request is still running. Try again in a moment.": "이 요청은 아직 처리 중입니다. 잠시 후 다시 시도해 주세요.",
 };

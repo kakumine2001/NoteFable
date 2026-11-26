@@ -266,4 +266,8 @@ export const arServer: Record<string, string> = {
   "Could not turn this into an editable diagram.": "تعذّر تحويله إلى مخطط قابل للتعديل.",
   "There is nothing to draw yet.": "لا يوجد ما يمكن رسمه بعد.",
   "This diagram was moved to the trash.": "نُقل هذا المخطط إلى سلة المهملات.",
+  "Could not generate slides. Try again.": "تعذّر إنشاء الشرائح. حاول مرة أخرى.",
+  "There is nothing to make slides from yet.": "لا يوجد بعد ما يمكن تحويله إلى شرائح.",
+  "These slides were moved to the trash.": "نُقلت هذه الشرائح إلى سلة المهملات.",
+  "This request is still running. Try again in a moment.": "لا يزال هذا الطلب قيد التنفيذ. حاول مرة أخرى بعد قليل.",
 };
