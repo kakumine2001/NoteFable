@@ -36,6 +36,11 @@ dialog.chat-project-settings { width: min(calc(100% - 1.5rem), 34rem); padding: 
 .project-settings-empty { margin: 0.6rem 0 0; font-size: 0.8125rem; color: var(--notion-muted); }
 .project-settings-error { margin: 0.75rem 0 0; font-size: 0.875rem; color: var(--nf-danger, #b91c1c); }
 @media (hover: hover) { .project-settings-option:not(.is-disabled):hover { background: var(--notion-hover); } }
+/* 未保存のまま閉じようとしたときに下の帯を替える確認。閉じようとするたびに揺れて知らせる。 */
+.project-settings-footer.project-settings-unsaved { align-items: center; animation: project-settings-shake 360ms ease both; }
+.project-settings-unsaved-text { min-width: 0; flex: 1; font-size: 0.875rem; font-weight: 500; }
+@keyframes project-settings-shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+@media (prefers-reduced-motion: reduce) { .project-settings-footer.project-settings-unsaved { animation: none; } }
 
 @media (max-width: 639px) {
   dialog.chat-project-settings { width: calc(100% - 1rem); }

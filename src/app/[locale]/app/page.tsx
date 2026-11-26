@@ -30,6 +30,7 @@ import { ChatTitleIcon, ChatTopbarIcon } from "@/components/chat-icon";
 import { ChatMessage } from "@/components/chat-message";
 import { QuoteSelectionButton } from "@/components/quote-selection";
 import { composeQuotedMessage, normalizeQuote, splitQuotedMessage } from "@/lib/chat-quote";
+import { remainingComposerText, withoutSent } from "@/lib/composer-after-send";
 import { dispatchBacklinksStale } from "@/lib/note-backlinks";
 import { ANSWER_RESIZED_EVENT } from "@/components/assistant-markdown";
 import { TurnBusyContext, type TurnActions } from "@/components/turn-actions";
@@ -1577,17 +1578,24 @@ export default function Home() {
       setUploadProgress(null);
     }
 
+    // 会話を作るのを待つ間に、利用者が別の会話へ移ったか。移っていたら、送信は裏で続けるが（返答中の会話から移ったときと同じ）、
+    // 移った先から作った会話へ引き戻さず、入力欄からは送った分だけを外す（移った先で書き始めた本文や添付は消さない）。
+    let navigatedAway = false;
     if (!requestSessionId) {
       // 未保存の新規チャットは送信開始前に実セッション化する。
       // 画像生成も完了待ちにならず、他セッションと同じ単位で並行管理できる。
       const sentIcon = draftIconRef.current;
       const draftEpoch = draftEpochRef.current;
       const { error, session } = await createEmptySession(sentIcon);
+      navigatedAway = navigationIntent !== sessionNavigationIntentRef.current;
       if (!session) {
         releaseSelectionPreview();
         await cleanupClientUploads(uploadedTickets);
-        setSendError(error || msg("Database is unavailable. Start local PostgreSQL and try again."));
-        flashCharacterOutcome(requestSessionKey, "error");
+        // 何も送っていないので、本文と添付は入力欄に残っている。別の会話を見ているなら、そこへ失敗を出さない。
+        if (!navigatedAway) {
+          setSendError(error || msg("Database is unavailable. Start local PostgreSQL and try again."));
+          flashCharacterOutcome(requestSessionKey, "error");
+        }
         submittingSessionKeysRef.current.delete(initialRequestSessionKey);
         return;
       }
@@ -1608,8 +1616,11 @@ export default function Home() {
           (value) => setSessions((list) => list.map((item) => (item.id === created ? { ...item, icon: value } : item))),
           () => setSendError(msg("Failed to change the chat icon.")));
       }
-      activeSessionIdRef.current = session.id;
-      setActiveSessionId(session.id);
+      // 別の会話へ移っていたら、作った会話は一覧に足すだけで開かない（返答は裏で届き、一覧から開ける）。
+      if (!navigatedAway) {
+        activeSessionIdRef.current = session.id;
+        setActiveSessionId(session.id);
+      }
     }
 
     // 送信後すぐにユーザー発言と空のアシスタント枠を追加する。
@@ -1656,19 +1667,23 @@ export default function Home() {
       expiresAt: new Date().getTime() + INPUT_RESTORE_GUARD_MS,
     };
     const liveInputValue = inputRef.current?.value ?? input;
-    const remainingInput = liveInputValue === submittedInputValue
-      ? ""
-      : liveInputValue.startsWith(submittedInputValue)
-        ? liveInputValue.slice(submittedInputValue.length).trimStart()
-        : liveInputValue;
+    const remainingInput = remainingComposerText(liveInputValue, submittedInputValue);
     setInput(remainingInput);
     if (inputRef.current) {
       inputRef.current.value = remainingInput;
     }
-    setFiles([]);
-    setAttachedPages([]);
-    if (submittedQuote) setQuote(null);
-    if (splitSelection) setSplitSelection(null);
+    if (navigatedAway) {
+      // 入力欄は会話をまたいで同じものなので、移った先で足した添付・ページ・引用・選区は残し、送った分だけを外す。
+      setFiles((current) => withoutSent(current, submittedFiles, (item) => item.id));
+      setAttachedPages((current) => withoutSent(current, submittedPages, (page) => page.id));
+      if (submittedQuote) setQuote((current) => (current === submittedQuote ? null : current));
+      if (splitSelection) setSplitSelection((current) => (current === splitSelection ? null : current));
+    } else {
+      setFiles([]);
+      setAttachedPages([]);
+      if (submittedQuote) setQuote(null);
+      if (splitSelection) setSplitSelection(null);
+    }
 
     const streamStartedAt = new Date().getTime();
     startStreamingSession(requestSessionKey, streamStartedAt);

@@ -52,6 +52,7 @@ Google 登录：Google Cloud 里给 `com.kakumine.notefable` 登记的 iOS OAuth
 上线前还缺：
 
 - **真机验证**。TestFlight 构建已能装到 iPhone；按 [android-native.md](android-native.md) 的各节核对三端必须一致的部分（功能、入口、文案、数据与编辑器能力、品牌色和角色形象），外壳手感待在 iOS 26+ 的 iPhone 上按验收标准实测（Tab 栏按住滑动与折射、顶栏按压高光、抽屉跟手、输入框随键盘不跳；浅色 / 深色 / 降低透明度下可读）。宽屏自适应侧栏在 CI 仅覆盖 iPad 竖屏（浅色 / 深色 / 阿拉伯语 RTL / 降低透明度，含常驻展开与手动收起）；iPad 横屏、多任务窗口缩放、Split View 以及 iPhone Duo 双屏与折展切换尚待真机或本地 Mac 模拟器验证。预计会有一批细节要修。
+- **项目设置的未保存提醒**。网页有未保存的改动时，关窗口会先把底栏换成 “Unsaved changes”（Discard / Save）；iOS 和 Android 还没有（见 [android-native.md](android-native.md) 的“侧栏”一节）。
 - **Sign in with Apple**。服务端配置齐全后，登录弹窗显示原生 Apple 按钮。服务端绑定一次性授权码和设备 nonce，按 Apple 账号 ID 延续同一账户。Apple 登录入口在 iOS；网页与 Android 继续提供原有登录选项。真机仍需验收。
 - **购买**。设置按当前窗口宽度切换单栏或侧栏加详情两栏，选中项和设置草稿跟随同一份状态。方案卡片显示店面月价，可购买、恢复及打开 App Store 订阅管理。购买、续费、退款都由服务端验证并同步，见 [billing.md](billing.md)。日常 TestFlight 沙盒购买使用隔离后端。App Review 则使用专用沙盒评审账号，见 [deployment.md](deployment.md)。
 - **通用链接**。`Support/NoteFable.entitlements` 声明了 `applinks:app.notefable.com`，网站已提供 `public/.well-known/apple-app-site-association`（仅匹配 `/c/?*` 分享链接，由 `next.config.ts` 返回 `Content-Type: application/json`），待真机实测验证。

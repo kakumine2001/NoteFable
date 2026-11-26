@@ -6,6 +6,7 @@ import "@/components/answer-actions.css";
 import { answerConversationUrl, answerFileName, answerToNoteContent, conversationToMarkdownFile, type AnswerSource, type ConversationMessage } from "@/lib/answer-export";
 import { writeClipboardText } from "@/lib/clipboard";
 import { useBackToClose } from "@/lib/use-back-to-close";
+import { watchMenuDismiss } from "@/lib/menu-dismiss";
 import { useT } from "@/components/i18n-provider";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
 import { TurnBusyContext, VersionNav, type TurnActions } from "@/components/turn-actions";
@@ -107,25 +108,37 @@ export function AnswerMenu({ id, anchor, trigger, focusLast, onClose, children, 
     const dialog = ref.current;
     if (!dialog) return;
     dialog.showModal();
+    // キーボードが下がるなどで画面の高さが変わると、押したボタンの位置もずれる。そのずれの分だけ出す位置を動かす
+    // （右クリックの位置から開くメニューもあるので、ボタンの位置そのものではなく、開いたときからの移動量を使う）。
+    const triggerStart = trigger.getBoundingClientRect();
+    const currentAnchor = () => {
+      if (!trigger.isConnected || (!triggerStart.width && !triggerStart.height)) return anchor;
+      const now = trigger.getBoundingClientRect();
+      if (!now.width && !now.height) return anchor;
+      return new DOMRect(anchor.x + now.left - triggerStart.left, anchor.y + now.top - triggerStart.top, anchor.width, anchor.height);
+    };
     const position = () => {
       const bounds = dialog.getBoundingClientRect();
-      const below = anchor.bottom + 4;
+      const at = currentAnchor();
+      const below = at.bottom + 4;
       const rtl = document.documentElement.dir === "rtl";
-      dialog.style.left = `${Math.max(8, Math.min(rtl ? anchor.right - bounds.width : anchor.left, window.innerWidth - bounds.width - 8))}px`;
-      dialog.style.top = `${Math.max(8, below + bounds.height <= window.innerHeight - 8 ? below : anchor.top - bounds.height - 4)}px`;
+      dialog.style.left = `${Math.max(8, Math.min(rtl ? at.right - bounds.width : at.left, window.innerWidth - bounds.width - 8))}px`;
+      dialog.style.top = `${Math.max(8, below + bounds.height <= window.innerHeight - 8 ? below : at.top - bounds.height - 4)}px`;
     };
     position();
     const observer = new ResizeObserver(position);
     observer.observe(dialog);
     const items = dialog.querySelectorAll<HTMLElement>('[role^="menuitem"]:not([aria-disabled="true"])');
     items[focusLast ? items.length - 1 : 0]?.focus({ preventScroll: true });
-    const dismissOnScroll = (event: Event) => { if (!(event.target instanceof Node) || !dialog.contains(event.target)) onClose(); };
-    window.addEventListener("resize", onClose);
-    window.addEventListener("scroll", dismissOnScroll, true);
+    // 外側のスクロールと幅の変化で閉じる。高さだけの変化（キーボードが下がったときなど）では閉じずに位置を合わせ直す。
+    const stopWatching = watchMenuDismiss({
+      isInside: (target) => target instanceof Node && dialog.contains(target),
+      onClose,
+      reposition: position,
+    });
     return () => {
       observer.disconnect();
-      window.removeEventListener("resize", onClose);
-      window.removeEventListener("scroll", dismissOnScroll, true);
+      stopWatching();
       dialog.close();
       if (trigger.isConnected) trigger.focus({ preventScroll: true });
     };

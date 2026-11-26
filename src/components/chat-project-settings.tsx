@@ -5,6 +5,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import "@/components/chat-project-settings.css";
 import type { ChatProject } from "@/components/chat-actions";
 import { useBackToClose } from "@/lib/use-back-to-close";
+import { projectSettingsChanges, projectSettingsDismissStep } from "@/lib/project-settings-form";
 import { MAX_PROJECT_INSTRUCTIONS, MAX_PROJECT_NOTES, type ChatProjectDetail, type ChatProjectSummary } from "@/types/chat";
 import { useT } from "@/components/i18n-provider";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
@@ -37,14 +38,40 @@ export function ChatProjectSettings({ project, onClose, onSaved }: {
   const [filter, setFilter] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  useBackToClose(true, onClose);
+  // 未保存のまま閉じようとした回数。0 より大きく変更が残っている間は、下の帯を「未保存の変更」の確認に替え、増えるたびに揺らす。
+  const [attention, setAttention] = useState(0);
+  const saveRef = useRef<HTMLButtonElement>(null);
+  // 閉じたあと（保存の応答待ちの間に親が閉じた場合など）は、onClose も state の更新もしない。
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+  const changes = loaded ? projectSettingsChanges(loaded.initial, instructions, selected.map((note) => note.id)) : {};
+  const dirty = Object.keys(changes).length > 0;
+  const confirming = attention > 0 && dirty;
+  // Esc・戻る・外側のクリック・「キャンセル」。閉じなかったときは false を返す（useBackToClose は「戻る」の登録と履歴の目印を保つ）。
+  const dismiss = () => {
+    const step = projectSettingsDismissStep({ busy: locked.current, dirty });
+    if (step === "close") { onClose(); return; }
+    if (step === "confirm") setAttention((count) => count + 1);
+    return false;
+  };
+  useBackToClose(true, dismiss);
   useEffect(() => { ref.current?.showModal(); }, []);
+  // 「キャンセル」を押して確認に替わると、押したボタンが消えてフォーカスが外れる。そのときは確認の「保存」に置く。
+  useEffect(() => {
+    if (!attention) return;
+    const active = document.activeElement;
+    if (!active || !ref.current?.contains(active)) saveRef.current?.focus();
+  }, [attention]);
 
   useEffect(() => {
     const controller = new AbortController();
     const get = (url: string) => fetch(url, { signal: controller.signal, cache: "no-store" });
     void Promise.all([get(`/api/chat-projects/${project.id}`), get("/api/pages")]).then(async ([detailResponse, pagesResponse]) => {
       const [detailData, pagesData] = await Promise.all([readJson(detailResponse), readJson(pagesResponse)]);
+      if (controller.signal.aborted) return;
       if (!detailResponse.ok) throw new Error(errorOf(detailData, msg("Could not load the project settings.")));
       if (!pagesResponse.ok || !Array.isArray(pagesData.pages)) throw new Error(errorOf(pagesData, msg("Could not load your notes.")));
       const initial = detailData.project as ChatProjectDetail;
@@ -73,28 +100,30 @@ export function ChatProjectSettings({ project, onClose, onSaved }: {
   async function save() {
     if (!loaded || locked.current) return;
     // 変えた項目だけ送る。参照ノートは全置き換えなので、触っていなければ送らない。
-    const body: { instructions?: string; noteIds?: string[] } = {};
-    const text = instructions.trim();
-    if (text !== (loaded.initial.instructions ?? "")) body.instructions = text;
+    const body = changes;
+    if (!dirty) { onClose(); return; }
     const ids = selected.map((note) => note.id);
-    if (ids.join("\n") !== loaded.initial.notes.map((note) => note.id).join("\n")) body.noteIds = ids;
-    if (!Object.keys(body).length) { onClose(); return; }
+    const text = instructions.trim();
     locked.current = true; setBusy(true); setError("");
     try {
       const response = await fetch(`/api/chat-projects/${project.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await readJson(response);
       if (!response.ok) throw new Error(errorOf(data, t("Could not save the project settings. Please try again.")));
       const saved = data.project as ChatProjectSummary | undefined;
+      // 保存はできたので、画面が閉じていても一覧には反映する。
       onSaved(saved && typeof saved.id === "string" ? saved : { ...project, noteCount: ids.length, hasInstructions: !!text });
-      onClose();
+      if (mounted.current) onClose();
     } catch (reason) {
-      setError(reason instanceof Error && reason.message ? reason.message : msg("Could not save the project settings. Please try again."));
-    } finally { locked.current = false; setBusy(false); }
+      if (mounted.current) setError(reason instanceof Error && reason.message ? reason.message : msg("Could not save the project settings. Please try again."));
+    } finally {
+      locked.current = false;
+      if (mounted.current) setBusy(false);
+    }
   }
 
   return <dialog ref={ref} aria-labelledby={titleId} className="notes-dialog chat-project-settings"
-    onCancel={(event) => { event.preventDefault(); onClose(); }}
-    onClick={(event) => { if (event.target === event.currentTarget) { const r = event.currentTarget.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) onClose(); } }}>
+    onCancel={(event) => { event.preventDefault(); dismiss(); }}
+    onClick={(event) => { if (event.target === event.currentTarget) { const r = event.currentTarget.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) dismiss(); } }}>
     <form className="project-settings-shell" onSubmit={(event) => { event.preventDefault(); void save(); }}>
       <div className="project-settings-header">
         <h2 id={titleId}>{t("Project settings")}</h2>
@@ -155,10 +184,15 @@ export function ChatProjectSettings({ project, onClose, onSaved }: {
         </>}
         {error && <p role="alert" className="project-settings-error">{localizeSystemText(error, t)}</p>}
       </div>
-      <div className="project-settings-footer">
-        <button type="button" disabled={busy} className="notion-button" onClick={onClose}>{t("Cancel")}</button>
+      {/* 未保存のまま閉じようとしたら、下の帯を確認に替える（黙って捨てない）。閉じようとするたびに揺らして知らせる（key でアニメーションをやり直す）。 */}
+      {confirming ? <div key={attention} className="project-settings-footer project-settings-unsaved" role="group" aria-label={t("Unsaved changes")}>
+        <span className="project-settings-unsaved-text" role="alert">{t("Unsaved changes")}</span>
+        <button type="button" disabled={busy} className="notion-button" onClick={onClose}>{t("Discard")}</button>
+        <button ref={saveRef} type="submit" disabled={busy} className="notion-button notion-button-primary">{busy ? t("Saving…") : t("Save")}</button>
+      </div> : <div className="project-settings-footer">
+        <button type="button" disabled={busy} className="notion-button" onClick={dismiss}>{t("Cancel")}</button>
         <button type="submit" disabled={busy || !loaded} className="notion-button notion-button-primary">{busy ? t("Saving…") : t("Save")}</button>
-      </div>
+      </div>}
     </form>
   </dialog>;
 }

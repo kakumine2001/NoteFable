@@ -8,6 +8,7 @@ import { UserAvatar } from "@/components/user-avatar";
 import { MAX_DISPLAY_NAME, type AccountUser, type ProfileEdit } from "@/lib/user-profile";
 import { useT } from "@/components/i18n-provider";
 import { msg } from "@/lib/i18n/translate";
+import { isImeKeyEvent } from "@/lib/ime";
 
 // 選んだ写真の上限（切り抜く前の元の写真）。送るのは 512px に切り抜いた画像。
 const MAX_PICKED_BYTES = 10 * 1024 * 1024;
@@ -132,7 +133,8 @@ export function ProfileSettings({ user, onSave, onUpload, closeGuardRef, nameFlu
           <input id="profile-name" className="profile-name-input" value={draft ?? shownName} maxLength={MAX_DISPLAY_NAME}
             placeholder={user.googleName ?? t("Your name")} autoComplete="off"
             onChange={(event) => setDraft(event.target.value)} onBlur={commitName}
-            onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); commitName(); event.currentTarget.blur(); } }} />
+            // 変換を確定する Enter では名前を確定しない。
+            onKeyDown={(event) => { if (event.key === "Enter" && !isImeKeyEvent(event.nativeEvent)) { event.preventDefault(); commitName(); event.currentTarget.blur(); } }} />
           {user.email && <div className="profile-email" title={user.email}>{user.email}</div>}
         </div>
       </div>
