@@ -9,12 +9,20 @@ import { localizeSystemText } from "@/lib/i18n/translate";
 import { childrenByParent, descendantIdsOf } from "@/lib/note-tree";
 import { NoteIcon } from "@/components/note-icon";
 import { PageKindIcon } from "@/components/page-kind-icon";
+import { useBackToClose } from "@/lib/use-back-to-close";
 
-// 開いた瞬間にモーダルとして表示する <dialog>。Esc で閉じる。
-function Modal({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }) {
+// 開いた瞬間にモーダルとして表示する <dialog>。Esc と端末の「戻る」で閉じる。
+// 「戻る」のシートとして登録するので、ドロワーの上で開いたときも閉じるのはこの小窓だけ（ドロワーは開いたまま）。
+// busy（送っている途中）の間は閉じない。
+export function Modal({ label, busy = false, onClose, children }: { label: string; busy?: boolean; onClose: () => void; children: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const close = () => {
+    if (busy) return false;
+    onClose();
+  };
+  useBackToClose(true, close);
   useEffect(() => { ref.current?.showModal(); }, []);
-  return <dialog ref={ref} onCancel={onClose} aria-label={label} className="notes-dialog">{children}</dialog>;
+  return <dialog ref={ref} onCancel={(event) => { event.preventDefault(); close(); }} aria-label={label} className="notes-dialog">{children}</dialog>;
 }
 
 export function GroupNameDialog({ title, initial = "", submitLabel, error, onSubmit, onClose }: {
@@ -32,14 +40,14 @@ export function GroupNameDialog({ title, initial = "", submitLabel, error, onSub
     setBusy(false);
     if (ok) onClose();
   }
-  return <Modal label={title} onClose={onClose}>
+  return <Modal label={title} busy={busy} onClose={onClose}>
     <form onSubmit={(event) => { event.preventDefault(); void submit(); }}>
       <h2 className="text-base font-semibold">{title}</h2>
       <input autoFocus value={name} maxLength={60} onChange={(event) => setName(event.target.value)} placeholder={t("Project name")}
         className="notes-dialog-input" aria-label={t("Project name")} />
       {tried && error && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{localizeSystemText(error, t)}</p>}
       <div className="mt-5 flex justify-end gap-2">
-        <button type="button" className="notion-button" onClick={onClose}>{t("Cancel")}</button>
+        <button type="button" disabled={busy} className="notion-button" onClick={onClose}>{t("Cancel")}</button>
         <button type="submit" disabled={busy || !name.trim()} className="notion-button notion-button-primary">{submitLabel}</button>
       </div>
     </form>
@@ -66,7 +74,7 @@ export function RenamePageDialog({ page, error, onSubmit, onClose }: {
     if (ok) onClose();
   }
   const heading = t("Rename page");
-  return <Modal label={heading} onClose={onClose}>
+  return <Modal label={heading} busy={busy} onClose={onClose}>
     <form onSubmit={(event) => { event.preventDefault(); void submit(); }}>
       <h2 className="text-base font-semibold">{heading}</h2>
       <input ref={inputRef} autoFocus value={name} maxLength={MAX_NOTE_TITLE} onChange={(event) => setName(event.target.value)}
@@ -86,12 +94,12 @@ export function ConfirmDialog({ title, body, confirmLabel, error, onConfirm, onC
   const t = useT();
   const [busy, setBusy] = useState(false);
   const [tried, setTried] = useState(false);
-  return <Modal label={title} onClose={onClose}>
+  return <Modal label={title} busy={busy} onClose={onClose}>
     <h2 className="text-base font-semibold">{title}</h2>
     <p className="mt-2 text-sm text-[var(--notion-muted)]">{body}</p>
     {tried && error && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{localizeSystemText(error, t)}</p>}
     <div className="mt-5 flex justify-end gap-2">
-      <button autoFocus type="button" className="notion-button" onClick={onClose}>{t("Cancel")}</button>
+      <button autoFocus type="button" disabled={busy} className="notion-button" onClick={onClose}>{t("Cancel")}</button>
       <button type="button" disabled={busy} className="notion-button notes-delete" onClick={async () => {
         setBusy(true);
         setTried(true);
@@ -174,7 +182,7 @@ export function MoveNoteDialog({ page, groups, error, onMove, onCreateGroup, onC
     if (group) await move(group.id);
   }
   const options: { id: string | null; label: string }[] = [{ id: null, label: t("No project") }, ...groups.map((group) => ({ id: group.id, label: group.name }))];
-  return <Modal label={t("Move note")} onClose={onClose}>
+  return <Modal label={t("Move note")} busy={busy} onClose={onClose}>
     <h2 className="text-base font-semibold">{t("Move “{title}” to", { title: page.title })}</h2>
     <div className="mt-3 grid gap-0.5" role="radiogroup" aria-label={t("Project")}>
       {options.map((option) => <button key={option.id ?? "none"} type="button" role="radio" aria-checked={!page.parentId && page.groupId === option.id}
@@ -203,6 +211,6 @@ export function MoveNoteDialog({ page, groups, error, onMove, onCreateGroup, onC
       </div>
     </>}
     {tried && error && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{localizeSystemText(error, t)}</p>}
-    <div className="mt-4 flex justify-end"><button type="button" className="notion-button" onClick={onClose}>{t("Close")}</button></div>
+    <div className="mt-4 flex justify-end"><button type="button" disabled={busy} className="notion-button" onClick={onClose}>{t("Close")}</button></div>
   </Modal>;
 }

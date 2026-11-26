@@ -87,6 +87,22 @@ export function restoreSheetMarker() {
   });
 }
 
+// 今の履歴の URL を書き換える（開いていたノートがゴミ箱に入った・見つからないときに page= を外すなど）。update が false を返したら書かない。
+// シートの目印の上にいるなら、目印ごと置き換えてから、まだ開いているシートのために目印を積み直す（openNote などと同じ）。
+// 目印を null で上書きしたままにすると、「戻る」でシートが閉じずに書き換える前の URL へ戻ってしまう。
+// 閉じたシートの目印を外す history.back() が予約・進行中なら、それが終わって元の履歴に戻ってから書き換える（syncPageUrl と同じ）。
+export function replaceSheetUrl(update: (url: URL) => boolean, afterReplace?: () => void) {
+  const apply = () => {
+    const url = new URL(window.location.href);
+    if (!update(url)) return;
+    window.history.replaceState(null, "", url);
+    restoreSheetMarker();
+    afterReplace?.();
+  };
+  if (hasMarker() && !isSheetCleanupPopState()) apply();
+  else afterSheetHistory(apply);
+}
+
 function listen() {
   if (listening) return;
   listening = true;
