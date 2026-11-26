@@ -232,6 +232,7 @@ data class PlanInfo(
     val accountId: String? = null,
     val provider: String? = null,
     val manageUrl: String? = null,
+    val appStoreManageUrl: String? = null,
     val priceJpy: Int = 0,
     val trialDays: Int = 0,
     /** 文件存储的用量；旧的服务端不返回（null 时方案页不显示这一栏）。 */

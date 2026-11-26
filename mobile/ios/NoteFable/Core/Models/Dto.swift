@@ -310,6 +310,7 @@ let LOCALE_UNKNOWN = "?"
 struct AccountUser: Encodable, Equatable, Sendable {
     var name: String? = nil
     var googleName: String? = nil
+    var appleProfile: Bool? = nil
     var email: String? = nil
     var image: String? = nil
     var displayName: String? = nil
@@ -324,7 +325,7 @@ extension AccountUser: Decodable {
     init(from decoder: Decoder) throws {
         let f = try DtoFields(decoder)
         self.init(
-            name: try f.opt("name"), googleName: try f.opt("googleName"), email: try f.opt("email"), image: try f.opt("image"),
+            name: try f.opt("name"), googleName: try f.opt("googleName"), appleProfile: try f.opt("appleProfile"), email: try f.opt("email"), image: try f.opt("image"),
             displayName: try f.opt("displayName"), icon: try f.opt("icon"), avatarUrl: try f.opt("avatarUrl"),
             locale: f.has("locale") ? try f.opt("locale") : LOCALE_UNKNOWN
         )
@@ -338,6 +339,8 @@ struct AccountResponse: Encodable, Equatable, Sendable {
     /// 服务端开了哪些登录方式（登录窗口只列这些）。旧服务端不返回：按网页的规则，Google 缺省算开、邮箱缺省算关。
     var google: Bool? = nil
     var email: Bool? = nil
+    var apple: Bool? = nil
+    var appStoreBilling: Bool? = nil
 }
 
 extension AccountResponse: Decodable {
@@ -345,7 +348,7 @@ extension AccountResponse: Decodable {
         let f = try DtoFields(decoder)
         self.init(
             configured: try f.or("configured", false), user: try f.opt("user"), googleClientId: try f.opt("googleClientId"),
-            google: try f.opt("google"), email: try f.opt("email")
+            google: try f.opt("google"), email: try f.opt("email"), apple: try f.opt("apple"), appStoreBilling: try f.opt("appStoreBilling")
         )
     }
 }
@@ -547,6 +550,9 @@ struct PlanInfo: Encodable, Equatable, Sendable {
     var plan: String = "free"
     var subscription: PlanSubscription? = nil
     var usage: [String: PlanUsage] = [:]
+    var appStoreProduct: String? = nil
+    var appStorePurchase: Bool = false
+    var appStorePending: Bool = false
     var googlePlay: Bool = false
     var productId: String? = nil
     var accountId: String? = nil
@@ -563,6 +569,7 @@ extension PlanInfo: Decodable {
         let f = try DtoFields(decoder)
         self.init(
             plan: try f.or("plan", "free"), subscription: try f.opt("subscription"), usage: try f.or("usage", [:]),
+            appStoreProduct: try f.opt("appStoreProduct"), appStorePurchase: try f.or("appStorePurchase", false), appStorePending: try f.or("appStorePending", false),
             googlePlay: try f.or("googlePlay", false), productId: try f.opt("productId"), accountId: try f.opt("accountId"),
             provider: try f.opt("provider"), manageUrl: try f.opt("manageUrl"), priceJpy: try f.or("priceJpy", 0),
             trialDays: try f.or("trialDays", 0), storage: try f.opt("storage")

@@ -623,6 +623,7 @@ struct FixtureCatalog: Sendable {
             "configured": true,
             "google": true,
             "email": true,
+            "apple": true,
             "googleClientId": "000000000000-fixture.apps.googleusercontent.com",
             "user": account == .signedIn ? signedInUserPayload() : .null,
         ]
@@ -852,6 +853,8 @@ struct FixtureCatalog: Sendable {
         [
             "billing": true,
             "googlePlay": false,
+            "appStoreProduct": "notefable.fixture.pro.monthly",
+            "appStorePurchase": true,
             "productId": .null,
             "accountId": "fx-user-1",
             "provider": .null,

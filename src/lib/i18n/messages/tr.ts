@@ -1,4 +1,6 @@
 export const tr: Record<string, string> = {
+  "Deleting your NoteFable account does not cancel an App Store subscription. Cancel it in the App Store to avoid renewal.": "NoteFable hesabını silmek App Store aboneliğini iptal etmez. Yenilenmesini önlemek için App Store'dan iptal et.",
+  "Manage App Store Subscription": "App Store Aboneliğini Yönet",
   "+{count} more": "+{count} tane daha",
   "1 day left": "1 gün kaldı",
   "1 emoji found. Use the up and down arrow keys to navigate.": "1 emoji bulundu. Gezinmek için yukarı ve aşağı ok tuşlarını kullanın.",

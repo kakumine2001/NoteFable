@@ -37,7 +37,11 @@ struct SettingsScreenHost: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
-            if model == nil { model = makeModel() }
+            if model == nil {
+                let created = makeModel()
+                if let page = router.settingsInitialPage { created.show(page) }
+                model = created
+            }
             if plan == nil {
                 let account = app.account
                 plan = PlanSettingsModel(load: { await account.loadPlan() })
@@ -72,41 +76,55 @@ struct SettingsScreen: View {
         let state = model.state
         let dirty = model.dirty
         let page = state.page
-        // 入口列表和一栏的画面各是一个滚动区：换画面就是换一个新的，所以总是从最上面开始（网页 scrollTop = 0）。
-        // 这里不用 transition：旧画面要马上没有（网页 display: none），新画面出现时自己从起点动到位（SettingsEntrance）。
-        // 只有在列表和一栏之间换才重新出场（网页：animation-name 变了才重新播放）；从一栏直接换到另一栏时不动。
-        let animated = state.navigated && !reduceMotion
-        ScrollViewReader { proxy in
-            ZStack(alignment: .top) {
-                if let page {
-                    SettingsEntrance(offset: entranceOffset(forward: true), animated: animated) {
-                        scrollBody(account: account, dirty: dirty) {
-                            pageContent(page, state)
-                        }
-                        // 被拦下来、从一栏直接换到另一栏时（保存失败等）也换一个新的滚动区。
-                        .id(page)
+        GeometryReader { bounds in
+            // 宽窗口（iPad、展开的 iPhone Duo）：左边常驻入口列表（280），右边是选中的一栏；窄窗口是两级切换。
+            let split = bounds.size.width >= 720
+            ScrollViewReader { proxy in
+                HStack(spacing: 0) {
+                    if split {
+                        scrollBody(account: account, dirty: dirty) { homeContent }
+                            .frame(width: 280)
+                        Divider()
                     }
-                } else {
-                    SettingsEntrance(offset: entranceOffset(forward: false), animated: animated) {
-                        scrollBody(account: account, dirty: dirty) {
-                            homeContent
+                    // 入口列表和一栏的画面各是一个滚动区：换画面就是换一个新的，所以总是从最上面开始（网页 scrollTop = 0）。
+                    // 这里不用 transition：旧画面要马上没有（网页 display: none），新画面出现时自己从起点动到位（SettingsEntrance）。
+                    // 只有在列表和一栏之间换才重新出场（网页：animation-name 变了才重新播放）；从一栏直接换到另一栏时不动。
+                    let animated = state.navigated && !reduceMotion
+                    ZStack(alignment: .top) {
+                        if let page {
+                            SettingsEntrance(offset: entranceOffset(forward: true), animated: animated) {
+                                scrollBody(account: account, dirty: dirty) {
+                                    pageContent(page, state)
+                                }
+                                // 被拦下来、从一栏直接换到另一栏时（保存失败等）也换一个新的滚动区。
+                                .id(page)
+                            }
+                        } else if split {
+                            scrollBody(account: account, dirty: dirty) { pageContent(.general, state) }
+                        } else {
+                            SettingsEntrance(offset: entranceOffset(forward: false), animated: animated) {
+                                scrollBody(account: account, dirty: dirty) {
+                                    homeContent
+                                }
+                            }
                         }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .task(id: ScreenshotHooks.sceneTick) {
+                    await showScreenshotPage(proxy)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .task(id: ScreenshotHooks.sceneTick) {
-                await showScreenshotPage(proxy)
+            // 顶栏浮在滚动区上面，放在 SettingsEntrance 外面：换画面时只有内容横移，顶栏不动。
+            .nfFloatingHeader(edge: .top, solidFill: Sm.sidebar, divider: false) {
+                topBar(page, split: split)
+                    .padding(.horizontal, NFChromeMetrics.sideInset)
+                    .frame(height: 64)
+                    // 浮动顶栏排在滚动区后面（safeAreaBar）：读屏仍然先念顶栏，换画面后从"返回"/"关闭"接着念。
+                    .accessibilityElement(children: .contain)
+                    .accessibilitySortPriority(1)
             }
-        }
-        // 顶栏浮在滚动区上面，放在 SettingsEntrance 外面：换画面时只有内容横移，顶栏不动。
-        .nfFloatingHeader(edge: .top, solidFill: Sm.sidebar, divider: false) {
-            topBar(page)
-                .padding(.horizontal, NFChromeMetrics.sideInset)
-                .frame(height: 64)
-                // 浮动顶栏排在滚动区后面（safeAreaBar）：读屏仍然先念顶栏，换画面后从"返回"/"关闭"接着念。
-                .accessibilityElement(children: .contain)
-                .accessibilitySortPriority(1)
         }
         .overlay(alignment: .bottom) {
             ZStack {
@@ -133,8 +151,9 @@ struct SettingsScreen: View {
 
     /// .settings-header（手机）：三列 44 | 1fr | 44、间距 8（左右 16、高 64 由放它的地方加）。标题在中间那一列里居中，
     /// 所以也在整条顶栏的正中。行首是玻璃圆按钮（这条顶栏唯一的玻璃，也放在一个 GlassEffectContainer 里）。
-    private func topBar(_ page: SettingsPage?) -> some View {
-        let home = page == nil
+    /// 宽窗口（左边常驻入口列表）时行首总是"关闭"，标题是右边那一栏的名字（还没选时是"通用"）。
+    private func topBar(_ page: SettingsPage?, split: Bool) -> some View {
+        let home = split || page == nil
         return NFGlassContainer(spacing: NFChromeMetrics.containerSpacing) {
             HStack(spacing: 8) {
                 NFGlassIconButton(
@@ -144,14 +163,14 @@ struct SettingsScreen: View {
                     iconSize: home ? 18 : 20,
                     stroke: Sm.border
                 ) {
-                    // 列表上是关闭（网页 closeAll），一栏里是回列表（网页 backHome）；拦不拦由模型决定。
-                    if model.state.page == nil {
+                    // 列表上和宽窗口里是关闭（网页 closeAll），窄窗口的一栏里是回列表（网页 backHome）；拦不拦由模型决定。
+                    if split || model.state.page == nil {
                         model.closeAll()
                     } else {
                         model.backHome()
                     }
                 }
-                Text(L(page?.titleKey ?? "acct_settings"))
+                Text(L(page?.titleKey ?? (split ? "settings_general" : "acct_settings")))
                     .font(.nf(17, weight: 650))
                     .foregroundStyle(Sm.ink)
                     .lineLimit(1)

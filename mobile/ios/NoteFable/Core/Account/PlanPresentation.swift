@@ -1,8 +1,8 @@
 import Foundation
 import Observation
 
-// 设置里"方案"卡片的内容规则（Android ui/PlanSettings.kt；网页 plan-settings.tsx）。只读：方案、订阅说明和用量。
-// iOS 还没有购买流程，所以 Android 的 Play 购买（升级框、上限处的升级提示、"在 Google Play 上管理订阅"）都不在这里。
+// 设置里"方案"卡片的内容规则（Android ui/PlanSettings.kt；网页 plan-settings.tsx）。
+// App Store 的价格按店面由 StoreKit 提供，不能用网页的日元价格。
 
 /// Pro 时徽章下面的那一行说明。日期是服务端的 ISO 时间。
 enum PlanStatusLine: Equatable, Sendable {
@@ -42,7 +42,7 @@ extension PlanInfo {
         guard isPro, let subscription else { return nil }
         if subscription.status == "past_due" { return .pastDue }
         if let cancelAt = subscription.cancelAt { return .ends(cancelAt) }
-        if subscription.status == "trialing", let periodEnd = subscription.periodEnd {
+        if provider != "apple", subscription.status == "trialing", let periodEnd = subscription.periodEnd {
             return .trialEnds(periodEnd, priceJpy: priceJpy)
         }
         if let periodEnd = subscription.periodEnd { return .renews(periodEnd) }

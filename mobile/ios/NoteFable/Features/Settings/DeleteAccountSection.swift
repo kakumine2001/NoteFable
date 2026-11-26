@@ -7,6 +7,7 @@ import SwiftUI
 struct DeleteAccountSection: View {
     let model: SettingsDialogModel
 
+    @Environment(\.openURL) private var openURL
     @Environment(AppEnvironment.self) private var app
 
     private static let dangerBorder = Color(argb: 0x47B91C1C) // rgba(185, 28, 28, 0.28)
@@ -29,6 +30,12 @@ struct DeleteAccountSection: View {
                     .foregroundStyle(Sm.text)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                SettingsHelpLine(L("acct_delete_app_store_notice"))
+                NotionButton(L("plan_manage_app_store")) {
+                    if let url = URL(string: "https://apps.apple.com/account/subscriptions") { openURL(url) }
+                }
+                .disabled(state.deleting)
+                .padding(.top, 8)
                 if let error = state.deleteError {
                     SettingsErrorLine(error.text("acct_err_delete_account", app.systemText))
                         .padding(.top, 8)

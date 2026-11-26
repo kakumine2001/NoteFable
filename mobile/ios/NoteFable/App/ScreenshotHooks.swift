@@ -24,6 +24,7 @@ enum ScreenshotScene: String, CaseIterable, Sendable {
     case modelSheet = "model-sheet"
     case attachSheet = "attach-sheet"
     case settings
+    case settingsPlan = "settings-plan"
     case signIn = "sign-in"
     // #195 Phase 2a：内容从浮动栏下面滚过、玻璃菜单 / 选择器、提示条的位置。
     /// 京都聊天往上滚一段：消息在顶栏和输入栏下面，「滚到底部」按钮出现。

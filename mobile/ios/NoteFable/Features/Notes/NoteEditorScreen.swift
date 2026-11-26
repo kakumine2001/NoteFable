@@ -83,7 +83,7 @@ struct NoteEditorScreen: View {
             UIApplication.shared.isIdleTimerDisabled = presenting
         }
         .onDisappear {
-            if OrientationLock.mask != .portrait { OrientationLock.set(landscape: false) }
+            if OrientationLock.presenting { OrientationLock.set(landscape: false) }
             UIApplication.shared.isIdleTimerDisabled = false
         }
         .background(Sm.background)

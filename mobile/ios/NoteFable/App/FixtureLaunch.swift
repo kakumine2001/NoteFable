@@ -390,8 +390,8 @@ final class FixtureLaunch {
                     && ScreenshotHooks.isReady(.attachSheet)
             }
 
-        case .settings:
-            router.openSettings()
+        case .settings, .settingsPlan:
+            router.openSettings(page: target == .settingsPlan ? .plan : nil)
             return await poll(until: deadline) {
                 router.settingsOpen && app.account.state.user != nil
             }
