@@ -103,6 +103,19 @@ fun projectSettingsChanges(initial: ChatProjectDetail, instructions: String, sel
     return if (newInstructions == null && newIds == null) null else ProjectSettingsChanges(newInstructions, newIds)
 }
 
+/** 想关项目设置时（返回键、点遮罩、取消）要做的事（网页 projectSettingsDismissStep）。 */
+enum class ProjectSettingsDismiss { Stay, Confirm, Close }
+
+/** 保存中不关（结果没处显示）；有没保存的改动时不悄悄丢掉，先把底栏换成“未保存的更改”确认；否则关闭。 */
+fun projectSettingsDismissStep(busy: Boolean, dirty: Boolean): ProjectSettingsDismiss = when {
+    busy -> ProjectSettingsDismiss.Stay
+    dirty -> ProjectSettingsDismiss.Confirm
+    else -> ProjectSettingsDismiss.Close
+}
+
+/** 想关的次数（底栏确认的晃动）。改动全撤回后归零，免得再改一个字时没想关也出确认（网页 projectSettingsAttention）。 */
+fun projectSettingsAttention(attention: Int, dirty: Boolean): Int = if (dirty) attention else 0
+
 /**
  * 侧栏的聊天整理：置顶、改名、移到项目、删除、拖动排序，以及聊天项目（新建、改名、删除、设置）。
  * 接口在 [SessionsBackend] / [ProjectsBackend]；会话列表本身仍在 [ChatViewModel]，成功后通过它的几个小入口更新。

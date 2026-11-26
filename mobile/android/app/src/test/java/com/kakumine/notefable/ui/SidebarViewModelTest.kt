@@ -163,6 +163,17 @@ class SidebarViewModelTest {
     }
 
     @Test
+    fun `project settings never close while saving and confirm unsaved changes`() {
+        assertEquals(ProjectSettingsDismiss.Stay, projectSettingsDismissStep(busy = true, dirty = true))
+        assertEquals(ProjectSettingsDismiss.Stay, projectSettingsDismissStep(busy = true, dirty = false))
+        assertEquals(ProjectSettingsDismiss.Confirm, projectSettingsDismissStep(busy = false, dirty = true))
+        assertEquals(ProjectSettingsDismiss.Close, projectSettingsDismissStep(busy = false, dirty = false))
+        // 撤回改动后归零，再改也不会没想关就出确认。
+        assertEquals(2, projectSettingsAttention(2, dirty = true))
+        assertEquals(0, projectSettingsAttention(1, dirty = false))
+    }
+
+    @Test
     fun `note picker filters by title and stops at the limit`() {
         val pages = listOf(ChatProjectNote("a", "Kanji"), ChatProjectNote("b", ""), ChatProjectNote("c", "Grammar"))
         assertEquals(listOf("a"), filterProjectNotes(pages, " kan ", "Untitled").map { it.id })

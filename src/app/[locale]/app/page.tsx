@@ -30,6 +30,7 @@ import { ChatTitleIcon, ChatTopbarIcon } from "@/components/chat-icon";
 import { ChatMessage } from "@/components/chat-message";
 import { QuoteSelectionButton } from "@/components/quote-selection";
 import { composeQuotedMessage, normalizeQuote, splitQuotedMessage } from "@/lib/chat-quote";
+import { remainingComposerText, withoutSent } from "@/lib/composer-after-send";
 import { dispatchBacklinksStale } from "@/lib/note-backlinks";
 import { ANSWER_RESIZED_EVENT } from "@/components/assistant-markdown";
 import { TurnBusyContext, type TurnActions } from "@/components/turn-actions";
@@ -1466,6 +1467,8 @@ export default function Home() {
     let requestSessionId = activeSessionIdRef.current;
     let requestSessionKey = getMessagesKey(requestSessionId);
     const initialRequestSessionKey = requestSessionKey;
+    // 送信の始めに取った initialRequestSessionKey のロックをまだ持っているか（新規チャットは会話ができた時点で手放す）。
+    let holdsInitialKey = true;
     if (
       !userContent ||
       uploadProgress ||
@@ -1586,17 +1589,24 @@ export default function Home() {
       setUploadProgress(null);
     }
 
+    // 会話を作るのを待つ間に、利用者が別の会話へ移ったか。移っていたら、送信は裏で続けるが（返答中の会話から移ったときと同じ）、
+    // 移った先から作った会話へ引き戻さず、入力欄からは送った分だけを外す（移った先で書き始めた本文や添付は消さない）。
+    let navigatedAway = false;
     if (!requestSessionId) {
       // 未保存の新規チャットは送信開始前に実セッション化する。
       // 画像生成も完了待ちにならず、他セッションと同じ単位で並行管理できる。
       const sentIcon = draftIconRef.current;
       const draftEpoch = draftEpochRef.current;
       const { error, session } = await createEmptySession(sentIcon);
+      navigatedAway = navigationIntent !== sessionNavigationIntentRef.current;
       if (!session) {
         releaseSelectionPreview();
         await cleanupClientUploads(uploadedTickets);
-        setSendError(error || msg("Database is unavailable. Start local PostgreSQL and try again."));
-        flashCharacterOutcome(requestSessionKey, "error");
+        // 何も送っていないので、本文と添付は入力欄に残っている。別の会話を見ているなら、そこへ失敗を出さない。
+        if (!navigatedAway) {
+          setSendError(error || msg("Database is unavailable. Start local PostgreSQL and try again."));
+          flashCharacterOutcome(requestSessionKey, "error");
+        }
         submittingSessionKeysRef.current.delete(initialRequestSessionKey);
         return;
       }
@@ -1604,6 +1614,9 @@ export default function Home() {
       requestSessionId = session.id;
       requestSessionKey = session.id;
       submittingSessionKeysRef.current.add(requestSessionKey);
+      // 送信は作った会話のものになった。未保存の新規チャットのロックは外し、裏で返答を待つ間も新しいチャットから送れるようにする。
+      submittingSessionKeysRef.current.delete(initialRequestSessionKey);
+      holdsInitialKey = false;
       setSessions((current) =>
         current.some((item) => item.id === session.id) ? current : [session, ...current],
       );
@@ -1617,8 +1630,11 @@ export default function Home() {
           (value) => setSessions((list) => list.map((item) => (item.id === created ? { ...item, icon: value } : item))),
           () => setSendError(msg("Failed to change the chat icon.")));
       }
-      activeSessionIdRef.current = session.id;
-      setActiveSessionId(session.id);
+      // 別の会話へ移っていたら、作った会話は一覧に足すだけで開かない（返答は裏で届き、一覧から開ける）。
+      if (!navigatedAway) {
+        activeSessionIdRef.current = session.id;
+        setActiveSessionId(session.id);
+      }
     }
 
     // 送信後すぐにユーザー発言と空のアシスタント枠を追加する。
@@ -1660,24 +1676,26 @@ export default function Home() {
         isImageTurn: imageGenerationMode,
       },
     ]);
-    submittedInputRestoreGuardRef.current = {
-      value: submittedInputValue,
-      expiresAt: new Date().getTime() + INPUT_RESTORE_GUARD_MS,
-    };
     const liveInputValue = inputRef.current?.value ?? input;
-    const remainingInput = liveInputValue === submittedInputValue
-      ? ""
-      : liveInputValue.startsWith(submittedInputValue)
-        ? liveInputValue.slice(submittedInputValue.length).trimStart()
-        : liveInputValue;
-    setInput(remainingInput);
-    if (inputRef.current) {
-      inputRef.current.value = remainingInput;
+    const remainingInput = remainingComposerText(liveInputValue, submittedInputValue);
+    // 送った本文が入力欄に残っているときだけ外す。別の下書きに書き換わっていたら触らない
+    // （値を入れ直すとカーソルや変換中の文字が崩れ、復元ガードが同じ文字の入力を消してしまう）。
+    if (remainingInput !== liveInputValue) {
+      submittedInputRestoreGuardRef.current = {
+        value: submittedInputValue,
+        expiresAt: new Date().getTime() + INPUT_RESTORE_GUARD_MS,
+      };
+      setInput(remainingInput);
+      if (inputRef.current) {
+        inputRef.current.value = remainingInput;
+      }
     }
-    setFiles([]);
-    setAttachedPages([]);
-    if (submittedQuote) setQuote(null);
-    if (splitSelection) setSplitSelection(null);
+    // 会話を作るのを待つ間（アップロードの表示はもう消えている）や、別の会話へ移った先で足した添付・ページ・引用・選区は残し、
+    // 送った分だけを外す（入力欄は会話をまたいで同じもの）。
+    setFiles((current) => withoutSent(current, submittedFiles, (item) => item.id));
+    setAttachedPages((current) => withoutSent(current, submittedPages, (page) => page.id));
+    if (submittedQuote) setQuote((current) => (current === submittedQuote ? null : current));
+    if (splitSelection) setSplitSelection((current) => (current === splitSelection ? null : current));
 
     const streamStartedAt = new Date().getTime();
     startStreamingSession(requestSessionKey, streamStartedAt);
@@ -1874,7 +1892,8 @@ export default function Home() {
       if (pendingOutcome) flashCharacterOutcome(requestSessionKey, pendingOutcome);
       // 送信ロックはコントロールが使えるようになった時点で外す。cleanup（最大 10 秒）の完了を待つと、
       // その間 Send を押しても無言で弾かれてしまう。
-      submittingSessionKeysRef.current.delete(initialRequestSessionKey);
+      // 手放した新規チャットのロックは、その後に新規チャットから始めた別の送信のものなので触らない。
+      if (holdsInitialKey) submittingSessionKeysRef.current.delete(initialRequestSessionKey);
       submittingSessionKeysRef.current.delete(requestSessionKey);
       await cleanupClientUploads(uploadedTickets);
     }

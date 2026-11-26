@@ -11,6 +11,54 @@ vi.mock("react", async (original) => ({
   },
 }));
 
+function keydown(init: { key: string; isComposing?: boolean; keyCode?: number }) {
+  const event = new Event("keydown", { cancelable: true });
+  Object.defineProperties(event, {
+    key: { value: init.key },
+    isComposing: { value: init.isComposing ?? false },
+    keyCode: { value: init.keyCode ?? 0 },
+  });
+  return event;
+}
+
+describe("useBackToClose Esc handling", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    cleanups.length = 0;
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("does not close the sheet for an Esc that cancels an IME composition", async () => {
+    const onClose = vi.fn();
+    const history = { state: null as unknown, pushState(state: unknown) { history.state = state; }, back: vi.fn() };
+    const fakeWindow = Object.assign(new EventTarget(), { history });
+    vi.stubGlobal("window", fakeWindow);
+    const { useBackToClose } = await import("./use-back-to-close");
+    useBackToClose(true, onClose);
+
+    fakeWindow.dispatchEvent(keydown({ key: "Escape", isComposing: true }));
+    // Safari: isComposing is already false, but keyCode is still 229.
+    fakeWindow.dispatchEvent(keydown({ key: "Escape", keyCode: 229 }));
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("closes the top sheet for a plain Esc", async () => {
+    const onClose = vi.fn();
+    const history = { state: null as unknown, pushState(state: unknown) { history.state = state; }, back: vi.fn() };
+    const fakeWindow = Object.assign(new EventTarget(), { history });
+    vi.stubGlobal("window", fakeWindow);
+    const { useBackToClose } = await import("./use-back-to-close");
+    useBackToClose(true, onClose);
+
+    const event = keydown({ key: "Escape", keyCode: 27 });
+    fakeWindow.dispatchEvent(event);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(event.defaultPrevented).toBe(true);
+  });
+});
+
 type Entry = { state: unknown; href: string };
 
 // manualPop: history.back() の popstate を自動では届けず、deliverPop() で届ける（届くまでの間を試す）。
