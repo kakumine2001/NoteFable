@@ -32,7 +32,9 @@ PGBIN="$(brew --prefix postgresql@18)/bin"
 "$PGBIN/createdb" -h localhost -p "$PG_PORT" notefable
 
 cd "$ROOT"
-npm ci
+# The runner's newer npm (11.19) rejects this lockfile ("Missing: @emnapi/core from lock file"), so install with an
+# npm that takes it as committed. package-lock.json is not rewritten.
+npx -y npm@11.6.2 ci --no-audit --no-fund
 npm run prisma:migrate
 npm run build
 nohup npx next start -p "$WEB_PORT" >"$WORK/web.log" 2>&1 &

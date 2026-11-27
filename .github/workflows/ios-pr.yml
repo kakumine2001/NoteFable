@@ -276,14 +276,15 @@ jobs:
   # mobile/ios/app-store/screenshots/. No secrets, no production access.
   ios-store-screenshots:
     name: App Store screenshots (${{ matrix.label }})
-    needs: version
+    # After the build instead of waiting for it on a runner: with both screenshot labels, waiting jobs could fill every
+    # macOS slot before the build gets one.
+    needs: [version, ios]
     if: needs.version.outputs.has_project == 'true' && needs.version.outputs.store_screenshots == 'true'
     # iOS 26 on macos-15: iOS 27 simulator captures lose the Dynamic Island and add a black block at the top left.
     runs-on: macos-15
     timeout-minutes: 60
     permissions:
       contents: read
-      actions: read
     strategy:
       fail-fast: false
       matrix:
@@ -326,25 +327,6 @@ jobs:
           echo $! >"$RUNNER_TEMP/boot.pid"
           nohup bash mobile/ios/scripts/ci-store-server.sh "$RUNNER_TEMP/store-server" >"$RUNNER_TEMP/store-server.log" 2>&1 &
           echo $! >"$RUNNER_TEMP/server.pid"
-      - name: Wait for the simulator build
-        env:
-          GH_TOKEN: ${{ github.token }}
-          BUILD_JOB: iOS simulator build
-        run: |
-          set -euo pipefail
-          deadline=$((SECONDS + 1500))
-          while (( SECONDS < deadline )); do
-            conclusion=$(gh api --paginate \
-              "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}/jobs" \
-              --jq ".jobs[] | select(.name == \"${BUILD_JOB}\") | .conclusion // \"\"" | tail -n 1) || conclusion=""
-            case "$conclusion" in
-              success) exit 0 ;;
-              "") sleep 10 ;;
-              *) echo "::error::${BUILD_JOB} ended with '${conclusion}': nothing to screenshot."; exit 1 ;;
-            esac
-          done
-          echo "::error::Timed out waiting for ${BUILD_JOB}."
-          exit 1
       - uses: actions/download-artifact@v8
         with:
           name: NoteFable-sim.tgz

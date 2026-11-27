@@ -39,8 +39,9 @@ pixel_size() {
   sips -g pixelWidth -g pixelHeight "$1" | awk '/pixelWidth/ { w = $2 } /pixelHeight/ { h = $2 } END { print w "x" h }'
 }
 
-# Exits 1 when the middle of the screen (the web view, right of an iPad sidebar) is one flat color: a fresh simulator
-# can leave a web view blank, and such a capture must never become a store image.
+# Returns 3 when the middle of the screen (the web view, right of an iPad sidebar) is one flat color: a fresh simulator
+# can leave a web view blank, and such a capture must never become a store image. Any other non-zero status means the
+# check itself failed.
 web_view_painted() {
   python3 - "$1" <<'PY'
 import struct, sys, zlib
@@ -88,7 +89,7 @@ for y in range(int(height * 0.75)):
 total = sum(colors.values())
 other = 1 - max(colors.values()) / total
 print(f"{sys.argv[1]}: {other:.2%} of the web area differs from its background")
-sys.exit(0 if other > 0.005 else 1)
+sys.exit(0 if other > 0.005 else 3)
 PY
 }
 
@@ -98,9 +99,11 @@ for entry in "${SHOTS[@]}"; do
   if [[ ! -f "$png" ]]; then echo "::error::Missing capture $png"; exit 1; fi
   size=$(pixel_size "$png")
   if [[ "$size" != "${WIDTH}x${HEIGHT}" ]]; then echo "::error::$png is $size, expected ${WIDTH}x${HEIGHT}"; exit 1; fi
-  if [[ "$scene" == "store-mindmap" || "$scene" == "store-slides" ]] && ! web_view_painted "$png"; then
-    echo "::error::$png: the web editor is blank"
-    exit 1
+  if [[ "$scene" == "store-mindmap" || "$scene" == "store-slides" ]]; then
+    rc=0
+    web_view_painted "$png" || rc=$?
+    if (( rc == 3 )); then echo "::error::$png: the web editor is blank"; exit 1; fi
+    if (( rc != 0 )); then echo "::error::$png: the blank-page check failed (exit $rc)"; exit 1; fi
   fi
 done
 

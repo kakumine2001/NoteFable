@@ -602,9 +602,15 @@ final class FixtureLaunch {
                 let zoomOut = """
                 (function(){var b=document.querySelector('button[aria-label="Zoom out"]');if(b){b.click()}return !!b})()
                 """
-                let zoomed = await NoteEditorController.screenshotController?.screenshotProbe(zoomOut) == true
-                try? await Task.sleep(for: .seconds(1))
-                return zoomed
+                // 工具栏可能比画布晚挂出来：按钮还没有就接着试到时限（至少试一次，点到一次就停）。
+                repeat {
+                    if await NoteEditorController.screenshotController?.screenshotProbe(zoomOut) == true {
+                        try? await Task.sleep(for: .seconds(1))
+                        return true
+                    }
+                    try? await Task.sleep(for: .milliseconds(250))
+                } while Date() < deadline
+                return false
             }
             try? await Task.sleep(for: .milliseconds(250))
         }

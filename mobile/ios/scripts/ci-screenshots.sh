@@ -436,6 +436,8 @@ for major in "${MAJORS[@]}"; do
     mkdir -p "$OUT/ios${major}/warmup"
     # In a pipeline's subshell, so a slow warm-up never fails the run; its errors are only labelled.
     run_batch "$udid" "$major" warmup signed-in 0 "${warmup[@]}" 2>&1 | sed 's/^::error::/warm-up (ignored): /' || true
+    # Kept for debugging, but not as *.log: a fixture miss during the warm-up must not fail the run either.
+    mv "$OUT/logs/ios${major}-warmup-signed-in.log" "$OUT/logs/ios${major}-warmup.txt" 2>/dev/null || true
     rm -rf "$OUT/ios${major}/warmup"
   fi
 
