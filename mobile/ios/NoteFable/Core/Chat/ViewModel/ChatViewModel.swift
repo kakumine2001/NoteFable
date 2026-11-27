@@ -436,6 +436,7 @@ final class ChatViewModel {
             $0.reveal = nil
             $0.rejectedEdit = nil
             $0.characterOutcome = outcomes[key]
+            $0.conversationId = navigationCount
         }
         syncDraftIcon()
         syncBusy()

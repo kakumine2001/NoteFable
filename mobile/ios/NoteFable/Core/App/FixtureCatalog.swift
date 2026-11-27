@@ -30,6 +30,8 @@ struct FixtureCatalog: Sendable {
         static let ramenSession = "fx-session-ramen"
         static let meetingSession = "fx-session-meeting"
         static let liveSession = "fx-session-live"
+        /// 只给截图场景 chat-regenerate：最后一条回答很长。不在聊天列表里，别的截图不受影响。
+        static let longSession = "fx-session-long"
 
         static let tripPage = "fx-page-trip"
         static let packingPage = "fx-page-packing"
@@ -447,6 +449,8 @@ struct FixtureCatalog: Sendable {
                     ],
                 ],
             ])
+        case IDs.longSession:
+            return jsonReply(longMessagesPayload())
         case IDs.glassSession, IDs.ramenSession, IDs.meetingSession:
             return jsonReply([
                 "messages": [
@@ -618,6 +622,32 @@ struct FixtureCatalog: Sendable {
                 ],
             ],
         ]
+    }
+
+    /// 两个回合，最后的回答有好几屏长：重新生成它时内容一下子变短、消息条数不变。
+    private func longMessagesPayload() -> JSONValue {
+        let stops = (1...40)
+            .map { "\($0). **Stop \($0):** walk to the next sight, then check the opening hours before you go in." }
+            .joined(separator: "\n")
+        let turns: [(role: String, content: String)] = [
+            ("USER", "Share a quick summary."),
+            ("ASSISTANT", "Here is a concise outline ready to review."),
+            ("USER", "List forty walking stops for a long weekend."),
+            ("ASSISTANT", "## Walking stops\n\n" + stops),
+        ]
+        let messages: [JSONValue] = turns.enumerated().map { index, turn in
+            [
+                "id": .string("fx-msg-long-\(index + 1)"),
+                "role": .string(turn.role),
+                "content": .string(turn.content),
+                "createdAt": .string(iso(Double(index - 8) * 60)),
+                "attachments": [],
+                "generatedImages": [],
+                "proposals": [],
+                "pages": [],
+            ]
+        }
+        return ["messages": .array(messages)]
     }
 
     private func signedInUserPayload() -> JSONValue {
@@ -908,7 +938,8 @@ struct FixtureCatalog: Sendable {
     private func chatStreamReply(for request: HTTPRequest) -> FixtureTransport.Reply {
         let sessionId = extractMultipartField("sessionId", from: request.body) ?? IDs.liveSession
         let message = extractMultipartField("message", from: request.body)
-        let hold = streamHoldsOpen && message != Prompts.streamed
+        // 长聊天的回答（chat-regenerate）保持生成中：结束的话对账会换回原来的长回答。
+        let hold = (streamHoldsOpen && message != Prompts.streamed) || sessionId == IDs.longSession
         var chunks: [Data] = [
             Data("data: {\"activity\":{\"type\":\"thought\",\"id\":\"fx-thought-live\",\"delta\":\"**Comparing materials**\\n\\nGlass refracts the content behind it while blur only frosts.\"}}\n\n".utf8),
             Data("data: \(JSONValue.string(Self.answerLead).encodedString())\n\n".utf8),

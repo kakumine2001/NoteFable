@@ -11,6 +11,8 @@ enum ScreenshotScene: String, CaseIterable, Sendable {
     case chatComposer = "chat-composer"
     case chatKeyboard = "chat-keyboard"
     case chatStreamed = "chat-streamed"
+    /// 很长的最后回答停在底部时重新生成（iOS 27 上消息区整个空白的回归检查，见 ChatListRepair）。
+    case chatRegenerate = "chat-regenerate"
     case drawer
     /// 宽屏（iPad）下手动收起常驻侧栏后的全宽聊天页（验证顶栏行首菜单按钮重新出现）。
     case sidebarCollapsed = "sidebar-collapsed"

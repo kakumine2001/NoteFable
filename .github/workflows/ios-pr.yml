@@ -206,7 +206,7 @@ jobs:
             majors: "27"
             device-family: iPad
             variants: light dark ar rt
-            scenes: chat chat-scrolled chat-composer emoji-picker sidebar-collapsed search workspace workspace-scrolled editor page-menu settings settings-plan sign-in
+            scenes: chat chat-scrolled chat-composer emoji-picker sidebar-collapsed search workspace workspace-scrolled editor page-menu settings settings-plan chat-regenerate sign-in
             artifact: ios-screenshots-ipad
     env:
       NF_IOS_MAJORS: ${{ matrix.majors }}

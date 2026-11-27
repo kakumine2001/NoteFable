@@ -223,6 +223,11 @@ final class FixtureLaunch {
             app.notes.closeNote()
             _ = await poll(until: Date().addingTimeInterval(5)) { app.notes.state.open == nil }
         }
+        if previous == .chatRegenerate {
+            // 它的回答一直开着：停掉，免得带到后面的场景。固定回应不会自己结束流，等停止键的时限到了取消。
+            app.chat.stop()
+            _ = await poll(until: Date().addingTimeInterval(12)) { !app.chat.state.sending }
+        }
         if previous == .toast {
             // 长提示条要 3.5 秒才自己收起：马上收掉，免得留到下一个场景。
             ToastCenter.shared.hide()
@@ -347,6 +352,27 @@ final class FixtureLaunch {
                     && !app.chat.state.sending
                     && app.chat.state.messages.last.map { $0.role == .assistant && !$0.content.isEmpty } == true
             }
+
+        case .chatRegenerate:
+            // 很长的最后回答停在底部时重新生成：条数不变、内容一下子变短，新回答保持生成中。
+            // 就绪只看状态；消息区有没有画出来看截图。
+            router.selectTab(.chat)
+            app.chat.openSession(FixtureCatalog.IDs.longSession)
+            let opened = await poll(until: deadline) {
+                router.selectedTab == .chat
+                    && app.chat.state.activeSessionId == FixtureCatalog.IDs.longSession
+                    && !app.chat.state.messagesLoading
+                    && !app.chat.state.messages.isEmpty
+            }
+            // 等消息列表建好、停在底部。
+            try? await Task.sleep(for: .milliseconds(800))
+            guard opened, let answer = app.chat.state.messages.last else { return false }
+            app.chat.regenerate(answer.id)
+            let replaced = await poll(until: deadline) {
+                app.chat.state.messages.last.map { $0.id != answer.id && !$0.content.isEmpty } == true
+            }
+            try? await Task.sleep(for: .milliseconds(1000))
+            return replaced && app.chat.state.sending
 
         case .drawer:
             router.selectTab(.chat)
