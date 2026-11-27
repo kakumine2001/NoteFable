@@ -319,4 +319,8 @@ export const deServer: Record<string, string> = {
   "Gantt chart": "Gantt-Diagramm",
   "quadrant chart": "Quadrantendiagramm",
   "mind map": "Mindmap",
+  "Could not generate a quiz. Try again.": "Quiz konnte nicht erstellt werden. Bitte versuche es erneut.",
+  "Could not save the review note. Try again.": "Lernnotiz konnte nicht gespeichert werden. Bitte versuche es erneut.",
+  "There is nothing to make a quiz from yet.": "Es gibt noch keinen Inhalt, aus dem ein Quiz erstellt werden kann.",
+  "This note was moved to the trash.": "Diese Notiz wurde in den Papierkorb verschoben.",
 };

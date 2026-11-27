@@ -425,6 +425,8 @@ sealed interface EmbedMessage {
     data class SlidesWizard(val open: Boolean, val busy: Boolean = false) : EmbedMessage
     /** 网页现在正在做幻灯片的笔记（页面加载时和每次变化时发）：这些笔记的"…"里「生成幻灯片」显示生成中（网页菜单同）。 */
     data class SlidesJobs(val pageIds: Set<String>) : EmbedMessage
+    /** 复习和测验窗口（#154 PR 13，网页 ReviewQuizHost）出现（[open]）或消失。只有声明了 `canShowQuiz()` 的 App 才会收到。 */
+    data class Quiz(val open: Boolean) : EmbedMessage
 
     // 网页导出的文件（白板的 PNG / SVG / PDF，幻灯片的 PDF / PNG / PPTX）分块交给 App 保存（src/lib/export-file.ts）：
     // fileStart → fileChunk（[FileChunk.data] 是 base64，原始字节最多 512 KiB，[FileChunk.index] 从 0 起按顺序）×n → fileEnd；
@@ -493,6 +495,11 @@ sealed interface EmbedMessage {
                         .mapNotNull { item -> (item as? JsonPrimitive)?.takeIf { it.isString }?.content?.takeIf { it.isNotBlank() } }
                         .toSet(),
                 )
+                "quiz" -> when (obj.text("state")) {
+                    "open" -> Quiz(open = true)
+                    "closed" -> Quiz(open = false)
+                    else -> null
+                }
                 "fileStart" -> FileStart(
                     obj.fileId() ?: return@runCatching null,
                     obj.text("name") ?: return@runCatching null,

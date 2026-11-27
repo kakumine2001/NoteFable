@@ -631,6 +631,8 @@ enum EmbedMessage: Equatable, Sendable {
     case slidesWizard(open: Bool, busy: Bool = false)
     /// 网页现在正在做幻灯片的笔记（页面加载时和每次变化时发）：这些笔记的"…"里「生成幻灯片」显示生成中（网页菜单同）。
     case slidesJobs(pageIds: Set<String>)
+    /// 复习和测验窗口（#154 PR 13，网页 ReviewQuizHost）出现（[open]）或消失。只有 bootstrap 里声明了 `canShowQuiz()` 的 App 才会收到。
+    case quiz(open: Bool)
     /// [kept]：没保存成功，但草稿已存在 WebView 里、之后会重试（不是冲突）。这时可以先离开。
     case flushed(requestId: String, ok: Bool, kept: Bool = false)
     /// 笔记里的图片、文件、封面或图标因为文件存储空间不够上传失败（used / limit 是字节）。App 在编辑器上方显示提示。
@@ -699,6 +701,15 @@ enum EmbedMessage: Equatable, Sendable {
                 // 只收非空白的字符串（和 Android 一样）。
                 let ids = items.compactMap { $0.stringValue }.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
                 return .slidesJobs(pageIds: Set(ids))
+            case "quiz":
+                switch try text(fields["state"]) {
+                case "open":
+                    return .quiz(open: true)
+                case "closed":
+                    return .quiz(open: false)
+                default:
+                    return nil
+                }
             case "storageLimit":
                 guard let tier = try text(fields["tier"]), let used = fields["used"]?.intValue, let limit = fields["limit"]?.intValue else { return nil }
                 return .storageLimit(tier: tier, used: used, limit: limit)

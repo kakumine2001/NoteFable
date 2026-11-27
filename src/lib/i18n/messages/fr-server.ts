@@ -319,4 +319,8 @@ export const frServer: Record<string, string> = {
   "Gantt chart": "diagramme de Gantt",
   "quadrant chart": "graphique à quadrants",
   "mind map": "carte mentale",
+  "Could not generate a quiz. Try again.": "Impossible de générer le quiz. Réessayez.",
+  "Could not save the review note. Try again.": "Impossible d’enregistrer la note de révision. Réessayez.",
+  "There is nothing to make a quiz from yet.": "Il n’y a pas encore de contenu pour créer un quiz.",
+  "This note was moved to the trash.": "Cette note a été déplacée dans la corbeille.",
 };

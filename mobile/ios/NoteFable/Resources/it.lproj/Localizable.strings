@@ -428,6 +428,7 @@
 "pg_subpages_to_trash" = "Anche le sue sottopagine verranno spostate nel Cestino.";
 "pg_rename_page" = "Rinomina pagina";
 "pg_page_title" = "Titolo della pagina";
+"pg_review_quiz" = "Ripasso e quiz";
 
 /* strings_personal.xml */
 "appearance" = "Aspetto";

@@ -5,10 +5,13 @@ import { blocksToMarkdown } from "@/lib/note-markdown";
 import { verifyPageImageReportToken } from "@/lib/page-image-report-token";
 import { isCanvasKind, pageKindOf, type PageKind } from "@/lib/page-kinds";
 import { prisma } from "@/lib/prisma";
+import { formatQuizForReport, validateReviewQuiz, type ReviewQuiz } from "@/lib/quiz/model";
+import { verifyQuizReportToken } from "@/lib/quiz-report-token";
 
 // AI が作った内容の通報（Google Play の AI 生成コンテンツのポリシー：アプリ内で不快な AI 出力を開発者に知らせられること）。
-// 対象は 5 つ：チャットの回答（messageId）、AI の提案カード（proposalId：ページの編集・新規の案）、AI が書いたページ（pageId）、
-// スライド・ホワイトボードの AI で作った画像（pageId + elementId）、ワークスペースの画像生成プレビュー（pageId + reportToken）。
+// 対象は 6 つ：チャットの回答（messageId）、AI の提案カード（proposalId：ページの編集・新規の案）、AI が書いたページ（pageId）、
+// スライド・ホワイトボードの AI で作った画像（pageId + elementId）、ワークスペースの画像生成プレビュー（pageId + reportToken）、
+// 復習・クイズの AI 生成問題（pageId + quizReportToken + quiz）。
 // 通報は開発者のメールに送るだけで、データベースには残さない。
 export const MAX_REPORT_REASON = 1000;
 const MAX_ANSWER_CHARS = 20_000;
@@ -21,23 +24,25 @@ export type ReportTarget =
   | { kind: "proposal"; id: string }
   | { kind: "page"; id: string }
   | { kind: "slideImage"; pageId: string; elementId: string }
-  | { kind: "pageImage"; pageId: string; reportToken: string };
+  | { kind: "pageImage"; pageId: string; reportToken: string }
+  | { kind: "pageQuiz"; pageId: string; reportToken: string; quiz: ReviewQuiz };
 export type ReportInput = { target: ReportTarget; reason: string };
 
 const validId = (value: unknown, max: number): value is string => typeof value === "string" && value.length > 0 && value.length <= max;
 
 // 本文の形。通報する対象（messageId・proposalId・pageId のどれか 1 つ。pageId に elementId を添えるとスライド・ホワイトボードの AI 画像、
-// reportToken を添えるとワークスペースで生成した画像）と、任意の理由。
+// reportToken を添えるとワークスペースで生成した画像、quizReportToken + quiz を添えると復習・クイズの AI 問題）と、任意の理由。
 export function parseReport(body: unknown): { ok: true; data: ReportInput } | { ok: false } {
   if (!body || typeof body !== "object") return { ok: false };
-  const { messageId, proposalId, pageId, elementId, reportToken, reason } = body as Record<string, unknown>;
+  const { messageId, proposalId, pageId, elementId, reportToken, quizReportToken, quiz, reason } = body as Record<string, unknown>;
   const targets = ([["answer", messageId], ["proposal", proposalId], ["page", pageId]] as const).filter(([, id]) => id !== undefined);
   if (targets.length !== 1) return { ok: false };
   const [kind, id] = targets[0];
   if (reason !== undefined && typeof reason !== "string") return { ok: false };
   const text = (reason ?? "").trim();
   if (text.length > MAX_REPORT_REASON) return { ok: false };
-  if (elementId !== undefined && reportToken !== undefined) return { ok: false };
+  const extras = [elementId !== undefined, reportToken !== undefined, quizReportToken !== undefined || quiz !== undefined].filter(Boolean).length;
+  if (extras > 1) return { ok: false };
   if (elementId !== undefined) {
     // 画像の要素はスライド・ホワイトボードのページと一緒にだけ。
     if (kind !== "page" || !validId(id, 64) || !validId(elementId, 120)) return { ok: false };
@@ -46,6 +51,12 @@ export function parseReport(body: unknown): { ok: true; data: ReportInput } | { 
   if (reportToken !== undefined) {
     if (kind !== "page" || !validId(id, 64) || !validId(reportToken, MAX_REPORT_TOKEN_CHARS)) return { ok: false };
     return { ok: true, data: { target: { kind: "pageImage", pageId: id, reportToken }, reason: text } };
+  }
+  if (quizReportToken !== undefined || quiz !== undefined) {
+    if (kind !== "page" || !validId(id, 64) || !validId(quizReportToken, MAX_REPORT_TOKEN_CHARS)) return { ok: false };
+    const validated = validateReviewQuiz(quiz);
+    if (!validated) return { ok: false };
+    return { ok: true, data: { target: { kind: "pageQuiz", pageId: id, reportToken: quizReportToken, quiz: validated }, reason: text } };
   }
   if (!validId(id, 100)) return { ok: false };
   return { ok: true, data: { target: { kind, id }, reason: text } };
@@ -131,7 +142,7 @@ export function pageReportEmail(report: {
     "--- AI changes applied to this page (newest first) ---",
     ...(page.proposals.length
       ? page.proposals.map((proposal) => `${proposal.id}: ${proposal.kind === "CREATE" ? "created" : "edited"}, chat ${proposal.sessionId}, message ${proposal.messageId ?? "(not saved)"}, ${proposal.status.toLowerCase()}${proposal.autoApplied ? " (automatically)" : ""}, ${proposal.createdAt.toISOString()}`)
-      : ["(none recorded: the page may come from Create page, Draw as diagram or Generate slides)"]),
+      : ["(none recorded: the page may come from Create page, Draw as diagram, Generate slides or Review & quiz)"]),
     "",
     "--- Current page content ---",
     page.text.trim() ? clip(page.text, MAX_ANSWER_CHARS) : "(no text)",
@@ -205,6 +216,37 @@ export async function findReportedPageImage(userId: string, pageId: string, repo
   ]);
   if (!page || !stored) return null;
   return { pageId: page.id, pageKind: pageKindOf(page), path: stored.path, prompt: verified.prompt };
+}
+
+// 復習・クイズ（POST /api/pages/quiz）の AI 生成問題の報告メール。
+export function pageQuizReportEmail(report: {
+  userId: string; signedIn: boolean; pageId: string; pageKind: PageKind; pageTitle: string; model: string; quiz: ReviewQuiz; reason: string;
+}) {
+  const lines = [
+    `Reason: ${report.reason || "(none given)"}`,
+    "",
+    `User: ${report.userId} (${report.signedIn ? "signed in" : "anonymous"})`,
+    `Source page: ${report.pageId} (${report.pageKind})`,
+    `Source title: ${report.pageTitle}`,
+    `Model: ${report.model || "unknown"}`,
+    "",
+    "--- Reported AI quiz ---",
+    clip(formatQuizForReport(report.quiz), MAX_ANSWER_CHARS),
+  ];
+  const plain = (value: string) => value.replace(/[\u0000-\u001f\u007f]+/g, " ");
+  return { subject: `[NoteFable] Reported AI quiz ${plain(report.pageId)}`, text: lines.join("\n") };
+}
+
+// 署名付きトークンで /api/pages/quiz が本人所有のページ向けに生成した問題であり、本文が改ざんされていないことを検証する。
+export async function findReportedPageQuiz(userId: string, pageId: string, reportToken: string, quiz: ReviewQuiz) {
+  const verified = await verifyQuizReportToken(reportToken, userId, pageId, quiz);
+  if (!verified) return null;
+  const page = await prisma.notePage.findFirst({
+    where: { id: pageId, userId, deletedAt: null, kind: { in: ["note", "slides"] } },
+    select: { id: true, kind: true, title: true },
+  });
+  if (!page) return null;
+  return { pageId: page.id, pageKind: pageKindOf(page), pageTitle: page.title, model: verified.model, quiz };
 }
 
 // 自分のチャットの AI の回答だけを通報できる。見つからなければ null。

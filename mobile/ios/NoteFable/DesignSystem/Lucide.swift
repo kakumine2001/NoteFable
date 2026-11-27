@@ -329,6 +329,12 @@ enum Lucide {
         "M9 14 4 9l5-5",
         "M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11",
     ]
+    // 「复习和测验」（网页笔记 / 幻灯片菜单的 BookOpenCheck，lucide-react 1.16.0）。
+    static let bookOpenCheck: [String] = [
+        "M12 21V7",
+        "m16 12 2 2 4-4",
+        "M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3",
+    ]
     static let moreHorizontal: [String] = ellipsis
     static let loader2: [String] = loaderCircle
 

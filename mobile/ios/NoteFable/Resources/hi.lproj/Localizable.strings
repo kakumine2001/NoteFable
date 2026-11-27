@@ -428,6 +428,7 @@
 "pg_subpages_to_trash" = "इसके सब-पेज भी इसके साथ ट्रैश में चले जाएँगे।";
 "pg_rename_page" = "पेज का नाम बदलें";
 "pg_page_title" = "पेज का शीर्षक";
+"pg_review_quiz" = "रिव्यू और क्विज़";
 
 /* strings_personal.xml */
 "appearance" = "दिखावट";

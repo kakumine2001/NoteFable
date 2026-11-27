@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ currentUser: vi.fn(), find: vi.fn(), findProposal: vi.fn(), findPage: vi.fn(), findPageImage: vi.fn(), readCanvas: vi.fn(), consume: vi.fn(), refund: vi.fn(), send: vi.fn() }));
+const mocks = vi.hoisted(() => ({ currentUser: vi.fn(), find: vi.fn(), findProposal: vi.fn(), findPage: vi.fn(), findPageImage: vi.fn(), findPageQuiz: vi.fn(), readCanvas: vi.fn(), consume: vi.fn(), refund: vi.fn(), send: vi.fn() }));
 vi.mock("@/lib/auth", () => ({
   getOrCreateUser: mocks.currentUser,
   isAccountUser: (user: { googleSub: string | null; verifiedEmail?: string | null }) => Boolean(user.googleSub || user.verifiedEmail),
@@ -12,6 +12,7 @@ vi.mock("@/lib/answer-report", async (load) => ({
   findReportedProposal: mocks.findProposal,
   findReportedPage: mocks.findPage,
   findReportedPageImage: mocks.findPageImage,
+  findReportedPageQuiz: mocks.findPageQuiz,
   sendReport: mocks.send,
 }));
 vi.mock("@/lib/canvas-store", () => ({ readCanvasData: mocks.readCanvas }));
@@ -186,6 +187,28 @@ describe("POST /api/reports", () => {
     mocks.findPageImage.mockResolvedValueOnce(null);
     expect((await POST(post({ pageId: "n1", reportToken }))).status).toBe(404);
     expect((await POST(post({ pageId: "n1", elementId: "img1", reportToken }))).status).toBe(400);
+  });
+
+  it("reports AI-generated quiz content using a verified quizReportToken", async () => {
+    const quiz = {
+      title: "Biology Quiz",
+      questions: [{ id: "q1", type: "true_false", prompt: "Offensive statement", correct: false, explanation: "Details" }],
+    };
+    mocks.findPageQuiz.mockResolvedValueOnce({ pageId: "n1", pageKind: "note", pageTitle: "Biology", model: "gpt-6-luna", quiz });
+    expect((await POST(post({ pageId: "n1", quizReportToken: "quiz-tok", quiz, reason: "Inaccurate" }))).status).toBe(200);
+    expect(mocks.findPageQuiz).toHaveBeenCalledWith("u1", "n1", "quiz-tok", quiz);
+    const email = mocks.send.mock.calls[0][0] as { subject: string; text: string };
+    expect(email.subject).toContain("Reported AI quiz n1");
+    expect(email.text).toContain("Source page: n1 (note)");
+    expect(email.text).toContain("Source title: Biology");
+    expect(email.text).toContain("Model: gpt-6-luna");
+    expect(email.text).toContain("Offensive statement");
+    expect(email.text).toContain("Reason: Inaccurate");
+
+    mocks.findPageQuiz.mockResolvedValueOnce(null);
+    expect((await POST(post({ pageId: "n1", quizReportToken: "bad-tok", quiz }))).status).toBe(404);
+    expect((await POST(post({ pageId: "n1", quizReportToken: "quiz-tok", quiz: { title: "Empty", questions: [] } }))).status).toBe(400);
+    expect((await POST(post({ pageId: "n1", elementId: "e1", quizReportToken: "quiz-tok", quiz }))).status).toBe(400);
   });
 
   it("rejects bad bodies, other sites and too many reports", async () => {

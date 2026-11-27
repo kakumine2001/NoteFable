@@ -121,6 +121,22 @@ final class NoteEditorPool {
         return false
     }
 
+    /// 用 `NoteEmbedScripts.quizOpen` 在开着的编辑器上打开复习和测验窗口。
+    func openQuiz(script: String) async -> Bool {
+        let deadline = ContinuousClock.now + NoteEditorController.wizardOpenTimeout
+        while !Task.isCancelled && ContinuousClock.now < deadline {
+            if let controller, let answer = await controller.tryOpenQuiz(script: script) {
+                return answer
+            }
+            do {
+                try await Task.sleep(for: NoteEditorController.wizardPollInterval)
+            } catch {
+                return false
+            }
+        }
+        return false
+    }
+
     private func rescheduleIdleIfParked() {
         guard let controller, controller.isParked, controller.isLoaded else { return }
         scheduleIdle()
@@ -255,6 +271,8 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
     private(set) var slidesWizardVisible = false
     /// 关掉向导时还有 AI 生成在后台跑。
     private(set) var slidesWizardBusy = false
+    /// 网页里的复习和测验窗口现在是否可见。
+    private(set) var quizVisible = false
     /// 这次加载的网页是否真的回应过（ready / slidesWizard open / openSlidesWizard 成功）：离线或加载失败停在错误页时为 false。
     private(set) var hasEverResponded = false
     var isParked: Bool { activeEditor == nil }
@@ -366,6 +384,10 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
                     // 冲突后“另存为新笔记”：开着的换成了副本，它也在网页的缓存里。
                     self.currentPageId = id
                     self.openedPageIds.insert(id)
+                    self.quizVisible = false
+                case .quiz(let open):
+                    if open { self.hasEverResponded = true }
+                    self.quizVisible = open
                 case .missing(let id):
                     if let id, let current = self.currentPageId, id != current { return }
                 case .usageLimit(_, _, let pageId):
@@ -510,6 +532,21 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         return answer
     }
 
+    func tryOpenQuiz(script: String) async -> Bool? {
+        guard let webView else { return nil }
+        let raw: String? = await withCheckedContinuation { (done: CheckedContinuation<String?, Never>) in
+            webView.evaluateJavaScript(script) { result, _ in
+                done.resume(returning: result as? String)
+            }
+        }
+        guard let answer = NoteEmbedScripts.quizAnswer(raw) else { return nil }
+        if answer {
+            quizVisible = true
+            hasEverResponded = true
+        }
+        return answer
+    }
+
     /// 设置里换了图标 / 界面语言 / 外观（或跟随系统时系统切了深浅）：推给网页（就地换，不重新加载笔记）。
     /// 页面类型变了（网页的 ready 改正了检索结果带来的类型）：边缘返回跟着开关。
     /// 直接从一篇笔记切到另一篇时（`open.editor` 变化）：就地切换页面，不重建 WKWebView。
@@ -548,6 +585,7 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         // 崩溃后重载的那一次不再跳到检索命中的位置；只用一次，之后再从检索结果打开同一篇照常跳过去。
         let crashed = crashedEditor == open.editor
         crashedEditor = nil
+        quizVisible = false
         let useReveal = crashed ? nil : open.reveal
 
         activeEditor = open.editor
@@ -591,6 +629,7 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         showEpoch += 1
         loadRun += 1
         dismissOpenDialog()
+        quizVisible = false
         activeEditor = nil
         currentPageId = nil
         awaitingPageId = nil
@@ -610,6 +649,7 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         isLoaded = false
         slidesWizardVisible = false
         slidesWizardBusy = false
+        quizVisible = false
         app.notes.onSlidesJobs([])
         hasEverResponded = false
         activeEditor = nil
@@ -897,6 +937,15 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         }
     }
 
+    func quizBack() async -> Bool {
+        guard let webView else { return false }
+        return await withCheckedContinuation { (answer: CheckedContinuation<Bool, Never>) in
+            webView.evaluateJavaScript(NoteEmbedScripts.quizBack) { result, _ in
+                answer.resume(returning: (result as? Bool) == true)
+            }
+        }
+    }
+
     private func run(_ script: String) {
         webView?.evaluateJavaScript(script, completionHandler: nil)
     }
@@ -929,6 +978,16 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
                 }
             } else if activeEditor == Self.slidesWizardEditorId {
                 notes.dismissSlidesWizard(wizard.request)
+            }
+            return
+        }
+        // 复习和测验开着：先关举报弹窗再关测验窗口，不离开笔记。
+        if let quiz = notes.state.reviewQuiz, quiz.shown {
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if !(await self.quizBack()) {
+                    self.app.notes.dismissReviewQuiz(quiz.request)
+                }
             }
             return
         }
@@ -1106,6 +1165,7 @@ extension NoteEditorController: WKNavigationDelegate {
         }
         slidesWizardVisible = false
         slidesWizardBusy = false
+        quizVisible = false
         // 新的网页进程里没有在做的幻灯片（加载后也会发空的）。
         app.notes.onSlidesJobs([])
         if editor == Self.slidesWizardEditorId {

@@ -89,6 +89,17 @@ data class SlidesWizardUi(
     val shown: Boolean = false,
 )
 
+/**
+ * 开着的复习和测验窗口（#154 PR 13）。测验界面本身是网页（常驻 /note-embed WebView 里的 `notefableEmbed.quiz`），
+ * 始终盖在打开着的笔记或幻灯片编辑器上。
+ */
+data class ReviewQuizUi(
+    val pageId: String,
+    val request: Int,
+    val editor: String,
+    val shown: Boolean = false,
+)
+
 data class NotesUiState(
     val workspace: Workspace = Workspace.Chat,
     val pages: List<NotePageSummary> = emptyList(),
@@ -124,6 +135,8 @@ data class NotesUiState(
     val importTarget: Boolean = false,
     /** AI 生成幻灯片的向导；null 是没开。 */
     val slidesWizard: SlidesWizardUi? = null,
+    /** 复习和测验窗口；null 是没开。 */
+    val reviewQuiz: ReviewQuizUi? = null,
 ) {
     /** 画面上的编辑器（[OpenNote.editor]）；停在聊天或笔记列表时是 null。 */
     val visibleEditor: String? get() = open?.editor?.takeIf { workspace == Workspace.Notes }
@@ -931,6 +944,44 @@ class NotesViewModel(
     /** 画面上的编辑器换了：盖在别的编辑器上的向导、有了编辑器时的全屏向导画面都不再算数。 */
     fun dropStaleSlidesWizard() = _state.update {
         if (it.slidesWizard != null && it.slidesWizard.editor != it.visibleEditor) it.copy(slidesWizard = null) else it
+    }
+
+    // ---- 复习和测验（#154 PR 13） ----
+
+    private var reviewQuizRequests = 0
+
+    /** 从笔记或幻灯片的"…"菜单打开复习和测验，盖在当前编辑器上。 */
+    fun openReviewQuiz(pageId: String) {
+        val editor = _state.value.visibleEditor ?: return
+        val request = ++reviewQuizRequests
+        _state.update { it.copy(reviewQuiz = ReviewQuizUi(pageId, request, editor)) }
+    }
+
+    fun onReviewQuizShown(request: Int) = _state.update { state ->
+        val quiz = state.reviewQuiz?.takeIf { it.request == request } ?: return@update state
+        state.copy(reviewQuiz = quiz.copy(shown = true))
+    }
+
+    fun onReviewQuizOpened(editor: String) {
+        val state = _state.value
+        val quiz = state.reviewQuiz
+        if (quiz != null) {
+            if (quiz.editor == editor) onReviewQuizShown(quiz.request)
+            return
+        }
+        val open = state.open?.takeIf { state.visibleEditor == editor } ?: return
+        val request = ++reviewQuizRequests
+        _state.update { it.copy(reviewQuiz = ReviewQuizUi(open.id, request, editor, shown = true)) }
+    }
+
+    fun onReviewQuizClosed() = _state.update { if (it.reviewQuiz?.shown == true) it.copy(reviewQuiz = null) else it }
+
+    fun dismissReviewQuiz(request: Int? = null) = _state.update {
+        if (request == null || it.reviewQuiz?.request == request) it.copy(reviewQuiz = null) else it
+    }
+
+    fun dropStaleReviewQuiz() = _state.update {
+        if (it.reviewQuiz != null && it.reviewQuiz.editor != it.visibleEditor) it.copy(reviewQuiz = null) else it
     }
 
     // ---- Markdown 导出 / 导入（网页 use-note-pages.ts 的 exportPage / importMarkdown） ----

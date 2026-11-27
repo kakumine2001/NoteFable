@@ -37,8 +37,10 @@ import { TurnBusyContext, type TurnActions } from "@/components/turn-actions";
 import { AccountAppIconSync, AccountLocaleSync } from "@/components/account-button";
 import { CreatePageDialog } from "@/components/create-page-dialog";
 import { DrawDiagramHost } from "@/components/draw-diagram-dialog";
+import { ReviewQuizHost } from "@/components/review-quiz-dialog";
 import { SlidesWizardHost } from "@/components/slides-wizard";
 import { drawAnswerDiagram, drawNoteDiagram } from "@/lib/draw-diagram-jobs";
+import { openReviewQuiz } from "@/lib/quiz-session";
 import { openSlidesWizard } from "@/lib/slides-wizard-jobs";
 import { EmptyConversation, StarterPrompts } from "@/components/empty-conversation";
 import { BillingReturnNotice, GuestLimitPrompt, StorageLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
@@ -2686,6 +2688,7 @@ export default function Home() {
                 // サーバーは保存済みのノートを読むので、入力中の内容を先に保存してから始める。
                 onDrawDiagram={() => void drawNoteDiagram(activeSummary.id, model, () => (notes.active?.page.id === activeSummary.id ? notes.active.flush() : Promise.resolve(true)))}
                 onGenerateSlides={() => openSlidesWizard({ entry: { type: "note", pageId: activeSummary.id, title: activeSummary.title, icon: activeSummary.icon }, model })}
+                onReviewQuiz={() => openReviewQuiz({ pageId: activeSummary.id, title: activeSummary.title, icon: activeSummary.icon, kind: activeSummary.kind === "slides" ? "slides" : "note", model })}
                 onMove={() => setMovingNoteId(activeSummary.id)}
                 onExport={() => void notes.exportPage(activeSummary.id)}
                 onTrash={() => { notes.clearTrashError(); setTrashingNoteId(activeSummary.id); }} />
@@ -3099,6 +3102,8 @@ export default function Home() {
       <DrawDiagramHost />
       {/* AI のスライド生成の窓（チャットの「＋」・ノートの「…」と AI パネル・新規作成のどこから始めても、ここに出す）。 */}
       <SlidesWizardHost flush={flushSlidesSource} />
+      {/* 復習・クイズモードの窓（ノート・スライドの「…」メニューから開く）。 */}
+      <ReviewQuizHost flush={(pageId) => flushSlidesSource([pageId])} />
       {importingFiles && <ImportTargetDialog groups={notes.groups} onClose={() => setImportingFiles(null)}
         onChoose={(groupId) => { const files = importingFiles; setImportingFiles(null); void importMarkdownFiles(files, groupId); }} />}
       {movingNote && <MoveNoteDialog page={movingNote} groups={notes.groups} error={notes.groupError} pages={notes.pages}

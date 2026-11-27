@@ -106,6 +106,14 @@ struct SlidesWizardUi: Equatable, Sendable {
     var shown: Bool = false
 }
 
+/// 开着的复习和测验窗口（#154 PR 13；Android `ReviewQuizUi`）。始终盖在打开着的笔记或幻灯片编辑器上。
+struct ReviewQuizUi: Equatable, Sendable {
+    var pageId: String
+    var request: Int
+    var editor: String
+    var shown: Bool = false
+}
+
 struct NotesUiState: Equatable, Sendable {
     var workspace: Workspace = .chat
     var pages: [NotePageSummary] = [] {
@@ -155,6 +163,8 @@ struct NotesUiState: Equatable, Sendable {
     var reorderError: ReorderFailure? = nil
     /// AI 生成幻灯片的向导；nil 是没开。
     var slidesWizard: SlidesWizardUi? = nil
+    /// 复习和测验窗口；nil 是没开。
+    var reviewQuiz: ReviewQuizUi? = nil
     /// 网页正在做幻灯片的笔记（slidesJobs 消息）：笔记"…"的「生成幻灯片」显示生成中。WebView 换掉后清空。
     var generatingSlides: Set<String> = []
     /// 全屏向导里撞到使用次数上限（没有打开的编辑器时显示在向导上方）。

@@ -7,6 +7,7 @@ import { NotePageMenu } from "@/components/note-page-menu";
 import { NotesWorkspace } from "@/components/notes-workspace";
 import { localizeSystemText } from "@/lib/i18n/translate";
 import { drawNoteDiagram } from "@/lib/draw-diagram-jobs";
+import { openReviewQuiz } from "@/lib/quiz-session";
 import { openSlidesWizard } from "@/lib/slides-wizard-jobs";
 import { dispatchSlidesCommand } from "@/lib/native-bridge";
 import { recentPages } from "@/lib/notes-home-text";
@@ -207,6 +208,7 @@ export function SplitNotePane({
               // サーバーは保存済みのノートを読むので、入力中の内容を先に保存してから始める（窓は page.tsx の DrawDiagramHost）。
               onDrawDiagram={() => void drawNoteDiagram(activeSummary.id, model, () => (notes.active?.page.id === activeSummary.id ? notes.active.flush() : Promise.resolve(true)))}
               onGenerateSlides={() => openSlidesWizard({ entry: { type: "note", pageId: activeSummary.id, title: activeSummary.title, icon: activeSummary.icon }, model })}
+              onReviewQuiz={() => openReviewQuiz({ pageId: activeSummary.id, title: activeSummary.title, icon: activeSummary.icon, kind: activeSummary.kind === "slides" ? "slides" : "note", model })}
               onMove={() => onMoveNote(activeSummary.id)}
               onExport={() => onExportNote(activeSummary.id)}
               onTrash={() => onTrashNote(activeSummary.id)}

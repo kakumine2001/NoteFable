@@ -18,8 +18,9 @@ struct RootView: View {
         @Bindable var router = router
         let fullScreenWizard = app.notes.state.slidesWizard?.editor == nil ? app.notes.state.slidesWizard : nil
         let editorWizardShown = app.notes.state.slidesWizard?.editor != nil && app.notes.state.slidesWizard?.shown == true
+        let editorQuizShown = app.notes.state.reviewQuiz?.shown == true
         let hideTabBar = fullScreenWizard != nil || (router.selectedTab == .workspace && (app.notes.state.open != nil || app.notes.state.presenting))
-        let allowEdgeDrawer = fullScreenWizard == nil && !editorWizardShown && !(router.selectedTab == .workspace && (app.notes.state.editorCapturesEdgeSwipes || app.notes.state.presenting))
+        let allowEdgeDrawer = fullScreenWizard == nil && !editorWizardShown && !editorQuizShown && !(router.selectedTab == .workspace && (app.notes.state.editorCapturesEdgeSwipes || app.notes.state.presenting))
 
         ZStack {
             AdaptiveSidebarShell(

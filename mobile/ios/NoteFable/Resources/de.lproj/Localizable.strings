@@ -428,6 +428,7 @@
 "pg_subpages_to_trash" = "Unterseiten werden zusammen mit dieser Seite in den Papierkorb verschoben.";
 "pg_rename_page" = "Seite umbenennen";
 "pg_page_title" = "Seitentitel";
+"pg_review_quiz" = "Wiederholen & Quiz";
 
 /* strings_personal.xml */
 "appearance" = "Darstellung";

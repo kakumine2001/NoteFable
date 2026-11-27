@@ -27,4 +27,5 @@
     <string name="pg_subpages_to_trash">इसके सब-पेज भी इसके साथ ट्रैश में चले जाएँगे।</string>
     <string name="pg_rename_page">पेज का नाम बदलें</string>
     <string name="pg_page_title">पेज का शीर्षक</string>
+    <string name="pg_review_quiz">रिव्यू और क्विज़</string>
 </resources>

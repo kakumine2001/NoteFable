@@ -1,9 +1,13 @@
 import { createHash } from "node:crypto";
+import { parseCanvasSegments, type CanvasData } from "@/lib/canvas-document";
 import { buildTranscript, MAX_TRANSCRIPT_MESSAGES } from "@/lib/chat-page";
 import { clip, pageContextText } from "@/lib/chat-project-context";
+import { readSlides } from "@/lib/page-ai/canvas-adapter";
 import { delimitPageContent } from "@/lib/page-ai/delimit";
 import { PAGE_SUMMARY_SELECT } from "@/lib/note-tree-server";
 import { prisma } from "@/lib/prisma";
+import { normalizeDeck } from "@/lib/slides/model";
+import { isRichDocEmpty } from "@/lib/slides/rich-text";
 
 // AI の 1 回きりの生成（画成図、スライド生成。今後の出題も同じ）の共通部分（docs/architecture/chat-flow.md の「画成図」）：
 // - 材料の読み方：回答は表示中の枝（active: true）の USER / ASSISTANT の本文だけ（SYSTEM や providerContext は読まない）。
@@ -173,5 +177,63 @@ export async function readChatMaterial(userId: string, sessionId: string): Promi
     title,
     text: `<material>\nThe material is a chat conversation.\n${neutralizeAroundTranscript(transcript.text)}\n</material>`,
     truncated: transcript.omitted,
+  };
+}
+
+// ---- 復習・クイズの材料（ノートまたはスライド 1 ページ。ロック済みも読み取り専用で読める） ----
+
+const neutralizeQuizTags = (text: string) => text.replace(/<(\/?)(material|question|answer|settings)\b/gi, "‹$1$2");
+
+function slidesHaveReadableContent(data: unknown, segments: ReturnType<typeof parseCanvasSegments>): boolean {
+  if (typeof data === "object" && data !== null && !Array.isArray(data) && Array.isArray((data as { slides?: unknown }).slides)) {
+    const deck = normalizeDeck(data);
+    for (const slide of deck.slides) {
+      if (slide.notes?.trim()) return true;
+      for (const element of slide.elements) {
+        if ((element.type === "text" || element.type === "shape") && !isRichDocEmpty(element.doc)) return true;
+        if (element.type === "table" && element.rows.some((row) => row.cells.some((cell) => cell.text.trim().length > 0))) return true;
+        if (element.type === "image" && element.alt.trim().length > 0) return true;
+        if (element.type === "whiteboard" && element.frameName.trim().length > 0) return true;
+      }
+    }
+    return segments.some((segment) => segment.text.trim().length > 0);
+  }
+  return segments.some((segment) => segment.text.trim().length > 0);
+}
+
+export type QuizMaterial = Material & { pageKind: "note" | "slides" };
+
+// 本人の、ゴミ箱にないノートまたはスライドを読み直す（ロック済みページも含む）。ホワイトボード・無しは null、本文が空なら text が空。
+export async function readQuizMaterial(userId: string, pageId: string): Promise<QuizMaterial | null> {
+  const page = await prisma.notePage.findFirst({
+    where: { id: pageId, userId, deletedAt: null, kind: { in: ["note", "slides"] } },
+    select: { id: true, kind: true, title: true, blocks: true, canvas: { select: { data: true, segments: true } } },
+  });
+  if (!page) return null;
+  const pageKind: "note" | "slides" = page.kind === "slides" ? "slides" : "note";
+  const title = oneLine(page.title) || "Untitled";
+  if (pageKind === "note") {
+    const body = clip(pageContextText({ kind: "note", blocks: page.blocks }).trim(), MAX_MATERIAL_CHARS);
+    if (!body.text) return { pageKind, title, text: "", truncated: false };
+    return {
+      pageKind,
+      title,
+      text: `<material>\nThe material is the user's note titled ${JSON.stringify(neutralizeQuizTags(title).slice(0, 200))}.${body.truncated ? " Its end was left out because of the size limit." : ""}\n${delimitPageContent(neutralizeQuizTags(body.text))}\n</material>`,
+      truncated: body.truncated,
+    };
+  }
+  const segments = parseCanvasSegments(page.canvas?.segments);
+  const rawData = page.canvas?.data;
+  const data = rawData && typeof rawData === "object" && !Array.isArray(rawData) ? (rawData as CanvasData) : null;
+  if (!slidesHaveReadableContent(data, segments)) return { pageKind, title, text: "", truncated: false };
+  const structured = readSlides({ id: page.id, kind: "slides", title, icon: null, version: 0, updatedAt: new Date(0), blocks: [], data, segments }, MAX_MATERIAL_CHARS).trim();
+  if (!structured) return { pageKind, title, text: "", truncated: false };
+  const body = clip(structured, MAX_MATERIAL_CHARS);
+  const truncated = body.truncated || structured.includes("\n\n[Truncated:");
+  return {
+    pageKind,
+    title,
+    text: `<material>\nThe material is the user's slide deck titled ${JSON.stringify(neutralizeQuizTags(title).slice(0, 200))}.${truncated ? " Its end was left out because of the size limit." : ""}\n${delimitPageContent(neutralizeQuizTags(body.text))}\n</material>`,
+    truncated,
   };
 }

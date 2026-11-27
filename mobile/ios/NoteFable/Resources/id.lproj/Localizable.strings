@@ -428,6 +428,7 @@
 "pg_subpages_to_trash" = "Subhalaman di dalamnya ikut dipindahkan ke Sampah.";
 "pg_rename_page" = "Ganti nama halaman";
 "pg_page_title" = "Judul halaman";
+"pg_review_quiz" = "Ulasan & kuis";
 
 /* strings_personal.xml */
 "appearance" = "Tampilan";

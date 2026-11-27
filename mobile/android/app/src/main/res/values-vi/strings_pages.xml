@@ -27,4 +27,5 @@
     <string name="pg_subpages_to_trash">Các trang con bên trong cũng sẽ được chuyển vào Thùng rác.</string>
     <string name="pg_rename_page">Đổi tên trang</string>
     <string name="pg_page_title">Tiêu đề trang</string>
+    <string name="pg_review_quiz">Ôn tập &amp; kiểm tra</string>
 </resources>

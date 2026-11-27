@@ -20,6 +20,8 @@ import { cancelNativeExports } from "@/lib/export-file";
 import { closeDiagramDialog } from "@/lib/draw-diagram-jobs";
 import { SlidesWizardHost } from "@/components/slides-wizard";
 import { hideSlidesWizard, openSlidesWizard, slidesWizardBack } from "@/lib/slides-wizard-jobs";
+import { ReviewQuizHost } from "@/components/review-quiz-dialog";
+import { closeReviewQuiz, openReviewQuiz, reviewQuizBack, syncQuizTarget } from "@/lib/quiz-session";
 import { afterSheetHistory } from "@/lib/use-back-to-close";
 
 const noop = () => {};
@@ -202,6 +204,7 @@ export function NoteEmbed() {
       // 「画成図」とスライド生成の窓は隠すだけ（要求と結果は残り、同じ入口でもう一度選ぶと開き直す）。
       closeDiagramDialog();
       hideSlidesWizard();
+      closeReviewQuiz();
       sent.current = { readyId: "", meta: "", state: "", goneId: "" };
       expectedPageRef.current = id;
       urlPageRef.current = id;
@@ -222,6 +225,7 @@ export function NoteEmbed() {
       setHistoryOpen(false);
       closeDiagramDialog();
       hideSlidesWizard();
+      closeReviewQuiz();
       revealRef.current = null;
       expectedPageRef.current = null;
       urlPageRef.current = null;
@@ -235,6 +239,23 @@ export function NoteEmbed() {
       if (command.action === "back") return slidesWizardBack();
       applyModel(command.model, command.reasoning);
       openSlidesWizard({ entry: command.source, model: modelRef.current });
+      return true;
+    },
+    // 復習・クイズの窓（開いているノート・スライドの「…」メニューから）。
+    quiz: (command) => {
+      if (command.action === "back") return reviewQuizBack();
+      applyModel(command.model, command.reasoning);
+      const current = activeRef.current;
+      const matched = current && current.page.id === command.pageId ? current : null;
+      const pageKind = matched ? pageKindOf(matched.page) : "note";
+      if (pageKind === "whiteboard") return false;
+      openReviewQuiz({
+        pageId: command.pageId,
+        title: matched?.content.title.trim() || "",
+        icon: matched?.content.icon ?? null,
+        kind: pageKind === "slides" ? "slides" : "note",
+        model: modelRef.current,
+      });
       return true;
     },
     post: (message) => { postToNative(message); },
@@ -259,6 +280,9 @@ export function NoteEmbed() {
     } else if (sent.current.meta !== metaKey) {
       sent.current.meta = metaKey;
       postToNative({ type: "meta", ...meta, version });
+    }
+    if (kind === "note" || kind === "slides") {
+      syncQuizTarget(activeId, { title: title.trim(), icon: icon ?? null, kind });
     }
     const state = status ? toEmbedSaveState(status) : "saved";
     if (sent.current.state !== state) {
@@ -333,5 +357,6 @@ export function NoteEmbed() {
     {page}
     {/* ページの有無で作り直されないよう、いつも同じ位置に置く（窓の open / closed の知らせと入力中の内容を保つ）。 */}
     <SlidesWizardHost embedded flush={flushSlidesSource} />
+    <ReviewQuizHost embedded flush={(id) => flushSlidesSource([id])} />
   </>;
 }

@@ -319,4 +319,8 @@ export const trServer: Record<string, string> = {
   "Gantt chart": "Gantt şeması",
   "quadrant chart": "dörtlü bölge grafiği",
   "mind map": "zihin haritası",
+  "Could not generate a quiz. Try again.": "Test oluşturulamadı. Tekrar deneyin.",
+  "Could not save the review note. Try again.": "Tekrar notu kaydedilemedi. Tekrar deneyin.",
+  "There is nothing to make a quiz from yet.": "Henüz test oluşturacak içerik yok.",
+  "This note was moved to the trash.": "Bu not çöp kutusuna taşındı.",
 };

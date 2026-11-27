@@ -225,6 +225,9 @@ private struct NotePageMenuContent: View {
                 isBusy: actions.generatingSlides, action: run(onGenerateSlides)
             )
         }
+        if notePageSupportsQuiz(page.kind), let onReviewQuiz = actions.onReviewQuiz {
+            ActionsMenuItem(L("pg_review_quiz"), icon: Lucide.bookOpenCheck, action: run(onReviewQuiz))
+        }
         ActionsMenuItem(L("pg_move_to"), icon: Lucide.folderInput, action: run(actions.onMove))
         if page.kind.features.markdownExport {
             ActionsMenuItem(L("export_markdown"), icon: Lucide.download, action: run(actions.onExport))

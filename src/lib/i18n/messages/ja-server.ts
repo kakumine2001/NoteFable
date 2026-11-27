@@ -319,4 +319,8 @@ export const jaServer: Record<string, string> = {
   "Gantt chart": "ガントチャート",
   "quadrant chart": "4 象限チャート",
   "mind map": "マインドマップ",
+  "Could not generate a quiz. Try again.": "クイズを作成できませんでした。もう一度お試しください。",
+  "Could not save the review note. Try again.": "復習ノートを保存できませんでした。もう一度お試しください。",
+  "There is nothing to make a quiz from yet.": "クイズを作るための内容がまだありません。",
+  "This note was moved to the trash.": "このノートはゴミ箱に移動されました。",
 };

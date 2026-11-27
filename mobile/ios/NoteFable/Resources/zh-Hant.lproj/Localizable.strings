@@ -428,6 +428,7 @@
 "pg_subpages_to_trash" = "其中的子頁面也會一起移入回收站。";
 "pg_rename_page" = "重新命名頁面";
 "pg_page_title" = "頁面標題";
+"pg_review_quiz" = "複習和測驗";
 
 /* strings_personal.xml */
 "appearance" = "外觀";

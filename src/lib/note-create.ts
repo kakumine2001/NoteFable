@@ -19,7 +19,7 @@ type CreatePlacement = { parentId?: string | null; groupId?: string | null };
 // parentId / groupId は CreatePlacement を見る。
 // ai は AI が書いた本文（Create page）。ページの「AI の内容を報告」の目印（aiUpdatedAt）を付ける（AI の提案で作るページは page-ai/storage.ts が付ける）。
 export async function createNotePage(
-  userId: string, content: NoteContent, { parentId = null, groupId: projectId = null, ai = false }: CreatePlacement & { ai?: boolean } = {},
+  userId: string, content: NoteContent, { parentId = null, groupId: projectId = null, ai = false, id }: CreatePlacement & { ai?: boolean; id?: string } = {},
 ) {
   assertCoverOwner(content.cover, userId);
   assertCoverOwner(content.icon, userId, "icon");
@@ -30,7 +30,7 @@ export async function createNotePage(
     await claimCover(tx, content.icon, userId, "icon");
     await claimNoteFiles(tx, content.blocks, userId);
     return tx.notePage.create({ data: {
-      userId, parentId, groupId, title: content.title, icon: content.icon, cover: content.cover, coverPosition: content.coverPosition,
+      ...(id ? { id } : {}), userId, parentId, groupId, title: content.title, icon: content.icon, cover: content.cover, coverPosition: content.coverPosition,
       blocks: content.blocks as unknown as Prisma.InputJsonValue, ...(ai ? { aiUpdatedAt: new Date() } : {}),
     } });
   });

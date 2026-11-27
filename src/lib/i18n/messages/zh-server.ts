@@ -319,4 +319,8 @@ export const zhServer: Record<string, string> = {
   "Gantt chart": "甘特图",
   "quadrant chart": "象限图",
   "mind map": "思维导图",
+  "Could not generate a quiz. Try again.": "无法生成测验，请重试。",
+  "Could not save the review note. Try again.": "无法保存复习笔记，请重试。",
+  "There is nothing to make a quiz from yet.": "当前内容为空，暂时无法出题。",
+  "This note was moved to the trash.": "这篇笔记已移入回收站。",
 };

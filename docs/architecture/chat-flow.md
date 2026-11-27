@@ -607,3 +607,7 @@ ASSISTANT Message
 - **Web（PWA Web Share Target）**：`src/app/[locale]/app/layout.tsx` 仅在工作区声明 `public/manifest.webmanifest`（`share_target` 为 `POST /share-target`，`multipart/form-data`，避免介绍页主机 `notefable.com` 误注册无 Service Worker 的目标），`public/sw.js` 仅拦截该路径（不缓存页面或 API），把表单里的标题/正文/链接与文件暂存在 Cache Storage（`notefable-share-v1`，10 分钟过期自动清理）后 303 跳转到 `/app?share=<id>`；工作区（`src/app/[locale]/app/page.tsx`）启动时顺手清理过期缓存，并通过 `src/lib/share-target.ts`（`consumeWebShare`、`composeSharedText`、`mergeDraftWithShare`、`pruneExpiredWebShares`）一次性取出并删掉缓存，清空 URL 参数后填入输入栏。
 - **Android**：`MainActivity` 接入 `ACTION_SEND` / `ACTION_SEND_MULTIPLE`（`ui/ShareIntent.kt`、`data/ShareIntake.kt`，见 [android-native.md](android-native.md#系统分享接收)）。
 - **iOS**：独立 `NoteFableShareExtension` 经 App Group（`group.com.kakumine.notefable`）与 `notefable://share?id=…` 交接给主 App（`Core/Chat/ShareIntake.swift`、`Features/Chat/ShareInboxBridge.swift`，见 [ios-native.md](ios-native.md)）。
+
+## 复习和测验（Review & quiz）
+
+从笔记或幻灯片出题（`POST /api/pages/quiz`）扣 1 条聊天额度，与普通聊天、页面 AI 助手、Create page、画成图、AI 生成幻灯片共用同一份额度（满额 429 `usage_limit`）；上游失败、输出截断或结构校验失败退还额度。答题界面内的“举报 AI 内容”与保存复习笔记（`POST /api/pages/quiz/note`，写 `aiUpdatedAt`）后的页面举报共用 `POST /api/reports` 与每日举报配额。请求格式见 [provider-requests.md](provider-requests.md#复习和测验的请求)，完整流程见 [notes-flow.md](notes-flow.md#复习和测验模式review--quiz)。

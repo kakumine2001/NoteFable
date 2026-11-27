@@ -27,4 +27,5 @@
     <string name="pg_subpages_to_trash">Its sub-pages move to Trash with it.</string>
     <string name="pg_rename_page">Rename page</string>
     <string name="pg_page_title">Page title</string>
+    <string name="pg_review_quiz">Review &amp; quiz</string>
 </resources>

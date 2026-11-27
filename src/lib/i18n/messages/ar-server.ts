@@ -319,4 +319,8 @@ export const arServer: Record<string, string> = {
   "Gantt chart": "مخطط جانت",
   "quadrant chart": "مخطط رباعي",
   "mind map": "خريطة ذهنية",
+  "Could not generate a quiz. Try again.": "تعذّر إنشاء الاختبار. حاول مرة أخرى.",
+  "Could not save the review note. Try again.": "تعذّر حفظ ملاحظة المراجعة. حاول مرة أخرى.",
+  "There is nothing to make a quiz from yet.": "لا يوجد محتوى لإنشاء اختبار بعد.",
+  "This note was moved to the trash.": "نُقلت هذه الملاحظة إلى سلة المهملات.",
 };

@@ -8,7 +8,7 @@ import { usageDay } from "@/lib/usage-limits";
 // kind は "req:<用途>:<clientRequestId>:<入力の指紋>"。同じ ID でも入力が違えば別の要求として数える（ID を使い回しても無料にはならない）。
 // count は 0 = 生成中、1 以上 = 返せた（1 + 数えずにやり直した回数）。古い行は usage-limits.ts が時々消す。
 
-export type UsageRequestPurpose = "slides-outline";
+export type UsageRequestPurpose = "slides-outline" | "page-quiz";
 
 type Marker = { key: string; kind: string };
 // new: この呼び出しが数える。resume: 数えた処理が途中で消えたので、数えずに続ける。

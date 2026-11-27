@@ -56,6 +56,9 @@ import kotlin.math.roundToInt
 /** 笔记和幻灯片都支持在"…"菜单里放映（导出仅幻灯片可用）。 */
 internal fun supportsPresentation(kind: PageKind): Boolean = kind == PageKind.Note || kind == PageKind.Slides
 
+/** 笔记和幻灯片都支持在"…"菜单里打开复习和测验（白板不支持）。 */
+internal fun supportsReviewQuiz(kind: PageKind): Boolean = kind == PageKind.Note || kind == PageKind.Slides
+
 /** 笔记顶栏"…"菜单的操作（网页 note-page-menu.tsx）。 */
 class NotePageMenuActions(
     val error: NotesError?,
@@ -78,10 +81,13 @@ class NotePageMenuActions(
     val onGenerateSlides: (() -> Unit)? = null,
     /** 这篇的幻灯片正在生成（网页的菜单项显示转圈和"正在生成幻灯片…"）。 */
     val generatingSlides: Boolean = false,
+    /** 「复习和测验」（#154 PR 13）：给笔记和幻灯片，盖在编辑器上打开测验窗口。 */
+    val onReviewQuiz: (() -> Unit)? = null,
 ) {
     fun withSlides(handler: (String) -> Unit) = NotePageMenuActions(
         error, busy, onSettings, onFavorite, onDuplicate, onAddInside, onMove, onExport, onTrash, onSlides = handler,
         onDrawDiagram = onDrawDiagram, drawingDiagram = drawingDiagram, onGenerateSlides = onGenerateSlides, generatingSlides = generatingSlides,
+        onReviewQuiz = onReviewQuiz,
     )
 }
 
@@ -178,6 +184,10 @@ fun NotePageMenuButton(page: NotePageSummary, actions: NotePageMenuActions) {
                     stringResource(if (actions.generatingSlides) R.string.slides_generating else R.string.slides_generate),
                     Lucide.Presentation, spinning = actions.generatingSlides, onClick = run(generateSlides),
                 )
+            }
+            val reviewQuiz = actions.onReviewQuiz
+            if (reviewQuiz != null && supportsReviewQuiz(page.kind)) {
+                MenuItem(stringResource(R.string.pg_review_quiz), Lucide.BookOpenCheck, onClick = run(reviewQuiz))
             }
             MenuItem(stringResource(R.string.pg_move_to), Lucide.FolderInput, onClick = run(actions.onMove))
             if (features.markdownExport) MenuItem(stringResource(R.string.export_markdown), Lucide.Download, onClick = run(actions.onExport))

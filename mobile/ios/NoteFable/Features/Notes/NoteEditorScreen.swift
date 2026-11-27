@@ -41,9 +41,12 @@ struct NoteEditorScreen: View {
         let kind = page?.kind ?? open.kind
         let editorWizard = state.slidesWizard?.editor == open.editor ? state.slidesWizard : nil
         let wizardShown = editorWizard?.shown == true
+        let editorQuiz = state.reviewQuiz?.editor == open.editor ? state.reviewQuiz : nil
+        let quizShown = editorQuiz?.shown == true
+        let overlayShown = wizardShown || quizShown
         VStack(spacing: 0) {
-            if !state.presenting && !wizardShown { topBar(state, page: page) }
-            if !state.presenting && !wizardShown, let notice = state.notice ?? state.error {
+            if !state.presenting && !overlayShown { topBar(state, page: page) }
+            if !state.presenting && !overlayShown, let notice = state.notice ?? state.error {
                 // 离开时没能保存等提示：点一下收起。
                 Button {
                     notes.dismissNotice()
@@ -71,7 +74,7 @@ struct NoteEditorScreen: View {
                 open: open, pool: editorPool, app: app, router: router,
                 appIcon: app.appIcon.icon, language: app.language.uiLocale,
                 theme: (colorScheme == .dark ? ResolvedTheme.dark : ResolvedTheme.light).rawValue,
-                edgeBack: !kind.capturesEdgeSwipes || wizardShown
+                edgeBack: !kind.capturesEdgeSwipes || overlayShown
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background {
@@ -83,6 +86,16 @@ struct NoteEditorScreen: View {
                         reasoning: app.chat.state.selectedReasoning,
                         onShown: { notes.onSlidesWizardShown($0) },
                         onFailed: { notes.dismissSlidesWizard($0) }
+                    )
+                }
+                if let editorQuiz {
+                    ReviewQuizOverlayLauncher(
+                        quiz: editorQuiz,
+                        pool: editorPool,
+                        model: app.chat.state.selectedModel?.id,
+                        reasoning: app.chat.state.selectedReasoning,
+                        onShown: { notes.onReviewQuizShown($0) },
+                        onFailed: { notes.dismissReviewQuiz($0) }
                     )
                 }
             }
@@ -305,8 +318,50 @@ struct NoteEditorScreen: View {
             drawingDiagram: app.diagrams.job(.note(pageId: id)) == .working,
             // 「生成幻灯片」：盖在当前编辑器上打开向导，读这篇之前由网页自己保存。
             onGenerateSlides: { router.openSlidesWizard(.note(pageId: id)) },
-            generatingSlides: notes.state.generatingSlides.contains(id)
+            generatingSlides: notes.state.generatingSlides.contains(id),
+            // 「复习和测验」：盖在当前编辑器上打开测验，读这篇之前由网页自己保存。
+            onReviewQuiz: { notes.openReviewQuiz(id, editor: open.editor) }
         )
+    }
+}
+
+/// 网页 msg("Could not generate a quiz. Try again.")：英文原句，经系统文词典翻译。
+private let reviewQuizFailedText = "Could not generate a quiz. Try again."
+
+/// 让常驻 WKWebView 里的网页打开复习和测验窗口（对应 Android NoteEditor.kt 的 LaunchReviewQuiz）。
+@MainActor
+private struct ReviewQuizOverlayLauncher: View {
+    let quiz: ReviewQuizUi
+    let pool: NoteEditorPool
+    let model: String?
+    let reasoning: String?
+    let onShown: (Int) -> Void
+    let onFailed: (Int) -> Void
+
+    @Environment(AppEnvironment.self) private var app
+
+    var body: some View {
+        let taskKey = "\(quiz.request)-\(pool.generation)"
+        Color.clear
+            .frame(width: 0, height: 0)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .task(id: taskKey) {
+                if quiz.shown && pool.controller?.quizVisible == true { return }
+                guard let script = NoteEmbedScripts.quizOpen(pageId: quiz.pageId, model: model, reasoning: reasoning) else {
+                    Toast.show(app.systemText.localize(reviewQuizFailedText), long: true)
+                    onFailed(quiz.request)
+                    return
+                }
+                let opened = await pool.openQuiz(script: script)
+                if Task.isCancelled { return }
+                if opened {
+                    onShown(quiz.request)
+                } else {
+                    Toast.show(app.systemText.localize(reviewQuizFailedText), long: true)
+                    onFailed(quiz.request)
+                }
+            }
     }
 }
 

@@ -428,6 +428,7 @@
 "pg_subpages_to_trash" = "Вложенные подстраницы будут перемещены в корзину вместе с ней.";
 "pg_rename_page" = "Переименовать страницу";
 "pg_page_title" = "Название страницы";
+"pg_review_quiz" = "Повторение и тест";
 
 /* strings_personal.xml */
 "appearance" = "Оформление";

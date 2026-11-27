@@ -428,6 +428,7 @@
 "pg_subpages_to_trash" = "Các trang con bên trong cũng sẽ được chuyển vào Thùng rác.";
 "pg_rename_page" = "Đổi tên trang";
 "pg_page_title" = "Tiêu đề trang";
+"pg_review_quiz" = "Ôn tập & kiểm tra";
 
 /* strings_personal.xml */
 "appearance" = "Giao diện";

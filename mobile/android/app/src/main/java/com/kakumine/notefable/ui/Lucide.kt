@@ -90,6 +90,12 @@ object Lucide {
         "M7 11v4a2 2 0 0 0 2 2h4",
         "M15 13h4a2 2 0 0 1 2 2v4a2 2 0 0 1 -2 2h-4a2 2 0 0 1 -2 -2v-4a2 2 0 0 1 2 -2Z",
     )
+    // 「复习和测验」（网页笔记 / 幻灯片菜单的 BookOpenCheck，lucide-react 1.16.0）。
+    val BookOpenCheck = listOf(
+        "M12 21V7",
+        "m16 12 2 2 4-4",
+        "M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3",
+    )
     private const val FolderOutline =
         "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"
     val Folder = listOf(FolderOutline)

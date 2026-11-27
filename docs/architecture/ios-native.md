@@ -198,3 +198,7 @@ mobile/ios/
 截图看不出、要在 TestFlight 真机上看的：输入栏走 `safeAreaBar` 时是否跟着键盘升降（包括拖动列表收起键盘；不跟时把 `ChatChrome.composerUsesSystemBar` 改成 `false`）、聊天里标签栏随滚动收起和展开（不对时把 `ChatChrome.tabBarMinimize` 改成 `.never`）、可交互玻璃（顶栏圆钮、按钮组、标题胶囊）的按压反馈。App 同时面向 iPhone 和 iPad（`TARGETED_DEVICE_FAMILY` 为 `1,2`）。浮动外壳按当前窗口排版：聊天列、输入卡片与搜索列收到 760、工作区收到 960，弹层和对话框列表按窗口高度封顶；宽且足够高的窗口（`AdaptiveLayout.supportsDockedSidebar`：可用宽 `>= 640pt` 且窗口总高 `>= 560pt`，覆盖 iPad 与展开态 iPhone Duo 竖/横屏）默认常驻侧栏并可手动收起，窄屏或低矮横屏手机保持推入式抽屉。PR 检查的 iPad 截图覆盖浅色 / 深色 / 阿拉伯语 RTL / 降低透明度下的聊天（常驻展开与 `sidebar-collapsed` 收起）、表情选择器（常规宽 `.popover`）、检索、工作区、编辑页与页面菜单（`.popover`）、设置与登录；iPad 横竖屏切换、调整过大小的多任务窗口、分屏和 iPhone Duo 双屏及折叠 / 展开也还待真机或本地 Mac 模拟器逐项验证。
 
 发布：只在需要上传 TestFlight 的 PR 里调高 `project.yml` 的 `CURRENT_PROJECT_VERSION`（[ios.md](ios.md)）。
+
+## 复习和测验（Review & quiz）
+
+笔记与幻灯片的原生“…”菜单（`NotePageMenu.swift`、`NotePageMenuButton.swift`）提供 **Review & quiz**（`pg_review_quiz`，图标 `Lucide.bookOpenCheck`，白板不显示；锁定页面可用）。`NoteEmbedScripts.bootstrap` 声明 `canShowQuiz()`，点击后经 `ReviewQuizOverlayLauncher` 在当前 `WKWebView` 内调用 `notefableEmbed.quiz({action:"open",...})` 打开与网页共用的答题界面；`EmbedMessage.quiz(open:)` 展开期间隐藏原生顶栏并禁用抽屉边缘手势，边缘返回优先交由 `quiz({action:"back"})` 关闭答题层；429 上限沿用现有 `usageLimit` 桥接，保存复习笔记经 `pagesChanged` / `openPage` 同步。规则见 [notes-flow.md](notes-flow.md#复习和测验模式review--quiz)。**待验证（仅经过 Linux 容器 `swift test` 与 `swiftc -frontend -parse` 语法检查，未在模拟器或真机运行）**：标准 iPhone、iPad（竖屏 / 横屏 / 缩放多任务窗口）以及 iPhone Duo（内外双屏、折叠/展开与 Split View）下的菜单入口与 WebView 测验覆盖层。

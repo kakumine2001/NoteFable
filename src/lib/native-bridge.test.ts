@@ -382,3 +382,41 @@ describe("slides wizard bridge", () => {
     expect(JSON.parse(postMessage.mock.calls[0][0])).toEqual({ type: "slidesWizard", state: "closed", busy: true });
   });
 });
+
+describe("review quiz bridge", () => {
+  it("parses open and back quiz commands and rejects malformed payloads", async () => {
+    const { parseQuizRequest } = await import("./native-bridge");
+    expect(parseQuizRequest({ action: "back" })).toEqual({ action: "back" });
+    expect(parseQuizRequest(JSON.stringify({ action: "open", pageId: "p_1", model: " luna ", reasoning: "high" })))
+      .toEqual({ action: "open", pageId: "p_1", model: "luna", reasoning: "high" });
+    expect(parseQuizRequest({ action: "open", pageId: "n1" }))
+      .toEqual({ action: "open", pageId: "n1", model: null, reasoning: null });
+    for (const bad of [
+      null,
+      "{broken",
+      { action: "close" },
+      { action: "open", pageId: "bad id" },
+      { action: "open" },
+    ]) {
+      expect(parseQuizRequest(bad)).toBeNull();
+    }
+  });
+
+  it("forwards quiz commands and checks canShowQuiz capability", async () => {
+    const { nativeCanShowQuiz } = await import("./native-bridge");
+    const quiz = vi.fn((cmd: { action: string }) => cmd.action === "open");
+    const api = createEmbedApi({ flush: async () => true, openHistory: () => {}, quiz, post: () => {} });
+    expect(api.quiz({ action: "open", pageId: "n1" })).toBe(true);
+    expect(api.quiz({ action: "back" })).toBe(false);
+    expect(api.quiz({ action: "open", pageId: "bad id" })).toBe(false);
+    expect(quiz).toHaveBeenCalledTimes(2);
+    expect(createEmbedApi({ flush: async () => true, openHistory: () => {}, post: () => {} }).quiz({ action: "back" })).toBe(false);
+
+    const postMessage = vi.fn();
+    expect(nativeCanShowQuiz({ NoteFableNative: { postMessage, canShowQuiz: () => true } })).toBe(true);
+    expect(nativeCanShowQuiz({ NoteFableNative: { postMessage } })).toBe(false);
+    expect(nativeCanShowQuiz({ NoteFableNative: { postMessage, canShowQuiz: () => { throw new Error("gone"); } } })).toBe(false);
+    expect(postToNative({ type: "quiz", state: "open" }, { NoteFableNative: { postMessage } })).toBe(true);
+    expect(JSON.parse(postMessage.mock.calls[0][0])).toEqual({ type: "quiz", state: "open" });
+  });
+});

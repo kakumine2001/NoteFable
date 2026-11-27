@@ -52,7 +52,10 @@ export type NativeMessage =
   | { type: "fileAbort"; id: string }
   // ホワイトボードで描く道具（ペン・図形など）を使っているか。アプリはこの間、端の戻るジェスチャーを避ける（Android は端ごとに 200dp まで）。
   // 古いアプリは知らない種類として無視する。
-  | { type: "drawing"; active: boolean };
+  | { type: "drawing"; active: boolean }
+  // 復習・クイズの窓が出た・消えた。open の間、アプリは上部バーを隠し、戻る操作を quiz({ action: "back" }) に渡す。canShowQuiz を持つアプリにだけ送る。
+  | { type: "quiz"; state: "open" }
+  | { type: "quiz"; state: "closed" };
 
 // appIcon はアプリの設定で選んだアイコン（絵文字 1 つか画像の data URL、既定のロゴは空文字）を返す。古いアプリにはない。
 // canOpenPage は openPage を処理できるアプリだけが持つ（古いアプリは持たない。そのときは送らずに元のリンクの動きにする）。
@@ -64,7 +67,7 @@ export type NativeMessage =
 // canOpenChat は openChat を処理できるアプリだけが持つ（古いアプリにはバックリンクの会話を出さない）。
 export type NativeHost = {
   postMessage: (json: string) => void; appIcon?: () => string; language?: () => string; theme?: () => string; canOpenPage?: () => boolean; canShowStorageLimit?: () => boolean;
-  canShowUsageLimit?: () => boolean; canPresent?: () => boolean; canSaveFile?: () => boolean; canShowSlidesWizard?: () => boolean; canOpenChat?: () => boolean;
+  canShowUsageLimit?: () => boolean; canPresent?: () => boolean; canSaveFile?: () => boolean; canShowSlidesWizard?: () => boolean; canShowQuiz?: () => boolean; canOpenChat?: () => boolean;
 };
 // アプリ → web。アプリは evaluateJavascript で window.notefableEmbed.flush("<requestId>") などを呼ぶ。
 // pageUpdated はアプリのチャットで編集案を適用したときに、サーバーが返した新しいページ（JSON 文字列かオブジェクト）を渡す。
@@ -93,6 +96,8 @@ export type EmbedApi = {
   // { action: "back" } で一番上の面（ノートを選ぶ面、次に窓）を閉じる。何も開いていない・形が違うときは false。
   // アプリはこの関数があるかで、ウェブが対応しているかを見分ける。
   slidesWizard: (request: unknown) => boolean;
+  // 復習・クイズの窓（JSON 文字列でもよい）：{ action: "open", pageId, model?, reasoning? } で開き、{ action: "back" } で閉じる。
+  quiz: (request: unknown) => boolean;
   // アプリの画面（ドロワー・ゴミ箱）で、ページや会話の名前・アイコンを変えた、消した、元に戻したので、バックリンクを読み直させる。
   refreshBacklinks: () => boolean;
 };
@@ -183,6 +188,13 @@ export function nativeCanShowSlidesWizard(target: BridgeWindow | undefined = bro
   const native = host(target);
   if (!native || typeof native.canShowSlidesWizard !== "function") return false;
   try { return native.canShowSlidesWizard() === true; } catch { return false; }
+}
+
+// アプリが復習・クイズの窓の出し入れ（quiz の消息）を受け持てるか。古いアプリや普通のブラウザでは false。
+export function nativeCanShowQuiz(target: BridgeWindow | undefined = browserWindow()): boolean {
+  const native = host(target);
+  if (!native || typeof native.canShowQuiz !== "function") return false;
+  try { return native.canShowQuiz() === true; } catch { return false; }
 }
 
 // アプリの中（WebView）で開いているか。
@@ -377,7 +389,26 @@ export function parseSlidesWizardRequest(value: unknown): SlidesWizardCommand | 
   return open({ type: "new", groupId, parentId });
 }
 
-export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, theme = saveThemePreference, slides = dispatchSlidesCommand, openPage, close, pageTrashed = dispatchPagesTrashed, slidesWizard, refreshBacklinks = dispatchBacklinksStale, language, reveal = () => {}, post }: {
+export type QuizCommand =
+  | { action: "open"; pageId: string; model: string | null; reasoning: string | null }
+  | { action: "back" };
+
+// アプリから渡された復習・クイズの窓の依頼を確かめる。知らない操作や不正な ID は捨てる。
+export function parseQuizRequest(value: unknown): QuizCommand | null {
+  let raw: unknown = value;
+  if (typeof raw === "string") {
+    try { raw = JSON.parse(raw); } catch { return null; }
+  }
+  if (!raw || typeof raw !== "object") return null;
+  const candidate = raw as { action?: unknown; pageId?: unknown; model?: unknown; reasoning?: unknown };
+  if (candidate.action === "back") return { action: "back" };
+  if (candidate.action !== "open") return null;
+  if (typeof candidate.pageId !== "string" || !REVEAL_TARGET.test(candidate.pageId)) return null;
+  const text = (item: unknown) => (typeof item === "string" && item.trim() ? item.trim() : null);
+  return { action: "open", pageId: candidate.pageId, model: text(candidate.model), reasoning: text(candidate.reasoning) };
+}
+
+export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, theme = saveThemePreference, slides = dispatchSlidesCommand, openPage, close, pageTrashed = dispatchPagesTrashed, slidesWizard, quiz, refreshBacklinks = dispatchBacklinksStale, language, reveal = () => {}, post }: {
   flush: () => Promise<boolean>;
   reveal?: (target: string) => void;
   language?: (locale: Locale) => Promise<boolean>;
@@ -394,6 +425,7 @@ export function createEmbedApi({ flush, draftKept = () => false, openHistory, pa
   pageTrashed?: (ids: string[]) => void;
   // 開けた・閉じられたら true。
   slidesWizard?: (command: SlidesWizardCommand) => boolean;
+  quiz?: (command: QuizCommand) => boolean;
   refreshBacklinks?: () => void;
   post: (message: NativeMessage) => void;
 }): EmbedApi {
@@ -469,6 +501,11 @@ export function createEmbedApi({ flush, draftKept = () => false, openHistory, pa
       if (!slidesWizard) return false;
       const command = parseSlidesWizardRequest(value);
       return command ? slidesWizard(command) : false;
+    },
+    quiz(value) {
+      if (!quiz) return false;
+      const command = parseQuizRequest(value);
+      return command ? quiz(command) : false;
     },
     refreshBacklinks() {
       refreshBacklinks();

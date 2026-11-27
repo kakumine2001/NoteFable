@@ -319,4 +319,8 @@ export const koServer: Record<string, string> = {
   "Gantt chart": "간트 차트",
   "quadrant chart": "사분면 차트",
   "mind map": "마인드맵",
+  "Could not generate a quiz. Try again.": "퀴즈를 생성하지 못했습니다. 다시 시도해 주세요.",
+  "Could not save the review note. Try again.": "복습 노트를 저장하지 못했습니다. 다시 시도해 주세요.",
+  "There is nothing to make a quiz from yet.": "퀴즈를 만들 내용이 아직 없습니다.",
+  "This note was moved to the trash.": "이 노트는 휴지통으로 이동되었습니다.",
 };

@@ -110,6 +110,9 @@ final class NotesViewModel {
             next.wizardUsageLimit = nil
             next.wizardStorageLimit = nil
         }
+        if let quiz = next.reviewQuiz, quiz.editor != next.visibleEditor {
+            next.reviewQuiz = nil
+        }
         state = next
     }
 
@@ -412,6 +415,8 @@ final class NotesViewModel {
             if open { onSlidesWizardOpened(editor: editor) } else { onSlidesWizardClosed() }
         // slidesJobs 也在 NoteEditorController 层处理（停靠期也要收），同样兜底。
         case .slidesJobs(let pageIds): onSlidesJobs(pageIds)
+        case .quiz(let open):
+            if open { onReviewQuizOpened(editor: editor) } else { onReviewQuizClosed() }
         case .storageLimit(let tier, let used, let limit):
             // 已经关掉或换走的编辑器晚到的消息不收。
             guard state.open?.editor == editor else { break }
@@ -579,6 +584,50 @@ final class NotesViewModel {
 
     func dismissWizardStorageLimit() {
         update { $0.wizardStorageLimit = nil }
+    }
+
+    // ---- 复习和测验（#154 PR 13，Android NotesViewModel 同名方法） ----
+
+    @ObservationIgnored private var reviewQuizRequests = 0
+
+    func openReviewQuiz(_ pageId: String, editor: String? = nil) {
+        guard let activeEditor = editor ?? state.visibleEditor else { return }
+        reviewQuizRequests += 1
+        let request = reviewQuizRequests
+        update { $0.reviewQuiz = ReviewQuizUi(pageId: pageId, request: request, editor: activeEditor) }
+    }
+
+    func onReviewQuizShown(_ request: Int) {
+        update { state in
+            guard var quiz = state.reviewQuiz, quiz.request == request else { return }
+            quiz.shown = true
+            state.reviewQuiz = quiz
+        }
+    }
+
+    func onReviewQuizOpened(editor: String) {
+        if let quiz = state.reviewQuiz {
+            if quiz.editor == editor { onReviewQuizShown(quiz.request) }
+            return
+        }
+        guard state.visibleEditor == editor, let open = state.open else { return }
+        reviewQuizRequests += 1
+        let request = reviewQuizRequests
+        update { $0.reviewQuiz = ReviewQuizUi(pageId: open.id, request: request, editor: editor, shown: true) }
+    }
+
+    func onReviewQuizClosed() {
+        update { state in
+            guard state.reviewQuiz?.shown == true else { return }
+            state.reviewQuiz = nil
+        }
+    }
+
+    func dismissReviewQuiz(_ request: Int? = nil) {
+        update { state in
+            guard request == nil || state.reviewQuiz?.request == request else { return }
+            state.reviewQuiz = nil
+        }
     }
 
     // ---- 编辑器导出的文件（网页 src/lib/export-file.ts） ----
