@@ -1,16 +1,17 @@
 import SwiftUI
 import UIKit
 
-// 设置（网页 SettingsDialog 的手机宽度，Android ui/SettingsDialog.kt；从侧栏的账号行打开，登录后才有）。全屏，灰底（--notion-sidebar）。
+// 设置（网页 SettingsDialog 的手机宽度，Android ui/SettingsDialog.kt；从侧栏打开，未登录只显示「通用」和「帮助」）。全屏，灰底（--notion-sidebar）。
 // 两级（和 ChatGPT、Claude 的手机 App 一样）：先是入口列表，点一行进那一栏自己的画面。
 // - 顶栏高 64、左右 16，浮在内容上面（#195 `nfFloatingHeader`）：卡片从它下面滚过（iOS 26 系统的滚动边缘效果；
 //   iOS 17–18 是 Material.bar 底；减弱透明度时是不透明的 --notion-sidebar 底，都没有分隔线）。顶栏不跟着换画面的横移走。
 //   行首 44 的玻璃圆按钮（`NFGlassIconButton`，1px 细线；列表上是"关闭" X 18，一栏里是"返回" ArrowLeft 20），
 //   标题在整条顶栏的正中，17/650 墨色（列表上是"设置"，一栏里是那一栏的名字；普通文字，不放在玻璃上）；行尾空着（留 44，让标题居中）。
 // - 下面是左右 16、上 8、下 32 的滚动区。名字、头像、语言保存失败的提示在它的最上面，列表和每一栏里都有。
-// - 入口列表（.settings-home）：账号行（头像、名字、邮箱，点了进"账号"），下面 24 是四行的卡片：通用、个性化、方案、账号。
+// - 入口列表（.settings-home）：登录后最上面是账号行（头像、名字、邮箱，点了进"账号"），下面 24 是各栏的卡片（通用、个性化、方案、帮助）；
+//   访客只有通用、帮助两行。
 // - 一栏的画面只有那一栏的内容，没有栏标题（名字在顶栏上）。卡片都是白底、1px 细线、圆角 20：
-//   通用（语言、外观、图标）；个性化（自定义指令）；方案；账号（个人资料，下面 24 是退出登录、删除账号）。
+//   通用（语言、外观、图标）；个性化（自定义指令）；方案；账号（个人资料，下面 24 是退出登录、删除账号）；帮助（官网、隐私、条款、特商法标示）。
 // - 换画面：200ms cubic-bezier(.2,.8,.2,1)，新画面淡入并横移 16（进一栏从行尾一侧来，回列表从行首一侧来，从右到左的界面里反过来），
 //   旧画面直接消失。"减弱动态效果"时没有，刚打开时的列表也没有。换了以后从最上面开始看。
 // 资料、语言和图标改了就存。只有自定义指令要按"保存"：改了以后下方浮出"未保存的更改"条（放弃 / 保存），
@@ -29,20 +30,24 @@ struct SettingsScreenHost: View {
 
     var body: some View {
         ZStack {
-            if let model, let plan, let user = app.account.state.user {
-                SettingsScreen(model: model, plan: plan, user: user)
+            if let model {
+                SettingsScreen(model: model, plan: plan, user: app.account.state.user)
             } else {
                 Color.clear
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
+            let signedIn = app.account.state.user != nil
             if model == nil {
                 let created = makeModel()
-                if let page = router.settingsInitialPage { created.show(page) }
+                if let page = router.settingsInitialPage,
+                   signedIn || page == .general || page == .help {
+                    created.show(page)
+                }
                 model = created
             }
-            if plan == nil {
+            if plan == nil, signedIn {
                 let account = app.account
                 plan = PlanSettingsModel(load: { await account.loadPlan() })
             }
@@ -64,18 +69,20 @@ struct SettingsScreenHost: View {
 
 struct SettingsScreen: View {
     let model: SettingsDialogModel
-    let plan: PlanSettingsModel
-    let user: AccountUser
+    let plan: PlanSettingsModel?
+    let user: AccountUser?
 
     @Environment(AppEnvironment.self) private var app
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.layoutDirection) private var layoutDirection
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         let account = app.account.state
         let state = model.state
         let dirty = model.dirty
-        let page = state.page
+        let signedIn = user != nil
+        let page = state.page.flatMap { (signedIn || $0 == .general || $0 == .help) ? $0 : nil }
         GeometryReader { bounds in
             // 宽且足够高的窗口（iPad、展开态 iPhone Duo 竖/横屏）：左边常驻入口列表（260–280pt），右边是选中的一栏；窄屏或横屏手机维持两级切换。
             let windowHeight = Double(bounds.size.height + bounds.safeAreaInsets.top + bounds.safeAreaInsets.bottom)
@@ -170,7 +177,7 @@ struct SettingsScreen: View {
                     stroke: Sm.border
                 ) {
                     // 列表上和宽窗口里是关闭（网页 closeAll），窄窗口的一栏里是回列表（网页 backHome）；拦不拦由模型决定。
-                    if split || model.state.page == nil {
+                    if split || page == nil {
                         model.closeAll()
                     } else {
                         model.backHome()
@@ -216,7 +223,7 @@ struct SettingsScreen: View {
         let inner = content()
         return ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 0) {
-                if let error = account.profileError {
+                if user != nil, let error = account.profileError {
                     SettingsErrorLine(profileErrorText(error, app.systemText))
                         .padding(.bottom, 12)
                 }
@@ -238,11 +245,13 @@ struct SettingsScreen: View {
 
     // MARK: 入口列表
 
-    /// .settings-home：账号行，下面 24 是各栏的行（顺序同网页 TABS）。
+    /// .settings-home：登录后最上面是账号行，下面 24 是各栏的行（不含"账号"以免重复）；访客是通用与帮助。
     private var homeContent: some View {
-        let pages = SettingsPage.allCases
+        let pages = SettingsPage.homePages(signedIn: user != nil)
         return VStack(alignment: .leading, spacing: 24) {
-            SettingsIdentityCard(user: user) { model.show(.account) }
+            if let user {
+                SettingsIdentityCard(user: user) { model.show(.account) }
+            }
             SettingsCard {
                 ForEach(pages, id: \.self) { page in
                     SettingsHomeRow(L(page.titleKey), icon: page.icon, divided: page != pages.first) {
@@ -270,29 +279,58 @@ struct SettingsScreen: View {
             // 截图场景 settings-page 滚到这里（固定的 id，不影响视图的身份）。
             .id(SettingsScreenshotAnchor.generalCard)
         case .personalization:
-            SettingsCard(padded: true) {
-                CustomInstructionsSection(model: model)
-                if let error = state.error {
-                    SettingsErrorLine(error.text("acct_err_save_custom_instructions", app.systemText))
-                        .padding(.top, 12)
+            if user != nil {
+                SettingsCard(padded: true) {
+                    CustomInstructionsSection(model: model)
+                    if let error = state.error {
+                        SettingsErrorLine(error.text("acct_err_save_custom_instructions", app.systemText))
+                            .padding(.top, 12)
+                    }
                 }
             }
         case .plan:
-            SettingsCard(padded: true) {
-                PlanSettingsCard(model: plan)
+            if let plan {
+                SettingsCard(padded: true) {
+                    PlanSettingsCard(model: plan)
+                }
             }
         case .account:
-            SettingsCard(padded: true) {
-                ProfileSettings(model: model, user: user)
+            if let user {
+                SettingsCard(padded: true) {
+                    ProfileSettings(model: model, user: user)
+                }
+                SettingsCard {
+                    SettingsRowButton(L("sign_out"), icon: Lucide.logOut) { model.signOut() }
+                        .disabled(!model.signOutEnabled)
+                    SettingsRowDivider()
+                    DeleteAccountSection(model: model)
+                }
+                .padding(.top, 24)
             }
+        case .help:
             SettingsCard {
-                SettingsRowButton(L("sign_out"), icon: Lucide.logOut) { model.signOut() }
-                    .disabled(!model.signOutEnabled)
+                SettingsRowButton(L("visit_website"), icon: Lucide.info, trailingIcon: Lucide.externalLink) {
+                    openSite("/?intro")
+                }
                 SettingsRowDivider()
-                DeleteAccountSection(model: model)
+                SettingsRowButton(L("privacy"), icon: Lucide.shield, trailingIcon: Lucide.externalLink) {
+                    openSite("/privacy")
+                }
+                SettingsRowDivider()
+                SettingsRowButton(L("terms"), icon: Lucide.fileText, trailingIcon: Lucide.externalLink) {
+                    openSite("/terms")
+                }
+                SettingsRowDivider()
+                SettingsRowButton(L("commercial_disclosure"), icon: Lucide.scale, trailingIcon: Lucide.externalLink) {
+                    openSite("/legal-notice")
+                }
             }
-            .padding(.top, 24)
         }
+    }
+
+    private func openSite(_ path: String) {
+        guard let url = URL(string: app.siteUrl + path) else { return }
+        openURL(url)
     }
 }
 

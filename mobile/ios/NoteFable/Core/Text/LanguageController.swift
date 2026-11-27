@@ -40,8 +40,10 @@ final class LanguageController {
     private(set) var preference: AppLanguage.Preference
     /// 界面实际显示的语言，不会是 `.auto`。
     private(set) var active: AppLanguage.Preference = .english
-    /// 上一次切换失败（网页 changeError）：设置和帮助菜单里显示 `language_change_failed`，设置里还有"重试"。
+    /// 上一次切换失败（网页 changeError）：设置里显示 `language_change_failed` 和"重试"。
     private(set) var changeFailed = false
+    /// 上一次尝试切换但失败的选择（未登录用户在设置里点"重试"时使用）。
+    private(set) var lastFailedPreference: AppLanguage.Preference? = nil
 
     /// 实际显示的语言的代码（网页 Locale；Android 的 `ui_locale`）。系统文、表情关键词、笔记 WebView 的 `lang=` 用它。
     var uiLocale: String { active.code }
@@ -91,9 +93,10 @@ final class LanguageController {
     /// 换本机的语言选择并立刻显示（Android 的 applyLanguage）。找不到这种语言的资源时什么都不换，记下 `changeFailed`。
     func choose(_ next: AppLanguage.Preference) {
         changeFailed = !apply(next, save: true)
+        lastFailedPreference = changeFailed ? next : nil
     }
 
-    /// 未登录时在帮助菜单里选了语言：只改本机。按系统语言显示着同一种语言时选它，也当作选择存下来（和网页一样）。
+    /// 未登录时在设置里选了语言：只改本机。按系统语言显示着同一种语言时选它，也当作选择存下来（和网页一样）。
     func chooseOnDevice(_ choice: AppLanguage.Preference) {
         if choice != preference { choose(choice) }
     }

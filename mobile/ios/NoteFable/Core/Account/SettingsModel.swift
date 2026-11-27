@@ -76,9 +76,9 @@ extension AccountUiState {
     var guest: Bool { loaded && (!configured || user == nil) }
 }
 
-/// 设置的四栏（网页 settings-dialog.tsx 的 Tab）。`allCases` 的顺序就是入口列表里行的顺序（网页 TABS）。
+/// 设置的五栏（网页 settings-dialog.tsx 的 Tab）。
 enum SettingsPage: String, CaseIterable, Equatable, Sendable {
-    case general, personalization, plan, account
+    case general, personalization, plan, account, help
 
     /// 入口列表的行和那一栏顶栏的标题（网页 TABS 的 label）。
     var titleKey: String {
@@ -87,7 +87,13 @@ enum SettingsPage: String, CaseIterable, Equatable, Sendable {
         case .personalization: return "settings_personalization"
         case .plan: return "plan_title"
         case .account: return "account"
+        case .help: return "help"
         }
+    }
+
+    /// 入口列表卡片里显示的各栏（"账号"由顶部的账号卡进入，不重复列在下方卡片里；访客只显示通用与帮助）。
+    static func homePages(signedIn: Bool) -> [SettingsPage] {
+        signedIn ? [.general, .personalization, .plan, .help] : [.general, .help]
     }
 }
 
@@ -203,7 +209,9 @@ final class SettingsDialogModel {
         // 网页 clearSaveError：上一次的失败提示不带进新打开的设置。
         account.clearProfileError()
         state.nameDraft = account.state.user?.savedName ?? ""
-        load()
+        if account.state.user != nil {
+            load()
+        }
     }
 
     // ---- 界面要显示的 ----
@@ -301,9 +309,11 @@ final class SettingsDialogModel {
     }
 
     private func navigate(to next: SettingsPage?) {
+        let signedIn = account.state.user != nil
+        let resolvedNext = next.map { (signedIn || $0 == .general || $0 == .help) ? $0 : .general }
         state.navigated = true
-        guard state.page != next else { return }
-        if state.page == .account {
+        guard state.page != resolvedNext else { return }
+        if state.page == .account, signedIn {
             // 网页点别处时输入框失焦就存了名字；这里那一栏的视图直接没了，等不到失焦。
             account.saveName(state.nameDraft)
             state.editingName = false
@@ -315,7 +325,7 @@ final class SettingsDialogModel {
         // 系统选择器属于离开的那一栏，跟着视图一起关了；还在读的照片也不要了。
         state.pickerOpen = false
         photoPickToken += 1
-        state.page = next
+        state.page = resolvedNext
     }
 
     // ---- 关闭 ----
@@ -324,12 +334,13 @@ final class SettingsDialogModel {
     func requestClose() {
         // 系统选择器开着时不动（网页 filePickerOpen；它盖着整个画面，本来也按不到）。
         if locked || state.pickerOpen { return }
+        let signedIn = account.state.user != nil
         // 网页先问 profileGuard、再问 iconGuard：开着的编辑区先只关它自己；在别的栏时切到它所在的那一栏，看得到发生了什么。
         var editorIn: SettingsPage? = nil
-        if account.state.uploading {
+        if signedIn, account.state.uploading {
             // 上传中：只显示"账号"，不收编辑区。
             editorIn = .account
-        } else if state.editor != .closed {
+        } else if signedIn, state.editor != .closed {
             // 包括选好照片在裁剪。
             setEditor(.closed)
             editorIn = .account
@@ -346,7 +357,9 @@ final class SettingsDialogModel {
     }
 
     private func closeNow() {
-        account.saveName(state.nameDraft)
+        if account.state.user != nil {
+            account.saveName(state.nameDraft)
+        }
         resetTransient()
         account.showPhotoError(nil)
         onClose()

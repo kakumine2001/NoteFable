@@ -163,7 +163,7 @@ struct RootView: View {
 // MARK: - 合并抽屉面板
 
 /// 合并侧边栏抽屉：外层为 `AdaptiveSidebarShell` 的圆角 Liquid Glass 浮层（窄屏悬浮折射主画面、宽屏常驻浮岛），
-/// 内层是顶部品牌栏、共享滚动区（聊天 + 工作区）和底部操作栏（账号 / 帮助 / 新建），顶底栏通过 `nfFloatingHeader` 浮在列表上。
+/// 内层是顶部品牌栏、共享滚动区（聊天 + 工作区）和底部操作栏（账号［未登录时含设置齿轮］ / 新建），顶底栏通过 `nfFloatingHeader` 浮在列表上。
 private struct DrawerPanel: View {
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router
@@ -238,34 +238,50 @@ private struct DrawerPanel: View {
     }
 }
 
-/// 抽屉底部操作栏：左边账号胶囊（登录或设置），右边“？”帮助菜单与“＋”新建菜单（均为系统原生 iOS 26 菜单）。
+/// 抽屉底部操作栏：左边账号胶囊（登录或设置），未登录时加小号设置齿轮，右边“＋”新建菜单（均为系统原生 iOS 26 菜单）。
 private struct DrawerFooter: View {
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router
+    @Environment(\.nfChromePath) private var chromePath
 
     var body: some View {
         let account = app.account.state
         let guest = account.loaded && (!account.configured || account.user == nil)
-        VStack(alignment: .leading, spacing: 6) {
-            if guest, app.language.changeFailed {
-                Text(L("language_change_failed"))
-                    .font(.nf(12))
-                    .foregroundStyle(Sm.danger)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 12)
-                    .onAppear { UIAccessibility.post(notification: .announcement, argument: L("language_change_failed")) }
+        HStack(spacing: NFChromeMetrics.gap) {
+            AccountRow(glassStyle: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if guest {
+                guestSettingsButton
             }
-            HStack(spacing: NFChromeMetrics.gap) {
-                AccountRow(glassStyle: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                HelpMenuButton(glassStyle: true)
-                newActionButton
-            }
+            newActionButton
         }
         .padding(.horizontal, 12)
         .padding(.top, 6)
         .padding(.bottom, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var guestSettingsButton: some View {
+        let fill = chromePath == .native ? Color.primary.opacity(0.075) : Sm.surface
+        let ink = chromePath == .native ? chromePath.secondaryInk : Sm.muted
+        return Button {
+            router.openSettings()
+        } label: {
+            LucideIcon(Lucide.settings, size: 17, color: ink)
+                .frame(width: 40, height: 40)
+                .overlay {
+                    if chromePath == .solid {
+                        Circle().strokeBorder(Sm.borderStrong, lineWidth: 1)
+                    }
+                }
+        }
+        .buttonStyle(.pressable(
+            background: fill,
+            pressedBackground: Sm.hover,
+            cornerRadius: 20,
+            scale: 0.96
+        ))
+        .accessibilityLabel(L("acct_settings"))
     }
 
     private var newActionButton: some View {

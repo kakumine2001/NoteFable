@@ -74,7 +74,7 @@ import com.kakumine.notefable.data.localeSyncAction
 // 界面语言（网页 src/lib/i18n 与 settings-dialog.tsx 的 LanguageSettings、language-menu.tsx、account-button.tsx 的 AccountLocaleSync）：
 // 选项是 Auto + 4 种语言；对勾表示偏好，实际显示的语言单独标注。App 的语言设置
 // （AppCompatDelegate.setApplicationLocales，相当于网页的 Cookie）就是本机的选择。登录用户在设置里选，存在账号上（User.locale），
-// [AccountLocaleSync] 让本机跟着账号走；未登录时在侧栏底部帮助菜单（[HelpMenuButton]）的语言项里选，只改本机。
+// [AccountLocaleSync] 让本机跟着账号走；未登录时也在设置的「通用 → 语言」里选，只改本机。
 
 // CSS 的 ease-out。
 internal val CssEaseOut = CubicBezierEasing(0f, 0f, 0.58f, 1f)
@@ -146,14 +146,21 @@ fun AccountLocaleSync(account: AccountUiState) {
  * （按钮上写正在显示的语言）。只保存，切换交给 [AccountLocaleSync]。
  */
 @Composable
-fun LanguageSettings(user: AccountUser, onChoose: (String?) -> Unit) {
-    val saved = if (user.locale == null) AppLanguage.Preference.Auto else AppLanguage.preferenceOfCode(user.locale)
-    val checked = when (user.locale) {
-        LOCALE_UNKNOWN -> null
-        null -> AppLanguage.Preference.Auto
+fun LanguageSettings(user: AccountUser?, onChoose: (String?) -> Unit) {
+    var lastAttempt by remember { mutableStateOf<AppLanguage.Preference?>(null) }
+    val saved = when {
+        user == null -> null
+        user.locale == null -> AppLanguage.Preference.Auto
+        else -> AppLanguage.preferenceOfCode(user.locale)
+    }
+    val checked = when {
+        user == null -> currentPreference()
+        user.locale == LOCALE_UNKNOWN -> null
+        user.locale == null -> AppLanguage.Preference.Auto
         else -> saved
     }
     val shown = checked ?: showingLanguage()
+    val retryTarget = if (user != null) saved else (lastAttempt ?: checked)
     var anchor by remember { mutableStateOf<IntRect?>(null) }
     var bounds by remember { mutableStateOf<IntRect?>(null) }
     val label = stringResource(R.string.language_current, languageLabel(shown))
@@ -197,15 +204,20 @@ fun LanguageSettings(user: AccountUser, onChoose: (String?) -> Unit) {
                     stringResource(R.string.language_change_failed), color = SettingsDanger, fontSize = 14.sp, lineHeight = 21.sp,
                     modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive },
                 )
-                if (saved != null) NotionButton(stringResource(R.string.try_again), onClick = { applyLanguage(saved) }, modifier = Modifier.padding(top = 8.dp))
+                if (retryTarget != null) NotionButton(stringResource(R.string.try_again), onClick = { applyLanguage(retryTarget) }, modifier = Modifier.padding(top = 8.dp))
             }
         }
     }
     anchor?.let { rect ->
         LanguageMenu(rect, current = checked, alignEnd = true, onClose = { anchor = null }) { choice ->
             anchor = null
-            // Auto sends explicit null; manual options save their internal code.
-            if (choice != saved) onChoose(choice.code.takeUnless { choice == AppLanguage.Preference.Auto })
+            lastAttempt = choice
+            if (user != null) {
+                // Auto sends explicit null; manual options save their internal code.
+                if (choice != saved) onChoose(choice.code.takeUnless { choice == AppLanguage.Preference.Auto })
+            } else {
+                chooseLanguageOnDevice(choice)
+            }
         }
     }
 }
@@ -233,10 +245,7 @@ internal fun languageLabel(option: AppLanguage.Preference): String =
     if (option == AppLanguage.Preference.Auto) stringResource(R.string.language_auto_current, AppLanguage.nativeName(showingLanguage()).orEmpty())
     else AppLanguage.nativeName(option).orEmpty()
 
-/** 上一次切换语言失败了（网页 changeError）。侧栏的帮助菜单按钮下面显示一行红字。 */
-internal val languageChangeFailed: Boolean get() = LocaleSyncMemory.failed
-
-/** 未登录时在帮助菜单里选了语言：马上换 App 的语言（只改本机）。按系统语言显示中选了同一种语言，也当作选择存下来，和网页一样。 */
+/** 未登录时在设置里选了语言：马上换 App 的语言（只改本机）。按系统语言显示中选了同一种语言，也当作选择存下来，和网页一样。 */
 internal fun chooseLanguageOnDevice(choice: AppLanguage.Preference) {
     if (choice != currentPreference()) applyLanguage(choice)
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Check, ChevronRight, ChevronsUpDown, CircleUser, CreditCard, LoaderCircle, LogOut, PenLine, SlidersHorizontal, Trash2, X, type LucideIcon } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, ChevronsUpDown, CircleHelp, CircleUser, CreditCard, ExternalLink, FileText, Info, LoaderCircle, LogOut, PenLine, Scale, Shield, SlidersHorizontal, Trash2, X, type LucideIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "@/components/chat-project-settings.css";
@@ -14,8 +14,8 @@ import { ProfileSettings } from "@/components/profile-settings";
 import { UserAvatar } from "@/components/user-avatar";
 import { saveProfile, settled, uploadPhoto, useAccount } from "@/lib/account-store";
 import { forgetAccountAppIcon } from "@/lib/app-icon-sync";
-import { settingsButtonStep, settingsDismissStep, type SettingsStep, type SettingsTab } from "@/lib/settings-navigation";
-import { LOCALE_NAMES } from "@/lib/i18n/locale";
+import { settingsButtonStep, settingsDismissStep, settingsHomeTabs, settingsVisibleTabs, type SettingsStep, type SettingsTab } from "@/lib/settings-navigation";
+import { LOCALE_NAMES, type LocalePreference } from "@/lib/i18n/locale";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import type { AccountUser } from "@/lib/user-profile";
@@ -29,14 +29,20 @@ async function readJson(response: Response): Promise<Record<string, unknown>> {
 }
 const errorOf = (data: Record<string, unknown>, fallback: string) => typeof data.error === "string" && data.error ? data.error : fallback;
 
-// Save an explicit language or null (Auto); AccountLocaleSync applies it in place.
-function LanguageSettings({ user }: { user: AccountUser }) {
-  const { t, locale, switching, changeError, setPreference } = useI18n();
+// Save an explicit language or null (Auto) to the account when signed in, or to the device when guest.
+function LanguageSettings({ user }: { user: AccountUser | null }) {
+  const { t, locale, preference, target, switching, changeError, setPreference } = useI18n();
   const labelId = useId();
   const { anchor, triggerRef, toggle, close } = useLanguageMenuAnchor();
-  const saved = user.locale === undefined ? undefined : user.locale ?? "auto";
-  // Null selects Auto; an unknown account preference selects no radio.
-  const checked = saved ?? null;
+  const [lastAttempt, setLastAttempt] = useState<LocalePreference | null>(null);
+  const saved = user ? (user.locale === undefined ? undefined : user.locale ?? "auto") : undefined;
+  // Signed-in: null selects Auto; an unknown account preference selects no radio.
+  // Guest: follow the local device preference (or in-flight target).
+  const checked = user ? (saved ?? null) : (target ?? preference);
+  const valueText = checked === "auto"
+    ? t("Auto (current: {language})", { language: LOCALE_NAMES[locale] })
+    : LOCALE_NAMES[checked ?? locale];
+  const retryTarget = user ? saved : (lastAttempt ?? checked);
 
   return (
     <div className="settings-row-block">
@@ -46,16 +52,26 @@ function LanguageSettings({ user }: { user: AccountUser }) {
           aria-labelledby={`${labelId} ${labelId}-value`} aria-busy={switching}
           onClick={toggle}>
           {switching && <LoaderCircle size={14} className="animate-spin text-[var(--notion-muted)]" aria-hidden="true" />}
-          <span id={`${labelId}-value`}>{saved === "auto" ? t("Auto (current: {language})", { language: LOCALE_NAMES[locale] }) : LOCALE_NAMES[saved ?? locale]}</span>
+          <span id={`${labelId}-value`}>{valueText}</span>
           <ChevronsUpDown size={14} aria-hidden="true" />
         </button>
       </div>
       {anchor && <LanguageMenuPanel anchor={anchor} current={checked} align="end" onClose={close}
-        onChoose={(option) => { close(); if (option !== saved) void saveProfile({ locale: option === "auto" ? null : option }); }} />}
+        onChoose={(option) => {
+          close();
+          if (user) {
+            if (option !== saved) void saveProfile({ locale: option === "auto" ? null : option });
+          } else {
+            setLastAttempt(option);
+            if (option !== preference) void setPreference(option);
+          }
+        }} />}
       <span className="sr-only" role="status">{switching ? t("Changing language…") : ""}</span>
       {changeError && <div className="settings-row-note">
         <p role="alert" className="project-settings-error">{t(changeError)}</p>
-        {saved !== undefined && <button type="button" className="notion-button mt-2" onClick={() => setPreference(saved)}>{t("Try again")}</button>}
+        {retryTarget !== undefined && retryTarget !== null && (
+          <button type="button" className="notion-button mt-2" onClick={() => void setPreference(retryTarget)}>{t("Try again")}</button>
+        )}
       </div>}
     </div>
   );
@@ -112,25 +128,40 @@ function DeleteAccount({ disabled, onBusyChange }: { disabled: boolean; onBusyCh
 }
 
 type Tab = SettingsTab;
-// デスクトップ幅の左のナビと、スマホ幅の最初の画面（入口の一覧）に出す順。
+// デスクトップ幅の左のナビと、スマホ幅の最初の画面（入口の一覧）に出す欄の定義。
 const TABS: { id: Tab; label: string; icon: LucideIcon }[] = [
   { id: "general", label: msg("General"), icon: SlidersHorizontal },
   { id: "personalization", label: msg("Personalization"), icon: PenLine },
   { id: "plan", label: msg("Plan"), icon: CreditCard },
   { id: "account", label: msg("Account"), icon: CircleUser },
+  { id: "help", label: msg("Help"), icon: CircleHelp },
 ];
+
+// 紹介サイト（/?intro は回訪者でもワークスペースへ戻されない）と法律のページ。紹介サイトとワークスペースを別ホストにしたときは
+// 紹介サイトのホストへの絶対 URL になる（src/lib/hosts.ts）。
+const helpLinks = () => [
+  { href: siteHref(INTRO_HREF), label: msg("Visit website"), icon: Info },
+  { href: siteHref("/privacy"), label: msg("Privacy"), icon: Shield },
+  { href: siteHref("/terms"), label: msg("Terms"), icon: FileText },
+  { href: siteHref("/legal-notice"), label: msg("Commercial disclosure"), icon: Scale },
+] as const;
 
 // スマホ幅かどうか（settings-dialog.css の @media と同じ境目）。
 const isPhone = () => window.matchMedia("(max-width: 639px)").matches;
 
-// ログインした利用者の設定。デスクトップ幅は左にナビ・右に選んだ欄。
-// スマホ幅は全画面の 2 段: 最初は入口の一覧（アカウントの行と、欄ごとの行）だけを出し、行を押すとその欄の画面に進む。
+// 設定画面（未ログインは「一般」と「ヘルプ」のみ）。デスクトップ幅は左にナビ・右に選んだ欄。
+// スマホ幅は全画面の 2 段: 最初は入口の一覧（ログイン後はアカウントの行と各欄、ゲストは一般とヘルプ）だけを出し、行を押すとその欄の画面に進む。
 // プロフィール・言語・アイコンは変えたその場で保存する。カスタム指示だけは「保存」を押すまで送らない:
 // 書き換えると下に「未保存の変更」のバーが出て、保存か破棄をするまで閉じない（黙って捨てない）。
 // onSignOut は失敗したときに理由の文を返す（成功したらページが読み直される）。
-export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser; onSignOut: () => Promise<string>; onClose: () => void }) {
+export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser | null; onSignOut?: () => Promise<string>; onClose: () => void }) {
   const { t } = useI18n();
   const { saveError } = useAccount();
+  const signedIn = user !== null;
+  const visibleTabIds = settingsVisibleTabs(signedIn);
+  const homeTabIds = settingsHomeTabs(signedIn);
+  const visibleTabs = visibleTabIds.map((id) => TABS.find((entry) => entry.id === id)!);
+  const homeTabs = homeTabIds.map((id) => TABS.find((entry) => entry.id === id)!);
   const ref = useRef<HTMLDialogElement>(null);
   const locked = useRef(false);
   const profileGuard = useRef<(force?: boolean) => boolean>(() => true);
@@ -139,7 +170,8 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
   const fieldId = useId();
   const helpId = useId();
   const [tab, setTab] = useState<Tab>("general");
-  // スマホ幅で入口の一覧を出しているか。デスクトップ幅では使わない（いつも tab の欄を出す）。
+  const activeTab: Tab = visibleTabIds.includes(tab) ? tab : "general";
+  // スマホ幅で入口の一覧を出しているか。デスクトップ幅では使わない（いつも activeTab の欄を出す）。
   const [home, setHome] = useState(true);
   // 一度でも画面を替えたか。開いた直後の一覧は、画面の切り替えの動きを付けずに出す。
   const [navigated, setNavigated] = useState(false);
@@ -161,9 +193,10 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
     if (active instanceof HTMLElement && bodyRef.current?.contains(active)) active.blur();
   };
   const show = (id: Tab) => {
+    const target: Tab = visibleTabIds.includes(id) ? id : "general";
     // 同じ欄に留まるとき（未保存の指示で引き止めたとき）は、書きかけの入力欄からフォーカスを外さない。
-    if (home || id !== tab) settleInput();
-    moved.current = true; setNavigated(true); setTab(id); setHome(false);
+    if (home || target !== activeTab) settleInput();
+    moved.current = true; setNavigated(true); setTab(target); setHome(false);
   };
   const goHome = () => { settleInput(); moved.current = true; setNavigated(true); setHome(true); };
   const [attempt, setAttempt] = useState(0);
@@ -243,6 +276,7 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
   }, [home, tab]);
 
   useEffect(() => {
+    if (!signedIn) return;
     const controller = new AbortController();
     void fetch("/api/custom-instructions", { signal: controller.signal, cache: "no-store" }).then(async (response) => {
       const data = await readJson(response);
@@ -254,7 +288,7 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
       if (!controller.signal.aborted) setLoadError(reason instanceof Error && reason.message ? reason.message : msg("Could not load your custom instructions."));
     });
     return () => controller.abort();
-  }, [attempt]);
+  }, [attempt, signedIn]);
 
   async function save() {
     if (locked.current || !dirty) return;
@@ -275,10 +309,10 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
   }
 
   const accountBusy = busy || signingOut || photoBusy;
-  const tabLabel = t(TABS.find((entry) => entry.id === tab)!.label);
-  const name = user.name ?? user.email ?? t("Account");
+  const tabLabel = t(TABS.find((entry) => entry.id === activeTab)!.label);
+  const name = user ? (user.name ?? user.email ?? t("Account")) : "";
   // デスクトップ幅では、ナビで選んだ欄（is-active）だけを出す。
-  const group = (id: Tab) => `settings-group${tab === id ? " is-active" : ""}`;
+  const group = (id: Tab) => `settings-group${activeTab === id ? " is-active" : ""}`;
   // サイドバーは幅によって隠れる（デスクトップ用と抽屉用の 2 つがある）ので、その外（body）に出す。
   return createPortal(<dialog ref={ref} tabIndex={-1} aria-label={t("Settings")} className="notes-dialog settings-dialog"
     // Esc は useBackToClose が受けて既定の動作を止めるので、ここに来るのはそれ以外の閉じる要求（Android Chrome の「戻る」など）。
@@ -290,8 +324,8 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
     <div className="settings-shell" data-home={home} data-navigated={navigated}>
       <nav className="settings-nav" aria-label={t("Settings")}>
         <p className="settings-nav-title" aria-hidden="true">{t("Settings")}</p>
-        {TABS.map(({ id, label, icon: Icon }) => (
-          <button key={id} type="button" className="settings-nav-item" aria-current={tab === id ? "page" : undefined} onClick={() => setTab(id)}>
+        {visibleTabs.map(({ id, label, icon: Icon }) => (
+          <button key={id} type="button" className="settings-nav-item" aria-current={activeTab === id ? "page" : undefined} onClick={() => setTab(id)}>
             <Icon size={16} aria-hidden="true" />{t(label)}
           </button>
         ))}
@@ -307,19 +341,21 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
         </header>
         <div ref={bodyRef} className={`settings-body${dirty ? " has-unsaved" : ""}`}>
           {/* 名前・写真・言語の保存に失敗したときの知らせ。どの欄を見ていても出るよう、欄の外（いちばん上）に置く。 */}
-          {saveError && <p role="alert" className="project-settings-error settings-save-error">{localizeSystemText(saveError, t)}</p>}
-          {/* スマホ幅の最初の画面: アカウントの行と、欄ごとの入口の行。押すとその欄の画面に進む（デスクトップ幅では出さない）。 */}
+          {signedIn && saveError && <p role="alert" className="project-settings-error settings-save-error">{localizeSystemText(saveError, t)}</p>}
+          {/* スマホ幅の最初の画面: ログイン後はアカウントの行と各欄（アカウント行の重複は置かない）、ゲストは一般とヘルプ。 */}
           <div className="settings-home">
-            <button type="button" className="settings-card settings-identity" onClick={(event) => { opener.current = event.currentTarget; show("account"); }}>
-              <UserAvatar user={user} size={44} />
-              <span className="settings-row-text">
-                <span className="settings-identity-name">{name}</span>
-                {user.email && user.email !== name && <span className="settings-row-help">{user.email}</span>}
-              </span>
-              <ChevronRight size={18} className="settings-home-chevron" aria-hidden="true" />
-            </button>
+            {user && (
+              <button type="button" className="settings-card settings-identity" onClick={(event) => { opener.current = event.currentTarget; show("account"); }}>
+                <UserAvatar user={user} size={44} />
+                <span className="settings-row-text">
+                  <span className="settings-identity-name">{name}</span>
+                  {user.email && user.email !== name && <span className="settings-row-help">{user.email}</span>}
+                </span>
+                <ChevronRight size={18} className="settings-home-chevron" aria-hidden="true" />
+              </button>
+            )}
             <div className="settings-card settings-home-list">
-              {TABS.map(({ id, label, icon: Icon }) => (
+              {homeTabs.map(({ id, label, icon: Icon }) => (
                 <button key={id} type="button" className="settings-row settings-row-button settings-home-row" onClick={(event) => { opener.current = event.currentTarget; show(id); }}>
                   <Icon size={20} aria-hidden="true" /><span className="settings-row-title">{t(label)}</span>
                   <ChevronRight size={18} className="settings-home-chevron" aria-hidden="true" />
@@ -327,16 +363,20 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
               ))}
             </div>
           </div>
-          <section className={group("account")} aria-label={t("Profile")}>
-            <div className="settings-card settings-card-padded">
-              <ProfileSettings user={user} onSave={saveProfile} onUpload={uploadPhoto} closeGuardRef={profileGuard} nameFlushRef={nameFlush} onPhotoBusyChange={setPhotoBusy} />
-            </div>
-          </section>
+          {user && (
+            <section className={group("account")} aria-label={t("Profile")}>
+              <div className="settings-card settings-card-padded">
+                <ProfileSettings user={user} onSave={saveProfile} onUpload={uploadPhoto} closeGuardRef={profileGuard} nameFlushRef={nameFlush} onPhotoBusyChange={setPhotoBusy} />
+              </div>
+            </section>
+          )}
 
-          <section className={group("plan")} aria-label={t("Plan")}>
-            <h3 className="settings-group-label">{t("Plan")}</h3>
-            <div className="settings-card settings-card-padded"><PlanSettings /></div>
-          </section>
+          {user && (
+            <section className={group("plan")} aria-label={t("Plan")}>
+              <h3 className="settings-group-label">{t("Plan")}</h3>
+              <div className="settings-card settings-card-padded"><PlanSettings /></div>
+            </section>
+          )}
 
           <section className={group("general")} aria-label={t("General")}>
             <h3 className="settings-group-label">{t("General")}</h3>
@@ -347,40 +387,57 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
             </div>
           </section>
 
-          <section className={group("personalization")} aria-label={t("Personalization")}>
-            <h3 className="settings-group-label">{t("Personalization")}</h3>
-            <div className="settings-card settings-card-padded">
-              <label htmlFor={fieldId} className="project-settings-label">
-                {t("Custom instructions")}
-                {justSaved && !dirty
-                  ? <span className="settings-saved" role="status"><Check size={13} aria-hidden="true" />{t("Saved")}</span>
-                  : initial !== null && <span className="project-settings-count" aria-live="polite">{instructions.length}/{MAX_CUSTOM_INSTRUCTIONS}</span>}
-              </label>
-              <p id={helpId} className="project-settings-help">{t("Share anything about yourself or how you like answers, and it applies to every chat.")}</p>
-              {initial === null && !loadError && <p className="project-settings-empty" role="status"><LoaderCircle size={14} className="mr-1 inline animate-spin" aria-hidden="true" />{t("Loading…")}</p>}
-              {loadError && <>
-                <p role="alert" className="project-settings-error">{localizeSystemText(loadError, t)}</p>
-                <button type="button" className="notion-button mt-2" onClick={() => { setLoadError(""); setAttempt((count) => count + 1); }}>{t("Try again")}</button>
-              </>}
-              {initial !== null && <textarea id={fieldId} className="settings-textarea" value={instructions} disabled={busy}
-                maxLength={MAX_CUSTOM_INSTRUCTIONS} aria-describedby={helpId}
-                placeholder={t("For example:\n- Answer in plain, casual language\n- Lead with the conclusion and keep it short\n- If you’re not sure, say so instead of guessing")}
-                onChange={(event) => { setInstructions(event.target.value); setJustSaved(false); }} />}
-              {error && <p role="alert" className="project-settings-error">{localizeSystemText(error, t)}</p>}
-            </div>
-          </section>
+          {user && (
+            <section className={group("personalization")} aria-label={t("Personalization")}>
+              <h3 className="settings-group-label">{t("Personalization")}</h3>
+              <div className="settings-card settings-card-padded">
+                <label htmlFor={fieldId} className="project-settings-label">
+                  {t("Custom instructions")}
+                  {justSaved && !dirty
+                    ? <span className="settings-saved" role="status"><Check size={13} aria-hidden="true" />{t("Saved")}</span>
+                    : initial !== null && <span className="project-settings-count" aria-live="polite">{instructions.length}/{MAX_CUSTOM_INSTRUCTIONS}</span>}
+                </label>
+                <p id={helpId} className="project-settings-help">{t("Share anything about yourself or how you like answers, and it applies to every chat.")}</p>
+                {initial === null && !loadError && <p className="project-settings-empty" role="status"><LoaderCircle size={14} className="mr-1 inline animate-spin" aria-hidden="true" />{t("Loading…")}</p>}
+                {loadError && <>
+                  <p role="alert" className="project-settings-error">{localizeSystemText(loadError, t)}</p>
+                  <button type="button" className="notion-button mt-2" onClick={() => { setLoadError(""); setAttempt((count) => count + 1); }}>{t("Try again")}</button>
+                </>}
+                {initial !== null && <textarea id={fieldId} className="settings-textarea" value={instructions} disabled={busy}
+                  maxLength={MAX_CUSTOM_INSTRUCTIONS} aria-describedby={helpId}
+                  placeholder={t("For example:\n- Answer in plain, casual language\n- Lead with the conclusion and keep it short\n- If you’re not sure, say so instead of guessing")}
+                  onChange={(event) => { setInstructions(event.target.value); setJustSaved(false); }} />}
+                {error && <p role="alert" className="project-settings-error">{localizeSystemText(error, t)}</p>}
+              </div>
+            </section>
+          )}
 
-          <section className={group("account")} aria-label={t("Account")}>
-            <h3 className="settings-group-label">{t("Account")}</h3>
+          {user && (
+            <section className={group("account")} aria-label={t("Account")}>
+              <h3 className="settings-group-label">{t("Account")}</h3>
+              <div className="settings-card">
+                <button type="button" className="settings-row settings-row-button" disabled={accountBusy}
+                  onClick={async () => {
+                    setSigningOut(true); setSignOutError("");
+                    const failure = (await onSignOut?.()) ?? "";
+                    setSigningOut(false); setSignOutError(failure);
+                  }}><LogOut size={16} aria-hidden="true" /><span className="settings-row-title">{t("Sign out")}</span></button>
+                {signOutError && <div className="settings-row-note"><p role="alert" className="project-settings-error">{localizeSystemText(signOutError, t)}</p></div>}
+                <DeleteAccount disabled={accountBusy} onBusyChange={(value) => { locked.current = value; }} />
+              </div>
+            </section>
+          )}
+
+          <section className={group("help")} aria-label={t("Help")}>
+            <h3 className="settings-group-label">{t("Help")}</h3>
             <div className="settings-card">
-              <button type="button" className="settings-row settings-row-button" disabled={accountBusy}
-                onClick={async () => {
-                  setSigningOut(true); setSignOutError("");
-                  const failure = await onSignOut();
-                  setSigningOut(false); setSignOutError(failure);
-                }}><LogOut size={16} aria-hidden="true" /><span className="settings-row-title">{t("Sign out")}</span></button>
-              {signOutError && <div className="settings-row-note"><p role="alert" className="project-settings-error">{localizeSystemText(signOutError, t)}</p></div>}
-              <DeleteAccount disabled={accountBusy} onBusyChange={(value) => { locked.current = value; }} />
+              {helpLinks().map(({ href, label, icon: Icon }) => (
+                <a key={href} href={href} target="_blank" rel="noopener noreferrer" className="settings-row settings-row-button settings-link-row">
+                  <Icon size={16} aria-hidden="true" />
+                  <span className="settings-row-title">{t(label)}</span>
+                  <ExternalLink size={15} className="settings-link-external rtl-mirror" aria-hidden="true" />
+                </a>
+              ))}
             </div>
           </section>
         </div>
