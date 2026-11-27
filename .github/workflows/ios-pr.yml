@@ -18,6 +18,7 @@ on:
       - "scripts/release/ios-testflight-*.py"
       - "scripts/release/test_ios_testflight_*.py"
       - "scripts/release/ios-store-listing.py"
+      - "scripts/release/ios-store-review.py"
       - "scripts/release/test_ios_store_listing.py"
       - "scripts/release/verify-merged-pr*.sh"
 

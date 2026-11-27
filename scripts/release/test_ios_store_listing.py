@@ -30,6 +30,7 @@ listing_mod = importlib.util.module_from_spec(_SPEC)
 sys.modules[_SPEC.name] = listing_mod  # dataclasses look their module up here
 _SPEC.loader.exec_module(listing_mod)
 
+review_mod = listing_mod.review_mod
 ListingError = listing_mod.ListingError
 AscError = listing_mod.AscError
 MEDIUM = "IPHONE_DYNAMIC_ISLAND_MEDIUM_PROFILE"
@@ -153,6 +154,24 @@ class FakeAppStoreConnect:
         self.placements: dict[str, dict] = {}
         self.uploads: dict[str, bytes] = {}
         self._ids = itertools.count(1)
+        # Submission information.
+        self.age: dict[str, Any] = {name: None for name in review_mod.AGE_RATING_ATTRIBUTES}
+        self.review_detail: dict | None = None
+        self.copyright: str | None = None
+        self.content_rights: str | None = None
+        self.build: str | None = None
+        self.priced = False
+        self.product_id: str | None = review_mod.SUBSCRIPTION_PRODUCT_ID
+        self.product_state = "MISSING_METADATA"
+        # resource type -> version id -> state
+        self.sub_versions = {
+            "subscriptionGroups": {"gver-1": "PREPARE_FOR_SUBMISSION"},
+            "subscriptions": {"sver-1": "PREPARE_FOR_SUBMISSION"},
+        }
+        self.sub_texts: dict[str, dict[str, dict]] = {}  # version id -> localization id -> attributes
+        self.sub_territories = False
+        self.beta_texts: dict[str, dict] = {}
+        self.beta_review: dict = {}
 
     def new_id(self, prefix: str) -> str:
         return f"{prefix}-{next(self._ids)}"
@@ -190,6 +209,8 @@ class FakeAppStoreConnect:
         url = urllib.parse.urlsplit(path_or_url)
         query = dict(urllib.parse.parse_qsl(url.query))
         parts = url.path.strip("/").split("/")
+        if parts[0] == "v2":  # sent as full URLs
+            parts = parts[1:]
         data = (payload or {}).get("data") if payload else None
         handler = getattr(self, f"_{method.lower()}_{parts[0]}")
         return handler(parts[1:], query, data)
@@ -202,10 +223,21 @@ class FakeAppStoreConnect:
         if not parts:
             return {"data": [self._resource("app-1", {"bundleId": "com.kakumine.notefable"})]}
         if parts == ["app-1"]:
-            return {"data": self._resource("app-1", {"primaryLocale": "en-US"})}
+            attributes = {"primaryLocale": "en-US", "contentRightsDeclaration": self.content_rights}
+            return {"data": self._resource("app-1", attributes)}
         if parts[1] == "appStoreVersions":
             assert query["filter[platform]"] == "IOS"
-            return {"data": [self._resource("ver-1", {"versionString": "1.0", "appVersionState": self.version_state})]}
+            return {"data": [self._version_resource()]}
+        if parts[1] == "subscriptionGroups":
+            return {"data": [self._resource("group-1", {"referenceName": "NoteFable Pro"})]}
+        if parts[1] == "betaAppLocalizations":
+            return {"data": [self._resource(i, a) for i, a in self.beta_texts.items()]}
+        if parts[1] == "betaAppReviewDetail":
+            return {"data": self._resource("beta-review-1", self.beta_review)}
+        if parts[1] == "appPriceSchedule":
+            return {"data": self._resource("schedule-1", {})} if self.priced else None
+        if parts[1] == "appAvailabilityV2":
+            return {"data": self._resource("availability-1", {})} if self.priced else None
         if parts[1] == "appInfos":
             relationships = {
                 name: {"data": {"type": "appCategories", "id": value} if value else None}
@@ -216,11 +248,100 @@ class FakeAppStoreConnect:
             return {"data": {"type": "appAssetLibraries", "id": "library-1"}}
         raise AssertionError(parts)
 
+    def _version_resource(self) -> dict:
+        attributes = {"versionString": "1.0", "appVersionState": self.version_state, "copyright": self.copyright}
+        return self._resource("ver-1", attributes)
+
     def _get_appStoreVersions(self, parts, query, data):
+        if len(parts) == 1:
+            return {"data": self._version_resource()}
+        if parts[1] == "appStoreReviewDetail":
+            detail = self.review_detail
+            return {"data": self._resource("detail-1", detail) if detail is not None else None}
+        if parts[1] == "build":
+            return {"data": self._resource("build-1", {"version": self.build}) if self.build else None}
         return {"data": [self._resource(i, a) for i, a in self.version.items()]}
 
     def _get_appInfos(self, parts, query, data):
+        if parts[1] == "ageRatingDeclaration":
+            return {"data": self._resource("age-1", self.age)}
         return {"data": [self._resource(i, a) for i, a in self.info.items()]}
+
+    def _get_appPriceSchedules(self, parts, query, data):
+        return {"data": [self._resource("price-1", {})]}
+
+    def _get_subscriptionGroups(self, parts, query, data):
+        if parts[1] == "subscriptions":
+            if not self.product_id:
+                return {"data": []}
+            attributes = {"productId": self.product_id, "state": self.product_state}
+            return {"data": [self._resource("sub-1", attributes)]}
+        return self._sub_version_list("subscriptionGroups")
+
+    def _get_subscriptions(self, parts, query, data):
+        if parts[1] == "versions":
+            return self._sub_version_list("subscriptions")
+        if parts[1] == "planAvailabilities":
+            # A plan availability may exist before any territory is chosen.
+            return {"data": [self._resource("plan-1", {"planType": "MONTHLY"})]}
+        if parts[1] == "prices":
+            return {"data": [self._resource("sub-price-1", {})] if self.priced else []}
+        assert parts[1] == "appStoreReviewScreenshot"
+        return {"data": None}
+
+    def _get_subscriptionPlanAvailabilities(self, parts, query, data):
+        assert parts == ["plan-1", "availableTerritories"]
+        return {"data": [self._resource("JPN", {})] if self.sub_territories else []}
+
+    def _sub_version_list(self, kind):
+        return {"data": [self._resource(i, {"state": state}) for i, state in self.sub_versions[kind].items()]}
+
+    def _get_subscriptionGroupVersions(self, parts, query, data):
+        return {"data": [self._resource(i, a) for i, a in self.sub_texts.get(parts[0], {}).items()]}
+
+    _get_subscriptionVersions = _get_subscriptionGroupVersions
+
+    def _post_subscriptionGroupVersions(self, parts, query, data):
+        new_id = self.new_id("new-version")
+        self.sub_versions["subscriptionGroups"][new_id] = "PREPARE_FOR_SUBMISSION"
+        return {"data": {"id": new_id}}
+
+    def _post_subscriptionVersions(self, parts, query, data):
+        new_id = self.new_id("new-version")
+        self.sub_versions["subscriptions"][new_id] = "PREPARE_FOR_SUBMISSION"
+        return {"data": {"id": new_id}}
+
+    def _post_subscriptionGroupLocalizations(self, parts, query, data):
+        version = data["relationships"]["version"]["data"]["id"]
+        texts = self.sub_texts.setdefault(version, {})
+        assert not any(a["locale"] == data["attributes"]["locale"] for a in texts.values())
+        texts[self.new_id("sloc")] = dict(data["attributes"])
+
+    _post_subscriptionLocalizations = _post_subscriptionGroupLocalizations
+
+    def _patch_subscriptionGroupLocalizations(self, parts, query, data):
+        next(t for t in self.sub_texts.values() if parts[0] in t)[parts[0]].update(data["attributes"])
+
+    _patch_subscriptionLocalizations = _patch_subscriptionGroupLocalizations
+
+    def _patch_ageRatingDeclarations(self, parts, query, data):
+        self.age.update(data["attributes"])
+
+    def _post_appStoreReviewDetails(self, parts, query, data):
+        assert data["relationships"]["appStoreVersion"]["data"] == {"type": "appStoreVersions", "id": "ver-1"}
+        self.review_detail = dict(data["attributes"])
+
+    def _patch_appStoreReviewDetails(self, parts, query, data):
+        self.review_detail.update(data["attributes"])
+
+    def _patch_appStoreVersions(self, parts, query, data):
+        self.copyright = data["attributes"]["copyright"]
+
+    def _post_betaAppLocalizations(self, parts, query, data):
+        self.beta_texts[self.new_id("beta")] = dict(data["attributes"])
+
+    def _patch_betaAppLocalizations(self, parts, query, data):
+        self.beta_texts[parts[0]].update(data["attributes"])
 
     def _get_appAssetLibraryRefData(self, parts, query, data):
         assert query == {"filter[placementTypes]": "APP_SCREENSHOT"}
@@ -909,6 +1030,43 @@ class GuardTests(unittest.TestCase):
         guard.request("DELETE", "/appAssetLibraryPlacements/1")
         self.assertEqual(sent, ["PATCH /appInfos/1", "DELETE /appAssetLibraryPlacements/1"])
 
+    def test_scoped_writes_take_only_their_own_fields(self) -> None:
+        inner = mock.Mock()
+        guard = listing_mod.GuardedClient(inner, allow_writes=True)
+
+        def payload(attributes: dict | None = None, **related) -> dict:
+            data: dict = {"type": "x"}
+            if attributes is not None:
+                data["attributes"] = attributes
+            if related:
+                data["relationships"] = related
+            return {"data": data}
+
+        for method, path, body in (
+            ("PATCH", "/appStoreReviewDetails/1", payload({"notes": "n", "contactEmail": "a"})),
+            ("POST", "/appStoreReviewDetails", payload({"demoAccountPassword": "p"})),
+            ("PATCH", "/appStoreVersions/1", payload({"versionString": "2.0"})),
+            ("PATCH", "/appStoreVersions/1", payload({"copyright": "c"}, build={})),
+            ("PATCH", "/apps/1", payload({"contentRightsDeclaration": "USES_THIRD_PARTY_CONTENT"})),
+            ("PATCH", "/ageRatingDeclarations/1", payload({"kidsAgeBand": None})),
+            ("PATCH", "/betaAppLocalizations/1", payload({"feedbackEmail": "a"})),
+            ("PATCH", "/betaAppReviewDetails/1", payload({"notes": "n"})),
+            ("PATCH", "/appStoreVersions/1", {**payload({"copyright": "c"}), "included": []}),
+            ("POST", "/subscriptions", payload({"name": "n", "productId": "p"})),
+            ("POST", "/subscriptionGroups", payload({"referenceName": "n"})),
+            ("PATCH", "/subscriptions/1", payload({"name": "n"})),
+            ("POST", "/subscriptionPrices", payload({})),
+            ("POST", "/subscriptionPlanAvailabilities", payload({})),
+            ("POST", "/reviewSubmissionItems", payload({})),
+            ("PATCH", "/reviewSubmissions/1", payload({"submitted": True})),
+        ):
+            with self.subTest(method=method, path=path), self.assertRaises(AscError):
+                guard.request(method, path, payload=body)
+        inner.request.assert_not_called()
+        guard.request("PATCH", "/appStoreVersions/1", payload=payload({"copyright": "c"}))
+        guard.request("POST", "/subscriptionVersions", payload=payload(subscription={}))
+        self.assertEqual(inner.request.call_count, 2)
+
     def test_a_dry_run_may_only_read(self) -> None:
         inner = mock.Mock()
         guard = listing_mod.GuardedClient(inner, allow_writes=False)
@@ -925,6 +1083,353 @@ class GuardTests(unittest.TestCase):
         }
         with self.assertRaises(AscError):
             listing_mod.current_screenshots(client, "loc", MEDIUM)
+
+
+# --- Submission information --------------------------------------------------------------------
+
+
+REVIEW = review_mod.load_review_info(REPO_ROOT, listing_mod.LANGUAGES)
+PERSONAL = ("Taro", "Yamada", "+81 90 1234 5678", "owner@example.com", "hunter2", "demo-user", "tester@example.com")
+
+
+def fill_personal_data(fake: FakeAppStoreConnect) -> None:
+    contact = {
+        "contactFirstName": "Taro",
+        "contactLastName": "Yamada",
+        "contactPhone": "+81 90 1234 5678",
+        "contactEmail": "owner@example.com",
+        "demoAccountName": "demo-user",
+        "demoAccountPassword": "hunter2",
+        "demoAccountRequired": False,
+        "notes": "Call Taro at +81 90 1234 5678",
+    }
+    fake.review_detail = dict(contact)
+    fake.beta_review = dict(contact)
+    fake.copyright = "2025 Taro Yamada"
+    fake.beta_texts["beta-en"] = {
+        "locale": "en-US",
+        "description": "Mail owner@example.com",
+        "feedbackEmail": "tester@example.com",
+    }
+
+
+class SubmissionTests(unittest.TestCase):
+    def sync(self, fake: FakeAppStoreConnect, apply: bool = False, marketing_version: str | None = "1.0") -> bool:
+        self.output: list[str] = []
+        return listing_mod.sync(
+            fake,
+            sample_listing(),
+            None,
+            apply,
+            out=self.output.append,
+            review=REVIEW,
+            marketing_version=marketing_version,
+        )
+
+    def text(self) -> str:
+        return "\n".join(self.output)
+
+    def sent(self, fake: FakeAppStoreConnect) -> list[tuple[str, str, dict]]:
+        """The submission information writes (the listing's own are left out)."""
+        listing = ("/appInfos/", "/appInfoLocalizations", "/appStoreVersionLocalizations")
+        return [
+            (method, path.replace(review_mod.ASC_V2, "/v2"), payload["data"])
+            for method, path, payload in fake.calls
+            if method != "GET" and not path.startswith(listing)
+        ]
+
+    def assert_no_personal_data(self) -> None:
+        for value in PERSONAL:
+            self.assertNotIn(value, self.text())
+
+    def test_dry_run_reads_only_and_never_prints_personal_data(self) -> None:
+        fake = FakeAppStoreConnect()
+        fill_personal_data(fake)
+        self.assertTrue(self.sync(fake))
+        self.assertEqual(fake.writes(), [])
+        self.assert_no_personal_data()
+        for expected in (
+            "age rating: 26 answer(s) to change",
+            "advertising: (unanswered) -> false",
+            "review notes: CHANGE (current: set, 29 characters, not shown)",
+            "      | NO ACCOUNT NEEDED",
+            "copyright: CHANGE (current: set, 16 characters, not shown)",
+            "subscription group [ja] name: CHANGE (empty) -> NoteFable Pro",
+            "TestFlight beta app description (en-US): CHANGE (current: set",
+            "26 age rating answers, 1 review notes, 1 copyright, 36 subscription localizations, 1 beta description",
+        ):
+            self.assertIn(expected, self.text())
+
+    def test_apply_writes_only_the_allowed_fields_and_is_idempotent(self) -> None:
+        fake = FakeAppStoreConnect()
+        fill_personal_data(fake)
+        self.assertTrue(self.sync(fake, apply=True), self.text())
+        self.assert_no_personal_data()
+        self.assertEqual(fake.age, REVIEW.age_rating)
+        self.assertEqual(fake.copyright, "2026 NoteFable")
+        self.assertEqual(fake.review_detail["notes"], REVIEW.review_notes)
+        self.assertEqual(fake.review_detail["contactPhone"], "+81 90 1234 5678")
+        self.assertEqual(fake.beta_texts["beta-en"]["description"], REVIEW.beta_description)
+        self.assertEqual(fake.beta_texts["beta-en"]["feedbackEmail"], "tester@example.com")
+        group = {a["locale"]: a for a in fake.sub_texts["gver-1"].values()}
+        product = {a["locale"]: a for a in fake.sub_texts["sver-1"].values()}
+        self.assertEqual(sorted(group), sorted(REVIEW.subscription))
+        self.assertEqual(product["ja"]["description"], REVIEW.subscription["ja"].description)
+        self.assertEqual(set(group["ja"]), {"locale", "name"})
+        sent = self.sent(fake)
+        self.assertEqual(
+            [data["attributes"] for _, path, data in sent if path.startswith("/appStoreReviewDetails")],
+            [{"notes": REVIEW.review_notes}],
+        )
+        self.assertFalse(any(path.startswith(("/apps", "/subscriptions", "/subscriptionGroups/")) for _, path, _ in sent))
+        self.assertFalse(any("Versions" in path and "subscription" in path for _, path, _ in sent))
+
+        fake.calls.clear()
+        self.assertTrue(self.sync(fake, apply=True), self.text())
+        self.assertEqual(fake.writes(), [])
+
+    def test_creates_the_review_details_with_notes_only(self) -> None:
+        fake = FakeAppStoreConnect()
+        self.assertTrue(self.sync(fake, apply=True), self.text())
+        self.assertEqual(fake.review_detail, {"notes": REVIEW.review_notes})
+        self.assertEqual(list(fake.beta_texts.values()), [{"locale": "en-US", "description": REVIEW.beta_description}])
+
+    def test_a_refusal_to_create_notes_without_a_contact_is_only_a_warning(self) -> None:
+        fake = FakeAppStoreConnect()
+        fake.fail[("POST", "/appStoreReviewDetails")] = self.refusal("/data/attributes/contactPhone")
+        self.assertTrue(self.sync(fake, apply=True), self.text())
+        self.assertIn("::warning::App Store Connect refused review notes without a contact.", self.text())
+        self.assertNotIn("Wrote the App Review notes.", self.output)
+
+    @staticmethod
+    def refusal(*pointers: str) -> AscError:
+        errors = [{"code": "ENTITY_ERROR.X", "source": {"pointer": p}} for p in pointers]
+        return AscError("HTTP 409: refused", status=409, body={"errors": errors})
+
+    def test_another_refusal_to_create_the_notes_is_a_failure(self) -> None:
+        for pointers in (
+            (),
+            ("/data/relationships/appStoreVersion",),
+            ("/data/attributes/contactPhone", "/data/attributes/notes"),
+        ):
+            with self.subTest(pointers):
+                fake = FakeAppStoreConnect()
+                fake.fail[("POST", "/appStoreReviewDetails")] = self.refusal(*pointers)
+                self.assertFalse(self.sync(fake, apply=True), self.text())
+                self.assertNotIn("refused review notes without a contact", self.text())
+                self.assertIn("::error::review notes: HTTP 409", self.text())
+                for pointer in pointers:
+                    self.assertIn(f"ENTITY_ERROR.X at {pointer}", self.text())
+
+    def test_a_forbidden_submission_write_does_not_stop_the_rest(self) -> None:
+        fake = FakeAppStoreConnect()
+        fake.sub_versions["subscriptions"] = {}
+        fake.fail[("POST", "/subscriptionVersions")] = AscError("HTTP 403: FORBIDDEN", status=403)
+        self.assertFalse(self.sync(fake, apply=True))
+        self.assertIn("::error::subscription version: HTTP 403", self.text())
+        self.assertEqual(list(fake.beta_texts.values()), [{"locale": "en-US", "description": REVIEW.beta_description}])
+        self.assertIn("Submission audit (read-only)", self.text())
+
+    def test_a_run_that_stops_still_audits(self) -> None:
+        refused = FakeAppStoreConnect()
+        refused.fail[("PATCH", "/appInfos/")] = AscError("HTTP 403: FORBIDDEN", status=403)
+        locked = FakeAppStoreConnect(version_state="WAITING_FOR_REVIEW")
+        for fake, apply in ((refused, True), (locked, False)):
+            with self.subTest(apply=apply):
+                with self.assertRaises(AscError):
+                    self.sync(fake, apply=apply)
+                self.assertIn("Submission audit (read-only)", self.text())
+                self.assertIn("[MISSING] build attached: none", self.text())
+
+    def test_errors_on_personal_records_hide_apples_text(self) -> None:
+        fake = FakeAppStoreConnect()
+        fill_personal_data(fake)
+        leak = "owner@example.com +81 90 1234 5678"
+        error = AscError(f"HTTP 409: {leak}", status=409, body={"errors": [{"code": "X.INVALID", "detail": leak}]})
+        fake.fail[("PATCH", "/appStoreReviewDetails")] = error
+        fake.fail[("PATCH", "/betaAppLocalizations")] = error
+        self.assertFalse(self.sync(fake, apply=True))
+        self.assert_no_personal_data()
+        self.assertIn("review notes: HTTP 409 X.INVALID (details hidden", self.text())
+        self.assertIn("beta app description: HTTP 409 X.INVALID (details hidden", self.text())
+        self.assertEqual(fake.copyright, "2026 NoteFable")  # the other writes went on
+
+    def test_an_unreadable_section_is_skipped_and_fails_apply(self) -> None:
+        fake = FakeAppStoreConnect()
+        fake.fail[("GET", "/appInfos/info-1/ageRatingDeclaration")] = AscError("HTTP 500", status=500)
+        self.assertTrue(self.sync(fake))
+        self.assertIn("::error::age rating: could not be read", self.text())
+        self.assertIn("[unknown] age rating: could not be read (HTTP 500)", self.text())
+        self.assertFalse(self.sync(fake, apply=True))
+        self.assertEqual(fake.copyright, "2026 NoteFable")
+        self.assertEqual(set(fake.age.values()), {None})
+
+    def test_never_creates_a_product(self) -> None:
+        fake = FakeAppStoreConnect()
+        fake.product_id = None
+        self.assertTrue(self.sync(fake, apply=True), self.text())
+        self.assertIn("this script never creates products", self.text())
+        self.assertIn("[MISSING] subscription com.kakumine.notefable.pro.monthly: not found", self.text())
+        self.assertFalse(any("subscription" in path for _, path, _ in self.sent(fake)))
+
+    def test_creates_a_draft_version_only_when_there_is_none(self) -> None:
+        fake = FakeAppStoreConnect()
+        fake.sub_versions = {"subscriptionGroups": {}, "subscriptions": {}}
+        self.assertTrue(self.sync(fake, apply=True), self.text())
+        self.assertEqual(len(fake.sub_versions["subscriptionGroups"]), 1)
+        self.assertEqual(len(fake.sub_versions["subscriptions"]), 1)
+        self.assertEqual(sorted(len(texts) for texts in fake.sub_texts.values()), [18, 18])
+
+    def test_leaves_submitted_subscription_versions_alone(self) -> None:
+        fake = FakeAppStoreConnect()
+        fake.sub_versions = {
+            "subscriptionGroups": {"gver-1": "APPROVED"},
+            "subscriptions": {"sver-1": "WAITING_FOR_REVIEW"},
+        }
+        fake.sub_texts["gver-1"] = {
+            f"g-{locale}": {"locale": locale, "name": texts.group_name} for locale, texts in REVIEW.subscription.items()
+        }
+        self.assertTrue(self.sync(fake, apply=True), self.text())
+        self.assertIn("subscription group texts: unchanged (18 locales)", self.text())
+        self.assertIn("no editable subscription version (states: WAITING_FOR_REVIEW)", self.text())
+        self.assertFalse(any("subscription" in path for _, path, _ in self.sent(fake)))
+
+    def test_changed_texts_after_a_finished_review_go_into_a_new_draft(self) -> None:
+        for state in ("APPROVED", "REJECTED", "DEVELOPER_REJECTED"):
+            with self.subTest(state):
+                fake = FakeAppStoreConnect()
+                # An older, replaced version already has the wanted texts: it must not count.
+                fake.sub_versions["subscriptions"] = {"sver-0": "REPLACED_WITH_NEW_VERSION", "sver-1": state}
+                fake.sub_texts["sver-0"] = {
+                    f"old-{locale}": {"locale": locale, "name": t.name, "description": t.description}
+                    for locale, t in REVIEW.subscription.items()
+                }
+                fake.sub_texts["sver-1"] = {"s-ja": {"locale": "ja", "name": "Old", "description": "Old"}}
+                self.assertTrue(self.sync(fake, apply=True), self.text())
+                self.assertIn(f"subscription: its version is {state}, a draft metadata version will be", self.text())
+                self.assertIn("Created a draft subscription version.", self.text())
+                new = [i for i in fake.sub_versions["subscriptions"] if i.startswith("new-version")]
+                self.assertEqual(len(new), 1)
+                self.assertEqual(len(fake.sub_texts[new[0]]), 18)
+                self.assertEqual(fake.sub_texts["sver-1"]["s-ja"]["name"], "Old")
+
+    def test_audit_counts_only_the_current_version_localizations(self) -> None:
+        fake = FakeAppStoreConnect()
+        fake.sub_versions["subscriptions"] = {"sver-0": "REPLACED_WITH_NEW_VERSION", "sver-1": "PREPARE_FOR_SUBMISSION"}
+        fake.sub_texts["sver-0"] = {f"old-{loc}": {"locale": loc} for loc in ("en-US", "ja", "es-MX")}
+        self.assertTrue(self.sync(fake))
+        self.assertIn("[MISSING] subscription localizations: 0/3 in the PREPARE_FOR_SUBMISSION version", self.text())
+
+    def test_patches_only_the_subscription_text_that_differs(self) -> None:
+        fake = FakeAppStoreConnect()
+        self.assertTrue(self.sync(fake, apply=True), self.text())
+        loc_id, texts = next((i, a) for i, a in fake.sub_texts["sver-1"].items() if a["locale"] == "fr-FR")
+        texts["description"] = "Ancien"
+        fake.calls.clear()
+        self.assertTrue(self.sync(fake, apply=True), self.text())
+        self.assertEqual(
+            self.sent(fake),
+            [
+                (
+                    "PATCH",
+                    f"/v2/subscriptionLocalizations/{loc_id}",
+                    {
+                        "type": "subscriptionLocalizations",
+                        "id": loc_id,
+                        "attributes": {"description": REVIEW.subscription["fr-FR"].description},
+                    },
+                )
+            ],
+        )
+
+    def test_a_deprecated_frequency_with_the_same_meaning_is_not_rewritten(self) -> None:
+        fake = FakeAppStoreConnect()
+        fake.age = {**REVIEW.age_rating, "violenceRealistic": "INFREQUENT_OR_MILD"}
+        self.assertTrue(self.sync(fake, apply=True), self.text())
+        self.assertFalse(any("ageRating" in path for _, path, _ in self.sent(fake)))
+
+    def test_audit_lists_what_is_missing(self) -> None:
+        fake = FakeAppStoreConnect()
+        self.assertTrue(self.sync(fake, marketing_version="0.1.0"))
+        for expected in (
+            "Submission audit (read-only)",
+            "[MISSING] age rating: unanswered: advertising",
+            "[MISSING] App Review contactPhone: not set",
+            "[MISSING] content rights declaration: not set",
+            "[MISSING] copyright: not set",
+            "[MISSING] version string 1.0, project MARKETING_VERSION 0.1.0",
+            "[MISSING] build attached: none",
+            "[MISSING] app price: not set",
+            "[MISSING] app availability: not set",
+            "[ok] subscription com.kakumine.notefable.pro.monthly: present",
+            "[MISSING] subscription state: MISSING_METADATA",
+            "[MISSING] subscription localizations: 0/3",
+            "[MISSING] subscription price: not set",
+            "[MISSING] subscription review screenshot: not set",
+            "[MISSING] subscription availability: not set",
+            "[MISSING] TestFlight feedback email (en-US): not set",
+        ):
+            self.assertIn(expected, self.text())
+
+        fill_personal_data(fake)
+        fake.content_rights = "DOES_NOT_USE_THIRD_PARTY_CONTENT"
+        fake.build, fake.priced, fake.product_state = "10", True, "READY_TO_SUBMIT"
+        fake.sub_territories = True
+        self.assertTrue(self.sync(fake, apply=True), self.text())
+        for expected in (
+            "[ok] age rating: all answered",
+            "[ok] App Review contactPhone: set",
+            "demoAccountName set, demoAccountPassword set",
+            "[ok] content rights declaration: DOES_NOT_USE_THIRD_PARTY_CONTENT",
+            "[ok] version string 1.0, project MARKETING_VERSION 1.0",
+            "[ok] build attached: 10",
+            "[ok] app price: set",
+            "[ok] subscription availability: set",
+            "[ok] subscription localizations: 3/3",
+            "[ok] TestFlight feedback email (en-US): set",
+        ):
+            self.assertIn(expected, self.text())
+        self.assert_no_personal_data()
+
+
+class ReviewDocumentTests(unittest.TestCase):
+    def parse(self, old: str = "", new: str = "") -> Any:
+        text = (REPO_ROOT / review_mod.REVIEW_DOC).read_text(encoding="utf-8")
+        self.assertIn(old, text)
+        return review_mod.parse_review_info(text.replace(old, new, 1), listing_mod.LANGUAGES)
+
+    def test_repository_document_is_valid(self) -> None:
+        info = self.parse()
+        self.assertEqual(set(info.age_rating), set(review_mod.AGE_RATING_ATTRIBUTES))
+        self.assertEqual(info.copyright, "2026 NoteFable")
+        self.assertEqual(len(info.subscription), 18)
+        self.assertEqual(info.subscription["es-MX"], info.subscription["es-ES"])
+        self.assertFalse(info.age_rating["advertising"])
+        self.assertEqual(review_mod.read_marketing_version(REPO_ROOT).count("."), 2)
+
+    def test_subscription_descriptions_state_only_the_pro_storage(self) -> None:
+        plans = (REPO_ROOT / "src/lib/usage-plans.ts").read_text(encoding="utf-8")
+        gigabytes = re.search(r"pro: (\d+) \* 1024 \* MIB", plans).group(1)
+        for locale, texts in self.parse().subscription.items():
+            with self.subTest(locale):
+                # A message or image count would have to carry the daily limit too, which doesn't fit.
+                self.assertEqual(re.findall(r"\d+", texts.description), [gigabytes], texts.description)
+
+    def test_rejects_bad_documents(self) -> None:
+        cases = {
+            "no answer for advertising": ("| `advertising` | false |", "| `other` | false |"),
+            "contests = SOMETIMES": ("| `contests` | NONE |", "| `contests` | SOMETIMES |"),
+            "email address or phone number": ("NO ACCOUNT NEEDED", "Contact a@example.com"),
+            "needs exactly one ```text block": ("```text\n2026 NoteFable\n```", "2026 NoteFable"),
+            "copyright must be one line": ("2026 NoteFable\n```", "NoteFable\n```"),
+            "description is 46 characters": ("More AI messages and images, 10 GB storage", "x" * 46),
+            "display name is 31 characters": ("| NoteFable Pro | NoteFable Pro |", f"| NoteFable Pro | {'N' * 31} |"),
+            "exactly one row for each": ("| Japanese |", "| Japan |"),
+        }
+        for message, (old, new) in cases.items():
+            with self.subTest(message), self.assertRaises(ListingError) as ctx:
+                self.parse(old, new)
+            self.assertIn(message, str(ctx.exception))
 
 
 def workflow_runs_for(workflow: str, changed: str) -> bool:

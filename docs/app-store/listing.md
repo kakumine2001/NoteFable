@@ -4,6 +4,8 @@ App Store Connect → App → App 信息 / iOS App 的版本页。iOS 版目前�
 
 填写不用登录网页：GitHub Actions 的 `iOS App Store listing` 工作流按本文写入（先 dry run 再 apply，见 [ios.md](../architecture/ios.md#app-store-商店信息写入)）。脚本按本文的结构读取：每个语言一节，节里五条按现在的顺序（副标题、推广文本、关键词、iOS 登录说明、iOS 价格说明），网址和类别取自下面的规则；改节标题、条目顺序或规则写法时同时改 `scripts/release/ios-store-listing.py`。改了本文或 Play 的名称、完整说明后运行 `python3 scripts/release/ios-store-listing.py --check`（拼出的描述比 Play 的长，Play 没超限这里也可能超；PR 里也会检查）。
 
+提交审核用的其他信息（年龄分级、审核备注、版权、订阅文字、TestFlight 说明）在 [review-info.md](review-info.md)，同一个工作流写入。
+
 内容只写 iOS 版已经能用的功能（见 [ios-native.md](../architecture/ios-native.md)）。iOS 用 App Store 订阅内购（[billing.md](../architecture/billing.md)）：描述写清 Pro 提高什么、自动续订和取消方式，不写具体价格（各店面不同，以 App 内显示为准）和试用（有介绍优惠时由 App Store 显示），并附使用条款和隐私政策链接（审核指南 3.1.2）；不引导去别处购买（3.1.1）。内购要随 App 版本一起送审。关键词不放别家的品牌名（2.3.7）。
 
 ## 各语言共用的规则

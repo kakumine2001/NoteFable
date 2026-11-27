@@ -9,6 +9,9 @@ on:
     paths:
       - "docs/app-store/listing.md"
       - "docs/play-store/listing.md"
+      - "docs/app-store/review-info.md"
+      # 订阅描述里写着 Pro 的存储上限，测试对照这里的数值。
+      - "src/lib/usage-plans.ts"
       - "mobile/ios/app-store/screenshots/**"
       - ".github/workflows/store-listing-pr.yml"
 
