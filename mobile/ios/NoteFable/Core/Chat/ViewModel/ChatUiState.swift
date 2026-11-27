@@ -175,17 +175,9 @@ struct ChatUiState: Equatable, Sendable {
     var generatingSessionIds: Set<String> = []
     /// 当前聊天的角色完成 / 出错短暂状态反馈（网页 characterOutcome）。
     var characterOutcome: CharacterOutcome? = nil
-    /// 消息列表的视图身份（下面两个值）：iOS 27 起界面层按它们重建列表（`ChatListRepair`），更早的系统不用。
+    /// 消息列表的视图身份：iOS 27 起界面层按它换新的列表（`ChatListRepair`），更早的系统不用。
     /// 每换一次对话（`ChatViewModel.show`）换一个值；新聊天拿到会话 ID、再点开着的聊天不算换。
     var conversationId = 0
-    /// 开着的对话里有行被拿掉或换掉（重新生成、编辑、版本切换、发送失败退回）一次加一。
-    var replacedRowsId = 0
-
-    /// 换开着的对话的消息前调用。只追加、原地更新（流式文字、对账换了 ID 但沿用 key）不算。
-    mutating func noteReplacedRows(_ next: [UiMessage]) {
-        let nextKeys = Set(next.map(\.key))
-        if messages.contains(where: { !nextKeys.contains($0.key) }) { replacedRowsId += 1 }
-    }
 
     private var hasActiveTurnOutput: Bool {
         guard let last = messages.last, last.role == .assistant else { return false }

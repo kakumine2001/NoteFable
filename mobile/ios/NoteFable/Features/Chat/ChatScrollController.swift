@@ -22,7 +22,6 @@ final class ChatScrollController: NSObject {
     private var programmatic = false
     private var programmaticTask: Task<Void, Never>?
     private var idleTask: Task<Void, Never>?
-    private var repinTask: Task<Void, Never>?
     private var notifyTask: Task<Void, Never>?
     private var evaluating = false
     private var atBottom = true
@@ -62,8 +61,6 @@ final class ChatScrollController: NSObject {
         cancelProgrammatic()
         idleTask?.cancel()
         idleTask = nil
-        repinTask?.cancel()
-        repinTask = nil
     }
 
     // MARK: - 给消息列表用的
@@ -102,25 +99,6 @@ final class ChatScrollController: NSObject {
             cancelProgrammatic()
             scrollView.setContentOffset(target, animated: false)
             evaluate()
-        }
-    }
-
-    /// 懒加载栈换新之后（iOS 27 起，`ChatListRepair`）：跟随中的话等新行量好高度，贴两次底。
-    /// 内容一下子变短时位置可能已经滚过末尾，`evaluate` 把它当作在底部、不会去贴，所以这里直接贴。
-    func repinAfterRebuild() {
-        repinTask?.cancel()
-        repinTask = Task { [weak self] in
-            for wait in [60, 100] {
-                try? await Task.sleep(for: .milliseconds(wait))
-                guard !Task.isCancelled, let self else { return }
-                if self.following, !self.revealPending, !self.programmatic, let scrollView = self.scrollView,
-                   !self.isUserScrolling(scrollView) {
-                    self.pin(scrollView)
-                }
-            }
-            try? await Task.sleep(for: .milliseconds(200))
-            guard !Task.isCancelled, let self else { return }
-            self.evaluate()
         }
     }
 

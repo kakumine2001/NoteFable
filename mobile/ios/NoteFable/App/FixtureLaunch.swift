@@ -198,6 +198,11 @@ final class FixtureLaunch {
             app.notes.closeNote()
             _ = await poll(until: Date().addingTimeInterval(5)) { app.notes.state.open == nil }
         }
+        if previous == .chatRegenerate {
+            // 它的回答一直开着：停掉，免得带到后面的场景。固定回应不会自己结束流，等停止键的时限到了取消。
+            app.chat.stop()
+            _ = await poll(until: Date().addingTimeInterval(12)) { !app.chat.state.sending }
+        }
         if previous == .toast {
             // 长提示条要 3.5 秒才自己收起：马上收掉，免得留到下一个场景。
             ToastCenter.shared.hide()

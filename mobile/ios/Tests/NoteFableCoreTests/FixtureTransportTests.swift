@@ -244,7 +244,7 @@ final class FixtureTransportTests: XCTestCase {
         XCTAssertEqual(history.last?.content, streamedText)
     }
 
-    /// 截图场景 chat-regenerate 和消息列表视图身份（`ChatUiState.conversationId` / `replacedRowsId`）依赖的行为。
+    /// 截图场景 chat-regenerate、消息列表视图身份（`ChatUiState.conversationId`）和分段（`ChatTailSplit`）依赖的行为。
     func testChatListIdentityAndRegenerateFixture() async throws {
         let misses = MissRecorder()
         let catalog = FixtureCatalog(account: .signedIn, now: Self.fixedNow, image: Self.samplePNG)
@@ -284,15 +284,14 @@ final class FixtureTransportTests: XCTestCase {
         try await waitUntil { chat.state.activeSessionId == FixtureCatalog.IDs.liveSession && !chat.state.sending }
         try await waitUntil { chat.state.messages.last.map { !$0.id.hasPrefix("local-") } == true }
         XCTAssertEqual(chat.state.conversationId, fresh)
-        XCTAssertEqual(chat.state.replacedRowsId, 0)
 
-        // 换对话不算换行。
         chat.openSession(FixtureCatalog.IDs.longSession)
         try await waitUntil { !chat.state.messagesLoading && chat.state.messages.count == 4 }
-        XCTAssertEqual(chat.state.replacedRowsId, 0)
         let long = chat.state.conversationId
+        let split = ChatTailSplit()
+        XCTAssertEqual(split.historyCount(chat.state.messages), 2)
 
-        // 重新生成长回答：条数不变、保持生成中；只记一次换行（之后的流式文字不算）。
+        // 重新生成长回答：条数不变、保持生成中；换上来的回答不进懒加载栈。
         let answer = try XCTUnwrap(chat.state.messages.last)
         XCTAssertGreaterThan(answer.content.split(separator: "\n").count, 40)
         chat.regenerate(answer.id)
@@ -300,9 +299,14 @@ final class FixtureTransportTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(200))
         XCTAssertTrue(chat.state.sending)
         XCTAssertEqual(chat.state.messages.count, 4)
-        XCTAssertEqual(chat.state.replacedRowsId, 1)
+        XCTAssertEqual(split.historyCount(chat.state.messages), 2)
         XCTAssertEqual(chat.state.conversationId, long)
         XCTAssertTrue(misses.items.isEmpty, "unexpected fixture misses: \(misses.items)")
+
+        // 收尾：这个回答的流一直开着。换身份当场取消所有的流（停止键要等满服务端的时限）。
+        chat.onIdentityChanged()
+        XCTAssertTrue(chat.state.generatingSessionIds.isEmpty)
+        try await waitUntil { !chat.state.sessionsLoading }
     }
 
     private func waitUntil(_ condition: () -> Bool, file: StaticString = #filePath, line: UInt = #line) async throws {

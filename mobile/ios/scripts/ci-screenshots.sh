@@ -20,7 +20,8 @@ fi
 read -r -a MAJORS   <<<"${NF_IOS_MAJORS:-26 18}"
 # ar-app and hc run only on request (NF_VARIANTS), to keep the default run short.
 read -r -a VARIANTS <<<"${NF_VARIANTS:-light dark ar rt}"
-# chat-streaming stays last in the signed-in batch because its stream never ends.
+# chat-streaming stays last in the signed-in batch because its stream never ends. chat-regenerate also leaves a stream
+# open; the app stops it before the next scene of the batch (FixtureLaunch.resetBefore).
 DEFAULT_SCENES="chat-empty chat chat-scrolled emoji-picker chat-composer chat-keyboard toast model-sheet attach-sheet drawer search search-scrolled settings settings-page settings-plan workspace workspace-scrolled editor page-menu editor-scrolled editor-locked editor-whiteboard editor-slides chat-streamed chat-regenerate chat-streaming sign-in"
 read -r -a SCENES   <<<"${NF_SCENES:-$DEFAULT_SCENES}"
 
