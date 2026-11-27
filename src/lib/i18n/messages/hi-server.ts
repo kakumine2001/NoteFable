@@ -320,4 +320,5 @@ export const hiServer: Record<string, string> = {
   "quadrant chart": "चतुर्थांश चार्ट",
   "mind map": "माइंड मैप",
   "This page embeds a whiteboard that is not available.": "इस पेज में एक ऐसा व्हाइटबोर्ड एम्बेड है जो उपलब्ध नहीं है।",
+  "Could not import this PowerPoint file. Try again.": "यह PowerPoint फ़ाइल इंपोर्ट नहीं की जा सकी। फिर से कोशिश करें।",
 };

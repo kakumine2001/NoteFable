@@ -602,6 +602,7 @@
 "slides_export_png" = "PNG इमेज एक्सपोर्ट करें";
 "slides_export_pptx" = "PowerPoint (PPTX) एक्सपोर्ट करें";
 "slides_export_pptx_transition_note" = "PPTX एक्सपोर्ट में स्लाइड ट्रांज़िशन शामिल नहीं होते हैं।";
+"slides_import_pptx" = "PowerPoint इंपोर्ट करें";
 
 /* strings_slides_wizard.xml */
 "slides_generate" = "स्लाइड बनाएं";

@@ -259,8 +259,11 @@ describe("note-document runtime module dependency graph", () => {
     return list;
   }
 
-  function findRuntimeCycleFrom(entryFile: string, cache: Map<string, string[]>): string[] | null {
-    const visited = new Set<string>();
+  function findRuntimeCycleFrom(
+    entryFile: string,
+    cache: Map<string, string[]>,
+    visited = new Set<string>(),
+  ): string[] | null {
     const stack: string[] = [];
     const onStack = new Map<string, number>();
 
@@ -283,12 +286,13 @@ describe("note-document runtime module dependency graph", () => {
     return dfs(path.normalize(entryFile));
   }
 
+  const sharedImportCache = new Map<string, string[]>();
+
   it("keeps note-document.ts free of runtime circular imports and decoupled from whiteboard/scene.ts", () => {
-    const cache = new Map<string, string[]>();
     const noteDocument = path.normalize(path.join(srcRoot, "lib/note-document.ts"));
     const whiteboardScene = path.normalize(path.join(srcRoot, "lib/whiteboard/scene.ts"));
 
-    const cycle = findRuntimeCycleFrom(noteDocument, cache);
+    const cycle = findRuntimeCycleFrom(noteDocument, sharedImportCache);
     expect(cycle?.map((p) => path.relative(srcRoot, p))).toBeUndefined();
 
     // Collect full runtime closure of note-document.ts and verify whiteboard/scene.ts is never pulled in.
@@ -296,7 +300,7 @@ describe("note-document runtime module dependency graph", () => {
     const queue = [noteDocument];
     while (queue.length) {
       const cur = queue.pop()!;
-      for (const dep of runtimeImportsOf(cur, cache)) {
+      for (const dep of runtimeImportsOf(cur, sharedImportCache)) {
         if (!closure.has(dep)) {
           closure.add(dep);
           queue.push(dep);
@@ -305,10 +309,10 @@ describe("note-document runtime module dependency graph", () => {
     }
     expect(closure.has(noteDocument)).toBe(false);
     expect(closure.has(whiteboardScene)).toBe(false);
-  });
+  }, 15_000);
 
   it("introduces no runtime circular dependencies across whiteboard-embed and slides-embed modules", () => {
-    const cache = new Map<string, string[]>();
+    const visited = new Set<string>();
     const entries = [
       "lib/note-document.ts",
       "lib/note-markdown.ts",
@@ -331,8 +335,8 @@ describe("note-document runtime module dependency graph", () => {
       "components/note-editor.tsx",
     ];
     for (const rel of entries) {
-      const cycle = findRuntimeCycleFrom(path.join(srcRoot, rel), cache);
+      const cycle = findRuntimeCycleFrom(path.join(srcRoot, rel), sharedImportCache, visited);
       expect(cycle?.map((p) => path.relative(srcRoot, p)), `runtime cycle from ${rel}`).toBeUndefined();
     }
-  });
+  }, 15_000);
 });

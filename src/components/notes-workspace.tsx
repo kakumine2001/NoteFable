@@ -134,7 +134,7 @@ function NoteSaveWarnings({ notes }: { notes: ReturnType<typeof useNotePages> })
   </>;
 }
 
-export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChange, onReasoningChange, onOpen, onOpenChat, onCreate, onGenerateSlides, onImport, onWorkspaceChange, embedded = false, split = false, onAskSelectionInChat, onNativeOpenReveal }: {
+export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChange, onReasoningChange, onOpen, onOpenChat, onCreate, onGenerateSlides, onImportPptx, onImport, onWorkspaceChange, embedded = false, split = false, onAskSelectionInChat, onNativeOpenReveal }: {
   notes: ReturnType<typeof useNotePages>;
   listMode: boolean;
   // ノートの AI アシスタントが使うモデルと推論強度（チャットで選んでいるものと同じ）。
@@ -148,8 +148,9 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   onOpenChat?: (id: string, messageId?: string) => void;
   // 新しいページを作る（ホームと空状態の作成ボタン）。省略はプロジェクトなしのノート。
   onCreate: (request?: NewPageRequest) => void;
-  // ホームと空状態の「Generate with AI」（AI のスライド生成の窓）。
+  // ホームと空状態の「Generate with AI」「Import PowerPoint」。
   onGenerateSlides?: () => void;
+  onImportPptx?: () => void;
   onImport?: (files: File[]) => void;
   onWorkspaceChange: (view: WorkspaceView) => void;
   // Android アプリの WebView に載せる 1 ページだけの画面（/note-embed）。ノートを開く前に Notes のホームを出さない。
@@ -250,7 +251,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
     {actionError && <div className="notes-action-error notes-column pt-6"><div className="notion-error" role="alert">{localizeSystemText(actionError, t)}<button type="button" className="notion-button ml-3" onClick={notes.dismissActionError}>{t("Close")}</button></div></div>}
     {listMode && (notes.pages.length > 0 || notes.groups.length > 0) ? (
       <NotesHome pages={notes.pages} groups={notes.groups} groupError={notes.groupError} busy={busy} onOpen={onOpen}
-        onPrefetch={notes.prefetch} onCancelPrefetch={notes.cancelPrefetch} onCreate={onCreate} onGenerateSlides={onGenerateSlides} onImport={onImport}
+        onPrefetch={notes.prefetch} onCancelPrefetch={notes.cancelPrefetch} onCreate={onCreate} onGenerateSlides={onGenerateSlides} onImportPptx={onImportPptx} onImport={onImport}
         onWorkspaceChange={onWorkspaceChange} onReorder={notes.reorder} onMoveNote={notes.moveNote} onCreateGroup={notes.createGroup} onMoveToPage={notes.moveToPage} />
     ) : loading && (!listMode || !(notes.pages.length || notes.groups.length)) ? <div className="notes-column pt-24"><p className="notes-loading">{listMode ? t("Loading pages…") : t("Loading page…")}</p></div>
     // ホワイトボード・スライドは種類ごとのエディター（canvas-editors.tsx）。エディターがまだ無い種類は読み取り専用の仮の画面
@@ -370,7 +371,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
       <h1 className="notes-empty-title">{t("Workspace")}</h1>
       <p className="notes-empty-subtitle">{t("Write notes, build slide decks and sketch on whiteboards. In a note, type {key} for headings, lists, to-dos and code.").split("{key}").flatMap((part, index) => index ? [<kbd key={index} className="notes-kbd">/</kbd>, part] : [part])}</p>
       <div className="notes-empty-actions">
-        <NewPageButtons kinds={creatablePageKinds()} busy={busy} className="!mt-0" onCreate={(kind) => onCreate({ kind })} onGenerate={onGenerateSlides} />
+        <NewPageButtons kinds={creatablePageKinds()} busy={busy} className="!mt-0" onCreate={(kind) => onCreate({ kind })} onGenerate={onGenerateSlides} onImportPptx={onImportPptx} />
         {onImport && <>
           <input ref={emptyImportRef} type="file" multiple accept=".md,.markdown,.txt,text/markdown,text/plain" className="sr-only"
             onChange={(event) => {

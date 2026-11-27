@@ -320,4 +320,5 @@ export const itServer: Record<string, string> = {
   "quadrant chart": "grafico a quadranti",
   "mind map": "mappa mentale",
   "This page embeds a whiteboard that is not available.": "Questa pagina incorpora una lavagna non disponibile.",
+  "Could not import this PowerPoint file. Try again.": "Impossibile importare questo file PowerPoint. Riprova.",
 };

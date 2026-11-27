@@ -192,4 +192,65 @@ final class SlidesBridgeTests: XCTestCase {
         XCTAssertEqual(router.selectedTab, .workspace)
         XCTAssertEqual(env.notes.state.slidesWizard?.editor, "n1")
     }
+
+    // ---- PowerPoint（.pptx）导入（#154 PR 12） ----
+
+    func testParsesPptxImportMessagesAndBuildsScripts() {
+        XCTAssertEqual(EmbedMessage.parse(#"{"type":"pptxImport","state":"open"}"#), .pptxImport(open: true))
+        XCTAssertEqual(EmbedMessage.parse(#"{"type":"pptxImport","state":"closed"}"#), .pptxImport(open: false))
+        XCTAssertNil(EmbedMessage.parse(#"{"type":"pptxImport","state":"other"}"#))
+
+        let bootstrap = NoteEmbedScripts.bootstrap(handler: "h", appIcon: nil, language: "en")
+        XCTAssertTrue(bootstrap.contains("canShowPptxImport:function(){return true}"))
+
+        let openRoot = NoteEmbedScripts.pptxImportOpen()
+        XCTAssertTrue(openRoot?.contains(#""action":"open""#) == true)
+        let openGroup = NoteEmbedScripts.pptxImportOpen(target: PptxImportTarget(groupId: "g_1"))
+        XCTAssertTrue(openGroup?.contains(#""groupId":"g_1""#) == true)
+        let openParent = NoteEmbedScripts.pptxImportOpen(target: PptxImportTarget(parentId: "p-2"))
+        XCTAssertTrue(openParent?.contains(#""parentId":"p-2""#) == true)
+        XCTAssertNil(NoteEmbedScripts.pptxImportOpen(target: PptxImportTarget(groupId: "bad/id")))
+        XCTAssertNil(NoteEmbedScripts.pptxImportOpen(target: PptxImportTarget(parentId: "x'y")))
+        XCTAssertTrue(NoteEmbedScripts.pptxImportBack.contains(#""action":"back""#))
+    }
+
+    @MainActor
+    func testViewModelAndRouterPptxImportLifecycle() async {
+        let env = AppEnvironment(config: AppConfig(baseURL: "https://example.test", siteURL: "https://example.test"))
+        let router = AppRouter(app: env)
+        let vm = env.notes
+        vm.setWorkspace(.notes)
+        await notesSettle()
+
+        // 没有打开页面时打开全屏导入画面。
+        router.openPptxImport(PptxImportTarget(groupId: "g1"))
+        XCTAssertEqual(vm.state.pptxImport?.target, PptxImportTarget(groupId: "g1"))
+        XCTAssertNil(vm.state.pptxImport?.editor)
+        XCTAssertEqual(vm.state.pptxImport?.shown, false)
+
+        // 还没 shown 之前，旧的 closed 不关掉新的导入窗口。
+        vm.onPptxImportClosed()
+        XCTAssertNotNil(vm.state.pptxImport)
+
+        vm.onPptxImportOpened(editor: nil)
+        XCTAssertEqual(vm.state.pptxImport?.shown, true)
+        vm.onPptxImportStorageLimit(tier: "member", used: 50, limit: 100)
+        XCTAssertEqual(vm.state.pptxImportStorageLimit, StorageLimitInfo(tier: "member", used: 50, limit: 100))
+        vm.onPptxImportClosed()
+        XCTAssertNil(vm.state.pptxImport)
+        XCTAssertNil(vm.state.pptxImportStorageLimit)
+
+        // 编辑器打开时从搜索页打开导入：切回工作区并复用当前编辑器。
+        vm.openNote("s1", title: "Deck", icon: nil, kind: .slides)
+        await notesSettle()
+        router.selectTab(.search)
+        router.openPptxImport()
+        XCTAssertEqual(router.selectedTab, .workspace)
+        XCTAssertEqual(vm.state.pptxImport?.editor, "s1")
+
+        // 关掉编辑器时，盖在编辑器上的导入窗口自动清掉。
+        vm.closeNote()
+        await notesSettle()
+        XCTAssertNil(vm.state.pptxImport)
+    }
 }

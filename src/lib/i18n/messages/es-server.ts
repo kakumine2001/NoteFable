@@ -320,4 +320,5 @@ export const esServer: Record<string, string> = {
   "quadrant chart": "gráfico de cuadrantes",
   "mind map": "mapa mental",
   "This page embeds a whiteboard that is not available.": "Esta página incrusta una pizarra que no está disponible.",
+  "Could not import this PowerPoint file. Try again.": "No se pudo importar este archivo de PowerPoint. Inténtalo de nuevo.",
 };

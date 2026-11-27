@@ -78,6 +78,9 @@
 | 网页 → App | `{ type: "presentation", state: "start" \| "slide" \| "end", index, count }` | start：横屏、全屏（隐藏系统栏）、屏幕常亮、收起原生顶栏；end：恢复 |
 | 网页 → App | `fileStart { id, name, mime, size }` → `fileChunk { id, index, data }`（base64，每块原始 512 KiB）→ `fileEnd { id }` / `fileAbort { id }` | App 写入临时文件，结束后让用户选位置保存（和白板共用一条路：Android `ExportFileAssembler` + `ExportFileSaver`，系统“保存到”（SAF CreateDocument）；iOS `ExportFileAssembler`（`ExportFile.swift`）+ `NotesViewModel`，`.fileExporter` 的“存储到文件”）。收 PNG / SVG / PDF / PPTX / ZIP（多页的 PNG），最多 64 MiB，见 [whiteboard.md](whiteboard.md)、[android-native.md](android-native.md)、[ios-native.md](ios-native.md) |
 | App → 网页 | `notefableEmbed.slides({ action, index?, format? })` | `present` / `end` / `next` / `previous` / `goto` / `export`（`pdf` / `pdf-notes` / `png` / `pptx`）；App 的“…”菜单（放映、导出）和返回键（放映中先结束放映）用它 |
+| App → 网页（能力） | `NoteFableNative.canShowPptxImport()` | 为 true 时，原生端承载 PowerPoint 导入全屏面板；网页按需发送 `pptxImport` / `openPage` / `pagesChanged` / `storageLimit` |
+| 网页 → App | `{ type: "pptxImport", state: "open" \| "closed" }` | PowerPoint 导入窗口打开 / 关闭；打开期间原生端隐藏顶栏并把返回键交给 `notefableEmbed.pptxImport({ action: "back" })` |
+| App → 网页 | `notefableEmbed.pptxImport({ action, groupId?, parentId? })` | `open`（带上可选的 `groupId` / `parentId` 定位新建目标）或 `back`（关闭导入窗口；解析/上传中会中止并触发已上传图片的清理，最终建页提交阶段则等待提交完成而不丢弃已建页面） |
 
 旧版 App（没有 `canPresent` / `canSaveFile`）：放映只在 WebView 里进行（不横屏、不常亮），导出提示更新 App。
 
@@ -124,8 +127,17 @@
 - **AI（#150 / #158）**：编辑器在选择变化时发 `notefable:slides-selection`（`{ pageId, slideIds, elementIds }`），并通过 `CanvasEditorProps.onSelectionChange` 把选中的元素或总览多选页实时同步到 `PageAssistant`（点右下角 AI 按钮或在已展开的面板里提问也会自动附带选区，且不抢画布焦点）；同时接入 `CanvasEditorProps.onAskAi`（工具栏、右侧检查器顶部统一的 **Ask NoteFable** 入口（置于锁页禁用的 `<fieldset>` 外以便锁页可问）及元素 / 幻灯片右键菜单）。`slidesContextText(deck, selection, options?)` 把所选页 / 元素变成给 AI 看的文字（仅选中整页或显式 `includeNotes: true` 时附带演讲备注；仅选中个别元素时不自动带入整页备注），`slidesSelectionIds(deck, selection)` 生成与 `read_note` 对齐的稳定 ID。模型支持看图时，通过 `slide-capture.tsx` + `captureSlideSelectionPng` 导出当前选中页或选中元素外接区域的浅色/主题 PNG（长边 ≤ 1568 px）随对话上传，失败时降级发纯文字并轻提示。`GenerateImageDialog` 遇到 429 `usage_limit` 时保留已输入的描述词（并在登录 / 升级跳转间用 `pending-draft` 暂存）：网页端显示 `GuestLimitPrompt` / `UpgradePrompt`，`/note-embed` 优先发 `usageLimit` 交由原生处理。编辑器的 `aiSlot` 属性（`ReactNode`，`CanvasEditorProps.aiSlot`）放在单页编辑画面的右下（`.slides-ai-slot`）：#158 的 AI 按钮没被拖动过时就放在这里（`NotesWorkspace` 放一个看不见的目印，`PageAssistant` 的 `anchor`），重叠顺序和这个位置一样（z-index 5），所以手机的设置面板和菜单会盖住它。
   - **AI 编辑与整套换风格（`src/lib/page-ai/slides-adapter.ts`、`src/lib/slides/ai-edit.ts`）**：`propose_slides_create` 与 `propose_slides_edit` 均无像素坐标参数，严格按 `read_note` 返回的稳定 `slide.id`（精确匹配，不按页码）定位，由服务端确定性排版、校验并走提案卡片的改前/改后版本化可视化预览（支持自动应用与一键 Undo，写入前留 `AI_EDIT` 历史，自动应用写入原子带 `locked: false` 条件防与锁页竞态）。支持 `update_slide`（保留既有图片/白板框/图形/线、自由文本框与未替换的既有表格并避让重排）、`update_element`（按稳定 `element.id` 仅改选中文本框或图形，不波及同页其他元素）、`delete_element`（按稳定 `element.id` 删除指定元素）、`set_layout`、`split_slide`、`merge_slides`、`add_slide`、`delete_slides`、`reorder_slides`（按行/章维护节标题）与 `restyle_deck`。`restyle_deck` 只改 8 套内置主题、深浅色与每页版式，服务端通过 `assertDeckTextPreserved` 按稳定 `slide.id` 与 `element.id` 校验 100% 保留全部文字、富文本格式/链接/代码语言/公式、表格、演讲备注、章名、媒体（含 `pendingImagePrompt`）与装饰图形，任何改动或归一化截断即拒绝；超过 20,000 字符的大幻灯片集在 `read_note` 截断尾部附带省略页的稳定 ID 索引。面板按选区类型与锁页状态动态过滤快捷操作（整套：Restyle deck / Summarize / Suggest improvements；元素选区仅展示走 `update_element` 的改写类按钮；单页含拆分；多页含合并；锁页隐藏自动应用开关）。`SlidesEditor` 以单一同步 `historyRef` 同步 `commit`/`undo`/`redo`，通过 `registerCanvasFlusher` 挂接共享冲刷机制，在 AI 发送/历史/提案应用前传递冲刷结果并等待进行中的图片上传，切页或重挂载后完成的上传经 `liveSlideEditors` 接管或直接写入保存队列不丢图。
 
+## PPTX 导入
+
+在浏览器端用 `JSZip` + `DOMParser` 解析 PowerPoint（`.pptx`），不依赖服务端转换、不新增第三方包（`src/lib/slides/pptx/{types,zip-reader,colors,image-probe,theme-master,parse}.ts`、`src/lib/slides/pptx-import.ts`、`src/lib/pptx-import-jobs.ts`、`src/components/pptx-import-dialog.tsx`）。
+
+- **解析与映射**：解析 `slideMaster`、`slideLayout` 占位符继承（含默认文字样式、标题/正文/页脚字体与位置）、`theme1.xml` 主题色（含 `tint` / `shade` / `lumMod` / `lumOff` / `alpha` 与 `clrMap` 映射）与字体、嵌套组变换（`p:grpSp` 与旋转/翻转），并将原始幻灯片画幅等比适配到 1920 × 1080 居中画布。支持可编辑富文本（字号/颜色/加粗/斜体/下划线/删除线/项目符号与编号列表、仅保留 `http` / `https` / `mailto` 链接）、15 种常见形状及别名映射、线条/箭头连接符、按包内路径去重的图片与 `srcRect` 裁剪、基础表格（最多 50 × 20）、演讲备注、隐藏页与章节（`p14:sectionLst`）。
+- **明确兼容边界与逐页报告**：图表（`c:chart`）、SmartArt（`dgm:*`）、视频/音频、动画（`p:timing`）、不支持的转场（`fade` / `push` / `cover` / `uncover` 之外）、EMF/WMF/SVG 图片、外部链接图片、超限图片（单张超 32 MiB 或超像素上限时仅跳过该图而不中止整份导入）、嵌入式 OLE 对象以及单页超出 1,000 元素上限时被省略的额外元素（优先保留幻灯片正文元素而非母版/版式装饰，并裁剪被省略元素引用的图片）均不静默忽略，导入后在完成界面**按页列出**；若文件内含静态预览图（如 `<mc:Fallback><p:pic>`、视频封面或 OLE 预览图），自动按原框位置放入静态图片并注明“已放置静态预览图”。
+- **安全与硬上限**：文件大小上限 50 MB、页数上限 200 页；流式校验解压后总字节数不超过 160 MiB（防 ZIP 炸弹）；拒绝含 `<!DOCTYPE` / `<!ENTITY` 的 XML（防 XXE / 实体扩展）；忽略所有 `TargetMode="External"` 媒体/资源关系（仅允许安全协议超链接），绝不发起外部请求；按二进制魔数识别图片，仅接收 PNG / JPEG / GIF / WebP，解码前解析文件头拒绝超过 2500 万像素或单边超过 10,000 px 的超大图片；最终 `CanvasData` 序列化后不得超过 2 MiB。
+- **原子建页与清理**：所有图片先经 `POST /api/pages/files` 上传为当前用户的 `NOTE_FILE`（计入存储额度，单张超 4 MiB 时在客户端无损缩图/转码）并在全部转换成功后一次性 `POST /api/pages` 建页，不留半成品页面；用户取消、遇到 413 `storage_limit` 或任一步失败时调用 `DELETE /api/pages/files` 清理本次已上传但未被任何页面引用的文件（只删本人且未被引用的 `NOTE_FILE`）。
+- **入口**：网页、Android、iOS 所有“新建幻灯片”入口（侧栏新建、项目 `+`、页面 `+`、幻灯片分区 `+`、工作区首页与空状态新建卡片）以及幻灯片编辑器顶栏“…”菜单与工具栏均提供 **Import PowerPoint**；Android（`PptxImportScreen.kt` + `RememberWebFileChooser`）与 iOS（`PptxImportScreen.swift` + `NoteEditorWebView`）通过常驻 `/note-embed` 承载同一导入窗口。
+
 ## 已知限制
 
-- PPTX 里的公式是 TeX 文字；表格单元格是纯文字（不支持单元格内的格式）；幻灯片转场不包含在 PPTX 导出中。
-- 白板框只有接口，白板端注册之前不显示入口。
-- iOS 的横屏放映、文件保存和常亮只做了编译检查（Linux 容器里的 `swift test` 和 macOS 的 PR 检查），没在真机 / 模拟器上验证（[ios-native.md](ios-native.md)）。
+- PPTX 里的公式是 TeX 文字；表格单元格是纯文字（不支持单元格内的格式）；幻灯片转场不包含在 PPTX 导出中；PPTX 导入不支持可编辑图表、SmartArt、音视频、动画、EMF/WMF/SVG 与外部链接图片（导入报告逐页列出，有静态预览图时保留为静态图）。
+- iOS 的横屏放映、文件保存、常亮与 PPTX 导入界面只做了 Core 测试与语法/CI 编译检查，没在真机 / 模拟器上验证（[ios-native.md](ios-native.md)）。

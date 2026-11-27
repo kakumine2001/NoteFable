@@ -52,7 +52,10 @@ export type NativeMessage =
   | { type: "fileAbort"; id: string }
   // ホワイトボードで描く道具（ペン・図形など）を使っているか。アプリはこの間、端の戻るジェスチャーを避ける（Android は端ごとに 200dp まで）。
   // 古いアプリは知らない種類として無視する。
-  | { type: "drawing"; active: boolean };
+  | { type: "drawing"; active: boolean }
+  // PowerPoint（.pptx）取り込みの窓が出た・消えた。open の間、アプリは上部バーを隠し、戻る操作を pptxImport({ action: "back" }) に渡す。
+  // canShowPptxImport を持つアプリにだけ送る。
+  | { type: "pptxImport"; state: "open" | "closed" };
 
 // appIcon はアプリの設定で選んだアイコン（絵文字 1 つか画像の data URL、既定のロゴは空文字）を返す。古いアプリにはない。
 // canOpenPage は openPage を処理できるアプリだけが持つ（古いアプリは持たない。そのときは送らずに元のリンクの動きにする）。
@@ -64,7 +67,7 @@ export type NativeMessage =
 // canOpenChat は openChat を処理できるアプリだけが持つ（古いアプリにはバックリンクの会話を出さない）。
 export type NativeHost = {
   postMessage: (json: string) => void; appIcon?: () => string; language?: () => string; theme?: () => string; canOpenPage?: () => boolean; canShowStorageLimit?: () => boolean;
-  canShowUsageLimit?: () => boolean; canPresent?: () => boolean; canSaveFile?: () => boolean; canShowSlidesWizard?: () => boolean; canOpenChat?: () => boolean;
+  canShowUsageLimit?: () => boolean; canPresent?: () => boolean; canSaveFile?: () => boolean; canShowSlidesWizard?: () => boolean; canOpenChat?: () => boolean; canShowPptxImport?: () => boolean;
 };
 // アプリ → web。アプリは evaluateJavascript で window.notefableEmbed.flush("<requestId>") などを呼ぶ。
 // pageUpdated はアプリのチャットで編集案を適用したときに、サーバーが返した新しいページ（JSON 文字列かオブジェクト）を渡す。
@@ -95,6 +98,8 @@ export type EmbedApi = {
   slidesWizard: (request: unknown) => boolean;
   // アプリの画面（ドロワー・ゴミ箱）で、ページや会話の名前・アイコンを変えた、消した、元に戻したので、バックリンクを読み直させる。
   refreshBacklinks: () => boolean;
+  // PowerPoint（.pptx）取り込みの窓（JSON 文字列でもよい）：{ action: "open", groupId?, parentId? } または { action: "back" }。
+  pptxImport: (request: unknown) => boolean;
 };
 
 type BridgeWindow = { NoteFableNative?: unknown; notefableEmbed?: EmbedApi };
@@ -183,6 +188,13 @@ export function nativeCanShowSlidesWizard(target: BridgeWindow | undefined = bro
   const native = host(target);
   if (!native || typeof native.canShowSlidesWizard !== "function") return false;
   try { return native.canShowSlidesWizard() === true; } catch { return false; }
+}
+
+// アプリが PowerPoint 取り込みの窓の出し入れ（pptxImport の消息）を受け持てるか。古いアプリや普通のブラウザでは false。
+export function nativeCanShowPptxImport(target: BridgeWindow | undefined = browserWindow()): boolean {
+  const native = host(target);
+  if (!native || typeof native.canShowPptxImport !== "function") return false;
+  try { return native.canShowPptxImport() === true; } catch { return false; }
 }
 
 // アプリの中（WebView）で開いているか。
@@ -377,7 +389,27 @@ export function parseSlidesWizardRequest(value: unknown): SlidesWizardCommand | 
   return open({ type: "new", groupId, parentId });
 }
 
-export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, theme = saveThemePreference, slides = dispatchSlidesCommand, openPage, close, pageTrashed = dispatchPagesTrashed, slidesWizard, refreshBacklinks = dispatchBacklinksStale, language, reveal = () => {}, post }: {
+export type PptxImportCommand =
+  | { action: "open"; groupId: string | null; parentId: string | null }
+  | { action: "back" };
+
+export function parsePptxImportRequest(value: unknown): PptxImportCommand | null {
+  let raw: unknown = value;
+  if (typeof raw === "string") {
+    try { raw = JSON.parse(raw); } catch { return null; }
+  }
+  if (!raw || typeof raw !== "object") return null;
+  const candidate = raw as { action?: unknown; groupId?: unknown; parentId?: unknown };
+  if (candidate.action === "back") return { action: "back" };
+  if (candidate.action !== "open") return null;
+  const id = (item: unknown): item is string => typeof item === "string" && REVEAL_TARGET.test(item);
+  const groupId = candidate.groupId ?? null;
+  const parentId = candidate.parentId ?? null;
+  if ((groupId !== null && !id(groupId)) || (parentId !== null && !id(parentId))) return null;
+  return { action: "open", groupId, parentId };
+}
+
+export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, theme = saveThemePreference, slides = dispatchSlidesCommand, openPage, close, pageTrashed = dispatchPagesTrashed, slidesWizard, pptxImport, refreshBacklinks = dispatchBacklinksStale, language, reveal = () => {}, post }: {
   flush: () => Promise<boolean>;
   reveal?: (target: string) => void;
   language?: (locale: Locale) => Promise<boolean>;
@@ -394,6 +426,7 @@ export function createEmbedApi({ flush, draftKept = () => false, openHistory, pa
   pageTrashed?: (ids: string[]) => void;
   // 開けた・閉じられたら true。
   slidesWizard?: (command: SlidesWizardCommand) => boolean;
+  pptxImport?: (command: PptxImportCommand) => boolean;
   refreshBacklinks?: () => void;
   post: (message: NativeMessage) => void;
 }): EmbedApi {
@@ -473,6 +506,11 @@ export function createEmbedApi({ flush, draftKept = () => false, openHistory, pa
     refreshBacklinks() {
       refreshBacklinks();
       return true;
+    },
+    pptxImport(value) {
+      if (!pptxImport) return false;
+      const command = parsePptxImportRequest(value);
+      return command ? pptxImport(command) : false;
     },
   };
 }

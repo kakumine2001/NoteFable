@@ -25,7 +25,8 @@ import { registerCanvasFlusher } from "@/lib/canvas-flush";
 import { getNativeExportEpoch } from "@/lib/export-file";
 import { localizeSystemText } from "@/lib/i18n/translate";
 import { trackSlideUpload } from "@/lib/slides/upload-tracker";
-import { nativeCanPresent, nativeCanShowUsageLimit, postToNative } from "@/lib/native-bridge";
+import { nativeCanPresent, nativeCanShowPptxImport, nativeCanShowUsageLimit, postToNative } from "@/lib/native-bridge";
+import { openPptxImport } from "@/lib/pptx-import-jobs";
 import { takeCanvasReveal } from "@/lib/search-reveal";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import { hasWhiteboardFrameProvider, refreshWhiteboardFrame, renderWhiteboardFramePicker, subscribeWhiteboardFrameProvider, type WhiteboardFrame, type WhiteboardPickerPage } from "@/lib/slides/whiteboard-embed";
@@ -671,9 +672,15 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
   }, [commitWhiteboardRefresh]);
 
   // 親の一覧（NotesWorkspace）が渡されている時は、最新バージョンと削除を即座に反映する。
+  // 別タブで更新・削除された白板を fetch('/api/pages') や手動刷新が先に検知した直後、スライド保存による
+  // 親一覧の参照更新で古いキャッシュ版へ巻き戻らないよう、単調増加で反映する。
+  const prevPickerIdsRef = useRef<Set<string> | null>(null);
   useEffect(() => {
-    if (!pickerPages || !whiteboardPageIds.length) return;
+    if (!pickerPages) return;
     const byId = new Map(pickerPages.map((page) => [page.id, page]));
+    const prevIds = prevPickerIdsRef.current;
+    prevPickerIdsRef.current = new Set(byId.keys());
+    if (!whiteboardPageIds.length) return;
     queueMicrotask(() => {
       setWhiteboardVersions((prev) => {
         let changed = false;
@@ -685,7 +692,16 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
           } else if (typeof found.version === "number") {
             const title = typeof found.title === "string" ? found.title : "";
             const existing = next[id];
-            if (!existing || existing === "missing" || existing.version !== found.version || existing.title !== title) {
+            if (!existing) {
+              next[id] = { version: found.version, title };
+              changed = true;
+            } else if (existing === "missing") {
+              // ゴミ箱からの復元などで親一覧に新しく戻った時だけ "missing" を解除する。
+              if (prevIds !== null && !prevIds.has(id)) {
+                next[id] = { version: found.version, title };
+                changed = true;
+              }
+            } else if (found.version > existing.version || (found.version === existing.version && existing.title !== title)) {
               next[id] = { version: found.version, title };
               changed = true;
             }
@@ -744,7 +760,7 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
       const info = whiteboardVersions[element.pageId];
       if (!info) { map.set(element.id, { state: "loading" }); continue; }
       if (info === "missing") { map.set(element.id, { state: "missing" }); continue; }
-      const outdated = element.sourceVersion === undefined || info.version !== element.sourceVersion;
+      const outdated = element.sourceVersion === undefined || info.version > element.sourceVersion;
       map.set(element.id, { state: outdated ? "outdated" : "current", boardTitle: info.title });
     }
     return map;
@@ -1153,6 +1169,11 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
         onClick={() => askAi()} aria-label={t("Ask NoteFable")} title={t("Ask NoteFable")}>
         <AppIcon size={16} />
         {!phone && <span>{t("Ask NoteFable")}</span>}
+      </button>
+    )}
+    {(!embedded || nativeCanShowPptxImport()) && (
+      <button type="button" className="slides-tool" aria-haspopup="dialog" onClick={() => openPptxImport()} aria-label={t("Import PowerPoint")} title={t("Import PowerPoint")}>
+        <Upload size={18} />
       </button>
     )}
     <MenuButton label={t("Export")} icon={<Download size={18} />} disabled={!deck.slides.length || !!exporting} text={exporting ? <span className="slides-tool-busy" aria-hidden="true" /> : null}>

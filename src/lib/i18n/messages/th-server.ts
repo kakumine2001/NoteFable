@@ -320,4 +320,5 @@ export const thServer: Record<string, string> = {
   "quadrant chart": "แผนภูมิสี่ส่วน",
   "mind map": "แผนผังความคิด",
   "This page embeds a whiteboard that is not available.": "หน้านี้ฝังไวท์บอร์ดที่ไม่พร้อมใช้งาน",
+  "Could not import this PowerPoint file. Try again.": "นำเข้าไฟล์ PowerPoint นี้ไม่สำเร็จ โปรดลองอีกครั้ง",
 };

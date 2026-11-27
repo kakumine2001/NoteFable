@@ -78,10 +78,13 @@ class NotePageMenuActions(
     val onGenerateSlides: (() -> Unit)? = null,
     /** 这篇的幻灯片正在生成（网页的菜单项显示转圈和"正在生成幻灯片…"）。 */
     val generatingSlides: Boolean = false,
+    /** 「导入 PowerPoint」（#154）：只给幻灯片，打开 PPTX 导入窗口。 */
+    val onImportPptx: (() -> Unit)? = null,
 ) {
     fun withSlides(handler: (String) -> Unit) = NotePageMenuActions(
         error, busy, onSettings, onFavorite, onDuplicate, onAddInside, onMove, onExport, onTrash, onSlides = handler,
         onDrawDiagram = onDrawDiagram, drawingDiagram = drawingDiagram, onGenerateSlides = onGenerateSlides, generatingSlides = generatingSlides,
+        onImportPptx = onImportPptx,
     )
 }
 
@@ -178,6 +181,10 @@ fun NotePageMenuButton(page: NotePageSummary, actions: NotePageMenuActions) {
                     stringResource(if (actions.generatingSlides) R.string.slides_generating else R.string.slides_generate),
                     Lucide.Presentation, spinning = actions.generatingSlides, onClick = run(generateSlides),
                 )
+            }
+            val importPptx = actions.onImportPptx
+            if (importPptx != null && page.kind == PageKind.Slides) {
+                MenuItem(stringResource(R.string.slides_import_pptx), Lucide.Upload, onClick = run(importPptx))
             }
             MenuItem(stringResource(R.string.pg_move_to), Lucide.FolderInput, onClick = run(actions.onMove))
             if (features.markdownExport) MenuItem(stringResource(R.string.export_markdown), Lucide.Download, onClick = run(actions.onExport))

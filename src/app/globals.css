@@ -5819,3 +5819,29 @@ dialog.notes-dialog.slides-wizard[open] { display: flex; flex-direction: column;
   .slides-wizard-body, .slides-wizard-footer { padding-inline: 1rem; }
   .slides-wizard-footer .notion-button { min-height: 2.5rem; }
 }
+
+/* PowerPoint（.pptx）取り込み（src/components/pptx-import-dialog.tsx、および作成カード下の操作行）。 */
+.ws-create-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.5rem; }
+.notes-empty-actions .ws-create-actions { justify-content: center; }
+.pptx-import-dropzone {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.35rem;
+  border: 1.5px dashed var(--notion-border-strong); border-radius: 12px; padding: 1.75rem 1.25rem;
+  text-align: center; background: var(--notion-surface); transition: border-color 140ms ease, background 140ms ease;
+}
+.pptx-import-dropzone.is-dragging { border-color: var(--nf-accent); background: var(--notion-hover); }
+.pptx-import-drop-title { margin: 0.25rem 0 0; font-size: 0.9375rem; font-weight: 600; color: var(--notion-text); }
+.pptx-import-drop-hint { margin: 0; font-size: 0.8125rem; color: var(--notion-muted); }
+.pptx-import-limits { border: 1px solid var(--notion-border); border-radius: 10px; padding: 0.75rem 0.9rem; background: var(--notion-surface); }
+.pptx-import-limits-title { margin: 0 0 0.4rem; font-size: 0.8125rem; font-weight: 600; color: var(--notion-text); }
+.pptx-import-limits-list { margin: 0; padding-inline-start: 1.15rem; font-size: 0.8125rem; line-height: 1.5; color: var(--notion-muted); display: flex; flex-direction: column; gap: 0.25rem; }
+.pptx-import-progress { border: 1px solid var(--notion-border); border-radius: 10px; padding: 1rem; background: var(--notion-surface); }
+.pptx-import-summary { display: flex; align-items: flex-start; gap: 0.55rem; }
+.pptx-import-report { border: 1px solid var(--notion-border); border-radius: 10px; padding: 0.75rem 0.9rem; background: var(--notion-surface); }
+.pptx-import-report-head { display: flex; align-items: center; gap: 0.45rem; font-size: 0.8125rem; font-weight: 600; color: var(--notion-text); }
+.pptx-import-report-note { margin: 0.3rem 0 0; font-size: 0.78125rem; color: var(--notion-muted); }
+.pptx-import-report-list { margin: 0.65rem 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
+.pptx-import-report-slide { border-top: 1px solid var(--notion-border); padding-top: 0.5rem; }
+.pptx-import-report-slide:first-child { border-top: 0; padding-top: 0; }
+.pptx-import-report-slide-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem; font-size: 0.8125rem; font-weight: 600; color: var(--notion-text); }
+.pptx-import-report-snippet { font-weight: 400; color: var(--notion-muted); }
+.pptx-import-report-issues { margin: 0.25rem 0 0; padding-inline-start: 1.15rem; font-size: 0.8125rem; line-height: 1.45; color: var(--notion-muted); }

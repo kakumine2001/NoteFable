@@ -320,4 +320,5 @@ export const viServer: Record<string, string> = {
   "quadrant chart": "biểu đồ bốn góc phần tư",
   "mind map": "sơ đồ tư duy",
   "This page embeds a whiteboard that is not available.": "Trang này nhúng một bảng trắng không khả dụng.",
+  "Could not import this PowerPoint file. Try again.": "Không thể nhập tệp PowerPoint này. Hãy thử lại.",
 };

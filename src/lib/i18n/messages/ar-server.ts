@@ -320,4 +320,5 @@ export const arServer: Record<string, string> = {
   "quadrant chart": "مخطط رباعي",
   "mind map": "خريطة ذهنية",
   "This page embeds a whiteboard that is not available.": "تُضمّن هذه الصفحة سبورة غير متاحة.",
+  "Could not import this PowerPoint file. Try again.": "تعذّر استيراد ملف PowerPoint هذا. حاول مرة أخرى.",
 };

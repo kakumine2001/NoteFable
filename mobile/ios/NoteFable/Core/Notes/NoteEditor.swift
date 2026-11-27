@@ -31,6 +31,8 @@ protocol NoteEditorBridge: AnyObject {
     func refreshBacklinks()
     /// AI 生成幻灯片向导开着时的「返回」：关闭向导最上面一层（先选笔记层，其次向导，草稿保留）；没有可关的返回 false。
     func slidesWizardBack() async -> Bool
+    /// PowerPoint（.pptx）导入窗口开着时的「返回」：关闭窗口（导入中时取消并清理）；没有可关的返回 false。
+    func pptxImportBack() async -> Bool
 }
 
 extension NoteEditorBridge {
@@ -39,6 +41,7 @@ extension NoteEditorBridge {
     func pageTrashed(_ ids: [String]) {}
     func refreshBacklinks() {}
     func slidesWizardBack() async -> Bool { false }
+    func pptxImportBack() async -> Bool { false }
 }
 
 /// 对网页执行的脚本。和 Android 端逐字相同，网页那边没有对应函数时什么都不做。
@@ -205,6 +208,26 @@ enum NoteEmbedScripts {
     static let slidesWizardBack =
         "(function(){var e=window.notefableEmbed;if(e&&typeof e.slidesWizard==='function')return e.slidesWizard({\"action\":\"back\"})===true;return false})()"
 
+    /// 打开 PowerPoint（.pptx）导入窗口的脚本（`window.notefableEmbed.pptxImport`）。结果同 [slidesWizardOpen]：
+    /// `"open"` / `"loading"` / `"unsupported"` / `"rejected"`。[target] 里有网页不认的 id 时返回 nil。
+    static func pptxImportOpen(target: PptxImportTarget = PptxImportTarget()) -> String? {
+        var requestFields = ["\"action\":\"open\""]
+        if let groupId = target.groupId {
+            guard isValidTargetId(groupId) else { return nil }
+            requestFields.append("\"groupId\":\(quote(groupId))")
+        }
+        if let parentId = target.parentId {
+            guard isValidTargetId(parentId) else { return nil }
+            requestFields.append("\"parentId\":\(quote(parentId))")
+        }
+        return "(function(){var e=window.notefableEmbed;if(!e)return 'loading';if(typeof e.pptxImport!=='function')return 'unsupported';"
+            + "return e.pptxImport({\(requestFields.joined(separator: ","))})===true?'open':'rejected'})()"
+    }
+
+    /// PowerPoint 导入窗口开着时的「返回」：关闭窗口（导入中时取消并清理）；没有可关的返回 false。
+    static let pptxImportBack =
+        "(function(){var e=window.notefableEmbed;if(e&&typeof e.pptxImport==='function')return e.pptxImport({\"action\":\"back\"})===true;return false})()"
+
     /// 返回手势先交给网页：有打开的 <dialog>（版本历史等）就发 cancel 事件关最上面一层（等同网页里按 Esc），返回 true。
     static let closeTopDialog =
         "(function(){var d=document.querySelectorAll('dialog[open]');if(!d.length)return false;" +
@@ -226,7 +249,7 @@ enum NoteEmbedScripts {
             "postMessage:function(json){window.webkit.messageHandlers[\(quote(handler))].postMessage(String(json))}," +
             "appIcon:function(){return icon},language:function(){return lang},canOpenPage:function(){return true}," +
             "canShowStorageLimit:function(){return true},canShowUsageLimit:function(){return true},canPresent:function(){return true},canSaveFile:function(){return true}," +
-            "canOpenChat:function(){return true},canShowSlidesWizard:function(){return true}" +
+            "canOpenChat:function(){return true},canShowSlidesWizard:function(){return true},canShowPptxImport:function(){return true}" +
             (theme.map { ",theme:function(){return \(quote($0))}" } ?? "") +
             "}})()"
     }
@@ -387,6 +410,11 @@ final class NoteEmbedBridge {
     /// 向导开着时的「返回」：关最上面一层（草稿保留）；没有可关的返回 false。
     func slidesWizardBack() async -> Bool {
         await editor?.slidesWizardBack() ?? false
+    }
+
+    /// PowerPoint 导入窗口开着时的「返回」：关闭窗口；没有可关的返回 false。
+    func pptxImportBack() async -> Bool {
+        await editor?.pptxImportBack() ?? false
     }
 }
 

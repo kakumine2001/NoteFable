@@ -320,4 +320,5 @@ export const jaServer: Record<string, string> = {
   "quadrant chart": "4 象限チャート",
   "mind map": "マインドマップ",
   "This page embeds a whiteboard that is not available.": "このページには利用できないホワイトボードが埋め込まれています。",
+  "Could not import this PowerPoint file. Try again.": "この PowerPoint ファイルを読み込めませんでした。もう一度お試しください。",
 };
