@@ -10,6 +10,8 @@ enum WhiteboardProposalText {
     private static let elementTypes = [
         "rectangle": "Rectangle", "ellipse": "Ellipse", "diamond": "Diamond", "stickynote": "Sticky note",
         "text": "Text", "arrow": "Arrow", "line": "Line", "freedraw": "Pen", "image": "Image",
+        // 没有名字的框，服务端（getElementLabel）拿 "Frame" 当名字。
+        "Frame": "Frame",
     ]
     private static let shapeTypes = ["rectangle", "ellipse", "diamond", "stickynote", "text"]
     private static let colorNames = [
@@ -80,8 +82,14 @@ enum WhiteboardProposalText {
     }
 
     // 局限同网页：文字正好是种类英文名（"image"、"line" 等）的元素，和没有文字的元素分不清。
+    // 用户起名 "Frame" 的框（或文字是 "Frame" 的元素）和没有名字的框也分不清，一样翻译。
     private static func typeName(_ name: String, _ system: SystemTextTranslator) -> String {
         elementTypes[name].map { system.t($0) } ?? name
+    }
+
+    // 说明里的框名：只在没有名字时翻译。
+    private static func frameName(_ name: String, _ system: SystemTextTranslator) -> String {
+        name == "Frame" ? typeName(name, system) : name
     }
 
     private static func same(_ left: String, _ right: String) -> Bool {
@@ -238,7 +246,7 @@ enum WhiteboardProposalText {
     private static func moved(_ change: ProposalChange, count: Int, name: String?, _ system: SystemTextTranslator) -> ProposalChange {
         var next = change
         if let into = groups(moveText, change.after ?? "") {
-            next.after = system.t("Move into frame “{name}”", ["name": into[1] ?? ""])
+            next.after = system.t("Move into frame “{name}”", ["name": frameName(into[1] ?? "", system)])
         } else if change.after == "Remove from frame" {
             next.after = system.t("Remove from frame")
         }
@@ -254,7 +262,7 @@ enum WhiteboardProposalText {
         if let frame = match[3] {
             next.after = counted(
                 count, "Arrange 1 element {layout} inside frame “{name}”", "Arrange {count} elements {layout} inside frame “{name}”",
-                system, vars.merging(["name": frame]) { _, new in new }
+                system, vars.merging(["name": frameName(frame, system)]) { _, new in new }
             )
         } else {
             next.after = counted(count, "Arrange 1 element {layout}", "Arrange {count} elements {layout}", system, vars)

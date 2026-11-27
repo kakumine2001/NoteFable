@@ -195,13 +195,18 @@ fun NotePageMenuButton(page: NotePageSummary, actions: NotePageMenuActions) {
 }
 
 // 三个字体按钮：间距 4，按 [fontChoiceRows] 分行（长单词放不下时换行，不从单词中间断开）。
+// 同一行的按钮一样高（网页 flex 的 stretch），只有一个标签折行时其余按钮的点按区域不会变小。
 @Composable
 private fun FontChoices(modifier: Modifier, content: @Composable () -> Unit) {
     Layout(content, modifier) { measurables, constraints ->
         val gap = 4.dp.roundToPx()
         val rows = fontChoiceRows(constraints.maxWidth, gap, measurables.map { it.minIntrinsicWidth(Constraints.Infinity) })
         var next = 0
-        val placed = rows.map { widths -> widths.map { measurables[next++].measure(Constraints.fixedWidth(it)) } }
+        val placed = rows.map { widths ->
+            val row = widths.map { measurables[next++] to it }
+            val height = row.maxOf { (button, width) -> button.maxIntrinsicHeight(width) }
+            row.map { (button, width) -> button.measure(Constraints.fixed(width, height)) }
+        }
         val heights = placed.map { row -> row.maxOf { it.height } }
         layout(constraints.maxWidth, heights.sum() + gap * (heights.size - 1).coerceAtLeast(0)) {
             var y = 0

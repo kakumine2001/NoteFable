@@ -12,6 +12,8 @@ object WhiteboardProposalText {
     private val elementTypes = mapOf(
         "rectangle" to "Rectangle", "ellipse" to "Ellipse", "diamond" to "Diamond", "stickynote" to "Sticky note",
         "text" to "Text", "arrow" to "Arrow", "line" to "Line", "freedraw" to "Pen", "image" to "Image",
+        // 没有名字的框，服务端（getElementLabel）拿 "Frame" 当名字。
+        "Frame" to "Frame",
     )
     private val shapeTypes = setOf("rectangle", "ellipse", "diamond", "stickynote", "text")
     private val colorNames = mapOf(
@@ -44,7 +46,8 @@ object WhiteboardProposalText {
     private val itemLine = Regex("""- (rectangle|ellipse|diamond|stickynote|text): ([^\n]*)""")
 
     // 局限同网页：文字正好是种类英文名（"image"、"line" 等）的元素，和没有文字的元素分不清。
-    private fun typeName(name: String, t: SystemTextTranslator) =elementTypes[name]?.let { t.t(it) } ?: name
+    // 用户起名 "Frame" 的框（或文字是 "Frame" 的元素）和没有名字的框也分不清，一样翻译。
+    private fun typeName(name: String, t: SystemTextTranslator) = elementTypes[name]?.let { t.t(it) } ?: name
 
     // 和服务端 shortLabel 一样（并成一行，最多 48 个 UTF-16 单位）。
     private fun shortLabel(text: String, fallback: String): String {
@@ -61,6 +64,9 @@ object WhiteboardProposalText {
         "(unnamed)" -> t.t("(unnamed)")
         else -> text
     }
+
+    // 说明里的框名：只在没有名字时翻译。
+    private fun frameName(name: String, t: SystemTextTranslator) = if (name == "Frame") typeName(name, t) else name
 
     private fun endpoints(pair: String, t: SystemTextTranslator): String {
         val ends = pair.split(" -> ")
@@ -155,7 +161,7 @@ object WhiteboardProposalText {
     private fun moved(change: ProposalChange, target: ProposalTarget.Elements, t: SystemTextTranslator): ProposalChange {
         val into = moveText.matchEntire(change.after.orEmpty())
         val after = when {
-            into != null -> t.t("Move into frame “{name}”", mapOf("name" to into.groupValues[1]))
+            into != null -> t.t("Move into frame “{name}”", mapOf("name" to frameName(into.groupValues[1], t)))
             change.after == "Remove from frame" -> t.t("Remove from frame")
             else -> change.after
         }
@@ -168,7 +174,7 @@ object WhiteboardProposalText {
         val vars = mapOf("layout" to t.t(layouts.getValue(match.groupValues[2])))
         val frame = match.groups[3]?.value
         val after = if (frame == null) counted(count, "Arrange 1 element {layout}", "Arrange {count} elements {layout}", t, vars)
-        else counted(count, "Arrange 1 element {layout} inside frame “{name}”", "Arrange {count} elements {layout} inside frame “{name}”", t, vars + ("name" to frame))
+        else counted(count, "Arrange 1 element {layout} inside frame “{name}”", "Arrange {count} elements {layout} inside frame “{name}”", t, vars + ("name" to frameName(frame, t)))
         return change.copy(after = after)
     }
 

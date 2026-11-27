@@ -9,6 +9,7 @@
   "Line",
   "Pen",
   "Image",
+  "Frame",
   "Default",
   "Yellow",
   "Blue",
@@ -1126,6 +1127,156 @@
      "count": 2
     },
     "before": "apples, arrow, pears"
+   }
+  },
+  {
+   "input": {
+    "op": "delete",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Frame"
+    },
+    "before": "Frame"
+   },
+   "expected": {
+    "op": "delete",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "‹Frame›"
+    },
+    "before": "‹Frame›"
+   }
+  },
+  {
+   "input": {
+    "op": "delete",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 2
+    },
+    "before": "Frame, Ship it"
+   },
+   "expected": {
+    "op": "delete",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 2
+    },
+    "before": "‹Frame›, Ship it"
+   }
+  },
+  {
+   "input": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Frame"
+    },
+    "after": "style: dashed"
+   },
+   "expected": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "‹Frame›"
+    },
+    "after": "‹Line style: ‹Dashed››"
+   }
+  },
+  {
+   "input": {
+    "op": "move",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Frame"
+    },
+    "after": "Remove from frame"
+   },
+   "expected": {
+    "op": "move",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "‹Frame›"
+    },
+    "after": "‹Remove from frame›"
+   }
+  },
+  {
+   "input": {
+    "op": "move",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Ship"
+    },
+    "after": "Move into frame \"Frame\""
+   },
+   "expected": {
+    "op": "move",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Ship"
+    },
+    "after": "‹Move into frame “‹Frame›”›"
+   }
+  },
+  {
+   "input": {
+    "op": "reorder",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 2
+    },
+    "after": "Arrange 2 elements in row inside frame \"Frame\""
+   },
+   "expected": {
+    "op": "reorder",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 2
+    },
+    "after": "‹Arrange 2 elements ‹in a row› inside frame “‹Frame›”›"
+   }
+  },
+  {
+   "input": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Frame -> ellipse"
+    },
+    "after": "Frame -> ellipse"
+   },
+   "expected": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "‹Frame› -> ‹Ellipse›"
+    },
+    "after": "‹Frame› -> ‹Ellipse›"
    }
   },
   {

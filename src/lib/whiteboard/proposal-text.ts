@@ -13,6 +13,8 @@ import type { ProposalChange, ProposalTarget } from "@/lib/page-ai/types";
 const ELEMENT_TYPES: Record<string, string> = {
   rectangle: msg("Rectangle"), ellipse: msg("Ellipse"), diamond: msg("Diamond"), stickynote: msg("Sticky note"),
   text: msg("Text"), arrow: msg("Arrow"), line: msg("Line"), freedraw: msg("Pen"), image: msg("Image"),
+  // 名前の無い枠は、サーバー（getElementLabel）が "Frame" を名前にする。
+  Frame: msg("Frame"),
 };
 // AI が足せる種類（ai-edit.ts の AI_SHAPE_TYPES）。
 const SHAPE_TYPES = new Set(["rectangle", "ellipse", "diamond", "stickynote", "text"]);
@@ -68,6 +70,7 @@ const lookup = (table: Record<string, string>, key: string) => (Object.hasOwn(ta
 // 名前が種類そのもの（文字の無い要素）なら、種類の名前にする。
 // 限界：保存した提案は、文字の無い要素の名前と、文字が種類の英語名そのもの（"image"、"line" など）の要素を区別しない。
 // 足す・文字を変える以外の説明（設定だけの変更、移動、削除、線の両端）では、後者も種類の名前になる。
+// 同じく、利用者が "Frame" と名づけた枠（や文字が "Frame" の要素）は、名前の無い枠と区別できないので訳す。
 function typeName(name: string, t: Translate) {
   const key = lookup(ELEMENT_TYPES, name);
   return key ? t(key) : name;
@@ -85,6 +88,9 @@ function counted(count: string, one: string, many: string, t: Translate, vars: T
 }
 
 const placeholder = (text: string, t: Translate) => (text === "(empty)" ? t(TEXT.empty) : text === "(unnamed)" ? t(TEXT.unnamed) : text);
+
+// 説明の中の枠の名前。名前の無い枠のときだけ訳す。
+const frameName = (name: string, t: Translate) => (name === "Frame" ? typeName(name, t) : name);
 
 // 矢印の両端（"A -> B"）。区切りが 1 つのときだけ、文字の無い端を種類の名前にする。
 function endpoints(pair: string, t: Translate) {
@@ -181,7 +187,7 @@ function grouped(change: ProposalChange, t: Translate): ProposalChange {
 
 function moved(change: ProposalChange, target: ElementsTarget, t: Translate): ProposalChange {
   const into = /^Move into frame "([\s\S]*)"$/.exec(change.after ?? "");
-  const after = into ? t(TEXT.moveIntoFrame, { name: into[1] }) : change.after === "Remove from frame" ? t(TEXT.removeFromFrame) : change.after;
+  const after = into ? t(TEXT.moveIntoFrame, { name: frameName(into[1], t) }) : change.after === "Remove from frame" ? t(TEXT.removeFromFrame) : change.after;
   return { ...change, after, ...(target.name === undefined ? {} : { target: { ...target, name: typeName(target.name, t) } }) };
 }
 
@@ -192,7 +198,7 @@ function arranged(change: ProposalChange, t: Translate): ProposalChange {
   const vars = { layout: t(LAYOUTS[layout]) };
   const after = frame === undefined
     ? counted(count, TEXT.arrangeOne, TEXT.arrange, t, vars)
-    : counted(count, TEXT.arrangeInFrameOne, TEXT.arrangeInFrame, t, { ...vars, name: frame });
+    : counted(count, TEXT.arrangeInFrameOne, TEXT.arrangeInFrame, t, { ...vars, name: frameName(frame, t) });
   return { ...change, after };
 }
 

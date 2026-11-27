@@ -108,6 +108,28 @@ describe("localizing whiteboard proposal descriptions", () => {
     ]);
   });
 
+  it("translates the placeholder name of an unnamed frame", () => {
+    const board = buildStructuredWhiteboard({
+      frames: [{ ref: "f", name: "Plan", layout: null }],
+      items: [{ ref: "a", type: "rectangle", text: "Research", color: null, frameRef: null }],
+    }, seqId());
+    const frame = board.data.elements.find((el) => el.type === "frame")!;
+    const research = board.data.elements.find((el) => el.type === "rectangle")!.id;
+    frame.name = null;
+    const { changes } = applyWhiteboardEdits(board.data, [
+      op({ op: "update_element", elementId: frame.id, strokeStyle: "dashed" }),
+      op({ op: "set_frame", elementIds: [research], frameId: frame.id }),
+      op({ op: "arrange", elementIds: [research], layout: "row", frameId: frame.id }),
+      op({ op: "delete_elements", elementIds: [frame.id] }),
+    ], seqId());
+
+    const translated = changes.map((change) => localizeWhiteboardChange(change, zh));
+    expect(shown(translated[0])[2]).toBe("框");
+    expect(translated[1].after).toBe("移入框“框”");
+    expect(translated[2].after).toBe("将 1 个元素排成一行，放在框“框”内");
+    expect(shown(translated[3])).toEqual(["框", undefined, "框"]);
+  });
+
   it("keeps a frame name with a line break on one summary line, so it is translated", () => {
     const { data, summaryLines } = buildStructuredWhiteboard({ frames: [{ ref: "f", name: "To\r\n\nDo", layout: null }] }, seqId());
     expect(localizeWhiteboardSummary(summaryLines.join("\n"), zh)).toBe("框“To Do”（0 项）");
