@@ -70,6 +70,9 @@ dialog.settings-dialog .settings-row-note .project-settings-error { margin-top: 
 dialog.settings-dialog .settings-row-button { justify-content: flex-start; gap: 0.75rem; color: var(--notion-text); transition: background-color 120ms ease; }
 dialog.settings-dialog .settings-row-button svg { flex: none; color: var(--notion-muted); }
 dialog.settings-dialog .settings-row-button.is-danger, dialog.settings-dialog .settings-row-button.is-danger svg, dialog.settings-dialog .settings-row-button.is-danger .settings-row-title { color: var(--nf-danger, #b91c1c); }
+dialog.settings-dialog .settings-row-button .settings-link-external { flex: none; color: var(--notion-faint); }
+dialog.settings-dialog a.settings-link-row { text-decoration: none; }
+dialog.settings-dialog .settings-link-row .settings-row-title { flex: 1; }
 dialog.settings-dialog .settings-row-button:disabled { opacity: 0.55; }
 dialog.settings-dialog .settings-row-button:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: -2px; }
 @media (hover: hover) { dialog.settings-dialog .settings-row-button:hover:not(:disabled) { background: var(--notion-hover); } }
@@ -263,7 +266,7 @@ dialog.settings-dialog .settings-unsaved-save { background: var(--nf-on-ink, #ff
   dialog.settings-dialog .settings-identity .settings-row-help { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.875rem; }
   dialog.settings-dialog .settings-identity:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: -2px; }
   /* 欄ごとの入口の行: アイコン・名前・右向きの矢印。区切り線は名前の左端から（アイコンの下には引かない）。 */
-  dialog.settings-dialog .settings-home-list { margin-top: 1.5rem; }
+  dialog.settings-dialog .settings-identity + .settings-home-list { margin-top: 1.5rem; }
   dialog.settings-dialog .settings-home-row { position: relative; min-height: 3.5rem; gap: 0.875rem; }
   dialog.settings-dialog .settings-home-row svg:first-child { color: var(--notion-text); }
   dialog.settings-dialog .settings-home-row .settings-row-title { flex: 1; }

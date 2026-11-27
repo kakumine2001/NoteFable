@@ -1,10 +1,9 @@
 import SwiftUI
 
 // 侧栏最下面账号的那一块（网页 SidebarFooter 的左半边，Android AccountUi.kt 的 SignInButton / ProfileRow）。
-// 右边的"?"帮助菜单（`HelpMenuButton`）由侧栏自己放。
 
 /// 侧栏底部的账号：服务端开了登录才显示。未登录是"登录"按钮（点了打开登录窗口），登录后是账号行（点了打开设置）。
-/// 占满给它的宽度，没有内容时也占着（右边的"?"留在行尾）。
+/// 占满给它的宽度，没有内容时也占着。
 struct AccountRow: View {
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router

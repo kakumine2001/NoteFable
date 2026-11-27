@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { settingsButtonStep, settingsDismissStep } from "@/lib/settings-navigation";
+import { settingsButtonStep, settingsDismissStep, settingsHomeTabs, settingsVisibleTabs } from "@/lib/settings-navigation";
 
 describe("settings navigation", () => {
+  it("keeps Account in the desktop sidebar nav when signed in and omits it from the mobile home list", () => {
+    expect(settingsVisibleTabs(true)).toEqual(["general", "personalization", "plan", "account", "help"]);
+    expect(settingsHomeTabs(true)).toEqual(["general", "personalization", "plan", "help"]);
+    expect(settingsVisibleTabs(false)).toEqual(["general", "help"]);
+    expect(settingsHomeTabs(false)).toEqual(["general", "help"]);
+  });
   const idle = { locked: false, editorIn: null, onPage: false, dirty: false } as const;
 
   it("Esc / Back goes one step at a time: page -> home list -> closed", () => {

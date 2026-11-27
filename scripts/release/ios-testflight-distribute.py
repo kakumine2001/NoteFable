@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import argparse
 import base64
+import contextlib
+import http.client
 import json
 import os
 import shutil
@@ -31,6 +33,8 @@ ASC_API_BASE = "https://api.appstoreconnect.apple.com/v1"
 JWT_LIFETIME_SECONDS = 900
 JWT_REFRESH_MARGIN_SECONDS = 60
 TRANSIENT_HTTP_STATUSES = {429, 500, 502, 503, 504}
+# 429 refuses a request outright; after one of these, a write may or may not have been applied.
+SERVER_ERROR_STATUSES = TRANSIENT_HTTP_STATUSES - {429}
 SUBMITTED_REVIEW_STATES = {"WAITING_FOR_REVIEW", "IN_REVIEW", "APPROVED"}
 
 
@@ -191,7 +195,13 @@ class AscClient:
         path_or_url: str,
         payload: dict[str, Any] | None = None,
         allow_404: bool = False,
+        safe_to_resend: bool = False,
     ) -> Any:
+        """Send one request, retrying after a rate limit and, for a read, after a server error.
+
+        A write that got a server error may already have been applied, so it is only sent again
+        when the caller says that sending it twice does no harm (safe_to_resend).
+        """
         if path_or_url.startswith("http://") or path_or_url.startswith("https://"):
             url = path_or_url
         else:
@@ -219,7 +229,10 @@ class AscClient:
                         return None
                     return json.loads(raw.decode("utf-8"))
             except urllib.error.HTTPError as exc:
-                raw_err = exc.read().decode("utf-8", errors="replace")
+                try:
+                    raw_err = exc.read().decode("utf-8", errors="replace")
+                except (OSError, http.client.HTTPException):
+                    raw_err = ""  # the status code still says what happened
                 parsed_err: Any = raw_err
                 try:
                     parsed_err = json.loads(raw_err)
@@ -229,7 +242,8 @@ class AscClient:
                 if allow_404 and exc.code == 404:
                     return None
 
-                if exc.code in TRANSIENT_HTTP_STATUSES and attempt < self.max_retries:
+                resend = exc.code == 429 or method == "GET" or safe_to_resend
+                if resend and exc.code in TRANSIENT_HTTP_STATUSES and attempt < self.max_retries:
                     retry_after = exc.headers.get("Retry-After") if exc.headers else None
                     delay = (
                         int(retry_after)
@@ -249,8 +263,43 @@ class AscClient:
                     self._sleep(2**attempt)
                     continue
                 raise AscError(f"Network error calling {method} {url}: {exc}") from exc
+            except (OSError, http.client.HTTPException) as exc:
+                # Timed out or disconnected while waiting for the response, which urllib doesn't
+                # wrap. A write may have gone through, so only a read is sent again.
+                if method == "GET" and attempt < self.max_retries:
+                    self._sleep(2**attempt)
+                    continue
+                raise AscError(f"Network error calling {method} {url}: {exc}") from exc
 
         raise AscError(f"Exhausted retries calling {method} {url}")
+
+
+def read_api_credentials() -> tuple[str, str, str]:
+    """Return (key id, issuer id, base64 .p8 key) from the APPSTORE_API_* variables."""
+    key_id = os.environ.get("APPSTORE_API_KEY_ID", "").strip()
+    issuer_id = os.environ.get("APPSTORE_API_ISSUER_ID", "").strip()
+    key_b64 = "".join(os.environ.get("APPSTORE_API_KEY_P8_B64", "").split())
+    if not key_id or not issuer_id or not key_b64:
+        raise AscError(
+            "APPSTORE_API_KEY_ID, APPSTORE_API_ISSUER_ID, and APPSTORE_API_KEY_P8_B64 are required."
+        )
+    return key_id, issuer_id, key_b64
+
+
+@contextlib.contextmanager
+def temporary_key_file(key_id: str, key_b64: str):
+    """Write the .p8 key into a private temporary directory that is removed on exit."""
+    key_dir = tempfile.mkdtemp(prefix="asc-key.")
+    try:
+        os.chmod(key_dir, 0o700)
+        key_file = os.path.join(key_dir, f"AuthKey_{key_id}.p8")
+        pem_bytes = base64.b64decode(key_b64, validate=True)
+        fd = os.open(key_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(pem_bytes)
+        yield key_file
+    finally:
+        shutil.rmtree(key_dir, ignore_errors=True)
 
 
 def find_app_id(client: AscClient, bundle_id: str) -> str:
@@ -336,6 +385,21 @@ def wait_for_valid_build(
 
 
 def upsert_whats_new(
+    client: AscClient, build_id: str, locale: str, whats_new: str, sleep_fn=time.sleep
+) -> None:
+    for attempt in (1, 2, 3):
+        try:
+            _write_whats_new(client, build_id, locale, whats_new)
+            return
+        except AscError as exc:
+            # The write may have gone through anyway, so the next attempt reads before it writes:
+            # a localization that was already created is updated instead of created twice.
+            if exc.status not in SERVER_ERROR_STATUSES or attempt == 3:
+                raise
+            sleep_fn(2**attempt)
+
+
+def _write_whats_new(
     client: AscClient, build_id: str, locale: str, whats_new: str
 ) -> None:
     resp = client.request("GET", f"/builds/{build_id}/betaBuildLocalizations?limit=50")
@@ -380,6 +444,7 @@ def add_build_to_group(client: AscClient, group_id: str, build_id: str) -> None:
         "POST",
         f"/betaGroups/{group_id}/relationships/builds",
         payload={"data": [{"type": "builds", "id": build_id}]},
+        safe_to_resend=True,  # adding a build that is already in the group changes nothing
     )
     print(f"Added build {build_id} to external beta group {group_id}.")
 
@@ -456,6 +521,7 @@ def submit_for_beta_review(
                     },
                 }
             },
+            safe_to_resend=True,  # a second submission is refused with 409, handled below
         )
         state = (
             ((resp or {}).get("data") or {}).get("attributes") or {}
@@ -513,7 +579,9 @@ def distribute_external(
         sleep_fn=sleep_fn,
         time_fn=time_fn,
     )
-    upsert_whats_new(client, build_id=build_id, locale=locale, whats_new=whats_new)
+    upsert_whats_new(
+        client, build_id=build_id, locale=locale, whats_new=whats_new, sleep_fn=sleep_fn
+    )
     add_build_to_group(client, group_id=group_id, build_id=build_id)
     review_state = submit_for_beta_review(
         client,
@@ -544,14 +612,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--poll-timeout", type=int, default=1200)
     args = parser.parse_args(argv)
 
-    key_id = os.environ.get("APPSTORE_API_KEY_ID", "").strip()
-    issuer_id = os.environ.get("APPSTORE_API_ISSUER_ID", "").strip()
-    key_b64 = "".join(os.environ.get("APPSTORE_API_KEY_P8_B64", "").split())
-    if not key_id or not issuer_id or not key_b64:
-        print(
-            "::error::APPSTORE_API_KEY_ID, APPSTORE_API_ISSUER_ID, and APPSTORE_API_KEY_P8_B64 are required.",
-            file=sys.stderr,
-        )
+    try:
+        key_id, issuer_id, key_b64 = read_api_credentials()
+    except AscError as exc:
+        print(f"::error::{exc}", file=sys.stderr)
         return 1
 
     with open(args.whats_new_file, "r", encoding="utf-8") as fh:
@@ -560,27 +624,20 @@ def main(argv: list[str] | None = None) -> int:
         print("::error::What-to-Test file is empty.", file=sys.stderr)
         return 1
 
-    key_dir = tempfile.mkdtemp(prefix="asc-dist-key.")
     try:
-        os.chmod(key_dir, 0o700)
-        key_file = os.path.join(key_dir, f"AuthKey_{key_id}.p8")
-        pem_bytes = base64.b64decode(key_b64, validate=True)
-        fd = os.open(key_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "wb") as fh:
-            fh.write(pem_bytes)
-
-        client = AscClient(key_id=key_id, issuer_id=issuer_id, key_file=key_file)
-        result = distribute_external(
-            client=client,
-            bundle_id=args.bundle_id,
-            marketing_version=args.marketing_version,
-            build_number=args.build_number,
-            group_name=args.group_name,
-            locale=args.locale,
-            whats_new=whats_new,
-            poll_interval=args.poll_interval,
-            poll_timeout=args.poll_timeout,
-        )
+        with temporary_key_file(key_id, key_b64) as key_file:
+            client = AscClient(key_id=key_id, issuer_id=issuer_id, key_file=key_file)
+            result = distribute_external(
+                client=client,
+                bundle_id=args.bundle_id,
+                marketing_version=args.marketing_version,
+                build_number=args.build_number,
+                group_name=args.group_name,
+                locale=args.locale,
+                whats_new=whats_new,
+                poll_interval=args.poll_interval,
+                poll_timeout=args.poll_timeout,
+            )
         print(
             f"External TestFlight distribution complete: group={args.group_name} "
             f"build_id={result['build_id']} review_state={result['review_state']}"
@@ -589,8 +646,6 @@ def main(argv: list[str] | None = None) -> int:
     except AscError as exc:
         print(f"::error::{exc}", file=sys.stderr)
         return 1
-    finally:
-        shutil.rmtree(key_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":

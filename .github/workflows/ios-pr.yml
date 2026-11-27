@@ -11,11 +11,15 @@ on:
     branches: [main]
     paths:
       - "mobile/ios/**"
+      # App Store 截图不参与构建，由 store-listing-pr.yml 检查。
+      - "!mobile/ios/app-store/screenshots/**"
       - "mobile/android/app/src/main/assets/**"
       - ".github/workflows/ios-*.yml"
       - "scripts/release/ios-version*.sh"
       - "scripts/release/ios-testflight-*.py"
       - "scripts/release/test_ios_testflight_*.py"
+      - "scripts/release/ios-store-listing.py"
+      - "scripts/release/test_ios_store_listing.py"
       - "scripts/release/verify-merged-pr*.sh"
 
 permissions:
@@ -44,8 +48,8 @@ jobs:
         run: bash scripts/release/verify-merged-pr.test.sh
       - name: Test iOS version script
         run: bash scripts/release/ios-version.test.sh
-      - name: Test iOS TestFlight distribution scripts
-        run: python3 -m unittest discover -s scripts/release -p 'test_ios_testflight_*.py' -v
+      - name: Test iOS TestFlight distribution and App Store listing scripts
+        run: python3 -m unittest discover -s scripts/release -p 'test_ios_*.py' -v
       - name: Validate iOS version
         run: bash scripts/release/ios-version.sh
       - name: Check iOS project presence and screenshot label

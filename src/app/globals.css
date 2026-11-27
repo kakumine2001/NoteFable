@@ -1465,16 +1465,11 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 @media (max-width: 639px) {
   .sidebar-footer .signin-open-button { height: 2.625rem; font-size: 0.9375rem; }
 }
-.sidebar-help-trigger { display: inline-flex; width: 2rem; height: 2rem; flex: none; margin-inline-start: auto; align-items: center; justify-content: center; border-radius: .45rem; color: var(--notion-faint); transition: background 120ms ease, color 120ms ease; }
-.sidebar-help-trigger:hover, .sidebar-help-trigger[aria-expanded="true"] { background: var(--notion-hover); color: var(--notion-text); }
-.sidebar-help-trigger:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: 2px; }
+.sidebar-settings-trigger { display: inline-flex; width: 2rem; height: 2rem; flex: none; margin-inline-start: auto; align-items: center; justify-content: center; border-radius: .45rem; color: var(--notion-faint); transition: background 120ms ease, color 120ms ease; }
+.sidebar-settings-trigger:hover, .sidebar-settings-trigger[aria-expanded="true"] { background: var(--notion-hover); color: var(--notion-text); }
+.sidebar-settings-trigger:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: 2px; }
 .sidebar-footer .language-menu-error { padding: 0 .5rem; font-size: .75rem; }
-@media (max-width: 639px) { .sidebar-help-trigger { width: 2.75rem; height: 2.75rem; } }
-/* ヘルプメニュー（help-menu.tsx）。項目は .chat-menu-item、左に灰色のアイコン、言語の行は右に今の言語。 */
-.help-menu[open] { transform-origin: bottom right; animation: chat-row-menu-in 140ms cubic-bezier(.2, .8, .2, 1); }
-@media (prefers-reduced-motion: reduce) { .help-menu[open] { animation: none; } }
-.help-menu-icon { flex: none; color: var(--notion-muted); }
-.help-menu-value { color: var(--notion-muted); font-size: .8125rem; }
+@media (max-width: 639px) { .sidebar-settings-trigger { width: 2.75rem; height: 2.75rem; } }
 /* 切り替えに失敗したとき、ボタンの後ろに出す一言（行が足りなければ次の行へ回る）。 */
 .language-menu-error { flex-basis: 100%; color: #b91c1c; }
 .notion-empty-title #chat-heading-text { min-width: 0; overflow-wrap: anywhere; }
@@ -4042,9 +4037,6 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 .language-menu-name small { display: block; margin-top: .15rem; color: var(--notion-muted); font-size: .75rem; }
 .language-menu [aria-checked="true"] { background: var(--notion-active); }
 .language-menu-empty { padding: .5rem .75rem; font-size: .8125rem; color: var(--notion-muted); }
-/* 「言語」の行：値は見出しの下に小さく（.language-menu-name small と同じ）。横に並べると見出しが 1 文字ずつ縦に潰れる。 */
-.help-menu-label { min-width: 0; flex: 1; overflow-wrap: anywhere; }
-.help-menu-label .help-menu-value { display: block; margin-top: .15rem; font-size: .75rem; }
 
 /* RTL mirroring, directional popups, drawer motion, and Arabic cursive letter-spacing safety. */
 [dir="rtl"] .rtl-mirror,
@@ -4075,7 +4067,6 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
   }
 }
 [dir="rtl"] .chat-row-menu[open] { transform-origin: top left; }
-[dir="rtl"] .help-menu[open] { transform-origin: bottom left; }
 [dir="rtl"] .codex-model-menu { transform-origin: bottom right; }
 [dir="rtl"] .notion-drawer { box-shadow: 8px 0 24px rgba(15, 15, 15, 0.1); }
 @keyframes motion-sidebar-panel-enter-rtl {
