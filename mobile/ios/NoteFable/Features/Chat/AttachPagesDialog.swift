@@ -92,16 +92,16 @@ private struct AttachPagesDialogBody: View {
     }
 
     private func card(maxHeight: CGFloat) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: 28, style: .continuous)
         return VStack(alignment: .leading, spacing: 0) {
             Text(L("attach_pages"))
-                .font(.nf(16, weight: 600))
-                .nfLineHeight(24, fontSize: 16)
+                .font(.nf(17, weight: 650))
+                .nfLineHeight(24, fontSize: 17)
                 .foregroundStyle(Sm.text)
                 .accessibilityAddTraits(.isHeader)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
                 .padding(.bottom, 8)
                 .nfOnSizeChange { size in
                     if headerHeight != size.height { headerHeight = size.height }
@@ -114,12 +114,13 @@ private struct AttachPagesDialogBody: View {
                     if footerHeight != size.height { footerHeight = size.height }
                 }
         }
+        // 先裁内容再上玻璃，玻璃自己的边缘和高光不被裁掉；自定义阴影只在非原生玻璃时画。
+        .clipShape(shape)
         .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: Sm.panelRing)
         // 卡片上的空白处不算"点外面"。
         .contentShape(shape)
         .onTapGesture {}
-        .clipShape(shape)
-        .shadow(color: Sm.panelShadow, radius: 10, x: 0, y: 4)
+        .nfChromeShadow(Sm.panelShadow, radius: 10, y: 4)
         .accessibilityAddTraits(.isModal)
     }
 
@@ -132,9 +133,9 @@ private struct AttachPagesDialogBody: View {
                 onClose()
             }
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 20)
         .padding(.top, 12)
-        .padding(.bottom, 16)
+        .padding(.bottom, 18)
         .overlay(alignment: .top) { NFDivider() }
     }
 
@@ -287,6 +288,7 @@ private struct AttachPagesFilterField: View {
     @Binding var text: String
     let placeholder: String
     @FocusState private var focused: Bool
+    @Environment(\.nfChromePath) private var chromePath
 
     init(text: Binding<String>, placeholder: String) {
         _text = text
@@ -294,7 +296,9 @@ private struct AttachPagesFilterField: View {
     }
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 6)
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+        let fill = chromePath == .native ? Color.primary.opacity(0.065) : Sm.surface
+        let stroke = focused ? Sm.blue : (chromePath == .native ? Color.primary.opacity(0.10) : Sm.borderStrong)
         HStack(spacing: 7.2) {
             LucideIcon(Lucide.search, size: 14, color: Sm.muted)
             TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(Sm.faint))
@@ -307,27 +311,27 @@ private struct AttachPagesFilterField: View {
                 .autocorrectionDisabled()
                 .accessibilityLabel(placeholder)
         }
-        // 网页的内边距在 1px 描边里面，这里描边画在框内，所以各加 1。
-        .padding(.horizontal, 10.6)
+        .padding(.horizontal, 12)
         .padding(.vertical, 9)
         .frame(minHeight: 42)
-        .background(Sm.surface, in: shape)
-        .overlay { shape.strokeBorder(Sm.borderStrong, lineWidth: 1) }
-        .overlay { shape.stroke(focused ? Sm.blue : Color.clear, lineWidth: 2) }
+        .background(fill, in: shape)
+        .overlay { shape.strokeBorder(stroke, lineWidth: focused ? 2 : 1) }
         .contentShape(shape)
         .onTapGesture { focused = true }
         .padding(.top, 9.6)
     }
 }
 
-/// `.project-settings-chip`：全圆角、1px 深描边、#F7F7F5 底、13 字、内边距 2.4 / 3.2 / 2.4 / 8.8；页面类型图标 13 + 4.8；
+/// `.project-settings-chip`：全圆角胶囊，13 字、内边距 2.4 / 3.2 / 2.4 / 8.8；页面类型图标 13 + 4.8；
 /// 移除键 28 圆（✕ 12 灰）。标题最宽 220，放不下省略。
 private struct AttachPagesChip: View {
     let title: String
     let kind: PageKind
     let onRemove: () -> Void
+    @Environment(\.nfChromePath) private var chromePath
 
     var body: some View {
+        let bg = chromePath == .native ? Color.primary.opacity(0.07) : Sm.sidebar
         HStack(spacing: 4.8) {
             LucideIcon(pageKindIcon(kind), size: 13, color: Sm.text)
             Text(title)
@@ -343,24 +347,30 @@ private struct AttachPagesChip: View {
             .buttonStyle(.pressable(cornerRadius: 14))
             .accessibilityLabel(L("sb_remove_title", title))
         }
-        .padding(.leading, 8.8)
+        .padding(.leading, 10)
         .padding(.trailing, 3.2)
         .padding(.vertical, 2.4)
-        .background(Sm.sidebar, in: Capsule())
-        .overlay { Capsule().strokeBorder(Sm.borderStrong, lineWidth: 1) }
+        .background(bg, in: Capsule())
+        .overlay {
+            if chromePath == .solid {
+                Capsule().strokeBorder(Sm.borderStrong, lineWidth: 1)
+            }
+        }
     }
 }
 
-/// `.project-settings-option`（手机）：最小高 44、圆角 6、左右 8、间距 8.8、15 字；勾选框 16（蓝）；图标区 20（表情或页面类型图标 14 灰）；
-/// 选中灰底；选满了以后没选的变浅灰且不能点。
+/// `.project-settings-option`（手机）：最小高 44、圆角 12、左右 8、间距 8.8、15 字；圆形勾选框 20；图标区 20；
+/// 选中柔底；选满了以后没选的变浅灰且不能点。
 private struct AttachPagesOption: View {
     let note: ChatProjectNote
     let title: String
     let checked: Bool
     let blocked: Bool
     let onToggle: () -> Void
+    @Environment(\.nfChromePath) private var chromePath
 
     var body: some View {
+        let selectedBg = chromePath == .native ? Color.primary.opacity(0.08) : Sm.hover
         Button(action: onToggle) {
             HStack(spacing: 8.8) {
                 AttachPagesCheckbox(checked: checked, enabled: !blocked)
@@ -371,33 +381,31 @@ private struct AttachPagesOption: View {
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.horizontal, 8)
+            .padding(.horizontal, 10)
             .frame(minHeight: 44)
         }
-        .buttonStyle(.pressable(background: checked ? Sm.hover : Color.clear, cornerRadius: 6))
+        .buttonStyle(.pressable(background: checked ? selectedBg : Color.clear, cornerRadius: 12))
         .disabled(blocked)
         .accessibilityAddTraits(checked ? .isSelected : [])
     }
 }
 
-/// 浏览器默认的勾选框 16×16（accent-color 蓝）：选中蓝底白勾，没选 1px 灰框白底，禁用变淡。
+/// iOS 圆形勾选框 20×20：选中蓝底白勾，没选 1.5px 灰环，禁用变淡。
 private struct AttachPagesCheckbox: View {
     let checked: Bool
     let enabled: Bool
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 2)
-        let alpha = enabled ? 1.0 : 0.5
+        let alpha = enabled ? 1.0 : 0.45
         ZStack {
             if checked {
-                shape.fill(Sm.blue.opacity(alpha))
-                LucideIcon(Lucide.check, size: 12, color: .white)
+                Circle().fill(Sm.blue.opacity(alpha))
+                LucideIcon(Lucide.check, size: 12, strokeWidth: 2.4, color: .white)
             } else {
-                shape.fill(Sm.surface)
-                shape.strokeBorder(Color(argb: 0xFF767676).opacity(alpha), lineWidth: 1)
+                Circle().strokeBorder(Sm.borderStrong.opacity(alpha), lineWidth: 1.5)
             }
         }
-        .frame(width: 16, height: 16)
+        .frame(width: 20, height: 20)
         .accessibilityHidden(true)
     }
 }

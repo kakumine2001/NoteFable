@@ -66,6 +66,8 @@ private struct ChatRecentNoteCard: View {
     let onToggle: () -> Void
     let onOpen: () -> Void
 
+    @Environment(\.nfChromePath) private var chromePath
+
     var body: some View {
         let title = page.title.isEmpty ? L("sb_untitled") : page.title
         let shape = RoundedRectangle(cornerRadius: 14.4)
@@ -125,9 +127,9 @@ private struct ChatRecentNoteCard: View {
         .overlay(alignment: .topTrailing) {
             // 48 的触控区，看得见的是封面条上 26 的圆钮。
             Button(action: onOpen) {
-                LucideIcon(Lucide.arrowUpRight, size: 14, color: Sm.muted)
+                LucideIcon(Lucide.arrowUpRight, size: 14, color: chromePath == .native ? chromePath.primaryInk : Sm.muted)
                     .frame(width: 26, height: 26)
-                    .background(Sm.surface.opacity(0.86), in: Circle())
+                    .background(chromePath == .solid ? AnyShapeStyle(Sm.surface.opacity(0.9)) : AnyShapeStyle(.regularMaterial), in: Circle())
                     .overlay { Circle().strokeBorder(Sm.border, lineWidth: 1) }
                     .padding(4)
                     .frame(width: 48, height: 48, alignment: .topTrailing)

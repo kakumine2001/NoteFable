@@ -372,6 +372,7 @@ private struct RecentNotesCarousel: View {
     let busy: Bool
     let multiKind: Bool
     let onOpen: (String) -> Void
+    @Environment(\.nfChromePath) private var chromePath
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -404,7 +405,7 @@ private struct RecentNotesCarousel: View {
                                             .foregroundStyle(pageKindTextColor(page.kind))
                                             .padding(.horizontal, 6)
                                             .padding(.vertical, 1.5)
-                                            .background(Sm.surface.opacity(0.88), in: Capsule())
+                                            .background(chromePath == .solid ? AnyShapeStyle(Sm.surface.opacity(0.88)) : AnyShapeStyle(.ultraThinMaterial), in: Capsule())
                                             .overlay { Capsule().strokeBorder(Sm.border, lineWidth: 1) }
                                             .padding(6)
                                     }
@@ -606,7 +607,7 @@ private struct KindFilterSegments: View {
             }
         }
         .padding(4)
-        .animation(NFMotion.unlessReduced(NFMotion.cssEase(0.18), reduceMotion), value: active)
+        .animation(NFMotion.unlessReduced(NFMotion.spring(0.28), reduceMotion), value: active)
     }
 }
 
@@ -620,23 +621,32 @@ private struct FilterPill: View {
 
     var body: some View {
         let shape = Capsule()
-        Button(action: action) {
+        let nativeThumb = Color(light: 0x1A0F172A, dark: 0x29FFFFFF)
+        Button {
+            Haptics.selection()
+            action()
+        } label: {
             HStack(spacing: 5) {
                 if let kind {
                     LucideIcon(pageKindIcon(kind), size: 13, color: pageKindColor(kind))
                 }
                 Text(title)
-                    .font(.nf(13, weight: 540))
-                    .foregroundStyle(selected ? Sm.ink : chromePath.secondaryInk)
+                    .font(.nf(13, weight: selected ? 600 : 520))
+                    .foregroundStyle(selected ? (chromePath == .native ? chromePath.primaryInk : Sm.ink) : chromePath.secondaryInk)
                     .lineLimit(1)
             }
             .padding(.horizontal, 10.4)
             .frame(height: 36)
             .background {
                 if selected {
-                    shape.fill(Sm.surface)
-                        .overlay { shape.strokeBorder(Sm.border, lineWidth: 1).allowsHitTesting(false) }
-                        .matchedGeometryEffect(id: "kindFilterThumb", in: thumb)
+                    if chromePath == .native {
+                        shape.fill(nativeThumb)
+                            .matchedGeometryEffect(id: "kindFilterThumb", in: thumb)
+                    } else {
+                        shape.fill(Sm.surface)
+                            .overlay { shape.strokeBorder(Sm.border, lineWidth: 1).allowsHitTesting(false) }
+                            .matchedGeometryEffect(id: "kindFilterThumb", in: thumb)
+                    }
                 }
             }
         }

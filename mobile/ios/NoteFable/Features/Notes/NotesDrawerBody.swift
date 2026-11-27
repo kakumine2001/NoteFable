@@ -208,8 +208,8 @@ private struct NotesDrawerList: View {
                 onGenerateSlides: {
                     router.openSlidesWizard(.new(groupId: group.id))
                 }
-            ) { open in
-                NoteRowAction(icon: Lucide.plus, iconSize: 14, label: newLabel, action: open)
+            ) {
+                NoteRowActionLabel(icon: Lucide.plus, iconSize: 14)
             }
             .disabled(busy)
             NoteRowAction(icon: Lucide.pencil, iconSize: 13, label: L("rename_name", group.name)) {
@@ -272,7 +272,6 @@ private struct NotesDrawerRow: View {
     let reorder: ReorderDragController
     @Binding var dialog: NotesDialogState?
     @State private var picking = false
-    @State private var menuOpen = false
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router
 
@@ -281,7 +280,7 @@ private struct NotesDrawerRow: View {
         let state = notes.state
         let active = state.open?.id == page.id
         let line = reorder.dropLine(page.id)
-        let shape = RoundedRectangle(cornerRadius: 8)
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
         let iconTint = pageKindColor(page.kind)
         HStack(spacing: 0) {
             toggle
@@ -308,20 +307,18 @@ private struct NotesDrawerRow: View {
                 onGenerateSlides: {
                     router.openSlidesWizard(.new(parentId: page.id))
                 }
-            ) { open in
-                NoteRowAction(icon: Lucide.plus, iconSize: 14, label: L("pg_add_page_inside_title", page.title), action: open)
+            ) {
+                NoteRowActionLabel(icon: Lucide.plus, iconSize: 14)
             }
             .disabled(busy)
             let menuLabel = L("sb_actions_for_title", page.title)
-            NoteRowAction(icon: Lucide.ellipsis, iconSize: 14, label: menuLabel) {
-                menuOpen = true
+            Menu {
+                NoteRowMenuItems(page: page, dialog: $dialog)
+            } label: {
+                NoteRowActionLabel(icon: Lucide.ellipsis, iconSize: 14)
             }
             .disabled(busy)
-            .actionsMenu(isPresented: $menuOpen, label: menuLabel) {
-                NoteRowMenu(page: page, dialog: $dialog) {
-                    menuOpen = false
-                }
-            }
+            .accessibilityLabel(menuLabel)
         }
         .padding(.leading, 4)
         .frame(minHeight: 42)
@@ -333,7 +330,7 @@ private struct NotesDrawerRow: View {
             if line.after { ReorderDropLine() }
         }
         .clipShape(shape)
-        .sidebarActiveRow(active: active, accent: iconTint, cornerRadius: 8)
+        .sidebarActiveRow(active: active, accent: iconTint, cornerRadius: 12)
         .reorderRow(page.id, in: reorder, showsDropLine: false)
         .reorderError(errorText(state)) { notes.dismissReorderError() }
     }
@@ -405,39 +402,39 @@ private struct NotesDrawerRow: View {
 
 // MARK: - 收藏的行
 
-/// Favorites 的行：高 42；图标区 28（左距 4，语义色页面类型图标 15）；标题 14；
-/// 笔记行的“...”操作菜单（网页 NotesSidebar 的 AnswerMenu）：改名、收藏/取消收藏、移到项目、移到回收站。
+/// 笔记行的“...”操作菜单（系统原生 Liquid Glass 菜单）：改名、收藏/取消收藏、移到项目、移到回收站。
 @MainActor
-private struct NoteRowMenu: View {
+private struct NoteRowMenuItems: View {
     let page: NotePageSummary
     @Binding var dialog: NotesDialogState?
-    let onClose: () -> Void
     @Environment(AppEnvironment.self) private var app
 
     var body: some View {
         let fav = page.favoritedAt != nil
-        VStack(alignment: .leading, spacing: 0) {
-            if !page.locked {
-                ActionsMenuItem(L("sb_rename"), icon: Lucide.pencil) {
-                    onClose()
-                    dialog = .renamePage(page)
-                }
+        if !page.locked {
+            Button {
+                dialog = .renamePage(page)
+            } label: {
+                NFMenuLabel(title: L("sb_rename"), icon: Lucide.pencil)
             }
-            ActionsMenuItem(L(fav ? "pg_remove_from_favorites" : "pg_add_to_favorites"), icon: fav ? Lucide.starOff : Lucide.star) {
-                onClose()
-                let notes = app.notes
-                let id = page.id
-                Task { @MainActor in _ = await notes.setFavorite(id, !fav) }
-            }
-            ActionsMenuItem(L("pg_move_to"), icon: Lucide.folderInput) {
-                onClose()
-                dialog = .move(pageId: page.id)
-            }
-            ActionsMenuDivider()
-            ActionsMenuItem(L("move_to_trash"), icon: Lucide.trash2, role: .danger) {
-                onClose()
-                dialog = .trashNote(page)
-            }
+        }
+        Button {
+            let notes = app.notes
+            let id = page.id
+            Task { @MainActor in _ = await notes.setFavorite(id, !fav) }
+        } label: {
+            NFMenuLabel(title: L(fav ? "pg_remove_from_favorites" : "pg_add_to_favorites"), icon: fav ? Lucide.starOff : Lucide.star)
+        }
+        Button {
+            dialog = .move(pageId: page.id)
+        } label: {
+            NFMenuLabel(title: L("pg_move_to"), icon: Lucide.folderInput)
+        }
+        Divider()
+        Button(role: .destructive) {
+            dialog = .trashNote(page)
+        } label: {
+            NFMenuLabel(title: L("move_to_trash"), icon: Lucide.trash2)
         }
     }
 }
@@ -455,7 +452,7 @@ private struct NotesDrawerFavoriteRow: View {
         let notes = app.notes
         let active = notes.state.open?.id == page.id
         let pageId = page.id
-        let shape = RoundedRectangle(cornerRadius: 8)
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
         HStack(spacing: 0) {
             Button {
                 router.openNote(pageId, title: page.title, icon: page.icon, kind: page.kind)
@@ -490,6 +487,6 @@ private struct NotesDrawerFavoriteRow: View {
         .padding(.leading, 4)
         .frame(minHeight: 42)
         .clipShape(shape)
-        .sidebarActiveRow(active: active, accent: pageKindColor(page.kind), cornerRadius: 8)
+        .sidebarActiveRow(active: active, accent: pageKindColor(page.kind), cornerRadius: 12)
     }
 }

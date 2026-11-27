@@ -203,7 +203,7 @@ final class FixtureLaunch {
             ToastCenter.shared.hide()
         }
         let overlayScenes: Set<ScreenshotScene> = [
-            .modelSheet, .attachSheet, .pageMenu, .chatMenu, .emojiPicker, .toast, .settingsPage,
+            .modelSheet, .attachSheet, .pageMenu, .emojiPicker, .toast, .settingsPage,
         ]
         if overlayScenes.contains(previous) {
             ScreenshotHooks.dismissOverlays()
@@ -213,7 +213,7 @@ final class FixtureLaunch {
             // chat-scrolled 把京都聊天滚上去并停止跟随底部。先换到新聊天（列表被拿掉）再打开京都聊天，
             // 新建的列表从最底部开始，后面的菜单、抽屉、底部弹层、提示条场景和原来的截图一样贴底。
             app.chat.newChat()
-            try? await Task.sleep(for: .milliseconds(150))
+            try? await Task.sleep(for: .milliseconds(250))
             app.chat.openSession(FixtureCatalog.IDs.kyotoSession)
             let repinDeadline = Date().addingTimeInterval(5)
             _ = await poll(until: repinDeadline) {
@@ -221,6 +221,7 @@ final class FixtureLaunch {
                     && !app.chat.state.messagesLoading
                     && !app.chat.state.messages.isEmpty
             }
+            try? await Task.sleep(for: .milliseconds(250))
         }
         if router.drawerOpen {
             router.dismissDrawer()
@@ -415,8 +416,8 @@ final class FixtureLaunch {
                 router.signInOpen && app.account.state.configured && app.account.state.user == nil
             }
 
-        case .chatScrolled, .chatMenu, .emojiPicker:
-            // 京都聊天显示出来后，界面里的钩子（消息列表 / 顶栏）滚动列表、打开「…」菜单或换图标的选择器，再报告就绪。
+        case .chatScrolled, .emojiPicker:
+            // 京都聊天显示出来后，界面里的钩子（消息列表 / 顶栏）滚动列表或打开换图标的选择器，再报告就绪。
             _ = await openKyoto(app: app, router: router, deadline: deadline)
             return await awaitHook(target, deadline: deadline) {
                 kyotoShown(app: app, router: router)

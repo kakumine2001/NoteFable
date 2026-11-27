@@ -3,9 +3,9 @@ import SwiftUI
 // 对话框、“更多”菜单、全屏面板共用的“最上层”。
 //
 // 原先通过 PreferenceKey + Anchor<CGRect> 向根视图冒泡，但 UIKit 支持的 TabView 会截断 PreferenceKey 冒泡。
-// 改为根上和每个 `.nfPanel` / `.nfSheet` / `.nfDialog` / `.actionsMenu` 内部通过环境注入的 `@Observable NFOverlayCenter`，
+// 改为根上和每个 `.nfPanel` / `.nfSheet` / `.nfDialog` / `.nfPopover` 内部通过环境注入的 `@Observable NFOverlayCenter`，
 // 以及基于 `.global` 坐标的触发器矩形：跨 TabView 标签页与抽屉声明的层都能稳定画在 TabView 与液态玻璃底栏之上。
-// 层的顺序：全屏面板 < 对话框 < 菜单；从某一层里面再打开的（设置里的语言菜单、对话框里的菜单）叠在那一层上面。
+// 层的顺序：全屏面板 < 对话框；从某一层里面再打开的（例如面板或 `.sheet` 里的对话框）叠在那一层上面。
 
 // MARK: - 根上的宿主
 
@@ -142,14 +142,12 @@ struct NFOverlayItem: Identifiable {
     enum Kind {
         case panel(NFPanelStyle)
         case dialog
-        case menu(ActionsMenuConfiguration, CGRect)
 
         /// 叠放顺序：数字大的在上面。
         var level: Int {
             switch self {
             case .panel: return 0
             case .dialog: return 1
-            case .menu: return 2
             }
         }
     }
@@ -256,65 +254,6 @@ struct NFOverlayPresenter: ViewModifier {
     }
 }
 
-/// 贴着某个视图显示的层（菜单）：使用 `.global` 坐标追踪锚点。
-struct NFAnchoredOverlayPresenter: ViewModifier {
-    let isPresented: Bool
-    let configuration: ActionsMenuConfiguration
-    let dismissDisabled: Bool
-    let overlayContent: () -> AnyView
-    let dismiss: () -> Void
-
-    @Namespace private var namespace
-    @Environment(\.self) private var environment
-    @Environment(NFOverlayCenter.self) private var center: NFOverlayCenter?
-    @State private var anchorRect: CGRect = .zero
-
-    private var currentId: NFOverlayID {
-        NFOverlayID(namespace: namespace, key: nil)
-    }
-
-    private func makeItem(globalRect: CGRect) -> NFOverlayItem {
-        NFOverlayItem(
-            id: currentId,
-            kind: .menu(configuration, globalRect),
-            dismissDisabled: dismissDisabled,
-            environment: environment,
-            content: overlayContent,
-            dismiss: dismiss
-        )
-    }
-
-    func body(content: Content) -> some View {
-        if isPresented {
-            center?.updateStoredContent(makeItem(globalRect: anchorRect))
-        }
-        return content
-            .onGeometryChange(for: CGRect.self) { proxy in
-                proxy.frame(in: .global)
-            } action: { rect in
-                anchorRect = rect
-                if isPresented {
-                    center?.upsert(makeItem(globalRect: rect))
-                }
-            }
-            .onChange(of: isPresented, initial: true) { _, shown in
-                if shown {
-                    center?.upsert(makeItem(globalRect: anchorRect))
-                } else {
-                    center?.remove(currentId)
-                }
-            }
-            .onChange(of: dismissDisabled) { _, _ in
-                if isPresented {
-                    center?.upsert(makeItem(globalRect: anchorRect))
-                }
-            }
-            .onDisappear {
-                center?.remove(currentId)
-            }
-    }
-}
-
 // MARK: - 把各层叠起来
 
 private struct NFOverlayStack: View {
@@ -369,8 +308,6 @@ private struct NFOverlayLayer: View {
             NFDialogLayer(item: item, metrics: metrics, zBase: zBase)
         case let .panel(style):
             NFPanelLayer(item: item, style: style, metrics: metrics, zBase: zBase)
-        case let .menu(configuration, globalRect):
-            ActionsMenuLayer(item: item, configuration: configuration, globalAnchorRect: globalRect, metrics: metrics, zBase: zBase)
         }
     }
 }

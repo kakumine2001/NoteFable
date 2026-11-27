@@ -79,7 +79,7 @@ enum ChatLocalImageLoader {
 
 // MARK: - 输入卡片
 
-/// 输入卡片顶部的提示（.notion-error）：浅红底、圆角 4.8、内边距 8.8×10.4、字 12.8 / 行高 19.2，下距 12。
+/// 输入卡片顶部的提示（.notion-error）：浅红底、圆角 12、内边距 8.8×10.4、字 12.8 / 行高 19.2，下距 12。
 struct ComposerError: View {
     let text: String
 
@@ -92,7 +92,7 @@ struct ComposerError: View {
             .padding(.horizontal, 10.4)
             .padding(.vertical, 8.8)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Sm.errorBackground, in: RoundedRectangle(cornerRadius: 4.8))
+            .background(Sm.errorBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             .padding(.bottom, 12)
     }
 }
@@ -165,16 +165,19 @@ struct PendingPages: View {
     }
 }
 
-/// 笔记标签（网页 page.tsx 输入栏上方的、chat-message.tsx 发言下面的）：圆角 4、1px 描边、浅底、12 灰字，图标是表情或页面类型图标。
-/// 输入栏上方的可移除（`removable`：内边距 10×6、间距 8、图标 13、右边 ✕ 13，读屏念"移除…"）；
-/// 发言下面的点了打开笔记（内边距 8×4、间距 4、图标 12）。
+/// 笔记标签（输入栏内为胶囊，发言下方为 8pt 圆角卡片）。
 struct PageChip: View {
     let page: ChatProjectNote
     let removable: Bool
     let action: () -> Void
 
+    @Environment(\.nfChromePath) private var chromePath
+
     var body: some View {
         let title = page.title.isEmpty ? L("sb_untitled") : page.title
+        let radius: CGFloat = removable ? 999 : 8
+        let bg: Color = (removable && chromePath == .native) ? Color.primary.opacity(0.065) : Sm.sidebar
+        let border: Color = (removable && chromePath != .solid) ? .clear : Sm.border
         Button(action: action) {
             HStack(spacing: removable ? 8 : 4) {
                 NoteIconGlyph(page.icon, emojiSize: 12, iconSize: removable ? 13 : 12, kind: page.kind)
@@ -185,20 +188,22 @@ struct PageChip: View {
                 if removable { LucideIcon(Lucide.x, size: 13, color: Sm.muted) }
             }
             .frame(minHeight: 16)
-            .padding(.horizontal, removable ? 10 : 8)
+            .padding(.horizontal, removable ? 11 : 8)
             .padding(.vertical, removable ? 6 : 4)
-            .overlay { RoundedRectangle(cornerRadius: 4).strokeBorder(Sm.border, lineWidth: 1) }
+            .overlay { RoundedRectangle(cornerRadius: radius, style: .continuous).strokeBorder(border, lineWidth: 1) }
         }
-        .buttonStyle(.pressable(background: Sm.sidebar, cornerRadius: 4))
+        .buttonStyle(.pressable(background: bg, cornerRadius: radius))
         .accessibilityLabel(removable ? L("sb_remove_title", title) : title)
     }
 }
 
-/// 选好的附件：图片是 96 的缩略图（圆角 6、1px 描边、右上角 6 处 24 的移除键），其他文件是可点掉的标签；间距 8，下距 12。
+/// 选好的附件：图片是 96 的缩略图（圆角 14、右上角圆形移除键），其他文件是胶囊标签；间距 8，下距 12。
 struct PendingFiles: View {
     let files: [LocalFile]
     let enabled: Bool
     let onRemove: (String) -> Void
+
+    @Environment(\.nfChromePath) private var chromePath
 
     var body: some View {
         ChatFlowLayout(spacing: 8, lineSpacing: 8) {
@@ -215,8 +220,8 @@ struct PendingFiles: View {
     }
 
     private func imageTile(_ file: LocalFile) -> some View {
-        ChatAttachmentThumbnail(source: file.uri, side: 96, cornerRadius: 6)
-            .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(Sm.border, lineWidth: 1) }
+        ChatAttachmentThumbnail(source: file.uri, side: 96, cornerRadius: 14)
+            .overlay { RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Sm.border, lineWidth: 1) }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(file.name)
             .accessibilityAddTraits(.isImage)
@@ -224,11 +229,10 @@ struct PendingFiles: View {
                 Button {
                     onRemove(file.uri)
                 } label: {
-                    LucideIcon(Lucide.x, size: 15, color: .white)
+                    LucideIcon(Lucide.x, size: 14, color: .white)
                         .frame(width: 24, height: 24)
                 }
-                // 半透明黑底 rgba(0,0,0,.55)。
-                .buttonStyle(.pressable(background: Color(argb: 0x8C000000), pressedBackground: nil, cornerRadius: 4, scale: 0.97))
+                .buttonStyle(.pressable(background: Color(argb: 0x99000000), pressedBackground: nil, cornerRadius: 12, scale: 0.94))
                 .disabled(!enabled)
                 .accessibilityLabel(L("remove_image"))
                 .padding(.top, 6)
@@ -236,9 +240,10 @@ struct PendingFiles: View {
             }
     }
 
-    /// 文件标签：回形针 13 + 文件名 12 灰 + ✕ 13，内边距 10×6、间距 8、圆角 4、浅底 + 1px 描边；点一下移除。
+    /// 文件胶囊标签：回形针 13 + 文件名 12 灰 + ✕ 13；点一下移除。
     private func fileChip(_ file: LocalFile) -> some View {
-        Button {
+        let bg = chromePath == .native ? Color.primary.opacity(0.065) : Sm.sidebar
+        return Button {
             onRemove(file.uri)
         } label: {
             HStack(spacing: 8) {
@@ -250,11 +255,15 @@ struct PendingFiles: View {
                 LucideIcon(Lucide.x, size: 13, color: Sm.muted)
             }
             .frame(minHeight: 16)
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 11)
             .padding(.vertical, 6)
-            .overlay { RoundedRectangle(cornerRadius: 4).strokeBorder(Sm.border, lineWidth: 1) }
+            .overlay {
+                if chromePath == .solid {
+                    Capsule().strokeBorder(Sm.border, lineWidth: 1)
+                }
+            }
         }
-        .buttonStyle(.pressable(background: Sm.sidebar, cornerRadius: 4))
+        .buttonStyle(.pressable(background: bg, cornerRadius: 999))
         .disabled(!enabled)
         .accessibilityLabel(L("sb_remove_title", file.name))
     }
@@ -326,7 +335,10 @@ struct ImageModeChip: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            Haptics.selection()
+            action()
+        } label: {
             HStack(spacing: 6.4) {
                 LucideIcon(Lucide.imagePlus, size: 16, color: Sm.blue)
                 Text(L("create_image"))

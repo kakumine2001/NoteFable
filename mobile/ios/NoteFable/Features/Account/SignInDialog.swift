@@ -92,11 +92,13 @@ private struct SignInDialogCard: View {
     @Environment(AppEnvironment.self) private var app
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.layoutDirection) private var layoutDirection
+    @Environment(\.nfChromePath) private var chromePath
     @FocusState private var focus: SignInFocus?
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: 28, style: .continuous)
         let state = model.state
+        let closeBg = chromePath == .native ? Color.primary.opacity(0.075) : .clear
         ZStack(alignment: .topTrailing) {
             FittingScrollView(maxHeight: maxHeight) {
                 VStack(alignment: .leading, spacing: 0) {
@@ -111,9 +113,16 @@ private struct SignInDialogCard: View {
                 .padding(.horizontal, 28)
                 .padding(.bottom, 24)
             }
-            NFIconButton(Lucide.x, label: L("close"), size: 32, iconSize: 18, cornerRadius: 6) { model.close() }
-                .padding(.top, 12)
-                .padding(.trailing, 12)
+            Button {
+                model.close()
+            } label: {
+                LucideIcon(Lucide.x, size: 17, strokeWidth: 2, color: Sm.muted)
+                    .frame(width: 34, height: 34)
+            }
+            .buttonStyle(.pressable(background: closeBg, pressedBackground: Sm.active, cornerRadius: 17, scale: 0.96))
+            .accessibilityLabel(L("close"))
+            .padding(.top, 14)
+            .padding(.trailing, 14)
         }
         .frame(width: width)
         // 吸收卡片内部空白处的点击，防止透传到遮罩关掉弹窗；放在内容背后，避免与 Apple 系统按钮抢手势。
@@ -153,7 +162,7 @@ private struct SignInDialogCard: View {
         SignInTitle(text: L("signin_title"))
         SignInSubtitle(text: L("signin_subtitle"))
         if model.showGoogle {
-            GoogleSignInButton(label: L(model.googleLabelKey), busy: model.googleBusy, loading: model.googleSigningIn, cornerRadius: 8, action: onGoogle)
+            GoogleSignInButton(label: L(model.googleLabelKey), busy: model.googleBusy, loading: model.googleSigningIn, cornerRadius: 12, action: onGoogle)
         }
         if model.showApple {
             ZStack(alignment: .trailing) {
@@ -338,8 +347,10 @@ private struct SignInField: View {
     let onSubmit: () -> Void
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 8)
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
         let focused = focus.wrappedValue == field
+        let fill = chromePath == .native ? Color.primary.opacity(0.065) : Sm.surface
+        let stroke = focused ? Sm.blue : (chromePath == .native ? Color.primary.opacity(0.10) : Sm.borderStrong)
         input
             .textFieldStyle(.plain)
             .foregroundStyle(Sm.text)
@@ -350,12 +361,11 @@ private struct SignInField: View {
             .focused(focus, equals: field)
             .onSubmit(onSubmit)
             .disabled(!enabled)
-            .padding(.horizontal, 11.2)
+            .padding(.horizontal, 12.2)
             .frame(maxWidth: .infinity)
             .frame(height: 44)
-            // 卡片是玻璃的：输入框自己铺白底（和 `NFDialogTextField` 一样），不然看着像个透明的洞。
-            .background(Sm.surface, in: shape)
-            .overlay { shape.strokeBorder(focused ? Sm.blue : Sm.borderStrong, lineWidth: focused ? 2 : 1) }
+            .background(fill, in: shape)
+            .overlay { shape.strokeBorder(stroke, lineWidth: focused ? 2 : 1) }
             .contentShape(shape)
             .onTapGesture { if enabled { focus.wrappedValue = field } }
             .accessibilityLabel(label)
@@ -364,6 +374,7 @@ private struct SignInField: View {
     }
 
     @Environment(\.layoutDirection) private var currentDirection
+    @Environment(\.nfChromePath) private var chromePath
 
     @ViewBuilder
     private var input: some View {
@@ -396,11 +407,11 @@ private struct SignInSubmit: View {
                 .font(.nf(15, weight: 600))
                 .foregroundStyle(Sm.onInk)
                 .lineLimit(1)
-                .padding(.horizontal, 12)
+                .padding(.horizontal, 16)
                 .frame(maxWidth: .infinity)
-                .frame(minHeight: 44)
+                .frame(minHeight: 46)
         }
-        .buttonStyle(.pressable(background: Sm.ink, pressedBackground: Sm.inkHover, cornerRadius: 8, scale: 0.97, disabledOpacity: 0.45))
+        .buttonStyle(.pressable(background: Sm.ink, pressedBackground: Sm.inkHover, cornerRadius: 23, scale: 0.97, disabledOpacity: 0.45))
         .disabled(!enabled)
         .padding(.top, 12)
     }

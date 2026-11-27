@@ -181,37 +181,50 @@ private struct NotionButtonBody: View {
     let large: Bool
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.nfChromePath) private var chromePath
 
     private var foreground: Color {
         switch kind {
         case .primary: return Sm.onInk
-        case .danger: return Sm.danger.opacity(isEnabled ? 1 : 0.6)
-        case .plain, .quiet: return Sm.text.opacity(isEnabled ? 1 : 0.6)
+        case .danger: return Sm.danger.opacity(isEnabled ? 1 : 0.55)
+        case .plain, .quiet: return Sm.text.opacity(isEnabled ? 1 : 0.55)
         }
     }
 
     private func fill(pressed: Bool) -> Color {
         switch kind {
-        case .primary: return pressed ? Sm.inkHover : Sm.ink
-        case .quiet: return Sm.surface
-        case .plain, .danger: return .clear
+        case .primary:
+            return pressed ? Sm.inkHover : Sm.ink
+        case .danger:
+            return pressed ? Sm.danger.opacity(0.22) : Sm.danger.opacity(chromePath == .solid ? 0.16 : 0.12)
+        case .plain:
+            return pressed ? Sm.active : (chromePath == .native ? Color.primary.opacity(0.075) : Sm.hover)
+        case .quiet:
+            return pressed ? Sm.hover : (chromePath == .native ? Color.primary.opacity(0.05) : Sm.surface)
+        }
+    }
+
+    private var stroke: Color {
+        switch kind {
+        case .primary: return .clear
+        case .danger: return chromePath == .solid ? Sm.danger.opacity(0.45) : .clear
+        case .plain: return chromePath == .solid ? Sm.border : .clear
+        case .quiet: return Sm.borderStrong
         }
     }
 
     var body: some View {
         let pressed = configuration.isPressed && isEnabled
-        let shape = RoundedRectangle(cornerRadius: 4.8)
+        let shape = Capsule()
         configuration.label
-            .font(.nf(large ? 15 : 12.8, weight: 500))
+            .font(.nf(large ? 15 : 14, weight: 600))
             .lineLimit(1)
             .foregroundStyle(foreground)
-            .padding(.horizontal, large ? 16 : 12)
-            .frame(minHeight: large ? 44 : 32)
+            .padding(.horizontal, large ? 18 : 16)
+            .frame(minHeight: large ? 46 : 38)
             .background {
                 shape.fill(fill(pressed: pressed))
-                    // .notion-button:hover 的灰底（primary 是换成 --nf-ink-hover）。
-                    .overlay { shape.fill(pressed && kind != .primary ? Sm.hover : .clear) }
-                    .overlay { shape.strokeBorder(kind == .quiet ? Sm.borderStrong : .clear, lineWidth: 1) }
+                    .overlay { shape.strokeBorder(stroke, lineWidth: 1) }
             }
             .contentShape(shape)
             .opacity(kind == .primary && !isEnabled ? 0.45 : 1)
@@ -319,6 +332,7 @@ struct SettingsChip: View {
     private let title: String
     private let icon: [String]?
     private let action: () -> Void
+    @Environment(\.nfChromePath) private var chromePath
 
     init(_ title: String, icon: [String]? = nil, action: @escaping () -> Void) {
         self.title = title
@@ -337,10 +351,19 @@ struct SettingsChip: View {
             }
             .padding(.horizontal, 14)
             .frame(minHeight: 40)
-            .overlay { Capsule().strokeBorder(Sm.borderStrong, lineWidth: 1) }
+            .overlay {
+                if chromePath == .solid {
+                    Capsule().strokeBorder(Sm.borderStrong, lineWidth: 1)
+                }
+            }
         }
-        // 白底由样式画（按下的灰底叠在它上面）。全圆角：圆角给得比高度的一半大就行。
-        .buttonStyle(.pressable(background: Sm.surface, cornerRadius: 999, disabledOpacity: 0.55))
+        .buttonStyle(.pressable(
+            background: chromePath == .solid ? Sm.surface : Sm.hover,
+            pressedBackground: Sm.active,
+            cornerRadius: 999,
+            scale: 0.97,
+            disabledOpacity: 0.55
+        ))
     }
 }
 
@@ -368,6 +391,7 @@ struct NFOptionRow: View {
     private let highlightsSelection: Bool
     private let action: () -> Void
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.nfChromePath) private var chromePath
 
     init(
         _ title: String,
@@ -388,6 +412,7 @@ struct NFOptionRow: View {
     var body: some View {
         let sheet = style == .sheet
         let emphasized = isSelected && highlightsSelection
+        let selectedFill = chromePath == .native ? Color.primary.opacity(0.08) : Sm.hover
         Button(action: action) {
             HStack(spacing: 8) {
                 if let icon { LucideIcon(icon, size: 16, color: Sm.text) }
@@ -396,44 +421,16 @@ struct NFOptionRow: View {
                     .foregroundStyle(Sm.text.opacity(isEnabled ? 1 : 0.6))
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                if isSelected { LucideIcon(Lucide.check, size: sheet ? 20 : 16, color: Sm.text) }
+                if isSelected { LucideIcon(Lucide.check, size: sheet ? 20 : 16, color: Sm.blue) }
             }
-            .padding(.horizontal, sheet ? 13.6 : 9.6)
-            .frame(minHeight: sheet ? 52 : 40)
+            .padding(.horizontal, sheet ? 13.6 : 12)
+            .frame(minHeight: sheet ? 52 : 42)
         }
         .buttonStyle(.pressable(
-            background: emphasized ? Sm.hover : .clear,
-            cornerRadius: sheet ? 10.4 : 6,
+            background: emphasized ? selectedFill : .clear,
+            cornerRadius: sheet ? 14 : 12,
             scale: sheet ? 0.97 : 1
         ))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-}
-
-// MARK: - 开关
-
-/// `.notes-menu-switch`：菜单项右边的小开关。26×14 的全圆角，关是 rgba(55,53,47,.2)、开是蓝色，里面 10 的白点（开时右移 12），120ms。
-/// 只管外观，点按由所在的行处理（`ActionsMenuToggle`）。网页写死 `direction: ltr`，从右到左的界面里白点也是往右走。
-struct NFSwitch: View {
-    private let isOn: Bool
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    init(isOn: Bool) {
-        self.isOn = isOn
-    }
-
-    var body: some View {
-        Capsule()
-            .fill(isOn ? Sm.blue : Sm.sheetGrab)
-            .frame(width: 26, height: 14)
-            .overlay(alignment: .leading) {
-                Circle()
-                    .fill(Color.white)
-                    .frame(width: 10, height: 10)
-                    .offset(x: isOn ? 14 : 2)
-            }
-            .environment(\.layoutDirection, .leftToRight)
-            .animation(NFMotion.unlessReduced(NFMotion.cssEase(0.12), reduceMotion), value: isOn)
-            .accessibilityHidden(true)
     }
 }

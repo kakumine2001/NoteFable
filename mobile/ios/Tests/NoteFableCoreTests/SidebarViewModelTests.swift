@@ -67,8 +67,11 @@ private final class FakeSessions: SessionsBackend {
     var createGate: TestGate?
     /// 设了以后排序要等它。
     var reorderGate: TestGate?
+    /// 设了以后指定聊天的更新要等它。
+    var updateGates: [String: TestGate] = [:]
 
     func updateSession(id: String, title: String?, pinned: Bool?, project: ProjectChange?) async throws {
+        if let gate = updateGates[id] { await gate.pass() }
         if fail { throw TestIOError() }
         updates.append(Update(id: id, pinned: pinned, project: project))
         titles.append(title)
@@ -214,6 +217,37 @@ final class SidebarViewModelTests: XCTestCase {
         let failed = await sidebar.setPinned("a", false)
         XCTAssertEqual(failed, SidebarError(detail: nil, fallback: "sb_err_save_change"))
         XCTAssertEqual(chat.sessions.map(\.pinned), [true])
+    }
+
+    @MainActor
+    func testPinSuppressesOverlappingRequestsForTheSameChat() async {
+        let (chat, sidebar, api) = await setup([
+            SessionSummary(id: "a", title: "A"),
+            SessionSummary(id: "b", title: "B"),
+        ])
+        let gate = TestGate()
+        api.updateGates["a"] = gate
+
+        let first = Task { @MainActor in await sidebar.setPinned("a", true) }
+        await gate.entered()
+        XCTAssertTrue(sidebar.state.pinBusy.contains("a"))
+
+        // 同一聊天在保存中再点一次不发重复/相反请求。
+        let duplicate = await sidebar.setPinned("a", false)
+        XCTAssertNil(duplicate)
+        // 不同聊天互不阻塞。
+        let other = await sidebar.setPinned("b", true)
+        XCTAssertNil(other)
+
+        gate.open()
+        let firstError = await first.value
+        XCTAssertNil(firstError)
+        XCTAssertFalse(sidebar.state.pinBusy.contains("a"))
+        XCTAssertEqual(api.updates, [
+            FakeSessions.Update(id: "b", pinned: true, project: nil),
+            FakeSessions.Update(id: "a", pinned: true, project: nil),
+        ])
+        XCTAssertEqual(chat.sessions.map(\.pinned), [true, true])
     }
 
     @MainActor

@@ -237,13 +237,13 @@ struct NoteEditorScreen: View {
 
     private func titleBlock(kind: PageKind, saveState: String?) -> some View {
         let statusText = noteSaveStateText(saveState)
-        return VStack(alignment: .leading, spacing: 0) {
+        return VStack(alignment: .leading, spacing: 1) {
             HStack(spacing: 6) {
                 NFIconTile(emoji: open.icon, fallback: pageKindIcon(kind), box: 16, glyph: 13)
                 Text(open.title.isEmpty ? L("workspace") : open.title)
-                    .font(.nf(14))
-                    .nfLineHeight(20, fontSize: 14)
-                    .foregroundStyle(Sm.muted)
+                    .font(.nf(14.5, weight: 560))
+                    .nfLineHeight(20, fontSize: 14.5)
+                    .foregroundStyle(Sm.text)
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
@@ -268,8 +268,10 @@ struct NoteEditorScreen: View {
                 .padding(.horizontal, 6)
                 .frame(height: 18)
                 .background(pillBg, in: Capsule())
+                .transition(.opacity)
             }
         }
+        .animation(.easeInOut(duration: 0.16), value: statusText)
     }
 
     /// “…”菜单各项的动作（Android NoteFableRoot.kt 里传给 NoteEditorScreen 的 NotePageMenuActions）。

@@ -54,45 +54,20 @@ enum EmojiGlyphs {
 
 enum EmojiPickerColors {
     static let text = Sm.text                                   // --epr-text-color = --notes-text
-    static let categoryActive = Color(argb: 0xFF3371B7)         // --epr-category-icon-active-color
-    static let categoryInactive = Color(argb: 0xFF868686)       // --epr-category-icon-inactive-color
-    static let searchBackground = Color(argb: 0xFFF6F6F6)       // --epr-search-input-bg-color
-    static let highlight = Color(argb: 0xFF007AEB)              // --epr-highlight-color（搜索框聚焦、选中的肤色）
-    static let variationIndicator = Color(argb: 0xFFE7E7E7)     // --epr-emoji-variation-indicator-color
-    static let toneBorder = Color(argb: 0xFF555555)             // --epr-skin-tone-outer-border-color
-    static let pickerBorder = Color(argb: 0xFFE7E7E7)           // --epr-picker-border-color
-    static let categoryLabelBackground = Color(argb: 0xE6FFFFFF) // 分类标题的白底 .9
+    static let categoryActive = Sm.blue                         // --epr-category-icon-active-color
+    static let categoryInactive = Sm.faint                      // --epr-category-icon-inactive-color
+    static let searchBackground = Color.primary.opacity(0.06)   // --epr-search-input-bg-color（适配浅深色与玻璃）
+    static let highlight = Sm.blue                              // --epr-highlight-color（搜索框聚焦、选中的肤色）
+    static let variationIndicator = Color.primary.opacity(0.14) // --epr-emoji-variation-indicator-color
+    static let toneBorder = Sm.faint                            // --epr-skin-tone-outer-border-color
+    static let pickerBorder = Sm.borderStrong                   // --epr-picker-border-color
+    static let categoryLabelBackground = Sm.surface.opacity(0.9) // 分类标题底色（非 .ultraThinMaterial 时兜底）
 }
 
-// MARK: - 弹出框的大小和位置
+// MARK: - 弹出框的顶部条高度
 
-/// 弹出框的大小（网页 floatingPositionFor + .full-emoji-picker 的 --emoji-picker-height）。
-struct EmojiPopoverSize: Equatable {
+enum EmojiPopoverSize {
     static let barHeight: CGFloat = 36
-
-    let width: CGFloat
-    let pickerHeight: CGFloat
-
-    var height: CGFloat { Self.barHeight + pickerHeight }
-
-    /// 宽 min(408, 屏宽 − 24)，表情区高 min(380, 屏高 − 60)。`viewport` 是能用的区域（安全区以内、键盘以上）。
-    static func of(viewport: CGSize) -> EmojiPopoverSize {
-        EmojiPopoverSize(
-            width: max(0, min(408, viewport.width - 24)),
-            pickerHeight: min(380, max(80, viewport.height - 60))
-        )
-    }
-}
-
-/// 网页 floatingPositionFor：行首边对齐按钮，离边至少 `margin`；按钮下方 `gap` 放得下就放下面，否则放上面，再夹在可用区域里。
-/// 坐标是所在层里的坐标（行首为 0；从右到左的界面里 SwiftUI 整体镜像，不用分方向）。
-func floatingEmojiPosition(anchor: CGRect, viewport: CGSize, popup: CGSize, margin: CGFloat = 12, gap: CGFloat = 6) -> CGPoint {
-    let height = min(popup.height, viewport.height - margin * 2)
-    let x = max(margin, min(anchor.minX, viewport.width - popup.width - margin))
-    let below = anchor.maxY + gap
-    let preferred = below + height <= viewport.height - margin ? below : anchor.minY - height - gap
-    let y = max(margin, min(preferred, viewport.height - height - margin))
-    return CGPoint(x: x, y: y)
 }
 
 // MARK: - 要显示的分类和表情
