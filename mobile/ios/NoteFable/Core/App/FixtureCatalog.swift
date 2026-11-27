@@ -712,7 +712,7 @@ struct FixtureCatalog: Sendable {
         let kindsValue = kinds.flatMap { JSONValue.parse($0) } ?? [
             "note": ["editor": true, "markdownExport": true, "typography": true, "publicShare": true, "aiEdit": true],
             "whiteboard": ["editor": true, "markdownExport": false, "typography": false, "publicShare": true, "aiEdit": true],
-            "slides": ["editor": true, "markdownExport": false, "typography": false, "publicShare": true, "aiEdit": false],
+            "slides": ["editor": true, "markdownExport": false, "typography": false, "publicShare": true, "aiEdit": true],
         ]
         return [
             "pages": [

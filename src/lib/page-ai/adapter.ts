@@ -106,7 +106,8 @@ export interface PageAdapter {
   claim(tx: Tx, userId: string, content: ValidatedContent): Promise<void>;
   // 適用：トランザクションの中で、版が target.version のときだけ書いて版を 1 進める。書けなければ false。先に claim を呼ぶ。
   // ai は AI の書き込み（ページの aiUpdatedAt を進める）。元に戻す（履歴の内容を書く）ときは false。
-  write(tx: Tx, target: { id: string; userId: string; version: number }, content: ValidatedContent, options: { ai: boolean }): Promise<boolean>;
+  // requireUnlocked が true のときは locked: false も原子的に条件へ含める（自動適用とロック操作の競合を防ぐ）。
+  write(tx: Tx, target: { id: string; userId: string; version: number }, content: ValidatedContent, options: { ai: boolean; requireUnlocked?: boolean }): Promise<boolean>;
   // 適用（新規）：トランザクションの中でページを作る。parentId はサブページの親。
   createPage(tx: Tx, userId: string, content: ValidatedContent, parentId: string | null): Promise<{ id: string; version: number }>;
   // 履歴に残す、いまの内容（トランザクションの中で読む）。

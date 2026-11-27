@@ -1284,4 +1284,13 @@ export const vi: Record<string, string> = {
   "Selected sketch": "Phác thảo đã chọn",
   "Optional: watercolor illustration, clean 3D render, architectural diagram…": "Tùy chọn: minh họa màu nước, dựng hình 3D gọn gàng, sơ đồ kiến trúc…",
   "Could not capture the selected sketch. Try again.": "Không thể chụp phần phác thảo đã chọn. Hãy thử lại.",
+  "Ask AI to edit this slide deck…": "Nhờ AI chỉnh sửa bản trình bày này…",
+  "Change tone": "Đổi giọng điệu",
+  "Merge slides": "Gộp trang chiếu",
+  "Restyle deck": "Đổi phong cách toàn bộ",
+  "Rewrite": "Viết lại",
+  "Split into two slides": "Tách thành hai trang",
+  "Write speaker notes": "Viết ghi chú diễn giả",
+  "This page is locked.": "Trang này đã bị khóa.",
+  "Resolve the unsaved draft before locking this page.": "Hãy xử lý bản nháp chưa lưu trước khi khóa trang này.",
 };

@@ -278,7 +278,16 @@ export async function applyProposal(userId: string, id: string, { auto = false }
         // 上書きする直前の状態を履歴に残す。この後の書き込みが失敗して巻き戻れば、履歴も一緒に消える。
         const snapshot = await adapter.snapshot(tx, current);
         const revisionId = await createRevision(tx, { noteId: current.id, userId, reason: "AI_EDIT", ...snapshot, version, kind: row.pageKind });
-        if (!await adapter.write(tx, { id: current.id, userId, version }, content, { ai: true })) throw new Conflict();
+        if (!await adapter.write(tx, { id: current.id, userId, version }, content, { ai: true, requireUnlocked: auto })) {
+          if (auto) {
+            const latest = await tx.notePage.findFirst({
+              where: { id: current.id, userId, deletedAt: null, kind: row.pageKind },
+              select: { version: true, locked: true },
+            });
+            if (latest && latest.version === version && latest.locked) throw new Locked();
+          }
+          throw new Conflict();
+        }
         await tx.noteProposal.update({ where: { id }, data: { appliedPageId: current.id, appliedVersion: version + 1, revisionId } });
         return current.id;
       }

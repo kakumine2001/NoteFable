@@ -31,10 +31,10 @@ final class PageKindTests: XCTestCase {
             PageKind.whiteboard.features,
             PageKindFeatures(editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: true)
         )
-        // 幻灯片（#149）：有编辑器和公开的放映页。
+        // 幻灯片（#149 / #150）：有编辑器、公开的放映页和 AI 编辑。
         XCTAssertEqual(
             PageKind.slides.features,
-            PageKindFeatures(editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false)
+            PageKindFeatures(editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: true)
         )
     }
 
