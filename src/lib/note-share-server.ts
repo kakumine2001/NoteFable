@@ -1,11 +1,13 @@
 import { randomBytes } from "crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { splitHosts } from "@/lib/hosts";
-import { isShareRowActive, isValidShareToken, sharePageUrl } from "@/lib/note-share";
+import { isShareRowActive, isValidShareToken, shareIconUrl, sharePageUrl } from "@/lib/note-share";
+import { isUploadedNoteIcon, noteIconText } from "@/lib/note-icon";
 import { PAGE_SUMMARY_SELECT } from "@/lib/note-tree-server";
 import { PAGE_KINDS, pageKindFeatures, pageKindOf, type PageKind } from "@/lib/page-kinds";
 import { readCanvasDataForShare } from "@/lib/canvas-store";
-import { databaseSchema, prisma } from "@/lib/prisma";
+import { prisma, databaseSchema } from "@/lib/prisma";
+import { extractPageCardSummary, isValidPageCardId, MAX_PAGE_CARD_BATCH, type PageCardPreview } from "@/lib/whiteboard/links";
 import type { NotePageFont, NoteShareAncestor, NoteShareState } from "@/types/notes";
 
 const table = () => Prisma.raw(`"${databaseSchema}"."NotePage"`);
@@ -73,6 +75,7 @@ export type ResolvedPublicShare = {
   token: string;
   root: {
     id: string;
+    kind?: PageKind;
     userId: string;
     title: string;
     icon: string | null;
@@ -185,6 +188,7 @@ export async function resolvePublicShare(
     token,
     root: {
       id: root.id,
+      kind: pageKindOf(root),
       userId: root.userId,
       title: root.title,
       icon: root.icon,
@@ -302,4 +306,108 @@ export async function updatePageShareMeta(userId: string, pageId: string, data: 
 
 export function sharedPageSummary(userId: string, pageId: string) {
   return prisma.notePage.findFirst({ where: { id: pageId, userId, deletedAt: null }, select: PAGE_SUMMARY_SELECT });
+}
+
+type CardAncestorRow = {
+  startId: string;
+  id: string;
+  kind: string;
+  shareExcludeFromParent: boolean;
+  depth: number;
+};
+
+// 公開ホワイトボード内のページカードについて、同じ公開共有ツリーに属するページだけをまとめて解決する。
+// 共有ツリー外・削除済み・親から除外・スライド配下のページは返さず、アップロード画像アイコンの内部キーも外へ出さない。
+export async function resolvePublicShareCards(
+  token: string,
+  root: Pick<ResolvedPublicShare["root"], "id" | "kind" | "userId" | "shareIncludeSubpages">,
+  rawIds: readonly string[],
+): Promise<Record<string, PageCardPreview>> {
+  const uniqueIds: string[] = [];
+  const seen = new Set<string>();
+  for (const id of rawIds) {
+    if (!isValidPageCardId(id) || seen.has(id)) continue;
+    seen.add(id);
+    uniqueIds.push(id);
+    if (uniqueIds.length >= MAX_PAGE_CARD_BATCH) break;
+  }
+  if (!uniqueIds.length) return {};
+
+  const allowSubpages = root.shareIncludeSubpages && (root.kind ?? "note") !== "slides";
+  const queryIds = allowSubpages ? uniqueIds : uniqueIds.filter((id) => id === root.id);
+  if (!queryIds.length) return {};
+
+  const rows = await prisma.notePage.findMany({
+    where: { id: { in: queryIds }, userId: root.userId, deletedAt: null },
+    select: {
+      id: true,
+      kind: true,
+      parentId: true,
+      title: true,
+      icon: true,
+      blocks: true,
+      shareExcludeFromParent: true,
+      canvas: { select: { segments: true } },
+    },
+  });
+  if (!rows.length) return {};
+
+  const candidates = rows.filter((row) => row.id === root.id || (allowSubpages && shareable(row) && !row.shareExcludeFromParent));
+  const startParentIds = [...new Set(
+    candidates
+      .filter((row) => row.id !== root.id && row.parentId !== null && row.parentId !== root.id)
+      .map((row) => row.parentId as string),
+  )];
+
+  const validStarts = new Set<string>();
+  if (startParentIds.length) {
+    const ancestors = await prisma.$queryRaw<CardAncestorRow[]>(Prisma.sql`
+      WITH RECURSIVE chain AS (
+        SELECT p."id" AS "startId", p."id", p."kind"::text AS "kind", p."parentId",
+               p."shareExcludeFromParent", 1 AS depth, ARRAY[p."id"]::text[] AS seen
+        FROM ${table()} p
+        WHERE p."id" = ANY(${startParentIds}::text[]) AND p."userId" = ${root.userId} AND p."deletedAt" IS NULL
+        UNION ALL
+        SELECT c."startId", p."id", p."kind"::text AS "kind", p."parentId",
+               p."shareExcludeFromParent", c.depth + 1, c.seen || p."id"
+        FROM ${table()} p
+        JOIN chain c ON p."id" = c."parentId"
+        WHERE p."userId" = ${root.userId} AND p."deletedAt" IS NULL AND NOT (p."id" = ANY(c.seen))
+      )
+      SELECT "startId", "id", "kind", "shareExcludeFromParent", depth
+      FROM chain
+      ORDER BY "startId" ASC, depth ASC
+    `);
+    const byStart = new Map<string, CardAncestorRow[]>();
+    for (const row of ancestors) {
+      const list = byStart.get(row.startId) ?? [];
+      list.push(row);
+      byStart.set(row.startId, list);
+    }
+    for (const [startId, chain] of byStart) {
+      for (const ancestor of chain) {
+        if (ancestor.id === root.id) {
+          validStarts.add(startId);
+          break;
+        }
+        if (ancestor.shareExcludeFromParent || !shareable(ancestor) || leafKind(ancestor)) break;
+      }
+    }
+  }
+
+  const cards: Record<string, PageCardPreview> = {};
+  for (const row of candidates) {
+    const inTree = row.id === root.id || row.parentId === root.id || (row.parentId !== null && validStarts.has(row.parentId));
+    if (!inTree) continue;
+    const kind = pageKindOf(row);
+    cards[row.id] = {
+      id: row.id,
+      kind,
+      title: row.title,
+      icon: noteIconText(row.icon) || null,
+      iconUrl: isUploadedNoteIcon(row.icon) ? shareIconUrl(token, row.id) : null,
+      summary: extractPageCardSummary(kind, row.blocks, row.canvas?.segments),
+    };
+  }
+  return cards;
 }

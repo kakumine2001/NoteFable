@@ -1,4 +1,5 @@
 import { isSelectionId, MAX_SELECTION_IDS } from "@/lib/page-ai/types";
+import { formulaDataOf } from "@/lib/whiteboard/formula";
 import { mindmapIndent, mindmapStashOutline } from "@/lib/whiteboard/mindmap/model";
 
 // 選区を AI へ送る PNG の長辺上限（D5）。モデル入力の解像度上限に収め、帯域とトークンを抑える。
@@ -84,6 +85,10 @@ export function expandWhiteboardSelection<T extends WhiteboardSelectableElement>
   // 枠の名前・テキスト・付箋・図形や矢印に付いた文字を順序通りに集める。思考マップで畳んでいる節は、その文字の下に
   // 隠れている文字を字下げして並べる（長さは引用の上限 MAX_QUOTE_CHARS で切られる）。
   const textOfElement = (element: T) => {
+    if (element.type === "image") {
+      const formula = formulaDataOf(element.customData);
+      return formula ? formula.latex.trim() : "";
+    }
     const raw = element.type === "frame"
       ? (typeof element.name === "string" ? element.name : "")
       : element.type === "text" || element.type === "stickynote"

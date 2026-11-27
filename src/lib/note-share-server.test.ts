@@ -6,7 +6,7 @@ vi.mock("@/lib/prisma", () => ({
   databaseSchema: "notefable",
   prisma: { notePage: { findFirst: mocks.findFirst, findMany: mocks.findMany }, noteCanvas: { findFirst: mocks.canvasFindFirst }, $queryRaw: mocks.queryRaw },
 }));
-import { generateShareToken, resolveOwnerShareState, resolvePublicShare } from "./note-share-server";
+import { generateShareToken, resolveOwnerShareState, resolvePublicShare, resolvePublicShareCards } from "./note-share-server";
 
 const token = generateShareToken();
 const page = (id: string, extra: Record<string, unknown> = {}) => ({
@@ -107,5 +107,40 @@ describe("public share tree and page kinds", () => {
     mocks.findFirst.mockResolvedValue(page("child", { parentId: "root" }));
     mocks.queryRaw.mockResolvedValue([shared]);
     expect((await resolveOwnerShareState("owner", "child", "https://example.com"))?.inheritedFrom).toMatchObject({ id: "root" });
+  });
+
+  it("resolves only same-tree page cards for public whiteboards and hides excluded, out-of-tree, and upload icon keys", async () => {
+    const shareRoot = { id: "root", kind: "note" as const, userId: "owner", shareIncludeSubpages: true };
+    mocks.findMany.mockResolvedValue([
+      { id: "root", kind: "note", parentId: null, title: "Root Page", icon: "upload:page-covers/owner/123e4567-e89b-12d3-a456-426614174000.png", blocks: [{ id: "b1", type: "paragraph", content: [{ type: "text", text: "Root intro" }], children: [] }], shareExcludeFromParent: false, canvas: null },
+      { id: "direct", kind: "whiteboard", parentId: "root", title: "Direct Child", icon: "🧩", blocks: [], shareExcludeFromParent: false, canvas: { segments: [{ id: "e1", text: "Box" }] } },
+      { id: "grand", kind: "note", parentId: "mid", title: "Grandchild", icon: null, blocks: [{ id: "b2", type: "paragraph", content: [{ type: "text", text: "Deep text" }], children: [] }], shareExcludeFromParent: false, canvas: null },
+      { id: "excluded", kind: "note", parentId: "root", title: "Secret Excluded", icon: null, blocks: [], shareExcludeFromParent: true, canvas: null },
+      { id: "outside", kind: "note", parentId: null, title: "Sibling Outside", icon: null, blocks: [], shareExcludeFromParent: false, canvas: null },
+      { id: "underSlide", kind: "note", parentId: "slideLeaf", title: "Under Slide", icon: null, blocks: [], shareExcludeFromParent: false, canvas: null },
+    ]);
+    mocks.queryRaw.mockResolvedValue([
+      { startId: "mid", id: "mid", kind: "note", shareExcludeFromParent: false, depth: 1 },
+      { startId: "mid", id: "root", kind: "note", shareExcludeFromParent: false, depth: 2 },
+      { startId: "slideLeaf", id: "slideLeaf", kind: "slides", shareExcludeFromParent: false, depth: 1 },
+      { startId: "slideLeaf", id: "root", kind: "note", shareExcludeFromParent: false, depth: 2 },
+    ]);
+
+    const cards = await resolvePublicShareCards(token, shareRoot, ["root", "direct", "grand", "excluded", "outside", "underSlide"]);
+    expect(Object.keys(cards).sort()).toEqual(["direct", "grand", "root"]);
+    expect(cards.root).toEqual({
+      id: "root",
+      kind: "note",
+      title: "Root Page",
+      icon: null,
+      iconUrl: `/s/${token}/cover?page=root&kind=icon`,
+      summary: "Root intro",
+    });
+    expect(cards.direct.summary).toBe("Box");
+    expect(cards.grand.summary).toBe("Deep text");
+    expect(JSON.stringify(cards)).not.toContain("upload:page-covers");
+    expect(JSON.stringify(cards)).not.toContain("Secret Excluded");
+    expect(JSON.stringify(cards)).not.toContain("Sibling Outside");
+    expect(JSON.stringify(cards)).not.toContain("Under Slide");
   });
 });

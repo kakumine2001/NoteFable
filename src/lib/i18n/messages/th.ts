@@ -1293,4 +1293,10 @@ export const th: Record<string, string> = {
   "Write speaker notes": "เขียนบันทึกผู้บรรยาย",
   "This page is locked.": "หน้านี้ถูกล็อกอยู่",
   "Resolve the unsaved draft before locking this page.": "จัดการฉบับร่างที่ยังไม่ได้บันทึกก่อนล็อกหน้านี้",
+  "Equation": "สมการ",
+  "Insert equation": "แทรกสมการ",
+  "Formula preview": "ตัวอย่างสมการ",
+  "Could not render the equation.": "ไม่สามารถแสดงผลสมการได้",
+  "Page does not exist": "ไม่มีหน้านี้อยู่",
+  "Linked page": "หน้าที่ลิงก์",
 };

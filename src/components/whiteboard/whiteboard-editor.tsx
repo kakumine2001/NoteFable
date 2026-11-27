@@ -20,7 +20,8 @@ import { exportWhiteboard, exportWhiteboardSelectionPng, type WhiteboardExportFo
 import { expandWhiteboardSelection } from "@/lib/whiteboard/selection-capture";
 import type { PageSelection } from "@/lib/page-ai/types";
 import { getNativeExportEpoch, saveExportFile } from "@/lib/export-file";
-import { pageCardLabel, pageIdFromLink, pageLinkUrl } from "@/lib/whiteboard/links";
+import { formulaDataOf, hitTestFormulaElement, makeFormulaCustomData } from "@/lib/whiteboard/formula";
+import { pageCardLabel, pageCardOf, pageIdFromLink, pageLinkUrl, whiteboardPageCardIds, type PageCardPreview } from "@/lib/whiteboard/links";
 import { importPdfPages, MAX_PDF_IMPORT_PAGES, type PdfImportResult } from "@/lib/whiteboard/pdf-import";
 import { consumeWhiteboardReveal, WHITEBOARD_REVEAL_EVENT, type WhiteboardRevealDetail } from "@/lib/whiteboard/reveal";
 import { fitStoredWhiteboard, generatedImageDataOf, isStoredFileUrl, sceneToStored, storedToScene, type StoredWhiteboard, type WhiteboardElement } from "@/lib/whiteboard/scene";
@@ -29,7 +30,9 @@ import { MAX_CANVAS_BYTES, MAX_WHITEBOARD_ELEMENTS } from "@/lib/canvas-document
 import { uploadWhiteboardImage } from "@/lib/whiteboard/upload";
 import { registerCanvasFlusher } from "@/lib/canvas-flush";
 import { WhiteboardChrome, toolType, type WhiteboardTool, type WhiteboardUiState } from "@/components/whiteboard/whiteboard-ui";
+import { WhiteboardFormulaDialog, type WhiteboardFormulaResult } from "@/components/whiteboard/whiteboard-formula-dialog";
 import { WhiteboardLinkDialog } from "@/components/whiteboard/whiteboard-link-dialog";
+import { PageCardOverlay, syncPageCardElements } from "@/components/whiteboard/whiteboard-page-cards";
 import { WhiteboardReportImageDialog } from "@/components/whiteboard/whiteboard-report-dialog";
 import { WorkspaceImageDialog } from "@/components/workspace-image-dialog";
 import { fitWhiteboardImageSize, type GenerateImageSize, type PageImage } from "@/lib/page-images";
@@ -197,6 +200,13 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   const [notice, setNotice] = useState<{ text: string; vars?: TranslateVars } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [linkDialog, setLinkDialog] = useState<{ mode: "link" | "card"; url?: string } | null>(null);
+  const [formulaDialog, setFormulaDialog] = useState<{ mode: "insert" } | { mode: "edit"; elementId: string; initialLatex: string } | null>(null);
+  const [cardPreviews, setCardPreviews] = useState<Record<string, PageCardPreview | null>>({});
+  const cardPreviewsRef = useRef<Record<string, PageCardPreview | null>>({});
+  const knownCardIds = useRef(new Set<string>());
+  const cardFetchControllers = useRef(new Set<AbortController>());
+  const lastCardFetchAt = useRef(0);
+  const prevPagesRef = useRef<Map<string, MentionPage> | null>(null);
   const [generateImageOpen, setGenerateImageOpen] = useState(false);
   const [sketchDialog, setSketchDialog] = useState<{ blob: Blob; previewUrl: string; bounds: SketchBounds; defaultSize: GenerateImageSize } | null>(null);
   const [reportTarget, setReportTarget] = useState<{ elementId: string; fallbackReportToken?: string } | null>(null);
@@ -344,6 +354,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   useEffect(() => { flushRef.current = flushPending; }, [flushPending]);
   useEffect(() => {
     mounted.current = true;
+    const controllers = cardFetchControllers.current;
     const onVisibility = () => { if (document.visibilityState === "hidden") flushRef.current(); };
     const onPageHide = () => flushRef.current();
     window.addEventListener("visibilitychange", onVisibility, true);
@@ -351,6 +362,8 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     return () => {
       mounted.current = false;
       pdfAbort.current?.abort();
+      for (const controller of controllers) controller.abort();
+      controllers.clear();
       window.removeEventListener("visibilitychange", onVisibility, true);
       window.removeEventListener("pagehide", onPageHide, true);
       flushRef.current();
@@ -857,6 +870,13 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
           if (event.key === "Tab") mindmapAddChild(selection.nodeId);
           else if (event.key === "Enter") mindmapAddSibling(selection.nodeId);
           else startEditingNode(selection.nodeId);
+        } else if (event.key === "Enter" && ids.length === 1) {
+          const single = api.getSceneElements().find((element) => element.id === ids[0]);
+          const formula = single && !single.locked && single.type === "image" ? formulaDataOf(single.customData) : null;
+          if (formula) {
+            handled = true;
+            setFormulaDialog({ mode: "edit", elementId: single!.id, initialLatex: formula.latex });
+          }
         }
       }
       if (handled) { event.preventDefault(); event.stopPropagation(); }
@@ -946,12 +966,131 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     },
   }), [reveal, buildSelection]);
 
+  // ---- ページカードの最新化（開いた時に 1 回まとめて取得し、題名・アイコンを同期。要約は表示専用オーバーレイに出す） ----
+  const applyCardSync = useCallback((target: ExcalidrawImperativeAPI | null, previews: Readonly<Record<string, PageCardPreview | null>>) => {
+    if (!target || !mounted.current) return;
+    const synced = syncPageCardElements(
+      target.getSceneElementsIncludingDeleted(),
+      previews,
+      { untitled: t("Untitled"), missing: t("Page does not exist") },
+    );
+    if (!synced.changed) return;
+    // ロック・閲覧専用のときは表示だけ最新化し、保存（423 競合）を起こさない。
+    if (!editableRef.current) {
+      lastSignature.current = signatureOf(synced.elements, target.getAppState());
+    }
+    target.updateScene({ elements: synced.elements, captureUpdate: CaptureUpdateAction.NEVER });
+  }, [signatureOf, t]);
+
+  const fetchCardPreviews = useCallback(async (ids: readonly string[], options?: { force?: boolean; targetApi?: ExcalidrawImperativeAPI | null }) => {
+    const force = options?.force ?? false;
+    const toFetch = force ? [...new Set(ids)] : [...new Set(ids)].filter((id) => !knownCardIds.current.has(id));
+    if (!toFetch.length) return;
+    for (const id of toFetch) knownCardIds.current.add(id);
+    lastCardFetchAt.current = Date.now();
+    const controller = new AbortController();
+    cardFetchControllers.current.add(controller);
+    try {
+      const response = await fetch("/api/pages/card-previews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: toFetch }),
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error(String(response.status));
+      const data = await response.json() as { cards?: Record<string, PageCardPreview> };
+      if (!mounted.current || controller.signal.aborted) return;
+      const returned = data.cards ?? {};
+      const next: Record<string, PageCardPreview | null> = { ...cardPreviewsRef.current };
+      for (const id of toFetch) {
+        next[id] = Object.hasOwn(returned, id) ? returned[id] : null;
+      }
+      cardPreviewsRef.current = next;
+      setCardPreviews(next);
+      applyCardSync(options?.targetApi ?? apiRef.current, next);
+    } catch {
+      if (!controller.signal.aborted) {
+        for (const id of toFetch) {
+          if (!Object.hasOwn(cardPreviewsRef.current, id)) knownCardIds.current.delete(id);
+        }
+      }
+    } finally {
+      cardFetchControllers.current.delete(controller);
+    }
+  }, [applyCardSync]);
+
+  // 貼り付け・新規挿入などで未取得のページカードが増えたら、その分だけまとめて取得する。
+  useEffect(() => {
+    if (!api || !initialized.current) return;
+    const ids = whiteboardPageCardIds(api.getSceneElements());
+    const missing = ids.filter((id) => !knownCardIds.current.has(id));
+    if (missing.length) void fetchCardPreviews(missing);
+  }, [api, sceneVersion, fetchCardPreviews]);
+
+  // 別タブやアプリ側でページ名・アイコンを変えた後、白板へ戻ったときも最新化する。
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== "visible" || !initialized.current || !apiRef.current) return;
+      if (Date.now() - lastCardFetchAt.current < 2000) return;
+      const ids = whiteboardPageCardIds(apiRef.current.getSceneElements());
+      if (ids.length) void fetchCardPreviews(ids, { force: true });
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [fetchCardPreviews]);
+
+  // /app のサイドバーでページの改名・アイコン変更・削除・復元が起きたら即座にカードへ反映する。
+  useEffect(() => {
+    const pages = props.pages;
+    if (!pages) return;
+    const nextMap = new Map(pages.map((page) => [page.id, page]));
+    const prevMap = prevPagesRef.current;
+    prevPagesRef.current = nextMap;
+    if (!prevMap || !initialized.current) return;
+
+    const current = cardPreviewsRef.current;
+    const updated: Record<string, PageCardPreview | null> = { ...current };
+    const restoredIds: string[] = [];
+    let changed = false;
+
+    for (const id of Object.keys(current)) {
+      const existing = current[id];
+      const livePage = nextMap.get(id);
+      if (!livePage) {
+        if (prevMap.has(id) && existing !== null) {
+          updated[id] = null;
+          changed = true;
+        }
+      } else if (existing === null) {
+        restoredIds.push(id);
+      } else if (existing.title !== livePage.title || existing.icon !== livePage.icon) {
+        updated[id] = { ...existing, title: livePage.title, icon: livePage.icon };
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      cardPreviewsRef.current = updated;
+      setCardPreviews(updated);
+      applyCardSync(apiRef.current, updated);
+    }
+    if (restoredIds.length) {
+      void fetchCardPreviews(restoredIds, { force: true });
+    }
+  }, [props.pages, applyCardSync, fetchCardPreviews]);
+
   // ---- 要素のリンク：アプリ内のページはその場で開く ----
   const onLinkOpen = useCallback((element: NonDeletedExcalidrawElement, event: CustomEvent<{ nativeEvent: MouseEvent | React.PointerEvent<HTMLCanvasElement> }>) => {
     const id = pageIdFromLink(element.link, window.location.origin);
     if (!id) return;
     const native = event.detail.nativeEvent;
     event.preventDefault();
+    const card = pageCardOf(element.customData);
+    if (card && cardPreviewsRef.current[card.id] === null) {
+      setNotice({ text: msg("Page does not exist") });
+      return;
+    }
     if (onOpenPage && !(native.metaKey || native.ctrlKey || native.shiftKey) && onOpenPage(id)) return;
     window.open(pageLinkUrl(id), "_blank", "noopener,noreferrer");
   }, [onOpenPage]);
@@ -1043,7 +1182,9 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     if (width && height) placeOnOpen(ready, pageId, fitOnOpen);
     else deferredPlacement.current = { fit: fitOnOpen };
     queueMicrotask(() => { if (mounted.current) setContentHidden(contentHiddenIn(ready)); });
-  }, [applyNewerData, fitOnOpen, pageId, readUi, signatureOf]);
+    const cardIds = whiteboardPageCardIds(all);
+    if (cardIds.length) void fetchCardPreviews(cardIds, { force: true, targetApi: ready });
+  }, [applyNewerData, fetchCardPreviews, fitOnOpen, pageId, readUi, signatureOf]);
 
   // 画面の幅ではなく、キャンバスの幅で並べ方を変える（サイドバー・分割表示で狭くなる）。
   const [width, setWidth] = useState(1024);
@@ -1107,7 +1248,87 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     api.updateScene({ elements: [...api.getSceneElementsIncludingDeleted(), ...created], captureUpdate: CaptureUpdateAction.IMMEDIATELY });
     api.setActiveTool({ type: "selection" });
     api.selection.select(created[0].id);
-  }, [api, sceneCenter, t]);
+    void fetchCardPreviews([page.id], { force: true });
+  }, [api, fetchCardPreviews, sceneCenter, t]);
+
+  // ---- 数式ラベルの挿入・再編集（KaTeX PNG + customData.notefableFormula） ----
+  const openEditFormula = useCallback((elementId: string) => {
+    if (!api || !editable) return;
+    const target = api.getSceneElements().find((element) => element.id === elementId);
+    if (!target || target.locked || target.type !== "image") return;
+    const formula = formulaDataOf(target.customData);
+    if (!formula) return;
+    setFormulaDialog({ mode: "edit", elementId: target.id, initialLatex: formula.latex });
+  }, [api, editable]);
+
+  const insertOrUpdateFormula = useCallback((result: WhiteboardFormulaResult) => {
+    const dialog = formulaDialog;
+    setFormulaDialog(null);
+    if (!api || !editable) return;
+    const formulaCustom = makeFormulaCustomData(result.latex);
+    if (!formulaCustom) return;
+    const fileId = randomId() as FileId;
+    uploadedUrls.current.set(fileId, { url: result.url, mimeType: result.mimeType });
+    knownFiles.current.add(fileId);
+    uploads.current.set(fileId, { status: "done", url: result.url, mimeType: result.mimeType });
+    api.addFiles([{ id: fileId, mimeType: result.mimeType as BinaryFileData["mimeType"], dataURL: result.url as BinaryFileData["dataURL"], created: Date.now() }]);
+
+    if (dialog?.mode === "edit") {
+      const all = api.getSceneElementsIncludingDeleted();
+      const existing = all.find((element) => element.id === dialog.elementId && !element.isDeleted && !element.locked && element.type === "image");
+      if (existing) {
+        const nextElements = all.map((element) => (element.id === existing.id
+          ? newElementWith(element, {
+              fileId,
+              width: result.displayWidth,
+              height: result.displayHeight,
+              customData: { ...(element.customData ?? {}), ...formulaCustom },
+            } as never)
+          : element));
+        api.setActiveTool({ type: "selection" });
+        api.updateScene({
+          elements: nextElements,
+          appState: { selectedElementIds: { [existing.id]: true } },
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+        });
+        lastSignature.current = null;
+        dirty.current = true;
+        ownEdit.current = true;
+        touched.current = true;
+        scheduleSave();
+        return;
+      }
+    }
+
+    const center = sceneCenter();
+    const imageId = randomId();
+    const rawCreated = convertToExcalidrawElements([{
+      type: "image",
+      id: imageId,
+      x: Math.round(center.x - result.displayWidth / 2),
+      y: Math.round(center.y - result.displayHeight / 2),
+      width: result.displayWidth,
+      height: result.displayHeight,
+      fileId,
+      status: "saved",
+      customData: formulaCustom,
+    }]);
+    const created = rawCreated.map((element) => (element.type === "image"
+      ? { ...element, customData: { ...(element.customData ?? {}), ...formulaCustom } }
+      : element));
+    const insertedId = created.find((element) => element.type === "image")?.id ?? imageId;
+    api.setActiveTool({ type: "selection" });
+    api.updateScene({
+      elements: [...api.getSceneElementsIncludingDeleted(), ...created],
+      appState: { selectedElementIds: { [insertedId]: true } },
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+    });
+    lastSignature.current = null;
+    dirty.current = true;
+    ownEdit.current = true;
+    touched.current = true;
+    scheduleSave();
+  }, [api, editable, formulaDialog, sceneCenter, scheduleSave]);
 
   // ---- 学習テンプレート：画面の中央に置いて選ぶ（思考マップは根、ほかは枠） ----
   const insertTemplate = useCallback((template: WhiteboardTemplate) => {
@@ -1131,7 +1352,11 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   // パネルの「リンクを開く」：アプリ内のページはその場で、外部のリンクは新しいタブで。
   const openLink = useCallback((link: string) => {
     const id = pageIdFromLink(link, window.location.origin);
-    if (id) { if (!onOpenPage?.(id)) window.open(pageLinkUrl(id), "_blank", "noopener,noreferrer"); return; }
+    if (id) {
+      if (cardPreviewsRef.current[id] === null) { setNotice({ text: msg("Page does not exist") }); return; }
+      if (!onOpenPage?.(id)) window.open(pageLinkUrl(id), "_blank", "noopener,noreferrer");
+      return;
+    }
     if (/^(https?:|mailto:)/i.test(link)) window.open(link, "_blank", "noopener,noreferrer");
   }, [onOpenPage]);
 
@@ -1357,6 +1582,23 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
         const hit = hitTestGeneratedImage(api.getSceneElements(), { x: sceneX, y: sceneY });
         setReadonlyReportImageId(hit);
       }}
+      onDoubleClick={(event) => {
+        if (!editable || !api || ui?.editingText) return;
+        const target = event.target as HTMLElement;
+        if (!target.closest(".excalidraw") || target.closest("button, dialog, [role='menu'], [role='dialog'], input, textarea")) return;
+        const canvasEl = containerRef.current?.querySelector(".excalidraw");
+        if (!canvasEl) return;
+        const appState = api.getAppState();
+        if (appState.activeTool.type !== "selection") return;
+        const rect = canvasEl.getBoundingClientRect();
+        const sceneX = (event.clientX - rect.left) / appState.zoom.value - appState.scrollX;
+        const sceneY = (event.clientY - rect.top) / appState.zoom.value - appState.scrollY;
+        const hit = hitTestFormulaElement(api.getSceneElements(), { x: sceneX, y: sceneY });
+        if (!hit) return;
+        event.preventDefault();
+        event.stopPropagation();
+        setFormulaDialog({ mode: "edit", elementId: hit.id, initialLatex: hit.latex });
+      }}
       onMouseDown={(event) => {
         const target = event.target as HTMLElement;
         if (!target.closest("button") || target.closest(".excalidraw, dialog, [role='menu'], [role='dialog'], input, textarea, select, [contenteditable='true']")) return;
@@ -1382,10 +1624,16 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
       />
       {api && <MindmapOverlay api={api} model={mindmap} editable={editable} hidden={gestureActive || Boolean(ui?.editingText)}
         onAddChild={mindmapAddChild} onAddSibling={mindmapAddSibling} onToggle={mindmapToggle} />}
+      {api && <PageCardOverlay api={api} previews={cardPreviews} sceneVersion={sceneVersion} hidden={gestureActive || Boolean(ui?.editingText)} />}
       {ui && api && editable && ui.empty && !templateStartClosed && !busy && <WhiteboardTemplateStart onPick={insertTemplate} onClose={() => setTemplateStartClosed(true)} />}
       {ui && api && <WhiteboardChrome ui={ui} drawMode={drawMode} editable={editable} embedded={embedded} compact={compact} theme={theme} actions={panelActions}
         title={props.title} icon={props.icon} onTitleChange={props.onTitleChange} onIconChange={props.onIconChange}
         onSelectTool={selectTool} onLink={openLinkDialog} onOpenLink={openLink} onUnlock={unlockTarget} onInsertPageCard={() => setLinkDialog({ mode: "card" })}
+        onInsertFormula={() => setFormulaDialog({ mode: "insert" })}
+        onEditFormula={editable ? openEditFormula : undefined}
+        selectedPageCard={ui.selectedPageCardId
+          ? (Object.hasOwn(cardPreviews, ui.selectedPageCardId) ? (cardPreviews[ui.selectedPageCardId] ?? "missing") : null)
+          : null}
         onGenerateImage={() => setGenerateImageOpen(true)}
         onExport={(format) => void runExport(format)} onImportPdf={() => pdfInputRef.current?.click()}
         onFitToContent={fitToContent} onCanvasBackground={(color) => api.updateScene({ appState: { viewBackgroundColor: color }, captureUpdate: CaptureUpdateAction.IMMEDIATELY })}
@@ -1415,6 +1663,14 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
         onPickUrl={linkDialog.mode === "link" ? (url) => { setLinkDialog(null); setLinkOnSelection(url); } : undefined}
         onRemove={linkDialog.mode === "link" ? () => { setLinkDialog(null); setLinkOnSelection(null); } : undefined}
         onClose={() => setLinkDialog(null)} />}
+      {editable && formulaDialog && (
+        <WhiteboardFormulaDialog
+          mode={formulaDialog.mode}
+          initialLatex={formulaDialog.mode === "edit" ? formulaDialog.initialLatex : ""}
+          onSubmit={insertOrUpdateFormula}
+          onClose={() => setFormulaDialog(null)}
+        />
+      )}
       {showGenerateImageDialog && (
         <WorkspaceImageDialog
           pageId={pageId}
@@ -1472,6 +1728,13 @@ function deriveUiState(selected: readonly NonDeletedExcalidrawElement[], appStat
     && generatedImageDataOf(selected[0].customData) !== null
     ? selected[0].id
     : null;
+  const editableFormulaId = selected.length === 1
+    && !selected[0].locked
+    && selected[0].type === "image"
+    && formulaDataOf(selected[0].customData) !== null
+    ? selected[0].id
+    : null;
+  const selectedPageCardId = selected.length === 1 ? pageCardOf(selected[0].customData)?.id ?? null : null;
   const lockedEl = !singleGeneratedImageId && appState.activeLockedId ? byId.get(appState.activeLockedId) : undefined;
   const lockedGeneratedImageId = lockedEl && !lockedEl.isDeleted && lockedEl.type === "image" && generatedImageDataOf(lockedEl.customData) !== null
     ? lockedEl.id
@@ -1497,6 +1760,8 @@ function deriveUiState(selected: readonly NonDeletedExcalidrawElement[], appStat
     // 押したロック中の要素（またはグループ）。Excalidraw の解除のポップアップは既定の画面にしか無いので、自前のボタンを出す。
     lockedTarget: appState.activeLockedId ?? null,
     reportableImageId: singleGeneratedImageId ?? lockedGeneratedImageId,
+    editableFormulaId,
+    selectedPageCardId,
     style: {
       strokeColor: common((element) => element.strokeColor, (sticky && stickyState.currentItemStickynoteStrokeColor) || appState.currentItemStrokeColor),
       backgroundColor: common((element) => element.backgroundColor, (sticky && stickyState.currentItemStickynoteBackgroundColor) || appState.currentItemBackgroundColor),

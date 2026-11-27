@@ -1294,4 +1294,10 @@ export const ja: Record<string, string> = {
   "Write speaker notes": "発表者ノートを書く",
   "This page is locked.": "このページはロックされています。",
   "Resolve the unsaved draft before locking this page.": "このページをロックする前に、未保存の下書きを解決してください。",
+  "Equation": "数式",
+  "Insert equation": "数式を挿入",
+  "Formula preview": "数式プレビュー",
+  "Could not render the equation.": "数式を描画できませんでした。",
+  "Page does not exist": "ページが存在しません",
+  "Linked page": "リンク先のページ",
 };

@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { normalizeExternalLink, pageCardLabel, pageCardOf, pageIdFromLink, pageLinkUrl } from "@/lib/whiteboard/links";
+import {
+  extractPageCardSummary,
+  normalizeExternalLink,
+  pageCardLabel,
+  pageCardMissingLabel,
+  pageCardOf,
+  pageIdFromLink,
+  pageLinkUrl,
+  whiteboardPageCardIds,
+  wrapCardLabelText,
+} from "@/lib/whiteboard/links";
 
 const origin = "https://app.notefable.com";
 
@@ -35,5 +45,34 @@ describe("page cards", () => {
     expect(pageCardLabel({ title: "Plan", icon: "📘" }, "Untitled")).toBe("📘 Plan");
     expect(pageCardLabel({ title: "Untitled", icon: null, kind: "whiteboard" }, "Sin título")).toBe("🧩 Sin título");
     expect(pageCardLabel({ title: "Deck", icon: "upload:page-covers/u/x.png", kind: "slides" }, "Untitled")).toBe("📊 Deck");
+    expect(pageCardMissingLabel("Page does not exist")).toBe("Page does not exist");
+  });
+
+  it("collects unique live page card IDs and extracts short summaries without leaking deleted cards", () => {
+    const ids = whiteboardPageCardIds({
+      elements: [
+        { id: "a", type: "rectangle", customData: { notefablePage: { id: "p1", kind: "note" } } },
+        { id: "b", type: "rectangle", customData: { notefablePage: { id: "p1", kind: "note" } } },
+        { id: "c", type: "rectangle", isDeleted: true, customData: { notefablePage: { id: "gone", kind: "note" } } },
+        { id: "d", type: "iframe", customData: { notefablePage: { id: "evil", kind: "note" } } },
+        { id: "e", type: "rectangle", customData: { notefablePage: { id: "p2", kind: "whiteboard" } } },
+      ],
+    });
+    expect(ids).toEqual(["p1", "p2"]);
+
+    expect(extractPageCardSummary("note", [
+      { id: "b1", type: "paragraph", content: [{ type: "text", text: "Hello   world" }], children: [] },
+      { id: "b2", type: "paragraph", content: [{ type: "text", text: "Second line" }], children: [] },
+    ], null)).toBe("Hello world Second line");
+
+    expect(extractPageCardSummary("whiteboard", [], [{ id: "e1", text: "Node A" }, { id: "e2", text: "Node B" }])).toBe("Node A · Node B");
+
+    const longSummary = extractPageCardSummary("note", [
+      { id: "b1", type: "paragraph", content: [{ type: "text", text: "word ".repeat(60) }], children: [] },
+    ], null, 40);
+    expect(longSummary.length).toBeLessThanOrEqual(40);
+    expect(longSummary.endsWith("…")).toBe(true);
+
+    expect(wrapCardLabelText("📄 Very long title for a narrow whiteboard card", 180, 18)).toContain("\n");
   });
 });
