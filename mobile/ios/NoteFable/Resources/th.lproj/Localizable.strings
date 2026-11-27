@@ -602,6 +602,7 @@
 "slides_export_png" = "ส่งออกรูปภาพ PNG";
 "slides_export_pptx" = "ส่งออกเป็น PowerPoint (PPTX)";
 "slides_export_pptx_transition_note" = "การเปลี่ยนสไลด์จะไม่รวมอยู่ในการส่งออก PPTX";
+"slides_import_pptx" = "นำเข้า PowerPoint";
 
 /* strings_slides_wizard.xml */
 "slides_generate" = "สร้างสไลด์";

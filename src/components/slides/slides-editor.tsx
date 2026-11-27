@@ -24,7 +24,8 @@ import { registerCanvasFlusher } from "@/lib/canvas-flush";
 import { getNativeExportEpoch } from "@/lib/export-file";
 import { localizeSystemText } from "@/lib/i18n/translate";
 import { trackSlideUpload } from "@/lib/slides/upload-tracker";
-import { nativeCanPresent, nativeCanShowUsageLimit, postToNative } from "@/lib/native-bridge";
+import { nativeCanPresent, nativeCanShowPptxImport, nativeCanShowUsageLimit, postToNative } from "@/lib/native-bridge";
+import { openPptxImport } from "@/lib/pptx-import-jobs";
 import { takeCanvasReveal } from "@/lib/search-reveal";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import { hasWhiteboardFrameProvider, renderWhiteboardFramePicker, subscribeWhiteboardFrameProvider } from "@/lib/slides/whiteboard-embed";
@@ -858,6 +859,11 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
         onClick={() => askAi()} aria-label={t("Ask NoteFable")} title={t("Ask NoteFable")}>
         <AppIcon size={16} />
         {!phone && <span>{t("Ask NoteFable")}</span>}
+      </button>
+    )}
+    {(!embedded || nativeCanShowPptxImport()) && (
+      <button type="button" className="slides-tool" aria-haspopup="dialog" onClick={() => openPptxImport()} aria-label={t("Import PowerPoint")} title={t("Import PowerPoint")}>
+        <Upload size={18} />
       </button>
     )}
     <MenuButton label={t("Export")} icon={<Download size={18} />} disabled={!deck.slides.length || !!exporting} text={exporting ? <span className="slides-tool-busy" aria-hidden="true" /> : null}>

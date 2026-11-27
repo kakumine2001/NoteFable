@@ -38,8 +38,10 @@ import { AccountAppIconSync, AccountLocaleSync } from "@/components/account-butt
 import { CreatePageDialog } from "@/components/create-page-dialog";
 import { DrawDiagramHost } from "@/components/draw-diagram-dialog";
 import { SlidesWizardHost } from "@/components/slides-wizard";
+import { PptxImportHost } from "@/components/pptx-import-dialog";
 import { drawAnswerDiagram, drawNoteDiagram } from "@/lib/draw-diagram-jobs";
 import { openSlidesWizard } from "@/lib/slides-wizard-jobs";
+import { openPptxImport } from "@/lib/pptx-import-jobs";
 import { EmptyConversation, StarterPrompts } from "@/components/empty-conversation";
 import { BillingReturnNotice, GuestLimitPrompt, StorageLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
 import { AttachMenu, AttachSheet } from "@/components/attach-sheet";
@@ -2453,6 +2455,7 @@ export default function Home() {
 
   // 「新しいスライド」の AI 生成。作り先はプロジェクト・親ページの「+」から開いたときだけ渡る。
   const generateSlides = (placement?: { groupId?: string; parentId?: string }) => openSlidesWizard({ entry: { type: "new", ...placement }, model });
+  const importPptx = (placement?: { groupId?: string; parentId?: string }) => openPptxImport(placement);
   // サーバーは保存済みのノートを読むので、材料に開いているページがあれば、要求の前に入力中の内容を保存する。
   const flushSlidesSource = async (pageIds: string[]) => {
     const queue = notes.active;
@@ -2470,7 +2473,8 @@ export default function Home() {
     <NotesSidebar pages={notes.pages} activeId={notes.openingId ?? (notesList ? null : notes.activeId)} busy={notes.busy}
       home={notesList && !notes.openingId} onHome={() => { setSidebarOpen(false); openNotesList(); }}
       onCreate={(request) => { setSidebarOpen(false); createNote(request); }}
-      onGenerateSlides={(placement) => { setSidebarOpen(false); generateSlides(placement); }} onImport={(files) => void importMarkdownFiles(files)} onSearch={() => setSearchOpen(true)} onSelect={(id) => { setSidebarOpen(false); openNote(id); }}
+      onGenerateSlides={(placement) => { setSidebarOpen(false); generateSlides(placement); }}
+      onImportPptx={(placement) => { setSidebarOpen(false); importPptx(placement); }} onImport={(files) => void importMarkdownFiles(files)} onSearch={() => setSearchOpen(true)} onSelect={(id) => { setSidebarOpen(false); openNote(id); }}
       onPrefetch={notes.prefetch} onCancelPrefetch={notes.cancelPrefetch}
       onDelete={deleteNote} deleteError={notes.trashError} onClose={closeSidebar} onWorkspaceChange={changeWorkspace}
       groups={notes.groups} groupError={notes.groupError} onReorder={notes.reorder} onMoveNote={notes.moveNote} onChangeIcon={notes.changeIcon} onRenamePage={notes.renamePage} onCreateGroup={notes.createGroup}
@@ -2686,6 +2690,7 @@ export default function Home() {
                 // サーバーは保存済みのノートを読むので、入力中の内容を先に保存してから始める。
                 onDrawDiagram={() => void drawNoteDiagram(activeSummary.id, model, () => (notes.active?.page.id === activeSummary.id ? notes.active.flush() : Promise.resolve(true)))}
                 onGenerateSlides={() => openSlidesWizard({ entry: { type: "note", pageId: activeSummary.id, title: activeSummary.title, icon: activeSummary.icon }, model })}
+                onImportPptx={() => importPptx(activeSummary.groupId ? { groupId: activeSummary.groupId } : undefined)}
                 onMove={() => setMovingNoteId(activeSummary.id)}
                 onExport={() => void notes.exportPage(activeSummary.id)}
                 onTrash={() => { notes.clearTrashError(); setTrashingNoteId(activeSummary.id); }} />
@@ -2696,7 +2701,7 @@ export default function Home() {
         <div className={workspaceView === "pages" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
           {/* 分割表示の間は右側のペインが同じノートを開く。隠れたこちらにも編集画面を作ると、同じブロックが 2 つでき、検索結果の強調が見えない方に当たる。 */}
           {!splitActive && <NotesWorkspace notes={notes} listMode={notesList} model={model} reasoning={reasoning} onModelChange={changeModel} onReasoningChange={changeReasoning} onOpen={openNote}
-            onOpenChat={(id, messageId) => void openChatFromLink(id, messageId)} onCreate={(request) => createNote(request)} onGenerateSlides={() => generateSlides()} onImport={(files) => void importMarkdownFiles(files)} onWorkspaceChange={changeWorkspace} />}
+            onOpenChat={(id, messageId) => void openChatFromLink(id, messageId)} onCreate={(request) => createNote(request)} onGenerateSlides={() => generateSlides()} onImportPptx={() => importPptx()} onImport={(files) => void importMarkdownFiles(files)} onWorkspaceChange={changeWorkspace} />}
         </div>
 
         <div className={workspaceView === "chat" ? `notion-chat-workspace${emptyState ? " is-empty" : ""}` : "hidden"}
@@ -3099,6 +3104,8 @@ export default function Home() {
       <DrawDiagramHost />
       {/* AI のスライド生成の窓（チャットの「＋」・ノートの「…」と AI パネル・新規作成のどこから始めても、ここに出す）。 */}
       <SlidesWizardHost flush={flushSlidesSource} />
+      {/* PowerPoint（.pptx）取り込みの窓（新規作成・サイドバー・ホーム・スライドのメニューから開く）。 */}
+      <PptxImportHost groups={notes.groups} />
       {importingFiles && <ImportTargetDialog groups={notes.groups} onClose={() => setImportingFiles(null)}
         onChoose={(groupId) => { const files = importingFiles; setImportingFiles(null); void importMarkdownFiles(files, groupId); }} />}
       {movingNote && <MoveNoteDialog page={movingNote} groups={notes.groups} error={notes.groupError} pages={notes.pages}

@@ -280,6 +280,7 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 | `{type:"pagesChanged"}` | 网页新建了页面（笔记 AI 面板的“画成图”画好了白板，或 AI 生成幻灯片做好了一套），或 AI 幻灯片的逐页配图写回了做好的那套（编辑器没挂载时）。App 刷新页面列表（`refresh()`）；不认识的旧版 App 忽略 |
 | `{type:"slidesWizard", state:"open"}` / `{type:"slidesWizard", state:"closed", busy}` | [AI 生成幻灯片](slides.md#ai-生成幻灯片)的向导出现 / 消失（从 AI 面板打开时也发）。出现期间 App 隐藏自己的顶栏，系统返回 / 边缘返回改调 `slidesWizard({action:"back"})`。`busy` 表示还有生成没完成（App 让 WebView 多留一会儿）。只在 App 声明了 `window.NoteFableNative.canShowSlidesWizard()` 时发 |
 | `{type:"slidesJobs", pageIds}` | 正在做 AI 幻灯片的笔记（页面加载时发一次，可能是空的；之后每次变化时发，编辑器停靠中也发）。App 在这些笔记的原生“…”菜单里把“生成幻灯片”显示成转圈的“正在生成幻灯片…”（和网页菜单一样），换掉 WebView 时清空。只在 App 声明了 `canShowSlidesWizard()` 时发；不认识的旧版 App 忽略 |
+| `{type:"pptxImport", state:"open" \| "closed"}` | PowerPoint（`.pptx`）导入窗口打开 / 关闭。打开期间 App 隐藏原生顶栏并把返回键交给 `notefableEmbed.pptxImport({action:"back"})`。只在 App 声明了 `window.NoteFableNative.canShowPptxImport()` 时发 |
 | `{type:"flushed", requestId, ok, kept?}` | 对 `flush(requestId)` 的回复；`ok` 为 false 时带 `kept` |
 | `{type:"storageLimit", tier, used, limit}` | 编辑器里的图片、文件、封面、图标、AI 面板的附件或 AI 幻灯片逐页配图因存储空间不够被拒绝（`used` / `limit` 是字节）。只在 App 声明了 `window.NoteFableNative.canShowStorageLimit()` 时发；App 在编辑器上方显示与聊天相同的存储提示（登录 / 升级）。没有这个方法的旧版 App 不收到，网页在编辑器里只说明原因 |
 | `{type:"usageLimit", tier, kind, pageId?}` | 编辑器里的 AI 面板（`kind = "chat"`）、工作区 AI 生图对话框或幻灯片编辑器里的逐页配图（`kind = "image"`）撞到 429 `usage_limit`（附带源页面 `pageId` 以便原生过滤切页后晚到的旧响应；AI 生成幻灯片的向导也发（大纲 / 整套是 `kind = "chat"`，逐页配图是 `kind = "image"`），不带 `pageId`）。只在 App 声明了 `window.NoteFableNative.canShowUsageLimit()` 时发；App 在编辑器上方显示原生登录（游客）或升级/只读上限提示（免费会员）。被拒草稿在 `/note-embed` 下经 `pending-draft` 写入带 2 小时有效期的 `localStorage`，原生登录后重建 WebView 再打开同一页面时仍能恢复。没有这个方法的旧版 App 不收到，网页在 WebView 内只展示原因并保留草稿，不弹网页登录 |
@@ -300,6 +301,7 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 - `close()`：原生端返回页面列表或切到聊天、暂留常驻 WebView 热缓存时调用，卸载当前 `NotesWorkspace` 编辑器 DOM（释放 BlockNote / 白板 / 幻灯片实例与定时器），只保留轻量的网页壳与最多 8 篇的 LRU 队列缓存；未保存或保存中的队列绝不被 LRU 驱逐。
 - `pageTrashed(ids)`：原生端在列表、菜单或聊天提案撤销里把页面移入回收站时传入页面 ID 数组（即使当前未打开编辑器），从常驻 WebView 缓存中同步清除这些页面与草稿。
 - `refreshBacklinks()`：原生端在笔记上面改过别的页面或会话（改名、换图标、删除、从回收站复原）后调用，打开着的笔记重读反向链接。旧版网页没有这个函数时什么都不做。
+- `pptxImport(request)`：PowerPoint 导入窗口（对象或 JSON 字符串）。`{action:"open", groupId?, parentId?}` 打开导入窗口（ID 校验同 `slidesWizard`）；`{action:"back"}` 关闭窗口（解析/上传中会中止并触发已上传图片的清理，最终建页提交阶段则等待提交完成）。配套清理接口 `DELETE /api/pages/files`（body `{ keys: string[] }`）仅删除属于当前用户且未被任何页面引用的 `NOTE_FILE`（与保存时的 `claimStoredFiles` 共用用户级事务锁），供客户端导入中途取消或失败时释放已上传图片。
 
 消息的组装与 flush 的回复在 `src/lib/native-bridge.ts`（有单元测试）；更改约定时同时修改 Android / iOS 应用端以及 [android-native.md](android-native.md) / [ios-native.md](ios-native.md)。
 

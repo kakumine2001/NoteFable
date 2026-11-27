@@ -41,9 +41,12 @@ struct NoteEditorScreen: View {
         let kind = page?.kind ?? open.kind
         let editorWizard = state.slidesWizard?.editor == open.editor ? state.slidesWizard : nil
         let wizardShown = editorWizard?.shown == true
+        let editorPptxImport = state.pptxImport?.editor == open.editor ? state.pptxImport : nil
+        let pptxImportShown = editorPptxImport?.shown == true
+        let modalOverlayShown = wizardShown || pptxImportShown
         VStack(spacing: 0) {
-            if !state.presenting && !wizardShown { topBar(state, page: page) }
-            if !state.presenting && !wizardShown, let notice = state.notice ?? state.error {
+            if !state.presenting && !modalOverlayShown { topBar(state, page: page) }
+            if !state.presenting && !modalOverlayShown, let notice = state.notice ?? state.error {
                 // 离开时没能保存等提示：点一下收起。
                 Button {
                     notes.dismissNotice()
@@ -71,7 +74,7 @@ struct NoteEditorScreen: View {
                 open: open, pool: editorPool, app: app, router: router,
                 appIcon: app.appIcon.icon, language: app.language.uiLocale,
                 theme: (colorScheme == .dark ? ResolvedTheme.dark : ResolvedTheme.light).rawValue,
-                edgeBack: !kind.capturesEdgeSwipes || wizardShown
+                edgeBack: !kind.capturesEdgeSwipes || modalOverlayShown
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background {
@@ -83,6 +86,14 @@ struct NoteEditorScreen: View {
                         reasoning: app.chat.state.selectedReasoning,
                         onShown: { notes.onSlidesWizardShown($0) },
                         onFailed: { notes.dismissSlidesWizard($0) }
+                    )
+                }
+                if let editorPptxImport {
+                    PptxImportOverlayLauncher(
+                        pptxImport: editorPptxImport,
+                        pool: editorPool,
+                        onShown: { notes.onPptxImportShown($0) },
+                        onFailed: { notes.dismissPptxImport($0) }
                     )
                 }
             }
@@ -305,7 +316,12 @@ struct NoteEditorScreen: View {
             drawingDiagram: app.diagrams.job(.note(pageId: id)) == .working,
             // 「生成幻灯片」：盖在当前编辑器上打开向导，读这篇之前由网页自己保存。
             onGenerateSlides: { router.openSlidesWizard(.note(pageId: id)) },
-            generatingSlides: notes.state.generatingSlides.contains(id)
+            generatingSlides: notes.state.generatingSlides.contains(id),
+            // 「导入 PowerPoint」：盖在当前编辑器上打开导入窗口，默认放到当前幻灯片所在项目。
+            onImportPptx: {
+                let groupId = notes.state.pages.first(where: { $0.id == id })?.groupId
+                router.openPptxImport(PptxImportTarget(groupId: groupId))
+            }
         )
     }
 }

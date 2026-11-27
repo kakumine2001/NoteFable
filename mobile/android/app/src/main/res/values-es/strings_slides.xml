@@ -7,4 +7,5 @@
     <string name="slides_export_png">Exportar imágenes PNG</string>
     <string name="slides_export_pptx">Exportar a PowerPoint (PPTX)</string>
     <string name="slides_export_pptx_transition_note">Las transiciones entre diapositivas no se incluyen al exportar a PPTX.</string>
+    <string name="slides_import_pptx">Importar PowerPoint</string>
 </resources>

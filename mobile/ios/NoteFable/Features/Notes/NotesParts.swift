@@ -105,6 +105,7 @@ struct NewPageMenuAnchor<LabelContent: View>: View {
     private let label: String
     private let onCreate: (PageKind) -> Void
     private let onGenerateSlides: (() -> Void)?
+    private let onImportPptx: (() -> Void)?
     private let labelContent: () -> LabelContent
     @Environment(AppEnvironment.self) private var app
 
@@ -113,18 +114,21 @@ struct NewPageMenuAnchor<LabelContent: View>: View {
         label: String,
         onCreate: @escaping (PageKind) -> Void,
         onGenerateSlides: (() -> Void)? = nil,
+        onImportPptx: (() -> Void)? = nil,
         @ViewBuilder labelContent: @escaping () -> LabelContent
     ) {
         self.kinds = kinds
         self.label = label
         self.onCreate = onCreate
         self.onGenerateSlides = onGenerateSlides
+        self.onImportPptx = onImportPptx
         self.labelContent = labelContent
     }
 
     var body: some View {
         let showGenerateSlides = onGenerateSlides != nil && kinds.contains(.slides)
-        if kinds.count > 1 || showGenerateSlides {
+        let showImportPptx = onImportPptx != nil && kinds.contains(.slides)
+        if kinds.count > 1 || showGenerateSlides || showImportPptx {
             Menu {
                 ForEach(kinds, id: \.self) { kind in
                     Button {
@@ -133,10 +137,17 @@ struct NewPageMenuAnchor<LabelContent: View>: View {
                         NFMenuLabel(title: L(pageKindLabel(kind)), icon: pageKindIcon(kind))
                     }
                 }
-                if showGenerateSlides, let onGenerateSlides {
+                if showGenerateSlides || showImportPptx {
                     Divider()
+                }
+                if showGenerateSlides, let onGenerateSlides {
                     Button(action: onGenerateSlides) {
                         NFMascotMenuLabel(title: L("slides_generate_with_ai"), icon: app.appIcon.icon)
+                    }
+                }
+                if showImportPptx, let onImportPptx {
+                    Button(action: onImportPptx) {
+                        NFMenuLabel(title: L("slides_import_pptx"), icon: Lucide.upload)
                     }
                 }
             } label: {
@@ -165,6 +176,7 @@ struct NotesSectionHeading: View {
     let onToggle: () -> Void
     let onCreate: () -> Void
     var onGenerateSlides: (() -> Void)? = nil
+    var onImportPptx: (() -> Void)? = nil
     @Environment(AppEnvironment.self) private var app
 
     var body: some View {
@@ -190,15 +202,22 @@ struct NotesSectionHeading: View {
             }
             .buttonStyle(.pressable(cornerRadius: 7))
             .accessibilityLabel(isOpen ? L("pg_collapse_title", name) : L("pg_expand_title", name))
-            if kind == .slides, let onGenerateSlides {
+            if kind == .slides, onGenerateSlides != nil || onImportPptx != nil {
                 let label = L(pageKindNewLabel(kind))
                 Menu {
                     Button(action: onCreate) {
                         NFMenuLabel(title: L("ws_new_slides"), icon: Lucide.presentation)
                     }
                     Divider()
-                    Button(action: onGenerateSlides) {
-                        NFMascotMenuLabel(title: L("slides_generate_with_ai"), icon: app.appIcon.icon)
+                    if let onGenerateSlides {
+                        Button(action: onGenerateSlides) {
+                            NFMascotMenuLabel(title: L("slides_generate_with_ai"), icon: app.appIcon.icon)
+                        }
+                    }
+                    if let onImportPptx {
+                        Button(action: onImportPptx) {
+                            NFMenuLabel(title: L("slides_import_pptx"), icon: Lucide.upload)
+                        }
                     }
                 } label: {
                     LucideIcon(Lucide.plus, size: 15, strokeWidth: 2, color: Sm.tabMuted)

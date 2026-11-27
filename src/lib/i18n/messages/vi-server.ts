@@ -319,4 +319,5 @@ export const viServer: Record<string, string> = {
   "Gantt chart": "biểu đồ Gantt",
   "quadrant chart": "biểu đồ bốn góc phần tư",
   "mind map": "sơ đồ tư duy",
+  "Could not import this PowerPoint file. Try again.": "Không thể nhập tệp PowerPoint này. Hãy thử lại.",
 };

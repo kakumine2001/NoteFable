@@ -2,11 +2,11 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { getOrCreateUser } from "@/lib/auth";
 import { noteApiError } from "@/lib/note-api";
-import { MAX_NOTE_FILE_BYTES, fitNoteFileName, noteFileContentType, noteFileKeyParts, noteFileUrl, safeFileName } from "@/lib/note-file-keys";
+import { MAX_NOTE_FILE_BYTES, fitNoteFileName, noteFileContentType, noteFileKeyParts, noteFileUrl, parseNoteFileUrl, safeFileName } from "@/lib/note-file-keys";
 import { classifyUpload } from "@/lib/note-files";
 import { readLimitedBody } from "@/lib/note-upload";
 import { readStoredImage } from "@/lib/storage";
-import { scheduleStorageMaintenance, storeFile } from "@/lib/stored-files";
+import { discardUnreferencedNoteFiles, scheduleStorageMaintenance, storeFile } from "@/lib/stored-files";
 import { msg } from "@/lib/i18n/translate";
 
 export const runtime = "nodejs";
@@ -67,5 +67,37 @@ export async function GET(request: Request) {
         "Content-Security-Policy": "sandbox",
       },
     });
+  } catch (error) { return noteApiError(error); }
+}
+
+const MAX_DELETE_BODY_BYTES = 64 * 1024;
+const MAX_DELETE_KEYS = 200;
+
+// 取り込みの中止・失敗で不要になった自分の未使用 NOTE_FILE を即座に片付ける（参照されているファイルは消さない）。
+export async function DELETE(request: Request) {
+  try {
+    if (Number(request.headers.get("content-length") ?? 0) > MAX_DELETE_BODY_BYTES) {
+      return NextResponse.json({ error: msg("Invalid request.") }, { status: 413 });
+    }
+    const body = await readLimitedBody(request, MAX_DELETE_BODY_BYTES);
+    if (!body) return NextResponse.json({ error: msg("Invalid request.") }, { status: 413 });
+    let parsed: unknown;
+    try { parsed = JSON.parse(new TextDecoder().decode(body)); } catch { return NextResponse.json({ error: msg("Invalid JSON request.") }, { status: 400 }); }
+    const rawKeys = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as { keys?: unknown }).keys : null;
+    if (!Array.isArray(rawKeys) || rawKeys.length > MAX_DELETE_KEYS) {
+      return NextResponse.json({ error: msg("Invalid request.") }, { status: 400 });
+    }
+    const user = await getOrCreateUser();
+    const paths: string[] = [];
+    for (const item of rawKeys) {
+      if (typeof item !== "string") return NextResponse.json({ error: msg("Invalid request.") }, { status: 400 });
+      const parts = item.startsWith("/api/pages/files?") ? parseNoteFileUrl(item) : noteFileKeyParts(item);
+      if (!parts || parts === "empty" || parts.ownerId !== user.id) {
+        return NextResponse.json({ error: msg("File not found.") }, { status: 404 });
+      }
+      paths.push(parts.path);
+    }
+    const deleted = await discardUnreferencedNoteFiles(user.id, paths);
+    return NextResponse.json({ deleted });
   } catch (error) { return noteApiError(error); }
 }

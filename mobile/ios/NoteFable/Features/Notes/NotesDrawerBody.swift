@@ -130,7 +130,8 @@ private struct NotesDrawerList: View {
             busy: busy,
             onToggle: { notes.toggleSection(section.kind) },
             onCreate: { router.createNote(kind: section.kind) },
-            onGenerateSlides: section.kind == .slides ? { router.openSlidesWizard(.new()) } : nil
+            onGenerateSlides: section.kind == .slides ? { router.openSlidesWizard(.new()) } : nil,
+            onImportPptx: section.kind == .slides ? { router.openPptxImport() } : nil
         )
         .reorderDropZone(noteSectionZone(section.kind), in: reorder)
         if isOpen {
@@ -207,6 +208,9 @@ private struct NotesDrawerList: View {
                 },
                 onGenerateSlides: {
                     router.openSlidesWizard(.new(groupId: group.id))
+                },
+                onImportPptx: {
+                    router.openPptxImport(PptxImportTarget(groupId: group.id))
                 }
             ) {
                 NoteRowActionLabel(icon: Lucide.plus, iconSize: 14)
@@ -306,6 +310,9 @@ private struct NotesDrawerRow: View {
                 },
                 onGenerateSlides: {
                     router.openSlidesWizard(.new(parentId: page.id))
+                },
+                onImportPptx: {
+                    router.openPptxImport(PptxImportTarget(parentId: page.id))
                 }
             ) {
                 NoteRowActionLabel(icon: Lucide.plus, iconSize: 14)

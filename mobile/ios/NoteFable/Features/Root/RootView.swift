@@ -18,8 +18,11 @@ struct RootView: View {
         @Bindable var router = router
         let fullScreenWizard = app.notes.state.slidesWizard?.editor == nil ? app.notes.state.slidesWizard : nil
         let editorWizardShown = app.notes.state.slidesWizard?.editor != nil && app.notes.state.slidesWizard?.shown == true
-        let hideTabBar = fullScreenWizard != nil || (router.selectedTab == .workspace && (app.notes.state.open != nil || app.notes.state.presenting))
-        let allowEdgeDrawer = fullScreenWizard == nil && !editorWizardShown && !(router.selectedTab == .workspace && (app.notes.state.editorCapturesEdgeSwipes || app.notes.state.presenting))
+        let fullScreenPptxImport = app.notes.state.pptxImport?.editor == nil ? app.notes.state.pptxImport : nil
+        let editorPptxImportShown = app.notes.state.pptxImport?.editor != nil && app.notes.state.pptxImport?.shown == true
+        let hasFullScreenOverlay = fullScreenWizard != nil || fullScreenPptxImport != nil
+        let hideTabBar = hasFullScreenOverlay || (router.selectedTab == .workspace && (app.notes.state.open != nil || app.notes.state.presenting))
+        let allowEdgeDrawer = !hasFullScreenOverlay && !editorWizardShown && !editorPptxImportShown && !(router.selectedTab == .workspace && (app.notes.state.editorCapturesEdgeSwipes || app.notes.state.presenting))
 
         ZStack {
             AdaptiveSidebarShell(
@@ -36,6 +39,9 @@ struct RootView: View {
             }
             if let wizard = fullScreenWizard {
                 SlidesWizardScreen(wizard: wizard)
+                    .transition(.opacity)
+            } else if let pptxImport = fullScreenPptxImport {
+                PptxImportScreen(pptxImport: pptxImport)
                     .transition(.opacity)
             }
         }
@@ -94,7 +100,7 @@ struct RootView: View {
         .toastHost(
             tabBarVisible: !hideTabBar,
             tab: router.selectedTab,
-            leadingInset: (fullScreenWizard == nil && router.isSidebarDockedVisible) ? CGFloat(router.dockedSidebarWidth) : 0
+            leadingInset: (!hasFullScreenOverlay && router.isSidebarDockedVisible) ? CGFloat(router.dockedSidebarWidth) : 0
         )
     }
 
@@ -308,6 +314,12 @@ private struct DrawerFooter: View {
                     router.openSlidesWizard(.new())
                 } label: {
                     NFMascotMenuLabel(title: L("slides_generate_with_ai"), icon: app.appIcon.icon)
+                }
+                .disabled(notesBusy)
+                Button {
+                    router.openPptxImport()
+                } label: {
+                    NFMenuLabel(title: L("slides_import_pptx"), icon: Lucide.upload)
                 }
                 .disabled(notesBusy)
             }

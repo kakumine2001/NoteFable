@@ -319,4 +319,5 @@ export const arServer: Record<string, string> = {
   "Gantt chart": "مخطط جانت",
   "quadrant chart": "مخطط رباعي",
   "mind map": "خريطة ذهنية",
+  "Could not import this PowerPoint file. Try again.": "تعذّر استيراد ملف PowerPoint هذا. حاول مرة أخرى.",
 };

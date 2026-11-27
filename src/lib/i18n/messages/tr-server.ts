@@ -319,4 +319,5 @@ export const trServer: Record<string, string> = {
   "Gantt chart": "Gantt şeması",
   "quadrant chart": "dörtlü bölge grafiği",
   "mind map": "zihin haritası",
+  "Could not import this PowerPoint file. Try again.": "Bu PowerPoint dosyası içe aktarılamadı. Tekrar deneyin.",
 };

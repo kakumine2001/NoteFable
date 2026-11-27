@@ -319,4 +319,5 @@ export const frServer: Record<string, string> = {
   "Gantt chart": "diagramme de Gantt",
   "quadrant chart": "graphique à quadrants",
   "mind map": "carte mentale",
+  "Could not import this PowerPoint file. Try again.": "Impossible d’importer ce fichier PowerPoint. Réessayez.",
 };

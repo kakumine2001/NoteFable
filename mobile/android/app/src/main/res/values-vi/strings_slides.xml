@@ -7,4 +7,5 @@
     <string name="slides_export_png">Xuất ảnh PNG</string>
     <string name="slides_export_pptx">Xuất PowerPoint (PPTX)</string>
     <string name="slides_export_pptx_transition_note">Hiệu ứng chuyển tiếp trang chiếu không được bao gồm khi xuất PPTX.</string>
+    <string name="slides_import_pptx">Nhập PowerPoint</string>
 </resources>

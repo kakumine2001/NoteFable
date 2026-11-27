@@ -319,4 +319,5 @@ export const thServer: Record<string, string> = {
   "Gantt chart": "แผนภูมิแกนต์",
   "quadrant chart": "แผนภูมิสี่ส่วน",
   "mind map": "แผนผังความคิด",
+  "Could not import this PowerPoint file. Try again.": "นำเข้าไฟล์ PowerPoint นี้ไม่สำเร็จ โปรดลองอีกครั้ง",
 };
