@@ -410,6 +410,7 @@ class ReviewPlan:
     age_changes: dict[str, tuple[Any, Any]] = field(default_factory=dict)
     notes: tuple[str | None, str] | None = None  # (current, new); None: not readable
     detail_id: str | None = None
+    clear_demo_flag: bool = False  # the app needs no demo account
     copyright: tuple[str | None, str] | None = None
     subscriptions: list[SubscriptionPlan] = field(default_factory=list)
     beta: tuple[str | None, str] | None = None
@@ -449,7 +450,12 @@ def _plan_notes(client: Any, info: ReviewInfo, plan: ReviewPlan) -> None:
     path = f"/appStoreVersions/{plan.version_id}/appStoreReviewDetail"
     detail = _without_details(lambda: _get_one(client, path))
     plan.detail_id = detail["id"] if detail else None
-    plan.notes = (attributes(detail or {}).get("notes"), info.review_notes)
+    values = attributes(detail or {})
+    plan.notes = (values.get("notes"), info.review_notes)
+    # Apple turns "demo account required" on by default; turn it off unless someone set one up.
+    plan.clear_demo_flag = detail is None or bool(
+        values.get("demoAccountRequired") and not any(values.get(name) for name in DEMO_FIELDS)
+    )
 
 
 def _plan_subscription(client: Any, kind: str, parent_id: str, desired: dict, plan: ReviewPlan) -> None:
@@ -559,6 +565,8 @@ def print_review(plan: ReviewPlan, out=print) -> None:
             out(f"    {name}: {shown} -> {str(new).lower() if isinstance(new, bool) else new}")
     if plan.notes:
         _private_change(out, "review notes", plan.notes_changed, *plan.notes)
+        if plan.clear_demo_flag:
+            out("  App Review demo account: set to not required")
         if plan.notes_changed and not plan.detail_id:
             out("    (no review details yet: Apple may refuse them until the contact is entered)")
     if plan.copyright:
@@ -592,6 +600,7 @@ def print_review(plan: ReviewPlan, out=print) -> None:
         f"{int(plan.notes_changed)} review notes, {int(plan.copyright_changed)} copyright, "
         f"{sum(len(s.pending) for s in plan.subscriptions)} subscription localizations, "
         f"{int(plan.beta_changed)} beta description to write."
+        + (" Also the demo account setting." if plan.notes and plan.clear_demo_flag else "")
     )
 
 
@@ -609,7 +618,11 @@ def _write_age_rating(client: Any, plan: ReviewPlan, out) -> None:
 
 
 def _write_notes(client: Any, plan: ReviewPlan, out) -> None:
-    values = {"notes": plan.notes[1]}
+    values: dict[str, Any] = {}
+    if plan.notes_changed or not plan.detail_id:
+        values["notes"] = plan.notes[1]
+    if plan.clear_demo_flag:
+        values["demoAccountRequired"] = False
     if plan.detail_id:
         payload = _body("appStoreReviewDetails", values, plan.detail_id)
         path = f"/appStoreReviewDetails/{plan.detail_id}"
@@ -695,7 +708,7 @@ def apply_review(client: Any, plan: ReviewPlan, attempt, out=print) -> None:
     """attempt(label, action) records a failure and carries on, as the listing writes do."""
     if plan.age_changes:
         attempt("age rating", lambda: _write_age_rating(client, plan, out))
-    if plan.notes_changed:
+    if plan.notes_changed or (plan.notes and plan.clear_demo_flag):
         attempt("review notes", lambda: _write_notes(client, plan, out))
     if plan.copyright_changed:
         attempt("copyright", lambda: _write_copyright(client, plan, out))

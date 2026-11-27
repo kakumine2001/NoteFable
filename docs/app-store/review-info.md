@@ -39,7 +39,7 @@ App Store Connect → App 信息 → 年龄分级。频率只用 `NONE`、`INFRE
 
 ## 审核备注
 
-App Store 版本页 → App 审核信息 → 备注（上限 4000 字节）。只写备注；联系人姓名、电话、邮箱由所有者在 App Store Connect 里填，App 不登录就能用，所以没有演示账号。
+App Store 版本页 → App 审核信息 → 备注（上限 4000 字节）。只写备注，并在没有填过演示账号时把“需要演示账号”设为否（App 不登录就能用）；联系人姓名、电话、邮箱由所有者在 App Store Connect 里填。
 
 ```text
 NoteFable is an AI study assistant: AI chat plus a Workspace for notes, slide decks and whiteboards.
