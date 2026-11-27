@@ -790,6 +790,78 @@
   },
   {
    "input": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx e…"
+    },
+    "before": "Old",
+    "after": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx　  end of a long label that keeps going · color: red · style: dashed · size: large"
+   },
+   "expected": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx e…"
+    },
+    "before": "Old",
+    "after": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx　  end of a long label that keeps going · ‹Color: ‹Red›› · ‹Line style: ‹Dashed›› · ‹Text size: ‹Large››"
+   }
+  },
+  {
+   "input": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx e…"
+    },
+    "before": "Old",
+    "after": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx　  end of a long label that keeps going · size: small"
+   },
+   "expected": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx e…"
+    },
+    "before": "Old",
+    "after": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx　  end of a long label that keeps going · ‹Text size: ‹Small››"
+   }
+  },
+  {
+   "input": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx e…"
+    },
+    "before": "Old",
+    "after": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx　  end of a long label that keeps going"
+   },
+   "expected": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx e…"
+    },
+    "before": "Old",
+    "after": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx　  end of a long label that keeps going"
+   }
+  },
+  {
+   "input": {
     "op": "move",
     "block": 0,
     "target": {

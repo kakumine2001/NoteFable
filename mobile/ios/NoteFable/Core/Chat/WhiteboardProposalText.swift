@@ -79,6 +79,7 @@ enum WhiteboardProposalText {
         }
     }
 
+    // 局限同网页：文字正好是种类英文名（"image"、"line" 等）的元素，和没有文字的元素分不清。
     private static func typeName(_ name: String, _ system: SystemTextTranslator) -> String {
         elementTypes[name].map { system.t($0) } ?? name
     }
@@ -199,20 +200,25 @@ enum WhiteboardProposalText {
         var next = change
         next.before = change.before.map { placeholder($0, system) }
         var written: String? = nil
+        // 对象的名字是不是从这段文字来的。
+        func named(_ text: String?) -> Bool {
+            guard let text, text != "(empty)", let name else { return false }
+            return same(name, shortLabel(text, ""))
+        }
         if let after = change.after {
-            // 名字和改后的整句对得上：改后就是写下的文字（只改了文字）。
-            if after != "(empty)", let name, same(name, shortLabel(after, "")) {
+            let result = updateSummary(after, system)
+            // 名字和改后的整句对得上：改后就是写下的文字（只改了文字）。但去掉末尾的设置项后也对得上时，
+            // 是文字和设置都改了（长文字的名字是截断的，和整句也对得上）。
+            let split = result.text.map { !same($0, after) } ?? false
+            if named(after), !(split && named(result.text)) {
                 written = after
             } else {
-                let result = updateSummary(after, system)
                 written = result.text
                 next.after = result.summary
             }
         }
         // 写下的文字和名字一样时名字是用户的文字；否则和种类同名的是没有文字的元素。
-        var own = false
-        if let written, written != "(empty)", let name { own = same(name, shortLabel(written, "")) }
-        if let name, !own { next.target = .elements(count: count, name: typeName(name, system)) }
+        if let name, !named(written) { next.target = .elements(count: count, name: typeName(name, system)) }
         return next
     }
 

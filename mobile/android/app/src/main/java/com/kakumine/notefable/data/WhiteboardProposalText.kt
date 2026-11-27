@@ -43,7 +43,8 @@ object WhiteboardProposalText {
     private val frameLine = Regex("""Frame "([^\n]*)" \(([0-9]+) items?\)""")
     private val itemLine = Regex("""- (rectangle|ellipse|diamond|stickynote|text): ([^\n]*)""")
 
-    private fun typeName(name: String, t: SystemTextTranslator) = elementTypes[name]?.let { t.t(it) } ?: name
+    // 局限同网页：文字正好是种类英文名（"image"、"line" 等）的元素，和没有文字的元素分不清。
+    private fun typeName(name: String, t: SystemTextTranslator) =elementTypes[name]?.let { t.t(it) } ?: name
 
     // 和服务端 shortLabel 一样（并成一行，最多 48 个 UTF-16 单位）。
     private fun shortLabel(text: String, fallback: String): String {
@@ -126,18 +127,21 @@ object WhiteboardProposalText {
         val name = target.name
         var next = change.copy(before = change.before?.let { placeholder(it, t) })
         var written: String? = null
+        // 对象的名字是不是从这段文字来的。
+        fun named(text: String?) = text != null && text != "(empty)" && name == shortLabel(text, "")
         change.after?.let { after ->
-            // 名字和改后的整句对得上：改后就是写下的文字（只改了文字）。
-            if (after != "(empty)" && name == shortLabel(after, "")) {
+            val (text, summary) = updateSummary(after, t)
+            // 名字和改后的整句对得上：改后就是写下的文字（只改了文字）。但去掉末尾的设置项后也对得上时，
+            // 是文字和设置都改了（长文字的名字是截断的，和整句也对得上）。
+            if (named(after) && !(text != after && named(text))) {
                 written = after
             } else {
-                val (text, summary) = updateSummary(after, t)
                 written = text
                 next = next.copy(after = summary)
             }
         }
-        val own = written != null && written != "(empty)" && name == shortLabel(written.orEmpty(), "")
-        if (name != null && !own) next = next.copy(target = target.copy(name = typeName(name, t)))
+        // 否则和种类同名的是没有文字的元素。
+        if (name != null && !named(written)) next = next.copy(target = target.copy(name = typeName(name, t)))
         return next
     }
 

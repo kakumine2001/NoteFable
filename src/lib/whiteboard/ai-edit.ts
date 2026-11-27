@@ -653,7 +653,8 @@ export function buildStructuredWhiteboard(
       children: childIds,
     });
     focusIds.push(fp.entry.id);
-    summaryLines.push(`Frame "${fp.entry.spec.name}" (${fp.entry.items.length} item${fp.entry.items.length === 1 ? "" : "s"})`);
+    // 概要は 1 項目 1 行（表示するときの翻訳が行ごとに形を見る）。枠の名前の改行はここでだけ空白にする。
+    summaryLines.push(`Frame "${fp.entry.spec.name.replace(/\n+/g, " ")}" (${fp.entry.items.length} item${fp.entry.items.length === 1 ? "" : "s"})`);
     fp.entry.items.forEach((it, cIdx) => {
       const pos = fp.childPositions[cIdx];
       const fontSize = it.spec.type === "stickynote" ? 18 : 20;

@@ -54,6 +54,10 @@ const CHANGES: ProposalChange[] = [
   change("update", one("Goal"), { after: "color: teal · style: dotted · size: small" }),
   change("update", one("Frame"), { before: "(unnamed)", after: "Frame" }),
   change("update", one("arrow"), { after: "style: solid" }),
+  // 長い文字と設定の両方を変えた（名前は切られているので、改後の全体とも合う）。長い文字だけの変更。
+  change("update", one(LONG_NAME), { before: "Old", after: `${LONG} · color: red · style: dashed · size: large` }),
+  change("update", one(LONG_NAME), { before: "Old", after: `${LONG} · size: small` }),
+  change("update", one(LONG_NAME), { before: "Old", after: LONG }),
   change("move", one("diamond"), { after: 'Move into frame "Plan"' }),
   change("move", one(undefined, 3), { after: 'Move into frame "A "quoted" name"' }),
   change("move", one("Ship"), { after: "Remove from frame" }),

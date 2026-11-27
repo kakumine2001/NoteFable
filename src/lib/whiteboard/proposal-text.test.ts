@@ -96,6 +96,25 @@ describe("localizing whiteboard proposal descriptions", () => {
     expect(localizeWhiteboardChange(changes[16], en).after).toBe("Ungroup 1 element");
   });
 
+  it("translates the settings of an edit that also writes a text longer than the element's name", () => {
+    const board = buildStructuredWhiteboard({ items: [{ ref: "a", type: "rectangle", text: "Research", color: null, frameRef: null }] }, seqId());
+    const long = "Interview five users about how they organize their notes · every week";
+    const { changes } = applyWhiteboardEdits(board.data, [
+      op({ op: "update_element", elementId: board.data.elements[0].id, text: long, color: "red", strokeStyle: "dashed" }),
+    ], seqId());
+
+    expect(shown(localizeWhiteboardChange(changes[0], zh))).toEqual([
+      "Research", `${long} · 颜色：红色 · 线型：虚线`, `${long.slice(0, 47)}…`,
+    ]);
+  });
+
+  it("keeps a frame name with a line break on one summary line, so it is translated", () => {
+    const { data, summaryLines } = buildStructuredWhiteboard({ frames: [{ ref: "f", name: "To\r\n\nDo", layout: null }] }, seqId());
+    expect(localizeWhiteboardSummary(summaryLines.join("\n"), zh)).toBe("框“To Do”（0 项）");
+    // 枠そのものの名前は変えない。
+    expect(data.elements[0].name).toBe("To\n\nDo");
+  });
+
   it("translates the new-board summaries of structured items and Mermaid diagrams", async () => {
     const { summaryLines } = buildStructuredWhiteboard({
       frames: [{ ref: "f", name: "To Do", layout: "column" }, { ref: "g", name: "Done", layout: null }],

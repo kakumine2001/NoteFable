@@ -66,6 +66,8 @@ type ElementsTarget = Extract<ProposalTarget, { type: "elements" }>;
 const lookup = (table: Record<string, string>, key: string) => (Object.hasOwn(table, key) ? table[key] : undefined);
 
 // 名前が種類そのもの（文字の無い要素）なら、種類の名前にする。
+// 限界：保存した提案は、文字の無い要素の名前と、文字が種類の英語名そのもの（"image"、"line" など）の要素を区別しない。
+// 足す・文字を変える以外の説明（設定だけの変更、移動、削除、線の両端）では、後者も種類の名前になる。
 function typeName(name: string, t: Translate) {
   const key = lookup(ELEMENT_TYPES, name);
   return key ? t(key) : name;
@@ -153,18 +155,20 @@ function updated(change: ProposalChange, target: ElementsTarget, t: Translate): 
   const next: ProposalChange = { ...change };
   if (change.before !== undefined) next.before = placeholder(change.before, t);
   let written: string | undefined;
+  // 対象の名前が、この文字から作られたものか。
+  const named = (text: string | undefined) => text !== undefined && text !== "(empty)" && name === shortLabel(text, "");
   if (change.after !== undefined) {
-    // 名前が改後の全体と合うなら、改後は書いた文字そのもの（文字だけを変えた）。
-    if (change.after !== "(empty)" && name === shortLabel(change.after, "")) written = change.after;
+    const { text, summary } = updateSummary(change.after, t);
+    // 名前が改後の全体と合うなら、改後は書いた文字そのもの（文字だけを変えた）。ただし末尾の設定を外した文字も合うなら、
+    // 文字と設定の両方を変えた（長い文字は名前が切られているので、全体とも合う）。
+    if (named(change.after) && !(text !== change.after && named(text))) written = change.after;
     else {
-      const { text, summary } = updateSummary(change.after, t);
       written = text;
       next.after = summary;
     }
   }
   // 書いた文字と同じ名前は利用者の文字。それ以外で種類と同じ名前は、文字の無い要素。
-  const own = written !== undefined && written !== "(empty)" && name === shortLabel(written, "");
-  if (name !== undefined && !own) next.target = { ...target, name: typeName(name, t) };
+  if (name !== undefined && !named(written)) next.target = { ...target, name: typeName(name, t) };
   return next;
 }
 
