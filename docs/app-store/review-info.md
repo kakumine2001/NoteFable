@@ -75,7 +75,7 @@ App Store 版本页 → 版权（版权符号由 Apple 自动加）。
 
 ## TestFlight 测试版说明
 
-TestFlight → 测试信息 → Beta 版 App 描述（en-US）。反馈邮箱和联系人由所有者填。
+TestFlight → 测试信息 → Beta 版 App 描述（en-US）。反馈邮箱和联系人由所有者填。脚本只在该字段为空或这条本地化还不存在时写入，已经填过的保留不动。
 
 ```text
 NoteFable is an AI study assistant with chat and a Workspace for notes, slide decks and whiteboards. You can try it without an account.
