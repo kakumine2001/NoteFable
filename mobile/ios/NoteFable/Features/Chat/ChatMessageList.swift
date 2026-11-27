@@ -123,7 +123,8 @@ struct ChatMessageList: View {
     }
 
     /// 所有消息。iOS 26 及更早是一个懒加载栈。iOS 27 起分成两段（`ChatTailSplit`）：历史仍然懒加载，最后一个回合和
-    /// 之后新来的行放在下面的普通栈里，它们换掉、变短时懒加载栈里不会留下旧高度（`ChatListRepair`）。
+    /// 之后新来的行放在下面的普通栈里（超过上限时最早的几行归进历史），它们换掉、变短时懒加载栈里不会留下旧高度
+    /// （`ChatListRepair`）。
     @ViewBuilder
     private func turns(_ state: ChatUiState) -> some View {
         let count = state.messages.count

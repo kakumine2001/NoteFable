@@ -17,8 +17,13 @@ final class ChatTailSplitTests: XCTestCase {
         return split.historyCount(next)
     }
 
-    func testRowsNeverMoveBetweenTheStacks() {
-        // 发送新回合、再发一个：上一个回合留在下面，不搬进懒加载栈。
+    /// 编号在 `turns` 里的回合：q0 a0 q1 a1 …；`tag` 区分另一个版本的 key。
+    private func thread(_ turns: Range<Int>, _ tag: String = "") -> [UiMessage] {
+        turns.flatMap { [UiMessage("q\($0)\(tag)", .user, "Question"), UiMessage("a\($0)\(tag)", .assistant, "Answer")] }
+    }
+
+    func testRowsDoNotMoveWhenTurnsArriveOrAreReconciled() {
+        // 发送新回合：上一个回合留在下面，不搬进懒加载栈。
         XCTAssertEqual(historyCount(after: [q1, a1, q2, a2, q3, a3]), 2)
         // 回答结束后对账换了 ID、沿用 key。
         var saved = a2
@@ -26,22 +31,62 @@ final class ChatTailSplitTests: XCTestCase {
         XCTAssertEqual(historyCount(after: [q1, a1, q2, saved]), 2)
     }
 
-    func testReplacedRowsGoBelowTheLazyStack() {
-        // 重新生成最后的回答。
-        XCTAssertEqual(historyCount(after: [q1, a1, q2, UiMessage("a4", .assistant, "")]), 2)
-        // 重新生成更早的回答：它的提问留在懒加载栈里。
-        XCTAssertEqual(historyCount(after: [q1, UiMessage("a4", .assistant, "")]), 1)
-        // 改写更早的提问。
-        XCTAssertEqual(historyCount(after: [UiMessage("q4", .user, "Edited"), a3]), 0)
-        // 发送失败退回原样。
-        XCTAssertEqual(historyCount(after: [q1, a1, q2, a2]), 2)
-        XCTAssertEqual(historyCount(after: []), 0)
+    func testVersionSwitchPutsEarlierNewRowsInTheLazyStack() {
+        let split = ChatTailSplit()
+        XCTAssertEqual(split.historyCount(thread(0..<30)), 58)
+        // 切换第 2 个提问的版本：换上来的长对话里只有最后一个回合当场建。
+        let other = thread(0..<1) + thread(1..<40, "b")
+        XCTAssertEqual(split.historyCount(other), 78)
+        XCTAssertEqual(split.historyCount(other), 78)
+        // 切回去：画过的行回到原来那一段。
+        XCTAssertEqual(split.historyCount(thread(0..<30)), 58)
     }
 
-    func testNewChatStaysBelowTheLazyStack() {
+    func testEditingAQuestion() {
+        // 改写更早的提问：新提问和回答是最后一个回合。
+        XCTAssertEqual(historyCount(after: [q3, a3]), 0)
+        XCTAssertEqual(historyCount(after: [q1, a1, q3, a3]), 2)
+        // 改写失败退回原样：每行回到原来那一段。
         let split = ChatTailSplit()
+        XCTAssertEqual(split.historyCount([q1, a1, q2, a2]), 2)
         XCTAssertEqual(split.historyCount([q3, a3]), 0)
-        XCTAssertEqual(split.historyCount([q3, a3, q2, a2]), 0)
+        XCTAssertEqual(split.historyCount([q1, a1, q2, a2]), 2)
+        XCTAssertEqual(split.historyCount([]), 0)
+    }
+
+    func testRegenerate() {
+        // 最后的回答。
+        XCTAssertEqual(historyCount(after: [q1, a1, q2, UiMessage("a4", .assistant, "")]), 2)
+        // 更早的回答：它的提问留在懒加载栈里。
+        XCTAssertEqual(historyCount(after: [q1, UiMessage("a4", .assistant, "")]), 1)
+    }
+
+    func testNewRowsAfterAPlainRowStayPlain() {
+        let split = ChatTailSplit()
+        XCTAssertEqual(split.historyCount(thread(0..<1)), 0)
+        XCTAssertEqual(split.historyCount(thread(0..<2)), 0)
+        XCTAssertEqual(split.historyCount(thread(0..<1) + thread(1..<4, "b")), 0)
+    }
+
+    func testNewChatGrowingMovesOnlyTheOldestRowsPastTheLimit() {
+        let split = ChatTailSplit()
+        XCTAssertEqual(split.historyCount([]), 0)
+        var lazy = 0
+        for turns in 1...30 {
+            let messages = thread(0..<turns)
+            let count = split.historyCount(messages)
+            // 不超过上限时一行也不动；超过时只搬最早的，下面正好剩上限那么多。
+            XCTAssertEqual(count, max(0, messages.count - ChatTailSplit.tailLimit))
+            XCTAssertGreaterThanOrEqual(count, lazy)
+            lazy = count
+        }
+        // 行变少（发送失败退回）时，搬进懒加载栈的行不搬回来。
+        XCTAssertEqual(split.historyCount(thread(0..<29)), lazy)
+    }
+
+    func testTheLastTurnIsNeverMovedIntoTheLazyStack() {
+        let answers = (0..<30).map { UiMessage("x\($0)", .assistant, "Answer") }
+        XCTAssertEqual(ChatTailSplit().historyCount([q1, a1, q2] + answers), 2)
     }
 
     func testListWithoutAQuestionIsNotLazy() {
