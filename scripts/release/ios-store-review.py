@@ -420,9 +420,7 @@ class ReviewPlan:
 
     @property
     def notes_changed(self) -> bool:
-        return self.notes is not None and (
-            self.clear_demo_flag or normalized(self.notes[0]) != normalized(self.notes[1])
-        )
+        return self.notes is not None and normalized(self.notes[0]) != normalized(self.notes[1])
 
     @property
     def copyright_changed(self) -> bool:
@@ -455,7 +453,9 @@ def _plan_notes(client: Any, info: ReviewInfo, plan: ReviewPlan) -> None:
     values = attributes(detail or {})
     plan.notes = (values.get("notes"), info.review_notes)
     # Apple turns "demo account required" on by default; turn it off unless someone set one up.
-    plan.clear_demo_flag = detail is None or bool(values.get("demoAccountRequired") and not values.get("demoAccountName"))
+    plan.clear_demo_flag = detail is None or bool(
+        values.get("demoAccountRequired") and not any(values.get(name) for name in DEMO_FIELDS)
+    )
 
 
 def _plan_subscription(client: Any, kind: str, parent_id: str, desired: dict, plan: ReviewPlan) -> None:
@@ -566,7 +566,7 @@ def print_review(plan: ReviewPlan, out=print) -> None:
     if plan.notes:
         _private_change(out, "review notes", plan.notes_changed, *plan.notes)
         if plan.clear_demo_flag:
-            out("    demo account: set to not required")
+            out("  App Review demo account: set to not required")
         if plan.notes_changed and not plan.detail_id:
             out("    (no review details yet: Apple may refuse them until the contact is entered)")
     if plan.copyright:
@@ -705,7 +705,7 @@ def apply_review(client: Any, plan: ReviewPlan, attempt, out=print) -> None:
     """attempt(label, action) records a failure and carries on, as the listing writes do."""
     if plan.age_changes:
         attempt("age rating", lambda: _write_age_rating(client, plan, out))
-    if plan.notes_changed:
+    if plan.notes_changed or (plan.notes and plan.clear_demo_flag):
         attempt("review notes", lambda: _write_notes(client, plan, out))
     if plan.copyright_changed:
         attempt("copyright", lambda: _write_copyright(client, plan, out))

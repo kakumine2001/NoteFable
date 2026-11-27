@@ -148,7 +148,8 @@ ALLOWED_WRITES = (
 
 _V2 = re.escape(review_mod.ASC_V2)
 # Writes limited to named fields: (method, path, attributes, relationships). The payload may hold
-# nothing else, so for example no review contact, demo account or content rights can be sent.
+# nothing else, so for example no review contact, demo account name or password, or content rights
+# can be sent.
 SCOPED_WRITES = (
     ("PATCH", r"/ageRatingDeclarations/[^/?]+", set(review_mod.AGE_RATING_ATTRIBUTES), set()),
     ("POST", r"/appStoreReviewDetails", {"notes", "demoAccountRequired"}, {"appStoreVersion"}),
