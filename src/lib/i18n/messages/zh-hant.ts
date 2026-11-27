@@ -373,7 +373,7 @@ export const zhHant: Record<string, string> = {
   "Could not undo the change.": "無法撤銷這項修改。",
   "Could not upload that photo. Check your connection and try again.": "無法上傳這張照片，請檢查網路連線後重試。",
   "Could not upload that photo. Try again.": "無法上傳這張照片，請重試。",
-  "Counts as 1 chat message. Your answers stay in this session unless you save a review note.": "計入 1 次聊天額度。作答記錄僅保留在本次會話，儲存複習筆記後可隨時重看。",
+  "Counts as 1 chat message. Your answers stay in this session; saving a review note keeps the questions and answer key.": "計為 1 條聊天訊息。你的作答僅保留在本次會話中；儲存複習筆記會儲存題目和參考答案。",
   "Cover images must be 4 MB or smaller.": "封面圖片不能超過 4 MB。",
   "Cover not found.": "找不到封面。",
   "Cover position must be between 0 and 100.": "封面位置必須在 0 到 100 之間。",

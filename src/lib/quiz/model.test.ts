@@ -152,11 +152,14 @@ describe("parseQuizReply and validateReviewQuiz", () => {
 });
 
 describe("fill-in-the-blank normalization and matching", () => {
-  it("matches case-insensitively across whitespace, punctuation, diacritics and full-width forms", () => {
+  it("matches case-insensitively across whitespace, punctuation, diacritics and full-width forms while preserving delimiters", () => {
     expect(isFillBlankCorrect("  CHLOROPHYLL! ", ["chlorophyll"])).toBe(true);
     expect(isFillBlankCorrect("résumé", ["resume"])).toBe(true);
     expect(isFillBlankCorrect("ＡＴＰ。", ["ATP"])).toBe(true);
     expect(isFillBlankCorrect("「光合成」", ["光合成"])).toBe(true);
+    expect(isFillBlankCorrect("[0, 1].", ["[0, 1]"])).toBe(true);
+    expect(isFillBlankCorrect("(0, 1)", ["[0, 1]"])).toBe(false);
+    expect(isFillBlankCorrect("{1, 2}", ["[1, 2]"])).toBe(false);
     expect(isFillBlankCorrect("   ", ["chlorophyll"])).toBe(false);
     expect(isFillBlankCorrect("glucose", ["chlorophyll"])).toBe(false);
   });

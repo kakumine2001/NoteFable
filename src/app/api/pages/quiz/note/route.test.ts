@@ -97,7 +97,7 @@ describe("POST /api/pages/quiz/note", () => {
     expect(mocks.createPage).toHaveBeenCalledTimes(1);
     const [userId, content, options] = mocks.createPage.mock.calls[0];
     expect(userId).toBe("mine");
-    expect(options).toEqual({ parentId: "cdeck1", ai: true, id: expectedId });
+    expect(options).toEqual({ parentId: "cdeck1", ai: true, id: expectedId, shareExcludeFromParent: true });
     expect((content.blocks as Array<{ type: string }>).filter((b) => b.type === "toggleListItem")).toHaveLength(4);
     expect(mocks.scheduleEmbedding).toHaveBeenCalledWith("mine", [expectedId]);
   });
@@ -177,6 +177,44 @@ describe("POST /api/pages/quiz/note", () => {
     expect(rootShare?.children).toEqual([]);
     // Directly requesting the review note sub-page via the deck's public share link is refused.
     mocks.findFirst.mockResolvedValueOnce(deck);
+    expect(await resolvePublicShare(token, reviewNoteId)).toBeNull();
+  });
+
+  it("excludes saved review notes from an inherited public share of a source note", async () => {
+    const token = generateShareToken();
+    const sharedNote = {
+      id: "cnote1",
+      userId: "mine",
+      kind: "note",
+      parentId: null,
+      title: "Shared Biology Note",
+      icon: null,
+      cover: null,
+      coverPosition: null,
+      blocks: [],
+      fullWidth: false,
+      smallText: false,
+      font: "default",
+      deletedAt: null,
+      shareToken: token,
+      shareEnabled: true,
+      shareIncludeSubpages: true,
+      shareExpiresAt: null,
+      shareExcludeFromParent: false,
+      updatedAt: new Date("2026-11-27T00:00:00Z"),
+    };
+    const reviewNoteId = aiRequestPageId("mine", "quiz-note", requestId);
+    const excludedReviewNote = {
+      ...sharedNote,
+      id: reviewNoteId,
+      parentId: "cnote1",
+      title: "Review notes: Shared Biology Note",
+      shareToken: null,
+      shareEnabled: false,
+      shareExcludeFromParent: true,
+    };
+    // Directly requesting the saved review note through the shared parent note's link is refused because shareExcludeFromParent is true.
+    mocks.findFirst.mockResolvedValueOnce(sharedNote).mockResolvedValueOnce(excludedReviewNote);
     expect(await resolvePublicShare(token, reviewNoteId)).toBeNull();
   });
 });

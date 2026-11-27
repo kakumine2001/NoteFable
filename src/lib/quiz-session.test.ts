@@ -13,6 +13,7 @@ import {
   rateFlashcard,
   resetReviewQuizForTest,
   retryCurrentQuiz,
+  returnToQuizSetup,
   reviewQuizBack,
   saveReviewNote,
   selfGradeFillBlank,
@@ -160,5 +161,54 @@ describe("quiz-session store", () => {
     expect(getReviewQuiz()).toBeNull();
     expect(reviewQuizBack()).toBe(false);
     closeReviewQuiz();
+  });
+
+  it("ignores duplicate generateReviewQuiz clicks while source flush is still pending", async () => {
+    openReviewQuiz({ pageId: "p1", title: "Bio", icon: null, kind: "note", model: "gpt-6-luna" });
+    let resolveFlush!: (ok: boolean) => void;
+    const flush = vi.fn(() => new Promise<boolean>((resolve) => { resolveFlush = resolve; }));
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ quiz: sampleQuiz, reportToken: "tok1" }), { status: 200 }));
+
+    const first = generateReviewQuiz(flush);
+    expect(getReviewQuiz()?.phase).toBe("generating");
+    const second = generateReviewQuiz(flush);
+    resolveFlush(true);
+    await Promise.all([first, second]);
+
+    expect(flush).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(getReviewQuiz()?.phase).toBe("active");
+  });
+
+  it("does not apply a late review-note save to a newer quiz while still notifying the workspace", async () => {
+    openReviewQuiz({ pageId: "p1", title: "Bio", icon: null, kind: "note", model: "gpt-6-luna" });
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ quiz: sampleQuiz, reportToken: "tok1" }), { status: 200 }));
+    await generateReviewQuiz();
+
+    let resolveSave!: (res: Response) => void;
+    fetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveSave = resolve; }));
+    const createdEvents: unknown[] = [];
+    windowTarget.addEventListener("notefable:page-created", (e) => createdEvents.push((e as CustomEvent).detail));
+
+    const pendingSave = saveReviewNote({ noteTitle: "First review note" }, true);
+    expect(getReviewQuiz()?.saveState).toBe("saving");
+
+    // Start and complete a brand-new quiz before the first save finishes.
+    returnToQuizSetup();
+    const secondQuiz: ReviewQuiz = { ...sampleQuiz, title: "Second Quiz" };
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ quiz: secondQuiz, reportToken: "tok2" }), { status: 200 }));
+    await generateReviewQuiz();
+    expect(getReviewQuiz()?.quiz?.title).toBe("Second Quiz");
+    expect(getReviewQuiz()?.saveState).toBe("idle");
+
+    const firstPage = { id: "rev_old", title: "First review note", kind: "note" };
+    resolveSave(new Response(JSON.stringify({ page: firstPage }), { status: 201 }));
+    await pendingSave;
+
+    // Workspace is notified that the first note exists, but the second quiz stays unsaved.
+    expect(createdEvents).toEqual([firstPage]);
+    expect(windowTarget.NoteFableNative?.postMessage).toHaveBeenCalledWith(JSON.stringify({ type: "pagesChanged" }));
+    expect(getReviewQuiz()?.saveState).toBe("idle");
+    expect(getReviewQuiz()?.savedPage).toBeNull();
   });
 });

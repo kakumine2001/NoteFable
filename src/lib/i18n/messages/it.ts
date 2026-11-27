@@ -1309,7 +1309,7 @@ export const it: Record<string, string> = {
   "Number of questions": "Numero di domande",
   "Quiz language": "Lingua del quiz",
   "Follow material": "Segui la lingua del materiale",
-  "Counts as 1 chat message. Your answers stay in this session unless you save a review note.": "Conta come 1 messaggio di chat. Le tue risposte restano solo in questa sessione a meno che tu non salvi una nota di ripasso.",
+  "Counts as 1 chat message. Your answers stay in this session; saving a review note keeps the questions and answer key.": "Conta come 1 messaggio di chat. Le tue risposte restano solo in questa sessione; salvare una nota di ripasso conserva le domande e le soluzioni.",
   "Generate quiz": "Genera quiz",
   "Creating your quiz…": "Creazione del quiz…",
   "{count} questions from {title}": "{count} domande da {title}",

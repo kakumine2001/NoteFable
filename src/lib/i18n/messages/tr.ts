@@ -1309,7 +1309,7 @@ export const tr: Record<string, string> = {
   "Number of questions": "Soru sayısı",
   "Quiz language": "Test dili",
   "Follow material": "İçeriğin dilini izle",
-  "Counts as 1 chat message. Your answers stay in this session unless you save a review note.": "1 sohbet mesajı olarak sayılır. Bir tekrar notu kaydetmediğiniz sürece yanıtlarınız yalnızca bu oturumda kalır.",
+  "Counts as 1 chat message. Your answers stay in this session; saving a review note keeps the questions and answer key.": "1 sohbet mesajı olarak sayılır. Yanıtlarınız yalnızca bu oturumda kalır; tekrar notu kaydetmek soruları ve cevap anahtarını saklar.",
   "Generate quiz": "Test oluştur",
   "Creating your quiz…": "Test oluşturuluyor…",
   "{count} questions from {title}": "{title} kaynağından {count} soru",

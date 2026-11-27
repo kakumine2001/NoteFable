@@ -1319,7 +1319,7 @@ export const zh: Record<string, string> = {
   "Number of questions": "题目数量",
   "Quiz language": "出题语言",
   "Follow material": "跟随材料语言",
-  "Counts as 1 chat message. Your answers stay in this session unless you save a review note.": "计入 1 次聊天额度。作答记录仅保留在本次会话，保存复习笔记后可随时重看。",
+  "Counts as 1 chat message. Your answers stay in this session; saving a review note keeps the questions and answer key.": "计为 1 条聊天消息。你的作答仅保留在本次会话中；保存复习笔记会保存题目和参考答案。",
   "Generate quiz": "开始出题",
   "Creating your quiz…": "正在出题…",
   "{count} questions from {title}": "基于“{title}”生成 {count} 道题",

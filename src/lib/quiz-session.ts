@@ -166,18 +166,6 @@ export async function generateReviewQuiz(flush?: QuizFlush) {
   if (!session || session.phase === "generating") return;
   const key = session.sessionKey;
   const { target, options } = session;
-
-  // サーバーは保存済みのページを読むため、開いているページの未保存変更があれば先に保存する。
-  if (flush) {
-    const flushed = await flush(target.pageId).catch(() => false);
-    if (!session || session.sessionKey !== key) return;
-    if (!flushed) {
-      session = { ...session, error: FLUSH_FAILED, limit: null };
-      emit();
-      return;
-    }
-  }
-
   const requestKey = JSON.stringify({ pageId: target.pageId, options, model: target.model });
   const requestId = session.requestKey === requestKey && session.requestId ? session.requestId : newId();
 
@@ -185,6 +173,7 @@ export async function generateReviewQuiz(flush?: QuizFlush) {
   const controller = new AbortController();
   activeAbort = controller;
 
+  // 保存待ちの連打で二重に走り出さないよう、flush の前に generating 状態へ移す。
   session = {
     ...session,
     phase: "generating",
@@ -194,6 +183,18 @@ export async function generateReviewQuiz(flush?: QuizFlush) {
     limit: null,
   };
   emit();
+
+  // サーバーは保存済みのページを読むため、開いているページの未保存変更があれば先に保存する。
+  if (flush) {
+    const flushed = await flush(target.pageId).catch(() => false);
+    if (controller.signal.aborted || !session || session.sessionKey !== key || activeAbort !== controller) return;
+    if (!flushed) {
+      activeAbort = null;
+      session = { ...session, phase: "setup", error: FLUSH_FAILED, limit: null };
+      emit();
+      return;
+    }
+  }
 
   try {
     const response = await fetch("/api/pages/quiz", {
@@ -443,19 +444,21 @@ export async function saveReviewNote(labels: ReviewNoteLabels, embedded: boolean
       signal: AbortSignal.timeout(30_000),
     });
     const data = (await response.json().catch(() => null)) as { page?: NotePageSummary; error?: unknown } | null;
-    if (!session || session.sessionKey !== key) return;
     if (!response.ok || !data?.page?.id) {
+      if (!session || session.sessionKey !== key || session.saveRequestId !== saveRequestId) return;
       const message = typeof data?.error === "string" && data.error.trim() ? data.error.trim() : SAVE_REVIEW_FAILED;
       session = { ...session, saveState: "error", saveError: message };
       emit();
       return;
     }
-    session = { ...session, saveState: "saved", saveError: "", savedPage: data.page };
-    emit();
+    // すでに別のクイズへ切り替えた・窓を閉じた後でも、実際に作られたノートはワークスペース一覧へ反映する。
     window.dispatchEvent(new CustomEvent("notefable:page-created", { detail: data.page }));
     if (embedded) postToNative({ type: "pagesChanged" });
+    if (!session || session.sessionKey !== key || session.saveRequestId !== saveRequestId) return;
+    session = { ...session, saveState: "saved", saveError: "", savedPage: data.page };
+    emit();
   } catch {
-    if (!session || session.sessionKey !== key) return;
+    if (!session || session.sessionKey !== key || session.saveRequestId !== saveRequestId) return;
     session = { ...session, saveState: "error", saveError: SAVE_REVIEW_FAILED };
     emit();
   }

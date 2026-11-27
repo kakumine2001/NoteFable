@@ -319,7 +319,7 @@ function ReviewQuizDialog({ view, embedded, flush }: { view: QuizSessionState; e
             </div>
 
             <p className="review-quiz-notice">
-              {t("Counts as 1 chat message. Your answers stay in this session unless you save a review note.")}
+              {t("Counts as 1 chat message. Your answers stay in this session; saving a review note keeps the questions and answer key.")}
             </p>
 
             {view.error && (
@@ -722,15 +722,13 @@ function QuestionCard({ question, response }: { question: QuizQuestion; response
                   {response.correct ? t("Correct") : t("Needs review")}
                 </span>
                 {response.correct ? (
-                  response.selfGraded && (
-                    <button
-                      type="button"
-                      className="notion-button text-xs"
-                      onClick={() => selfGradeFillBlank(question.id, false)}
-                    >
-                      {t("Mark as needs review")}
-                    </button>
-                  )
+                  <button
+                    type="button"
+                    className="notion-button text-xs"
+                    onClick={() => selfGradeFillBlank(question.id, false)}
+                  >
+                    {t("Mark as needs review")}
+                  </button>
                 ) : (
                   <button
                     type="button"

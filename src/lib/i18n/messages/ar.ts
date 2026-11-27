@@ -1309,7 +1309,7 @@ export const ar: Record<string, string> = {
   "Number of questions": "عدد الأسئلة",
   "Quiz language": "لغة الاختبار",
   "Follow material": "اتبع لغة المحتوى",
-  "Counts as 1 chat message. Your answers stay in this session unless you save a review note.": "يُحتسب كرسالة دردشة واحدة. تبقى إجاباتك في هذه الجلسة فقط ما لم تحفظ ملاحظة مراجعة.",
+  "Counts as 1 chat message. Your answers stay in this session; saving a review note keeps the questions and answer key.": "يُحتسب كرسالة محادثة واحدة. تبقى إجاباتك في هذه الجلسة فقط؛ ويحفظ حفظ ملاحظة المراجعة الأسئلة ومفتاح الإجابات.",
   "Generate quiz": "إنشاء الاختبار",
   "Creating your quiz…": "جارٍ إنشاء الاختبار…",
   "{count} questions from {title}": "{count} أسئلة من {title}",

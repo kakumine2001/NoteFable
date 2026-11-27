@@ -68,7 +68,8 @@ export async function POST(request: Request) {
 
     let page;
     try {
-      page = await createNotePage(user.id, content, { parentId: source.id, ai: true, id: noteId });
+      // 親ページや祖先が「サブページも公開」で共有中でも、保存した復習ノート（問題と解答）が自動で公開されないよう shareExcludeFromParent を立てる。
+      page = await createNotePage(user.id, content, { parentId: source.id, ai: true, id: noteId, shareExcludeFromParent: true });
     } catch (error) {
       if (!isDuplicateCreate(error)) throw error;
       const created = await findRequestedPage(user.id, noteId);

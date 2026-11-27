@@ -1309,7 +1309,7 @@ export const ko: Record<string, string> = {
   "Number of questions": "문제 수",
   "Quiz language": "출제 언어",
   "Follow material": "자료 언어 따르기",
-  "Counts as 1 chat message. Your answers stay in this session unless you save a review note.": "채팅 1회로 계산됩니다. 답안은 현재 세션에만 유지되며 복습 노트로 저장할 수 있습니다.",
+  "Counts as 1 chat message. Your answers stay in this session; saving a review note keeps the questions and answer key.": "채팅 메시지 1회로 계산됩니다. 내 답안은 이 세션에만 유지되며, 복습 노트를 저장하면 문제와 정답이 저장됩니다.",
   "Generate quiz": "퀴즈 생성",
   "Creating your quiz…": "퀴즈 만드는 중…",
   "{count} questions from {title}": "“{title}”에서 {count}문제 생성 중",

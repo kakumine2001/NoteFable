@@ -1310,7 +1310,7 @@ export const ja: Record<string, string> = {
   "Number of questions": "問題数",
   "Quiz language": "出題言語",
   "Follow material": "元の資料に合わせる",
-  "Counts as 1 chat message. Your answers stay in this session unless you save a review note.": "チャット 1 回分を消費します。回答はこのセッション内のみ保持され、復習ノートとして保存できます。",
+  "Counts as 1 chat message. Your answers stay in this session; saving a review note keeps the questions and answer key.": "チャット 1 回分としてカウントされます。回答はこのセッション中のみ保持され、復習ノートに保存されるのは問題と解答です。",
   "Generate quiz": "クイズを作成",
   "Creating your quiz…": "クイズを作成中…",
   "{count} questions from {title}": "「{title}」から {count} 問を作成中",

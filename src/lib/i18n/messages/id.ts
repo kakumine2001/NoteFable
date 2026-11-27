@@ -1309,7 +1309,7 @@ export const id: Record<string, string> = {
   "Number of questions": "Jumlah soal",
   "Quiz language": "Bahasa kuis",
   "Follow material": "Ikuti bahasa materi",
-  "Counts as 1 chat message. Your answers stay in this session unless you save a review note.": "Dihitung sebagai 1 pesan obrolan. Jawaban hanya disimpan di sesi ini kecuali kamu menyimpan catatan ulasan.",
+  "Counts as 1 chat message. Your answers stay in this session; saving a review note keeps the questions and answer key.": "Dihitung sebagai 1 pesan obrolan. Jawaban Anda hanya tersimpan selama sesi ini; menyimpan catatan ulasan akan menyimpan soal dan kunci jawabannya.",
   "Generate quiz": "Buat kuis",
   "Creating your quiz…": "Membuat kuis…",
   "{count} questions from {title}": "{count} soal dari {title}",

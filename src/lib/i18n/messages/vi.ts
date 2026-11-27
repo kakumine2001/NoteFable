@@ -1309,7 +1309,7 @@ export const vi: Record<string, string> = {
   "Number of questions": "Số lượng câu hỏi",
   "Quiz language": "Ngôn ngữ bài kiểm tra",
   "Follow material": "Theo ngôn ngữ tài liệu",
-  "Counts as 1 chat message. Your answers stay in this session unless you save a review note.": "Tính là 1 tin nhắn trò chuyện. Câu trả lời chỉ giữ trong phiên này trừ khi bạn lưu thành ghi chú ôn tập.",
+  "Counts as 1 chat message. Your answers stay in this session; saving a review note keeps the questions and answer key.": "Tính là 1 tin nhắn trò chuyện. Câu trả lời của bạn chỉ giữ trong phiên này; lưu ghi chú ôn tập sẽ lưu lại câu hỏi và đáp án.",
   "Generate quiz": "Tạo bài kiểm tra",
   "Creating your quiz…": "Đang tạo bài kiểm tra…",
   "{count} questions from {title}": "{count} câu hỏi từ {title}",

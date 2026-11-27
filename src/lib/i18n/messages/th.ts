@@ -1309,7 +1309,7 @@ export const th: Record<string, string> = {
   "Number of questions": "จำนวนข้อ",
   "Quiz language": "ภาษาของแบบทดสอบ",
   "Follow material": "ตามภาษาของเนื้อหา",
-  "Counts as 1 chat message. Your answers stay in this session unless you save a review note.": "นับเป็น 1 ข้อความแชท คำตอบจะเก็บไว้เฉพาะเซสชันนี้ เว้นแต่คุณจะบันทึกเป็นโน้ตทบทวน",
+  "Counts as 1 chat message. Your answers stay in this session; saving a review note keeps the questions and answer key.": "นับเป็นข้อความแชท 1 ข้อความ คำตอบของคุณจะอยู่เฉพาะในเซสชันนี้ การบันทึกโน้ตทบทวนจะเก็บคำถามและเฉลยไว้",
   "Generate quiz": "สร้างแบบทดสอบ",
   "Creating your quiz…": "กำลังสร้างแบบทดสอบ…",
   "{count} questions from {title}": "สร้าง {count} ข้อจาก {title}",

@@ -88,13 +88,14 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 const cleanText = (value: unknown, max: number): string | null => {
   if (typeof value !== "string") return null;
   const normalized = value.replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "").trim();
-  return normalized ? normalized.slice(0, max) : null;
+  const clipped = normalized.slice(0, max).trim();
+  return clipped || null;
 };
 
 const cleanOptionalText = (value: unknown, max: number): string | null => {
   if (value === undefined || value === null) return "";
   if (typeof value !== "string") return null;
-  return value.replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "").trim().slice(0, max);
+  return value.replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "").trim().slice(0, max).trim();
 };
 
 const oneLine = (value: string) => value.replace(/\s+/g, " ").trim();
@@ -209,7 +210,7 @@ export function parseQuizReply(raw: string, options: QuizOptions, fallbackTitle:
   const questions = validated.slice(0, options.count);
   if (!questions.length) return null;
   const rawTitle = cleanText(parsed.title, MAX_QUIZ_TITLE_CHARS);
-  const title = oneLine(rawTitle || fallbackTitle || "Review quiz").slice(0, MAX_QUIZ_TITLE_CHARS) || "Review quiz";
+  const title = oneLine(rawTitle || fallbackTitle || "Review quiz").slice(0, MAX_QUIZ_TITLE_CHARS).trim() || "Review quiz";
   return { title, questions };
 }
 
@@ -224,13 +225,15 @@ export function validateReviewQuiz(raw: unknown): ReviewQuiz | null {
     if (!question) return null;
     questions.push(question);
   }
-  return { title: oneLine(title).slice(0, MAX_QUIZ_TITLE_CHARS), questions };
+  const normalizedTitle = oneLine(title).slice(0, MAX_QUIZ_TITLE_CHARS).trim();
+  if (!normalizedTitle) return null;
+  return { title: normalizedTitle, questions };
 }
 
 // 署名付き通報トークンのダイジェスト検証用に、キー順と項目を固定した正規 JSON を作る。
 export function canonicalQuizJson(quiz: ReviewQuiz): string {
   const normalized = {
-    title: oneLine(quiz.title).slice(0, MAX_QUIZ_TITLE_CHARS),
+    title: oneLine(quiz.title).slice(0, MAX_QUIZ_TITLE_CHARS).trim(),
     questions: quiz.questions.map((q, index) => {
       const id = `q${index + 1}`;
       switch (q.type) {
@@ -250,14 +253,14 @@ export function canonicalQuizJson(quiz: ReviewQuiz): string {
   return JSON.stringify(normalized);
 }
 
-// 填空題の自動判定用の正規化：NFKC・小文字化・前後句読点除去・連続空白の圧縮。
+// 填空題の自動判定用の正規化：NFKC・小文字化・連続空白の圧縮・前後の句読点や引用符の除去（区間や数式で意味を持つ () [] {} は残す）。
 export function normalizeAnswerText(value: string): string {
   return value
     .normalize("NFKC")
     .toLowerCase()
     .replace(/\s+/g, " ")
     .trim()
-    .replace(/^[.,!?;:'"“”‘’()[\]{}。、！？；：「」『』（）【】《》]+|[.,!?;:'"“”‘’()[\]{}。、！？；：「」『』（）【】《》]+$/g, "")
+    .replace(/^[.,!?;:'"“”‘’。、！？；：「」『』《》]+|[.,!?;:'"“”‘’。、！？；：「」『』《》]+$/g, "")
     .trim();
 }
 

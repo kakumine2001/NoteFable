@@ -2463,6 +2463,13 @@ export default function Home() {
     return queue.flush();
   };
 
+  const flushQuizSource = async (pageId: string) => {
+    const queue = notes.active;
+    if (!queue || queue.page.id !== pageId) return true;
+    if (!(await flushCanvasEditors(pageId))) return false;
+    return queue.flush();
+  };
+
   // デスクトップとモバイルで同じ会話履歴を使い、表示方法だけ切り替える。
   const closeSidebar = () => {
     if (window.matchMedia("(min-width: 1024px)").matches) setSidebarVisible(false);
@@ -3103,7 +3110,7 @@ export default function Home() {
       {/* AI のスライド生成の窓（チャットの「＋」・ノートの「…」と AI パネル・新規作成のどこから始めても、ここに出す）。 */}
       <SlidesWizardHost flush={flushSlidesSource} />
       {/* 復習・クイズモードの窓（ノート・スライドの「…」メニューから開く）。 */}
-      <ReviewQuizHost flush={(pageId) => flushSlidesSource([pageId])} />
+      <ReviewQuizHost flush={flushQuizSource} />
       {importingFiles && <ImportTargetDialog groups={notes.groups} onClose={() => setImportingFiles(null)}
         onChoose={(groupId) => { const files = importingFiles; setImportingFiles(null); void importMarkdownFiles(files, groupId); }} />}
       {movingNote && <MoveNoteDialog page={movingNote} groups={notes.groups} error={notes.groupError} pages={notes.pages}

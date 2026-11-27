@@ -1309,7 +1309,7 @@ export const hi: Record<string, string> = {
   "Number of questions": "प्रश्नों की संख्या",
   "Quiz language": "क्विज़ की भाषा",
   "Follow material": "सामग्री की भाषा अपनाएँ",
-  "Counts as 1 chat message. Your answers stay in this session unless you save a review note.": "यह 1 चैट संदेश गिना जाता है। आपके उत्तर केवल इस सत्र में रहते हैं, जब तक आप रिव्यू नोट सहेजें नहीं।",
+  "Counts as 1 chat message. Your answers stay in this session; saving a review note keeps the questions and answer key.": "1 चैट संदेश के रूप में गिना जाता है। आपके उत्तर केवल इस सत्र में रहते हैं; रिव्यू नोट सहेजने पर प्रश्न और उत्तर कुंजी सहेजी जाती हैं।",
   "Generate quiz": "क्विज़ बनाएँ",
   "Creating your quiz…": "क्विज़ बनाया जा रहा है…",
   "{count} questions from {title}": "{title} से {count} प्रश्न",

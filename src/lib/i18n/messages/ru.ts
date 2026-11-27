@@ -1309,7 +1309,7 @@ export const ru: Record<string, string> = {
   "Number of questions": "Количество вопросов",
   "Quiz language": "Язык теста",
   "Follow material": "По языку материала",
-  "Counts as 1 chat message. Your answers stay in this session unless you save a review note.": "Засчитывается как 1 сообщение в чате. Ответы хранятся только в этой сессии, если не сохранить конспект для повторения.",
+  "Counts as 1 chat message. Your answers stay in this session; saving a review note keeps the questions and answer key.": "Засчитывается как 1 сообщение в чате. Ваши ответы хранятся только в этой сессии; при сохранении заметки для повторения сохраняются вопросы и правильные ответы.",
   "Generate quiz": "Создать тест",
   "Creating your quiz…": "Создаём тест…",
   "{count} questions from {title}": "{count} вопр. по «{title}»",
