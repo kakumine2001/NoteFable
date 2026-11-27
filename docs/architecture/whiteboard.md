@@ -40,8 +40,8 @@
 
 - 选中图形 → “添加链接”：选自己的页面（笔记 / 白板 / 幻灯片）或输入网址（只收 http、https、mailto）。页面链接存成 `/app?view=pages&page=<id>`，和笔记正文里的页面链接同形。
 - 点链接图标（没选中时画在图形右上）或面板的“打开链接”：页面链接在原地打开（网页切换页面，App 里发 `openPage`），按 Ctrl / ⌘ / Shift 时新窗口打开；外部链接新标签页打开。
-- “链接到页面”放一张**页面卡片**：圆角矩形 + 文字“图标 标题”，`link` 指向那一页，`customData.notefablePage = { id, kind }`。卡片的文字在放置时写入（之后改了页面标题不会自动更新），图片图标显示成类型符号。卡片文字也进搜索。
-- **还没做**（#152 里举的例子，另开 PR）：公式标签（KaTeX）、带内容预览的页面卡片（现在卡片显示标题和图标）。
+- “链接到页面”放一张**页面卡片**：圆角矩形 + 文字“图标 标题”，`link` 指向那一页，`customData.notefablePage = { id, kind }`。打开白板时（以及新放入卡片或切回白板时）通过一次 `POST /api/pages/card-previews` 批量读取所有卡片指向的页面（仅本人未删除页面）的最新标题、图标和短摘要：标题和图标写回卡片（内容不变时不触发保存；图片图标仍以类型符号写入文字，并在左侧选中面板展示实际图标）；短摘要只用于显示层覆盖（`PageCardOverlay` 与选中面板），**绝不写进白板 JSON、导出文件和搜索**，防止改分享范围或删页后内容失真或泄露。目标页面已删或在回收站时卡片显示「页面不存在」并阻止跳转到死链（保留 `customData.notefablePage`，从回收站恢复后自动还原）。在公开链接（`GET /s/:token/scene`）中，服务端经 `resolvePublicShareCards` 校验共享树归属：同一分享树内的卡片实时显示最新标题与短摘要（上传图片图标只返回公开 `/s/:token/cover?kind=icon` 地址，不泄露内部键），树外、被排除或已删除的卡片由服务端抹除原文字、链接与 `customData.notefablePage`（显示「该页面不可用」），不泄露私有标题与页面 ID。
+- **可编辑公式标签**：工具栏（桌面直接露出、紧凑屏收入「更多工具」）提供公式工具（`Sigma` 图标，不用星星图标），打开 `WhiteboardFormulaDialog` 输入 TeX 并通过懒加载的 KaTeX 实时预览；确定后由 `renderFormulaToPng`（`modern-screenshot`）渲染为浅色白底圆角卡片 PNG（在浅色/深色画布、导出和公开查看中都清晰可读），走现有 `POST /api/pages/files` 保存路径（计入存储额度、撞上限触发统一存储提示），并在图片元素的 `customData.notefableFormula = { v: 1, latex }` 保存 TeX 源码（键名上线后不再改；`sceneToStored` 清洗并限长 `MAX_MATH_LATEX`）。双击公式（或选中后按 Enter / 点左侧属性栏「编辑公式」）原地重新编辑并保留元素 ID、连线绑定、分组与框归属；导出（PNG / SVG / PDF）和公开查看直接按普通图片正常显示；`extractCanvasSegments` 提取 `notefableFormula.latex` 进入站内搜索与语义索引，`readWhiteboard` 与 `expandWhiteboardSelection`（选区问 AI）均能读取 TeX 源码。
 
 ## 导入 PDF 与导出
 
@@ -52,7 +52,7 @@
 
 - **搜索**：白板的文字（元素的文字、框名）由服务端存进 `NoteCanvas.segments`，命中的 `blockId` 是元素 ID。网页打开结果后 `requestWhiteboardReveal` 把请求交给编辑器（编辑器是动态加载的，用 `src/lib/whiteboard/reveal.ts` 暂存，15 秒内有效），编辑器把视野移到该元素并选中。App 里用 `/note-embed?page=<id>&reveal=<id>`（笔记的块同样适用）。
 - **历史**：预览用 `exportScene` 画出那一版（SVG），下面列出文字；恢复走服务端原有的流程，打开的编辑器以新内容重新挂载。
-- **公开链接**：`PAGE_KIND_FEATURES.whiteboard.publicShare = true`。`/s/:token`（和 `/s/:token/p/:id`）对白板显示和笔记相同的顶栏 + 只读画布（`viewModeEnabled`，可缩放、平移，右下有缩放按钮）；本体由 `GET /s/:token/scene?page=` 读取（`no-store`、`noindex`），图片地址换成 `/s/:token/file?page=&key=`，而 `/s/:token/file` 对白板只放行还活着的图片元素用到的文件（`whiteboardFileKeys`，和 scene 用同一份：删掉的图片、没人用的文件、同一个文件的第二个地址都不放行）；公开的 scene 里元素的 `customData` 只留页面卡片的标记。公开页里的页面链接按同一个公开链接的子页面打开（不在公开树里就显示“无法显示”）。
+- **公开链接**：`PAGE_KIND_FEATURES.whiteboard.publicShare = true`。`/s/:token`（和 `/s/:token/p/:id`）对白板显示和笔记相同的顶栏 + 只读画布（`viewModeEnabled`，可缩放、平移，右下有缩放按钮）；本体由 `GET /s/:token/scene?page=` 读取（`no-store`、`noindex`），图片地址换成 `/s/:token/file?page=&key=`，而 `/s/:token/file` 对白板只放行还活着的图片元素用到的文件（`whiteboardFileKeys`，和 scene 用同一份：删掉的图片、没人用的文件、同一个文件的第二个地址都不放行）；公开的 scene 里元素的 `customData` 只留同一分享树内页面卡片的标记（树外卡片由服务端脱敏，不露标题、摘要、链接与页面 ID；同树卡片同时返回只读摘要用于显示层预览）。公开页里的页面链接按同一个公开链接的子页面打开（不在公开树里就显示“无法显示”）。
 
 ## App（`/note-embed`）
 

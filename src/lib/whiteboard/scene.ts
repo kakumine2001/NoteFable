@@ -1,4 +1,5 @@
 import { parseNoteFileUrl } from "@/lib/note-file-keys";
+import { FORMULA_DATA_KEY, formulaDataOf } from "@/lib/whiteboard/formula";
 
 // ホワイトボードの本体（NoteCanvas.data）と Excalidraw の scene の行き来（docs/architecture/whiteboard.md）。
 // 保存する形は Excalidraw の scene と同じ並び：{ elements, files?, appState? }。
@@ -88,11 +89,23 @@ export function generatedImageDataOf(customData: unknown): WhiteboardGeneratedIm
 
 function sanitizeCustomData(element: WhiteboardElement): Record<string, unknown> | undefined {
   if (!object(element.customData)) return undefined;
-  if (!("generated" in element.customData)) return element.customData;
-  const rest = Object.fromEntries(Object.entries(element.customData).filter(([key]) => key !== "generated"));
-  const valid = element.type === "image" ? generatedImageDataOf(element.customData) : null;
-  if (valid) return { ...rest, generated: valid };
-  return Object.keys(rest).length ? rest : undefined;
+  const hasGenerated = "generated" in element.customData;
+  const hasFormula = FORMULA_DATA_KEY in element.customData;
+  if (!hasGenerated && !hasFormula) return element.customData;
+  const next: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(element.customData)) {
+    if (key === "generated" || key === FORMULA_DATA_KEY) continue;
+    next[key] = value;
+  }
+  if (hasGenerated) {
+    const valid = element.type === "image" ? generatedImageDataOf(element.customData) : null;
+    if (valid) next.generated = valid;
+  }
+  if (hasFormula) {
+    const valid = element.type === "image" ? formulaDataOf(element.customData) : null;
+    if (valid) next[FORMULA_DATA_KEY] = valid;
+  }
+  return Object.keys(next).length ? next : undefined;
 }
 
 function compactElement(element: WhiteboardElement): WhiteboardElement {

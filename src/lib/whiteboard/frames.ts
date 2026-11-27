@@ -82,7 +82,7 @@ export function toRenderableScene(
 ): { elements: WhiteboardElement[]; files: WhiteboardFiles; appState: WhiteboardAppState } {
   if (!object(data)) return { elements: [], files: {}, appState: {} };
   const mode = options?.fileUrlMode ?? "owner";
-  const elements = Array.isArray(data.elements)
+  const rawElements = Array.isArray(data.elements)
     ? data.elements.filter((element): element is WhiteboardElement =>
         object(element)
         && typeof element.id === "string"
@@ -91,6 +91,11 @@ export function toRenderableScene(
         && WHITEBOARD_ELEMENT_TYPES.has(element.type)
         && element.isDeleted !== true)
     : [];
+  // 公開埋め込みプレビューは外側の公開リンク（<Link>）の中で描く静止 SVG なので、
+  // 要素の link（/app?view=pages&page=... 等）は落として入れ子 <a> や所有者 URL の露出を防ぐ。
+  const elements = mode === "public"
+    ? rawElements.map((element) => (element.link ? { ...element, link: null } : element))
+    : rawElements;
   const used = new Set(
     elements
       .filter((element) => element.type === "image" && typeof element.fileId === "string")

@@ -21,12 +21,14 @@ export type PublicWhiteboardEmbedLabels = {
 const SCENE_CACHE_TTL_MS = 5_000;
 const sceneCache = new Map<string, { fetchedAt: number; promise: Promise<StoredWhiteboard | null> }>();
 
-function loadPublicScene(token: string, pageId: string): Promise<StoredWhiteboard | null> {
-  const key = `${token}\0${pageId}`;
+function loadPublicScene(token: string, pageId: string, locale: string): Promise<StoredWhiteboard | null> {
+  const key = `${token}\0${pageId}\0${locale}`;
   const now = Date.now();
   const cached = sceneCache.get(key);
   if (cached && now - cached.fetchedAt < SCENE_CACHE_TTL_MS) return cached.promise;
-  const promise = fetch(`/s/${encodeURIComponent(token)}/scene?page=${encodeURIComponent(pageId)}`, { cache: "no-store" })
+  const params = new URLSearchParams({ page: pageId });
+  if (locale) params.set("lang", locale);
+  const promise = fetch(`/s/${encodeURIComponent(token)}/scene?${params.toString()}`, { cache: "no-store" })
     .then(async (response) => {
       if (!response.ok) return null;
       const data = await response.json().catch(() => null) as { scene?: StoredWhiteboard } | null;
@@ -44,12 +46,14 @@ export default function PublicWhiteboardEmbedCanvas({
   token,
   pageId,
   frameId,
+  locale,
   labels,
   onFrameName,
 }: {
   token: string;
   pageId: string;
   frameId: string | null;
+  locale: string;
   labels: PublicWhiteboardEmbedLabels;
   onFrameName?: (name: string | null) => void;
 }) {
@@ -64,7 +68,7 @@ export default function PublicWhiteboardEmbedCanvas({
     hostRef.current?.replaceChildren();
     queueMicrotask(() => { if (!cancelled) setState("loading"); });
 
-    void loadPublicScene(token, pageId).then(async (scene) => {
+    void loadPublicScene(token, pageId, locale).then(async (scene) => {
       if (cancelled) return;
       if (!scene) {
         setState("error");
@@ -101,7 +105,7 @@ export default function PublicWhiteboardEmbedCanvas({
     });
 
     return () => { cancelled = true; };
-  }, [token, pageId, frameId, theme, labels.preview, labels.frameFallback]);
+  }, [token, pageId, frameId, locale, theme, labels.preview, labels.frameFallback]);
 
   return (
     <div className="note-whiteboard-embed-body" data-state={state}>

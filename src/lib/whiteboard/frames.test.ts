@@ -44,7 +44,7 @@ describe("toRenderableScene", () => {
   it("keeps owner files only in owner mode and public share files only in public mode", () => {
     const data = {
       elements: [
-        { id: "r1", type: "rectangle", x: 0, y: 0, width: 100, height: 60 },
+        { id: "r1", type: "rectangle", x: 0, y: 0, width: 100, height: 60, link: "/app?view=pages&page=inTreePage" },
         { id: "i-owner", type: "image", x: 10, y: 10, width: 100, height: 100, fileId: "f-owner" },
         { id: "i-public", type: "image", x: 120, y: 10, width: 100, height: 100, fileId: "f-public" },
         { id: "i-evil", type: "image", x: 240, y: 10, width: 100, height: 100, fileId: "f-evil" },
@@ -68,6 +68,8 @@ describe("toRenderableScene", () => {
     const publicScene = toRenderableScene(data, { fileUrlMode: "public" });
     expect(Object.keys(publicScene.files)).toEqual(["f-public"]);
     expect(publicScene.files["f-public"].dataURL).toBe(PUBLIC_FILE);
+    expect(publicScene.elements[0].link).toBeNull();
+    expect(JSON.stringify(publicScene)).not.toContain("/app?view=pages");
     expect(JSON.stringify(publicScene)).not.toContain("/api/pages/files");
     expect(JSON.stringify(publicScene)).not.toContain("evil.example");
   });

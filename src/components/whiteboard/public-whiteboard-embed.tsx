@@ -20,6 +20,7 @@ export function PublicWhiteboardEmbed({
   token,
   pageId,
   frameId,
+  locale,
   title,
   icon,
   iconUrl,
@@ -29,6 +30,7 @@ export function PublicWhiteboardEmbed({
   token: string;
   pageId: string;
   frameId: string | null;
+  locale: string;
   title: string;
   icon: string | null;
   iconUrl: string | null;
@@ -59,6 +61,7 @@ export function PublicWhiteboardEmbed({
         token={token}
         pageId={pageId}
         frameId={frameId}
+        locale={locale}
         labels={labels}
         onFrameName={setFrameName}
       />

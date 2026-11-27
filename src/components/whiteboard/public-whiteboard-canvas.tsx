@@ -1,18 +1,19 @@
 "use client";
 
-import { Excalidraw } from "@excalidraw/excalidraw";
+import { Excalidraw, restoreElements } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI, AppState, BinaryFiles } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement, NonDeletedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { Maximize, ZoomIn, ZoomOut } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import "@excalidraw/excalidraw/index.css";
 import "./whiteboard.css";
 import type { Locale, TextDirection } from "@/lib/i18n/locale";
 import { sharePagePath } from "@/lib/note-share";
 import { useTheme } from "@/lib/theme";
-import { pageIdFromLink } from "@/lib/whiteboard/links";
+import { pageIdFromLink, type PageCardPreview } from "@/lib/whiteboard/links";
 import type { StoredWhiteboard } from "@/lib/whiteboard/scene";
 import { excalidrawLang, useKeepDocumentLanguage } from "@/components/whiteboard/excalidraw-locale";
+import { PageCardOverlay } from "@/components/whiteboard/whiteboard-page-cards";
 
 // 公開リンク（/s/:token）のホワイトボード：拡大縮小・移動だけができる読み取り専用のビュー。
 // 文言は公開ページ（サーバー）が訳して渡す（公開ページには I18nProvider が無い）。
@@ -25,6 +26,7 @@ export default function PublicWhiteboardCanvas({ token, pageId, locale, dir, lab
 }) {
   const { resolved: theme } = useTheme();
   const [scene, setScene] = useState<StoredWhiteboard | null>(null);
+  const [cards, setCards] = useState<Record<string, PageCardPreview>>({});
   const [failed, setFailed] = useState(false);
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -32,12 +34,22 @@ export default function PublicWhiteboardCanvas({ token, pageId, locale, dir, lab
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/s/${encodeURIComponent(token)}/scene?page=${encodeURIComponent(pageId)}`, { cache: "no-store" })
+    fetch(`/s/${encodeURIComponent(token)}/scene?page=${encodeURIComponent(pageId)}&lang=${encodeURIComponent(locale)}`, { cache: "no-store" })
       .then((response) => response.ok ? response.json() : Promise.reject(new Error(String(response.status))))
-      .then((data: { scene?: StoredWhiteboard }) => { if (!cancelled) setScene(data.scene ?? { elements: [] }); })
+      .then((data: { scene?: StoredWhiteboard; cards?: Record<string, PageCardPreview> }) => {
+        if (!cancelled) {
+          setScene(data.scene ?? { elements: [] });
+          setCards(data.cards ?? {});
+        }
+      })
       .catch(() => { if (!cancelled) setFailed(true); });
     return () => { cancelled = true; };
-  }, [token, pageId]);
+  }, [token, pageId, locale]);
+
+  const initialElements = useMemo(() => {
+    if (!scene) return [];
+    return restoreElements(scene.elements as unknown as ExcalidrawElement[], null, { refreshDimensions: true }) as unknown as ExcalidrawElement[];
+  }, [scene]);
 
   useEffect(() => {
     if (!api) return;
@@ -72,7 +84,7 @@ export default function PublicWhiteboardCanvas({ token, pageId, locale, dir, lab
   return <div className="whiteboard is-readonly public-whiteboard" data-theme={theme}>
     <Excalidraw
       onExcalidrawAPI={setApi}
-      initialData={{ elements: scene.elements as unknown as ExcalidrawElement[], files: (scene.files ?? {}) as unknown as BinaryFiles, appState: scene.appState as Partial<AppState>, scrollToContent: true }}
+      initialData={{ elements: initialElements, files: (scene.files ?? {}) as unknown as BinaryFiles, appState: scene.appState as Partial<AppState>, scrollToContent: true }}
       ui={false}
       viewModeEnabled
       // 外部のページの埋め込みは表示しない（保存の形からも外している。src/lib/whiteboard/scene.ts）。
@@ -81,6 +93,7 @@ export default function PublicWhiteboardCanvas({ token, pageId, locale, dir, lab
       langCode={excalidrawLang(locale)}
       onLinkOpen={onLinkOpen}
     />
+    {api && <PageCardOverlay api={api} previews={cards} sceneVersion="public" />}
     {!scene.elements.length && <p className="public-whiteboard-empty">{labels.empty}</p>}
     <div className="whiteboard-zoombar public-whiteboard-zoom">
       <div className="whiteboard-group">

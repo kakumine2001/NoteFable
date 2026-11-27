@@ -74,6 +74,7 @@ const MAX_PUBLIC_TOC_LINKS = 1000;
 
 type RenderContext = {
   token: string;
+  locale: Locale;
   labels: { copy: string; copied: string; download: string };
   whiteboardLabels: PublicWhiteboardEmbedLabels;
   embeddedWhiteboards: Record<string, PublicEmbeddedWhiteboard>;
@@ -519,6 +520,7 @@ function renderBlock(block: RenderBlock, numberIndex: number, ctx: RenderContext
             token={ctx.token}
             pageId={wb.id}
             frameId={frameId}
+            locale={ctx.locale}
             title={wb.title}
             icon={wb.icon}
             iconUrl={isUploadedNoteIcon(wb.icon) ? shareIconUrl(ctx.token, wb.id) : null}
@@ -599,6 +601,7 @@ export async function PublicNoteView({ data, locale }: { data: ResolvedPublicSha
         <article className="notes-column notes-body public-note-body">
           {renderBlockList(blocks, {
             token,
+            locale,
             labels: { copy: t("Copy"), copied: t("Copied"), download: t("Download") },
             whiteboardLabels: {
               loading: t("Loading whiteboard…"),
