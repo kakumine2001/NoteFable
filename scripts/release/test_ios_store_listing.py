@@ -1202,11 +1202,21 @@ class SubmissionTests(unittest.TestCase):
         self.assertIn("0 beta description to write.", self.text())
         self.assertIn("[ok] TestFlight beta app description (en-US): set", self.text())
 
-    def test_creates_the_review_details_with_notes_only(self) -> None:
+    def test_creates_the_review_details_with_notes_and_no_demo_account(self) -> None:
         fake = FakeAppStoreConnect()
         self.assertTrue(self.sync(fake, apply=True), self.text())
-        self.assertEqual(fake.review_detail, {"notes": REVIEW.review_notes})
+        self.assertEqual(fake.review_detail, {"notes": REVIEW.review_notes, "demoAccountRequired": False})
         self.assertEqual(list(fake.beta_texts.values()), [{"locale": "en-US", "description": REVIEW.beta_description}])
+
+    def test_a_demo_account_requirement_is_cleared_unless_one_was_set_up(self) -> None:
+        for name, expected in ((None, False), ("demo-user", True)):
+            with self.subTest(name=name):
+                fake = FakeAppStoreConnect()
+                fake.review_detail = {"notes": REVIEW.review_notes, "demoAccountRequired": True}
+                if name:
+                    fake.review_detail["demoAccountName"] = name
+                self.assertTrue(self.sync(fake, apply=True), self.text())
+                self.assertIs(fake.review_detail["demoAccountRequired"], expected)
 
     def test_a_refusal_to_create_notes_without_a_contact_is_only_a_warning(self) -> None:
         fake = FakeAppStoreConnect()

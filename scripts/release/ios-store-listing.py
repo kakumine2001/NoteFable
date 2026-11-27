@@ -151,8 +151,8 @@ _V2 = re.escape(review_mod.ASC_V2)
 # nothing else, so for example no review contact, demo account or content rights can be sent.
 SCOPED_WRITES = (
     ("PATCH", r"/ageRatingDeclarations/[^/?]+", set(review_mod.AGE_RATING_ATTRIBUTES), set()),
-    ("POST", r"/appStoreReviewDetails", {"notes"}, {"appStoreVersion"}),
-    ("PATCH", r"/appStoreReviewDetails/[^/?]+", {"notes"}, set()),
+    ("POST", r"/appStoreReviewDetails", {"notes", "demoAccountRequired"}, {"appStoreVersion"}),
+    ("PATCH", r"/appStoreReviewDetails/[^/?]+", {"notes", "demoAccountRequired"}, set()),
     ("PATCH", r"/appStoreVersions/[^/?]+", {"copyright"}, set()),
     ("POST", r"/subscriptionGroupVersions", set(), {"subscriptionGroup"}),
     ("POST", r"/subscriptionVersions", set(), {"subscription"}),

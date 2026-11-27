@@ -410,6 +410,7 @@ class ReviewPlan:
     age_changes: dict[str, tuple[Any, Any]] = field(default_factory=dict)
     notes: tuple[str | None, str] | None = None  # (current, new); None: not readable
     detail_id: str | None = None
+    clear_demo_flag: bool = False  # the app needs no demo account
     copyright: tuple[str | None, str] | None = None
     subscriptions: list[SubscriptionPlan] = field(default_factory=list)
     beta: tuple[str | None, str] | None = None
@@ -419,7 +420,9 @@ class ReviewPlan:
 
     @property
     def notes_changed(self) -> bool:
-        return self.notes is not None and normalized(self.notes[0]) != normalized(self.notes[1])
+        return self.notes is not None and (
+            self.clear_demo_flag or normalized(self.notes[0]) != normalized(self.notes[1])
+        )
 
     @property
     def copyright_changed(self) -> bool:
@@ -449,7 +452,10 @@ def _plan_notes(client: Any, info: ReviewInfo, plan: ReviewPlan) -> None:
     path = f"/appStoreVersions/{plan.version_id}/appStoreReviewDetail"
     detail = _without_details(lambda: _get_one(client, path))
     plan.detail_id = detail["id"] if detail else None
-    plan.notes = (attributes(detail or {}).get("notes"), info.review_notes)
+    values = attributes(detail or {})
+    plan.notes = (values.get("notes"), info.review_notes)
+    # Apple turns "demo account required" on by default; turn it off unless someone set one up.
+    plan.clear_demo_flag = detail is None or bool(values.get("demoAccountRequired") and not values.get("demoAccountName"))
 
 
 def _plan_subscription(client: Any, kind: str, parent_id: str, desired: dict, plan: ReviewPlan) -> None:
@@ -559,6 +565,8 @@ def print_review(plan: ReviewPlan, out=print) -> None:
             out(f"    {name}: {shown} -> {str(new).lower() if isinstance(new, bool) else new}")
     if plan.notes:
         _private_change(out, "review notes", plan.notes_changed, *plan.notes)
+        if plan.clear_demo_flag:
+            out("    demo account: set to not required")
         if plan.notes_changed and not plan.detail_id:
             out("    (no review details yet: Apple may refuse them until the contact is entered)")
     if plan.copyright:
@@ -610,6 +618,8 @@ def _write_age_rating(client: Any, plan: ReviewPlan, out) -> None:
 
 def _write_notes(client: Any, plan: ReviewPlan, out) -> None:
     values = {"notes": plan.notes[1]}
+    if plan.clear_demo_flag:
+        values["demoAccountRequired"] = False
     if plan.detail_id:
         payload = _body("appStoreReviewDetails", values, plan.detail_id)
         path = f"/appStoreReviewDetails/{plan.detail_id}"
