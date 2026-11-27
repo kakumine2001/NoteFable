@@ -123,6 +123,7 @@ class NoteEmbedBridgeTest {
         for (editor in listOf(null, "p1", SLIDES_WIZARD_EDITOR)) {
             assertEquals(EmbedRoute.Wizard, embedRoute(closed, editor))
             assertEquals(EmbedRoute.PagesChanged, embedRoute(EmbedMessage.PagesChanged, editor))
+            assertEquals(EmbedRoute.SlidesJobs, embedRoute(EmbedMessage.SlidesJobs(setOf("p1")), editor))
         }
         // 全屏向导：打开幻灯片和上限交给向导，别的（上一个页面晚到的）丢掉。
         assertEquals(EmbedRoute.Wizard, embedRoute(openPage, SLIDES_WIZARD_EDITOR))

@@ -410,6 +410,8 @@ final class NotesViewModel {
         // slidesWizard 在 NoteEditorController 层处理（停靠期和全屏向导画面也要收），这里兜底保持穷举。
         case .slidesWizard(let open, _):
             if open { onSlidesWizardOpened(editor: editor) } else { onSlidesWizardClosed() }
+        // slidesJobs 也在 NoteEditorController 层处理（停靠期也要收），同样兜底。
+        case .slidesJobs(let pageIds): onSlidesJobs(pageIds)
         case .storageLimit(let tier, let used, let limit):
             // 已经关掉或换走的编辑器晚到的消息不收。
             guard state.open?.editor == editor else { break }
@@ -474,6 +476,11 @@ final class NotesViewModel {
 
     func dismissUsageLimit() {
         update { $0.usageLimit = nil }
+    }
+
+    /// 网页正在做幻灯片的笔记换了。
+    func onSlidesJobs(_ pageIds: Set<String>) {
+        if state.generatingSlides != pageIds { update { $0.generatingSlides = pageIds } }
     }
 
     // ---- AI 生成幻灯片的向导（#150，Android NotesViewModel 同名方法） ----

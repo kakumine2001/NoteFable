@@ -83,7 +83,7 @@ Google Play 的 AI 生成内容政策要求能在应用内举报冒犯性的 AI 
 
 工作区（笔记、白板、幻灯片）里用 AI 生成的图片也能举报：生成结果预览框内提供"Report image"入口（已插入幻灯片或白板的 AI 图片选中后也能举报，AI 向导逐页配的图同样可以：幻灯片在设置栏或右键菜单、白板在样式面板点"Report image"；笔记里的图片只能在插入前的预览框里举报），服务端校验归属后把图片的说明（提示词）、文件位置和理由发给开发者邮箱（App 里的工作区编辑器是同一个网页编辑器，同样可用）。
 
-商店详情保存时的"AI 素材申告"（AI アセットの申告）选"不给素材加标签"：截图从 App 实际界面截取，外框用 HTML 模板生成；图标、置顶大图和角色都是代码绘制的矢量图，都没有用图片生成 AI。截图里出现的 AI 回答是 App 功能本身的画面。以后如果商店图片改用生成式 AI 制作或修改，改选"给 AI 素材加标签"，并逐张标注。
+商店详情保存时的"AI 素材申告"（AI アセットの申告）选"不给素材加标签"：截图从 App 实际界面截取，外框用 HTML 模板生成；图标、置顶大图和角色都是代码绘制的矢量图，都没有用图片生成 AI。截图里出现的 AI 回答是 App 功能本身的画面。以后如果商店图片改用生成式 AI 制作或修改，改选"给 AI 素材加标签"，并逐张标注。商店资料工作流上传图片时按同样的答案标记为不是 AI 生成（`scripts/release/play-store-listing.py` 的 `AI_GENERATED_STATE`），改答案时一起改。
 
 ## 政府 ID、照片和视频权限
 
@@ -102,7 +102,7 @@ Google Play 的 AI 生成内容政策要求能在应用内举报冒犯性的 AI 
 1. ~~Play 应用签名~~：已完成（Google 生成的应用签名密钥，使用中）。首次上传 AAB 时选"使用 Google 生成的应用签名密钥"（`bundleRelease`，用上传密钥签名，见 [android.md](../architecture/android.md#正式签名与-google-play)）。每次上传前 `versionCode` 加 1。
 2. ~~在 Google Cloud 新建 Android OAuth 客户端~~：已完成：`NoteFable-Android`（Play 应用签名的 SHA-1）是唯一的 Android 客户端，登记 debug 签名和上传密钥的旧客户端已删除（见 [android.md](../architecture/android.md#正式签名与-google-play)）。
 3. ~~启用订阅 `notefable_pro` 的基础方案 `monthly`~~：已完成（连同 `free-trial-30d` 优惠一并启用）。
-4. ~~填写应用内容声明与商店信息~~：已完成。之后文字或图片的改动（[listing.md](listing.md) 和 `mobile/android/play-store/`）随功能 PR 一起改；Play Console 的商店信息分批同步：进行中的功能都进了 Google Play 的版本（或所有者要求）后，一次把 Console 改成和仓库一致（见 `AGENTS.md`）。应用内容声明、订阅商品和价格不分批，随需要它们的版本一起更新。
+4. ~~填写应用内容声明与商店信息~~：已完成。之后文字或图片的改动（[listing.md](listing.md) 和 `mobile/android/play-store/`）随功能 PR 一起改；Play Console 的商店信息分批同步：进行中的功能都进了 Google Play 的版本（或所有者要求）后，一次把 Console 改成和仓库一致（见 `AGENTS.md`）：商店文字和图片用 GitHub Actions 的 `Google Play store listing` 工作流写入（先 dry run，再 apply；见 [android.md](../architecture/android.md#google-play-商店资料写入)）。应用内容声明、订阅商品和价格不分批，随需要它们的版本一起更新（工作流不碰这些，仍在 Console 里改）。
 5. 把测试账号加到"许可测试"，从测试轨道安装 App，真机走一遍：购买 → 报告（设置里变成 Pro）→ RTDN 到达 → 在 Play 里取消（到期前仍是 Pro）→ 删除账号停止续费。许可测试的订阅按几分钟一个周期续订，便于看续费和到期。
 6. 封闭测试进行中（2026-11-22 启动，目标满足 12 名以上测试人员连续 14 天；期间按计划向 Alpha 发 2–3 次更新）。
 7. 正式版：封闭测试满 14 天后在 Play Console（Reports → Production Access Report）申请正式版权限，选择国家 / 地区并提交审核。

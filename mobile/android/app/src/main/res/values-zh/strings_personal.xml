@@ -8,7 +8,7 @@
     <string name="theme_dark">深色</string>
     <string name="export_markdown">导出 Markdown</string>
     <string name="import_markdown">导入 Markdown</string>
-    <string name="note_export_failed">无法导出此页面。</string>
+    <string name="note_export_failed">无法导出页面。</string>
     <string name="note_export_unsaved">请先处理未保存的草稿，再导出此页面。</string>
     <string name="note_import_failed">无法导入 Markdown 文件。</string>
     <string name="note_import_too_many">一次最多可导入 %1$d 个文件。</string>

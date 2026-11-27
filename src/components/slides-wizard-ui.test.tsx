@@ -320,6 +320,29 @@ describe("Generate slides window: usage limit and the app", () => {
     expect(bridge.posted).toEqual([]);
   });
 
+  it("tells the app which notes it is generating slides from, for the note menu's busy state", async () => {
+    await open({ type: "note", pageId: NOTE_ID, title: "Vaccines" });
+    const start = () => {
+      hooks.effects = [];
+      SlidesWizardHost({ embedded: true });
+      return hooks.effects.find((effect) => String(effect).includes("slidesJobs"))!() as (() => void) | undefined;
+    };
+    // 受け取れない古いアプリには送らない。
+    expect(start()).toBeUndefined();
+    expect(bridge.posted).toEqual([]);
+
+    bridge.canShowWizard = true;
+    const stop = start();
+    expect(bridge.posted).toEqual([{ type: "slidesJobs", pageIds: [] }]);
+    void requestSlides("outline");
+    expect(bridge.posted.at(-1)).toEqual({ type: "slidesJobs", pageIds: [NOTE_ID] });
+    await respond(200, { outline: OUTLINE });
+    expect(bridge.posted).toEqual([{ type: "slidesJobs", pageIds: [] }, { type: "slidesJobs", pageIds: [NOTE_ID] }, { type: "slidesJobs", pageIds: [] }]);
+    stop!();
+    void requestSlides("outline", { fresh: true });
+    expect(bridge.posted).toHaveLength(3);
+  });
+
   it("keeps Generate images OFF by default, previews max image credits before generating, and uses zero Sparkles icons", async () => {
     await open();
     let tree = dialog();

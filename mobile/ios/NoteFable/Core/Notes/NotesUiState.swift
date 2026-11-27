@@ -155,6 +155,8 @@ struct NotesUiState: Equatable, Sendable {
     var reorderError: ReorderFailure? = nil
     /// AI 生成幻灯片的向导；nil 是没开。
     var slidesWizard: SlidesWizardUi? = nil
+    /// 网页正在做幻灯片的笔记（slidesJobs 消息）：笔记"…"的「生成幻灯片」显示生成中。WebView 换掉后清空。
+    var generatingSlides: Set<String> = []
     /// 全屏向导里撞到使用次数上限（没有打开的编辑器时显示在向导上方）。
     var wizardUsageLimit: UsageLimitInfo? = nil
     /// 全屏向导里逐页配图撞到文件存储空间上限（没有打开的编辑器时显示在向导上方）。

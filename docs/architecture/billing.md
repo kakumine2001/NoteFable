@@ -26,7 +26,7 @@ NoteFable 的收费只有一种：月额订阅 **Pro**，每月 ¥300（税込�
 - Pro 用满（2,000 条 + 60 张）最坏约 ¥440–1,480（聊天 ¥200–1,000 + 图片 ¥240–480），高于到手的 ¥287；平均用量远低于此，初期允许亏损。web search 的额外费用未计入。
 - 免费用户没有收入：登录用户每天用满，每月最坏约 ¥200–780（聊天 1,240 条 + 图片 20 张）；未登录每个 IP 的图片最坏约 ¥120–240 / 月。实际用量明显偏高时先收紧这些数值。
 
-改上限（含存储上限）或价格只改 `usage-plans.ts`，然后重新生成 Android 与 iOS 共用的 `mobile/android/app/src/main/assets/usage-limits.json`（`npx tsx scripts/gen-native-usage-limits.ts`；每档带 `storage` 字节数，原生的存储提示和 Pro 说明用它）。服务条款第 3、4 节和特商法标示直接读这里的数值；写成文字的 [Play 商店说明](../play-store/listing.md) 和 [App Store 商店说明](../app-store/listing.md) 要手动改，并改 `legal-page.tsx` 的 `LEGAL_UPDATED_ISO`。
+改上限（含存储上限）或价格只改 `usage-plans.ts`，然后重新生成 Android 与 iOS 共用的 `mobile/android/app/src/main/assets/usage-limits.json`（`npx tsx scripts/gen-native-usage-limits.ts`；每档带 `storage` 字节数，原生的存储提示和 Pro 说明用它）。服务条款第 3、4 节和特商法标示直接读这里的数值；写成文字的 [Play 商店说明](../play-store/listing.md) 、[App Store 商店说明](../app-store/listing.md) 和 [订阅描述](../app-store/review-info.md#订阅) 要手动改，并改 `legal-page.tsx` 的 `LEGAL_UPDATED_ISO`。
 
 ## iOS
 
@@ -80,7 +80,7 @@ Stripe 后台要做的事：
 
 ## Android（Google Play 结算）
 
-Google Play 要求 App 内的数字订阅走 Play 结算，不能引导去网页付款。所以 App 里用 Play Billing 卖同一个 Pro，网页用 Stripe；两边写进同一组 `User` 列（`subscriptionProvider` = `stripe` / `google`，iOS 的 App Store 订阅是 `apple`；`src/lib/subscription-state.ts`）。服务端的上限提示句不提“升级”，升级提示由各端界面自己显示；App 内嵌的笔记编辑页（`/note-embed`）不显示网页的 Stripe 升级提示。Play 收 15%，¥300 到手约 ¥255。
+Google Play 要求 App 内的数字订阅走 Play 结算，不能引导去网页付款。所以 App 里用 Play Billing 卖同一个 Pro，网页用 Stripe；两边写进同一组 `User` 列（`subscriptionProvider` = `stripe` / `google`，iOS 的 App Store 订阅是 `apple`；`src/lib/subscription-state.ts`）。服务端的上限提示句不提“升级”，升级提示由各端界面自己显示；App 内嵌的页面编辑页（`/note-embed`）不显示网页的 Stripe 升级提示。Play 收 15%，¥300 到手约 ¥255。
 
 1. **购买**（`data/PlayBilling.kt`，billing-ktx 9.1.0）：设置的“方案”（`ui/PlanSettings.kt`）和上限提示（`UpgradeLimitPrompt`）在 `GET /api/billing` 的 `googlePlay` 为 true、且能读到 Play 商品时显示“升级到 Pro”，价格用 Play 返回的本地化价格。购买窗口带上 `accountId`（`setObfuscatedAccountId`，就是 `User.id`）。不是从 Play 安装的 APK（例如 Drive 发的）连不上 Play 结算，不显示购买按钮。
 2. **报告**：买到后 App 把购买令牌发到 `POST /api/billing/google`。服务端用 Play Developer API（`purchases.subscriptionsv2.get`）核对：令牌上的 `obfuscatedExternalAccountId`（Play 商店里重新购买时是原购买的）必须是当前用户；没有这个 ID 时，只认已经记录在当前用户上的令牌（或它的前一个令牌）；令牌也不能已被别的用户用过。有效就确认（acknowledge）并写入，返回 Pro。付款还在处理（`PENDING`）时返回 202。网页（Stripe）已经是 Pro 时不确认这笔购买，Google 3 天后自动退款，返回 409。App 打开设置时会把没报告成功的购买（还没确认的）再报告一次。
@@ -108,6 +108,6 @@ GOOGLE_PLAY_PRODUCT_ID            # 可选，默认 notefable_pro
 已经建好的（2026-11-17）：
 
 - Play Console：App `NoteFable`（`com.kakumine.notefable`），已不再是草稿应用（2026-11-20 发布 1.0.12 至内部测试与 Alpha，仓库当前版本为 1.0.19 / versionCode 29，Play 上的实际版本以 Console 为准），之后的版本由 GitHub Actions 同时发布到内部测试和 Alpha（见 [android.md](android.md#正式签名与-google-play)）；订阅 `notefable_pro` 的基础方案 `monthly`（按月自动续订、宽限期 7 天、日本 ¥300，其他国家按汇率换算），已启用；上面有免费试用优惠 `free-trial-30d`（资格“新客户获取：没用过这个订阅”，30 天，已启用）；收益化设置里开了实时通知，主题 `projects/studymate-511413/topics/play-rtdn`。
-- Play Console 用户：`play-billing@studymate-511413.iam.gserviceaccount.com`，权限“查看销售数据…”和“管理订单和订阅”。
+- Play Console 用户：`play-billing@studymate-511413.iam.gserviceaccount.com`，权限“查看销售数据…”和“管理订单和订阅”。这个账号只用于订阅结算；发布版本和写商店资料用另一个服务账号 `play-release`（权限和密钥见 [android.md](android.md#正式签名与-google-play)）。
 - Google Cloud 项目 `studymate-511413`：开了 Google Play Android Developer API 和 Pub/Sub；服务账号 `play-billing`（JSON 密钥已下载，只放 Vercel）、`pubsub-push`（无密钥，Pub/Sub 服务代理有它的 Token Creator）；主题 `play-rtdn`（`google-play-developer-notifications@system.gserviceaccount.com` 是发布者）；push 订阅 `play-rtdn-push` → `https://app.notefable.com/api/billing/google/notify`，用 `pubsub-push` 做 OIDC 认证，audience 同地址。
 - 测试：把测试账号加到“许可测试”，App 必须从 Play 的测试轨道安装（Drive 的 APK 不能购买）。

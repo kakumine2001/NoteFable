@@ -2,7 +2,8 @@ import SwiftUI
 import UIKit
 
 // AI 的页面提案卡片（网页 page-proposal.tsx + globals.css 的 .page-edit*，Android `ProposalCard.kt`）。
-// 笔记、白板、幻灯片同一张卡片：改动的文字和缩略图是服务端各类型的适配器做好的（`ProposalChange`），这里照着画，不分类型。
+// 笔记、白板、幻灯片同一张卡片：改动的文字和缩略图是服务端各类型的适配器做好的（`ProposalChange`），这里照着画
+// （只有白板的英文说明在显示时翻译，见 `Core/Chat/WhiteboardProposalText.swift`）。
 //  - 外框：上距 13.6、1px --notion-border-strong、圆角 8；字 13.6 / 行高 1.55；已处理（应用 / 放弃 / 撤销）的卡片透明度 .72；
 //  - 标题行：内边距 8×12、--notion-sidebar 底、600、正文色；箭头 14（描边 2，--notion-faint），展开转 90°，图标 14
 //    （笔记 FilePenLine / FilePlus2 描边 1.9，白板、幻灯片是页面类型的图标、描边 2），间距 7.2；最右是"报告 AI 内容"的旗子
@@ -221,13 +222,14 @@ struct ProposalCard: View {
             if let inside = ProposalCopy.inside(create) {
                 opLabel(inside)
             }
+            let summary = create.pageKind == .whiteboard ? WhiteboardProposalText.summary(create.content, app.systemText) : create.content
             // 空のページの一行は、本文も改动（缩略图）も無いときだけ（网页と同じ）。
-            if !create.content.isEmpty || create.changes.isEmpty {
+            if !summary.isEmpty || create.changes.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
-                    if create.content.isEmpty {
+                    if summary.isEmpty {
                         opLabel(ProposalCopy.emptyContent(create.pageKind))
                     } else {
-                        afterText(create.content)
+                        afterText(summary)
                     }
                 }
             }
@@ -236,7 +238,8 @@ struct ProposalCard: View {
     }
 
     private func changeList(_ changes: [ProposalChange]) -> some View {
-        ForEach(Array(changes.enumerated()), id: \.offset) { _, change in
+        ForEach(Array(changes.enumerated()), id: \.offset) { _, stored in
+            let change = proposal.pageKind == .whiteboard ? WhiteboardProposalText.change(stored, app.systemText) : stored
             VStack(alignment: .leading, spacing: 0) {
                 opLabel(ProposalCopy.changeLabel(change, kind: proposal.pageKind))
                 if change.beforeImage != nil || change.afterImage != nil {

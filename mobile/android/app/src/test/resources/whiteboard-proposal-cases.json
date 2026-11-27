@@ -1,0 +1,1375 @@
+{
+ "keys": [
+  "Rectangle",
+  "Ellipse",
+  "Diamond",
+  "Sticky note",
+  "Text",
+  "Arrow",
+  "Line",
+  "Pen",
+  "Image",
+  "Frame",
+  "Default",
+  "Yellow",
+  "Blue",
+  "Green",
+  "Orange",
+  "Red",
+  "Purple",
+  "Teal",
+  "Pink",
+  "Gray",
+  "Solid",
+  "Dashed",
+  "Dotted",
+  "Small",
+  "Medium",
+  "Large",
+  "Extra large",
+  "in a row",
+  "in a column",
+  "in a grid",
+  "in a cluster",
+  "flowchart",
+  "sequence diagram",
+  "state diagram",
+  "class diagram",
+  "ER diagram",
+  "timeline",
+  "Gantt chart",
+  "quadrant chart",
+  "mind map",
+  "Diagram ({kind}, 1 element)",
+  "Diagram ({kind}, {count} elements)",
+  "Frame “{name}” (1 item)",
+  "Frame “{name}” ({count} items)",
+  "Frame “{name}”",
+  "Frame “{name}” (1 element)",
+  "Frame “{name}” ({count} elements)",
+  "Move into frame “{name}”",
+  "Remove from frame",
+  "Arrange 1 element {layout}",
+  "Arrange {count} elements {layout}",
+  "Arrange 1 element {layout} inside frame “{name}”",
+  "Arrange {count} elements {layout} inside frame “{name}”",
+  "Group 1 element",
+  "Group {count} elements",
+  "Ungroup 1 element",
+  "Ungroup {count} elements",
+  "{type}: {text}",
+  "(empty)",
+  "(unnamed)",
+  "Color: {color}",
+  "Line style: {style}",
+  "Text size: {size}"
+ ],
+ "changes": [
+  {
+   "input": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Interview users"
+    },
+    "after": "stickynote: Interview users"
+   },
+   "expected": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Interview users"
+    },
+    "after": "‹‹Sticky note›: Interview users›"
+   }
+  },
+  {
+   "input": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "rectangle"
+    },
+    "after": "rectangle: (empty)"
+   },
+   "expected": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "‹Rectangle›"
+    },
+    "after": "‹‹Rectangle›: ‹(empty)››"
+   }
+  },
+  {
+   "input": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "(empty)"
+    },
+    "after": "text: (empty)"
+   },
+   "expected": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "(empty)"
+    },
+    "after": "‹‹Text›: (empty)›"
+   }
+  },
+  {
+   "input": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx e…"
+    },
+    "after": "stickynote: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx　  end of a long label that keeps going"
+   },
+   "expected": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx e…"
+    },
+    "after": "‹‹Sticky note›: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx　  end of a long label that keeps going›"
+   }
+  },
+  {
+   "input": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Line one two"
+    },
+    "after": "ellipse: Line one\ntwo"
+   },
+   "expected": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Line one two"
+    },
+    "after": "‹‹Ellipse›: Line one\ntwo›"
+   }
+  },
+  {
+   "input": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Next"
+    },
+    "after": "Frame \"Next\" (2 elements)"
+   },
+   "expected": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Next"
+    },
+    "after": "‹Frame “Next” (2 elements)›"
+   }
+  },
+  {
+   "input": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Next"
+    },
+    "after": "Frame \"Next\" (1 element)"
+   },
+   "expected": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Next"
+    },
+    "after": "‹Frame “Next” (1 element)›"
+   }
+  },
+  {
+   "input": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "A \"B\" (3 elements)"
+    },
+    "after": "Frame \"A \"B\" (3 elements)\""
+   },
+   "expected": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "A \"B\" (3 elements)"
+    },
+    "after": "‹Frame “A \"B\" (3 elements)”›"
+   }
+  },
+  {
+   "input": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Frame"
+    },
+    "after": "Frame \"Frame\""
+   },
+   "expected": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Frame"
+    },
+    "after": "‹Frame “Frame”›"
+   }
+  },
+  {
+   "input": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Research -> Decide"
+    },
+    "after": "Research -> Decide"
+   },
+   "expected": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Research -> Decide"
+    },
+    "after": "Research -> Decide"
+   }
+  },
+  {
+   "input": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "rectangle -> ellipse"
+    },
+    "after": "rectangle -> ellipse"
+   },
+   "expected": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "‹Rectangle› -> ‹Ellipse›"
+    },
+    "after": "‹Rectangle› -> ‹Ellipse›"
+   }
+  },
+  {
+   "input": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "a -> b -> arrow"
+    },
+    "after": "a -> b -> arrow"
+   },
+   "expected": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "a -> b -> arrow"
+    },
+    "after": "a -> b -> arrow"
+   }
+  },
+  {
+   "input": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "feeds"
+    },
+    "after": "text -> diamond (\"feeds\")"
+   },
+   "expected": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "feeds"
+    },
+    "after": "‹Text› -> ‹Diamond› (\"feeds\")"
+   }
+  },
+  {
+   "input": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "x: y"
+    },
+    "after": "text: abc -> x (\"x: y\")"
+   },
+   "expected": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "x: y"
+    },
+    "after": "text: abc -> x (\"x: y\")"
+   }
+  },
+  {
+   "input": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "text: abc -> def"
+    },
+    "after": "text: abc -> def"
+   },
+   "expected": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "text: abc -> def"
+    },
+    "after": "text: abc -> def"
+   }
+  },
+  {
+   "input": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "x"
+    },
+    "after": "Something new"
+   },
+   "expected": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "x"
+    },
+    "after": "Something new"
+   }
+  },
+  {
+   "input": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 2
+    },
+    "after": "Group 2 elements"
+   },
+   "expected": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 2
+    },
+    "after": "‹Group 2 elements›"
+   }
+  },
+  {
+   "input": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1
+    },
+    "after": "Group 1 elements"
+   },
+   "expected": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1
+    },
+    "after": "‹Group 1 element›"
+   }
+  },
+  {
+   "input": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1
+    },
+    "after": "Ungroup 1 elements"
+   },
+   "expected": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1
+    },
+    "after": "‹Ungroup 1 element›"
+   }
+  },
+  {
+   "input": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 3
+    },
+    "after": "Ungroup 3 elements"
+   },
+   "expected": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 3
+    },
+    "after": "‹Ungroup 3 elements›"
+   }
+  },
+  {
+   "input": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 3
+    },
+    "after": "Regroup 3 elements"
+   },
+   "expected": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 3
+    },
+    "after": "Regroup 3 elements"
+   }
+  },
+  {
+   "input": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Research · users"
+    },
+    "before": "Research",
+    "after": "Research · users · color: Purple · style: dashed"
+   },
+   "expected": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Research · users"
+    },
+    "before": "Research",
+    "after": "Research · users · ‹Color: ‹Purple›› · ‹Line style: ‹Dashed››"
+   }
+  },
+  {
+   "input": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "text"
+    },
+    "before": "(empty)",
+    "after": "text"
+   },
+   "expected": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "text"
+    },
+    "before": "‹(empty)›",
+    "after": "text"
+   }
+  },
+  {
+   "input": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "rectangle"
+    },
+    "before": "Old",
+    "after": "(empty)"
+   },
+   "expected": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "‹Rectangle›"
+    },
+    "before": "Old",
+    "after": "‹(empty)›"
+   }
+  },
+  {
+   "input": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "color: red"
+    },
+    "after": "color: red"
+   },
+   "expected": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "color: red"
+    },
+    "after": "color: red"
+   }
+  },
+  {
+   "input": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "ellipse"
+    },
+    "after": "color: #D0EBFF"
+   },
+   "expected": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "‹Ellipse›"
+    },
+    "after": "‹Color: #D0EBFF›"
+   }
+  },
+  {
+   "input": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "ellipse"
+    },
+    "after": "color:  Grey  "
+   },
+   "expected": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "‹Ellipse›"
+    },
+    "after": "‹Color: ‹Gray››"
+   }
+  },
+  {
+   "input": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "ellipse"
+    },
+    "after": "color: "
+   },
+   "expected": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "‹Ellipse›"
+    },
+    "after": "‹Color: ‹Default››"
+   }
+  },
+  {
+   "input": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Goal"
+    },
+    "after": "color: chartreuse"
+   },
+   "expected": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Goal"
+    },
+    "after": "color: chartreuse"
+   }
+  },
+  {
+   "input": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Goal"
+    },
+    "after": "size: xl"
+   },
+   "expected": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Goal"
+    },
+    "after": "‹Text size: ‹Extra large››"
+   }
+  },
+  {
+   "input": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Goal"
+    },
+    "after": "color: teal · style: dotted · size: small"
+   },
+   "expected": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Goal"
+    },
+    "after": "‹Color: ‹Teal›› · ‹Line style: ‹Dotted›› · ‹Text size: ‹Small››"
+   }
+  },
+  {
+   "input": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Frame"
+    },
+    "before": "(unnamed)",
+    "after": "Frame"
+   },
+   "expected": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Frame"
+    },
+    "before": "‹(unnamed)›",
+    "after": "Frame"
+   }
+  },
+  {
+   "input": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "arrow"
+    },
+    "after": "style: solid"
+   },
+   "expected": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "‹Arrow›"
+    },
+    "after": "‹Line style: ‹Solid››"
+   }
+  },
+  {
+   "input": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx e…"
+    },
+    "before": "Old",
+    "after": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx　  end of a long label that keeps going · color: red · style: dashed · size: large"
+   },
+   "expected": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx e…"
+    },
+    "before": "Old",
+    "after": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx　  end of a long label that keeps going · ‹Color: ‹Red›› · ‹Line style: ‹Dashed›› · ‹Text size: ‹Large››"
+   }
+  },
+  {
+   "input": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx e…"
+    },
+    "before": "Old",
+    "after": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx　  end of a long label that keeps going · size: small"
+   },
+   "expected": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx e…"
+    },
+    "before": "Old",
+    "after": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx　  end of a long label that keeps going · ‹Text size: ‹Small››"
+   }
+  },
+  {
+   "input": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx e…"
+    },
+    "before": "Old",
+    "after": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx　  end of a long label that keeps going"
+   },
+   "expected": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx e…"
+    },
+    "before": "Old",
+    "after": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx　  end of a long label that keeps going"
+   }
+  },
+  {
+   "input": {
+    "op": "move",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "diamond"
+    },
+    "after": "Move into frame \"Plan\""
+   },
+   "expected": {
+    "op": "move",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "‹Diamond›"
+    },
+    "after": "‹Move into frame “Plan”›"
+   }
+  },
+  {
+   "input": {
+    "op": "move",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 3
+    },
+    "after": "Move into frame \"A \"quoted\" name\""
+   },
+   "expected": {
+    "op": "move",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 3
+    },
+    "after": "‹Move into frame “A \"quoted\" name”›"
+   }
+  },
+  {
+   "input": {
+    "op": "move",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Ship"
+    },
+    "after": "Remove from frame"
+   },
+   "expected": {
+    "op": "move",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Ship"
+    },
+    "after": "‹Remove from frame›"
+   }
+  },
+  {
+   "input": {
+    "op": "reorder",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 3
+    },
+    "after": "Arrange 3 elements in row"
+   },
+   "expected": {
+    "op": "reorder",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 3
+    },
+    "after": "‹Arrange 3 elements ‹in a row››"
+   }
+  },
+  {
+   "input": {
+    "op": "reorder",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1
+    },
+    "after": "Arrange 1 element in column"
+   },
+   "expected": {
+    "op": "reorder",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1
+    },
+    "after": "‹Arrange 1 element ‹in a column››"
+   }
+  },
+  {
+   "input": {
+    "op": "reorder",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 4
+    },
+    "after": "Arrange 4 elements in grid inside frame \"Plan\""
+   },
+   "expected": {
+    "op": "reorder",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 4
+    },
+    "after": "‹Arrange 4 elements ‹in a grid› inside frame “Plan”›"
+   }
+  },
+  {
+   "input": {
+    "op": "reorder",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 2
+    },
+    "after": "Arrange 2 elements in cluster inside frame \"Line\nbreak\""
+   },
+   "expected": {
+    "op": "reorder",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 2
+    },
+    "after": "‹Arrange 2 elements ‹in a cluster› inside frame “Line\nbreak”›"
+   }
+  },
+  {
+   "input": {
+    "op": "reorder",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 2
+    },
+    "after": "Arrange 2 elements in spiral"
+   },
+   "expected": {
+    "op": "reorder",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 2
+    },
+    "after": "Arrange 2 elements in spiral"
+   }
+  },
+  {
+   "input": {
+    "op": "delete",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "arrow"
+    },
+    "before": "arrow"
+   },
+   "expected": {
+    "op": "delete",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "‹Arrow›"
+    },
+    "before": "‹Arrow›"
+   }
+  },
+  {
+   "input": {
+    "op": "delete",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Ship it"
+    },
+    "before": "Ship it"
+   },
+   "expected": {
+    "op": "delete",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Ship it"
+    },
+    "before": "Ship it"
+   }
+  },
+  {
+   "input": {
+    "op": "delete",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 3
+    },
+    "before": "line, Ship it, freedraw"
+   },
+   "expected": {
+    "op": "delete",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 3
+    },
+    "before": "‹Line›, Ship it, ‹Pen›"
+   }
+  },
+  {
+   "input": {
+    "op": "delete",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 8
+    },
+    "before": "a, b, c, d, image, stickynote (+2)"
+   },
+   "expected": {
+    "op": "delete",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 8
+    },
+    "before": "a, b, c, d, ‹Image›, ‹Sticky note› (+2)"
+   }
+  },
+  {
+   "input": {
+    "op": "delete",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 2
+    },
+    "before": "apples, arrow, pears"
+   },
+   "expected": {
+    "op": "delete",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 2
+    },
+    "before": "apples, arrow, pears"
+   }
+  },
+  {
+   "input": {
+    "op": "delete",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Frame"
+    },
+    "before": "Frame"
+   },
+   "expected": {
+    "op": "delete",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "‹Frame›"
+    },
+    "before": "‹Frame›"
+   }
+  },
+  {
+   "input": {
+    "op": "delete",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 2
+    },
+    "before": "Frame, Ship it"
+   },
+   "expected": {
+    "op": "delete",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 2
+    },
+    "before": "‹Frame›, Ship it"
+   }
+  },
+  {
+   "input": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Frame"
+    },
+    "after": "style: dashed"
+   },
+   "expected": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "‹Frame›"
+    },
+    "after": "‹Line style: ‹Dashed››"
+   }
+  },
+  {
+   "input": {
+    "op": "move",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Frame"
+    },
+    "after": "Remove from frame"
+   },
+   "expected": {
+    "op": "move",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "‹Frame›"
+    },
+    "after": "‹Remove from frame›"
+   }
+  },
+  {
+   "input": {
+    "op": "move",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Ship"
+    },
+    "after": "Move into frame \"Frame\""
+   },
+   "expected": {
+    "op": "move",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Ship"
+    },
+    "after": "‹Move into frame “‹Frame›”›"
+   }
+  },
+  {
+   "input": {
+    "op": "reorder",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 2
+    },
+    "after": "Arrange 2 elements in row inside frame \"Frame\""
+   },
+   "expected": {
+    "op": "reorder",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 2
+    },
+    "after": "‹Arrange 2 elements ‹in a row› inside frame “‹Frame›”›"
+   }
+  },
+  {
+   "input": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "Frame -> ellipse"
+    },
+    "after": "Frame -> ellipse"
+   },
+   "expected": {
+    "op": "add",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "‹Frame› -> ‹Ellipse›"
+    },
+    "after": "‹Frame› -> ‹Ellipse›"
+   }
+  },
+  {
+   "input": {
+    "op": "replace",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "rectangle"
+    },
+    "before": "rectangle",
+    "after": "(empty)"
+   },
+   "expected": {
+    "op": "replace",
+    "block": 0,
+    "target": {
+     "type": "elements",
+     "count": 1,
+     "name": "rectangle"
+    },
+    "before": "rectangle",
+    "after": "(empty)"
+   }
+  },
+  {
+   "input": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "slide",
+     "number": 2
+    },
+    "before": "color: red",
+    "after": "(empty)"
+   },
+   "expected": {
+    "op": "update",
+    "block": 0,
+    "target": {
+     "type": "slide",
+     "number": 2
+    },
+    "before": "color: red",
+    "after": "(empty)"
+   }
+  },
+  {
+   "input": {
+    "op": "delete",
+    "block": 0,
+    "before": "rectangle"
+   },
+   "expected": {
+    "op": "delete",
+    "block": 0,
+    "before": "rectangle"
+   }
+  }
+ ],
+ "summaries": [
+  {
+   "input": "Diagram (flowchart, 5 elements)",
+   "expected": "‹Diagram (‹flowchart›, 5 elements)›"
+  },
+  {
+   "input": "Diagram (graph, 1 element)",
+   "expected": "‹Diagram (‹flowchart›, 1 element)›"
+  },
+  {
+   "input": "Diagram (stateDiagram-v2, 12 elements)",
+   "expected": "‹Diagram (‹state diagram›, 12 elements)›"
+  },
+  {
+   "input": "Diagram (mindmap, 40 elements)",
+   "expected": "‹Diagram (‹mind map›, 40 elements)›"
+  },
+  {
+   "input": "Diagram (unknownKind, 2 elements)",
+   "expected": "Diagram (unknownKind, 2 elements)"
+  },
+  {
+   "input": "Frame \"To Do\" (1 item)\nFrame \"Done\" (0 items)\n- text: Notes: later\n- rectangle: Box",
+   "expected": "‹Frame “To Do” (1 item)›\n‹Frame “Done” (0 items)›\n- ‹‹Text›: Notes: later›\n- ‹‹Rectangle›: Box›"
+  },
+  {
+   "input": "- stickynote: Frame \"x\" (2 items)\n- diamond: \nA line the server never wrote",
+   "expected": "- ‹‹Sticky note›: Frame \"x\" (2 items)›\n- ‹‹Diamond›: ›\nA line the server never wrote"
+  },
+  {
+   "input": "",
+   "expected": ""
+  }
+ ]
+}

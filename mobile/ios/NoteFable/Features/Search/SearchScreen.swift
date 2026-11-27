@@ -266,23 +266,31 @@ private struct GlassSearchField: View {
             LucideIcon(Lucide.search, size: 17, color: path.secondaryInk)
                 // 点在图标上落到下面的焦点层。
                 .allowsHitTesting(false)
-            TextField(
-                "",
-                text: $text,
-                prompt: Text(L("search_chats_and_notes")).foregroundStyle(path == .native ? Color.secondary : Sm.faint)
-            )
-            .textFieldStyle(.plain)
-            .font(.nf(16))
-            .foregroundStyle(path.primaryInk)
-            .tint(Sm.ink)
-            .focused($focused)
-            .submitLabel(.search)
-            .autocorrectionDisabled()
-            .textInputAutocapitalization(.never)
-            .onSubmit(submit)
-            .frame(height: NFChromeMetrics.control)
-            .frame(maxWidth: .infinity)
-            .accessibilityLabel(L("search_chats_and_notes"))
+            TextField("", text: $text)
+                .textFieldStyle(.plain)
+                .font(.nf(16))
+                .foregroundStyle(path.primaryInk)
+                .tint(Sm.ink)
+                .focused($focused)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .onSubmit(submit)
+                .frame(height: NFChromeMetrics.control)
+                .frame(maxWidth: .infinity)
+                .accessibilityLabel(L("search_chats_and_notes"))
+                // 占位文字自己画：长译文（法语等）缩小字号放进一行（系统的 prompt 只会截断；和 Android 一样最小 12）。
+                .overlay(alignment: .leading) {
+                    if text.isEmpty {
+                        Text(L("search_chats_and_notes"))
+                            .font(.nf(16))
+                            .foregroundStyle(path == .native ? Color.secondary : Sm.faint)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
+                }
 
             if loading {
                 Spinner(size: 16, color: path.secondaryInk, duration: 0.8)

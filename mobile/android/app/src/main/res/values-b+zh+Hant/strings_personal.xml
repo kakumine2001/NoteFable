@@ -9,7 +9,7 @@
     <string name="theme_dark">深色</string>
     <string name="export_markdown">匯出 Markdown</string>
     <string name="import_markdown">匯入 Markdown</string>
-    <string name="note_export_failed">無法匯出此頁面。</string>
+    <string name="note_export_failed">無法匯出頁面。</string>
     <string name="note_export_unsaved">請先處理未儲存的草稿，再匯出此頁面。</string>
     <string name="note_import_failed">無法匯入 Markdown 檔案。</string>
     <string name="note_import_too_many">一次最多可匯入 %1$d 個檔案。</string>

@@ -1,6 +1,8 @@
 // チャットの自前ツール（Notes など）を、プロバイダーに依存しない形で扱う共通部品。
 // 各プロバイダーのループ（anthropic-messages.ts / responses-tool-loop.ts）はここを経由して実行する。
 
+import { msg } from "@/lib/i18n/translate";
+
 export type ToolDefinition = { name: string; description: string; parameters: Record<string, unknown> };
 // ツール結果に添える画像（ページの予覧）。base64 は data: を付けない本体。
 export type ToolImage = { mimeType: "image/png" | "image/jpeg" | "image/webp"; base64: string };
@@ -60,7 +62,7 @@ export async function runToolCalls(calls: ToolCall[], runTool: ToolRunner, send:
     }
     send({ type: "notefable.tool", id: call.id, name: call.name, status: "running" });
     const result = await runTool(call.name, call.input).catch((): ToolRun => ({
-      content: "The tool failed. Tell the user it could not be completed.", isError: true, label: "Tool failed",
+      content: "The tool failed. Tell the user it could not be completed.", isError: true, label: msg("Tool failed"),
     }));
     send({ type: "notefable.tool", id: call.id, name: call.name, status: "done", label: result.label });
     for (const event of result.events ?? []) send(event);

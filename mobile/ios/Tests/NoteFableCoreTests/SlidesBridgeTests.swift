@@ -65,6 +65,32 @@ final class SlidesBridgeTests: XCTestCase {
         XCTAssertNil(EmbedMessage.parse(#"{"type":"slidesWizard","state":"unknown"}"#))
     }
 
+    func testParsesTheNotesWhoseSlidesAreBeingGenerated() {
+        XCTAssertEqual(EmbedMessage.parse(#"{"type":"slidesJobs","pageIds":["p1","p2"]}"#), .slidesJobs(pageIds: ["p1", "p2"]))
+        XCTAssertEqual(EmbedMessage.parse(#"{"type":"slidesJobs","pageIds":[]}"#), .slidesJobs(pageIds: []))
+        // 不是字符串、空白的丢掉；pageIds 不是数组或缺了的整条丢掉。
+        XCTAssertEqual(EmbedMessage.parse(#"{"type":"slidesJobs","pageIds":["p1",""," ",3,null]}"#), .slidesJobs(pageIds: ["p1"]))
+        XCTAssertNil(EmbedMessage.parse(#"{"type":"slidesJobs","pageIds":"p1"}"#))
+        XCTAssertNil(EmbedMessage.parse(#"{"type":"slidesJobs"}"#))
+    }
+
+    @MainActor
+    func testTheViewModelTracksTheNotesWhoseSlidesAreBeingGenerated() async {
+        let backend = NotesTestBackend()
+        let vm = NotesViewModel(backend: backend)
+        vm.setWorkspace(.notes)
+        await notesSettle()
+        let bridge = NoteEmbedBridge { vm.onEditorMessage("a", $0) }
+        bridge.postMessage(#"{"type":"slidesJobs","pageIds":["a"]}"#)
+        XCTAssertEqual(vm.state.generatingSlides, ["a"])
+        // 打开别的笔记不清掉：生成在网页里接着跑。
+        vm.openNote("b")
+        await notesSettle()
+        XCTAssertEqual(vm.state.generatingSlides, ["a"])
+        bridge.postMessage(#"{"type":"slidesJobs","pageIds":[]}"#)
+        XCTAssertEqual(vm.state.generatingSlides, [])
+    }
+
     func testSlidesWizardUrlAndBootstrapCapability() {
         let api = makeApi(FakeTransport(), baseUrl: "https://example.test")
         XCTAssertEqual(

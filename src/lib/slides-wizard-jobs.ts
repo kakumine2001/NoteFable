@@ -84,6 +84,13 @@ export function getSlidesJobState(key: string): SlidesJob["state"] {
   return sessions.get(key)?.job.state ?? "idle";
 }
 
+// ノートを入口にしたスライドを作っている最中のノート（アプリの「…」メニューの「作成中」。getSlidesJobState("note:<id>") と同じ条件）。
+export function workingSlidesNoteIds(): string[] {
+  return [...sessions.values()]
+    .flatMap((session) => (session.entry.type === "note" && session.job.state === "working" ? [session.entry.pageId] : []))
+    .sort();
+}
+
 export function isSlidesWizardBusy() {
   return [...sessions.values()].some((session) => session.job.state === "working") || isAnySlideImageJobWorking();
 }

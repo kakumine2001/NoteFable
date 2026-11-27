@@ -7,7 +7,7 @@
 ## PR 检查
 
 - 工作流：[`.github/workflows/ios-pr.yml`](../../.github/workflows/ios-pr.yml)
-- 改动 `mobile/ios/**`、`mobile/android/app/src/main/assets/**`、`.github/workflows/ios-*.yml`、`scripts/release/ios-version*.sh`、`scripts/release/ios-testflight-*.py`、`scripts/release/test_ios_testflight_*.py`、`scripts/release/ios-store-listing.py`、`scripts/release/test_ios_store_listing.py` 或 `scripts/release/verify-merged-pr*.sh` 并向 `main` 提 PR 时运行；只改 PR 标题或描述时不触发。App Store 截图（`mobile/ios/app-store/screenshots/**`）除外：它们不参与构建，由 [`store-listing-pr.yml`](../../.github/workflows/store-listing-pr.yml) 检查（见下文“App Store 商店信息写入”）。
+- 改动 `mobile/ios/**`、`mobile/android/app/src/main/assets/**`、`.github/workflows/ios-*.yml`、`scripts/release/ios-version*.sh`、`scripts/release/ios-testflight-*.py`、`scripts/release/test_ios_testflight_*.py`、`scripts/release/ios-store-listing.py`、`scripts/release/ios-store-review.py`、`scripts/release/test_ios_store_listing.py` 或 `scripts/release/verify-merged-pr*.sh` 并向 `main` 提 PR 时运行；只改 PR 标题或描述时不触发。App Store 截图（`mobile/ios/app-store/screenshots/**`）除外：它们不参与构建，由 [`store-listing-pr.yml`](../../.github/workflows/store-listing-pr.yml) 检查（见下文“App Store 商店信息写入”）。
 - 先在 `ubuntu-latest` 上运行合并 PR 校验脚本测试（`scripts/release/verify-merged-pr.test.sh`）、版本号校验脚本测试（`scripts/release/ios-version.test.sh`）、TestFlight 分发与商店信息脚本测试（`scripts/release/test_ios_*.py`）与本次 PR 的版本号检查（`scripts/release/ios-version.sh`），脚本或版本号出错时不必启动 macOS。
 - 只有校验通过且仓库存在 `mobile/ios/project.yml` 时，才启动两台并行的 `xcode-27` 镜像（macOS + Xcode 27）：`core-tests` 运行 Core 的单元测试（`mobile/ios/scripts/ci-core-tests.sh`：`swift test` 加一个时限，测试挂住时打印卡住的调用栈并提前结束，不把任务时限耗完），`ios` 用 XcodeGen 生成工程并做模拟器无签名构建。PR 检查不接触任何发布凭据。
 - **模拟器截图（`ios-screenshots`）**：默认不跑，只有 PR 带 `ios-screenshots` 标签时才跑（iOS 界面大改时加）。标签由 `version` 任务在每次运行时向 GitHub 现查，所以后加标签时推一次提交或重跑本检查即可生效。带标签时，`ios` 任务把构建好的 Debug `NoteFable.app` 打包为 `NoteFable-sim.tgz` 上传；手机端三个矩阵任务分别在 `xcode-27`（iOS 27）与 `macos-15`（iOS 26、iOS 18）上与构建同时启动：先屏蔽生产域名，再在后台用 `mobile/ios/scripts/ci-screenshots.sh --boot-only` 预启动模拟器（托管机器上冷启动要 2～6 分钟，和构建重叠掉），轮询到 `ios` 任务成功后下载安装包并运行 `mobile/ios/scripts/ci-screenshots.sh`（`ios` 任务失败则截图任务直接失败），在屏蔽生产域名的隔离环境下以 Debug fixture 模式（`-NFFixtures YES`、按账号形态同进程批量切换场景，不接触线上接口与真实 Cookie/偏好）截取 PNG：默认变体 `light dark ar rt`，`light` 拍全部 27 个场景，`dark` 拍 15 个，`ar`（系统阿拉伯语）拍 9 个，`rt`（降低透明度）拍 11 个，每个手机系统共 62 张（各变体拍哪些在脚本的 `variant_scenes` 里，挑外观有差别的：内容从浮动玻璃栏下面滚过、玻璃选择器、提示条等）；`ar-app`（系统英文 + 应用内阿拉伯语，靠 App 自己的窗口同步镜像，4 个）和 `hc`（增强对比度，3 个）只在 `NF_VARIANTS` 点名时拍，`NF_ALL_SCENES=1` 让每种变体都拍全部场景。每个场景的 READY 行要报对外壳走的路径（`glass=`：iOS 26+ 为 `native`、更早的系统为 `material`、`rt` 为 `solid`），`hc` 还要报 `increaseContrast=true`，不符时任务失败；`chat-keyboard` 没报 `keyboard=up`（模拟器没弹出软键盘）只记警告。脚本生成总览页 `index.html`，分别上传为 `ios-screenshots-ios27`、`ios-screenshots-ios26` 与 `ios-screenshots-ios18`（保留 14 天）。同一构建也在 iPad 模拟器上按 `light dark ar rt` 截取常驻侧栏展开、手动收起（`sidebar-collapsed`）与主要页面的截图（`ios-screenshots-ipad`）。
@@ -52,12 +52,22 @@
 
 ## App Store 商店信息写入
 
-- 工作流：[`.github/workflows/ios-store-listing.yml`](../../.github/workflows/ios-store-listing.yml)（iOS App Store listing），脚本 [`scripts/release/ios-store-listing.py`](../../scripts/release/ios-store-listing.py)（只用 Python 标准库，JWT、API 请求和密钥处理复用 `ios-testflight-distribute.py`）。内容来源是 [docs/app-store/listing.md](../app-store/listing.md)，名称和描述取自 [docs/play-store/listing.md](../play-store/listing.md)。
+- 工作流：[`.github/workflows/ios-store-listing.yml`](../../.github/workflows/ios-store-listing.yml)（iOS App Store listing），脚本 [`scripts/release/ios-store-listing.py`](../../scripts/release/ios-store-listing.py)（只用 Python 标准库，JWT、API 请求和密钥处理复用 `ios-testflight-distribute.py`）。内容来源是 [docs/app-store/listing.md](../app-store/listing.md)，名称和描述取自 [docs/play-store/listing.md](../play-store/listing.md)；提交审核用的信息取自 [docs/app-store/review-info.md](../app-store/review-info.md)，由同目录的 [`ios-store-review.py`](../../scripts/release/ios-store-review.py) 处理（由上面的脚本调用）。
 - 只能手动运行（Actions → Run workflow，限 `main`），`appstore-publish` 的同一套 API 密钥只给运行脚本的那一步。默认 **dry run**：只读 App Store Connect，按语言和字段打印现值与新值、截图计划（同时写进 job summary）；勾选 `apply` 才写入。先跑 dry run，看过再 apply。重复运行只改有差异的字段，一个语言被拒（例如名称已被占用）不影响其他语言，最后任务标红。服务器出错（5xx）时写请求可能已经生效，所以不重发（限流 429 照常重发），直接记为失败，再运行一次按现状补齐。
-- 写入范围：名称、副标题、隐私政策网址、描述、关键词、推广文本、技术支持与营销网址、主次类别，以及 en-US 截图。不提交审核，不碰价格、销售范围、年龄分级、App 隐私、内购和构建（脚本只放行上述写入接口）。
+- 写入范围：名称、副标题、隐私政策网址、描述、关键词、推广文本、技术支持与营销网址、主次类别、en-US 截图，以及下一条的提交审核信息。不提交审核，不碰价格、销售范围、内容版权声明、App 隐私和构建，不创建订阅组或内购商品（脚本只放行列出的写入接口，新增的几项还限定了能带的字段）。
+- **提交审核信息**：
+  - 年龄分级问卷的 26 个答案（`kidsAgeBand` 和各种分级覆盖项不写）。
+  - App 审核备注，只写 `notes`，不写联系人和演示账号。还没有审核信息记录时尝试只带备注创建；Apple 返回 409 且错误都指向联系人字段时只警告，所有者在 App Store Connect 填好联系人后再运行一次；其他的 409 记为失败。
+  - 版权。
+  - 已经存在的订阅组与 `com.kakumine.notefable.pro.monthly` 的各语言显示名和描述（订阅元数据 v2 接口）。只改 `PREPARE_FOR_SUBMISSION` 的版本。没有草稿时和最新的、没被替换的版本比较：一个版本都没有，或文字不同且所有版本都审完了（已批准、被拒、被替换）时建一个草稿元数据版本（要所有者自己送审）；还有版本在审核流程里时只警告。找不到订阅组或商品时跳过。
+  - TestFlight 的 Beta 版 App 描述（en-US），不写反馈邮箱。
+  - 某一项读不到时跳过这一项（订阅组和商品的文字分开算），其他照常；`apply` 时任务标红。
+  - 这几项的某个写入被拒（包括 403）只记为这一项失败，其他继续；401（密钥无效）才中止。商店文案和截图的写入遇到 401 / 403 仍然立即中止。
+- **只读检查**：每次运行（中途停下的也一样）最后列出提交审核还缺什么（年龄分级、审核信息、内容版权声明、版权、版本号与 `project.yml` 的 `MARKETING_VERSION` 是否一致、是否选了构建、价格与销售范围、订阅组和商品的状态、当前版本的本地化、价格、销售范围与审核截图、TestFlight 测试信息）。订阅商品的状态只有待提交、等待审核、审核中、等待构建一起批准、已批准算齐（下架等其他状态记为缺项）。查不了的项标 `[unknown]`，结尾的汇总里和缺项分开计数。App 隐私、DSA 交易者身份、协议和税务接口读不到，要在网页上看。
+- **公开日志**：仓库和 Actions 日志是公开的。联系人姓名、电话、邮箱、演示账号和反馈邮箱只显示“set / not set”；审核备注、版权、Beta 描述的现值不打印（只打印仓库里的新值）；这些记录的接口出错时只打印状态码和错误代码，不打印 Apple 的说明文字（没收到 Apple 回应时只打印是网络错误还是脚本自己拒绝写入）。
 - 需要 App Store Connect 里正好有一个可编辑的 iOS 版本和 App 信息（准备提交、被拒等状态）；没有就停下，不会新建。
 - **截图**：`mobile/ios/app-store/screenshots/` 下的 `iphone/`、`ipad/`（PNG / JPEG、不带透明通道），按文件名排序；文件夹不存在就跳过。用 App Asset Library 接口（旧的 `appScreenshotSets` 已弃用），按像素大小对照 Apple 的参考数据（`appAssetLibraryRefData`）归到 App Store 版本用的摆放分组。某个分组的图片或顺序变了才替换：新图全部上传并处理成功后，删掉该分组原来的摆放、按顺序重建；其他分组和资源库里的图片不动。有 en-US 截图、本地却没有对应文件的分组（例如不再提供的尺寸）只警告，不删除。替换时该组每张图都重新上传，参照名带随机后缀（有开发者报告资源库里参照名不能重复）。删掉旧摆放后若中途失败，该分组会暂时空着或不全，再运行一次即可补齐。
-- 本机检查文档（不联网、不需要密钥）：`python3 scripts/release/ios-store-listing.py --check`。改到两份商店文档或 `mobile/ios/app-store/screenshots/**` 的 PR 由 [`store-listing-pr.yml`](../../.github/workflows/store-listing-pr.yml) 在 `ubuntu-latest` 上运行这项检查和脚本的单元测试。
+- 本机检查文档（不联网、不需要密钥）：`python3 scripts/release/ios-store-listing.py --check`。改到三份商店文档、`src/lib/usage-plans.ts` 或 `mobile/ios/app-store/screenshots/**` 的 PR 由 [`store-listing-pr.yml`](../../.github/workflows/store-listing-pr.yml) 在 `ubuntu-latest` 上运行这项检查和脚本的单元测试。
 
 ## 注册 Apple Developer 账号后的启用清单
 

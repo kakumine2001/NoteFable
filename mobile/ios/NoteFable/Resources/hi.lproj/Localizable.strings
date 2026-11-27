@@ -605,6 +605,7 @@
 
 /* strings_slides_wizard.xml */
 "slides_generate" = "स्लाइड बनाएं";
+"slides_generating" = "स्लाइड बनाई जा रही हैं…";
 "slides_generate_from_chat" = "इस चैट से स्लाइड डेक बनाएं";
 "slides_generate_with_ai" = "AI से बनाएं";
 

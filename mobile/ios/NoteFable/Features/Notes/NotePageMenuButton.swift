@@ -1,7 +1,8 @@
 import SwiftUI
+import UIKit
 
 // 笔记顶栏的“…”（网页 note-page-menu.tsx 的 .notes-page-menu = .chat-actions-menu 宽 248；Android ui/NotePageMenu.kt）：
-// “Style”小标题（12 / 500 灰）；三个字体按钮（三等分、间距 4、外边距 4 / 8 / 5.6；每个上下 6.4、圆角 6.4；“Ag”22、标签 12 灰，选中的蓝色）；
+// “Style”小标题（12 / 500 灰）；三个字体按钮（三等分、长单词放不下时换行、间距 4、外边距 4 / 8 / 5.6；每个上下 6.4、圆角 6.4；“Ag”22、标签 12 灰，选中的蓝色）；
 // 分隔线；Small text / Full width / Lock page 三个开关；分隔线；收藏、复制、添加子页面、画成图（Workflow，只给笔记）、移动到、
 // 导出 Markdown、报告 AI 内容；分隔线；移到回收站（红字）。
 // 项目按页面类型出（`PageKindFeatures`，网页 PAGE_KIND_FEATURES）：白板、幻灯片没有 Style 到 Full width 这一段和导出 Markdown，
@@ -126,9 +127,10 @@ private struct NotePageMenuContent: View {
     private func fonts(_ page: NotePageSummary) -> some View {
         let trackShape = RoundedRectangle(cornerRadius: 12, style: .continuous)
         let trackFill = chromePath == .native ? Color.primary.opacity(0.06) : Sm.hover
-        return HStack(spacing: 4) {
+        return FontChoiceLayout(spacing: 4) {
             ForEach(NotePageFontOption.all, id: \.key) { option in
                 fontButton(option, checked: page.font == option.key)
+                    .layoutValue(key: FontChoiceMinWidth.self, value: fontChoiceMinWidth(L(option.label)))
             }
         }
         .padding(4)
@@ -152,14 +154,27 @@ private struct NotePageMenuContent: View {
                     .font(.nf(12, weight: checked ? 600 : 400))
                     .nfLineHeight(16, fontSize: 12)
                     .foregroundStyle(checked ? Sm.blue : Sm.muted)
-                    .lineLimit(1)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, 4)
             .padding(.vertical, 6.4)
-            .frame(maxWidth: .infinity)
+            // 同一行的按钮一样高，“Ag”对齐在上面。
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .buttonStyle(.pressable(background: checked ? Sm.accentSoft : .clear, cornerRadius: 9, scale: 0.97))
         .accessibilityAddTraits(checked ? .isSelected : [])
+    }
+
+    /// 字体按钮最窄能到多少：名字里最长的单词（12 点，按选中时的半粗量）和左右各 4。
+    private func fontChoiceMinWidth(_ name: String) -> CGFloat {
+        let font = UIFont.systemFont(ofSize: 12, weight: .semibold)
+        var widest: CGFloat = 28
+        name.enumerateSubstrings(in: name.startIndex..., options: .byWords) { word, _, _, _ in
+            guard let word else { return }
+            widest = max(widest, (word as NSString).size(withAttributes: [.font: font]).width)
+        }
+        return widest.rounded(.up) + 8
     }
 
     /// “Ag”用各自的字体画：默认、衬线、等宽。
@@ -205,7 +220,10 @@ private struct NotePageMenuContent: View {
             )
         }
         if notePageDrawable(page), let onGenerateSlides = actions.onGenerateSlides {
-            ActionsMenuItem(L("slides_generate"), icon: Lucide.presentation, action: run(onGenerateSlides))
+            ActionsMenuItem(
+                L(actions.generatingSlides ? "slides_generating" : "slides_generate"), icon: Lucide.presentation,
+                isBusy: actions.generatingSlides, action: run(onGenerateSlides)
+            )
         }
         ActionsMenuItem(L("pg_move_to"), icon: Lucide.folderInput, action: run(actions.onMove))
         if page.kind.features.markdownExport {
@@ -216,5 +234,50 @@ private struct NotePageMenuContent: View {
         }
         ActionsMenuDivider()
         ActionsMenuItem(L("move_to_trash"), icon: Lucide.trash2, role: .danger, action: run(actions.onTrash))
+    }
+}
+
+private struct FontChoiceMinWidth: LayoutValueKey {
+    static let defaultValue: CGFloat = 0
+}
+
+/// 三个字体按钮的排法：按 `fontChoiceRows` 分行（网页 .notes-menu-fonts 的 flex-wrap）。
+private struct FontChoiceLayout: Layout {
+    var spacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let ideal = subviews.reduce(0) { $0 + $1[FontChoiceMinWidth.self] } + spacing * CGFloat(max(0, subviews.count - 1))
+        let width = proposal.width.flatMap { $0.isFinite ? $0 : nil } ?? ideal
+        let heights = rows(width: width, subviews: subviews).map(\.height)
+        return CGSize(width: width, height: heights.reduce(0, +) + spacing * CGFloat(max(0, heights.count - 1)))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var index = 0
+        var y = bounds.minY
+        for row in rows(width: bounds.width, subviews: subviews) {
+            var x = bounds.minX
+            for width in row.widths {
+                subviews[index].place(at: CGPoint(x: x, y: y), anchor: .topLeading,
+                                      proposal: ProposedViewSize(width: width, height: row.height))
+                x += width + spacing
+                index += 1
+            }
+            y += row.height + spacing
+        }
+    }
+
+    private func rows(width: CGFloat, subviews: Subviews) -> [(widths: [CGFloat], height: CGFloat)] {
+        let mins = subviews.map { Double($0[FontChoiceMinWidth.self]) }
+        var index = 0
+        return fontChoiceRows(available: Double(width), gap: Double(spacing), mins: mins).map { row in
+            let widths = row.map { CGFloat($0) }
+            var height: CGFloat = 0
+            for itemWidth in widths {
+                height = max(height, subviews[index].sizeThatFits(ProposedViewSize(width: itemWidth, height: nil)).height)
+                index += 1
+            }
+            return (widths, height)
+        }
     }
 }

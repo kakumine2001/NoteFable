@@ -2,7 +2,7 @@
 
 > 给项目所有者自己看的总览：用大白话讲清楚 NoteFable 由哪些部分组成、怎么连在一起、怎么发布和收钱。新词第一次出现时都会先解释。细节在 [docs/architecture/](architecture/README.md)。
 > 线上同步版（带结构图）：Claude 文档「NoteFable 项目全景图」。两边内容保持一致，改一边时另一边也要改。
-> 最后核对：2026-11-25。
+> 最后核对：2026-11-27。
 
 ## 一张图看全局
 
@@ -49,7 +49,7 @@ flowchart LR
 - **不登录（匿名）**：第一次打开时，服务器发一个随机编号存在浏览器或 App 里（Cookie，小纸条）。聊天和工作区页面都挂在这个编号下，清掉 Cookie 就找不回来了。
 - **Google 登录**：用 Google 账号证明“我是我”。
 - **邮箱验证码登录**：服务器用 Resend（发信服务）把 6 位数字发到邮箱，填对就登录。
-- **Apple 登录**（只在 iOS App 里，服务端配置齐全后开放）：用 Apple 账户证明“我是我”。它单独算一个账户，不和 Google / 邮箱账户合并；网页和安卓没有这个入口。
+- **Apple 登录**（只在 iOS App 里，正式服务器已配置好）：用 Apple 账户证明“我是我”。它单独算一个账户，不和 Google / 邮箱账户合并；网页和安卓没有这个入口。
 
 Google 登录要在 Google Cloud 登记“谁可以用我的登录”，这叫 **OAuth 客户端**。现在有三个：
 
@@ -71,7 +71,7 @@ Google 登录要在 Google Cloud 登记“谁可以用我的登录”，这叫 *
 - **模型列表**：能选哪些 AI 模型由服务器决定，App 每次打开时去要，不写死在 App 里。
 - **外观和 Markdown**：网页、安卓和 iOS 都能选“跟随系统 / 浅色 / 深色”（只记在当前这台设备上，不跟着账号走），也都能把一篇笔记导出成 Markdown 文件、把 Markdown 文件导入成笔记。
 - **只有网页才有的**：电脑宽度下在聊天旁边并排打开一个工作区页面（笔记、白板或幻灯片）的“分屏”。手机屏幕放不下，所以两个 App 没有。
-- **iOS 现状**：代码在 CI 上跑通 Core 单元测试、模拟器构建和截图；合入调高构建号的 PR 后由 GitHub Actions 自动上传 TestFlight，构建已装到真机，界面还没逐项验收。Sign in with Apple 和 App Store 内购已经接好（配置齐全后开放），还要真机和沙盒验收；通用链接网站端已配好，同样待真机验证（见 [ios.md](architecture/ios.md) 和 [ios-native.md](architecture/ios-native.md)）。
+- **iOS 现状**：代码在 CI 上跑通 Core 单元测试、模拟器构建和截图；合入调高构建号的 PR 后由 GitHub Actions 自动上传 TestFlight，构建已装到真机，界面还没逐项验收。Sign in with Apple 和 App Store 内购已经接好（Apple 登录的正式服务器已配置好；内购配置齐全后开放），还要真机和沙盒验收；通用链接网站端已配好，同样待真机验证（见 [ios.md](architecture/ios.md) 和 [ios-native.md](architecture/ios-native.md)）。
 
 ## 签名（用印章来理解）
 
@@ -180,5 +180,6 @@ Stripe 还有 4 项没亲眼确认（商品价格、Webhook、扣款失败后的
 - [architecture/i18n.md](architecture/i18n.md)：17 种界面语言与 RTL
 - [play-store/](play-store/console-answers.md)：Play Console 要填的答案和商店介绍
 - [app-store/listing.md](app-store/listing.md)：App Store 产品页要填的文字
+- [app-store/review-info.md](app-store/review-info.md)：App Store 提交审核用的年龄分级答案、审核备注、版权、订阅文字和 TestFlight 说明
 - [architecture/deployment.md](architecture/deployment.md)：服务器、分域和环境变量
 - [architecture/README.md](architecture/README.md)：所有架构文档的入口
