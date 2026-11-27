@@ -4,6 +4,7 @@ import { MAX_READ_CHARS, type AdapterPage, type PageAdapter } from "@/lib/page-a
 import { canvasStorage } from "@/lib/page-ai/storage";
 import { normalizeDeck, slideRows, type SlideElement } from "@/lib/slides/model";
 import { isRichDocEmpty, richDocText, type RichBlock, type RichDoc, type RichInline } from "@/lib/slides/rich-text";
+import { formulaDataOf } from "@/lib/whiteboard/formula";
 import { pageCardOf } from "@/lib/whiteboard/links";
 import { mindmapIndent, mindmapStashOutline } from "@/lib/whiteboard/mindmap/model";
 
@@ -87,7 +88,12 @@ function formatWhiteboardElement(element: RawElement, boundTexts: string[]): str
   }
 
   if (element.type === "image") {
-    line += ": [Image]";
+    const formula = formulaDataOf(element.customData);
+    if (formula) {
+      line += `: [Formula] $${inlineLine(formula.latex)}$`;
+    } else {
+      line += ": [Image]";
+    }
     if (combinedText) line += ` "${combinedText}"`;
     return line;
   }

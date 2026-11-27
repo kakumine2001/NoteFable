@@ -43,6 +43,16 @@ describe("expandWhiteboardSelection", () => {
     expect(result.elements.map((e) => e.id)).toEqual(["box1", "txt1"]);
     expect(result.text).toBe("Label");
   });
+
+  it("extracts formula TeX when a whiteboard formula image is selected", () => {
+    const elements = [
+      { id: "eq1", type: "image", customData: { notefableFormula: { v: 1, latex: "a^2 + b^2 = c^2" } } },
+      { id: "img1", type: "image" },
+    ];
+    const result = expandWhiteboardSelection(elements, new Set(["eq1", "img1"]));
+    expect(result.ids).toEqual(["eq1", "img1"]);
+    expect(result.text).toBe("a^2 + b^2 = c^2");
+  });
 });
 
 describe("collapsed mind map branches in a selection", () => {

@@ -128,6 +128,22 @@ describe("text for search, semantic search and chat", () => {
     expect(extractCanvasSegments("whiteboard", data)).toEqual([{ id: "r1", text: "wrapped text" }, { id: "t2", text: "Free note" }, { id: "f1", text: "Ideas" }]);
   });
 
+  it("extracts whiteboard formula TeX for search and allows literal TeX inside notefableFormula", () => {
+    const data = {
+      elements: [
+        { id: "eq1", type: "image", fileId: "f1", customData: { notefableFormula: { v: 1, latex: "E = mc^2" } } },
+        { id: "eq2", type: "image", fileId: "f1", customData: { notefableFormula: { v: 1, latex: "\\text{data:text/plain,ok}" } } },
+        { id: "eq-del", type: "image", fileId: "f1", isDeleted: true, customData: { notefableFormula: { v: 1, latex: "x^2" } } },
+      ],
+      files: { f1: { id: "f1", mimeType: "image/png", dataURL: fileUrl() } },
+    };
+    expect(() => validateCanvasData("whiteboard", data)).not.toThrow();
+    expect(extractCanvasSegments("whiteboard", data)).toEqual([
+      { id: "eq1", text: "E = mc^2" },
+      { id: "eq2", text: "\\text{data:text/plain,ok}" },
+    ]);
+  });
+
   it("collects slide text and speaker notes by slide, including rich text", () => {
     const data = {
       slides: [
