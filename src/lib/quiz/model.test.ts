@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { validateNoteContent } from "@/lib/note-document";
+import { issueQuizReportToken, verifyQuizReportToken } from "@/lib/quiz-report-token";
 import {
   canonicalQuizJson,
   defaultQuizOptions,
   formatQuizForReport,
   isFillBlankCorrect,
+  isPositionDependentOption,
   parseQuizOptions,
   parseQuizReply,
   parseReviewNoteLabels,
@@ -78,9 +80,102 @@ describe("quiz options parsing", () => {
 describe("parseQuizReply and validateReviewQuiz", () => {
   it("parses strict JSON and code-fenced JSON across all 4 question types", () => {
     const raw = "```json\n" + JSON.stringify(sampleQuiz) + "\n```";
-    const parsed = parseQuizReply(raw, { count: 4, types: ["mcq", "true_false", "fill_blank", "flashcard"], language: "auto" }, "Fallback");
+    // Identity Fisher-Yates random source keeps the fixture order deterministic here.
+    const parsed = parseQuizReply(
+      raw,
+      { count: 4, types: ["mcq", "true_false", "fill_blank", "flashcard"], language: "auto" },
+      "Fallback",
+      () => 0.999,
+    );
     expect(parsed).toEqual(sampleQuiz);
     expect(validateReviewQuiz(parsed)).toEqual(sampleQuiz);
+  });
+
+  it("shuffles MCQ options with an injectable random source, updates correctIndex, and keeps report tokens consistent", async () => {
+    const raw = JSON.stringify({
+      title: "Shuffle Test",
+      questions: [
+        {
+          type: "mcq",
+          prompt: "Where do light-dependent reactions occur?",
+          options: ["Thylakoid membrane", "Stroma", "Mitochondria", "Nucleus"],
+          correctIndex: 0,
+          explanation: "Light reactions take place in the thylakoid membrane.",
+        },
+      ],
+    });
+    // Deterministic Fisher-Yates with r=0 rotates index 0 to the end: [Stroma, Mitochondria, Nucleus, Thylakoid membrane].
+    const shuffled = parseQuizReply(raw, { count: 3, types: ["mcq"], language: "auto" }, "Fallback", () => 0);
+    expect(shuffled).not.toBeNull();
+    const q = shuffled!.questions[0];
+    expect(q.type).toBe("mcq");
+    if (q.type === "mcq") {
+      expect(q.options).toEqual(["Stroma", "Mitochondria", "Nucleus", "Thylakoid membrane"]);
+      expect(q.correctIndex).toBe(3);
+      expect(q.options[q.correctIndex]).toBe("Thylakoid membrane");
+    }
+
+    // Report token signed on the shuffled quiz stays valid after validateReviewQuiz (which must not re-shuffle).
+    const token = await issueQuizReportToken("u1", { pageId: "p1", pageKind: "note", model: "gpt-6-luna", quiz: shuffled! });
+    const revalidated = validateReviewQuiz(JSON.parse(JSON.stringify(shuffled)));
+    expect(revalidated).toEqual(shuffled);
+    await expect(verifyQuizReportToken(token, "u1", "p1", revalidated!)).resolves.toEqual({
+      pageKind: "note",
+      model: "gpt-6-luna",
+    });
+  });
+
+  it("keeps position-dependent options at the end while shuffling preceding choices", () => {
+    for (const pinnedLabel of ["All of the above", "None of the above.", "以上都是", "以上都不是", "上記のすべて", "Todas las anteriores"]) {
+      expect(isPositionDependentOption(pinnedLabel)).toBe(true);
+    }
+    expect(isPositionDependentOption("Above-ground stems store starch")).toBe(false);
+    expect(isPositionDependentOption("None of the cells divide in G0")).toBe(false);
+
+    // Regular option is correct, "All of the above" stays last.
+    const raw1 = JSON.stringify({
+      title: "Pinned Tail 1",
+      questions: [
+        {
+          type: "mcq",
+          prompt: "Which organelle produces ATP?",
+          options: ["Mitochondria", "Ribosome", "Golgi apparatus", "All of the above"],
+          correctIndex: 0,
+          explanation: "Mitochondria generate ATP.",
+        },
+      ],
+    });
+    const parsed1 = parseQuizReply(raw1, { count: 3, types: ["mcq"], language: "auto" }, "Fallback", () => 0);
+    const q1 = parsed1!.questions[0];
+    expect(q1.type).toBe("mcq");
+    if (q1.type === "mcq") {
+      expect(q1.options[3]).toBe("All of the above");
+      expect(q1.options.slice(0, 3)).toEqual(["Ribosome", "Golgi apparatus", "Mitochondria"]);
+      expect(q1.correctIndex).toBe(2);
+      expect(q1.options[q1.correctIndex]).toBe("Mitochondria");
+    }
+
+    // Position-dependent option itself is correct and stays last (even with two pinned options).
+    const raw2 = JSON.stringify({
+      title: "Pinned Tail 2",
+      questions: [
+        {
+          type: "mcq",
+          prompt: "以下哪项属于光合作用产物？",
+          options: ["以上都是", "氧气", "葡萄糖", "以上都不是"],
+          correctIndex: 0,
+          explanation: "氧气和葡萄糖都是产物。",
+        },
+      ],
+    });
+    const parsed2 = parseQuizReply(raw2, { count: 3, types: ["mcq"], language: "auto" }, "Fallback", () => 0);
+    const q2 = parsed2!.questions[0];
+    expect(q2.type).toBe("mcq");
+    if (q2.type === "mcq") {
+      expect(q2.options).toEqual(["葡萄糖", "氧气", "以上都是", "以上都不是"]);
+      expect(q2.correctIndex).toBe(2);
+      expect(q2.options[q2.correctIndex]).toBe("以上都是");
+    }
   });
 
   it("uses the fallback title when the model leaves title empty and trims extra questions to count", () => {

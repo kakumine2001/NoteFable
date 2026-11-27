@@ -190,8 +190,68 @@ function stripOuterJsonFence(raw: string): string {
   return fenced ? fenced[1].trim() : trimmed;
 }
 
+// 「以上都是 / All of the above」のような位置に依存する選択肢。シャッフル時も末尾に留める。
+const POSITION_DEPENDENT_OPTION_PATTERNS: readonly RegExp[] = [
+  /^(?:all|none)\s+of\s+the\s+(?:above|preceding|following)(?:\s+(?:options?|choices?|answers?|statements?))?$/,
+  /^(?:all|none)\s+of\s+these(?:\s+(?:options?|choices?|answers?))?$/,
+  /^(?:以上|上述)(?:全|全都|都|皆|均)?(?:是|对|對|正确|正確|符合|成立|不是|不对|不對|非|错|錯|都不对|都不對|都不是|皆是|皆非|皆不是|皆正确|皆正確|均是|均不是|均不对|均不對|正确选项|正確選項)$/,
+  /^(?:(?:上記|以上)の(?:すべて|全て|どれも|いずれ)(?:が正しい|が当てはまる|に当てはまる|でもない|も当てはまらない|も正しくない)?|すべて(?:正しい|当てはまる)|全て(?:正しい|当てはまる)|どれも(?:当てはまらない|正しくない)|該当(?:なし|しない))$/,
+  /^(?:(?:위의\s*)?(?:모두(?:\s*(?:해당|맞다|옳다|정답|아니다))?|해당\s*없음|어느\s*것도\s*(?:아니다|해당하지\s*않는다)))$/,
+  /^(?:todas?|ningun[ao]?)\s+(?:de\s+)?las\s+(?:anteriores|opciones\s+anteriores|respuestas\s+anteriores)$/,
+  /^(?:toutes?|aucune?)\s+(?:(?:les|des)\s+(?:reponses?|options?|choix)\s+)?(?:ci-dessus|precedentes?)$/,
+  /^(?:toutes?|aucune?)\s+(?:de\s+)?ces\s+(?:reponses?|options?)$/,
+  /^(?:alle|keine)\s+(?:der\s+)?oben\s+genannten(?:\s+(?:antworten|optionen|aussagen))?$/,
+  /^(?:alles\s+oben\s+genannte|nichts\s+davon|alle\s+genannten|keine\s+davon)$/,
+  /^(?:todas?|nenhuma?)\s+(?:as|das)\s+(?:anteriores|opcoes\s+anteriores|respostas\s+anteriores|acima)$/,
+  /^(?:tutte|nessuna)\s+(?:le|delle)\s+(?:precedenti|risposte\s+precedenti|opzioni\s+precedenti)$/,
+  /^(?:все|всё|ничего\s+из|ни\s+один\s+из|ни\s+одна\s+из)\s+(?:вышеперечисленн\p{L}+|перечисленн\p{L}+)$/u,
+  /^(?:semua|tidak\s+ada|tidak\s+satu\s+pun)\s+(?:jawaban\s+|pilihan\s+)?(?:di\s+atas|yang\s+benar|di\s+atas\s+yang\s+benar)$/,
+  /^(?:tat\s+ca|khong\s+co)\s+(?:cac\s+)?(?:[dđ]ap\s+an|lua\s+chon|phuong\s+an|[dđ]ieu|y)\s+(?:tren|o\s+tren|nao\s+[dđ]ung)$/,
+  /^(?:yukar[iı]dakilerin\s+(?:hepsi|tamam[iı]|hicbiri)|hepsi|hicbiri)$/,
+  /^(?:ถูกทุกข้อ|ผิดทุกข้อ|ไม่มีข้อใดถูก|ทั้งหมดที่กล่าวมา|ไม่ถูกสักข้อ)$/,
+  /^(?:उपरोक्त\s+सभी|उपर्युक्त\s+सभी|उपरोक्त\s+में\s+से\s+कोई\s+नहीं|इनमें\s+से\s+कोई\s+नहीं)$/,
+  /^(?:جميع\s+ما\s+سبق|كل\s+ما\s+سبق|لا\s+شيء\s+مما\s+سبق|ليس\s+أيا?\s+مما\s+سبق)$/,
+];
+
+export function isPositionDependentOption(option: string): boolean {
+  const normalized = normalizeAnswerText(option);
+  if (!normalized) return false;
+  const plain = stripDiacritics(normalized);
+  return POSITION_DEPENDENT_OPTION_PATTERNS.some((pattern) => pattern.test(normalized) || pattern.test(plain));
+}
+
+// 選択問題の選択肢を Fisher-Yates でシャッフルし、correctIndex を追従させる。位置依存の選択肢は末尾に固定する。
+export function shuffleMcqQuestion(question: McqQuestion, random: () => number = Math.random): McqQuestion {
+  const entries = question.options.map((text, index) => ({
+    text,
+    isCorrect: index === question.correctIndex,
+    pinned: isPositionDependentOption(text),
+  }));
+  const regular = entries.filter((entry) => !entry.pinned);
+  const pinned = entries.filter((entry) => entry.pinned);
+  for (let i = regular.length - 1; i > 0; i--) {
+    const raw = random();
+    const value = Number.isFinite(raw) ? Math.min(Math.max(raw, 0), 1 - Number.EPSILON) : 0;
+    const j = Math.min(i, Math.floor(value * (i + 1)));
+    [regular[i], regular[j]] = [regular[j], regular[i]];
+  }
+  const ordered = [...regular, ...pinned];
+  const correctIndex = ordered.findIndex((entry) => entry.isCorrect);
+  return {
+    ...question,
+    options: ordered.map((entry) => entry.text),
+    correctIndex,
+  };
+}
+
 // モデルの返答（JSON 文字列）を厳格に検証する。壊れている・空・要求外の題型が混ざっているときは null（呼び出し側が額度を戻す）。
-export function parseQuizReply(raw: string, options: QuizOptions, fallbackTitle: string): ReviewQuiz | null {
+// 選択問題はトークン署名・返却の前に選択肢をシャッフルし、正解が先頭に偏らないようにする。
+export function parseQuizReply(
+  raw: string,
+  options: QuizOptions,
+  fallbackTitle: string,
+  random: () => number = Math.random,
+): ReviewQuiz | null {
   let parsed: unknown;
   try {
     parsed = JSON.parse(stripOuterJsonFence(raw));
@@ -207,7 +267,9 @@ export function parseQuizReply(raw: string, options: QuizOptions, fallbackTitle:
     if (!question) return null;
     validated.push(question);
   }
-  const questions = validated.slice(0, options.count);
+  const questions = validated
+    .slice(0, options.count)
+    .map((question) => (question.type === "mcq" ? shuffleMcqQuestion(question, random) : question));
   if (!questions.length) return null;
   const rawTitle = cleanText(parsed.title, MAX_QUIZ_TITLE_CHARS);
   const title = oneLine(rawTitle || fallbackTitle || "Review quiz").slice(0, MAX_QUIZ_TITLE_CHARS).trim() || "Review quiz";

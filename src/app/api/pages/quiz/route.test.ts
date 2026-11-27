@@ -106,17 +106,29 @@ describe("POST /api/pages/quiz", () => {
 
   it("generates a 4-type quiz from a note (including locked notes), delimits private content, counts 1 chat message and signs reportToken", async () => {
     expect(maxDuration).toBe(300);
-    const response = await post({ pageId: "cnote1", options: validOptions, model: "claude-haiku-5-5", clientRequestId: requestId });
-    expect(response.status).toBe(200);
-    const payload = await response.json();
-    expect(payload.quiz.title).toBe("Cell Biology Quiz");
-    expect(payload.quiz.questions).toHaveLength(4);
-    expect(typeof payload.reportToken).toBe("string");
-    // Signed reportToken validates cleanly against the returned quiz.
-    await expect(verifyQuizReportToken(payload.reportToken, "mine", "cnote1", payload.quiz)).resolves.toEqual({
-      pageKind: "note",
-      model: "claude-haiku-5-5",
-    });
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
+    try {
+      const response = await post({ pageId: "cnote1", options: validOptions, model: "claude-haiku-5-5", clientRequestId: requestId });
+      expect(response.status).toBe(200);
+      const payload = await response.json();
+      expect(payload.quiz.title).toBe("Cell Biology Quiz");
+      expect(payload.quiz.questions).toHaveLength(4);
+      const mcq = payload.quiz.questions[0];
+      expect(mcq.type).toBe("mcq");
+      // Shuffled off index 0 before signing reportToken, with correctIndex updated to match.
+      expect(mcq.options).toEqual(["Ribosome", "Mitochondria"]);
+      expect(mcq.correctIndex).toBe(1);
+      expect(mcq.options[mcq.correctIndex]).toBe("Mitochondria");
+      expect(typeof payload.reportToken).toBe("string");
+      // Signed reportToken validates cleanly against the returned (already shuffled) quiz.
+      await expect(verifyQuizReportToken(payload.reportToken, "mine", "cnote1", payload.quiz)).resolves.toEqual({
+        pageKind: "note",
+        model: "claude-haiku-5-5",
+      });
+      expect(quizInstructions("note")).toContain("mix true and false statements");
+    } finally {
+      randomSpy.mockRestore();
+    }
 
     // Queries only live note/slides owned by user (does NOT filter out locked pages).
     expect(mocks.findPage.mock.calls[0][0].where).toEqual({

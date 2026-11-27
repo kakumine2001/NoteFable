@@ -5,9 +5,9 @@ import type { QuizOptions, QuizQuestionType } from "@/lib/quiz/model";
 
 const TYPE_DESCRIPTIONS: Record<QuizQuestionType, string> = {
   mcq: `- "mcq": { "type": "mcq", "prompt": string, "options": [string, string, string, string], "correctIndex": integer (0 to options.length-1), "explanation": string }
-  Write 4 distinct, plausible choices with exactly one unambiguous correct choice.`,
+  Write 4 distinct, plausible choices with exactly one unambiguous correct choice. Do not refer to option letters (such as "Both A and B") inside choices, because choices are shuffled before display.`,
   true_false: `- "true_false": { "type": "true_false", "prompt": string, "correct": boolean, "explanation": string }
-  Write a clear, verifiable statement that is strictly true or strictly false based on the material.`,
+  Write a clear, verifiable statement that is strictly true or strictly false based on the material. When writing multiple true/false questions, mix true and false statements rather than making them all true.`,
   fill_blank: `- "fill_blank": { "type": "fill_blank", "prompt": string, "acceptedAnswers": string[], "explanation": string }
   Include "____" in the prompt for a single key term, phrase, formula, or value. List the primary answer first in acceptedAnswers (1 to 5 concise equivalents).`,
   flashcard: `- "flashcard": { "type": "flashcard", "front": string, "back": string, "explanation"?: string }
