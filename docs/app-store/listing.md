@@ -10,7 +10,7 @@ App Store Connect → App → App 信息 / iOS App 的版本页。iOS 版目前�
 - **描述**：Play 同一语言的“完整说明”，换两处，其余不变（隐私政策链接保留）：① 同步那一节的第一条（讲不注册试用和登录后同步的那条）换成下面各语言的“iOS 登录说明”（保留行首的“• ”）。iOS 另有 Apple 登录，网页和 Android 没有，Apple 账户也不和 Google / 邮箱账户合并，所以不能写成会同步到 notefable.com；提交审核前要在服务端配好 Apple 登录（[deployment.md](../architecture/deployment.md)）。② 最后一段价格说明（NoteFable Pro 那段）换成各语言的“iOS 价格说明”（已含使用条款链接）。
 - **网址**：技术支持 https://notefable.com、营销 https://notefable.com、隐私政策 https://notefable.com/privacy。
 - **类别**：主要 教育（Education），次要 效率（Productivity）。
-- 截图：iPhone 必须提供 Dynamic Island 中尺寸（如 1206 × 2622），可另附 6.9 英寸（1320 × 2868）；App 支持 iPad，还必须提供 13 英寸 iPad（2064 × 2752）。还没有正式的 App Store 截图；PR 检查的模拟器截图（`mobile/ios/scripts/ci-screenshots.sh`）只用于核对界面，不直接上传。
+- 截图：iPhone 必须提供 Dynamic Island 中尺寸（如 1206 × 2622），可另附 6.9 英寸（1320 × 2868）；App 支持 iPad，还必须提供 13 英寸 iPad（2064 × 2752）。正式截图由 CI 生成（给 PR 加 `ios-store-screenshots` 标签，见 [ios.md](../architecture/ios.md#app-store-商店截图)）：iPhone 1206 × 2622、iPad 2064 × 2752 的 JPEG，画面故事、标题和顺序与 Google Play 的商店截图相同；确认后提交到 `mobile/ios/app-store/screenshots/iphone/`、`ipad/`。还没有提交过正式截图；PR 检查平时的模拟器截图（`mobile/ios/scripts/ci-screenshots.sh`）只用于核对界面，不直接上传。
 
 ## English (U.S.)
 
