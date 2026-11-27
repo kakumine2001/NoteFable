@@ -10,7 +10,6 @@ import { NoteIcon } from "@/components/note-icon";
 import type { MentionPage } from "@/components/note-mention";
 import { PageKindIcon } from "@/components/page-kind-icon";
 import { listWhiteboardFrames } from "@/lib/whiteboard/frames";
-import { requestWhiteboardReveal } from "@/lib/whiteboard/reveal";
 
 // ノートにホワイトボード（全体または指定の 1 枠）を埋め込むカスタムブロック（note-math.tsx と同じ構成）。
 // 保存する props は pageId と任意の frameId のみ。プレビューは表示時に最新の白板からオフスクリーン描画し、複製を持たない。
@@ -219,7 +218,7 @@ export function NoteWhiteboardProvider({
   editor: AnyEditor;
   editable: boolean;
   pages: MentionPage[] | null;
-  openPage: (id: string) => void;
+  openPage: (id: string, reveal?: string) => void;
   children: ReactNode;
 }) {
   const [session, setSession] = useState<PickerSession | null>(null);
@@ -260,8 +259,7 @@ export function NoteWhiteboardProvider({
 
   const openWhiteboard = useCallback((pageId: string, frameId: string) => {
     if (!pageId) return;
-    if (frameId) requestWhiteboardReveal(pageId, frameId);
-    openPage(pageId);
+    openPage(pageId, frameId || undefined);
   }, [openPage]);
 
   const closePicker = useCallback(() => {
@@ -442,6 +440,7 @@ export const createWhiteboardBlockSpec = createReactBlockSpec(
             aria-label={t("Open whiteboard")}
             onClick={openTarget}
             onKeyDown={(event) => {
+              if (event.target !== event.currentTarget) return;
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault();
                 openTarget();

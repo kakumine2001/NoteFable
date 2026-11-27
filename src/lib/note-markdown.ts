@@ -931,7 +931,7 @@ export function markdownToBlocks(markdown: string): NewBlock[] {
       const caption = match[1].replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 500);
       add("image", { url: match[2], name: noteFileUrlName(match[2]), caption, showPreview: true });
     } else if (
-      (match = /^\[([^\]\n]*)\]\(whiteboard:([A-Za-z0-9_-]{1,64})(?:#([^\s)#\u0000-\u001f\u007f]{1,120}))?\)$/.exec(text))
+      (match = /^\[((?:\\.|[^\]\\\n])*)\]\(whiteboard:([A-Za-z0-9_-]{1,64})(?:#([^\s)#\u0000-\u001f\u007f]{1,120}))?\)$/.exec(text))
       && validWhiteboardEmbedPageId(match[2])
       && validWhiteboardEmbedFrameId(match[3] ?? "")
     ) {

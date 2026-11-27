@@ -561,7 +561,7 @@ type NoteEditorProps = {
   // 「@」で選べる自分のページ（/note-embed では渡さず、「@」を打った時に読む）と、メンションやページのリンクを押した時に開く処理。
   // onOpenPage はその場で開けたら true。false なら（古いアプリの埋め込みなど）リンクを新しいウィンドウで開く。
   // pageMentions が偽（openPage を処理できない古いアプリの埋め込み）のときは、ページのメンションを「@」の候補に出さない。
-  pages?: MentionPage[]; currentPageId?: string; onOpenPage?: (id: string) => boolean; pageMentions?: boolean;
+  pages?: MentionPage[]; currentPageId?: string; onOpenPage?: (id: string, reveal?: string) => boolean; pageMentions?: boolean;
 };
 
 export default function NoteEditor(props: NoteEditorProps) {
@@ -646,9 +646,11 @@ function NoteEditorBody({ blocks, onChange, editable, embedded = false, generate
   const { t, dir, locale } = useI18n();
   const { resolved: resolvedTheme } = useTheme();
   const { pages, loadPages } = useMentionPages(givenPages, blocks);
-  const openPage = useCallback((id: string) => {
-    if (onOpenPage?.(id)) return;
-    window.open(`/app?view=pages&page=${encodeURIComponent(id)}`, "_blank", "noopener,noreferrer");
+  const openPage = useCallback((id: string, reveal?: string) => {
+    if (onOpenPage?.(id, reveal)) return;
+    const params = new URLSearchParams({ view: "pages", page: id });
+    if (reveal) params.set("reveal", reveal);
+    window.open(`/app?${params.toString()}`, "_blank", "noopener,noreferrer");
   }, [onOpenPage]);
   // エディターの設定は最初の 1 回だけ作られるので、リンクのクリックからは最新の onOpenPage を参照で読む。
   const openPageRef = useRef(onOpenPage);

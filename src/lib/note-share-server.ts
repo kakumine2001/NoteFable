@@ -132,18 +132,36 @@ function normalizeFont(value: string): NotePageFont {
   return value === "serif" || value === "mono" ? value : "default";
 }
 
-async function isDescendantInShareRoot(
-  root: { id: string; userId: string },
-  candidate: { parentId: string | null },
-): Promise<boolean> {
-  if (candidate.parentId === root.id) return true;
-  if (!candidate.parentId) return false;
-  const ancestors = await fetchAncestors(root.userId, candidate.parentId);
-  for (const ancestor of ancestors) {
-    if (ancestor.id === root.id) return true;
-    if (ancestor.shareExcludeFromParent || !shareable(ancestor) || leafKind(ancestor)) return false;
-  }
-  return false;
+type AncestorNodeRow = {
+  id: string;
+  kind: string;
+  parentId: string | null;
+  shareExcludeFromParent: boolean;
+};
+
+// 複数の親 ID から公開ルートまでの祖先ノードを 1 回の再帰 CTE でまとめて取得する（循環安全・root で打ち切り）。
+async function fetchAncestorsBatch(userId: string, rootId: string, startParentIds: string[]): Promise<Map<string, AncestorNodeRow>> {
+  const unique = [...new Set(startParentIds.filter((id) => id && id !== rootId))];
+  const map = new Map<string, AncestorNodeRow>();
+  if (!unique.length) return map;
+  const rows = await prisma.$queryRaw<AncestorNodeRow[]>(Prisma.sql`
+    WITH RECURSIVE chain AS (
+      SELECT p."id", p."kind"::text AS "kind", p."parentId", p."shareExcludeFromParent",
+             ARRAY[p."id"]::text[] AS seen
+      FROM ${table()} p
+      WHERE p."id" = ANY(${unique}::text[]) AND p."userId" = ${userId} AND p."deletedAt" IS NULL
+      UNION ALL
+      SELECT p."id", p."kind"::text AS "kind", p."parentId", p."shareExcludeFromParent",
+             c.seen || p."id"
+      FROM ${table()} p
+      JOIN chain c ON p."id" = c."parentId"
+      WHERE c."id" <> ${rootId} AND p."userId" = ${userId} AND p."deletedAt" IS NULL AND NOT (p."id" = ANY(c.seen))
+    )
+    SELECT DISTINCT "id", "kind", "parentId", "shareExcludeFromParent"
+    FROM chain
+  `);
+  for (const row of rows) map.set(row.id, row);
+  return map;
 }
 
 async function resolveEmbeddedWhiteboards(
@@ -175,8 +193,45 @@ async function resolveEmbeddedWhiteboards(
       },
       select: { id: true, parentId: true, title: true, icon: true },
     });
+    const nonDirectParents = candidates
+      .map((candidate) => candidate.parentId)
+      .filter((parentId): parentId is string => Boolean(parentId) && parentId !== root.id);
+    const ancestorsById = await fetchAncestorsBatch(root.userId, root.id, nonDirectParents);
+    const parentAllowed = new Map<string, boolean>([[root.id, true]]);
+
+    const isParentAllowed = (startId: string | null): boolean => {
+      if (!startId) return false;
+      const cached = parentAllowed.get(startId);
+      if (cached !== undefined) return cached;
+      const visited: string[] = [];
+      const seen = new Set<string>();
+      let curr: string | null = startId;
+      let ok = false;
+      while (curr) {
+        const memo = parentAllowed.get(curr);
+        if (memo !== undefined) {
+          ok = memo;
+          break;
+        }
+        if (seen.has(curr)) {
+          ok = false;
+          break;
+        }
+        seen.add(curr);
+        visited.push(curr);
+        const node = ancestorsById.get(curr);
+        if (!node || node.shareExcludeFromParent || !shareable(node) || leafKind(node)) {
+          ok = false;
+          break;
+        }
+        curr = node.parentId;
+      }
+      for (const id of visited) parentAllowed.set(id, ok);
+      return ok;
+    };
+
     for (const candidate of candidates) {
-      if (await isDescendantInShareRoot(root, candidate)) {
+      if (isParentAllowed(candidate.parentId)) {
         resolved[candidate.id] = {
           id: candidate.id,
           title: candidate.title,
@@ -195,6 +250,7 @@ export async function resolvePublicShare(
   token: string,
   requestedPageId?: string | null,
   now = new Date(),
+  options?: { includeEmbeddedWhiteboards?: boolean },
 ): Promise<ResolvedPublicShare | null> {
   if (!isValidShareToken(token)) return null;
   const root = await prisma.notePage.findFirst({
@@ -245,7 +301,7 @@ export async function resolvePublicShare(
     : [];
 
   const targetKind = pageKindOf(target);
-  const embeddedWhiteboards = targetKind === "note"
+  const embeddedWhiteboards = targetKind === "note" && options?.includeEmbeddedWhiteboards !== false
     ? await resolveEmbeddedWhiteboards(token, root, target.blocks)
     : undefined;
 

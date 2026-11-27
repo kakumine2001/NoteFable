@@ -47,6 +47,52 @@ type LoadedBoard = {
 
 type BoardItem = { id: string; title: string; icon: string | null; updatedAt?: string };
 
+// 枠の多い白板で画面外のカードまで一斉にオフスクリーン描画しないよう、スクロール範囲に近づいた時だけ描画する。
+function LazyPickerThumbnail({
+  data,
+  frameId,
+  padding,
+  ariaLabel,
+  eager = false,
+}: {
+  data: unknown;
+  frameId?: string | null;
+  padding?: number;
+  ariaLabel: string;
+  eager?: boolean;
+}) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(() => eager || typeof IntersectionObserver === "undefined");
+
+  useEffect(() => {
+    if (visible) return;
+    const node = hostRef.current;
+    if (!node || typeof IntersectionObserver === "undefined") {
+      queueMicrotask(() => setVisible(true));
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "160px 0px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [visible]);
+
+  return (
+    <div ref={hostRef} className="flex h-full w-full items-center justify-center">
+      {visible ? (
+        <WhiteboardThumbnail data={data} frameId={frameId} padding={padding} ariaLabel={ariaLabel} />
+      ) : null}
+    </div>
+  );
+}
+
 function filterWhiteboards(list: WhiteboardPickerPage[] | undefined): BoardItem[] {
   if (!list) return [];
   return list
@@ -323,7 +369,7 @@ export default function WhiteboardFramePicker(props: WhiteboardFramePickerProps)
                 onClick={() => void pickChoice(null, -1)}
               >
                 <div className="whiteboard-picker-thumb">
-                  <WhiteboardThumbnail data={activeLoaded.data} padding={12} ariaLabel={t("Whole whiteboard")} />
+                  <LazyPickerThumbnail data={activeLoaded.data} padding={12} ariaLabel={t("Whole whiteboard")} eager />
                   {capturingKey === "__whole__" && (
                     <span className="whiteboard-picker-busy">
                       <LoaderCircle size={20} className="animate-spin" aria-hidden="true" />
@@ -348,7 +394,7 @@ export default function WhiteboardFramePicker(props: WhiteboardFramePickerProps)
                     onClick={() => void pickChoice(frame, index)}
                   >
                     <div className="whiteboard-picker-thumb">
-                      <WhiteboardThumbnail data={activeLoaded.data} frameId={frame.id} ariaLabel={label} />
+                      <LazyPickerThumbnail data={activeLoaded.data} frameId={frame.id} ariaLabel={label} eager={index < 5} />
                       {capturingKey === frame.id && (
                         <span className="whiteboard-picker-busy">
                           <LoaderCircle size={20} className="animate-spin" aria-hidden="true" />

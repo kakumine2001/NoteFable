@@ -470,5 +470,16 @@ describe("numbered blocksToMarkdown", () => {
     const preview = blocksToMarkdown(blocks, 0, undefined, { forPreview: true, whiteboards: meta });
     expect(preview).toBe("[Whiteboard: System Map]\n[Whiteboard: System Map — Auth Flow]");
     expect(preview).not.toContain("whiteboard:");
+
+    // Escaped brackets in whiteboard or frame names must survive a Markdown round-trip.
+    const bracketMeta = new Map([["wb1", { title: "Review [draft]", frames: new Map([["frame-1", "Phase [2]"]]) }]]);
+    const bracketMd = blocksToMarkdown(blocks, 0, undefined, { whiteboards: bracketMeta });
+    expect(bracketMd).toContain("Review \\[draft\\]");
+    expect(bracketMd).toContain("Phase \\[2\\]");
+    const reparsed = markdownToBlocks(bracketMd);
+    expect(reparsed.map((b) => ({ type: b.type, props: b.props }))).toEqual([
+      { type: "whiteboard", props: { pageId: "wb1", frameId: "" } },
+      { type: "whiteboard", props: { pageId: "wb1", frameId: "frame-1" } },
+    ]);
   });
 });

@@ -29,7 +29,6 @@ import { nativeCanPresent, nativeCanShowUsageLimit, postToNative } from "@/lib/n
 import { takeCanvasReveal } from "@/lib/search-reveal";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import { hasWhiteboardFrameProvider, refreshWhiteboardFrame, renderWhiteboardFramePicker, subscribeWhiteboardFrameProvider, type WhiteboardFrame, type WhiteboardPickerPage } from "@/lib/slides/whiteboard-embed";
-import { requestWhiteboardReveal } from "@/lib/whiteboard/reveal";
 import { applyGeneratedSlideImage, clearPendingSlideImages, pendingSlideImageTasks } from "@/lib/slides/ai-build";
 import { createImageElement, createLineElement, createShapeElement, createTableElement, createTextElement, createWhiteboardElement } from "@/lib/slides/factory";
 import { clipboardSource, editorKeyScope, inSlideList } from "@/lib/slides/editor-keys";
@@ -70,8 +69,40 @@ type AdoptSlideImage = (
   at: { x: number; y: number } | undefined,
   slideId: string | null,
 ) => "adopted" | "rejected" | "unmounted";
-// ページ切替後にアップロードが完了した画像を、同じページ・同じ世代で開き直したエディターへ引き継ぐ（whiteboard-editor.tsx と同じ仕組み）。
-const liveSlideEditors = new Map<string, Set<{ adopt: AdoptSlideImage }>>();
+type AdoptWhiteboardRefresh = (
+  slideId: string,
+  elementId: string,
+  expectedPageId: string,
+  expectedFrameId: string,
+  frame: WhiteboardFrame,
+) => "adopted" | "rejected" | "unmounted";
+// ページ切替後にアップロード・白板スナップショット刷新が完了した結果を、同じページ・同じ世代で開き直したエディターへ引き継ぐ（whiteboard-editor.tsx と同じ仕組み）。
+const liveSlideEditors = new Map<string, Set<{ adopt: AdoptSlideImage; adoptWhiteboardRefresh: AdoptWhiteboardRefresh }>>();
+
+function applyWhiteboardRefreshToDeck(
+  latest: Deck,
+  slideId: string,
+  elementId: string,
+  expectedPageId: string,
+  expectedFrameId: string,
+  frame: WhiteboardFrame,
+  fallbackTitle: string,
+): Deck {
+  if (!latest.slides.some((slide) => slide.id === slideId)) return latest;
+  return updateSlide(latest, slideId, (slide) =>
+    updateElements(slide, new Set([elementId]), (element) => {
+      // 刷新中に別の白板や別の枠へ差し替えられていた場合、古い刷新結果で上書きしない。
+      if (element.type !== "whiteboard" || element.pageId !== expectedPageId || element.frameId !== expectedFrameId) {
+        return element;
+      }
+      return {
+        ...element,
+        src: frame.src,
+        frameName: (frame.frameName || element.frameName || fallbackTitle).slice(0, 200),
+        sourceVersion: frame.sourceVersion,
+      };
+    }));
+}
 
 function isTypingTarget(target: EventTarget | null) {
   const element = target as HTMLElement | null;
@@ -514,6 +545,7 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
   }, [applyImageToDeck, commit, current]);
 
   const adoptImageRef = useRef<AdoptSlideImage>(() => "unmounted");
+  const adoptWhiteboardRefreshRef = useRef<AdoptWhiteboardRefresh>(() => "unmounted");
   useLayoutEffect(() => {
     adoptImageRef.current = (image, target, at, slideId) => {
       if (!mounted.current) return "unmounted";
@@ -524,7 +556,11 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
     };
   }, [placeImage]);
   useEffect(() => {
-    const entry = { adopt: ((image, target, at, slideId) => adoptImageRef.current(image, target, at, slideId)) as AdoptSlideImage };
+    const entry = {
+      adopt: ((image, target, at, slideId) => adoptImageRef.current(image, target, at, slideId)) as AdoptSlideImage,
+      adoptWhiteboardRefresh: ((slideId, elementId, expectedPageId, expectedFrameId, frame) =>
+        adoptWhiteboardRefreshRef.current(slideId, elementId, expectedPageId, expectedFrameId, frame)) as AdoptWhiteboardRefresh,
+    };
     let set = liveSlideEditors.get(liveKey);
     if (!set) { set = new Set(); liveSlideEditors.set(liveKey, set); }
     set.add(entry);
@@ -586,20 +622,53 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
 
   // ---- ホワイトボード枠の更新検知と手動刷新 ----
   const pickerPages = pages as WhiteboardPickerPage[] | undefined;
-  const whiteboardPageIds = useMemo(() => {
+  // 参照している白板 ID の集合を文字列キーに先に畳み、文字入力などの無関係な編集で effect が再実行されないようにする。
+  const whiteboardIdsKey = useMemo(() => {
     const ids = new Set<string>();
     for (const slide of deck.slides) {
       for (const element of slide.elements) {
         if (element.type === "whiteboard" && element.pageId) ids.add(element.pageId);
       }
     }
-    return [...ids].sort();
+    return [...ids].sort().join("\0");
   }, [deck.slides]);
-  const whiteboardIdsKey = whiteboardPageIds.join("\0");
+  const whiteboardPageIds = useMemo(
+    () => (whiteboardIdsKey ? whiteboardIdsKey.split("\0") : []),
+    [whiteboardIdsKey],
+  );
   const [whiteboardVersions, setWhiteboardVersions] = useState<Record<string, { version: number; title: string } | "missing">>({});
   const [refreshingWhiteboardIds, setRefreshingWhiteboardIds] = useState<Set<string>>(() => new Set());
   const refreshingWhiteboardRef = useRef<Set<string>>(new Set());
   const [replacingWhiteboardId, setReplacingWhiteboardId] = useState<string | null>(null);
+
+  const commitWhiteboardRefresh = useCallback((
+    slideId: string,
+    elementId: string,
+    expectedPageId: string,
+    expectedFrameId: string,
+    frame: WhiteboardFrame,
+  ) => {
+    commit((latest) => applyWhiteboardRefreshToDeck(latest, slideId, elementId, expectedPageId, expectedFrameId, frame, t("Untitled")));
+    flushRef.current();
+    if (typeof frame.sourceVersion === "number") {
+      setWhiteboardVersions((prev) => {
+        const existing = prev[expectedPageId];
+        const boardTitle = typeof frame.boardTitle === "string"
+          ? frame.boardTitle
+          : existing && existing !== "missing" ? existing.title : "";
+        return { ...prev, [expectedPageId]: { version: frame.sourceVersion!, title: boardTitle } };
+      });
+    }
+  }, [commit, t]);
+
+  useLayoutEffect(() => {
+    adoptWhiteboardRefreshRef.current = (slideId, elementId, expectedPageId, expectedFrameId, frame) => {
+      if (!mounted.current) return "unmounted";
+      if (!editableRef.current) return "rejected";
+      commitWhiteboardRefresh(slideId, elementId, expectedPageId, expectedFrameId, frame);
+      return "adopted";
+    };
+  }, [commitWhiteboardRefresh]);
 
   // 親の一覧（NotesWorkspace）が渡されている時は、最新バージョンと削除を即座に反映する。
   useEffect(() => {
@@ -625,7 +694,7 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
         return changed ? next : prev;
       });
     });
-  }, [pickerPages, whiteboardIdsKey, whiteboardPageIds]);
+  }, [pickerPages, whiteboardPageIds]);
 
   // /note-embed や別タブでの白板更新を検知するため、フォーカス・ページ更新イベントで最新バージョンを確認する。
   useEffect(() => {
@@ -664,7 +733,7 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
       window.removeEventListener("notefable:pages-trashed", check);
       window.removeEventListener("notefable:page-created", check);
     };
-  }, [whiteboardIdsKey, whiteboardPageIds]);
+  }, [whiteboardPageIds]);
 
   const whiteboardStatus = useMemo(() => {
     const map = new Map<string, WhiteboardElementStatus>();
@@ -702,13 +771,16 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
       return next;
     });
     setNotice("");
+    const expectedPageId = target.pageId;
+    const expectedFrameId = target.frameId;
+    const fallbackTitle = t("Untitled");
     const job = (async () => {
       try {
-        const result = await refreshWhiteboardFrame({ pageId: target.pageId, frameId: target.frameId });
-        if (!mounted.current) return;
+        const result = await refreshWhiteboardFrame({ pageId: expectedPageId, frameId: expectedFrameId });
         if (!result.ok) {
+          if (!mounted.current) return;
           if (result.reason === "not-found") {
-            setWhiteboardVersions((prev) => ({ ...prev, [target.pageId]: "missing" }));
+            setWhiteboardVersions((prev) => ({ ...prev, [expectedPageId]: "missing" }));
             setNotice(t("This whiteboard is no longer available."));
           } else if (result.reason === "missing-frame") {
             setNotice(t("This frame is no longer on the whiteboard."));
@@ -720,24 +792,26 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
           return;
         }
         const frame = result.frame;
-        commit((latest) => updateSlide(latest, slideId, (slide) =>
-          updateElements(slide, new Set([elementId]), (element) => (element.type === "whiteboard"
-            ? {
-                ...element,
-                src: frame.src,
-                frameName: (frame.frameName || element.frameName || t("Untitled")).slice(0, 200),
-                sourceVersion: frame.sourceVersion,
-              }
-            : element))));
-        if (typeof frame.sourceVersion === "number") {
-          setWhiteboardVersions((prev) => {
-            const existing = prev[target.pageId];
-            const boardTitle = typeof frame.boardTitle === "string"
-              ? frame.boardTitle
-              : existing && existing !== "missing" ? existing.title : "";
-            return { ...prev, [target.pageId]: { version: frame.sourceVersion!, title: boardTitle } };
-          });
+        if (mounted.current) {
+          commitWhiteboardRefresh(slideId, elementId, expectedPageId, expectedFrameId, frame);
+          return;
         }
+        // ページ切替や再マウント後にスナップショットの刷新が終わった場合：同じ世代で開き直したエディター、または保存キューへ渡す。
+        const liveEntries = [...(liveSlideEditors.get(liveKey) ?? [])];
+        let handledByLive = false;
+        for (let i = liveEntries.length - 1; i >= 0; i--) {
+          const status = liveEntries[i].adoptWhiteboardRefresh(slideId, elementId, expectedPageId, expectedFrameId, frame);
+          if (status === "adopted" || status === "rejected") {
+            handledByLive = true;
+            break;
+          }
+        }
+        if (handledByLive || !editableRef.current) return;
+        onChangeRef.current((latestData) => {
+          const latestDeck = normalizeDeck(latestData);
+          const nextDeck = applyWhiteboardRefreshToDeck(latestDeck, slideId, elementId, expectedPageId, expectedFrameId, frame, fallbackTitle);
+          return nextDeck === latestDeck ? null : (nextDeck as unknown as CanvasData);
+        });
       } finally {
         refreshingWhiteboardRef.current.delete(elementId);
         if (mounted.current) {
@@ -751,7 +825,7 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
       }
     })();
     await trackSlideUpload(pageId, job);
-  }, [commit, current, pageId, t]);
+  }, [commitWhiteboardRefresh, current, liveKey, pageId, t]);
 
   const replaceWhiteboardElement = useCallback((elementId: string, frame: WhiteboardFrame) => {
     if (!editableRef.current || !current) return;
@@ -782,9 +856,11 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
     if (!current) return;
     const target = current.elements.find((element): element is WhiteboardElement => element.type === "whiteboard" && element.id === elementId);
     if (!target?.pageId) return;
-    if (target.frameId) requestWhiteboardReveal(target.pageId, target.frameId);
-    if (onOpenPage?.(target.pageId)) return;
-    window.open(`/app?view=pages&page=${encodeURIComponent(target.pageId)}`, "_blank", "noopener,noreferrer");
+    const reveal = target.frameId || undefined;
+    if (onOpenPage?.(target.pageId, reveal)) return;
+    const params = new URLSearchParams({ view: "pages", page: target.pageId });
+    if (reveal) params.set("reveal", reveal);
+    window.open(`/app?${params.toString()}`, "_blank", "noopener,noreferrer");
   }, [current, onOpenPage]);
 
   // ---- クリップボード ----
@@ -1199,7 +1275,7 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
                 ? { ...element, doc, ...(height && element.type === "text" && element.autoHeight ? { h: height } : {}) } : element)), `text:${id}`)}
               onTableChange={(next) => commitSlide((latest) => updateElements(latest, new Set([next.id]), () => next), `table:${next.id}`)}
               onRequestImage={(id) => requestImage(id)}
-              onReplaceWhiteboard={(id) => setReplacingWhiteboardId(id)}
+              onReplaceWhiteboard={(id) => { if (!refreshingWhiteboardRef.current.has(id)) setReplacingWhiteboardId(id); }}
               outdatedWhiteboardIds={outdatedWhiteboardIds}
               refreshingWhiteboardIds={refreshingWhiteboardIds}
               onRefreshWhiteboard={(id) => void refreshWhiteboardElement(id)}
@@ -1239,7 +1315,7 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
         {selectedElement?.type === "whiteboard" && <>
           <MenuItem icon={<RefreshCw size={16} />} label={t("Refresh snapshot")} disabled={!editable || !selectedElement.pageId || whiteboardStatus.get(selectedElement.id)?.state === "missing" || refreshingWhiteboardIds.has(selectedElement.id)}
             onClick={() => { setMenu(null); void refreshWhiteboardElement(selectedElement.id); }} />
-          <MenuItem icon={<Frame size={16} />} label={t("Change frame")} disabled={!editable} onClick={() => { setMenu(null); setReplacingWhiteboardId(selectedElement.id); }} />
+          <MenuItem icon={<Frame size={16} />} label={t("Change frame")} disabled={!editable || refreshingWhiteboardIds.has(selectedElement.id)} onClick={() => { setMenu(null); setReplacingWhiteboardId(selectedElement.id); }} />
           {selectedElement.pageId && whiteboardStatus.get(selectedElement.id)?.state !== "missing" && (
             <MenuItem icon={<ArrowUpRight size={16} className="rtl-mirror" />} label={t("Open whiteboard")} onClick={() => { setMenu(null); openWhiteboardElement(selectedElement.id); }} />
           )}

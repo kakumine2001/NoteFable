@@ -19,7 +19,7 @@ export type NativeMessage =
   | { type: "missing"; id?: string }
   | { type: "trashed" }
   // ノートの中のページのメンションを押した。アプリはそのページを開く（自分のページか、無いかはアプリ側で確かめる）。
-  | { type: "openPage"; id: string }
+  | { type: "openPage"; id: string; reveal?: string }
   // ノートの下のバックリンク（このページを使った会話）を押した。アプリはその会話を開き、messageId があればそこまで動かす。canOpenChat を持つアプリにだけ送る。
   | { type: "openChat"; id: string; messageId?: string }
   // ページを新しく作った（ノートの AI パネルの「画成図」、AI のスライド生成）。アプリは一覧を読み直す（知らない古いアプリは無視する）。

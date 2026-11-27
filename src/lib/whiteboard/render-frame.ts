@@ -43,15 +43,80 @@ function snapshotScale(preferred: number) {
 
 type RestoredElement = ReturnType<typeof restoreElements>[number];
 
-function prepareElements(data: unknown, fileUrlMode: WhiteboardFileUrlMode) {
+type PreparedWhiteboardScene = {
+  elements: RestoredElement[];
+  visible: RestoredElement[];
+  files: BinaryFiles;
+  viewBackgroundColor: string;
+};
+
+// 同じ保存データ（data オブジェクト）から全体や複数枠を描画する際（ピッカー・ノート内複数埋め込みなど）、
+// restoreElements の結果を共有して毎回ボード全体を復元し直さないようにする。
+const preparedSceneCache = new WeakMap<object, Partial<Record<WhiteboardFileUrlMode, PreparedWhiteboardScene>>>();
+
+function prepareElements(data: unknown, fileUrlMode: WhiteboardFileUrlMode): PreparedWhiteboardScene {
+  if (typeof data === "object" && data !== null) {
+    const bucket = preparedSceneCache.get(data);
+    const cached = bucket?.[fileUrlMode];
+    if (cached) return cached;
+  }
   const scene = toRenderableScene(data, { fileUrlMode });
   const restored = restoreElements(scene.elements as never, null, { repairBindings: true })
     .filter((element) => !element.isDeleted);
-  return {
+  const prepared: PreparedWhiteboardScene = {
     elements: restored,
+    visible: restored.filter((element) => !isInvisiblySmallElement(element)),
     files: scene.files as unknown as BinaryFiles,
     viewBackgroundColor: scene.appState.viewBackgroundColor ?? "#ffffff",
   };
+  if (typeof data === "object" && data !== null) {
+    const bucket = preparedSceneCache.get(data) ?? {};
+    bucket[fileUrlMode] = prepared;
+    preparedSceneCache.set(data, bucket);
+  }
+  return prepared;
+}
+
+let nextSvgIdPrefix = 0;
+
+// 同じ画面に複数の SVG プレビュー（全体＋枠、複数枠など）を並べる時、Excalidraw が frame ID 等を
+// そのまま clipPath id に使うと Chromium で別 SVG の clipPath を参照して誤って切り抜かれる。
+// プレビューごとに SVG 内の id と url(#...) / href="#..." 参照へ一意の接頭辞を付けて隔離する。
+export function isolateSvgIds(svg: SVGSVGElement, prefix: string): void {
+  const idMap = new Map<string, string>();
+  const tagged = svg.querySelectorAll("[id]");
+  for (const el of tagged) {
+    const oldId = el.getAttribute("id");
+    if (!oldId) continue;
+    const nextId = `${prefix}-${oldId}`;
+    idMap.set(oldId, nextId);
+    el.setAttribute("id", nextId);
+  }
+  if (!idMap.size) return;
+
+  const rewriteUrls = (value: string) =>
+    value.replace(/url\(\s*(['"]?)#([^)'"]+)\1\s*\)/g, (match, quote: string, id: string) => {
+      const mapped = idMap.get(id);
+      return mapped ? `url(${quote}#${mapped}${quote})` : match;
+    });
+
+  const nodes: Element[] = [svg, ...Array.from(svg.querySelectorAll("*"))];
+  for (const node of nodes) {
+    for (const attr of Array.from(node.attributes)) {
+      if (attr.name === "id") continue;
+      if ((attr.name === "href" || attr.name === "xlink:href") && attr.value.startsWith("#")) {
+        const mapped = idMap.get(attr.value.slice(1));
+        if (mapped) node.setAttribute(attr.name, `#${mapped}`);
+      } else if (attr.value.includes("url(")) {
+        const updated = rewriteUrls(attr.value);
+        if (updated !== attr.value) node.setAttribute(attr.name, updated);
+      }
+    }
+    if (node.tagName.toLowerCase() === "style" && node.textContent && node.textContent.includes("url(")) {
+      const updated = rewriteUrls(node.textContent);
+      if (updated !== node.textContent) node.textContent = updated;
+    }
+  }
 }
 
 function findRestoredFrame(elements: readonly RestoredElement[], frameId: string): RestoredElement | null {
@@ -63,12 +128,11 @@ function findRestoredFrame(elements: readonly RestoredElement[], frameId: string
 // 保存済みデータから、ホワイトボード全体または 1 つの枠の SVG をオフスクリーン描画する。
 export async function renderWhiteboardSvg(data: unknown, options: WhiteboardSvgOptions = {}): Promise<WhiteboardSvgResult> {
   const fileUrlMode = options.fileUrlMode ?? "owner";
-  const { elements, files, viewBackgroundColor } = prepareElements(data, fileUrlMode);
+  const { elements, visible, files, viewBackgroundColor } = prepareElements(data, fileUrlMode);
   const frameId = options.frameId?.trim() || "";
   const frame = frameId ? findRestoredFrame(elements, frameId) : null;
   if (frameId && !frame) return { status: "missing-frame" };
 
-  const visible = elements.filter((element) => !isInvisiblySmallElement(element));
   if (!frame && !visible.length) return { status: "empty" };
 
   const targetElements = frame ? elements : visible;
@@ -88,6 +152,7 @@ export async function renderWhiteboardSvg(data: unknown, options: WhiteboardSvgO
     },
   });
 
+  isolateSvgIds(svg, `nf-wb-${++nextSvgIdPrefix}`);
   svg.removeAttribute("width");
   svg.removeAttribute("height");
   svg.setAttribute("role", "img");
@@ -140,12 +205,11 @@ export async function renderWhiteboardSnapshot(
   data: unknown,
   options?: { frameId?: string | null; maxBytes?: number },
 ): Promise<WhiteboardSnapshotResult> {
-  const { elements, files, viewBackgroundColor } = prepareElements(data, "owner");
+  const { elements, visible, files, viewBackgroundColor } = prepareElements(data, "owner");
   const frameId = options?.frameId?.trim() || "";
   const frame = frameId ? findRestoredFrame(elements, frameId) : null;
   if (frameId && !frame) return { ok: false, reason: "missing-frame" };
 
-  const visible = elements.filter((element) => !isInvisiblySmallElement(element));
   if (!frame && !visible.length) return { ok: false, reason: "empty" };
 
   let canvas: HTMLCanvasElement | null = null;

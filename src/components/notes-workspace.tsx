@@ -134,7 +134,7 @@ function NoteSaveWarnings({ notes }: { notes: ReturnType<typeof useNotePages> })
   </>;
 }
 
-export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChange, onReasoningChange, onOpen, onOpenChat, onCreate, onGenerateSlides, onImport, onWorkspaceChange, embedded = false, split = false, onAskSelectionInChat }: {
+export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChange, onReasoningChange, onOpen, onOpenChat, onCreate, onGenerateSlides, onImport, onWorkspaceChange, embedded = false, split = false, onAskSelectionInChat, onNativeOpenReveal }: {
   notes: ReturnType<typeof useNotePages>;
   listMode: boolean;
   // ノートの AI アシスタントが使うモデルと推論強度（チャットで選んでいるものと同じ）。
@@ -143,7 +143,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   // AI アシスタントの入力欄からモデルと推論強度を変える。/note-embed では渡さない（アプリ側で選ぶ）。
   onModelChange?: (model: string) => void;
   onReasoningChange?: (reasoning: string) => void;
-  onOpen: (id: string) => void;
+  onOpen: (id: string, reveal?: string) => void;
   // バックリンクの会話を開く（messageId はそのページを添付した発言）。/note-embed では渡さず、アプリに openChat を送る。
   onOpenChat?: (id: string, messageId?: string) => void;
   // 新しいページを作る（ホームと空状態の作成ボタン）。省略はプロジェクトなしのノート。
@@ -158,6 +158,8 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   split?: boolean;
   // 分割表示中にエディターで「Ask AI」を押したとき、左のチャットへ選択内容（引用・要素 ID・選区画像）を渡す。
   onAskSelectionInChat?: (selection: PageSelection) => void;
+  // /note-embed で別ページの特定要素（ホワイトボードの枠など）へ飛ぶ時、アプリの openPage 応答をまたいで目標要素を覚える。
+  onNativeOpenReveal?: (id: string, reveal: string) => void;
 }) {
   const { t, locale } = useI18n();
   const { active, activeId, loading, listLoading, openingId, busy, error, actionError } = notes;
@@ -265,7 +267,12 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
           onIconChange={(icon) => { if (icon !== active.content.icon) active.edit({ ...active.content, icon }); }}
           // 埋め込み（/note-embed）は一覧を持たない。リンク先を選ぶ時にエディターが自分で読む。
           pages={embedded || (listLoading && !notes.pages.length) ? undefined : notes.pages}
-          onOpenPage={(id) => { if (!embedded) { onOpen(id); return true; } return nativeCanOpenPage() && postToNative({ type: "openPage", id }); }}
+          onOpenPage={(id, reveal) => {
+            if (!embedded) { onOpen(id, reveal); return true; }
+            if (!nativeCanOpenPage()) return false;
+            if (reveal) onNativeOpenReveal?.(id, reveal);
+            return postToNative({ type: "openPage", id, ...(reveal ? { reveal } : {}) });
+          }}
           // 選んだ要素・スライドについて AI に聞く（AI パネルを開き、選んだものを文脈として渡す）。
           onAskAi={(selection) => {
             // 分割表示では AI パネルを出さないので、選んだ抜粋・要素 ID・選区画像コールバックを左のチャットへ渡す。
@@ -315,7 +322,12 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
           // 一覧の読み込み中（まだ空）は「不明」として渡さない。空の一覧を渡すと、すべてのメンションが「開けない」表示になる。
           pages={embedded || (listLoading && !notes.pages.length) ? undefined : notes.pages} currentPageId={activeId} pageMentions={!embedded || nativeCanOpenPage()}
           // 埋め込みでは、openPage を処理できるアプリにだけ送る。古いアプリ・ブラウザでは false を返し、エディターは元どおりリンクを新しいウィンドウで開く。
-          onOpenPage={(id) => { if (!embedded) { onOpen(id); return true; } return nativeCanOpenPage() && postToNative({ type: "openPage", id }); }}
+          onOpenPage={(id, reveal) => {
+            if (!embedded) { onOpen(id, reveal); return true; }
+            if (!nativeCanOpenPage()) return false;
+            if (reveal) onNativeOpenReveal?.(id, reveal);
+            return postToNative({ type: "openPage", id, ...(reveal ? { reveal } : {}) });
+          }}
           editorRef={editorRef} onFocusTitle={() => {
             titleRef.current?.focus();
             const end = titleRef.current?.value.length ?? 0;

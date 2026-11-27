@@ -13,7 +13,7 @@ export async function GET(request: Request, { params }: Params) {
   try {
     const { token } = await params;
     const pageId = new URL(request.url).searchParams.get("page");
-    const resolved = await resolvePublicShare(token, pageId);
+    const resolved = await resolvePublicShare(token, pageId, undefined, { includeEmbeddedWhiteboards: false });
     if (!resolved) return new NextResponse(null, { status: 404 });
 
     // ?kind=icon はページのアイコン（アップロード画像のとき）。それ以外はカバー。

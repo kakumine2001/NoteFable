@@ -112,9 +112,11 @@ describe("public share tree and page kinds", () => {
   it("resolves embedded whiteboards only when they belong to the same public share tree", async () => {
     const blocks = [
       { id: "e1", type: "whiteboard", props: { pageId: "wb-in-tree", frameId: "f1" }, children: [] },
-      { id: "e2", type: "whiteboard", props: { pageId: "wb-excluded", frameId: "" }, children: [] },
-      { id: "e3", type: "whiteboard", props: { pageId: "wb-outside", frameId: "" }, children: [] },
-      { id: "e4", type: "whiteboard", props: { pageId: "wb-under-deck", frameId: "" }, children: [] },
+      { id: "e2", type: "whiteboard", props: { pageId: "wb-nested-1", frameId: "" }, children: [] },
+      { id: "e3", type: "whiteboard", props: { pageId: "wb-nested-2", frameId: "" }, children: [] },
+      { id: "e4", type: "whiteboard", props: { pageId: "wb-excluded", frameId: "" }, children: [] },
+      { id: "e5", type: "whiteboard", props: { pageId: "wb-outside", frameId: "" }, children: [] },
+      { id: "e6", type: "whiteboard", props: { pageId: "wb-under-deck", frameId: "" }, children: [] },
     ];
     mocks.findFirst.mockResolvedValueOnce(root({ blocks }));
     // 1st findMany: visible children of root; 2nd findMany: candidate embedded whiteboards
@@ -122,21 +124,38 @@ describe("public share tree and page kinds", () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
         { id: "wb-in-tree", title: "Allowed Board", icon: "🎨", parentId: "root" },
+        { id: "wb-nested-1", title: "Nested Board 1", icon: null, parentId: "folder-a" },
+        { id: "wb-nested-2", title: "Nested Board 2", icon: null, parentId: "folder-a" },
         { id: "wb-outside", title: "Secret Board", icon: null, parentId: "other-root" },
         { id: "wb-under-deck", title: "Deck Child Board", icon: null, parentId: "deck" },
       ]);
-    // Ancestor chains for non-direct-child candidates ("wb-outside" and "wb-under-deck")
-    mocks.queryRaw
-      .mockResolvedValueOnce([ancestor("other-root", { parentId: null })])
-      .mockResolvedValueOnce([ancestor("deck", { kind: "slides", parentId: "root" }), ancestor("root", { depth: 2 })]);
+    // Single batched recursive query for all non-direct-child parent IDs.
+    mocks.queryRaw.mockResolvedValueOnce([
+      ancestor("folder-a", { parentId: "root" }),
+      ancestor("other-root", { parentId: null }),
+      ancestor("deck", { kind: "slides", parentId: "root" }),
+    ]);
 
     const resolved = await resolvePublicShare(token);
+    expect(mocks.queryRaw).toHaveBeenCalledTimes(1);
     expect(resolved?.embeddedWhiteboards).toEqual({
       "wb-in-tree": {
         id: "wb-in-tree",
         title: "Allowed Board",
         icon: "🎨",
         href: `/s/${token}/p/wb-in-tree`,
+      },
+      "wb-nested-1": {
+        id: "wb-nested-1",
+        title: "Nested Board 1",
+        icon: null,
+        href: `/s/${token}/p/wb-nested-1`,
+      },
+      "wb-nested-2": {
+        id: "wb-nested-2",
+        title: "Nested Board 2",
+        icon: null,
+        href: `/s/${token}/p/wb-nested-2`,
       },
     });
     // Verify candidate query restricts to owner, whiteboard, live, not excluded from parent.
@@ -146,6 +165,15 @@ describe("public share tree and page kinds", () => {
       deletedAt: null,
       shareExcludeFromParent: false,
     });
+
+    // Callers that do not render note HTML (files, covers, metadata) skip embedded whiteboard resolution.
+    vi.clearAllMocks();
+    mocks.findFirst.mockResolvedValueOnce(root({ blocks }));
+    mocks.findMany.mockResolvedValueOnce([]);
+    const lite = await resolvePublicShare(token, undefined, undefined, { includeEmbeddedWhiteboards: false });
+    expect(lite?.embeddedWhiteboards).toBeUndefined();
+    expect(mocks.findMany).toHaveBeenCalledTimes(1);
+    expect(mocks.queryRaw).not.toHaveBeenCalled();
   });
 
   it("blocks child whiteboards when shareIncludeSubpages is false, while allowing a child note to embed a whiteboard share root", async () => {
