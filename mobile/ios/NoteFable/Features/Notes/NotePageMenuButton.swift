@@ -225,6 +225,9 @@ private struct NotePageMenuContent: View {
                 isBusy: actions.generatingSlides, action: run(onGenerateSlides)
             )
         }
+        if page.kind == .slides, let onImportPptx = actions.onImportPptx {
+            ActionsMenuItem(L("slides_import_pptx"), icon: Lucide.upload, action: run(onImportPptx))
+        }
         if notePageSupportsQuiz(page.kind), let onReviewQuiz = actions.onReviewQuiz {
             ActionsMenuItem(L("pg_review_quiz"), icon: Lucide.bookOpenCheck, action: run(onReviewQuiz))
         }

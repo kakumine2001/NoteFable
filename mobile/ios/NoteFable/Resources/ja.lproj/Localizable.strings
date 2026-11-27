@@ -603,6 +603,7 @@
 "slides_export_png" = "PNG 画像に書き出す";
 "slides_export_pptx" = "PowerPoint（PPTX）に書き出す";
 "slides_export_pptx_transition_note" = "PPTX 書き出しにはスライドの切り替え効果は含まれません。";
+"slides_import_pptx" = "PowerPoint を読み込む";
 
 /* strings_slides_wizard.xml */
 "slides_generate" = "スライドを生成";

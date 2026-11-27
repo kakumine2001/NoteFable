@@ -28,6 +28,8 @@ struct NotePageMenuActions {
     var onGenerateSlides: (() -> Void)? = nil
     /// 这篇的幻灯片正在生成（网页的菜单项显示转圈和"正在生成幻灯片…"）。
     var generatingSlides = false
+    /// 「导入 PowerPoint」（#154，只给幻灯片，打开 PPTX 导入窗口）。nil 时不显示。
+    var onImportPptx: (() -> Void)? = nil
     /// 「复习和测验」（#154 PR 13，给笔记和幻灯片，盖在当前编辑器上打开）。nil 时不显示。
     var onReviewQuiz: (() -> Void)? = nil
 }

@@ -603,6 +603,7 @@
 "slides_export_png" = "Als PNG-Bilder exportieren";
 "slides_export_pptx" = "Als PowerPoint (PPTX) exportieren";
 "slides_export_pptx_transition_note" = "Folienübergänge sind im PPTX-Export nicht enthalten.";
+"slides_import_pptx" = "PowerPoint importieren";
 
 /* strings_slides_wizard.xml */
 "slides_generate" = "Folien generieren";

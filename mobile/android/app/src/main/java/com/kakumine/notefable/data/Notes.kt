@@ -423,6 +423,11 @@ sealed interface EmbedMessage {
      * 只有声明了 `canShowSlidesWizard()` 的 App 才会收到。
      */
     data class SlidesWizard(val open: Boolean, val busy: Boolean = false) : EmbedMessage
+    /**
+     * PowerPoint（.pptx）导入窗口（#154，网页 PptxImportHost）出现（[open]）或消失。
+     * 只有声明了 `canShowPptxImport()` 的 App 才会收到。
+     */
+    data class PptxImport(val open: Boolean) : EmbedMessage
     /** 网页现在正在做幻灯片的笔记（页面加载时和每次变化时发）：这些笔记的"…"里「生成幻灯片」显示生成中（网页菜单同）。 */
     data class SlidesJobs(val pageIds: Set<String>) : EmbedMessage
     /** 复习和测验窗口（#154 PR 13，网页 ReviewQuizHost）出现（[open]）或消失。只有声明了 `canShowQuiz()` 的 App 才会收到。 */
@@ -490,6 +495,11 @@ sealed interface EmbedMessage {
                     "closed" -> SlidesWizard(open = false, busy = obj.flag("busy") == true)
                     else -> null
                 }
+                "pptxImport" -> when (obj.text("state")) {
+                    "open" -> PptxImport(open = true)
+                    "closed" -> PptxImport(open = false)
+                    else -> null
+                }
                 "slidesJobs" -> SlidesJobs(
                     (obj["pageIds"] as? JsonArray ?: return@runCatching null)
                         .mapNotNull { item -> (item as? JsonPrimitive)?.takeIf { it.isString }?.content?.takeIf { it.isNotBlank() } }
@@ -530,6 +540,12 @@ sealed interface SlidesWizardSource {
     data class Note(val pageId: String) : SlidesWizardSource
     data class Chat(val sessionId: String) : SlidesWizardSource
 }
+
+/**
+ * PowerPoint（.pptx）导入的目标位置，即 `window.notefableEmbed.pptxImport({ action: "open", groupId?, parentId? })`
+ * （src/lib/native-bridge.ts 的 parsePptxImportRequest）。[groupId] 是项目，[parentId] 是父页面（均为 null 时建在幻灯片分区）。
+ */
+data class PptxImportTarget(val groupId: String? = null, val parentId: String? = null)
 
 /** 只需要知道成功与否的接口（`{ ok: true }` 之类），内容不用。 */
 @Serializable

@@ -603,6 +603,7 @@
 "slides_export_png" = "Экспорт в изображения PNG";
 "slides_export_pptx" = "Экспорт в PowerPoint (PPTX)";
 "slides_export_pptx_transition_note" = "Переходы между слайдами не сохраняются при экспорте в PPTX.";
+"slides_import_pptx" = "Импорт PowerPoint";
 
 /* strings_slides_wizard.xml */
 "slides_generate" = "Создать слайды";

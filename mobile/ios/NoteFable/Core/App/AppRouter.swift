@@ -348,6 +348,17 @@ final class AppRouter {
         }
     }
 
+    /// 打开 PowerPoint（.pptx）导入窗口（#154）。工作区里已经打开着编辑器时切回工作区并盖在编辑器上，否则开全屏导入画面。
+    func openPptxImport(_ target: PptxImportTarget = PptxImportTarget()) {
+        drawerOpen = false
+        if let editor = app.notes.state.visibleEditor {
+            selectedTab = .workspace
+            app.notes.openPptxImport(target, editor: editor)
+        } else {
+            app.notes.openPptxImport(target, editor: nil)
+        }
+    }
+
     /// 登录 / 退出后：旧身份整理好的笔记、画好的白板与搜索状态恢复默认标签。
     func openProposalPreview(_ proposal: Proposal) {
         previewProposal = proposal
@@ -373,5 +384,6 @@ final class AppRouter {
         drawerOpen = false
         previewProposal = nil
         app.notes.dismissFullScreenSlidesWizard()
+        app.notes.dismissFullScreenPptxImport()
     }
 }

@@ -603,6 +603,7 @@
 "slides_export_png" = "Ekspor gambar PNG";
 "slides_export_pptx" = "Ekspor ke PowerPoint (PPTX)";
 "slides_export_pptx_transition_note" = "Transisi slide tidak disertakan saat mengekspor ke PPTX.";
+"slides_import_pptx" = "Impor PowerPoint";
 
 /* strings_slides_wizard.xml */
 "slides_generate" = "Buat slide";

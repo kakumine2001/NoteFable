@@ -319,6 +319,7 @@ export const koServer: Record<string, string> = {
   "Gantt chart": "간트 차트",
   "quadrant chart": "사분면 차트",
   "mind map": "마인드맵",
+  "Could not import this PowerPoint file. Try again.": "이 PowerPoint 파일을 가져오지 못했습니다. 다시 시도하세요.",
   "Could not generate a quiz. Try again.": "퀴즈를 생성하지 못했습니다. 다시 시도해 주세요.",
   "Could not save the review note. Try again.": "복습 노트를 저장하지 못했습니다. 다시 시도해 주세요.",
   "There is nothing to make a quiz from yet.": "퀴즈를 만들 내용이 아직 없습니다.",

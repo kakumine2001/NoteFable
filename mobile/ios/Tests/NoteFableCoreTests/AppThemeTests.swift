@@ -113,10 +113,10 @@ final class AppThemeTests: XCTestCase {
 
     func testTheBootstrapDefinesTheSynchronousThemeGetterOnlyWhenGiven() {
         let dark = NoteEmbedScripts.bootstrap(handler: "h", appIcon: nil, language: "en", theme: "dark")
-        XCTAssertTrue(dark.contains(#"language:function(){return lang},canOpenPage:function(){return true},canShowStorageLimit:function(){return true},canShowUsageLimit:function(){return true},canPresent:function(){return true},canSaveFile:function(){return true},canOpenChat:function(){return true},canShowSlidesWizard:function(){return true},canShowQuiz:function(){return true},theme:function(){return "dark"}}})()"#))
+        XCTAssertTrue(dark.contains(#"language:function(){return lang},canOpenPage:function(){return true},canShowStorageLimit:function(){return true},canShowUsageLimit:function(){return true},canPresent:function(){return true},canSaveFile:function(){return true},canOpenChat:function(){return true},canShowSlidesWizard:function(){return true},canShowPptxImport:function(){return true},canShowQuiz:function(){return true},theme:function(){return "dark"}}})()"#))
         let none = NoteEmbedScripts.bootstrap(handler: "h", appIcon: nil, language: "en")
         XCTAssertFalse(none.contains("theme:"))
-        XCTAssertTrue(none.hasSuffix("language:function(){return lang},canOpenPage:function(){return true},canShowStorageLimit:function(){return true},canShowUsageLimit:function(){return true},canPresent:function(){return true},canSaveFile:function(){return true},canOpenChat:function(){return true},canShowSlidesWizard:function(){return true},canShowQuiz:function(){return true}}})()"))
+        XCTAssertTrue(none.hasSuffix("language:function(){return lang},canOpenPage:function(){return true},canShowStorageLimit:function(){return true},canShowUsageLimit:function(){return true},canPresent:function(){return true},canSaveFile:function(){return true},canOpenChat:function(){return true},canShowSlidesWizard:function(){return true},canShowPptxImport:function(){return true},canShowQuiz:function(){return true}}})()"))
     }
 
     func testTheThemeScriptCallsTheEmbedApiWithAQuotedValue() {

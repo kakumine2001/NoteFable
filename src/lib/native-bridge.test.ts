@@ -383,6 +383,35 @@ describe("slides wizard bridge", () => {
   });
 });
 
+describe("pptx import bridge", () => {
+  it("parses valid open/back commands and rejects malformed ids", async () => {
+    const { parsePptxImportRequest } = await import("./native-bridge");
+    expect(parsePptxImportRequest({ action: "back" })).toEqual({ action: "back" });
+    expect(parsePptxImportRequest(JSON.stringify({ action: "open" }))).toEqual({ action: "open", groupId: null, parentId: null });
+    expect(parsePptxImportRequest({ action: "open", groupId: "grp_1", parentId: null })).toEqual({ action: "open", groupId: "grp_1", parentId: null });
+    expect(parsePptxImportRequest({ action: "open", parentId: "pg-1" })).toEqual({ action: "open", groupId: null, parentId: "pg-1" });
+    for (const bad of [null, "back", "{broken", { action: "close" }, { action: "open", groupId: "bad id" }, { action: "open", parentId: 123 }]) {
+      expect(parsePptxImportRequest(bad)).toBeNull();
+    }
+  });
+
+  it("forwards commands through embed api and gates native capability", async () => {
+    const { nativeCanShowPptxImport } = await import("./native-bridge");
+    const pptxImport = vi.fn((command: { action: string }) => command.action === "open");
+    const api = createEmbedApi({ flush: async () => true, openHistory: () => {}, pptxImport, post: () => {} });
+    expect(api.pptxImport({ action: "open", groupId: "g1" })).toBe(true);
+    expect(api.pptxImport({ action: "back" })).toBe(false);
+    expect(api.pptxImport({ action: "nope" })).toBe(false);
+    expect(pptxImport).toHaveBeenCalledTimes(2);
+
+    const postMessage = vi.fn();
+    expect(nativeCanShowPptxImport({ NoteFableNative: { postMessage, canShowPptxImport: () => true } })).toBe(true);
+    expect(nativeCanShowPptxImport({ NoteFableNative: { postMessage } })).toBe(false);
+    expect(postToNative({ type: "pptxImport", state: "open" }, { NoteFableNative: { postMessage } })).toBe(true);
+    expect(JSON.parse(postMessage.mock.calls[0][0])).toEqual({ type: "pptxImport", state: "open" });
+  });
+});
+
 describe("review quiz bridge", () => {
   it("parses open and back quiz commands and rejects malformed payloads", async () => {
     const { parseQuizRequest } = await import("./native-bridge");

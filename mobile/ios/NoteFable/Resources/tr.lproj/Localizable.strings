@@ -603,6 +603,7 @@
 "slides_export_png" = "PNG görseller olarak dışa aktar";
 "slides_export_pptx" = "PowerPoint (PPTX) olarak dışa aktar";
 "slides_export_pptx_transition_note" = "Slayt geçişleri PPTX dışa aktarımına dahil edilmez.";
+"slides_import_pptx" = "PowerPoint içe aktar";
 
 /* strings_slides_wizard.xml */
 "slides_generate" = "Slayt oluştur";

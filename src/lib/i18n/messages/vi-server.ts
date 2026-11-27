@@ -319,6 +319,7 @@ export const viServer: Record<string, string> = {
   "Gantt chart": "biểu đồ Gantt",
   "quadrant chart": "biểu đồ bốn góc phần tư",
   "mind map": "sơ đồ tư duy",
+  "Could not import this PowerPoint file. Try again.": "Không thể nhập tệp PowerPoint này. Hãy thử lại.",
   "Could not generate a quiz. Try again.": "Không thể tạo bài kiểm tra. Hãy thử lại.",
   "Could not save the review note. Try again.": "Không thể lưu ghi chú ôn tập. Hãy thử lại.",
   "There is nothing to make a quiz from yet.": "Chưa có nội dung để tạo bài kiểm tra.",

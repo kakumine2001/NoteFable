@@ -603,6 +603,7 @@
 "slides_export_png" = "导出 PNG 图片";
 "slides_export_pptx" = "导出 PowerPoint（PPTX）";
 "slides_export_pptx_transition_note" = "导出为 PPTX 时不包含幻灯片转场效果。";
+"slides_import_pptx" = "导入 PowerPoint";
 
 /* strings_slides_wizard.xml */
 "slides_generate" = "生成幻灯片";

@@ -426,7 +426,7 @@ User 1 -> N StoredFile（SetNull）
 
 已有的文件在超限后照常可读、可用；复制页面、分支聊天、编辑发言共用原文件，不增加用量。
 
-**引用（使用中）。** 只上传、引用要等之后保存的文件（笔记文件、封面）登记时就记 `releasedAt`（未使用，宽限期从上传算）；同一请求里就会被引用的文件（聊天附件和生成图、头像、图标、AI 提案里的复制）用 `storeFile(..., { held: true })` 直接登记为使用中，没用上时由巡查释放。保存页面的各个路径在同一事务里把引用到的文件设为使用中：封面和图标用 `claimCover`（行不在或在删除中就拒绝保存），正文的图片块、文件块用 `claimNoteFiles`（只改 `releasedAt` 不为空的行；找不到或在删除中不阻止保存）——`PATCH /api/pages/:id`、`createNotePage`（新建、Save to page、Create page）、复制笔记、导入、历史恢复、适用 AI 提案（先锁文件行、后锁页面行，与 `PATCH` 同序）。白板 / 幻灯片的图片也放在 `note-files/`（`NOTE_FILE`）：保存、新建、历史恢复时 `validateCanvasData` 收集本体里的文件路径，同样在更新页面行之前用 `claimStoredFiles` 设为使用中；复制白板 / 幻灯片不把本体读进应用，而是在创建复制品之前用 `claimCanvasFiles` 在数据库里从 `NoteCanvas.data` 取出文件 UUID 并设为使用中（这样复制途中原页面去掉了文件，清理也要等复制提交后再判断）。各类文件“被谁引用”由 `REFERENCE_CHECKS` 判断：
+**引用（使用中）。** 只上传、引用要等之后保存的文件（笔记文件、封面）登记时就记 `releasedAt`（未使用，宽限期从上传算）；同一请求里就会被引用的文件（聊天附件和生成图、头像、图标、AI 提案里的复制）用 `storeFile(..., { held: true })` 直接登记为使用中，没用上时由巡查释放。保存页面的各个路径在同一事务里把引用到的文件设为使用中：封面和图标用 `claimCover`（行不在或在删除中就拒绝保存），正文的图片块、文件块用 `claimNoteFiles`（只改 `releasedAt` 不为空的行；找不到不阻止保存，已在删除中的行拒绝保存，并与即时清理 `discardUnreferencedNoteFiles` 共用按用户的 `notefable-note-files:<userId>` 事务锁）——`PATCH /api/pages/:id`、`createNotePage`（新建、Save to page、Create page）、复制笔记、导入、历史恢复、适用 AI 提案（先锁文件行、后锁页面行，与 `PATCH` 同序）。白板 / 幻灯片的图片也放在 `note-files/`（`NOTE_FILE`）：保存、新建、历史恢复时 `validateCanvasData` 收集本体里的文件路径，同样在更新页面行之前用 `claimStoredFiles` 设为使用中；复制白板 / 幻灯片不把本体读进应用，而是在创建复制品之前用 `claimCanvasFiles` 在数据库里从 `NoteCanvas.data` 取出文件 UUID 并设为使用中（这样复制途中原页面去掉了文件，清理也要等复制提交后再判断）。各类文件“被谁引用”由 `REFERENCE_CHECKS` 判断：
 
 | kind | 引用来源 |
 | --- | --- |

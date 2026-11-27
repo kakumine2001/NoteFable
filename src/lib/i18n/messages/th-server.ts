@@ -319,6 +319,7 @@ export const thServer: Record<string, string> = {
   "Gantt chart": "แผนภูมิแกนต์",
   "quadrant chart": "แผนภูมิสี่ส่วน",
   "mind map": "แผนผังความคิด",
+  "Could not import this PowerPoint file. Try again.": "นำเข้าไฟล์ PowerPoint นี้ไม่สำเร็จ โปรดลองอีกครั้ง",
   "Could not generate a quiz. Try again.": "ไม่สามารถสร้างแบบทดสอบได้ โปรดลองอีกครั้ง",
   "Could not save the review note. Try again.": "ไม่สามารถบันทึกโน้ตทบทวนได้ โปรดลองอีกครั้ง",
   "There is nothing to make a quiz from yet.": "ยังไม่มีเนื้อหาสำหรับสร้างแบบทดสอบ",

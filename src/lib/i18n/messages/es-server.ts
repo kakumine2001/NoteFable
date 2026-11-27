@@ -319,6 +319,7 @@ export const esServer: Record<string, string> = {
   "Gantt chart": "diagrama de Gantt",
   "quadrant chart": "gráfico de cuadrantes",
   "mind map": "mapa mental",
+  "Could not import this PowerPoint file. Try again.": "No se pudo importar este archivo de PowerPoint. Inténtalo de nuevo.",
   "Could not generate a quiz. Try again.": "No se pudo generar el cuestionario. Inténtalo de nuevo.",
   "Could not save the review note. Try again.": "No se pudo guardar la nota de repaso. Inténtalo de nuevo.",
   "There is nothing to make a quiz from yet.": "Todavía no hay contenido para crear un cuestionario.",

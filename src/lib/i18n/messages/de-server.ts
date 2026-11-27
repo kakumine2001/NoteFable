@@ -319,6 +319,7 @@ export const deServer: Record<string, string> = {
   "Gantt chart": "Gantt-Diagramm",
   "quadrant chart": "Quadrantendiagramm",
   "mind map": "Mindmap",
+  "Could not import this PowerPoint file. Try again.": "Diese PowerPoint-Datei konnte nicht importiert werden. Versuche es erneut.",
   "Could not generate a quiz. Try again.": "Quiz konnte nicht erstellt werden. Bitte versuche es erneut.",
   "Could not save the review note. Try again.": "Lernnotiz konnte nicht gespeichert werden. Bitte versuche es erneut.",
   "There is nothing to make a quiz from yet.": "Es gibt noch keinen Inhalt, aus dem ein Quiz erstellt werden kann.",

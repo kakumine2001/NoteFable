@@ -48,14 +48,15 @@ type GroupActions = {
   onFavorite: (pageId: string, favorite: boolean) => Promise<unknown>;
 };
 
-export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, onGenerateSlides, onImport, onSearch, onSelect, onPrefetch, onCancelPrefetch, onDelete, deleteError, onClose, onWorkspaceChange, groups, groupError, onMoveNote, onChangeIcon, onRenamePage, onCreateGroup, onRenameGroup, onDeleteGroup, onReorder, onMoveToPage, onFavorite }: {
+export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, onGenerateSlides, onImportPptx, onImport, onSearch, onSelect, onPrefetch, onCancelPrefetch, onDelete, deleteError, onClose, onWorkspaceChange, groups, groupError, onMoveNote, onChangeIcon, onRenamePage, onCreateGroup, onRenameGroup, onDeleteGroup, onReorder, onMoveToPage, onFavorite }: {
   pages: NotePageSummary[]; activeId: string | null; busy: boolean;
   // Notes のホーム（最近のノートと一覧）を出しているか、とホームへ戻る操作。
   home: boolean; onHome: () => void;
   // 作り先（種類・親ページ・プロジェクト）を渡して新しいページを作る。省略はプロジェクトなしのノート。
   onWorkspaceChange: (view: WorkspaceView) => void; onCreate: (request?: NewPageRequest) => void;
-  // AI のスライド生成の窓を開く。作り先（プロジェクト・親ページ）はそのまま渡す。
-  onGenerateSlides?: (placement?: { groupId?: string; parentId?: string }) => void; onImport: (files: File[]) => void; onSearch: () => void; onSelect: (id: string) => void; onPrefetch?: (id: string, immediate?: boolean) => void; onCancelPrefetch?: (id?: string) => void; onDelete: (id: string) => Promise<boolean>; onClose: () => void;
+  // AI のスライド生成・PowerPoint 取り込みの窓を開く。作り先（プロジェクト・親ページ）はそのまま渡す。
+  onGenerateSlides?: (placement?: { groupId?: string; parentId?: string }) => void;
+  onImportPptx?: (placement?: { groupId?: string; parentId?: string }) => void; onImport: (files: File[]) => void; onSearch: () => void; onSelect: (id: string) => void; onPrefetch?: (id: string, immediate?: boolean) => void; onCancelPrefetch?: (id?: string) => void; onDelete: (id: string) => Promise<boolean>; onClose: () => void;
   // ゴミ箱へ移せなかった理由（確認の小窓の中に出す）。
   deleteError: string;
 } & GroupActions) {
@@ -128,6 +129,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
     onCreate(request);
   };
   const generate = (placement?: { groupId?: string; parentId?: string }) => (onGenerateSlides ? () => onGenerateSlides(placement) : undefined);
+  const importPptx = (placement?: { groupId?: string; parentId?: string }) => (onImportPptx ? () => onImportPptx(placement) : undefined);
   const tree = (page: NotePageSummary): ReactNode => {
     const kids = children.get(page.id) ?? [];
     // Notion と同じく、どのページにも開閉の矢印を出す（サブページがなければ「No pages inside」）。
@@ -181,7 +183,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
           }}>
           <Ellipsis size={14} />
         </button>
-        <NewPageButton kinds={kinds} busy={busy} onCreate={(kind) => create({ kind, parentId: page.id })} onGenerate={generate({ parentId: page.id })} className="notion-row-action"
+        <NewPageButton kinds={kinds} busy={busy} onCreate={(kind) => create({ kind, parentId: page.id })} onGenerate={generate({ parentId: page.id })} onImportPptx={importPptx({ parentId: page.id })} className="notion-row-action"
           label={t("Add a page inside {title}", { title: page.title })} title={t("Add a page inside")} menuLabel={t("Add a page inside {title}", { title: page.title })}><Plus size={14} /></NewPageButton>
       </span>
     </div>
@@ -197,7 +199,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
       <WorkspaceNav view="pages" onChange={onWorkspaceChange} />
       <div className="sidebar-top-actions mt-2.5 flex flex-col gap-1.5 px-2.5">
         {/* 作れる種類がノートだけなら「New note」（押すとすぐノート）、2 つ以上なら「New」で種類を選ぶ。 */}
-        <NewPageButton kinds={kinds} busy={busy} onCreate={(kind) => create({ kind })} onGenerate={generate()} className="sidebar-primary-action" menuLabel={t("New page")}>
+        <NewPageButton kinds={kinds} busy={busy} onCreate={(kind) => create({ kind })} onGenerate={generate()} onImportPptx={importPptx()} className="sidebar-primary-action" menuLabel={t("New page")}>
           <Plus size={15} strokeWidth={2.2} /><span>{kinds.length > 1 ? t("New") : t("New note")}</span>
           {kinds.length > 1 && <ChevronDown size={14} className="sidebar-primary-chevron" aria-hidden="true" />}
         </NewPageButton>
@@ -257,7 +259,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
                     <span className="sidebar-count-pill">{total}</span>
                   </button>
                   <span className="sidebar-row-actions">
-                    <NewPageButton kinds={kinds} busy={busy} onCreate={(kind) => create({ kind, groupId: group.id })} onGenerate={generate({ groupId: group.id })} className="notion-row-action"
+                    <NewPageButton kinds={kinds} busy={busy} onCreate={(kind) => create({ kind, groupId: group.id })} onGenerate={generate({ groupId: group.id })} onImportPptx={importPptx({ groupId: group.id })} className="notion-row-action"
                       label={t("New page in {name}", { name: group.name })} menuLabel={t("New page in {name}", { name: group.name })}><Plus size={14} /></NewPageButton>
                     <button type="button" onClick={() => setNaming({ mode: "rename", group })} className="notion-row-action" aria-label={t("Rename {name}", { name: group.name })}><Pencil size={13} /></button>
                     <button type="button" onClick={() => setDeletingGroup(group)} className="notion-row-action is-danger" aria-label={t("Delete project {name}", { name: group.name })}><Trash2 size={13.5} /></button>
@@ -287,8 +289,8 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
                 {section.count > 0 && <span className="sidebar-section-count">{section.count}</span>}
                 <ChevronRight size={12.5} className={`sidebar-chevron rtl-mirror${open ? " is-open" : ""}`} aria-hidden="true" />
               </button>
-              {/* スライドの分区の「+」は「New slide deck」と「Generate with AI」のメニュー。他の分区は押すとすぐ作る。 */}
-              <NewPageButton kinds={[section.kind]} busy={busy} onCreate={(kind) => create({ kind })} onGenerate={generate()} className="notion-icon-button sidebar-heading-add"
+              {/* スライドの分区の「+」は「New slide deck」「Generate with AI」「Import PowerPoint」のメニュー。他の分区は押すとすぐ作る。 */}
+              <NewPageButton kinds={[section.kind]} busy={busy} onCreate={(kind) => create({ kind })} onGenerate={generate()} onImportPptx={importPptx()} className="notion-icon-button sidebar-heading-add"
                 label={t(PAGE_KIND_NEW_LABELS[section.kind])} menuLabel={t(PAGE_KIND_NEW_LABELS[section.kind])}><Plus size={14} /></NewPageButton>
             </div>
             {open && section.roots.map(tree)}

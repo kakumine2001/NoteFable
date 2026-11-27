@@ -319,6 +319,7 @@ export const hiServer: Record<string, string> = {
   "Gantt chart": "गैंट चार्ट",
   "quadrant chart": "चतुर्थांश चार्ट",
   "mind map": "माइंड मैप",
+  "Could not import this PowerPoint file. Try again.": "यह PowerPoint फ़ाइल इंपोर्ट नहीं की जा सकी। फिर से कोशिश करें।",
   "Could not generate a quiz. Try again.": "क्विज़ नहीं बनाया जा सका। फिर से प्रयास करें।",
   "Could not save the review note. Try again.": "रिव्यू नोट सहेजा नहीं जा सका। फिर से प्रयास करें।",
   "There is nothing to make a quiz from yet.": "क्विज़ बनाने के लिए अभी कोई सामग्री नहीं है।",

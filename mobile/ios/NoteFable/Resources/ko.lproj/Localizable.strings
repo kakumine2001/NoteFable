@@ -603,6 +603,7 @@
 "slides_export_png" = "PNG 이미지로 내보내기";
 "slides_export_pptx" = "PowerPoint(PPTX)로 내보내기";
 "slides_export_pptx_transition_note" = "PPTX 내보내기에는 슬라이드 전환 효과가 포함되지 않습니다.";
+"slides_import_pptx" = "PowerPoint 가져오기";
 
 /* strings_slides_wizard.xml */
 "slides_generate" = "슬라이드 생성";
