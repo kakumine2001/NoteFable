@@ -90,7 +90,7 @@ To change a note, call read_note first and then propose_note_edit. The user turn
 To make a new note, call propose_note_create (parentId puts it inside another page).
 ```
 
-白板 / 幻灯片的 AI 面板（以及在那里开始、在 Chats 里继续的会话）用这一句代替上面的笔记说明（`<种类>` 是 `whiteboard` / `slide deck`；可编辑的类型如白板附带对应编辑工具说明，还不能修改的类型如幻灯片末尾加 “You cannot change it with the tools.”）：
+白板 / 幻灯片的 AI 面板（以及在那里开始、在 Chats 里继续的会话）用这一句代替上面的笔记说明（`<种类>` 是 `whiteboard` / `slide deck`；白板与幻灯片均已开启编辑，分别指引调用 `propose_whiteboard_edit` 与 `propose_slides_edit`，其中幻灯片强调按稳定 `slide.id` 定位且 `restyle_deck` 不改文字；若某类页面只读则末尾加 “You cannot change it with the tools.”）：
 
 ```text
 The user is asking from inside their <种类> "<标题>" (noteId: <id>). Unless they clearly mean something else, treat requests as being about it: call read_note with this noteId to read it. When the user asks to edit, add, delete, connect, group or organize items on it, call propose_whiteboard_edit with the version returned by read_note. Change only what was asked and leave the rest as it is. The page changes only after the user applies your proposal.
@@ -118,7 +118,7 @@ Claude 若返回 `pause_turn`，服务端将这轮原生 assistant blocks 原样
 
 Claude 若返回 `stop_reason: "tool_use"`（Notes 工具），服务端执行工具后追加两条消息再请求：原样的 assistant blocks，以及 `{ "role": "user", "content": [{ "type": "tool_result", "tool_use_id": "…", "content": "…" }] }`；失败时带 `"is_error": true`。
 
-上面的示例 `tools` 只展开 `search_notes` 和 `read_note`；实际顺序是 `search_notes`、`list_pages`（参数 `kind`、`parentId`，都可为 null）、`read_note`、`list_chat_attachments`（无参数，列出当前聊天的附件），然后是各页面类型适配器的修改工具（`propose_note_edit`：参数 `noteId`、`version`、`title`、`edits[]`；`propose_whiteboard_edit`：参数 `noteId`、`version`、`title`、`operations[]`）和新建工具（`propose_note_create`：参数 `title`、`markdown`、`icon`、`parentId`；`propose_whiteboard_create`：参数 `title`、`icon`、`parentId`、`mermaid`、`frames`、`items`、`connections`），最后是只在有适配器能画图、且模型支持看图时才加的 `preview_page`（参数 `noteId`、`slideId`、`elementIds`；现在不会发送）。定义在 `src/lib/page-ai/`，三家共用一份；OpenAI 的 `strict` 模式下可空字段写成 `["string","null"]`，所有字段都列在 `required` 里。修改 / 新建工具只生成待用户确认的提案，在工具执行时保存到 `NoteProposal`，不会直接写入 `NotePage`（AI 面板开着“自动应用”时紧接着适用，见 [chat-flow.md](chat-flow.md#编辑案与确认)）。`read_note` 的结果把页面内容夹在随机生成的 `<<<page-content <tag>>>` 分隔行之间。
+上面的示例 `tools` 只展开 `search_notes` 和 `read_note`；实际顺序是 `search_notes`、`list_pages`（参数 `kind`、`parentId`，都可为 null）、`read_note`、`list_chat_attachments`（无参数，列出当前聊天的附件），然后是各页面类型适配器的修改工具（`propose_note_edit`：参数 `noteId`、`version`、`title`、`edits[]`；`propose_whiteboard_edit`：参数 `noteId`、`version`、`title`、`operations[]`；`propose_slides_edit`：参数 `noteId`、`version`、`title`、`operations[]`）和新建工具（`propose_note_create`：参数 `title`、`markdown`、`icon`、`parentId`；`propose_whiteboard_create`：参数 `title`、`icon`、`parentId`、`mermaid`、`frames`、`items`、`connections`；`propose_slides_create`：参数 `title`、`icon`、`parentId`、`theme`、`slides`），最后是只在有适配器能画图、且模型支持看图时才加的 `preview_page`（参数 `noteId`、`slideId`、`elementIds`；现在不会发送）。定义在 `src/lib/page-ai/`，三家共用一份；OpenAI 的 `strict` 模式下可空字段写成 `["string","null"]`，所有字段都列在 `required` 里。修改 / 新建工具只生成待用户确认的提案，在工具执行时保存到 `NoteProposal`，不会直接写入 `NotePage`（AI 面板开着“自动应用”时紧接着适用，见 [chat-flow.md](chat-flow.md#编辑案与确认)）。`read_note` 的结果把页面内容夹在随机生成的 `<<<page-content <tag>>>` 分隔行之间。
 
 工具结果带图片（`preview_page`）时：Claude 的 `tool_result.content` 是 `[{ "type": "text", … }, { "type": "image", "source": { "type": "base64", "media_type": "image/png", "data": "…" } }]`；OpenAI / DeepSeek 的 `function_call_output.output` 是 `[{ "type": "input_text", … }, { "type": "input_image", "image_url": "data:image/png;base64,…" }]`。存进压缩 checkpoint 的同一结果只留文字。
 

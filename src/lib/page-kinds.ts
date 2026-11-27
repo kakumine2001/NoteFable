@@ -41,9 +41,9 @@ export type PageKindFeatures = {
 // （届くまでは同梱の assets/page-kinds.json。表を変えたら scripts/gen-native-page-kinds.ts で作り直す）。
 export const PAGE_KIND_FEATURES: Record<PageKind, PageKindFeatures> = {
   note: { editor: true, markdownExport: true, typography: true, publicShare: true, aiEdit: true },
-  // ホワイトボード（#152・#153）：エディター・公開の読み取りビュー・AI 操作（作成 / 編集）がそろっている。
+  // ホワイトボード（#152・#153）とスライド（#149・#150）：エディター・公開ビュー・AI 操作（作成 / 編集）がそろっている。
   whiteboard: { editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: true },
-  slides: { editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false },
+  slides: { editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: true },
 };
 
 export function pageKindFeatures(kind: PageKind): PageKindFeatures {

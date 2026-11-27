@@ -1284,4 +1284,13 @@ export const ar: Record<string, string> = {
   "Selected sketch": "الرسم المحدد",
   "Optional: watercolor illustration, clean 3D render, architectural diagram…": "اختياري: رسم بالألوان المائية، تصميم ثلاثي الأبعاد نظيف، مخطط معماري…",
   "Could not capture the selected sketch. Try again.": "تعذر التقاط الرسم المحدد. حاول مرة أخرى.",
+  "Ask AI to edit this slide deck…": "اطلب من الذكاء الاصطناعي تعديل هذا العرض التقديمي…",
+  "Change tone": "تغيير النبرة",
+  "Merge slides": "دمج الشرائح",
+  "Restyle deck": "تغيير نمط العرض",
+  "Rewrite": "إعادة صياغة",
+  "Split into two slides": "تقسيم إلى شريحتين",
+  "Write speaker notes": "كتابة ملاحظات المتحدث",
+  "This page is locked.": "هذه الصفحة مقفلة.",
+  "Resolve the unsaved draft before locking this page.": "عالج المسودة غير المحفوظة قبل قفل هذه الصفحة.",
 };

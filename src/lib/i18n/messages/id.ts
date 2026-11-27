@@ -1284,4 +1284,13 @@ export const id: Record<string, string> = {
   "Selected sketch": "Sketsa terpilih",
   "Optional: watercolor illustration, clean 3D render, architectural diagram…": "Opsional: ilustrasi cat air, render 3D rapi, diagram arsitektur…",
   "Could not capture the selected sketch. Try again.": "Tidak dapat mengambil sketsa yang dipilih. Coba lagi.",
+  "Ask AI to edit this slide deck…": "Minta AI mengedit presentasi ini…",
+  "Change tone": "Ubah nada",
+  "Merge slides": "Gabungkan slide",
+  "Restyle deck": "Ubah gaya presentasi",
+  "Rewrite": "Tulis ulang",
+  "Split into two slides": "Bagi menjadi dua slide",
+  "Write speaker notes": "Tulis catatan pembicara",
+  "This page is locked.": "Halaman ini terkunci.",
+  "Resolve the unsaved draft before locking this page.": "Selesaikan draf yang belum disimpan sebelum mengunci halaman ini.",
 };

@@ -349,4 +349,94 @@ describe("canvasTextAdapter structured slides read", () => {
     expect(result).toContain("## Slide 2 (id: s_small, layout: bullets)");
     expect(result).toContain("Second selected short line");
   });
+
+  it("never evicts a second selected slide due to omitted-slide index reserve", () => {
+    const slides = [
+      {
+        id: "s_sel_1",
+        layout: "bullets",
+        elements: [{
+          id: "t_sel_1",
+          type: "text",
+          role: "title",
+          doc: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: `First selected body ${"A".repeat(9_200)}` }] }] },
+        }],
+      },
+      {
+        id: "s_sel_2",
+        layout: "bullets",
+        elements: [{
+          id: "t_sel_2",
+          type: "text",
+          role: "title",
+          doc: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: `Second selected body ${"B".repeat(9_200)}` }] }] },
+        }],
+      },
+      {
+        id: "s_unsel_3",
+        layout: "bullets",
+        elements: [{
+          id: "t_unsel_3",
+          type: "text",
+          role: "title",
+          doc: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: `Unselected slide summary ${"C".repeat(3_000)}` }] }] },
+        }],
+      },
+    ];
+    const result = adapter.read(page("slides", {
+      data: { format: 1, theme: { id: "simple", mode: "light" }, slides },
+      focusIds: ["s_sel_1", "s_sel_2"],
+    }));
+    expect(result.length).toBeLessThanOrEqual(MAX_READ_CHARS);
+    expect(result).toContain("## Slide 1 (id: s_sel_1, layout: bullets)");
+    expect(result).toContain("## Slide 2 (id: s_sel_2, layout: bullets)");
+    expect(result).toContain("Omitted slides (stable IDs):");
+    expect(result).toContain("s_unsel_3");
+    const omittedSection = result.split("Omitted slides (stable IDs):")[1] ?? "";
+    expect(omittedSection).not.toContain("s_sel_1");
+    expect(omittedSection).not.toContain("s_sel_2");
+  });
+
+  it("keeps all 10 selected slides in view without eviction when all slides are selected", () => {
+    const slides = Array.from({ length: 10 }, (_, idx) => ({
+      id: `sel_${idx}`,
+      layout: "bullets",
+      elements: [{
+        id: `t_${idx}`,
+        type: "text",
+        role: "title",
+        doc: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: `Slide ${idx + 1} ${"M".repeat(2_500)}` }] }] },
+      }],
+    }));
+    const result = adapter.read(page("slides", {
+      data: { format: 1, theme: { id: "simple", mode: "light" }, slides },
+      focusIds: slides.map((s) => s.id),
+    }));
+    expect(result.length).toBeLessThanOrEqual(MAX_READ_CHARS);
+    for (let idx = 0; idx < 10; idx++) {
+      expect(result).toContain(`## Slide ${idx + 1} (id: sel_${idx}, layout: bullets)`);
+    }
+    expect(result).not.toContain("Omitted slides (stable IDs):");
+  });
+
+  it("keeps actual element content on selected slides when 100 slides have 200-char section names", () => {
+    const slides = Array.from({ length: 500 }, (_, idx) => ({
+      id: `s500_${idx}`,
+      layout: "bullets",
+      ...(idx < 100 ? { section: `Section ${idx + 1} ${"S".repeat(185)}` } : {}),
+      elements: [{
+        id: `t500_${idx}`,
+        type: "text",
+        role: "title",
+        doc: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: `ElementBody-${idx} Key point` }] }] },
+      }],
+    }));
+    const result = adapter.read(page("slides", {
+      data: { format: 1, theme: { id: "simple", mode: "light" }, slides },
+      focusIds: slides.slice(0, 100).map((s) => s.id),
+    }));
+    expect(result.length).toBeLessThanOrEqual(MAX_READ_CHARS);
+    expect(result).toContain("ElementBody-0 Key point");
+    expect(result).toContain("ElementBody-99 Key point");
+  });
 });

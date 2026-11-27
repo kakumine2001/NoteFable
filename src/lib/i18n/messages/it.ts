@@ -1284,4 +1284,13 @@ export const it: Record<string, string> = {
   "Selected sketch": "Schizzo selezionato",
   "Optional: watercolor illustration, clean 3D render, architectural diagram…": "Facoltativo: illustrazione ad acquerello, render 3D pulito, diagramma di architettura…",
   "Could not capture the selected sketch. Try again.": "Impossibile acquisire lo schizzo selezionato. Riprova.",
+  "Ask AI to edit this slide deck…": "Chiedi all'IA di modificare questa presentazione…",
+  "Change tone": "Cambia tono",
+  "Merge slides": "Unisci diapositive",
+  "Restyle deck": "Cambia stile",
+  "Rewrite": "Riscrivi",
+  "Split into two slides": "Dividi in due diapositive",
+  "Write speaker notes": "Scrivi note del relatore",
+  "This page is locked.": "Questa pagina è bloccata.",
+  "Resolve the unsaved draft before locking this page.": "Risolvi la bozza non salvata prima di bloccare questa pagina.",
 };

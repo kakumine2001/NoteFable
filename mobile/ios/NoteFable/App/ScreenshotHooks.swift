@@ -39,6 +39,14 @@ enum ScreenshotScene: String, CaseIterable, Sendable {
     case settingsPage = "settings-page"
     /// 京都聊天上显示一条提示条（量出来的输入栏上方位置）。
     case toast
+    // 应用商店截图（-NFFixtureStory store，只在 CI 的 ios-store-screenshots 任务拍，顺序和 Google Play 商店截图一样）。
+    case storeAnswer = "store-answer"
+    case storeTable = "store-table"
+    case storeWorkspace = "store-workspace"
+    case storeMindmap = "store-mindmap"
+    case storeSlides = "store-slides"
+    case storeModels = "store-models"
+    case storePlan = "store-plan"
 }
 
 #if DEBUG
@@ -59,6 +67,8 @@ enum ScreenshotHooks {
     private static var configured = false
     private static var configuredQuery: String?
     private static var configuredSolidChrome = false
+    private static var configuredEditorServer: URL?
+    private static var configuredEditorCookie: String?
     private static var consumedScenes: Set<ScreenshotScene> = []
     private static var readyScenes: Set<ScreenshotScene> = []
 
@@ -68,13 +78,24 @@ enum ScreenshotHooks {
     static var dismissTick: Int { driver.dismissTick }
     static var forceSolidChrome: Bool { configured && configuredSolidChrome }
     static var searchQuery: String? { configured ? configuredQuery : nil }
+    /// 应用商店截图：编辑器从这个本机网页服务打开（-NFEditorServer），带上它的匿名设备 Cookie（-NFEditorCookie）。
+    static var editorServer: URL? { configured ? configuredEditorServer : nil }
+    static var editorCookie: String? { configured ? configuredEditorCookie : nil }
 
-    static func configure(scene: ScreenshotScene, searchQuery: String?, forceSolidChrome: Bool) {
+    static func configure(
+        scene: ScreenshotScene,
+        searchQuery: String?,
+        forceSolidChrome: Bool,
+        editorServer: URL? = nil,
+        editorCookie: String? = nil
+    ) {
         configured = true
         driver.scene = scene
         driver.sceneTick += 1
         configuredQuery = searchQuery
         configuredSolidChrome = forceSolidChrome
+        configuredEditorServer = editorServer
+        configuredEditorCookie = editorCookie
         consumedScenes.removeAll()
         readyScenes.removeAll()
     }
@@ -112,6 +133,8 @@ enum ScreenshotHooks {
     static var dismissTick: Int { 0 }
     static var forceSolidChrome: Bool { false }
     static var searchQuery: String? { nil }
+    static var editorServer: URL? { nil }
+    static var editorCookie: String? { nil }
     static func consume(_ target: ScreenshotScene) -> Bool { false }
     static func markReady(_ target: ScreenshotScene) {}
     static func isReady(_ target: ScreenshotScene) -> Bool { false }

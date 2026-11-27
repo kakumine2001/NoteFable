@@ -101,7 +101,7 @@ async function saveCanvas(body: unknown, userId: string, pageId: string, kind: C
     // ノートと同じく、上書きされる前の状態を間隔を空けて履歴に残す（題名だけの変更でも。本体は DB の中で写す）。
     await snapshotBeforeSave(tx, { noteId: pageId, userId, version, kind });
     const changed = await tx.notePage.updateMany({
-      where: { id: pageId, userId, version, deletedAt: null, kind },
+      where: { id: pageId, userId, version, deletedAt: null, kind, locked: false },
       data: { title: input.title, ...(iconPresent ? { icon: input.icon } : {}), version: { increment: 1 } },
     });
     if (changed.count && canvas) await writeCanvas(tx, pageId, canvas);
@@ -116,6 +116,12 @@ async function saveCanvas(body: unknown, userId: string, pageId: string, kind: C
     return { page, conflict: !changed.count && !alreadySaved, changed: changed.count > 0 };
   }, { timeout: 20_000 });
   if (!result.page) return NextResponse.json({ error: msg("Page not found.") }, { status: 404 });
+  if (result.conflict && result.page.locked) {
+    return NextResponse.json(
+      { error: msg("This page is locked."), code: "PAGE_LOCKED", page: result.page, version: result.page.version },
+      { status: 423 },
+    );
+  }
   if (result.conflict) return NextResponse.json({ error: msg("This page was changed in another tab."), page: result.page, version: result.page.version }, { status: 409 });
   if (result.changed) scheduleNoteEmbeddingSync(userId, [pageId]);
   return NextResponse.json({ version: result.page.version, page: result.page });

@@ -279,6 +279,10 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
     private var edgePan: UIScreenEdgePanGestureRecognizer?
     /// 正在显示的网页提示框（alert / confirm / prompt）和按“取消”回答它的办法：切页或离开编辑页时关掉，网页不会一直等着。
     private var openDialog: (alert: UIAlertController, cancel: () -> Void)?
+    #if DEBUG
+    /// CI 应用商店截图：FixtureLaunch 在现在这个网页里跑就绪探测（[screenshotProbe]）。
+    private(set) static weak var screenshotController: NoteEditorController?
+    #endif
 
     init(
         app: AppEnvironment,
@@ -437,6 +441,9 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
 
         self.webView = webView
         bridge.attach(self)
+        #if DEBUG
+        if ScreenshotHooks.isActive { Self.screenshotController = self }
+        #endif
         return webView
     }
 
@@ -711,6 +718,11 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         if ScreenshotHooks.isActive {
             self.isLoaded = true
             self.historyFloor = 0
+            // 应用商店截图：打开本机网页服务上的真实编辑器；平时的截图用下面的离线替身页。
+            if let server = ScreenshotHooks.editorServer {
+                loadFromEditorServer(url, server: server, run: current)
+                return
+            }
             let html = FixtureEditorPage.html(
                 pageId: pageId,
                 theme: self.pushedTheme.isEmpty ? "light" : self.pushedTheme,
@@ -747,6 +759,43 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
             }
         }
     }
+
+    #if DEBUG
+    /// 同一个编辑器地址换到本机跑着的网页服务（ci-store-server.sh），带上能看到种子页面的匿名设备 Cookie。
+    /// 截图的 WebView 用 nonPersistent 数据存储，所以 Cookie 直接写进它自己的存储（replaceCookies 写的是默认存储）。
+    private func loadFromEditorServer(_ url: URL, server: URL, run: Int) {
+        var parts = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        parts?.scheme = server.scheme
+        parts?.host = server.host
+        parts?.port = server.port
+        guard let webView, let target = parts?.url else { return }
+        let store = webView.configuration.websiteDataStore.httpCookieStore
+        let cookie = ScreenshotHooks.editorCookie.flatMap { value in
+            HTTPCookie(properties: [.name: "notefable_device", .value: value, .domain: server.host ?? "localhost", .path: "/"])
+        }
+        Task { @MainActor [weak self] in
+            if let cookie {
+                await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+                    store.setCookie(cookie) {
+                        done.resume()
+                    }
+                }
+            }
+            guard let self, self.loadRun == run, self.activeEditor != nil, let webView = self.webView else { return }
+            webView.load(URLRequest(url: target))
+        }
+    }
+
+    /// 在现在的网页里执行 [script]，结果是 true 才返回 true。
+    func screenshotProbe(_ script: String) async -> Bool {
+        guard let webView else { return false }
+        return await withCheckedContinuation { (answer: CheckedContinuation<Bool, Never>) in
+            webView.evaluateJavaScript(script) { result, _ in
+                answer.resume(returning: (result as? Bool) == true)
+            }
+        }
+    }
+    #endif
 
     /// WebView 的 Cookie 换成 App 的（匿名设备 Cookie、登录会话）：先清掉旧的，避免退出登录后网页还用旧身份。
     private static func replaceCookies(_ cookies: [HTTPCookie]) async {
@@ -911,7 +960,11 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
     // MARK: - 链接
 
     private func isSameSite(_ url: URL) -> Bool {
-        guard let base = URL(string: app.config.baseURL) else { return false }
+        Self.sameOrigin(url, URL(string: app.config.baseURL))
+    }
+
+    private static func sameOrigin(_ url: URL, _ base: URL?) -> Bool {
+        guard let base else { return false }
         return url.scheme?.lowercased() == base.scheme?.lowercased()
             && url.host?.lowercased() == base.host?.lowercased()
             && url.port == base.port
@@ -924,7 +977,10 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         let scheme = url.scheme?.lowercased() ?? ""
         if scheme == "about" { return true }
         if ScreenshotHooks.isActive {
-            return (scheme == "http" || scheme == "https") && isSameSite(url) && url.path.contains("/note-embed")
+            // 应用商店截图时编辑器来自本机的网页服务。
+            return (scheme == "http" || scheme == "https")
+                && (isSameSite(url) || Self.sameOrigin(url, ScreenshotHooks.editorServer))
+                && url.path.contains("/note-embed")
         }
         guard scheme == "http" || scheme == "https" else {
             // mailto:、tel: 之类交给系统；blob:、data:、javascript: 系统打不开，也不让它换掉编辑器。

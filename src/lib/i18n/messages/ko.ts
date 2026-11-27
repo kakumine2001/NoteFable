@@ -1284,4 +1284,13 @@ export const ko: Record<string, string> = {
   "Selected sketch": "선택한 스케치",
   "Optional: watercolor illustration, clean 3D render, architectural diagram…": "선택 사항: 수채화 일러스트, 깔끔한 3D 렌더링, 아키텍처 다이어그램…",
   "Could not capture the selected sketch. Try again.": "선택한 스케치를 캡처할 수 없습니다. 다시 시도해 주세요.",
+  "Ask AI to edit this slide deck…": "AI에게 이 슬라이드 편집 요청하기…",
+  "Change tone": "어조 변경",
+  "Merge slides": "슬라이드 합치기",
+  "Restyle deck": "전체 스타일 변경",
+  "Rewrite": "다시 쓰기",
+  "Split into two slides": "두 슬라이드로 나누기",
+  "Write speaker notes": "발표자 노트 작성",
+  "This page is locked.": "이 페이지는 잠겨 있습니다.",
+  "Resolve the unsaved draft before locking this page.": "이 페이지를 잠그기 전에 저장되지 않은 초안을 먼저 해결하세요.",
 };

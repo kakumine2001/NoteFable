@@ -971,7 +971,12 @@ class NotesViewModelTest {
         advanceUntilIdle()
         val pushed = mutableListOf<NotePageSummary>()
         vm.pushPageSettings = { pushed += it }
+        vm.flushEditor = { FlushResult(false) }
+        assertFalse(vm.updateSettings("a", com.kakumine.notefable.data.NotePageSettings(locked = true)))
+        assertEquals(NotesError.Kind.UnsavedDraft, vm.state.value.notice?.kind)
+        vm.flushEditor = { FlushResult(true) }
         assertTrue(vm.updateSettings("a", com.kakumine.notefable.data.NotePageSettings(fullWidth = true, font = "mono", locked = true)))
+        assertNull(vm.state.value.notice)
         assertTrue(vm.setFavorite("b", true))
         val pages = vm.state.value.pages.associateBy { it.id }
         assertTrue(pages.getValue("a").fullWidth)

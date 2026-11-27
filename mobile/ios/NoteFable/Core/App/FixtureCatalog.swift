@@ -74,6 +74,8 @@ struct FixtureCatalog: Sendable {
     var streamHoldsOpen: Bool
     /// 传入应用内强制语言（例如 `ar-app` 截图变体）时同步回账号上的 `locale`，避免登录后 `syncWithAccount` 把偏好覆盖回 Auto。
     var appLanguage: String?
+    /// 默认数据，或应用商店截图的学习场景（FixtureStoreData.swift）。
+    var story: Story
 
     init(
         account: Account = .signedIn,
@@ -82,7 +84,8 @@ struct FixtureCatalog: Sendable {
         kinds: Data? = nil,
         image: Data,
         streamHoldsOpen: Bool = false,
-        appLanguage: String? = nil
+        appLanguage: String? = nil,
+        story: Story = .standard
     ) {
         self.account = account
         self.now = now
@@ -91,6 +94,7 @@ struct FixtureCatalog: Sendable {
         self.image = image
         self.streamHoldsOpen = streamHoldsOpen
         self.appLanguage = appLanguage
+        self.story = story
     }
 
     func reply(to request: HTTPRequest) -> FixtureTransport.Reply? {
@@ -102,6 +106,14 @@ struct FixtureCatalog: Sendable {
         let path = components.percentEncodedPath
         let segments = path.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
         let query = components.queryItems ?? []
+
+        // 商店故事先换掉自己有内容的接口，其余照下面的默认应答。
+        if story == .store,
+           let value = FixtureStoreData(now: now, signedIn: account == .signedIn, appLanguage: appLanguage, kinds: kinds)
+               .payload(method: method, path: path, query: query)
+        {
+            return jsonReply(value)
+        }
 
         // 1. 固定路径优先，再匹配带 :id 的路径。
         switch (method, path) {
@@ -670,7 +682,7 @@ struct FixtureCatalog: Sendable {
         let kindsValue = kinds.flatMap { JSONValue.parse($0) } ?? [
             "note": ["editor": true, "markdownExport": true, "typography": true, "publicShare": true, "aiEdit": true],
             "whiteboard": ["editor": true, "markdownExport": false, "typography": false, "publicShare": true, "aiEdit": true],
-            "slides": ["editor": true, "markdownExport": false, "typography": false, "publicShare": true, "aiEdit": false],
+            "slides": ["editor": true, "markdownExport": false, "typography": false, "publicShare": true, "aiEdit": true],
         ]
         return [
             "pages": [
