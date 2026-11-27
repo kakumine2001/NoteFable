@@ -1485,13 +1485,27 @@ class ReviewDocumentTests(unittest.TestCase):
         # The two or three numbers that ios-version.sh accepts.
         self.assertRegex(review_mod.read_marketing_version(REPO_ROOT), r"^\d+(\.\d+){1,2}$")
 
-    def test_subscription_descriptions_state_only_the_pro_storage(self) -> None:
+    def test_subscription_descriptions_state_the_pro_limits(self) -> None:
         plans = (REPO_ROOT / "src/lib/usage-plans.ts").read_text(encoding="utf-8")
+        chat, image = re.search(r"pro: \{ chat: (\d+), image: (\d+) \}", plans).groups()
         gigabytes = re.search(r"pro: (\d+) \* 1024 \* MIB", plans).group(1)
         for locale, texts in self.parse().subscription.items():
             with self.subTest(locale):
-                # A message or image count would have to carry the daily limit too, which doesn't fit.
-                self.assertEqual(re.findall(r"\d+", texts.description), [gigabytes], texts.description)
+                # Thousands separators differ by language: a comma, a dot, a space or none.
+                plain = re.sub(r"(?<=\d)[,. \u00a0\u202f](?=\d{3})", "", texts.description)
+                self.assertEqual(sorted(re.findall(r"\d+", plain)), sorted([chat, image, gigabytes]), texts.description)
+
+    def test_keeps_the_texts_already_on_app_store_connect(self) -> None:
+        subscription = self.parse().subscription
+        for locale, name, description in (
+            ("en-US", "NoteFable Pro Monthly", "2,000 messages, 60 images/month, and 10 GB storage."),
+            ("zh-Hans", "NoteFable Pro 月度订阅", "每月 2,000 条消息、60 张图片与 10 GB 存储空间。"),
+            ("zh-Hant", "NoteFable Pro 月度訂閱", "每月 2,000 則訊息、60 張圖片與 10 GB 儲存空間。"),
+            ("ja", "NoteFable Pro 月額プラン", "月2,000件のメッセージ、60枚の画像、10 GBの保存容量。"),
+        ):
+            with self.subTest(locale):
+                texts = subscription[locale]
+                self.assertEqual((texts.group_name, texts.name, texts.description), ("NoteFable Pro", name, description))
 
     def test_rejects_phone_numbers_with_or_without_a_country_code(self) -> None:
         for number in (
@@ -1524,8 +1538,8 @@ class ReviewDocumentTests(unittest.TestCase):
             "email address or phone number": ("NO ACCOUNT NEEDED", "Contact a@example.com"),
             "needs exactly one ```text block": (f"```text\n{REVIEW.copyright}\n```", REVIEW.copyright),
             "copyright must be one line": (f"{REVIEW.copyright}\n```", "NoteFable\n```"),
-            "description is 46 characters": ("More AI messages and images, 10 GB storage", "x" * 46),
-            "display name is 31 characters": ("| NoteFable Pro | NoteFable Pro |", f"| NoteFable Pro | {'N' * 31} |"),
+            "description is 56 characters": ("2,000 messages, 60 images/month, and 10 GB storage.", "x" * 56),
+            "display name is 31 characters": ("| NoteFable Pro Monthly |", f"| {'N' * 31} |"),
             "exactly one row for each": ("| Japanese |", "| Japan |"),
         }
         for message, (old, new) in cases.items():
