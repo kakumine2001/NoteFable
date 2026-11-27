@@ -10,6 +10,8 @@ on:
     branches: [main]
     paths:
       - "mobile/ios/**"
+      # App Store 截图不参与构建，由 store-listing-pr.yml 检查。
+      - "!mobile/ios/app-store/screenshots/**"
       - "mobile/android/app/src/main/assets/**"
       - ".github/workflows/ios-*.yml"
       - "scripts/release/ios-version*.sh"

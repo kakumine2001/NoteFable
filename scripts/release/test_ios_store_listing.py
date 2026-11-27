@@ -9,8 +9,10 @@ import importlib.util
 import io
 import itertools
 import os
+import re
 import shutil
 import struct
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -227,17 +229,17 @@ class FakeAppStoreConnect:
     def _get_appStoreVersionLocalizations(self, parts, query, data):
         localization_id, relationship = parts
         assert relationship == "placements"
-        group = query["filter[placementGroup]"]
+        group = query.get("filter[placementGroup]")  # None: every group
         found = [
             (i, p)
             for i, p in self.placements.items()
-            if p["localization"] == localization_id and p["group"] == group
+            if p["localization"] == localization_id and group in (None, p["group"])
         ]
         return {
             "data": [
                 {
                     "id": i,
-                    "attributes": {"placementType": "APP_SCREENSHOT", "placementGroup": group},
+                    "attributes": {"placementType": "APP_SCREENSHOT", "placementGroup": p["group"]},
                     "relationships": {"image": {"data": {"type": "appAssetLibraryImages", "id": p["image"]}}},
                 }
                 for i, p in found
@@ -599,6 +601,30 @@ class ScreenshotFileTests(unittest.TestCase):
             listing_mod.group_screenshots(reference_data(), listing_mod.load_screenshots(self.root))
         self.assertIn("11 screenshots", str(ctx.exception))
 
+    def test_leaves_out_groups_that_app_store_versions_do_not_use(self) -> None:
+        write_screenshots(self.root, {"iphone/1.png": png(1206, 2622)})
+        shots = listing_mod.load_screenshots(self.root)
+        reference = reference_data()
+        # The same platform, display class and size, listed for another feature only.
+        other = "CUSTOM_PAGE_PROFILE"
+        reference["placementProfileGroups"].append(
+            {
+                "placementProfileGroupId": other,
+                "platform": "IPHONE_APP_STORE",
+                "displayClassId": "IPHONE_DYNAMIC_ISLAND_MEDIUM_DISPLAY",
+            }
+        )
+        reference["placementTypes"][0]["specMappings"].append({"placementGroupId": other, "specs": ["s63"]})
+        policy = {"placementType": "APP_SCREENSHOT", "groupLimits": [{"groupIds": [other], "maxCount": 10}]}
+        reference["features"].append({"featureId": "APP_CUSTOM_PRODUCT_PAGES", "placementPolicies": [policy]})
+        self.assertEqual([g.group_id for g in listing_mod.group_screenshots(reference, shots)], [MEDIUM])
+
+        # A size that only such a group takes is refused.
+        reference["features"][0]["placementPolicies"][0]["groupLimits"][0]["groupIds"].remove(MEDIUM)
+        with self.assertRaises(ListingError) as ctx:
+            listing_mod.group_screenshots(reference, shots)
+        self.assertIn("is not an accepted size", str(ctx.exception))
+
 
 # --- Syncing -----------------------------------------------------------------------------------
 
@@ -739,6 +765,34 @@ class SyncTests(unittest.TestCase):
             methods.index(("PATCH", "appAssetLibraryImages")), methods.index(("DELETE", "appAssetLibraryPlacements"))
         )
 
+    def test_warns_about_groups_that_show_screenshots_without_local_files(self) -> None:
+        fake = FakeAppStoreConnect()
+        fake.version["v-en"] = {"locale": "en-US"}
+        large = [fake.add_screenshot("v-en", LARGE, f"large{n}.png") for n in range(2)]
+        fake.add_screenshot("v-en", MEDIUM, "old.png")
+        fake.add_screenshot("v-ja", IPAD, "ja.png")  # only the en-US screenshots are this script's
+        shots = self.shots({"iphone/new.png": png(1206, 2622)})
+
+        def left_over() -> list[str]:
+            return [line.split()[0] for line in self.output if "left unchanged" in line and "screenshot(s)" in line]
+
+        self.assertTrue(self.sync(fake, shots))
+        self.assertEqual(left_over(), [f"::warning::{LARGE}:"])
+        self.assertIn(f"{LARGE}: 2 en-US screenshot(s)", self.text())
+        # Without any local file nothing is replaced, so every group is left over.
+        self.assertTrue(self.sync(fake, None))
+        self.assertEqual(left_over(), [f"::warning::{LARGE}:", f"::warning::{MEDIUM}:"])
+
+        self.assertTrue(self.sync(fake, shots, apply=True), self.text())
+        self.assertTrue(set(large) <= set(fake.placements))
+
+    def test_says_when_screenshots_are_skipped_without_an_english_version_page(self) -> None:
+        fake = FakeAppStoreConnect()
+        fake.fail[("POST", "/appStoreVersionLocalizations en-US")] = AscError("HTTP 500", status=500)
+        self.assertFalse(self.sync(fake, self.shots(), apply=True))
+        self.assertIn("::error::screenshots: not uploaded, there is no en-US version localization", self.output)
+        self.assertFalse(any("appAssetLibrary" in path for _, path in fake.writes()))
+
     def test_a_changed_set_uploads_its_unchanged_files_under_new_names(self) -> None:
         fake = FakeAppStoreConnect()
         long_name = "iphone/01-a-file-name-longer-than-the-reference-name-keeps.png"
@@ -871,6 +925,33 @@ class GuardTests(unittest.TestCase):
         }
         with self.assertRaises(AscError):
             listing_mod.current_screenshots(client, "loc", MEDIUM)
+
+
+def workflow_runs_for(workflow: str, changed: str) -> bool:
+    """GitHub's `paths` filter for one changed file: the last pattern that matches it decides."""
+    text = (REPO_ROOT / ".github/workflows" / workflow).read_text(encoding="utf-8")
+    block = re.search(r"(?m)^    paths:\n((?:      .*\n)+)", text).group(1)
+    runs = False
+    for negated, pattern in re.findall(r'(?m)^      - "(!?)([^"]+)"$', block):
+        if re.fullmatch(re.escape(pattern).replace(r"\*\*", ".*").replace(r"\*", "[^/]*"), changed):
+            runs = not negated
+    return runs
+
+
+class RepositorySetupTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("git") and (REPO_ROOT / ".git").exists(), "not a git checkout")
+    def test_git_ignores_the_bytecode_cache_these_scripts_leave(self) -> None:
+        # Without the user's own ignore file, so that only the repository's rules count.
+        command = ["git", "-C", str(REPO_ROOT), "-c", "core.excludesFile=", "check-ignore", "--no-index", "-q"]
+        self.assertEqual(subprocess.run([*command, "scripts/release/__pycache__/x.pyc"]).returncode, 0)
+
+    def test_a_screenshot_change_runs_the_listing_check_and_not_the_ios_builds(self) -> None:
+        shot = f"{listing_mod.SCREENSHOT_DIR}/iphone/01-chat.png"
+        self.assertTrue(workflow_runs_for("store-listing-pr.yml", shot))
+        self.assertFalse(workflow_runs_for("ios-pr.yml", shot))
+        # The rest of mobile/ios still builds, whatever sits next to the screenshots included.
+        for other in ("mobile/ios/project.yml", "mobile/ios/app-store/frame.html"):
+            self.assertTrue(workflow_runs_for("ios-pr.yml", other), other)
 
 
 class UploadTests(unittest.TestCase):

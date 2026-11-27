@@ -607,7 +607,9 @@ def _fits(spec: dict, shot: Screenshot) -> bool:
     )
 
 
-def _group_limit(reference: dict, group_id: str) -> int:
+def _app_store_version_groups(reference: dict) -> dict[str, int]:
+    """Placement group id -> screenshot limit, for the groups App Store versions take."""
+    found: dict[str, int | None] = {}
     for feature in reference.get("features") or []:
         if feature.get("featureId") != "APP_STORE_VERSIONS":
             continue
@@ -615,14 +617,18 @@ def _group_limit(reference: dict, group_id: str) -> int:
             if policy.get("placementType") != "APP_SCREENSHOT":
                 continue
             for limit in policy.get("groupLimits") or []:
-                if group_id in (limit.get("groupIds") or []) and limit.get("maxCount"):
-                    return limit["maxCount"]
-    return MAX_SCREENSHOTS_PER_GROUP
+                for group_id in limit.get("groupIds") or []:
+                    found[group_id] = found.get(group_id) or limit.get("maxCount")
+    return {group_id: count or MAX_SCREENSHOTS_PER_GROUP for group_id, count in found.items()}
 
 
 def group_screenshots(reference: dict, shots: list[Screenshot]) -> list[ScreenshotGroup]:
     """Put each screenshot into the placement group Apple's reference data gives for its size."""
-    profiles = reference.get("placementProfileGroups") or []
+    limits = _app_store_version_groups(reference)
+    # Other features (custom product pages and so on) have groups of their own: leave those out.
+    profiles = [
+        p for p in reference.get("placementProfileGroups") or [] if p.get("placementProfileGroupId") in limits
+    ]
     specs = {spec.get("specId"): spec for spec in reference.get("imageSpecs") or []}
     accepted: dict[str, set] = {}
     for placement_type in reference.get("placementTypes") or []:
@@ -660,7 +666,7 @@ def group_screenshots(reference: dict, shots: list[Screenshot]) -> list[Screensh
                 group_id=group_id,
                 display_class=matches[0]["displayClassId"],
                 spec_ids=frozenset(accepted[group_id]),
-                limit=_group_limit(reference, group_id),
+                limit=limits[group_id],
             )
         groups[group_id].shots.append(shot)
     problems += [
@@ -704,6 +710,13 @@ def current_screenshots(client: Any, localization_id: str, group_id: str) -> lis
             }
         )
     return placements
+
+
+def screenshot_counts(client: Any, localization_id: str) -> Counter:
+    """How many screenshots each placement group shows on one version localization."""
+    query = urllib.parse.urlencode({"filter[placementType]": "APP_SCREENSHOT", "limit": 50})
+    data, _ = _get_all(client, f"/appStoreVersionLocalizations/{localization_id}/placements?{query}")
+    return Counter(str(_attributes(placement).get("placementGroup")) for placement in data)
 
 
 def _normalized(value: str | None) -> str:
@@ -787,13 +800,13 @@ def build_plan(client: Any, listing: Listing, shots: list[Screenshot] | None, bu
         info=info,
         version=version_plans,
     )
+    localization_id = version_plans[PRIMARY_LOCALE].resource_id
     if shots:
         library = (client.request("GET", f"/apps/{app_id}/assetLibrary") or {}).get("data") or {}
         plan.library_id = library.get("id")
         if not plan.library_id:
             raise AscError("App Store Connect returned no asset library for the app.")
         plan.screenshots = group_screenshots(read_asset_reference(client), shots)
-        localization_id = version_plans[PRIMARY_LOCALE].resource_id
         for group in plan.screenshots:
             if localization_id:
                 group.current = current_screenshots(client, localization_id, group.group_id)
@@ -802,6 +815,15 @@ def build_plan(client: Any, listing: Listing, shots: list[Screenshot] | None, bu
             f"No {label} screenshots in {SCREENSHOT_DIR}; App Store submission needs them."
             for display_class, label in REQUIRED_DISPLAY_CLASSES.items()
             if display_class not in present
+        ]
+    if localization_id:
+        # Groups without local files are never touched, so say what stays on the product page.
+        local = {group.group_id for group in plan.screenshots or []}
+        plan.warnings += [
+            f"{group_id}: {count} {PRIMARY_LOCALE} screenshot(s) on App Store Connect and none for it in "
+            f"{SCREENSHOT_DIR}; left unchanged."
+            for group_id, count in sorted(screenshot_counts(client, localization_id).items())
+            if group_id not in local
         ]
     return plan
 
@@ -1096,7 +1118,9 @@ def apply_plan(
     changed = [group for group in plan.screenshots or [] if not group.unchanged]
     localization_id = plan.version[PRIMARY_LOCALE].resource_id
     if changed and not localization_id:
-        failures.append(f"screenshots: there is no {PRIMARY_LOCALE} version localization")
+        message = f"screenshots: not uploaded, there is no {PRIMARY_LOCALE} version localization"
+        failures.append(message)
+        out(f"::error::{message}")
         return failures
     for group in changed:
         attempt(

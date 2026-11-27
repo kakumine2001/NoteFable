@@ -1,13 +1,15 @@
 name: Store listing PR checks
 
 # App Store 的名称和描述由 docs/play-store/listing.md 拼出，比 Play 的完整说明长：Play 还没超限，App Store
-# 可能已经超了。只改商店文档的 PR 也在这里检查（文件名不以 ios- 开头，免得改它时启动 iOS 的 macOS 任务）。
+# 可能已经超了。只改商店文档或 App Store 截图的 PR 也在这里检查（文件名不以 ios- 开头，免得改它时启动 iOS 的
+# macOS 任务）。
 on:
   pull_request:
     branches: [main]
     paths:
       - "docs/app-store/listing.md"
       - "docs/play-store/listing.md"
+      - "mobile/ios/app-store/screenshots/**"
       - ".github/workflows/store-listing-pr.yml"
 
 permissions:

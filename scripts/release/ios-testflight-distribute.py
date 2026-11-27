@@ -33,6 +33,8 @@ ASC_API_BASE = "https://api.appstoreconnect.apple.com/v1"
 JWT_LIFETIME_SECONDS = 900
 JWT_REFRESH_MARGIN_SECONDS = 60
 TRANSIENT_HTTP_STATUSES = {429, 500, 502, 503, 504}
+# 429 refuses a request outright; after one of these, a write may or may not have been applied.
+SERVER_ERROR_STATUSES = TRANSIENT_HTTP_STATUSES - {429}
 SUBMITTED_REVIEW_STATES = {"WAITING_FOR_REVIEW", "IN_REVIEW", "APPROVED"}
 
 
@@ -193,7 +195,13 @@ class AscClient:
         path_or_url: str,
         payload: dict[str, Any] | None = None,
         allow_404: bool = False,
+        safe_to_resend: bool = False,
     ) -> Any:
+        """Send one request, retrying after a rate limit and, for a read, after a server error.
+
+        A write that got a server error may already have been applied, so it is only sent again
+        when the caller says that sending it twice does no harm (safe_to_resend).
+        """
         if path_or_url.startswith("http://") or path_or_url.startswith("https://"):
             url = path_or_url
         else:
@@ -234,7 +242,8 @@ class AscClient:
                 if allow_404 and exc.code == 404:
                     return None
 
-                if exc.code in TRANSIENT_HTTP_STATUSES and attempt < self.max_retries:
+                resend = exc.code == 429 or method == "GET" or safe_to_resend
+                if resend and exc.code in TRANSIENT_HTTP_STATUSES and attempt < self.max_retries:
                     retry_after = exc.headers.get("Retry-After") if exc.headers else None
                     delay = (
                         int(retry_after)
@@ -376,6 +385,21 @@ def wait_for_valid_build(
 
 
 def upsert_whats_new(
+    client: AscClient, build_id: str, locale: str, whats_new: str, sleep_fn=time.sleep
+) -> None:
+    for attempt in (1, 2, 3):
+        try:
+            _write_whats_new(client, build_id, locale, whats_new)
+            return
+        except AscError as exc:
+            # The write may have gone through anyway, so the next attempt reads before it writes:
+            # a localization that was already created is updated instead of created twice.
+            if exc.status not in SERVER_ERROR_STATUSES or attempt == 3:
+                raise
+            sleep_fn(2**attempt)
+
+
+def _write_whats_new(
     client: AscClient, build_id: str, locale: str, whats_new: str
 ) -> None:
     resp = client.request("GET", f"/builds/{build_id}/betaBuildLocalizations?limit=50")
@@ -420,6 +444,7 @@ def add_build_to_group(client: AscClient, group_id: str, build_id: str) -> None:
         "POST",
         f"/betaGroups/{group_id}/relationships/builds",
         payload={"data": [{"type": "builds", "id": build_id}]},
+        safe_to_resend=True,  # adding a build that is already in the group changes nothing
     )
     print(f"Added build {build_id} to external beta group {group_id}.")
 
@@ -496,6 +521,7 @@ def submit_for_beta_review(
                     },
                 }
             },
+            safe_to_resend=True,  # a second submission is refused with 409, handled below
         )
         state = (
             ((resp or {}).get("data") or {}).get("attributes") or {}
@@ -553,7 +579,9 @@ def distribute_external(
         sleep_fn=sleep_fn,
         time_fn=time_fn,
     )
-    upsert_whats_new(client, build_id=build_id, locale=locale, whats_new=whats_new)
+    upsert_whats_new(
+        client, build_id=build_id, locale=locale, whats_new=whats_new, sleep_fn=sleep_fn
+    )
     add_build_to_group(client, group_id=group_id, build_id=build_id)
     review_state = submit_for_beta_review(
         client,
