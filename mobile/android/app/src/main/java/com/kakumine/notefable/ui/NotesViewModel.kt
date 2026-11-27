@@ -776,10 +776,12 @@ class NotesViewModel(
     }
 
     suspend fun updateSettings(pageId: String, settings: NotePageSettings): Boolean = serialMeta(pageId) {
+        val owner = identity
+        if (settings.locked == true && _state.value.open?.id == pageId && !flushOpen().ok) {
+            if (owner == identity) _state.update { it.copy(notice = NotesError(NotesError.Kind.UnsavedDraft)) }
+            return@serialMeta false
+        }
         groupAction {
-            if (settings.locked == true && _state.value.open?.id == pageId && !flushOpen().ok) {
-                throw IllegalStateException("Resolve the unsaved draft before locking this page.")
-            }
             val page = backend.updateSettings(pageId, settings)
             Pair({ applyMeta(page) }, true)
         } ?: false

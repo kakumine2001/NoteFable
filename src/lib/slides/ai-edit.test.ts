@@ -1269,6 +1269,28 @@ describe("applySlidesEdits (propose_slides_edit)", () => {
     const primary = updated.deck.slides[0];
     expect(primary.elements.some((el) => el.id === "free_footnote" && el.type === "text" && richDocText(el.doc) === "Source: Annual report 2025")).toBe(true);
     expect(primary.elements.some((el) => el.id === "existing_tbl" && el.type === "table")).toBe(true);
+    // Rebuilt body narrows to avoid overlapping the preserved right-half table at x=1100.
+    const rebuiltBody = primary.elements.find((el) => el.type === "text" && el.role === "body");
+    expect(rebuiltBody && rebuiltBody.x + rebuiltBody.w <= 1052).toBe(true);
+
+    // When a preserved table is on the left/bottom half, rebuilt body stops above the table.
+    const bottomTableSlide = JSON.parse(JSON.stringify(slide)) as Slide;
+    const bottomTbl = bottomTableSlide.elements.find((el) => el.id === "existing_tbl");
+    if (bottomTbl?.type === "table") { bottomTbl.x = 120; bottomTbl.y = 660; bottomTbl.w = 1600; }
+    const bottomUpdated = applySlidesEdits(
+      normalizeDeck({ format: DECK_FORMAT, theme: { id: "simple", mode: "light" }, slides: [bottomTableSlide] }),
+      [op({ op: "update_slide", slideId: "keep_extras", body: longBody })],
+    );
+    const bottomBody = bottomUpdated.deck.slides[0].elements.find((el) => el.type === "text" && el.role === "body");
+    expect(bottomBody && bottomBody.y + bottomBody.h <= 636).toBe(true);
+
+    // delete_element lets the AI explicitly drop a table and replace it with bullets in one proposal.
+    const tableToBullets = applySlidesEdits(deck, [
+      op({ op: "delete_element", slideId: "keep_extras", elementId: "existing_tbl" }),
+      op({ op: "update_slide", slideId: "keep_extras", body: "- Q1 revenue reached $10M" }),
+    ]);
+    expect(tableToBullets.deck.slides[0].elements.some((el) => el.type === "table")).toBe(false);
+    expect(tableToBullets.deck.slides[0].elements.some((el) => el.id === "free_footnote")).toBe(true);
 
     // When the new body explicitly provides a replacement table, replace the old table while still keeping free text.
     const replacedTable = applySlidesEdits(deck, [

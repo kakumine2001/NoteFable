@@ -250,12 +250,17 @@ final class NoteEditorTests: XCTestCase {
         bridge.postMessage(#"{"type":"usageLimit","tier":"guest","kind":"chat"}"#)
         XCTAssertEqual(vm.state.usageLimit, UsageLimitInfo(tier: "guest", kind: "chat"))
 
-        // 草稿留在 WebView 里：第一次提示并留下，第二次放行。
+        // 草稿留在 WebView 里：第一次提示并留下，未保存时也阻止锁定；落盘后再锁定并下发设置，随后第二次关闭放行。
         vm.closeNote()
         await notesSettle()
         XCTAssertEqual(vm.state.notice?.kind, .unsavedDraft)
         XCTAssertEqual(vm.state.open?.id, "a")
 
+        let blockedLock = await vm.updateSettings("a", NotePageSettings(locked: true))
+        XCTAssertFalse(blockedLock)
+        XCTAssertEqual(vm.state.notice?.kind, .unsavedDraft)
+
+        editor.onFlush = { id in bridge.postMessage(#"{"type":"flushed","requestId":"\#(id)","ok":true}"#) }
         let updated = await vm.updateSettings("a", NotePageSettings(locked: true))
         XCTAssertTrue(updated)
         let pushed = try XCTUnwrap(editor.calls.last { $0.hasPrefix("settings:") })
@@ -263,6 +268,7 @@ final class NoteEditorTests: XCTestCase {
         XCTAssertEqual(json["id"], "a")
         XCTAssertEqual(json["locked"], true)
 
+        editor.onFlush = { id in bridge.postMessage(#"{"type":"flushed","requestId":"\#(id)","ok":false,"kept":true}"#) }
         vm.closeNote()
         await notesSettle()
         XCTAssertNil(vm.state.open)

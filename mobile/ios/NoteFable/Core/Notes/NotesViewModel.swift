@@ -912,10 +912,12 @@ final class NotesViewModel {
 
     func updateSettings(_ pageId: String, _ settings: NotePageSettings) async -> Bool {
         await serialMeta(pageId) { [self] in
-            await groupAction { [self] in
-                if settings.locked == true, state.open?.id == pageId, !(await flushOpen()).ok {
-                    throw ApiException(status: 409, message: "Resolve the unsaved draft before locking this page.")
-                }
+            let owner = identity
+            if settings.locked == true, state.open?.id == pageId, !(await flushOpen()).ok {
+                if owner == identity { update { $0.notice = NotesError(.unsavedDraft) } }
+                return false
+            }
+            return await groupAction { [self] in
                 let page = try await backend.updateSettings(id: pageId, settings: settings)
                 return Applied(apply: { self.applyMeta(page) }, value: true)
             } ?? false

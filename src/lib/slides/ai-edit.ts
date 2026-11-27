@@ -1058,13 +1058,27 @@ function applyContentUpdateToSlide(
   const existingIds = new Set(nextElements.map((el) => el.id));
   const toAttach = preservedDecorations.filter((el) => !existingIds.has(el.id));
 
-  // 右半分に画像やホワイトボード枠がある場合は、新しく置いた文字枠が重ならないように幅を調整する。
-  const rightMedia = toAttach.find((el) => isPreservedMediaElement(el) && el.x >= SLIDE_WIDTH * 0.45);
-  if (rightMedia) {
-    const safeRight = Math.max(640, rightMedia.x - 48);
+  // 右半分に画像・ホワイトボード枠・既存表がある場合は、新しく置いた文字枠が重ならないように幅を調整する。
+  const rightObstacles = toAttach.filter((el) => (isPreservedMediaElement(el) || el.type === "table") && el.x >= SLIDE_WIDTH * 0.45);
+  if (rightObstacles.length) {
+    const minRightX = Math.min(...rightObstacles.map((el) => el.x));
+    const safeRight = Math.max(640, minRightX - 48);
     nextElements = nextElements.map((el) => {
       if ((el.type === "text" || el.type === "table") && el.x < safeRight && el.x + el.w > safeRight) {
         return { ...el, w: Math.max(360, safeRight - el.x) };
+      }
+      return el;
+    });
+  }
+
+  // 左・中央側に残した既存表がある場合、新しく置いた本文枠が表と縦に重ならないよう表の上端で止める。
+  const lowerTables = toAttach.filter((el) => el.type === "table" && el.x < SLIDE_WIDTH * 0.45);
+  if (lowerTables.length) {
+    const minTableY = Math.min(...lowerTables.map((el) => el.y));
+    const safeBottom = minTableY - 24;
+    nextElements = nextElements.map((el) => {
+      if (el.type === "text" && el.role !== headingRole && el.y < safeBottom && el.y + el.h > safeBottom) {
+        return { ...el, h: Math.max(120, safeBottom - el.y) };
       }
       return el;
     });
@@ -1883,6 +1897,38 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
           target: { type: "slide", number: idx + 1 },
           before: beforeText,
           after: afterText,
+        });
+        break;
+      }
+
+      case "delete_element": {
+        const slideId = resolveSlideId(asOptionalString(rawOp.slideId, "slideId"), deck, refs, "slideId");
+        const elementId = asOptionalString(rawOp.elementId, "elementId")?.trim() ?? "";
+        if (!elementId) throw new SlidesEditError("delete_element requires elementId.");
+        const idx = findSlideIndexOrThrow(deck, slideId);
+        const beforeSlide = deck.slides[idx];
+        const targetEl = beforeSlide.elements.find((el) => el.id === elementId);
+        if (!targetEl) {
+          throw new SlidesEditError(`Element "${elementId}" does not exist on slide "${slideId}".`);
+        }
+        exemptSlide(slideId, { elementId });
+        const beforeDesc = targetEl.type === "text" || targetEl.type === "shape"
+          ? (richDocText(targetEl.doc).trim() || `(${targetEl.type})`)
+          : targetEl.type === "table"
+            ? `Table (${targetEl.rows.length}x${targetEl.cols.length})`
+            : `(${targetEl.type})`;
+        const updatedSlide: Slide = {
+          ...beforeSlide,
+          elements: beforeSlide.elements.filter((el) => el.id !== elementId),
+        };
+        deck = { ...deck, slides: deck.slides.map((s, i) => (i === idx ? updatedSlide : s)) };
+        addFocus(updatedSlide.id);
+        changes.push({
+          op: "delete",
+          block: 0,
+          target: { type: "slide", number: idx + 1 },
+          before: beforeDesc,
+          after: "",
         });
         break;
       }
