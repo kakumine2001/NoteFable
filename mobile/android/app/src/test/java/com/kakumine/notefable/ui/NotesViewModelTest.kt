@@ -1480,4 +1480,36 @@ class NotesViewModelTest {
         advanceUntilIdle()
         assertNull(vm.state.value.slidesWizard)
     }
+
+    @Test
+    fun `review quiz tracks the open editor, ignores stale closed messages and clears on close or identity change`() = runTest(dispatcher) {
+        val vm = notesVm()
+        vm.openNote("a")
+        advanceUntilIdle()
+        vm.openReviewQuiz("a")
+        val first = vm.state.value.reviewQuiz!!
+        assertEquals("a", first.editor)
+        assertFalse(first.shown)
+        // 还没 shown 之前，旧的 closed 不关掉新测验。
+        vm.onReviewQuizClosed()
+        assertEquals(first.request, vm.state.value.reviewQuiz?.request)
+
+        vm.onReviewQuizOpened("a")
+        assertTrue(vm.state.value.reviewQuiz!!.shown)
+        vm.onReviewQuizClosed()
+        assertNull(vm.state.value.reviewQuiz)
+
+        vm.openReviewQuiz("a")
+        vm.closeNote()
+        advanceUntilIdle()
+        vm.dropStaleReviewQuiz()
+        assertNull(vm.state.value.reviewQuiz)
+
+        vm.openNote("a")
+        advanceUntilIdle()
+        vm.openReviewQuiz("a")
+        vm.onIdentityChanged()
+        advanceUntilIdle()
+        assertNull(vm.state.value.reviewQuiz)
+    }
 }

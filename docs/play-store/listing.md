@@ -42,6 +42,7 @@ LET AI HELP
 • Let the AI draw an answer or a note as an editable diagram on a whiteboard.
 • Let the AI make a slide deck from a topic, your notes or a chat; you can edit the outline first.
 • Turn a whiteboard sketch into a polished image with AI.
+• Generate practice quizzes and flashcards from any note or slide deck, and save review notes.
 • Projects keep related chats together with shared instructions and reference pages.
 • Custom instructions tell NoteFable about you and how you like your answers.
 • Pick an AI character companion—or upload your own icon—for chat and your Workspace.
@@ -92,6 +93,7 @@ NoteFable 把 AI 对话和你的工作区放在一起：把回答存成笔记，
 • 让 AI 把回答或笔记画成白板上可编辑的图。
 • 让 AI 根据主题、笔记或对话生成幻灯片，生成前可以修改大纲。
 • 用 AI 把白板草图变成图片。
+• 根据笔记或幻灯片生成复习测验和记忆卡片，并保存为复习笔记。
 • 项目把相关的对话放在一起，共用指示和参考页面。
 • 自定义指令：告诉 NoteFable 你是谁、希望它怎样回答。
 • 选择喜欢的 AI 角色形象（或上传自己的图标），陪伴你聊天和使用工作区。
@@ -142,6 +144,7 @@ NoteFable 把 AI 對話和你的工作區放在一起：把回答存成筆記，
 • 讓 AI 把回答或筆記畫成白板上可編輯的圖。
 • 讓 AI 根據主題、筆記或對話生成投影片，生成前可以修改大綱。
 • 用 AI 把白板草圖變成圖片。
+• 根據筆記或投影片產生複習測驗和記憶卡片，並儲存為複習筆記。
 • 專案把相關的對話放在一起，共用指示和參考頁面。
 • 自訂指示：告訴 NoteFable 你是誰、希望它怎麼回答。
 • 選擇喜歡的 AI 角色形象（或上傳自己的圖示），陪伴你聊天與使用工作區。
@@ -192,6 +195,7 @@ AI が手伝う
 • 回答やノートを、AI がホワイトボード上の編集できる図として描きます。
 • テーマ・ノート・チャットから AI がスライドを作ります。作る前に構成を直せます。
 • ホワイトボードのスケッチを AI で画像にできます。
+• ノートやスライドから確認クイズやフラッシュカードを作り、復習ノートとして保存できます。
 • プロジェクトで関連するチャットをまとめ、共通の指示と参考ページを設定できます。
 • カスタム指示で、自分のことや回答の好みを伝えられます。
 • 好みの AI キャラクターを選ぶか自分のアイコンをアップロードして、チャットやワークスペースで使えます。
@@ -242,6 +246,7 @@ AI가 도와줘요
 • 답변이나 노트를 AI가 화이트보드 위에 편집할 수 있는 다이어그램으로 그려 줘요.
 • 주제, 노트, 채팅으로 AI가 슬라이드를 만들어 줘요. 생성 전에 개요를 고칠 수 있어요.
 • 화이트보드에 그린 스케치를 AI가 이미지로 바꿔 줘요.
+• 노트나 슬라이드에서 복습 퀴즈와 플래시카드를 만들고 복습 노트로 저장할 수 있어요.
 • 프로젝트로 관련 채팅을 모으고 공통 지침과 참고 페이지를 설정할 수 있어요.
 • 맞춤 지침으로 나에 대한 정보와 원하는 답변 방식을 알려 주세요.
 • 마음에 드는 AI 캐릭터를 고르거나 직접 아이콘을 올려 채팅과 워크스페이스에서 쓸 수 있어요.
@@ -292,6 +297,7 @@ DEJA QUE LA IA TE AYUDE
 • Deja que la IA dibuje una respuesta o una nota como un diagrama editable en una pizarra.
 • Deja que la IA cree presentaciones a partir de un tema, tus notas o un chat; antes revisas el esquema.
 • Convierte un boceto de la pizarra en una imagen con IA.
+• Crea cuestionarios de repaso y tarjetas a partir de cualquier nota o presentación, y guárdalos como nota.
 • Los proyectos agrupan chats relacionados con instrucciones y páginas de referencia compartidas.
 • Las instrucciones personalizadas le cuentan a NoteFable quién eres y cómo prefieres las respuestas.
 • Elige un personaje de IA, o sube tu propio icono, para el chat y tu Espacio.
@@ -316,7 +322,7 @@ Política de privacidad: https://notefable.com/privacy
 
 **Description complète**:
 
-NoteFable réunit chat IA et Espace au même endroit. Gardez vos réponses en notes, créez des présentations et pensez sur des tableaux blancs pour ne rien perdre dans l'historique.
+NoteFable réunit le chat IA et votre Espace. Gardez vos réponses en notes, créez des présentations et travaillez sur tableau blanc, sans rien perdre de vos études.
 
 POSEZ VOS QUESTIONS
 • Discutez avec plusieurs modèles d'IA (OpenAI GPT, Anthropic Claude et DeepSeek) et choisissez leur niveau de réflexion.
@@ -342,9 +348,10 @@ L'IA VOUS AIDE
 • Laissez l'IA dessiner une réponse ou une note sous forme de schéma modifiable sur un tableau blanc.
 • Laissez l'IA créer des présentations à partir d'un sujet, de notes ou d'une conversation ; vous relisez d'abord le plan.
 • Transformez un croquis du tableau en image avec l'IA.
+• Créez des quiz et cartes mémoire depuis vos notes ou slides.
 • Les projets regroupent les conversations liées avec des instructions et des pages de référence communes.
-• Les instructions personnalisées indiquent à NoteFable qui vous êtes et comment vous aimez les réponses.
-• Choisissez un personnage IA, ou importez votre propre icône, pour le chat et votre Espace.
+• Des instructions personnalisées adaptent les réponses à vos goûts.
+• Choisissez un personnage IA ou votre propre icône pour l'Espace.
 
 RETROUVEZ TOUT
 • Recherchez dans toutes vos conversations, notes, présentations et tableaux blancs à la fois.
@@ -366,7 +373,7 @@ Politique de confidentialité : https://notefable.com/privacy
 
 **Vollständige Beschreibung**:
 
-NoteFable bringt KI-Chat und deinen Arbeitsbereich an einen Ort. Halte Antworten als Notizen fest, erstelle Präsentationen und denk auf Whiteboards weiter, damit dein Wissen nicht im Chatverlauf verloren geht.
+NoteFable vereint KI-Chat und Arbeitsbereich. Halte Antworten als Notizen fest, erstelle Folien und denk auf Whiteboards weiter, ohne Wissen im Chat zu verlieren.
 
 FRAG, WAS DU WILLST
 • Chatte mit mehreren KI-Modellen (OpenAI GPT, Anthropic Claude und DeepSeek) und wähle, wie gründlich jedes nachdenkt.
@@ -377,14 +384,14 @@ FRAG, WAS DU WILLST
 ALLES IN DEINEM ARBEITSBEREICH
 • Speichere jede Antwort als Notiz oder mache aus einem ganzen Chat eine Seite.
 • Notizen: ein übersichtlicher Block-Editor mit Überschriften, Listen, To-dos, Code, Formeln, Bildern und Dateien.
-• Präsentationen mit Layouts, Designs, Text, Formeln, Bildern und Formen: PowerPoint im- und exportieren, als PDF exportieren, im Vollbild präsentieren, Sprechernotizen hinzufügen oder per Link teilen. Jede Notiz lässt sich als Folien präsentieren.
+• Präsentationen mit Layouts, Designs, Text, Formeln, Bildern und Formen: PowerPoint im- und exportieren, als PDF exportieren, im Vollbild oder per Link teilen. Auch Notizen lassen sich präsentieren.
 • Whiteboards zum freien Denken: zeichnen, Haftnotizen, Formen, Pfeile, Formeln und Bilder hinzufügen, PDF-Seiten beschriften und einen schreibgeschützten Link teilen.
 • Mindmaps und Lernvorlagen auf Whiteboards: Cornell-Notizen, Zeitleiste, Venn-Diagramm, Vergleichstabelle.
 • Ordne alles mit Projekten, Unterseiten, Favoriten und Emoji-Symbolen.
 • Verlinke Seiten mit @, sieh Rückverweise und veröffentliche Notizen per schreibgeschütztem Link.
 • Bearbeitungsverlauf und Papierkorb, damit nichts versehentlich verloren geht.
 • Importiere Markdown-Dateien als Notizen und exportiere jede Notiz als Markdown.
-• Bette Live-Whiteboards oder Rahmen direkt in Notizen ein und füge Whiteboard-Rahmen mit manueller Aktualisierung in Folien ein.
+• Live-Whiteboards oder Rahmen direkt in Notizen einbetten und Whiteboard-Rahmen in Folien einfügen.
 
 LASS DIR VON DER KI HELFEN
 • Hänge Notizen, Präsentationen oder Whiteboards an einen Chat an, und die KI nutzt sie als Kontext.
@@ -392,6 +399,7 @@ LASS DIR VON DER KI HELFEN
 • Lass die KI eine Antwort oder Notiz als bearbeitbares Diagramm auf ein Whiteboard zeichnen.
 • Lass die KI aus einem Thema, Notizen oder einem Chat eine Präsentation erstellen; die Gliederung prüfst du vorher.
 • Verwandle eine Whiteboard-Skizze mit KI in ein Bild.
+• Erstelle Quizze und Lernkarten aus Notizen oder Folien und speichere sie als Lernnotiz.
 • Projekte bündeln zusammengehörige Chats mit gemeinsamen Anweisungen und Referenzseiten.
 • Mit eigenen Anweisungen erzählst du NoteFable, wer du bist und wie du Antworten magst.
 • Wähle eine KI-Figur als Begleiter – oder lade dein eigenes Symbol hoch – für Chat und Arbeitsbereich.
@@ -442,6 +450,7 @@ DEIXE A IA AJUDAR
 • Deixe a IA desenhar uma resposta ou uma nota como um diagrama editável em um quadro branco.
 • Deixe a IA criar apresentações a partir de um tema, notas ou conversa; antes, você ajusta o roteiro.
 • Transforme um esboço do quadro branco em imagem com IA.
+• Crie quizzes e flashcards a partir de qualquer nota ou apresentação e salve como nota de revisão.
 • Projetos reúnem conversas relacionadas com instruções e páginas de referência em comum.
 • Instruções personalizadas contam ao NoteFable quem você é e como prefere as respostas.
 • Escolha um personagem de IA, ou envie seu próprio ícone, para o chat e o seu Espaço.
@@ -492,6 +501,7 @@ LASCIATI AIUTARE DALL'IA
 • Lascia che l'IA disegni una risposta o una nota come diagramma modificabile su una lavagna.
 • Lascia che l'IA crei presentazioni da un argomento, dalle note o da una chat; prima rivedi la scaletta.
 • Trasforma uno schizzo della lavagna in un'immagine con l'IA.
+• Crea quiz e flashcard da qualsiasi nota o presentazione e salvali come nota di ripasso.
 • I progetti raccolgono le chat correlate con istruzioni e pagine di riferimento condivise.
 • Le istruzioni personalizzate dicono a NoteFable chi sei e come preferisci le risposte.
 • Scegli un personaggio IA, o carica la tua icona, per la chat e il tuo Spazio.
@@ -542,6 +552,7 @@ BIARKAN AI MEMBANTU
 • Biarkan AI menggambar jawaban atau catatan sebagai diagram yang bisa diedit di papan tulis.
 • Biarkan AI membuat presentasi dari topik, catatan, atau chat; kerangkanya bisa Anda edit dulu.
 • Ubah sketsa di papan tulis menjadi gambar dengan AI.
+• Buat kuis latihan dan kartu hafalan dari catatan atau slide, lalu simpan sebagai catatan ulasan.
 • Proyek mengelompokkan chat terkait dengan instruksi dan halaman referensi bersama.
 • Instruksi khusus memberi tahu NoteFable tentang Anda dan gaya jawaban yang Anda sukai.
 • Pilih karakter AI, atau unggah ikon Anda sendiri, untuk chat dan Ruang kerja.
@@ -592,6 +603,7 @@ LƯU VÀO KHÔNG GIAN
 • Để AI vẽ câu trả lời hoặc ghi chú thành sơ đồ có thể chỉnh sửa trên bảng trắng.
 • Để AI tạo bản trình chiếu từ chủ đề, ghi chú hoặc cuộc trò chuyện; bạn sửa dàn ý trước.
 • Biến phác thảo trên bảng trắng thành hình ảnh bằng AI.
+• Tạo bài trắc nghiệm và thẻ ghi nhớ từ ghi chú hoặc bản trình chiếu, rồi lưu thành ghi chú ôn tập.
 • Dự án gom các cuộc trò chuyện liên quan với chỉ dẫn và trang tham khảo chung.
 • Chỉ dẫn tùy chỉnh cho NoteFable biết về bạn và cách bạn muốn được trả lời.
 • Chọn một nhân vật AI, hoặc tải lên biểu tượng của riêng bạn, cho chat và Không gian.
@@ -642,6 +654,7 @@ NoteFable รวมแชท AI และพื้นที่ทำงานข
 • ให้ AI วาดคำตอบหรือโน้ตออกมาเป็นแผนภาพที่แก้ไขได้บนไวท์บอร์ด
 • ให้ AI สร้างชุดสไลด์จากหัวข้อ โน้ต หรือแชท โดยแก้โครงร่างก่อนได้
 • เปลี่ยนภาพร่างบนไวท์บอร์ดเป็นรูปภาพด้วย AI
+• สร้างแบบทดสอบและแฟลชการ์ดจากโน้ตหรือสไลด์ แล้วบันทึกเป็นโน้ตทบทวนได้
 • โปรเจกต์รวมแชทที่เกี่ยวข้องกันไว้ พร้อมคำสั่งและหน้าอ้างอิงที่ใช้ร่วมกัน
 • คำสั่งที่กำหนดเองช่วยบอก NoteFable ว่าคุณเป็นใครและชอบคำตอบแบบไหน
 • เลือกตัวละคร AI หรืออัปโหลดไอคอนของคุณเองสำหรับแชทและพื้นที่ทำงาน
@@ -692,6 +705,7 @@ AI से मदद लें
 • AI से किसी जवाब या नोट को व्हाइटबोर्ड पर एडिट करने लायक डायग्राम के रूप में बनवाएँ।
 • AI से किसी विषय, नोट्स या चैट पर स्लाइड डेक बनवाएँ; रूपरेखा पहले आप ठीक करें।
 • व्हाइटबोर्ड के स्केच को AI से इमेज में बदलें।
+• किसी भी नोट या स्लाइड डेक से अभ्यास क्विज़ और फ़्लैशकार्ड बनाएँ और रिव्यू नोट के रूप में सहेजें।
 • प्रोजेक्ट मिलती-जुलती चैट को साझा निर्देशों और संदर्भ पेज के साथ एक जगह रखते हैं।
 • कस्टम निर्देशों से NoteFable को बताएं कि आप कौन हैं और कैसे जवाब पसंद करते हैं।
 • चैट और वर्कस्पेस के लिए कोई AI किरदार चुनें या अपना आइकन अपलोड करें।
@@ -742,6 +756,7 @@ AI संदेशों और इमेज की दैनिक और म�
 • دع الذكاء الاصطناعي يرسم إجابة أو ملاحظة كمخطط قابل للتعديل على سبورة.
 • دع الذكاء الاصطناعي ينشئ مجموعة شرائح من موضوع أو ملاحظات أو محادثة، ويمكنك تعديل المخطط التفصيلي أولًا.
 • حوّل رسمًا على السبورة إلى صورة بالذكاء الاصطناعي.
+• أنشئ اختبارات مراجعة وبطاقات استذكار من أي ملاحظة أو عرض تقديمي واحفظها كملاحظة مراجعة.
 • تجمع المشاريع المحادثات المترابطة مع تعليمات وصفحات مرجعية مشتركة.
 • تخبر التعليمات المخصصة NoteFable بمن تكون وكيف تفضّل الإجابات.
 • اختر شخصية ذكاء اصطناعي، أو ارفع أيقونتك الخاصة، للدردشة ومساحة العمل.
@@ -792,6 +807,7 @@ YAPAY ZEKÂ YARDIM ETSİN
 • Bir yanıtı veya notu yapay zekâya beyaz tahtada düzenlenebilir bir diyagram olarak çizdir.
 • Yapay zekâ bir konudan, notlarından veya sohbetten slayt destesi oluştursun; ana hattı önce sen düzenle.
 • Beyaz tahtadaki bir çizimi yapay zekâyla görsele dönüştür.
+• Notlarından veya slaytlarından alıştırma testleri ile bilgi kartları oluştur ve tekrar notu olarak kaydet.
 • Projeler, ilgili sohbetleri ortak talimatlar ve referans sayfalarıyla bir arada tutar.
 • Özel talimatlarla NoteFable'a kim olduğunu ve nasıl yanıtlar istediğini anlat.
 • Sohbet ve Çalışma alanı için bir yapay zekâ karakteri seç ya da kendi simgeni yükle.
@@ -842,6 +858,7 @@ NoteFable объединяет ИИ-чат и ваше «Пространств�
 • Попросите ИИ нарисовать ответ или заметку в виде редактируемой схемы на доске.
 • Пусть ИИ создаст презентацию по теме, заметкам или чату — план сначала можно поправить.
 • Превращайте набросок на доске в изображение с помощью ИИ.
+• Создавайте тесты и карточки для повторения из заметок и презентаций и сохраняйте конспект.
 • Проекты объединяют связанные чаты с общими инструкциями и справочными страницами.
 • Пользовательские инструкции расскажут NoteFable о вас и о том, какие ответы вам нравятся.
 • Выберите ИИ-персонажа или загрузите свой значок для чата и «Пространства».

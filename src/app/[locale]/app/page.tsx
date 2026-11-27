@@ -37,9 +37,11 @@ import { TurnBusyContext, type TurnActions } from "@/components/turn-actions";
 import { AccountAppIconSync, AccountLocaleSync } from "@/components/account-button";
 import { CreatePageDialog } from "@/components/create-page-dialog";
 import { DrawDiagramHost } from "@/components/draw-diagram-dialog";
+import { ReviewQuizHost } from "@/components/review-quiz-dialog";
 import { SlidesWizardHost } from "@/components/slides-wizard";
 import { PptxImportHost } from "@/components/pptx-import-dialog";
 import { drawAnswerDiagram, drawNoteDiagram } from "@/lib/draw-diagram-jobs";
+import { openReviewQuiz } from "@/lib/quiz-session";
 import { openSlidesWizard } from "@/lib/slides-wizard-jobs";
 import { openPptxImport } from "@/lib/pptx-import-jobs";
 import { EmptyConversation, StarterPrompts } from "@/components/empty-conversation";
@@ -2467,6 +2469,13 @@ export default function Home() {
     return queue.flush();
   };
 
+  const flushQuizSource = async (pageId: string) => {
+    const queue = notes.active;
+    if (!queue || queue.page.id !== pageId) return true;
+    if (!(await flushCanvasEditors(pageId))) return false;
+    return queue.flush();
+  };
+
   // デスクトップとモバイルで同じ会話履歴を使い、表示方法だけ切り替える。
   const closeSidebar = () => {
     if (window.matchMedia("(min-width: 1024px)").matches) setSidebarVisible(false);
@@ -2694,6 +2703,7 @@ export default function Home() {
                 onDrawDiagram={() => void drawNoteDiagram(activeSummary.id, model, () => (notes.active?.page.id === activeSummary.id ? notes.active.flush() : Promise.resolve(true)))}
                 onGenerateSlides={() => openSlidesWizard({ entry: { type: "note", pageId: activeSummary.id, title: activeSummary.title, icon: activeSummary.icon }, model })}
                 onImportPptx={() => importPptx(activeSummary.groupId ? { groupId: activeSummary.groupId } : undefined)}
+                onReviewQuiz={() => openReviewQuiz({ pageId: activeSummary.id, title: activeSummary.title, icon: activeSummary.icon, kind: activeSummary.kind === "slides" ? "slides" : "note", model })}
                 onMove={() => setMovingNoteId(activeSummary.id)}
                 onExport={() => void notes.exportPage(activeSummary.id)}
                 onTrash={() => { notes.clearTrashError(); setTrashingNoteId(activeSummary.id); }} />
@@ -3109,6 +3119,8 @@ export default function Home() {
       <SlidesWizardHost flush={flushSlidesSource} />
       {/* PowerPoint（.pptx）取り込みの窓（新規作成・サイドバー・ホーム・スライドのメニューから開く）。 */}
       <PptxImportHost groups={notes.groups} />
+      {/* 復習・クイズモードの窓（ノート・スライドの「…」メニューから開く）。 */}
+      <ReviewQuizHost flush={flushQuizSource} />
       {importingFiles && <ImportTargetDialog groups={notes.groups} onClose={() => setImportingFiles(null)}
         onChoose={(groupId) => { const files = importingFiles; setImportingFiles(null); void importMarkdownFiles(files, groupId); }} />}
       {movingNote && <MoveNoteDialog page={movingNote} groups={notes.groups} error={notes.groupError} pages={notes.pages}

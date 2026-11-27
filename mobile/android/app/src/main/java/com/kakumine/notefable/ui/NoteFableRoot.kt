@@ -130,10 +130,11 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
         pptxImportStorageLimit = null
         previewProposal = null
     }
-    // 画面上的编辑器换了，上一处开的向导和导入窗口不再算数；换了一次（或关掉），它的上限提示也去掉。
+    // 画面上的编辑器换了，上一处开的向导、导入窗口和测验不再算数；换了一次向导（或关掉），它的上限提示也去掉。
     LaunchedEffect(notes.visibleEditor) {
         notesViewModel.dropStaleSlidesWizard()
         notesViewModel.dropStalePptxImport()
+        notesViewModel.dropStaleReviewQuiz()
     }
     LaunchedEffect(notes.slidesWizard?.request) {
         wizardUsageLimit = null
@@ -399,7 +400,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
         drawerState = drawerState,
         // 白板开着时横向拖动留给画布，幻灯片放映中和翻页、呼出系统栏的手势冲突，向导开着时原生菜单收起：这些时候不让侧栏跟着
         // 边缘滑动打开（开着时照常能拖回）。
-        gesturesEnabled = drawerState.isOpen || (!whiteboardOpen && !slidesPresenting && notes.slidesWizard?.shown != true && notes.pptxImport?.shown != true),
+        gesturesEnabled = drawerState.isOpen || (!whiteboardOpen && !slidesPresenting && notes.slidesWizard?.shown != true && notes.pptxImport?.shown != true && notes.reviewQuiz?.shown != true),
         drawerContent = {
             AppDrawer(
                 workspace = notes.workspace,
@@ -618,6 +619,11 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                             is EmbedMessage.Drawing -> if (notesViewModel.state.value.open?.editor == editor) {
                                 drawingEditor = editor.takeIf { message.active }
                             }
+                            is EmbedMessage.Quiz -> if (message.open) {
+                                notesViewModel.onReviewQuizOpened(editor)
+                            } else {
+                                notesViewModel.onReviewQuizClosed()
+                            }
                             // 桥自己处理：flushed 交给等着的 flush；导出文件的块在 JS 线程上拼好，经 onExportFile 交出来；
                             // 放映（横屏、全屏、常亮）由编辑页自己处理（NoteEditorScreen）。
                             // 向导的出现 / 消失走 NoteEmbedHost.onSlidesWizard。
@@ -634,8 +640,8 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         notesViewModel.refreshBacklinks = bridge?.let { b -> { b.refreshBacklinks() } }
                     },
                     onExportFile = saveExportFile,
-                    // 抽屉、检索、向导或导入窗口盖在白板上时不在画图，两侧照常能返回（关掉它们）。
-                    drawing = drawingEditor == open.editor && !drawerState.isOpen && !searchOpen && notes.slidesWizard == null && notes.pptxImport == null,
+                    // 抽屉、检索、向导、导入窗口或测验盖在白板上时不在画图，两侧照常能返回（关掉它们）。
+                    drawing = drawingEditor == open.editor && !drawerState.isOpen && !searchOpen && notes.slidesWizard == null && notes.pptxImport == null && notes.reviewQuiz == null,
                     onSearch = openSearch,
                     onChatLink = { link -> openChatLink(link, viewModel, notesViewModel) },
                     page = notes.pages.firstOrNull { it.id == open.id },
@@ -671,6 +677,8 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         generatingSlides = open.id in noteEmbedHost.generatingSlides,
                         // 导入 PowerPoint：窗口盖在编辑器上，默认放到当前幻灯片所在项目。
                         onImportPptx = { openPptxImport(PptxImportTarget(groupId = notes.pages.firstOrNull { it.id == open.id }?.groupId)) },
+                        // 复习和测验：盖在编辑器上打开，读这篇之前由网页自己保存。
+                        onReviewQuiz = { notesViewModel.openReviewQuiz(open.id) },
                     ),
                     slidesWizard = notes.slidesWizard?.takeIf { it.editor == open.editor },
                     onSlidesWizardShown = notesViewModel::onSlidesWizardShown,
@@ -678,6 +686,9 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                     pptxImport = notes.pptxImport?.takeIf { it.editor == open.editor },
                     onPptxImportShown = notesViewModel::onPptxImportShown,
                     onPptxImportDismiss = notesViewModel::dismissPptxImport,
+                    reviewQuiz = notes.reviewQuiz?.takeIf { it.editor == open.editor },
+                    onReviewQuizShown = notesViewModel::onReviewQuizShown,
+                    onReviewQuizDismiss = notesViewModel::dismissReviewQuiz,
                     onShare = { dialog = NotesDialogState.Share(open.id, notes.pages.firstOrNull { it.id == open.id }?.kind ?: open.kind) },
                     prompt = noteStorageLimit?.takeIf { it.first == open.editor }?.let<Pair<String, StorageLimitInfo>, @Composable () -> Unit> { (_, limit) ->
                         {

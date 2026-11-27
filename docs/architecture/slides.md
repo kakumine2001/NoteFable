@@ -140,4 +140,8 @@
 ## 已知限制
 
 - PPTX 里的公式是 TeX 文字；表格单元格是纯文字（不支持单元格内的格式）；幻灯片转场不包含在 PPTX 导出中；PPTX 导入不支持可编辑图表、SmartArt、音视频、动画、EMF/WMF/SVG 与外部链接图片（导入报告逐页列出，有静态预览图时保留为静态图）。
-- iOS 的横屏放映、文件保存、常亮与 PPTX 导入界面只做了 Core 测试与语法/CI 编译检查，没在真机 / 模拟器上验证（[ios-native.md](ios-native.md)）。
+- iOS 的横屏放映、文件保存、常亮、PPTX 导入与复习和测验界面只做了 Core 测试与语法/CI 编译检查，没在真机 / 模拟器上验证（[ios-native.md](ios-native.md)）。
+
+## 复习和测验
+
+幻灯片的“…”菜单在网页、Android、iOS 三端均提供 **Review & quiz**（锁定的幻灯片同样可用）。出题服务端（`POST /api/pages/quiz`）通过 `readSlides` 结构化读取本套幻灯片正文与演讲备注（限 20,000 字符、加随机界定符、不联网），不修改原幻灯片。点击“保存复习笔记”（`POST /api/pages/quiz/note`）会把题目和折叠答案存为本幻灯片下的普通子页面笔记；因为幻灯片是公开分享树的叶子（`leafKind`），原幻灯片的公开放映链接永远不会暴露这些子页面或测验答案。完整规则见 [notes-flow.md](notes-flow.md#复习和测验模式review--quiz)。

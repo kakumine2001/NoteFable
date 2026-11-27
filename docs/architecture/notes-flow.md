@@ -307,3 +307,16 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 消息的组装与 flush 的回复在 `src/lib/native-bridge.ts`（有单元测试）；更改约定时同时修改 Android / iOS 应用端以及 [android-native.md](android-native.md) / [ios-native.md](ios-native.md)。
 
 语言切换也通过桥就地更新：`window.NoteFableNative.language()` 返回原生当前生效的内部语言代码，`window.notefableEmbed.language(code)` 返回 `Promise<boolean>`。网页校验已启用的代码，复用 `I18nProvider` 的取消、回滚与错误重试。原生端仅在首次加载或渲染进程重建时调用加载 URL，语言变化只推送 `language`；网页刚加载完时再读取/推送当前语言，覆盖加载过程中发生的变化。此操作不 flush、不重载、不替换页面正文或编辑器，未保存编辑与页面 AI 流保持原状。
+
+## 复习和测验模式（Review & quiz）
+
+零数据库迁移：不新建表，也不把题目或答案写回原页面。网页与 App（`/note-embed` WebView）共用同一套答题界面（`src/components/review-quiz-dialog.tsx`、`src/lib/quiz-session.ts`），会话内状态只留在内存，关闭或刷新后不落库、不进 `localStorage`。
+
+- **入口**：网页、Android、iOS 的笔记“…”菜单与幻灯片“…”菜单提供 **Review & quiz**（`BookOpenCheck` 图标，白板不显示；锁定页面为只读，照常允许出题）。
+- **出题（`POST /api/pages/quiz`）**：从本人未删除（`deletedAt: null`）的笔记或幻灯片读取材料（`readQuizMaterial`，`src/lib/page-ai/one-shot.ts`）：笔记转 Markdown、幻灯片走结构化 `readSlides`，上限 20,000 字符、加 `delimitPageContent` 随机界定符（私有资料，非指令），不联网搜索。题型支持选择题（`mcq`）、判断题（`true_false`）、填空题（`fill_blank`，带可接受答案自动比对与自评覆盖）和记忆卡片（`flashcard`），可选题数（3–20）、题型与语言（默认 `auto` 跟随材料，或 17 种语言）。回复在服务端经 `parseQuizReply` 严格校验结构，并在签发举报令牌与返回给客户端前随机打乱每道选择题的选项顺序并同步修正 `correctIndex`（「以上都是 / 以上都不是 / All of the above / None of the above」等位置依赖选项留在末尾）。扣 1 条聊天额度；上游失败、输出截断或结构校验（`parseQuizReply` / `validateReviewQuiz`）失败全部退还额度并释放幂等标记。幂等重试复用 `UsageCounter` 的 `req:page-quiz:<clientRequestId>:<hash>` 标记（`src/lib/usage-requests.ts`）。429 `usage_limit` 时网页显示登录 / 升级引导，App 经既有 `usageLimit` 桥接交给原生处理（旧版 App 在 WebView 内降级显示原因）。
+- **保存复习笔记（`POST /api/pages/quiz/note`）**：把本次题目、答案与解析转成普通笔记（`quizToReviewNoteContent`，使用标题、列表、指向原页面的 `@` 提及和 BlockNote 折叠块 `toggleListItem` 承载答案与解析），作为原页面的子页面（`parentId: source.id`）创建，并在同一事务里置 `ai: true`（写入 `aiUpdatedAt`，支持页面“…”菜单的“举报 AI 内容”）与 `shareExcludeFromParent: true`（即使原笔记或其祖先已开启“包含子页面”公开分享，也不会经继承的公开链接泄露题目和答案，用户可按需单独开启分享）。重复点击或网络重试沿用同一个 `clientRequestId`，经 `aiRequestPageId(user.id, "quiz-note", clientRequestId)` 确定性 ID 与 `isDuplicateCreate` 防重复建页。幻灯片本身也是公开分享树的叶子（`leafKind`），存成幻灯片子页面的复习笔记同样不会经原幻灯片的公开链接暴露。
+- **答题界面内举报 AI 内容**：出题响应附带有时效的 HS256 签名令牌 `reportToken`（`src/lib/quiz-report-token.ts`，绑定 `userId`、`pageId`、`pageKind`、`model` 与规范化题目的 SHA-256 摘要）。答题界面的顶栏与得分汇总页提供“举报 AI 内容”入口，经 `POST /api/reports { pageId, quizReportToken, quiz, reason }` 验签与摘要一致后发送举报邮件，共用每日举报配额。
+- **`/note-embed` 测验桥接**：
+  - `window.NoteFableNative.canShowQuiz()`：App 声明支持测验覆盖层。
+  - App → 网页：`window.notefableEmbed.quiz({ action: "open", pageId, model?, reasoning? })` 打开当前页的测验界面（打开前按需冲刷未保存修改）；`{ action: "back" }` 优先关闭测验里的举报弹窗，其次关闭测验界面。
+  - 网页 → App：`{ type: "quiz", state: "open" | "closed" }`（展开期间原生隐藏顶栏并拦截系统/边缘返回键）；保存复习笔记后照常发 `pagesChanged`，点“打开复习笔记”先发 `openPage` 再关闭测验层。

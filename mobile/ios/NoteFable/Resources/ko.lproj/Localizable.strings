@@ -428,6 +428,7 @@
 "pg_subpages_to_trash" = "하위 페이지도 함께 휴지통으로 이동합니다.";
 "pg_rename_page" = "페이지 이름 바꾸기";
 "pg_page_title" = "페이지 제목";
+"pg_review_quiz" = "복습 및 퀴즈";
 
 /* strings_personal.xml */
 "appearance" = "화면 스타일";

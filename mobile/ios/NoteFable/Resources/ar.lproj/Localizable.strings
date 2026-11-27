@@ -428,6 +428,7 @@
 "pg_subpages_to_trash" = "تنتقل صفحاتها الفرعية معها إلى سلة المهملات.";
 "pg_rename_page" = "إعادة تسمية الصفحة";
 "pg_page_title" = "عنوان الصفحة";
+"pg_review_quiz" = "المراجعة والاختبار";
 
 /* strings_personal.xml */
 "appearance" = "المظهر";

@@ -340,6 +340,18 @@ final class SVGPathDataTests: XCTestCase {
         XCTAssertEqual(lastPoint(SVGPathData.parse(workflow[1])), Point(x: 13, y: 17))
     }
 
+    func testReviewQuizBookOpenCheckIconPathsParseCompletely() {
+        let paths = [
+            "M12 21V7",
+            "m16 12 2 2 4-4",
+            "M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3",
+        ]
+        for path in paths {
+            XCTAssertTrue(SVGPathData.isValid(path), path)
+            XCTAssertFalse(SVGPathData.parse(path).isEmpty, path)
+        }
+    }
+
     // MARK: 辅助
 
     private struct Point: Equatable {

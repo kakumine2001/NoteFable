@@ -100,6 +100,17 @@ data class PptxImportUi(
     val shown: Boolean = false,
 )
 
+/**
+ * 开着的复习和测验窗口（#154 PR 13）。测验界面本身是网页（常驻 /note-embed WebView 里的 `notefableEmbed.quiz`），
+ * 始终盖在打开着的笔记或幻灯片编辑器上。
+ */
+data class ReviewQuizUi(
+    val pageId: String,
+    val request: Int,
+    val editor: String,
+    val shown: Boolean = false,
+)
+
 data class NotesUiState(
     val workspace: Workspace = Workspace.Chat,
     val pages: List<NotePageSummary> = emptyList(),
@@ -137,6 +148,8 @@ data class NotesUiState(
     val slidesWizard: SlidesWizardUi? = null,
     /** PowerPoint（.pptx）导入窗口；null 是没开。 */
     val pptxImport: PptxImportUi? = null,
+    /** 复习和测验窗口；null 是没开。 */
+    val reviewQuiz: ReviewQuizUi? = null,
 ) {
     /** 画面上的编辑器（[OpenNote.editor]）；停在聊天或笔记列表时是 null。 */
     val visibleEditor: String? get() = open?.editor?.takeIf { workspace == Workspace.Notes }
@@ -953,7 +966,7 @@ class NotesViewModel(
     /** 从一个入口打开 PPTX 导入窗口：画面上有编辑器时盖在它上面，否则开全屏导入画面。 */
     fun openPptxImport(target: PptxImportTarget = PptxImportTarget()) {
         val request = ++pptxImportRequests
-        _state.update { it.copy(pptxImport = PptxImportUi(target, request, editor = it.visibleEditor), slidesWizard = null) }
+        _state.update { it.copy(pptxImport = PptxImportUi(target, request, editor = it.visibleEditor), slidesWizard = null, reviewQuiz = null) }
     }
 
     /** 打开的脚本说网页里出来了。 */
@@ -995,6 +1008,44 @@ class NotesViewModel(
     /** 画面上的编辑器换了：盖在别的编辑器上的导入窗口、有了编辑器时的全屏导入画面都不再算数。 */
     fun dropStalePptxImport() = _state.update {
         if (it.pptxImport != null && it.pptxImport.editor != it.visibleEditor) it.copy(pptxImport = null) else it
+    }
+
+    // ---- 复习和测验（#154 PR 13） ----
+
+    private var reviewQuizRequests = 0
+
+    /** 从笔记或幻灯片的"…"菜单打开复习和测验，盖在当前编辑器上。 */
+    fun openReviewQuiz(pageId: String) {
+        val editor = _state.value.visibleEditor ?: return
+        val request = ++reviewQuizRequests
+        _state.update { it.copy(reviewQuiz = ReviewQuizUi(pageId, request, editor), slidesWizard = null, pptxImport = null) }
+    }
+
+    fun onReviewQuizShown(request: Int) = _state.update { state ->
+        val quiz = state.reviewQuiz?.takeIf { it.request == request } ?: return@update state
+        state.copy(reviewQuiz = quiz.copy(shown = true))
+    }
+
+    fun onReviewQuizOpened(editor: String) {
+        val state = _state.value
+        val quiz = state.reviewQuiz
+        if (quiz != null) {
+            if (quiz.editor == editor) onReviewQuizShown(quiz.request)
+            return
+        }
+        val open = state.open?.takeIf { state.visibleEditor == editor } ?: return
+        val request = ++reviewQuizRequests
+        _state.update { it.copy(reviewQuiz = ReviewQuizUi(open.id, request, editor, shown = true)) }
+    }
+
+    fun onReviewQuizClosed() = _state.update { if (it.reviewQuiz?.shown == true) it.copy(reviewQuiz = null) else it }
+
+    fun dismissReviewQuiz(request: Int? = null) = _state.update {
+        if (request == null || it.reviewQuiz?.request == request) it.copy(reviewQuiz = null) else it
+    }
+
+    fun dropStaleReviewQuiz() = _state.update {
+        if (it.reviewQuiz != null && it.reviewQuiz.editor != it.visibleEditor) it.copy(reviewQuiz = null) else it
     }
 
     // ---- Markdown 导出 / 导入（网页 use-note-pages.ts 的 exportPage / importMarkdown） ----

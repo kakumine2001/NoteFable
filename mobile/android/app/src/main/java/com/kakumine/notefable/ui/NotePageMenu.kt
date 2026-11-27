@@ -56,6 +56,9 @@ import kotlin.math.roundToInt
 /** 笔记和幻灯片都支持在"…"菜单里放映（导出仅幻灯片可用）。 */
 internal fun supportsPresentation(kind: PageKind): Boolean = kind == PageKind.Note || kind == PageKind.Slides
 
+/** 笔记和幻灯片都支持在"…"菜单里打开复习和测验（白板不支持）。 */
+internal fun supportsReviewQuiz(kind: PageKind): Boolean = kind == PageKind.Note || kind == PageKind.Slides
+
 /** 笔记顶栏"…"菜单的操作（网页 note-page-menu.tsx）。 */
 class NotePageMenuActions(
     val error: NotesError?,
@@ -80,11 +83,14 @@ class NotePageMenuActions(
     val generatingSlides: Boolean = false,
     /** 「导入 PowerPoint」（#154）：只给幻灯片，打开 PPTX 导入窗口。 */
     val onImportPptx: (() -> Unit)? = null,
+    /** 「复习和测验」（#154 PR 13）：给笔记和幻灯片，盖在编辑器上打开测验窗口。 */
+    val onReviewQuiz: (() -> Unit)? = null,
 ) {
     fun withSlides(handler: (String) -> Unit) = NotePageMenuActions(
         error, busy, onSettings, onFavorite, onDuplicate, onAddInside, onMove, onExport, onTrash, onSlides = handler,
         onDrawDiagram = onDrawDiagram, drawingDiagram = drawingDiagram, onGenerateSlides = onGenerateSlides, generatingSlides = generatingSlides,
         onImportPptx = onImportPptx,
+        onReviewQuiz = onReviewQuiz,
     )
 }
 
@@ -185,6 +191,10 @@ fun NotePageMenuButton(page: NotePageSummary, actions: NotePageMenuActions) {
             val importPptx = actions.onImportPptx
             if (importPptx != null && page.kind == PageKind.Slides) {
                 MenuItem(stringResource(R.string.slides_import_pptx), Lucide.Upload, onClick = run(importPptx))
+            }
+            val reviewQuiz = actions.onReviewQuiz
+            if (reviewQuiz != null && supportsReviewQuiz(page.kind)) {
+                MenuItem(stringResource(R.string.pg_review_quiz), Lucide.BookOpenCheck, onClick = run(reviewQuiz))
             }
             MenuItem(stringResource(R.string.pg_move_to), Lucide.FolderInput, onClick = run(actions.onMove))
             if (features.markdownExport) MenuItem(stringResource(R.string.export_markdown), Lucide.Download, onClick = run(actions.onExport))

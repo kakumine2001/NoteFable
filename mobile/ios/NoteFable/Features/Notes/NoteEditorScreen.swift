@@ -43,7 +43,9 @@ struct NoteEditorScreen: View {
         let wizardShown = editorWizard?.shown == true
         let editorPptxImport = state.pptxImport?.editor == open.editor ? state.pptxImport : nil
         let pptxImportShown = editorPptxImport?.shown == true
-        let modalOverlayShown = wizardShown || pptxImportShown
+        let editorQuiz = state.reviewQuiz?.editor == open.editor ? state.reviewQuiz : nil
+        let quizShown = editorQuiz?.shown == true
+        let modalOverlayShown = wizardShown || pptxImportShown || quizShown
         VStack(spacing: 0) {
             if !state.presenting && !modalOverlayShown { topBar(state, page: page) }
             if !state.presenting && !modalOverlayShown, let notice = state.notice ?? state.error {
@@ -94,6 +96,16 @@ struct NoteEditorScreen: View {
                         pool: editorPool,
                         onShown: { notes.onPptxImportShown($0) },
                         onFailed: { notes.dismissPptxImport($0) }
+                    )
+                }
+                if let editorQuiz {
+                    ReviewQuizOverlayLauncher(
+                        quiz: editorQuiz,
+                        pool: editorPool,
+                        model: app.chat.state.selectedModel?.id,
+                        reasoning: app.chat.state.selectedReasoning,
+                        onShown: { notes.onReviewQuizShown($0) },
+                        onFailed: { notes.dismissReviewQuiz($0) }
                     )
                 }
             }
@@ -321,8 +333,50 @@ struct NoteEditorScreen: View {
             onImportPptx: {
                 let groupId = notes.state.pages.first(where: { $0.id == id })?.groupId
                 router.openPptxImport(PptxImportTarget(groupId: groupId))
-            }
+            },
+            // 「复习和测验」：盖在当前编辑器上打开测验，读这篇之前由网页自己保存。
+            onReviewQuiz: { notes.openReviewQuiz(id, editor: open.editor) }
         )
+    }
+}
+
+/// 网页 msg("Could not generate a quiz. Try again.")：英文原句，经系统文词典翻译。
+private let reviewQuizFailedText = "Could not generate a quiz. Try again."
+
+/// 让常驻 WKWebView 里的网页打开复习和测验窗口（对应 Android NoteEditor.kt 的 LaunchReviewQuiz）。
+@MainActor
+private struct ReviewQuizOverlayLauncher: View {
+    let quiz: ReviewQuizUi
+    let pool: NoteEditorPool
+    let model: String?
+    let reasoning: String?
+    let onShown: (Int) -> Void
+    let onFailed: (Int) -> Void
+
+    @Environment(AppEnvironment.self) private var app
+
+    var body: some View {
+        let taskKey = "\(quiz.request)-\(pool.generation)"
+        Color.clear
+            .frame(width: 0, height: 0)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .task(id: taskKey) {
+                if quiz.shown && pool.controller?.quizVisible == true { return }
+                guard let script = NoteEmbedScripts.quizOpen(pageId: quiz.pageId, model: model, reasoning: reasoning) else {
+                    Toast.show(app.systemText.localize(reviewQuizFailedText), long: true)
+                    onFailed(quiz.request)
+                    return
+                }
+                let opened = await pool.openQuiz(script: script)
+                if Task.isCancelled { return }
+                if opened {
+                    onShown(quiz.request)
+                } else {
+                    Toast.show(app.systemText.localize(reviewQuizFailedText), long: true)
+                    onFailed(quiz.request)
+                }
+            }
     }
 }
 

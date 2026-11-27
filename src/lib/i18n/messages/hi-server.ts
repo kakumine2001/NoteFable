@@ -321,4 +321,8 @@ export const hiServer: Record<string, string> = {
   "mind map": "माइंड मैप",
   "This page embeds a whiteboard that is not available.": "इस पेज में एक ऐसा व्हाइटबोर्ड एम्बेड है जो उपलब्ध नहीं है।",
   "Could not import this PowerPoint file. Try again.": "यह PowerPoint फ़ाइल इंपोर्ट नहीं की जा सकी। फिर से कोशिश करें।",
+  "Could not generate a quiz. Try again.": "क्विज़ नहीं बनाया जा सका। फिर से प्रयास करें।",
+  "Could not save the review note. Try again.": "रिव्यू नोट सहेजा नहीं जा सका। फिर से प्रयास करें।",
+  "There is nothing to make a quiz from yet.": "क्विज़ बनाने के लिए अभी कोई सामग्री नहीं है।",
+  "This note was moved to the trash.": "यह नोट ट्रैश में भेज दिया गया है।",
 };

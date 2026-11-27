@@ -321,4 +321,8 @@ export const trServer: Record<string, string> = {
   "mind map": "zihin haritası",
   "This page embeds a whiteboard that is not available.": "Bu sayfa kullanılamayan bir beyaz tahta içeriyor.",
   "Could not import this PowerPoint file. Try again.": "Bu PowerPoint dosyası içe aktarılamadı. Tekrar deneyin.",
+  "Could not generate a quiz. Try again.": "Test oluşturulamadı. Tekrar deneyin.",
+  "Could not save the review note. Try again.": "Tekrar notu kaydedilemedi. Tekrar deneyin.",
+  "There is nothing to make a quiz from yet.": "Henüz test oluşturacak içerik yok.",
+  "This note was moved to the trash.": "Bu not çöp kutusuna taşındı.",
 };

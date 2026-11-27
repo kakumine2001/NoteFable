@@ -321,4 +321,8 @@ export const deServer: Record<string, string> = {
   "mind map": "Mindmap",
   "This page embeds a whiteboard that is not available.": "Diese Seite bettet ein nicht verfügbares Whiteboard ein.",
   "Could not import this PowerPoint file. Try again.": "Diese PowerPoint-Datei konnte nicht importiert werden. Versuche es erneut.",
+  "Could not generate a quiz. Try again.": "Quiz konnte nicht erstellt werden. Bitte versuche es erneut.",
+  "Could not save the review note. Try again.": "Lernnotiz konnte nicht gespeichert werden. Bitte versuche es erneut.",
+  "There is nothing to make a quiz from yet.": "Es gibt noch keinen Inhalt, aus dem ein Quiz erstellt werden kann.",
+  "This note was moved to the trash.": "Diese Notiz wurde in den Papierkorb verschoben.",
 };

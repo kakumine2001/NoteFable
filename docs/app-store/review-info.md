@@ -54,7 +54,7 @@ IN-APP PURCHASE
 NoteFable Pro is a monthly auto-renewing subscription (com.kakumine.notefable.pro.monthly). Sign in (Sign in with Apple works with your own Apple ID), then open Settings > Plan > Upgrade to Pro. The same screen has Restore Purchases and links to the Terms of Use and Privacy Policy. Pro raises the AI usage limits and file storage; it does not unlock other features.
 
 AI CONTENT
-Chat replies come from the OpenAI, Anthropic or DeepSeek model the user selects, and images come from OpenAI. These providers apply their own safety filters. Supported models can search the web; source links open in the browser. Users can report AI content inside the app: "Report answer" in the menu of an answer, "Report AI content" on AI page proposals and on pages the AI wrote.
+Chat replies come from the OpenAI, Anthropic or DeepSeek model the user selects, and images come from OpenAI. These providers apply their own safety filters. Supported models can search the web; source links open in the browser. Users can report AI content inside the app: "Report answer" in the menu of an answer, "Report AI content" on AI page proposals, in Review & quiz sessions, and on pages the AI wrote.
 
 SHARING
 A user can publish a note, slide deck or whiteboard to a read-only web link and unpublish it at any time. There is no feed, directory, comments or messaging between users.

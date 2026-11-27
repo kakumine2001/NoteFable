@@ -321,4 +321,8 @@ export const ruServer: Record<string, string> = {
   "mind map": "интеллект-карта",
   "This page embeds a whiteboard that is not available.": "На этой странице встроена недоступная доска.",
   "Could not import this PowerPoint file. Try again.": "Не удалось импортировать этот файл PowerPoint. Попробуйте ещё раз.",
+  "Could not generate a quiz. Try again.": "Не удалось создать тест. Попробуйте ещё раз.",
+  "Could not save the review note. Try again.": "Не удалось сохранить конспект для повторения. Попробуйте ещё раз.",
+  "There is nothing to make a quiz from yet.": "Пока нет содержимого для создания теста.",
+  "This note was moved to the trash.": "Эта заметка была перемещена в корзину.",
 };

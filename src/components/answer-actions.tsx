@@ -15,6 +15,7 @@ import type { MessageVersions } from "@/lib/chat-branches";
 import { isSavedMessageId } from "@/lib/chat-message-sync";
 import { useDiagramJob } from "@/components/draw-diagram-dialog";
 import { diagramKey } from "@/lib/draw-diagram-jobs";
+import type { ReviewQuiz } from "@/lib/quiz/model";
 export { isSavedMessageId };
 type Props = {
   messageId: string;
@@ -165,8 +166,12 @@ export function AnswerMenu({ id, anchor, trigger, focusLast, onClose, children, 
   </dialog>;
 }
 
-// 通報する AI の内容：チャットの回答、AI の提案カード（ページの編集・新規の案）、AI が書いたページ。
-export type ReportTarget = { messageId: string } | { proposalId: string } | { pageId: string };
+// 通報する AI の内容：チャットの回答、AI の提案カード（ページの編集・新規の案）、AI が書いたページ、復習・クイズの AI 問題。
+export type ReportTarget =
+  | { messageId: string }
+  | { proposalId: string }
+  | { pageId: string }
+  | { pageId: string; quizReportToken: string; quiz: ReviewQuiz };
 
 // AI の回答・AI が作った内容を開発者に通報する（Google Play の AI 生成コンテンツのポリシー）。理由は任意。送った内容は運営者のメールに届く。
 export function ReportDialog({ target, onClose }: { target: ReportTarget; onClose: () => void }) {

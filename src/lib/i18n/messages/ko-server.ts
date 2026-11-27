@@ -321,4 +321,8 @@ export const koServer: Record<string, string> = {
   "mind map": "마인드맵",
   "This page embeds a whiteboard that is not available.": "이 페이지에 사용할 수 없는 화이트보드가 삽입되어 있어요.",
   "Could not import this PowerPoint file. Try again.": "이 PowerPoint 파일을 가져오지 못했습니다. 다시 시도하세요.",
+  "Could not generate a quiz. Try again.": "퀴즈를 생성하지 못했습니다. 다시 시도해 주세요.",
+  "Could not save the review note. Try again.": "복습 노트를 저장하지 못했습니다. 다시 시도해 주세요.",
+  "There is nothing to make a quiz from yet.": "퀴즈를 만들 내용이 아직 없습니다.",
+  "This note was moved to the trash.": "이 노트는 휴지통으로 이동되었습니다.",
 };

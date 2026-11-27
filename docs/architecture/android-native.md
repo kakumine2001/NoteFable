@@ -326,3 +326,7 @@ cd mobile/android
 4. 账号：已有统一登录弹窗、Credential Manager Google 登录、邮箱验证码登录、退出，以及设置（显示名和头像（照片 / 表情）、存到账号的界面语言、自定义指令）。Google 沿用 `/api/native-auth/*`（受众仍是 Web 客户端 ID），邮箱用 `/api/auth/email/*`；仍需完成真实账号流程验证。Google Cloud 只登记 `NoteFable-Android`（包名 + Play 应用签名），本机签名的包没有 Google 登录。
 5. ✅ 替换 Capacitor 外壳：外壳代码已删除。
 6. 原生界面升级（材质、导航容器、手势、动效、弹层呈现，按“三端一致与原生分界”）：所有者决定等 Play 封闭测试结束后单开 Issue，不打扰进行中的付费封测；在那之前 Android 的界面外壳不动，只修 bug、同步三端必须一致的改动（iOS 的同类升级是 #195，不搬到 Android）。
+
+## 复习和测验（Review & quiz）
+
+笔记与幻灯片的原生“…”菜单（`NotePageMenu.kt`）增加 **Review & quiz**（`R.string.pg_review_quiz`，图标 `Lucide.BookOpenCheck`，白板不显示；锁定页面可用）。点击后通过常驻 `/note-embed` WebView 打开与网页共用的答题界面（`NoteEmbedBridge.canShowQuiz()`、`notefableEmbed.quiz({action:"open",...})`、`EmbedMessage.Quiz(open)`）：展开期间隐藏原生顶栏并添加状态栏内边距，系统返回键先交由 `notefableEmbed.quiz({action:"back"})` 关闭答题层或举报框；429 额度上限沿用现有 `usageLimit` 桥接展示原生登录/升级提示，保存复习笔记后经 `pagesChanged` / `openPage` 同步列表并打开新笔记。规则见 [notes-flow.md](notes-flow.md#复习和测验模式review--quiz)。

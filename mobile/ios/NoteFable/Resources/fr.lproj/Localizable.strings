@@ -428,6 +428,7 @@
 "pg_subpages_to_trash" = "Ses sous-pages seront déplacées dans la corbeille avec elle.";
 "pg_rename_page" = "Renommer la page";
 "pg_page_title" = "Titre de la page";
+"pg_review_quiz" = "Révision et quiz";
 
 /* strings_personal.xml */
 "appearance" = "Apparence";

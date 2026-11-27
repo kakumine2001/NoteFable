@@ -321,4 +321,8 @@ export const ptBRServer: Record<string, string> = {
   "mind map": "mapa mental",
   "This page embeds a whiteboard that is not available.": "Esta página incorpora um quadro branco que não está disponível.",
   "Could not import this PowerPoint file. Try again.": "Não foi possível importar este arquivo do PowerPoint. Tente novamente.",
+  "Could not generate a quiz. Try again.": "Não foi possível gerar o quiz. Tente novamente.",
+  "Could not save the review note. Try again.": "Não foi possível salvar a nota de revisão. Tente novamente.",
+  "There is nothing to make a quiz from yet.": "Ainda não há conteúdo para criar um quiz.",
+  "This note was moved to the trash.": "Esta nota foi movida para a lixeira.",
 };

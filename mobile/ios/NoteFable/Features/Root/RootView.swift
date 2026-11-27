@@ -20,9 +20,10 @@ struct RootView: View {
         let editorWizardShown = app.notes.state.slidesWizard?.editor != nil && app.notes.state.slidesWizard?.shown == true
         let fullScreenPptxImport = app.notes.state.pptxImport?.editor == nil ? app.notes.state.pptxImport : nil
         let editorPptxImportShown = app.notes.state.pptxImport?.editor != nil && app.notes.state.pptxImport?.shown == true
+        let editorQuizShown = app.notes.state.reviewQuiz?.shown == true
         let hasFullScreenOverlay = fullScreenWizard != nil || fullScreenPptxImport != nil
         let hideTabBar = hasFullScreenOverlay || (router.selectedTab == .workspace && (app.notes.state.open != nil || app.notes.state.presenting))
-        let allowEdgeDrawer = !hasFullScreenOverlay && !editorWizardShown && !editorPptxImportShown && !(router.selectedTab == .workspace && (app.notes.state.editorCapturesEdgeSwipes || app.notes.state.presenting))
+        let allowEdgeDrawer = !hasFullScreenOverlay && !editorWizardShown && !editorPptxImportShown && !editorQuizShown && !(router.selectedTab == .workspace && (app.notes.state.editorCapturesEdgeSwipes || app.notes.state.presenting))
 
         ZStack {
             AdaptiveSidebarShell(

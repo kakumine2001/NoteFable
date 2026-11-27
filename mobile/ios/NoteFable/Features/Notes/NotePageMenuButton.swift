@@ -228,6 +228,9 @@ private struct NotePageMenuContent: View {
         if page.kind == .slides, let onImportPptx = actions.onImportPptx {
             ActionsMenuItem(L("slides_import_pptx"), icon: Lucide.upload, action: run(onImportPptx))
         }
+        if notePageSupportsQuiz(page.kind), let onReviewQuiz = actions.onReviewQuiz {
+            ActionsMenuItem(L("pg_review_quiz"), icon: Lucide.bookOpenCheck, action: run(onReviewQuiz))
+        }
         ActionsMenuItem(L("pg_move_to"), icon: Lucide.folderInput, action: run(actions.onMove))
         if page.kind.features.markdownExport {
             ActionsMenuItem(L("export_markdown"), icon: Lucide.download, action: run(actions.onExport))

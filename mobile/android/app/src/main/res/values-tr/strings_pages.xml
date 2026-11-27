@@ -27,4 +27,5 @@
     <string name="pg_subpages_to_trash">Alt sayfaları da onunla birlikte Çöp Kutusu\'na taşınır.</string>
     <string name="pg_rename_page">Sayfayı yeniden adlandır</string>
     <string name="pg_page_title">Sayfa başlığı</string>
+    <string name="pg_review_quiz">Tekrar ve test</string>
 </resources>

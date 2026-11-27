@@ -253,4 +253,50 @@ final class SlidesBridgeTests: XCTestCase {
         await notesSettle()
         XCTAssertNil(vm.state.pptxImport)
     }
+
+    // ---- 复习和测验模式（PR 13） ----
+
+    @MainActor
+    func testReviewQuizBridgeScriptsMenuAndLifecycle() async {
+        XCTAssertEqual(EmbedMessage.parse(#"{"type":"quiz","state":"open"}"#), .quiz(open: true))
+        XCTAssertEqual(EmbedMessage.parse(#"{"type":"quiz","state":"closed"}"#), .quiz(open: false))
+        XCTAssertNil(EmbedMessage.parse(#"{"type":"quiz","state":"other"}"#))
+
+        XCTAssertTrue(notePageSupportsQuiz(.note))
+        XCTAssertTrue(notePageSupportsQuiz(.slides))
+        XCTAssertFalse(notePageSupportsQuiz(.whiteboard))
+
+        let bootstrap = NoteEmbedScripts.bootstrap(handler: "h", appIcon: nil, language: "en")
+        XCTAssertTrue(bootstrap.contains("canShowQuiz:function(){return true}"))
+
+        let openNote = NoteEmbedScripts.quizOpen(pageId: "n_1", model: "gpt-6-luna", reasoning: "medium")
+        XCTAssertNotNil(openNote)
+        XCTAssertTrue(openNote?.contains(#""action":"open""#) == true)
+        XCTAssertTrue(openNote?.contains(#""pageId":"n_1""#) == true)
+        XCTAssertTrue(openNote?.contains(#""model":"gpt-6-luna""#) == true)
+        XCTAssertTrue(openNote?.contains(#""reasoning":"medium""#) == true)
+        XCTAssertNil(NoteEmbedScripts.quizOpen(pageId: ""))
+        XCTAssertNil(NoteEmbedScripts.quizOpen(pageId: "bad id"))
+        XCTAssertEqual(NoteEmbedScripts.quizAnswer("open"), true)
+        XCTAssertEqual(NoteEmbedScripts.quizAnswer("unsupported"), false)
+        XCTAssertNil(NoteEmbedScripts.quizAnswer("loading"))
+        XCTAssertTrue(NoteEmbedScripts.quizBack.contains(#""action":"back""#))
+
+        let backend = NotesTestBackend()
+        let vm = NotesViewModel(backend: backend)
+        vm.setWorkspace(.notes)
+        await notesSettle()
+        vm.openNote("a", title: "Bio", icon: nil, kind: .note)
+        await notesSettle()
+        vm.openReviewQuiz("a", editor: "a")
+        XCTAssertEqual(vm.state.reviewQuiz?.pageId, "a")
+        XCTAssertEqual(vm.state.reviewQuiz?.shown, false)
+        // 还没 shown 之前，旧的 closed 不会关掉新请求。
+        vm.onReviewQuizClosed()
+        XCTAssertNotNil(vm.state.reviewQuiz)
+        vm.onEditorMessage("a", .quiz(open: true))
+        XCTAssertEqual(vm.state.reviewQuiz?.shown, true)
+        vm.onEditorMessage("a", .quiz(open: false))
+        XCTAssertNil(vm.state.reviewQuiz)
+    }
 }

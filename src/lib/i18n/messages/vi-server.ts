@@ -321,4 +321,8 @@ export const viServer: Record<string, string> = {
   "mind map": "sơ đồ tư duy",
   "This page embeds a whiteboard that is not available.": "Trang này nhúng một bảng trắng không khả dụng.",
   "Could not import this PowerPoint file. Try again.": "Không thể nhập tệp PowerPoint này. Hãy thử lại.",
+  "Could not generate a quiz. Try again.": "Không thể tạo bài kiểm tra. Hãy thử lại.",
+  "Could not save the review note. Try again.": "Không thể lưu ghi chú ôn tập. Hãy thử lại.",
+  "There is nothing to make a quiz from yet.": "Chưa có nội dung để tạo bài kiểm tra.",
+  "This note was moved to the trash.": "Ghi chú này đã được chuyển vào thùng rác.",
 };

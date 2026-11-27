@@ -187,4 +187,33 @@ class NoteEmbedBridgeTest {
         assertEquals(emptyList<String>(), webFileChooserMimeTypes(arrayOf("*/*")))
         assertEquals(emptyList<String>(), webFileChooserMimeTypes(emptyArray()))
     }
+
+    @Test
+    fun `review quiz scripts validate ids and kinds and menu supports notes and slides only`() {
+        assertTrue(supportsReviewQuiz(PageKind.Note))
+        assertTrue(supportsReviewQuiz(PageKind.Slides))
+        assertFalse(supportsReviewQuiz(PageKind.Whiteboard))
+
+        val open = NoteEmbedBridge.quizOpenScript("p_1", " gpt-6-luna ", "high")
+        assertNotNull(open)
+        assertTrue(open!!.contains(""""action":"open""""))
+        assertTrue(open.contains(""""pageId":"p_1""""))
+        assertTrue(open.contains(""""model":"gpt-6-luna""""))
+        assertTrue(open.contains(""""reasoning":"high""""))
+        assertNull(NoteEmbedBridge.quizOpenScript("bad id"))
+        assertNull(NoteEmbedBridge.quizOpenScript(""))
+
+        assertEquals(true, NoteEmbedBridge.quizAnswer("\"open\""))
+        assertEquals(false, NoteEmbedBridge.quizAnswer("\"unsupported\""))
+        assertEquals(false, NoteEmbedBridge.quizAnswer("\"rejected\""))
+        assertNull(NoteEmbedBridge.quizAnswer("\"loading\""))
+        assertNull(NoteEmbedBridge.quizAnswer(null))
+        assertEquals(
+            "(function(){var e=window.notefableEmbed;if(e&&typeof e.quiz==='function')return e.quiz({\"action\":\"back\"})===true;return false})()",
+            NoteEmbedBridge.QUIZ_BACK_SCRIPT,
+        )
+        assertEquals(EmbedMessage.Quiz(open = true), EmbedMessage.parse("""{"type":"quiz","state":"open"}"""))
+        assertEquals(EmbedMessage.Quiz(open = false), EmbedMessage.parse("""{"type":"quiz","state":"closed"}"""))
+        assertNull(EmbedMessage.parse("""{"type":"quiz","state":"other"}"""))
+    }
 }

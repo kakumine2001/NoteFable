@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findReportedAnswer, findReportedPage, findReportedPageImage, findReportedProposal, pageImageReportEmail, pageReportEmail, parseReport, proposalReportEmail, reportEmail, sendReport, slideImageReportEmail, whiteboardImageReportEmail } from "@/lib/answer-report";
+import { findReportedAnswer, findReportedPage, findReportedPageImage, findReportedPageQuiz, findReportedProposal, pageImageReportEmail, pageQuizReportEmail, pageReportEmail, parseReport, proposalReportEmail, reportEmail, sendReport, slideImageReportEmail, whiteboardImageReportEmail } from "@/lib/answer-report";
 import { readCanvasData } from "@/lib/canvas-store";
 import { isImageExtension, parseNoteFileUrl } from "@/lib/note-file-keys";
 import { normalizeDeck } from "@/lib/slides/model";
@@ -44,6 +44,11 @@ export async function POST(request: NextRequest) {
     const image = await findReportedPageImage(user.id, target.pageId, target.reportToken);
     if (!image) return NextResponse.json({ error: msg("This image is no longer available.") }, { status: 404 });
     email = pageImageReportEmail({ userId: user.id, signedIn, pageId: image.pageId, pageKind: image.pageKind, prompt: image.prompt, path: image.path, reason });
+  } else if (target.kind === "pageQuiz") {
+    // 復習・クイズ画面の AI 生成問題：生成時に署名したトークン・内容ハッシュと本人のページを確認する。
+    const reported = await findReportedPageQuiz(user.id, target.pageId, target.reportToken, target.quiz);
+    if (!reported) return NextResponse.json({ error: msg("This content is no longer available.") }, { status: 404 });
+    email = pageQuizReportEmail({ userId: user.id, signedIn, pageId: reported.pageId, pageKind: reported.pageKind, pageTitle: reported.pageTitle, model: reported.model, quiz: reported.quiz, reason });
   } else {
     // スライドまたはホワイトボードの AI で作った画像：自分の（ゴミ箱に無い）ページの中の、AI で作った印のある画像だけ。
     const canvas = await readCanvasData(user.id, target.pageId);

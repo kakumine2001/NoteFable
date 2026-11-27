@@ -27,4 +27,5 @@
     <string name="pg_subpages_to_trash">تنتقل صفحاتها الفرعية معها إلى سلة المهملات.</string>
     <string name="pg_rename_page">إعادة تسمية الصفحة</string>
     <string name="pg_page_title">عنوان الصفحة</string>
+    <string name="pg_review_quiz">المراجعة والاختبار</string>
 </resources>
