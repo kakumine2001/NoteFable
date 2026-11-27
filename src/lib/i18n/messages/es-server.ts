@@ -319,4 +319,5 @@ export const esServer: Record<string, string> = {
   "Gantt chart": "diagrama de Gantt",
   "quadrant chart": "gráfico de cuadrantes",
   "mind map": "mapa mental",
+  "This page embeds a whiteboard that is not available.": "Esta página incrusta una pizarra que no está disponible.",
 };

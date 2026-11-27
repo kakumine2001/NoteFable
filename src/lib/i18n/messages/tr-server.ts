@@ -319,4 +319,5 @@ export const trServer: Record<string, string> = {
   "Gantt chart": "Gantt şeması",
   "quadrant chart": "dörtlü bölge grafiği",
   "mind map": "zihin haritası",
+  "This page embeds a whiteboard that is not available.": "Bu sayfa kullanılamayan bir beyaz tahta içeriyor.",
 };

@@ -319,4 +319,5 @@ export const hiServer: Record<string, string> = {
   "Gantt chart": "गैंट चार्ट",
   "quadrant chart": "चतुर्थांश चार्ट",
   "mind map": "माइंड मैप",
+  "This page embeds a whiteboard that is not available.": "इस पेज में एक ऐसा व्हाइटबोर्ड एम्बेड है जो उपलब्ध नहीं है।",
 };

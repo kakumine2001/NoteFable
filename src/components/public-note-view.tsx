@@ -1,8 +1,10 @@
-import { ChevronRight, Download, FileText, Globe } from "lucide-react";
+import { ChevronRight, Download, FileText, Globe, Shapes } from "lucide-react";
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 import { PublicCodeBlock, PublicToggleBlock } from "@/components/public-note-interactive";
 import { PublicMathStyles } from "@/components/public-note-math-styles";
+import { PublicWhiteboardEmbed } from "@/components/whiteboard/public-whiteboard-embed";
+import type { PublicWhiteboardEmbedLabels } from "@/components/whiteboard/public-whiteboard-embed-canvas";
 import { siteHref } from "@/lib/hosts";
 import { localeDir, type Locale } from "@/lib/i18n/locale";
 import { messagesFor } from "@/lib/i18n/messages";
@@ -15,7 +17,7 @@ import { NoteIcon } from "@/components/note-icon";
 import { PageKindIcon } from "@/components/page-kind-icon";
 import { PublicWhiteboardViewer } from "@/components/whiteboard/public-whiteboard-viewer";
 import { isUploadedNoteIcon, noteIconText } from "@/lib/note-icon";
-import type { ResolvedPublicShare } from "@/lib/note-share-server";
+import type { PublicEmbeddedWhiteboard, ResolvedPublicShare } from "@/lib/note-share-server";
 import { validColumnWidth } from "@/lib/note-columns";
 import { blocksHaveMath } from "@/lib/note-text";
 import { extractTocHeadings, type TocHeading } from "@/lib/note-toc";
@@ -71,7 +73,10 @@ type MathRenderer = (latex: string, displayMode: boolean) => string;
 const MAX_PUBLIC_TOC_LINKS = 1000;
 
 type RenderContext = {
+  token: string;
   labels: { copy: string; copied: string; download: string };
+  whiteboardLabels: PublicWhiteboardEmbedLabels;
+  embeddedWhiteboards: Record<string, PublicEmbeddedWhiteboard>;
   // 数式のあるページだけ、サーバーで読み込んだ KaTeX で描く関数が入る（数式の無いページは null）。
   math: MathRenderer | null;
   tocHeadings: TocHeading[];
@@ -490,6 +495,40 @@ function renderBlock(block: RenderBlock, numberIndex: number, ctx: RenderContext
         </div>
       );
     }
+    case "whiteboard": {
+      // 公開ノート内のホワイトボード埋め込み。同じ公開共有ツリーに含まれる白板だけプレビューを描き、
+      // それ以外（別ツリー・非公開・ゴミ箱・除外）はメタデータを一切出さない静的プレースホルダーにする。
+      const pageId = typeof props.pageId === "string" ? props.pageId.trim() : "";
+      if (!pageId) return childrenNode ? <div key={block.id} className="public-note-block">{childrenNode}</div> : null;
+      const wb = Object.hasOwn(ctx.embeddedWhiteboards, pageId) ? ctx.embeddedWhiteboards[pageId] : undefined;
+      if (!wb) {
+        return (
+          <div key={block.id} className="public-note-block">
+            <div className="note-whiteboard-embed is-unavailable">
+              <Shapes size={18} aria-hidden="true" className="shrink-0" />
+              <span>{ctx.whiteboardLabels.unavailable}</span>
+            </div>
+            {childrenNode}
+          </div>
+        );
+      }
+      const frameId = typeof props.frameId === "string" && props.frameId.trim() ? props.frameId.trim() : null;
+      return (
+        <div key={block.id} className="public-note-block">
+          <PublicWhiteboardEmbed
+            token={ctx.token}
+            pageId={wb.id}
+            frameId={frameId}
+            title={wb.title}
+            icon={wb.icon}
+            iconUrl={isUploadedNoteIcon(wb.icon) ? shareIconUrl(ctx.token, wb.id) : null}
+            href={wb.href}
+            labels={ctx.whiteboardLabels}
+          />
+          {childrenNode}
+        </div>
+      );
+    }
     default:
       return null;
   }
@@ -559,7 +598,18 @@ export async function PublicNoteView({ data, locale }: { data: ResolvedPublicSha
 
         <article className="notes-column notes-body public-note-body">
           {renderBlockList(blocks, {
+            token,
             labels: { copy: t("Copy"), copied: t("Copied"), download: t("Download") },
+            whiteboardLabels: {
+              loading: t("Loading whiteboard…"),
+              empty: t("This whiteboard is empty."),
+              missingFrame: t("This frame is no longer on the whiteboard."),
+              unavailable: t("Whiteboard unavailable"),
+              preview: t("Whiteboard preview"),
+              untitled: t("Untitled"),
+              frameFallback: t("Frame {number}"),
+            },
+            embeddedWhiteboards: data.embeddedWhiteboards ?? {},
             math,
             tocHeadings,
             tocLabel: t("Table of contents"),

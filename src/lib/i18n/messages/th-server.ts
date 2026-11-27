@@ -319,4 +319,5 @@ export const thServer: Record<string, string> = {
   "Gantt chart": "แผนภูมิแกนต์",
   "quadrant chart": "แผนภูมิสี่ส่วน",
   "mind map": "แผนผังความคิด",
+  "This page embeds a whiteboard that is not available.": "หน้านี้ฝังไวท์บอร์ดที่ไม่พร้อมใช้งาน",
 };

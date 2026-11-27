@@ -49,6 +49,23 @@ describe("page document boundary", () => {
     expect(() => validateNoteContent({ title: "Math", blocks: [{ id: "bad7", type: "paragraph", props: {}, content: [{ type: "mathInline", props: { latex: "x" }, content: [] }], children: [] }] })).toThrow("unsupported");
   });
 
+  it("validates whiteboard embed blocks", () => {
+    const blocks = [
+      { id: "w1", type: "whiteboard", props: { pageId: "wb_123", frameId: "" }, children: [] },
+      { id: "w2", type: "whiteboard", props: { pageId: "wb_123", frameId: "frame-1" }, children: [] },
+      { id: "w3", type: "whiteboard", props: { pageId: "", frameId: "" }, children: [] },
+    ];
+    expect(() => validateNoteContent({ title: "Board note", blocks })).not.toThrow();
+    // frameId without pageId is rejected.
+    expect(() => validateNoteContent({ title: "Bad", blocks: [{ id: "wb1", type: "whiteboard", props: { pageId: "", frameId: "frame-1" }, children: [] }] })).toThrow("unsupported");
+    // whiteboard blocks cannot carry inline content or unknown props.
+    expect(() => validateNoteContent({ title: "Bad", blocks: [{ id: "wb2", type: "whiteboard", props: { pageId: "wb_123" }, content: [], children: [] }] })).toThrow("unsupported");
+    expect(() => validateNoteContent({ title: "Bad", blocks: [{ id: "wb3", type: "whiteboard", props: { pageId: "wb_123", extra: "x" }, children: [] }] })).toThrow("unsupported");
+    // invalid pageId or frameId characters are rejected.
+    expect(() => validateNoteContent({ title: "Bad", blocks: [{ id: "wb4", type: "whiteboard", props: { pageId: "bad id" }, children: [] }] })).toThrow("unsupported");
+    expect(() => validateNoteContent({ title: "Bad", blocks: [{ id: "wb5", type: "whiteboard", props: { pageId: "wb_123", frameId: "bad\u0000id" }, children: [] }] })).toThrow("unsupported");
+  });
+
   it("validates table content", () => {
     const cell = (text: string, props: Record<string, unknown> = {}) => ({ type: "tableCell", props: { backgroundColor: "default", textColor: "default", textAlignment: "left", colspan: 1, rowspan: 1, ...props }, content: [{ type: "text", text, styles: {} }] });
     const table = (content: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({ id: "tb", type: "table", props: { textColor: "default" }, content: { type: "tableContent", columnWidths: [null, 120], headerRows: 1, ...content }, children: [], ...extra });

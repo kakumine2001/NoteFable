@@ -3,11 +3,12 @@ import { isEmojiIcon } from "@/lib/emoji-icon";
 import { parseNoteFileUrl } from "@/lib/note-file-keys";
 import { validMention } from "@/lib/note-mention";
 import { COLUMN, COLUMN_LIST, MAX_STORED_COLUMNS, validColumnWidth } from "@/lib/note-columns";
+import { validWhiteboardEmbedFrameId, validWhiteboardEmbedPageId } from "@/lib/whiteboard/frames";
 import type { NoteContent } from "@/types/notes";
 import { MAX_STORED_FILE_BYTES } from "@/lib/usage-plans";
 import { msg, fmt } from "@/lib/i18n/translate";
 
-export const NOTE_BLOCK_TYPES = ["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "toggleListItem", "quote", "callout", "codeBlock", "divider", "tableOfContents", "table", "image", "file", "mathBlock", "columnList", "column"] as const;
+export const NOTE_BLOCK_TYPES = ["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "toggleListItem", "quote", "callout", "codeBlock", "divider", "tableOfContents", "table", "image", "file", "mathBlock", "whiteboard", "columnList", "column"] as const;
 export const MAX_NOTE_BYTES = 1024 * 1024;
 // 数式（TeX）1 つのソースの長さの上限。ブロックの数式も行内の数式も同じ。
 export const MAX_MATH_LATEX = 10_000;
@@ -161,6 +162,8 @@ export function validateNoteContent(value: unknown): NoteContent {
         if (key === "name" || key === "caption") return media && typeof entry === "string" && entry.length <= (key === "name" ? 200 : 500) && !/[\u0000-\u001f\u007f]/.test(entry);
         if (key === "showPreview") return block.type === "image" && typeof entry === "boolean";
         if (key === "latex") return block.type === "mathBlock" && validLatex(entry);
+        if (key === "pageId") return block.type === "whiteboard" && validWhiteboardEmbedPageId(entry);
+        if (key === "frameId") return block.type === "whiteboard" && validWhiteboardEmbedFrameId(entry);
         if (key === "previewWidth") return block.type === "image" && typeof entry === "number" && Number.isFinite(entry) && entry >= 16 && entry <= 4000;
         return false;
       });
@@ -169,6 +172,12 @@ export function validateNoteContent(value: unknown): NoteContent {
         if (block.content !== undefined || Object.keys(props).length) return false;
       } else if (block.type === "tableOfContents") {
         if (block.content !== undefined || Object.keys(props).some((key) => key !== "backgroundColor" && key !== "textColor")) return false;
+      } else if (block.type === "whiteboard") {
+        // ホワイトボード埋め込みブロック。props は pageId と任意の frameId のみ（frameId だけの指定は不可）。本文は持たない。
+        if (block.content !== undefined || Object.keys(props).some((key) => key !== "pageId" && key !== "frameId")) return false;
+        const pageId = typeof props.pageId === "string" ? props.pageId : "";
+        const frameId = typeof props.frameId === "string" ? props.frameId : "";
+        if (frameId && !pageId) return false;
       } else if (block.type === "table") {
         // 表は子ブロックを持たない。
         if (!validTable(block.content) || (block.children !== undefined && !(Array.isArray(block.children) && !block.children.length))) return false;

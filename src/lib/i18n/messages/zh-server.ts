@@ -319,4 +319,5 @@ export const zhServer: Record<string, string> = {
   "Gantt chart": "甘特图",
   "quadrant chart": "象限图",
   "mind map": "思维导图",
+  "This page embeds a whiteboard that is not available.": "此页面嵌入的白板不可用。",
 };

@@ -4,12 +4,14 @@ import { parseCanvasSegments } from "@/lib/canvas-document";
 import { readCanvasData } from "@/lib/canvas-store";
 import { listChatAttachments } from "@/lib/note-attachments";
 import { blocksToMarkdown } from "@/lib/note-markdown";
+import { loadEmbeddedWhiteboardMeta } from "@/lib/note-whiteboards";
 import { AI_SEMANTIC_THRESHOLD, scheduleNoteEmbeddingBackfill, scheduleNoteEmbeddingSync, semanticSearchNotes } from "@/lib/note-embeddings";
 import { databaseSchema, prisma } from "@/lib/prisma";
 import { isPageKind, PAGE_KINDS, pageKindOf, type PageKind } from "@/lib/page-kinds";
 import { canvasBodyValues, noteBodyValues, termHit } from "@/lib/search";
 import { buildSearchSnippet, foldSearchText, likePattern } from "@/lib/search-fold";
 import { discardStoredFiles } from "@/lib/stored-files";
+import { extractNoteWhiteboardPageIds } from "@/lib/whiteboard/frames";
 import { parseSearchTerms } from "@/types/search";
 import { fmt, msg } from "@/lib/i18n/translate";
 import { AdapterError, MAX_READ_CHARS, type AdapterContext, type AdapterPage, type PageAdapter } from "@/lib/page-ai/adapter";
@@ -183,6 +185,9 @@ async function loadPage(userId: string, pageId: string): Promise<{ page: Adapter
   const page: AdapterPage = { ...rest, kind: pageKindOf(row), segments: parseCanvasSegments(canvas?.segments) };
   const adapter = adapterFor(page.kind);
   if (adapter.needsData && page.kind !== "note") page.data = await readCanvasData(userId, pageId);
+  if (page.kind === "note" && extractNoteWhiteboardPageIds(page.blocks).length > 0) {
+    page.embeddedWhiteboards = await loadEmbeddedWhiteboardMeta(userId, page.blocks);
+  }
   return { page, adapter };
 }
 

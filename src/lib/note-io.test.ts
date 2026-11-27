@@ -92,4 +92,20 @@ describe("note Markdown export and import helpers", () => {
     expect(titleFromFileName("path/to/My Notes.md")).toBe("My Notes");
     expect(titleFromFileName(".md")).toBe("Untitled");
   });
+
+  it("exports embedded whiteboard blocks as portable text with live whiteboard and frame names", () => {
+    const whiteboards = new Map([["wb1", { title: "Architecture", frames: new Map([["f1", "Services"]]) }]]);
+    const exported = noteToMarkdownFile(
+      {
+        title: "Design Doc",
+        blocks: [
+          { id: "w1", type: "whiteboard", props: { pageId: "wb1", frameId: "" }, children: [] },
+          { id: "w2", type: "whiteboard", props: { pageId: "wb1", frameId: "f1" }, children: [] },
+        ],
+      },
+      { whiteboards },
+    );
+    expect(exported.markdown).toBe("# Design Doc\n\n[Whiteboard: Architecture]\n\n[Whiteboard: Architecture — Services]\n");
+    expect(exported.markdown).not.toContain("whiteboard:");
+  });
 });

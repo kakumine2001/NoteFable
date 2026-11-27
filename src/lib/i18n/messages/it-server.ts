@@ -319,4 +319,5 @@ export const itServer: Record<string, string> = {
   "Gantt chart": "diagramma di Gantt",
   "quadrant chart": "grafico a quadranti",
   "mind map": "mappa mentale",
+  "This page embeds a whiteboard that is not available.": "Questa pagina incorpora una lavagna non disponibile.",
 };

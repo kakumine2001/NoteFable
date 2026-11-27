@@ -108,4 +108,62 @@ describe("public share tree and page kinds", () => {
     mocks.queryRaw.mockResolvedValue([shared]);
     expect((await resolveOwnerShareState("owner", "child", "https://example.com"))?.inheritedFrom).toMatchObject({ id: "root" });
   });
+
+  it("resolves embedded whiteboards only when they belong to the same public share tree", async () => {
+    const blocks = [
+      { id: "e1", type: "whiteboard", props: { pageId: "wb-in-tree", frameId: "f1" }, children: [] },
+      { id: "e2", type: "whiteboard", props: { pageId: "wb-excluded", frameId: "" }, children: [] },
+      { id: "e3", type: "whiteboard", props: { pageId: "wb-outside", frameId: "" }, children: [] },
+      { id: "e4", type: "whiteboard", props: { pageId: "wb-under-deck", frameId: "" }, children: [] },
+    ];
+    mocks.findFirst.mockResolvedValueOnce(root({ blocks }));
+    // 1st findMany: visible children of root; 2nd findMany: candidate embedded whiteboards
+    mocks.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { id: "wb-in-tree", title: "Allowed Board", icon: "🎨", parentId: "root" },
+        { id: "wb-outside", title: "Secret Board", icon: null, parentId: "other-root" },
+        { id: "wb-under-deck", title: "Deck Child Board", icon: null, parentId: "deck" },
+      ]);
+    // Ancestor chains for non-direct-child candidates ("wb-outside" and "wb-under-deck")
+    mocks.queryRaw
+      .mockResolvedValueOnce([ancestor("other-root", { parentId: null })])
+      .mockResolvedValueOnce([ancestor("deck", { kind: "slides", parentId: "root" }), ancestor("root", { depth: 2 })]);
+
+    const resolved = await resolvePublicShare(token);
+    expect(resolved?.embeddedWhiteboards).toEqual({
+      "wb-in-tree": {
+        id: "wb-in-tree",
+        title: "Allowed Board",
+        icon: "🎨",
+        href: `/s/${token}/p/wb-in-tree`,
+      },
+    });
+    // Verify candidate query restricts to owner, whiteboard, live, not excluded from parent.
+    expect(mocks.findMany.mock.calls[1][0].where).toMatchObject({
+      userId: "owner",
+      kind: "whiteboard",
+      deletedAt: null,
+      shareExcludeFromParent: false,
+    });
+  });
+
+  it("blocks child whiteboards when shareIncludeSubpages is false, while allowing a child note to embed a whiteboard share root", async () => {
+    const blocks = [{ id: "e1", type: "whiteboard", props: { pageId: "wb-child", frameId: "" }, children: [] }];
+    mocks.findFirst.mockResolvedValueOnce(root({ shareIncludeSubpages: false, blocks }));
+    const resolvedRoot = await resolvePublicShare(token);
+    expect(resolvedRoot?.embeddedWhiteboards).toBeUndefined();
+    expect(mocks.findMany).not.toHaveBeenCalled();
+
+    // Child note under a whiteboard share root can embed that whiteboard root itself.
+    const childBlocks = [{ id: "e2", type: "whiteboard", props: { pageId: "root", frameId: "f1" }, children: [] }];
+    mocks.findFirst
+      .mockResolvedValueOnce(root({ kind: "whiteboard", title: "Root Board", icon: "🗺️" }))
+      .mockResolvedValueOnce(page("child-note", { parentId: "root", blocks: childBlocks }));
+    mocks.findMany.mockResolvedValueOnce([]);
+    const resolvedChild = await resolvePublicShare(token, "child-note");
+    expect(resolvedChild?.embeddedWhiteboards).toEqual({
+      root: { id: "root", title: "Root Board", icon: "🗺️", href: `/s/${token}` },
+    });
+  });
 });

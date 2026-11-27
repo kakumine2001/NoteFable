@@ -319,4 +319,5 @@ export const viServer: Record<string, string> = {
   "Gantt chart": "biểu đồ Gantt",
   "quadrant chart": "biểu đồ bốn góc phần tư",
   "mind map": "sơ đồ tư duy",
+  "This page embeds a whiteboard that is not available.": "Trang này nhúng một bảng trắng không khả dụng.",
 };

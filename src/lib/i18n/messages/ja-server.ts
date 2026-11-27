@@ -319,4 +319,5 @@ export const jaServer: Record<string, string> = {
   "Gantt chart": "ガントチャート",
   "quadrant chart": "4 象限チャート",
   "mind map": "マインドマップ",
+  "This page embeds a whiteboard that is not available.": "このページには利用できないホワイトボードが埋め込まれています。",
 };

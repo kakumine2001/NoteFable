@@ -1,11 +1,12 @@
 import { randomBytes } from "crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { splitHosts } from "@/lib/hosts";
-import { isShareRowActive, isValidShareToken, sharePageUrl } from "@/lib/note-share";
+import { isShareRowActive, isValidShareToken, sharePagePath, sharePageUrl } from "@/lib/note-share";
 import { PAGE_SUMMARY_SELECT } from "@/lib/note-tree-server";
 import { PAGE_KINDS, pageKindFeatures, pageKindOf, type PageKind } from "@/lib/page-kinds";
 import { readCanvasDataForShare } from "@/lib/canvas-store";
 import { databaseSchema, prisma } from "@/lib/prisma";
+import { extractNoteWhiteboardPageIds } from "@/lib/whiteboard/frames";
 import type { NotePageFont, NoteShareAncestor, NoteShareState } from "@/types/notes";
 
 const table = () => Prisma.raw(`"${databaseSchema}"."NotePage"`);
@@ -69,6 +70,10 @@ export function shareOriginForRequest(request: Request): string {
 // kind はページの種類（パンくず・サブページの一覧のアイコン）。
 export type PublicShareCrumb = { id: string; title: string; icon: string | null; kind?: PageKind };
 
+// 同じ公開共有ツリーに含まれる埋め込みホワイトボード（公開ノート内のプレビュー・遷移先）。
+// 同じツリーに無いホワイトボードはここに入らず、閲覧者にはプレースホルダーだけを見せる（メタデータを一切漏らさない）。
+export type PublicEmbeddedWhiteboard = { id: string; title: string; icon: string | null; href: string };
+
 export type ResolvedPublicShare = {
   token: string;
   root: {
@@ -98,6 +103,7 @@ export type ResolvedPublicShare = {
   };
   breadcrumbs: PublicShareCrumb[];
   children: PublicShareCrumb[];
+  embeddedWhiteboards?: Record<string, PublicEmbeddedWhiteboard>;
 };
 
 const PUBLIC_PAGE_SELECT = {
@@ -124,6 +130,63 @@ const PUBLIC_PAGE_SELECT = {
 
 function normalizeFont(value: string): NotePageFont {
   return value === "serif" || value === "mono" ? value : "default";
+}
+
+async function isDescendantInShareRoot(
+  root: { id: string; userId: string },
+  candidate: { parentId: string | null },
+): Promise<boolean> {
+  if (candidate.parentId === root.id) return true;
+  if (!candidate.parentId) return false;
+  const ancestors = await fetchAncestors(root.userId, candidate.parentId);
+  for (const ancestor of ancestors) {
+    if (ancestor.id === root.id) return true;
+    if (ancestor.shareExcludeFromParent || !shareable(ancestor) || leafKind(ancestor)) return false;
+  }
+  return false;
+}
+
+async function resolveEmbeddedWhiteboards(
+  token: string,
+  root: { id: string; userId: string; kind: unknown; title: string; icon: string | null; shareIncludeSubpages: boolean },
+  blocks: unknown,
+): Promise<Record<string, PublicEmbeddedWhiteboard> | undefined> {
+  const embeddedIds = extractNoteWhiteboardPageIds(blocks);
+  if (!embeddedIds.length) return undefined;
+  const resolved: Record<string, PublicEmbeddedWhiteboard> = {};
+  const nonRootIds: string[] = [];
+  for (const wbId of embeddedIds) {
+    if (wbId === root.id) {
+      if (pageKindOf(root) === "whiteboard") {
+        resolved[wbId] = { id: root.id, title: root.title, icon: root.icon, href: sharePagePath(token) };
+      }
+    } else {
+      nonRootIds.push(wbId);
+    }
+  }
+  if (nonRootIds.length > 0 && root.shareIncludeSubpages && !leafKind(root)) {
+    const candidates = await prisma.notePage.findMany({
+      where: {
+        id: { in: nonRootIds },
+        userId: root.userId,
+        kind: "whiteboard",
+        deletedAt: null,
+        shareExcludeFromParent: false,
+      },
+      select: { id: true, parentId: true, title: true, icon: true },
+    });
+    for (const candidate of candidates) {
+      if (await isDescendantInShareRoot(root, candidate)) {
+        resolved[candidate.id] = {
+          id: candidate.id,
+          title: candidate.title,
+          icon: candidate.icon,
+          href: sharePagePath(token, candidate.id),
+        };
+      }
+    }
+  }
+  return Object.keys(resolved).length ? resolved : undefined;
 }
 
 // 公開トークン（と任意のサブページ ID）から閲覧可能なページ・パンくず・直下の公開サブページを解決する。
@@ -181,6 +244,11 @@ export async function resolvePublicShare(
       }).then((rows) => rows.map((row) => ({ id: row.id, title: row.title, icon: row.icon, kind: pageKindOf(row) })))
     : [];
 
+  const targetKind = pageKindOf(target);
+  const embeddedWhiteboards = targetKind === "note"
+    ? await resolveEmbeddedWhiteboards(token, root, target.blocks)
+    : undefined;
+
   return {
     token,
     root: {
@@ -193,9 +261,9 @@ export async function resolvePublicShare(
     },
     page: {
       id: target.id,
-      kind: pageKindOf(target),
+      kind: targetKind,
       // スライドの本体（公開の 1 回の読み込みで、ページの行の後に読む）。ノートは blocks を使う。
-      data: pageKindOf(target) === "slides" ? await readCanvasDataForShare(target.id) : null,
+      data: targetKind === "slides" ? await readCanvasDataForShare(target.id) : null,
       userId: target.userId,
       title: target.title,
       icon: target.icon,
@@ -209,6 +277,7 @@ export async function resolvePublicShare(
     },
     breadcrumbs,
     children,
+    ...(embeddedWhiteboards !== undefined ? { embeddedWhiteboards } : {}),
   };
 }
 

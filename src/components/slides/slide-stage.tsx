@@ -1,5 +1,6 @@
 "use client";
 
+import { LoaderCircle, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { useT } from "@/components/i18n-provider";
 import { ElementContent, elementBoxStyle, SlideSurface, textStyleCss, useSlideRender } from "@/components/slides/slide-render";
@@ -113,7 +114,8 @@ export type StageHandle = { focus: () => void };
 
 export function SlideStage({
   slide, editable, selection, editingId, editSelectAll, onSelect, onCommit, onStartEdit, onStopEdit, onTextChange, onTableChange,
-  onRequestImage, onContextMenu, onDropFiles, commandsRef, onTextSelection, stageRef, padding = 32,
+  onRequestImage, onReplaceWhiteboard, outdatedWhiteboardIds, refreshingWhiteboardIds, onRefreshWhiteboard,
+  onContextMenu, onDropFiles, commandsRef, onTextSelection, stageRef, padding = 32,
 }: {
   slide: Slide;
   editable: boolean;
@@ -127,6 +129,10 @@ export function SlideStage({
   onTextChange: (id: string, doc: RichDoc, height?: number) => void;
   onTableChange: (next: TableElement) => void;
   onRequestImage: (elementId: string) => void;
+  onReplaceWhiteboard?: (elementId: string) => void;
+  outdatedWhiteboardIds?: ReadonlySet<string>;
+  refreshingWhiteboardIds?: ReadonlySet<string>;
+  onRefreshWhiteboard?: (elementId: string) => void;
   onContextMenu: (x: number, y: number, elementId: string | null) => void;
   onDropFiles: (files: File[], point: { x: number; y: number }) => void;
   commandsRef: { current: TextCommands | null };
@@ -134,6 +140,7 @@ export function SlideStage({
   stageRef?: { current: StageHandle | null };
   padding?: number;
 }) {
+  const t = useT();
   const container = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.4);
@@ -347,6 +354,7 @@ export function SlideStage({
     if (!hit) return;
     if (hit.type === "text" || hit.type === "shape" || hit.type === "table") { onSelect(new Set([hit.id])); onStartEdit(hit.id); }
     else if (hit.type === "image") onRequestImage(hit.id);
+    else if (hit.type === "whiteboard") onReplaceWhiteboard?.(hit.id);
   }
 
   const editing = editingId ? slide.elements.find((element) => element.id === editingId) ?? null : null;
@@ -405,6 +413,42 @@ export function SlideStage({
             ? { left: guide.at - 0.5 / scale, top: guide.from, width: 1 / scale, height: guide.to - guide.from }
             : { top: guide.at - 0.5 / scale, left: guide.from, height: 1 / scale, width: guide.to - guide.from }} />)}
           {marquee && <div className="slide-marquee" style={{ left: marquee.x, top: marquee.y, width: marquee.w, height: marquee.h, borderWidth: 1 / scale }} />}
+          {/* 白板が更新された静止画にだけ、編集画面で「可刷新」バッジを重ねる（放映・書き出し・公開ページには出ない）。 */}
+          {editable && !editing && !draft && onRefreshWhiteboard && rendered.elements.map((element) => {
+            if (element.type !== "whiteboard" || !outdatedWhiteboardIds?.has(element.id)) return null;
+            const box = rotatedBounds(element);
+            const busy = Boolean(refreshingWhiteboardIds?.has(element.id));
+            return (
+              <div
+                key={`wb-refresh-${element.id}`}
+                className="slide-wb-refresh-anchor"
+                style={{
+                  left: box.x + box.w - 8 / scale,
+                  top: box.y + 8 / scale,
+                  transform: `scale(${1 / scale})`,
+                }}
+              >
+                <button
+                  type="button"
+                  className="slide-wb-refresh-badge"
+                  disabled={busy}
+                  aria-label={t("Refresh snapshot")}
+                  title={t("Refresh snapshot")}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onDoubleClick={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onRefreshWhiteboard(element.id);
+                  }}
+                >
+                  {busy
+                    ? <LoaderCircle size={12} className="animate-spin" aria-hidden="true" />
+                    : <RefreshCw size={12} aria-hidden="true" />}
+                  <span>{busy ? t("Refreshing…") : t("Refresh available")}</span>
+                </button>
+              </div>
+            );
+          })}
         </SlideSurface>
       </div>
     </div>
