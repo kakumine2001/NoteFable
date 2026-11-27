@@ -66,4 +66,28 @@ describe("canvas flush", () => {
     offOwnerless();
     offA();
   });
+
+  it("scopes async flushCanvasEditors to matching pageIds so slow uploads on another page do not block", async () => {
+    let releaseA!: () => void;
+    const pendingA = new Promise<boolean>((resolve) => { releaseA = () => resolve(true); });
+    const calls: string[] = [];
+    const offA = registerCanvasFlusher(async () => { calls.push("a"); return pendingA; }, () => true, "page-a");
+    const offB = registerCanvasFlusher(() => { calls.push("b"); return true; }, () => false, "page-b");
+    try {
+      expect(await flushCanvasEditors("page-b")).toBe(true);
+      expect(calls).toEqual(["b"]);
+
+      let aDone = false;
+      const waitA = flushCanvasEditors(["page-a"]).then((ok) => { aDone = true; return ok; });
+      await Promise.resolve();
+      expect(aDone).toBe(false);
+      releaseA();
+      expect(await waitA).toBe(true);
+      expect(calls).toEqual(["b", "a"]);
+    } finally {
+      releaseA();
+      offA();
+      offB();
+    }
+  });
 });

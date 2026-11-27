@@ -1291,4 +1291,6 @@ export const tr: Record<string, string> = {
   "Rewrite": "Yeniden yaz",
   "Split into two slides": "İki slayta böl",
   "Write speaker notes": "Konuşmacı notları yaz",
+  "This page is locked.": "Bu sayfa kilitli.",
+  "Resolve the unsaved draft before locking this page.": "Bu sayfayı kilitlemeden önce kaydedilmemiş taslağı çöz.",
 };

@@ -112,7 +112,7 @@ export function NoteEmbed() {
   const flushSlidesSource = useCallback(async (pageIds: string[]) => {
     const queue = activeRef.current;
     if (!queue || !pageIds.includes(queue.page.id)) return true;
-    const handed = await flushCanvasEditors();
+    const handed = await flushCanvasEditors(pageIds);
     const saved = await queue.flush();
     return handed && saved;
   }, []);
@@ -168,7 +168,7 @@ export function NoteEmbed() {
     // ホワイトボードなどのエディターがまだ渡していない変更（描き終わり待ち・画像のアップロード中）を先に渡してもらってから送る。
     // 待っても終わらないアップロードが残ったら false（アプリは編集画面を閉じずに知らせる）。
     flush: async () => {
-      const handed = await flushCanvasEditors();
+      const handed = await flushCanvasEditors(activeRef.current?.page.id);
       canvasHanded.current = handed;
       const saved = await (activeRef.current?.flush() ?? true);
       const current = activeRef.current;
@@ -321,7 +321,7 @@ export function NoteEmbed() {
         </div>
       </section>
       {historyOpen && active && activeId && (
-        <NoteHistoryDialog key={activeId} noteId={activeId} getVersion={() => active.version} flush={async () => { if (!(await flushCanvasEditors())) return false; return active.flush(); }}
+        <NoteHistoryDialog key={activeId} noteId={activeId} getVersion={() => active.version} flush={async () => { if (!(await flushCanvasEditors(activeId))) return false; return active.flush(); }}
           onRestored={() => setHistoryOpen(false)} onClose={() => setHistoryOpen(false)} />
       )}
       {/* AI パネルの「画成図」の窓。「Open whiteboard」はアプリにページを開いてもらう（WebView の中では移動しない）。 */}

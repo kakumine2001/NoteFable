@@ -10,9 +10,10 @@ describe("trackSlideUpload", () => {
     trackSlideUpload("sl_detached", uploadTask, 5000);
     expect(flushCanvasEditorsSync("sl_detached")).toBe(true);
     expect(flushCanvasEditorsSync("sl_other")).toBe(false);
+    expect(await flushCanvasEditors("sl_other")).toBe(true);
 
     let finished = false;
-    const flushing = flushCanvasEditors().then((ok) => {
+    const flushing = flushCanvasEditors("sl_detached").then((ok) => {
       finished = true;
       return ok;
     });

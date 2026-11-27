@@ -1300,4 +1300,6 @@ export const zh: Record<string, string> = {
   "Rewrite": "改写",
   "Split into two slides": "拆成两页",
   "Write speaker notes": "写演讲备注",
+  "This page is locked.": "此页面已锁定。",
+  "Resolve the unsaved draft before locking this page.": "请先处理未保存的草稿，再锁定此页面。",
 };

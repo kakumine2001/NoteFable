@@ -210,7 +210,7 @@ describe("reading and saving a whiteboard", () => {
     expect((await save(patch({ title: "Board", data: board(), version: 3 }), context)).status).toBe(200);
   });
 
-  it("rejects canvas saves with 409 when the page was locked in another tab and does not overwrite content", async () => {
+  it("rejects canvas saves with 423 PAGE_LOCKED when the page was locked in another tab and does not overwrite content", async () => {
     mocks.updateMany.mockResolvedValue({ count: 0 });
     mocks.findFirst.mockResolvedValueOnce({ kind: "slides" }).mockResolvedValue({
       id: "w1",
@@ -223,8 +223,8 @@ describe("reading and saving a whiteboard", () => {
     mocks.canvasFindUnique.mockResolvedValue({ hash: "different" });
 
     const response = await save(patch({ title: "Deck", data: { format: 1, theme: { id: "simple", mode: "light" }, slides: [] }, version: 3 }), context);
-    expect(response.status).toBe(409);
-    expect(await response.json()).toMatchObject({ version: 3, page: { id: "w1", locked: true } });
+    expect(response.status).toBe(423);
+    expect(await response.json()).toMatchObject({ error: "This page is locked.", code: "PAGE_LOCKED", version: 3, page: { id: "w1", locked: true } });
     expect(mocks.canvasUpsert).not.toHaveBeenCalled();
   });
 

@@ -1291,4 +1291,6 @@ export const hi: Record<string, string> = {
   "Rewrite": "फिर से लिखें",
   "Split into two slides": "दो स्लाइड में बाँटें",
   "Write speaker notes": "वक्ता नोट्स लिखें",
+  "This page is locked.": "यह पेज लॉक है।",
+  "Resolve the unsaved draft before locking this page.": "इस पेज को लॉक करने से पहले बिना सहेजे गए ड्राफ्ट को हल करें।",
 };

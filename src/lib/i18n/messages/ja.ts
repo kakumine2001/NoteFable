@@ -1292,4 +1292,6 @@ export const ja: Record<string, string> = {
   "Rewrite": "書き直す",
   "Split into two slides": "2 枚に分割",
   "Write speaker notes": "発表者ノートを書く",
+  "This page is locked.": "このページはロックされています。",
+  "Resolve the unsaved draft before locking this page.": "このページをロックする前に、未保存の下書きを解決してください。",
 };

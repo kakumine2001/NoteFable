@@ -1291,4 +1291,6 @@ export const vi: Record<string, string> = {
   "Rewrite": "Viết lại",
   "Split into two slides": "Tách thành hai trang",
   "Write speaker notes": "Viết ghi chú diễn giả",
+  "This page is locked.": "Trang này đã bị khóa.",
+  "Resolve the unsaved draft before locking this page.": "Hãy xử lý bản nháp chưa lưu trước khi khóa trang này.",
 };

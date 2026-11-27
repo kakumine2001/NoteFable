@@ -7,13 +7,13 @@ type CanvasFlusher = () => Promise<boolean> | boolean;
 // 同期で未提出の編集をキューへ渡す。アップロード中の画像などまだ完了していない作業が残っていれば true。
 type CanvasSyncFlusher = () => boolean;
 
-const flushers = new Set<CanvasFlusher>();
+const flushers = new Map<CanvasFlusher, string | undefined>();
 // 同期のほうはページごとに持つ（ページを切り替えた直後、まだ外れていない前のページのエディターの作業を、新しいページのものと数えない）。
 const syncFlushers = new Map<CanvasSyncFlusher, string | undefined>();
 
-// エディターが開いている間だけ登録する。戻り値で登録を外す。pageId は同期のほうをページで絞るときに使う。
+// エディターが開いている間だけ登録する。戻り値で登録を外す。pageId はページ単位で絞るときに使う。
 export function registerCanvasFlusher(flusher: CanvasFlusher, syncFlush?: CanvasSyncFlusher, pageId?: string): () => void {
-  flushers.add(flusher);
+  flushers.set(flusher, pageId);
   if (syncFlush) syncFlushers.set(syncFlush, pageId);
   return () => {
     flushers.delete(flusher);
@@ -34,9 +34,20 @@ export function flushCanvasEditorsSync(pageId?: string, exactOnly = false): bool
 }
 
 // 開いているエディターの未提出の変更をキューへ渡す（画像のアップロードは各エディターが決めた時間まで待つ）。
+// pageIds を渡すと、対象ページ（および所有者未指定の flusher）だけを待ち、別ページの遅いアップロードで無関係な操作を止めない。
 // すべて渡し切れたら true。投げたエディターは渡し切れなかったものとして数える。
-export async function flushCanvasEditors(): Promise<boolean> {
-  const results = await Promise.all([...flushers].map(async (flush) => {
+export async function flushCanvasEditors(pageIds?: string | ReadonlySet<string> | readonly string[]): Promise<boolean> {
+  const targets = pageIds === undefined
+    ? null
+    : typeof pageIds === "string"
+      ? new Set([pageIds])
+      : new Set(pageIds);
+  const matching: CanvasFlusher[] = [];
+  for (const [flush, owner] of flushers) {
+    if (targets !== null && owner !== undefined && !targets.has(owner)) continue;
+    matching.push(flush);
+  }
+  const results = await Promise.all(matching.map(async (flush) => {
     try { return await flush(); } catch { return false; }
   }));
   return results.every(Boolean);

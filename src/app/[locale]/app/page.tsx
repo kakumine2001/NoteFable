@@ -1518,7 +1518,7 @@ export default function Home() {
     // ホワイトボードなどがまだ保存キューへ渡していない変更（描き終わり・文字の確定の直後）も先に渡してもらう。
     const splitPage = splitActive ? notes.active : undefined;
     if (splitPage) {
-      await flushCanvasEditors();
+      await flushCanvasEditors(splitPage.page.id);
       if (splitPage.dirty) await splitPage.flush().catch(() => {});
     }
 
@@ -2457,7 +2457,7 @@ export default function Home() {
   const flushSlidesSource = async (pageIds: string[]) => {
     const queue = notes.active;
     if (!queue || !pageIds.includes(queue.page.id)) return true;
-    await flushCanvasEditors();
+    await flushCanvasEditors(pageIds);
     return queue.flush();
   };
 
@@ -3107,7 +3107,7 @@ export default function Home() {
         body={`${t("“{title}” will be moved to Trash. You can restore it for {count} days.", { title: trashingNote.title, count: TRASH_RETENTION_DAYS })}${descendantIdsOf(notes.pages, trashingNote.id).size ? ` ${t("Its sub-pages move to Trash with it.")}` : ""}`}
         onConfirm={() => deleteNote(trashingNote.id)} />}
       {historyQueue && historyNoteId && (
-        <NoteHistoryDialog key={historyNoteId} noteId={historyNoteId} getVersion={() => historyQueue.version} flush={async () => { if (!(await flushCanvasEditors())) return false; return historyQueue.flush(); }}
+        <NoteHistoryDialog key={historyNoteId} noteId={historyNoteId} getVersion={() => historyQueue.version} flush={async () => { if (!(await flushCanvasEditors(historyNoteId))) return false; return historyQueue.flush(); }}
           onRestored={() => setHistoryNoteId(null)} onClose={() => setHistoryNoteId(null)} />
       )}
       {workspaceView === "pages" && shareNoteId && (

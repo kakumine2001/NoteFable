@@ -1291,4 +1291,6 @@ export const fr: Record<string, string> = {
   "Rewrite": "Réécrire",
   "Split into two slides": "Diviser en deux diapositives",
   "Write speaker notes": "Rédiger les notes du présentateur",
+  "This page is locked.": "Cette page est verrouillée.",
+  "Resolve the unsaved draft before locking this page.": "Résolvez le brouillon non enregistré avant de verrouiller cette page.",
 };

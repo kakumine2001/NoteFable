@@ -1291,4 +1291,6 @@ export const id: Record<string, string> = {
   "Rewrite": "Tulis ulang",
   "Split into two slides": "Bagi menjadi dua slide",
   "Write speaker notes": "Tulis catatan pembicara",
+  "This page is locked.": "Halaman ini terkunci.",
+  "Resolve the unsaved draft before locking this page.": "Selesaikan draf yang belum disimpan sebelum mengunci halaman ini.",
 };

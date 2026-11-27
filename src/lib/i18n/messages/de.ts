@@ -1291,4 +1291,6 @@ export const de: Record<string, string> = {
   "Rewrite": "Umschreiben",
   "Split into two slides": "Auf zwei Folien aufteilen",
   "Write speaker notes": "Vortragsnotizen schreiben",
+  "This page is locked.": "Diese Seite ist gesperrt.",
+  "Resolve the unsaved draft before locking this page.": "Kläre den nicht gespeicherten Entwurf, bevor du diese Seite sperrst.",
 };

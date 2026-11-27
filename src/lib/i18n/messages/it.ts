@@ -1291,4 +1291,6 @@ export const it: Record<string, string> = {
   "Rewrite": "Riscrivi",
   "Split into two slides": "Dividi in due diapositive",
   "Write speaker notes": "Scrivi note del relatore",
+  "This page is locked.": "Questa pagina è bloccata.",
+  "Resolve the unsaved draft before locking this page.": "Risolvi la bozza non salvata prima di bloccare questa pagina.",
 };

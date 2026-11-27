@@ -1235,17 +1235,26 @@ describe("useNotePages instant switching & prefetch", () => {
     expect(applyCanvasEditorChange(queue, 0, false, () => null)).toBe(false);
     expect(queue.content.data).toBe(beforeNullEdit);
 
-    // Guards against locked page, gone queue, conflict status, and generation mismatch.
+    // Guards against locked page, gone queue, and generation mismatch; allows merging into a conflict draft without scheduling overwrite saves.
     expect(applyCanvasEditorChange(queue, 0, true, (latest) => latest)).toBe(false);
     expect(applyCanvasEditorChange(queue, 1, false, (latest) => latest)).toBe(false);
     queue.gone = true;
     expect(applyCanvasEditorChange(queue, 0, false, (latest) => latest)).toBe(false);
     queue.gone = false;
     queue.status = "conflict";
-    expect(applyCanvasEditorChange(queue, 0, false, (latest) => latest)).toBe(false);
+    const mergedDuringConflict = applyCanvasEditorChange(queue, 0, false, (latest) => {
+      const d = normalizeDeck(latest);
+      return {
+        ...d,
+        slides: d.slides.map((s) => (s.id === "s2" ? { ...s, notes: "Uploaded during conflict" } : s)),
+      } as unknown as typeof latest;
+    });
+    expect(mergedDuringConflict).toBe(true);
+    expect(queue.status).toBe("conflict");
+    expect(normalizeDeck(queue.content.data).slides[1].notes).toBe("Uploaded during conflict");
   });
 
-  it("disposes and marks queues gone on manual Trash and syncs locked state from 409 conflict responses", async () => {
+  it("flushes pending canvas edits before locking, syncs locked state from 423 PAGE_LOCKED without false conflict, and marks queues gone on manual Trash", async () => {
     createFakeBrowser("https://app.notefable.com/app?view=pages&page=sl1");
     const initialDeck = normalizeDeck({
       format: DECK_FORMAT,
@@ -1258,11 +1267,21 @@ describe("useNotePages instant switching & prefetch", () => {
       data: initialDeck as unknown as NotePage["data"],
     };
     const lockedSummary = { ...makeSummary(page), locked: true };
+    const callOrder: string[] = [];
+    let rejectPatchAsLocked = false;
     vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
       if (url === "/api/pages") return Promise.resolve(jsonResponse({ pages: [makeSummary(page)], groups: [] }));
       if (url === "/api/pages/sl1" && (!init?.method || init.method === "GET")) return Promise.resolve(jsonResponse({ page }));
       if (url === "/api/pages/sl1" && init?.method === "PATCH") {
-        return Promise.resolve(jsonResponse({ error: "This page was changed in another tab.", page: lockedSummary }, 409));
+        callOrder.push("PATCH");
+        if (rejectPatchAsLocked) {
+          return Promise.resolve(jsonResponse({ error: "This page is locked.", code: "PAGE_LOCKED", page: lockedSummary }, 423));
+        }
+        return Promise.resolve(jsonResponse({ version: 2, page: { ...makeSummary(page), title: "Saved before lock", version: 2 } }));
+      }
+      if (url === "/api/pages/sl1/settings" && init?.method === "PUT") {
+        callOrder.push("PUT /settings");
+        return Promise.resolve(jsonResponse({ page: { ...lockedSummary, version: 2 } }));
       }
       if (url === "/api/pages/sl1" && init?.method === "DELETE") {
         return Promise.resolve(jsonResponse({ ids: [] }));
@@ -1275,15 +1294,26 @@ describe("useNotePages instant switching & prefetch", () => {
     const queue = hook.current.active!;
     expect(queue).toBeDefined();
 
-    // 409 carrying locked: true immediately updates both pages list and queue.page.locked.
-    queue.edit({ ...queue.content, title: "Updated offline" });
+    // Locking flushes pending edits first so PATCH lands before PUT /settings.
+    queue.edit({ ...queue.content, title: "Saved before lock" });
+    expect(await hook.current.updateSettings("sl1", { locked: true })).toBe(true);
+    await flushMicrotasks();
+    expect(callOrder).toEqual(["PATCH", "PUT /settings"]);
+    expect(queue.status).toBe("saved");
+    expect(queue.page.locked).toBe(true);
+
+    // A 423 PAGE_LOCKED rejection keeps the draft in "error" (not false "conflict") and syncs locked: true.
+    rejectPatchAsLocked = true;
+    queue.page = { ...queue.page, locked: false };
+    queue.edit({ ...queue.content, title: "Edited while locked remotely" });
     expect(await queue.flush()).toBe(false);
     await flushMicrotasks();
     expect(hook.current.pages.find((p) => p.id === "sl1")?.locked).toBe(true);
     expect(queue.page.locked).toBe(true);
-    expect(queue.status).toBe("conflict");
+    expect(queue.status).toBe("error");
+    expect(queue.error).toBe("This page is locked.");
 
-    // Load latest resolved version (matching UI Trash resolution), then verify manual Trash marks queue gone
+    // Load latest resolved version, then verify manual Trash marks queue gone
     // and prevents late detached callbacks from writing or reinserting the page.
     queue.loadLatest(page);
     expect(await hook.current.remove("sl1")).toBe(true);

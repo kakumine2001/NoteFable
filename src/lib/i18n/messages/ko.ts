@@ -1291,4 +1291,6 @@ export const ko: Record<string, string> = {
   "Rewrite": "다시 쓰기",
   "Split into two slides": "두 슬라이드로 나누기",
   "Write speaker notes": "발표자 노트 작성",
+  "This page is locked.": "이 페이지는 잠겨 있습니다.",
+  "Resolve the unsaved draft before locking this page.": "이 페이지를 잠그기 전에 저장되지 않은 초안을 먼저 해결하세요.",
 };

@@ -1291,4 +1291,6 @@ export const th: Record<string, string> = {
   "Rewrite": "เขียนใหม่",
   "Split into two slides": "แบ่งเป็นสองสไลด์",
   "Write speaker notes": "เขียนบันทึกผู้บรรยาย",
+  "This page is locked.": "หน้านี้ถูกล็อกอยู่",
+  "Resolve the unsaved draft before locking this page.": "จัดการฉบับร่างที่ยังไม่ได้บันทึกก่อนล็อกหน้านี้",
 };

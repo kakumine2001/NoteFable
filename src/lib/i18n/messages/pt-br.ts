@@ -1291,4 +1291,6 @@ export const ptBR: Record<string, string> = {
   "Rewrite": "Reescrever",
   "Split into two slides": "Dividir em dois slides",
   "Write speaker notes": "Escrever notas do apresentador",
+  "This page is locked.": "Esta página está bloqueada.",
+  "Resolve the unsaved draft before locking this page.": "Resolva o rascunho não salvo antes de bloquear esta página.",
 };

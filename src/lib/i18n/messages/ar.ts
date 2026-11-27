@@ -1291,4 +1291,6 @@ export const ar: Record<string, string> = {
   "Rewrite": "إعادة صياغة",
   "Split into two slides": "تقسيم إلى شريحتين",
   "Write speaker notes": "كتابة ملاحظات المتحدث",
+  "This page is locked.": "هذه الصفحة مقفلة.",
+  "Resolve the unsaved draft before locking this page.": "عالج المسودة غير المحفوظة قبل قفل هذه الصفحة.",
 };

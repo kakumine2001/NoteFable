@@ -1291,4 +1291,6 @@ export const ru: Record<string, string> = {
   "Rewrite": "Переписать",
   "Split into two slides": "Разделить на два слайда",
   "Write speaker notes": "Написать заметки докладчика",
+  "This page is locked.": "Эта страница заблокирована.",
+  "Resolve the unsaved draft before locking this page.": "Сначала разберитесь с несохранённым черновиком, прежде чем блокировать эту страницу.",
 };

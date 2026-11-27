@@ -33,7 +33,9 @@ export type SelectPageOptions = {
 };
 
 // キャンバスエディターからの変更を保存キューへ反映する。再マウント前のアップロード完了などで関数アップデータが渡されたときは、
-// 保存キューが現在持っている最新の本体（再開後の編集も含む）に対してマージし、世代不一致・ロック・競合・削除時は無視する。
+// 保存キューが現在持っている最新の本体（再開後の編集も含む）に対してマージし、世代不一致・ロック・削除時は無視する。
+// 競合中（conflict）に遅れて完了した画像アップロードは queue.edit 経由で下書きへ取り込み（conflict 状態は維持し上書き送信しない）、
+// 副本保存（Save a copy）で失われないようにする。
 export function applyCanvasEditorChange(
   queue: Pick<NoteSaveQueue, "generation" | "gone" | "status" | "content" | "page" | "edit">,
   expectedGeneration: number,
@@ -42,7 +44,7 @@ export function applyCanvasEditorChange(
 ): boolean {
   if (queue.generation !== expectedGeneration) return false;
   if (typeof change === "function") {
-    if (queue.gone || queue.status === "conflict" || locked) return false;
+    if (queue.gone || locked) return false;
     const currentData = queue.content.data ?? queue.page.data;
     if (!currentData) return false;
     const next = change(currentData);
@@ -329,7 +331,7 @@ export function useNotePages(
         dispatchBacklinksStale(page.id);
         return data.page;
       } catch (caught) {
-        if (caught instanceof NoteSaveError && caught.status === 409 && caught.latest && queues.current.get(page.id) === queue) {
+        if (caught instanceof NoteSaveError && (caught.status === 409 || caught.status === 423) && caught.latest && queues.current.get(page.id) === queue) {
           syncQueueMeta(queues.current, caught.latest);
           setPages((current) => current.map((entry) => entry.id === page.id ? mergeSummaryMeta(entry, caught.latest!) : entry));
         }
@@ -695,7 +697,7 @@ export function useNotePages(
       const pending = [...ids].flatMap((id) => { const queue = queues.current.get(id); return queue ? [queue] : []; });
       if (!openPage && !hasPendingUpload && !pending.length) return;
       detail.waits.push((async () => {
-        if ((openPage || hasPendingUpload) && !(await flushCanvasEditors())) return false;
+        if ((openPage || hasPendingUpload) && !(await flushCanvasEditors(ids))) return false;
         return (await Promise.all(pending.map((queue) => queue.flush()))).every(Boolean);
       })());
     }
@@ -750,7 +752,7 @@ export function useNotePages(
       const pending = [...ids].flatMap((id) => { const queue = queues.current.get(id); return queue ? [queue] : []; });
       if (!openPage && !hasPendingUpload && !pending.length) return;
       detail.waits.push((async () => {
-        if ((openPage || hasPendingUpload) && !(await flushCanvasEditors())) return false;
+        if ((openPage || hasPendingUpload) && !(await flushCanvasEditors(ids))) return false;
         return (await Promise.all(pending.map((queue) => queue.flush()))).every(Boolean);
       })());
     }
@@ -817,7 +819,7 @@ export function useNotePages(
     try {
       // 競合の副本は開いているページの今の中身を写す。ホワイトボードなどがまだ渡していない変更も先に渡してもらう。
       // 待っても終わらない画像のアップロードがあれば作らない（副本に画像が入らない）。
-      if (copy && !(await flushCanvasEditors())) throw new Error(msg("Wait for images to finish uploading, then try again."));
+      if (copy && !(await flushCanvasEditors(activeId ?? undefined))) throw new Error(msg("Wait for images to finish uploading, then try again."));
       const current = activeId ? queues.current.get(activeId) : undefined;
       const content: NoteContent = copy && current ? { ...current.content, title: `${current.content.title.slice(0, 185)} (copy)` } : { title: "Untitled", icon: null, cover: null, coverPosition: null, blocks: [] };
       // 競合の副本は元のページと同じ親の下に作る（サブページなら同じ親、グループも親に従う）。
@@ -874,7 +876,8 @@ export function useNotePages(
     try {
       // ホワイトボードなどのエディターがまだ渡していない変更も先に渡してもらう（src/lib/canvas-flush.ts）。
       // 待っても終わらない画像のアップロードがあれば、ゴミ箱へ移さない（移すと画像の入っていない版が残る）。
-      if (!(await flushCanvasEditors())) throw new Error(msg("Wait for images to finish uploading, then try again."));
+      const targetTreeIds = [id, ...descendantIdsOf(pagesRef.current, id)];
+      if (!(await flushCanvasEditors(targetTreeIds))) throw new Error(msg("Wait for images to finish uploading, then try again."));
       const queue = queues.current.get(id);
       if (queue && !(await queue.flush())) throw new Error(msg("Resolve the unsaved draft before moving this page to Trash."));
       // サブページも一緒にゴミ箱へ入る。開いている（未保存の）サブページも先に保存する。
@@ -993,6 +996,11 @@ export function useNotePages(
   }));
 
   const updateSettings = (id: string, settings: Partial<NotePageSettings>) => serialMeta(id, () => groupAction(async () => {
+    if (settings.locked === true) {
+      if (!(await flushCanvasEditors(id))) throw new Error(msg("Wait for images to finish uploading, then try again."));
+      const queue = queues.current.get(id);
+      if (queue && !(await queue.flush())) throw new Error(msg("Resolve the unsaved draft before locking this page."));
+    }
     const { page } = await pageRequest(`/api/pages/${id}/settings`, "PUT", settings);
     applyMeta(page);
     return true;
@@ -1005,9 +1013,10 @@ export function useNotePages(
     setBusy(true);
     setError("");
     try {
+      const targetTreeIds = [id, ...descendantIdsOf(pagesRef.current, id)];
       // 待っても終わらない画像のアップロードがあれば複製しない（複製に画像が入らない）。
-      if (!(await flushCanvasEditors())) throw new Error(msg("Wait for images to finish uploading, then try again."));
-      for (const pageId of [id, ...descendantIdsOf(pages, id)]) {
+      if (!(await flushCanvasEditors(targetTreeIds))) throw new Error(msg("Wait for images to finish uploading, then try again."));
+      for (const pageId of targetTreeIds) {
         const queue = queues.current.get(pageId);
         if (queue && !(await queue.flush())) throw new Error(msg("Resolve the unsaved draft before duplicating this page."));
       }
@@ -1077,7 +1086,7 @@ export function useNotePages(
     actionBusy.current = true;
     setActionError("");
     try {
-      await flushCanvasEditors();
+      await flushCanvasEditors(id);
       const queue = queues.current.get(id);
       if (queue && queue.dirty && !(await queue.flush())) {
         throw new Error(msg("Resolve the unsaved draft before exporting this page."));
@@ -1164,8 +1173,8 @@ export function useNotePages(
   }
 
   async function flushSubtree(id: string, includeSubpages: boolean): Promise<boolean> {
-    await flushCanvasEditors();
-    const ids = includeSubpages ? [id, ...descendantIdsOf(pages, id)] : [id];
+    const ids = includeSubpages ? [id, ...descendantIdsOf(pagesRef.current, id)] : [id];
+    if (!(await flushCanvasEditors(ids))) return false;
     for (const pageId of ids) {
       const queue = queues.current.get(pageId);
       if (queue && !(await queue.flush())) return false;

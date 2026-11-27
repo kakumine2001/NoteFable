@@ -1191,4 +1191,92 @@ describe("applySlidesEdits (propose_slides_edit)", () => {
     expect(withTheme.focusIds.slice(0, 2)).toEqual(["s6", "s8"]);
     expect(withTheme.focusIds.length).toBeLessThanOrEqual(4);
   });
+
+  it("preserves custom position, size, box style, fill, and autoHeight on same-layout restyle_deck and set_layout", () => {
+    const slide = { ...createSlide("bullets", { title: "Custom Styled Title", body: "Point A" }), id: "custom_s1" };
+    const titleEl = slide.elements.find((e) => e.type === "text" && e.role === "title");
+    if (titleEl?.type === "text") {
+      titleEl.x = 300;
+      titleEl.y = 140;
+      titleEl.w = 900;
+      titleEl.h = 200;
+      titleEl.style = { ...titleEl.style, color: "#cc2222", italic: true, size: 96, align: "center", bold: false };
+      titleEl.fill = "surface";
+      titleEl.autoHeight = true;
+    }
+    const deck = normalizeDeck({ format: DECK_FORMAT, theme: { id: "simple", mode: "light" }, slides: [slide] });
+
+    const restyled = applySlidesEdits(deck, [
+      op({ op: "restyle_deck", themeId: "tech", slideLayouts: [{ slideId: "custom_s1", layout: "bullets" }] }),
+    ]);
+    const afterTitle = restyled.deck.slides[0].elements.find((e) => e.type === "text" && e.role === "title");
+    expect(afterTitle?.type === "text" ? afterTitle.x : null).toBe(300);
+    expect(afterTitle?.type === "text" ? afterTitle.w : null).toBe(900);
+    expect(afterTitle?.type === "text" ? afterTitle.style : null).toMatchObject({ color: "#cc2222", italic: true, size: 96, align: "center", bold: false });
+    expect(afterTitle?.type === "text" ? afterTitle.fill : null).toBe("surface");
+    expect(afterTitle?.type === "text" ? afterTitle.autoHeight : null).toBe(true);
+
+    const sameLayout = applySlidesEdits(deck, [
+      op({ op: "set_layout", slideId: "custom_s1", layout: "bullets" }),
+    ]);
+    const afterSetLayout = sameLayout.deck.slides[0].elements.find((e) => e.type === "text" && e.role === "title");
+    expect(afterSetLayout?.type === "text" ? afterSetLayout.x : null).toBe(300);
+    expect(afterSetLayout?.type === "text" ? afterSetLayout.style.color : null).toBe("#cc2222");
+
+    // Invariant must reject mutating placeholder frame or style when layout did not change.
+    const mutatedDeck = JSON.parse(JSON.stringify(deck)) as Deck;
+    const mutatedTitle = mutatedDeck.slides[0].elements.find((e) => e.type === "text" && e.role === "title");
+    if (mutatedTitle?.type === "text") mutatedTitle.x = 120;
+    expect(() => assertDeckTextPreserved(deck, mutatedDeck)).toThrow(/Restyle invariant violated/);
+  });
+
+  it("preserves freeform text boxes and existing tables when update_slide rebuilds for a long body", () => {
+    const slide = { ...createSlide("bullets", { title: "Annual Overview", body: "Initial" }), id: "keep_extras" };
+    slide.elements.push(
+      {
+        id: "free_footnote",
+        type: "text",
+        x: 120,
+        y: 960,
+        w: 900,
+        h: 70,
+        rotation: 0,
+        doc: richDocFromText("Source: Annual report 2025"),
+        style: { font: "body", size: 24, color: "muted", align: "left", valign: "top", lineHeight: 1.2, bold: false, italic: true },
+        fill: null,
+        autoHeight: true,
+      },
+      {
+        id: "existing_tbl",
+        type: "table",
+        x: 1100,
+        y: 620,
+        w: 700,
+        h: 240,
+        rotation: 0,
+        rows: [{ cells: [{ text: "Quarter" }, { text: "Revenue" }] }, { cells: [{ text: "Q1" }, { text: "$10M" }] }],
+        cols: [1, 1],
+        header: true,
+        style: { size: 24, color: "text", border: "line", headerFill: "surface", font: "body" },
+      },
+    );
+    const deck = normalizeDeck({ format: DECK_FORMAT, theme: { id: "simple", mode: "light" }, slides: [slide] });
+    const longBody = Array.from({ length: 14 }, (_, i) => `- Key milestone #${i + 1} with extended details for Q${(i % 4) + 1}`).join("\n");
+
+    const updated = applySlidesEdits(deck, [
+      op({ op: "update_slide", slideId: "keep_extras", body: longBody }),
+    ]);
+    const primary = updated.deck.slides[0];
+    expect(primary.elements.some((el) => el.id === "free_footnote" && el.type === "text" && richDocText(el.doc) === "Source: Annual report 2025")).toBe(true);
+    expect(primary.elements.some((el) => el.id === "existing_tbl" && el.type === "table")).toBe(true);
+
+    // When the new body explicitly provides a replacement table, replace the old table while still keeping free text.
+    const replacedTable = applySlidesEdits(deck, [
+      op({ op: "update_slide", slideId: "keep_extras", body: "| Quarter | ARR |\n| --- | --- |\n| Q2 | $12M |" }),
+    ]);
+    const replacedPrimary = replacedTable.deck.slides[0];
+    expect(replacedPrimary.elements.some((el) => el.id === "free_footnote")).toBe(true);
+    expect(replacedPrimary.elements.some((el) => el.id === "existing_tbl")).toBe(false);
+    expect(replacedPrimary.elements.some((el) => el.type === "table" && el.rows[1]?.cells[1]?.text === "$12M")).toBe(true);
+  });
 });

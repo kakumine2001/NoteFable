@@ -558,6 +558,10 @@ function isNonBodyDecoration(element: SlideElement): boolean {
   return isPreservedMediaElement(element) || element.type === "line" || element.type === "shape";
 }
 
+function isPreservedFreeText(element: SlideElement): element is TextElement {
+  return element.type === "text" && !element.role && !isRichDocEmpty(element.doc);
+}
+
 // テキスト枠の実際の幅・高さ・文字サイズに対して、RichDoc が溢れず収まるかを概算する。
 function visualWidthUnits(text: string): number {
   let units = 0;
@@ -973,8 +977,8 @@ function applyContentUpdateToSlide(
         ? "caption"
         : "body";
   const existingBody = elements.find((el): el is TextElement => el.type === "text" && el.role === bodyRole);
-  const hasExtraBody2OrTables = elements.some(
-    (el) => (el.type === "text" && el.role === "body2" && !isRichDocEmpty(el.doc)) || el.type === "table",
+  const hasExtraBody2 = elements.some(
+    (el) => el.type === "text" && el.role === "body2" && !isRichDocEmpty(el.doc),
   );
   // 2 段組みで複数箇条書き・複数段落が来た場合は、左枠に詰め込まず 2 列へ分ける（空の body2 がある場合も含む）。
   const wantsTwoColumnSplit = effectiveLayout === "twoColumn" && simpleBody !== null && (
@@ -984,7 +988,7 @@ function applyContentUpdateToSlide(
       simpleBody.content[0].content.length >= 2)
   );
 
-  if (!layoutChanged && simpleBody && existingBody && !hasExtraBody2OrTables && !wantsTwoColumnSplit && fitsInTextBox(simpleBody, existingBody)) {
+  if (!layoutChanged && simpleBody && existingBody && !hasExtraBody2 && !wantsTwoColumnSplit && fitsInTextBox(simpleBody, existingBody)) {
     const existingBodyId = existingBody.id;
     if (hasTitleUpdate) {
       const titleIdx = elements.findIndex((el) => el.type === "text" && el.role === headingRole);
@@ -1006,8 +1010,10 @@ function applyContentUpdateToSlide(
   }
 
   // 3. 表・複数要素・あふれ・版式変更・2段組み振り分けを含む本文更新、または既存本文枠が無いスライド：
-  //    画像・ホワイトボード枠・図形・線と、未変更の既存タイトル要素（ID・書式込み）を守りながら再レイアウトする。
-  const preservedDecorations = slide.elements.filter(isNonBodyDecoration);
+  //    画像・ホワイトボード枠・図形・線・自由テキスト枠・（新しい本文に表が無い場合の）既存表と、
+  //    未変更の既存タイトル要素（ID・書式込み）を守りながら再レイアウトする。
+  const preservedBase = slide.elements.filter((el) => isNonBodyDecoration(el) || isPreservedFreeText(el));
+  const existingTables = slide.elements.filter((el) => el.type === "table");
   const existingTitleEl = slide.elements.find((el): el is TextElement => el.type === "text" && el.role === headingRole)
     ?? (headingRole !== "attribution" ? slide.elements.find((el): el is TextElement => el.type === "text" && el.role === "title") : undefined);
   const keepExistingTitleVerbatim = !hasTitleUpdate && existingTitleEl !== undefined && !isRichDocEmpty(existingTitleEl.doc);
@@ -1022,6 +1028,8 @@ function applyContentUpdateToSlide(
     },
     theme,
   );
+  const rebuiltHasTable = rebuilt.some((s) => s.elements.some((el) => el.type === "table"));
+  const preservedDecorations = rebuiltHasTable ? preservedBase : [...preservedBase, ...existingTables];
   const first = rebuilt[0];
   let nextElements = [...first.elements];
 
@@ -1162,7 +1170,7 @@ export function extractDeckTextInventory(deck: Deck): SlideTextInventory[] {
 export function assertDeckTextPreserved(
   before: Deck,
   after: Deck,
-  options?: { allowPlaceholderToDemotedStyleChange?: boolean },
+  options?: { allowPlaceholderToDemotedStyleChange?: boolean; allowSameLayoutStyleChange?: boolean },
 ): void {
   const beforeInv = extractDeckTextInventory(before);
   const afterInv = extractDeckTextInventory(after);
@@ -1189,6 +1197,7 @@ export function assertDeckTextPreserved(
     if (JSON.stringify(beforeIds) !== JSON.stringify(afterIds)) {
       throw new SlidesEditError(`Restyle invariant violated: elements added or removed on slide ${b.id}.`);
     }
+    const sameLayout = before.slides[i].layout === after.slides[i].layout && !options?.allowSameLayoutStyleChange;
     const beforeById = new Map(before.slides[i].elements.map((el) => [el.id, el]));
     const afterById = new Map(after.slides[i].elements.map((el) => [el.id, el]));
     for (const id of beforeIds) {
@@ -1197,10 +1206,17 @@ export function assertDeckTextPreserved(
       }
       const beforeEl = beforeById.get(id);
       const afterEl = afterById.get(id);
+      if (sameLayout && beforeEl && afterEl) {
+        const beforeFrame = { x: beforeEl.x, y: beforeEl.y, w: beforeEl.w, h: beforeEl.h, rotation: beforeEl.rotation, role: beforeEl.role ?? null };
+        const afterFrame = { x: afterEl.x, y: afterEl.y, w: afterEl.w, h: afterEl.h, rotation: afterEl.rotation, role: afterEl.role ?? null };
+        if (stableStringify(beforeFrame) !== stableStringify(afterFrame)) {
+          throw new SlidesEditError(`Restyle invariant violated: element layout changed on unchanged slide ${b.id} element ${id}.`);
+        }
+      }
       if (
         beforeEl?.type === "text"
         && afterEl?.type === "text"
-        && (options?.allowPlaceholderToDemotedStyleChange ? !beforeEl.role : (!beforeEl.role || !afterEl.role))
+        && (sameLayout || (options?.allowPlaceholderToDemotedStyleChange ? !beforeEl.role : (!beforeEl.role || !afterEl.role)))
         && stableStringify({ style: beforeEl.style, fill: beforeEl.fill, autoHeight: beforeEl.autoHeight })
           !== stableStringify({ style: afterEl.style, fill: afterEl.fill, autoHeight: afterEl.autoHeight })
       ) {
@@ -1325,6 +1341,8 @@ type SlideRawExemptions = {
   notes?: boolean;
   section?: boolean;
   bodyElements?: boolean;
+  freeText?: boolean;
+  tables?: boolean;
   headingRole?: "title" | "attribution";
   elementIds?: Set<string>;
 };
@@ -1356,7 +1374,9 @@ function assertRawSlideNotLossy(rawSlide: unknown, initialSlide: Slide, index: n
     const isExemptedElement = Boolean(
       exemption?.elementIds?.has(initEl.id)
       || (exemption?.headingRole !== undefined && initEl.role === exemption.headingRole)
-      || (exemption?.bodyElements && !isNonBodyDecoration(initEl) && initEl.role !== slideHeadingRole),
+      || (exemption?.freeText && isPreservedFreeText(initEl))
+      || (exemption?.tables && initEl.type === "table")
+      || (exemption?.bodyElements && !isNonBodyDecoration(initEl) && !isPreservedFreeText(initEl) && initEl.type !== "table" && initEl.role !== slideHeadingRole),
     );
     if (isExemptedElement) continue;
     if (initEl.type === "text" || initEl.type === "shape") {
@@ -1695,9 +1715,9 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
   const initialLayoutById = new Map<string, LayoutId>(initialDeck.slides.map((slide) => [slide.id, slide.layout]));
   const knownSlideIds = new Set<string>(initialDeck.slides.map((slide) => slide.id));
   let allOpsAreRestyle = rawOperations.length > 0;
-  let hasRestyleOp = false;
+  let restyleOpCount = 0;
   const rawExemptions = new Map<string, SlideRawExemptions>();
-  const exemptSlide = (slideId: string, patch: { entireSlide?: boolean; notes?: boolean; section?: boolean; bodyElements?: boolean; headingRole?: "title" | "attribution"; elementId?: string }) => {
+  const exemptSlide = (slideId: string, patch: { entireSlide?: boolean; notes?: boolean; section?: boolean; bodyElements?: boolean; freeText?: boolean; tables?: boolean; headingRole?: "title" | "attribution"; elementId?: string }) => {
     if (!initialLayoutById.has(slideId)) return;
     const prev = rawExemptions.get(slideId) ?? {};
     const elementIds = prev.elementIds ? new Set(prev.elementIds) : new Set<string>();
@@ -1708,6 +1728,8 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
       ...(patch.notes ? { notes: true } : {}),
       ...(patch.section ? { section: true } : {}),
       ...(patch.bodyElements ? { bodyElements: true } : {}),
+      ...(patch.freeText ? { freeText: true } : {}),
+      ...(patch.tables ? { tables: true } : {}),
       ...(patch.headingRole ? { headingRole: patch.headingRole } : {}),
       ...(elementIds.size ? { elementIds } : {}),
     });
@@ -1718,7 +1740,7 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
     if (!isObject(rawOp) || typeof rawOp.op !== "string") {
       throw new SlidesEditError(`operations[${opIndex}] must be an object with an op string.`);
     }
-    if (rawOp.op === "restyle_deck") hasRestyleOp = true;
+    if (rawOp.op === "restyle_deck") restyleOpCount++;
     else allOpsAreRestyle = false;
 
     switch (rawOp.op) {
@@ -1734,22 +1756,24 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
         const transition = asOptionalTransition(rawOp.transition);
         const section = validateSectionText(asOptionalString(rawOp.section, "section"));
 
-        const initLayout = initialLayoutById.get(slideId);
-        if (initLayout) {
-          exemptSlide(slideId, {
-            notes: notes !== null,
-            section: section !== null,
-            bodyElements: body !== null,
-            headingRole: title !== null ? ((layout ?? initLayout) === "quote" ? "attribution" : "title") : undefined,
-          });
-        }
-
         if (title === null && body === null && notes === null && layout === null && hidden === null && transition === null && section === null) {
           throw new SlidesEditError("update_slide requires at least one field to update (title, body, notes, layout, hidden, transition, or section).");
         }
 
         const beforeSummary = slideSummary(beforeSlide);
         const { primary, continuations } = applyContentUpdateToSlide(beforeSlide, { title, body, targetLayout: layout }, deck.theme);
+        const initLayout = initialLayoutById.get(slideId);
+        if (initLayout) {
+          const primaryIds = new Set(primary.elements.map((el) => el.id));
+          const replacedTables = body !== null && beforeSlide.elements.some((el) => el.type === "table" && !primaryIds.has(el.id));
+          exemptSlide(slideId, {
+            notes: notes !== null,
+            section: section !== null,
+            bodyElements: body !== null,
+            tables: replacedTables,
+            headingRole: title !== null ? ((layout ?? initLayout) === "quote" ? "attribution" : "title") : undefined,
+          });
+        }
         let updated = applyMetadata(primary, { notes, hidden, transition, section });
         if (layout && updated.layout !== layout) {
           updated = layout === "twoColumn" ? splitBodyIntoTwoColumns(updated) : applyLayout(updated, layout);
@@ -1869,7 +1893,9 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
         if (!layout) throw new SlidesEditError("set_layout requires a valid layout.");
         const idx = findSlideIndexOrThrow(deck, slideId);
         const beforeSlide = deck.slides[idx];
-        const updated = layout === "twoColumn" ? splitBodyIntoTwoColumns(beforeSlide) : applyLayout(beforeSlide, layout);
+        const updated = layout === beforeSlide.layout
+          ? beforeSlide
+          : (layout === "twoColumn" ? splitBodyIntoTwoColumns(beforeSlide) : applyLayout(beforeSlide, layout));
         deck = { ...deck, slides: deck.slides.map((s, i) => (i === idx ? updated : s)) };
         addFocus(updated.id);
         changes.push({
@@ -1903,6 +1929,8 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
           exemptSlide(slideId, {
             notes: firstNotes !== null,
             bodyElements: true,
+            freeText: true,
+            tables: true,
             headingRole: (firstLayout ?? initLayout) === "quote" ? "attribution" : "title",
           });
         }
@@ -2008,6 +2036,8 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
           exemptSlide(entry.id, {
             notes: requestedNotes !== null,
             bodyElements: requestedBody !== null,
+            freeText: requestedBody !== null,
+            tables: requestedBody !== null,
             headingRole: requestedTitle !== null || (!isPrimary && requestedBody !== null)
               ? ((isPrimary && effectiveLayout === "quote") || initLayout === "quote" ? "attribution" : "title")
               : undefined,
@@ -2298,7 +2328,7 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
         const layoutMap = new Map(layoutUpdates.map((item) => [item.slideId, item.layout]));
         const nextSlides = deck.slides.map((slide) => {
           const targetLayout = layoutMap.get(slide.id);
-          return targetLayout ? applyLayout(slide, targetLayout) : slide;
+          return targetLayout && targetLayout !== slide.layout ? applyLayout(slide, targetLayout) : slide;
         });
         const restyledDeck: Deck = { ...deck, theme: nextTheme, slides: nextSlides };
 
@@ -2351,8 +2381,14 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
   if (allOpsAreRestyle) {
     // 全体の最終検証結果についても、生データからの切り詰めや変質が無いことを再確認する（複数回の段組変更による降格も含む）。
     assertRawStoredDeckNotLossyForRestyle(rawData, initialDeck);
-    assertDeckTextPreserved(initialDeck, normalizedDeck, { allowPlaceholderToDemotedStyleChange: true });
-  } else if (hasRestyleOp) {
+    assertDeckTextPreserved(
+      initialDeck,
+      normalizedDeck,
+      restyleOpCount > 1
+        ? { allowPlaceholderToDemotedStyleChange: true, allowSameLayoutStyleChange: true }
+        : undefined,
+    );
+  } else if (restyleOpCount > 0) {
     // 複合操作でも、書き換えていない既存フィールド・要素が生データ正規化で黙って切り詰められていないか確かめる。
     assertRawStoredDeckNotLossyForRestyle(rawData, initialDeck, rawExemptions);
   }
