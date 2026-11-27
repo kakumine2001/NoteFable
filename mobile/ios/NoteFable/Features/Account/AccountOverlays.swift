@@ -6,7 +6,7 @@ import SwiftUI
 extension View {
     /// 在根视图上装一次（放在 `.nfOverlayHost()` 里面）：
     /// - 登录窗口：`router.signInOpen` 为 true、服务端开了登录、还没登录时显示；登录成功（账号里有了用户）自动关掉。
-    /// - 设置：`router.settingsOpen` 为 true 且已登录时显示（全屏，灰底）；退出登录、删除账号后自动关掉。
+    /// - 设置：`router.settingsOpen` 为 true 时显示（全屏，灰底；未登录只显示「通用」和「帮助」）；登录或退出切换身份时关掉重置状态。
     func accountOverlays() -> some View {
         modifier(AccountOverlaysModifier())
     }
@@ -21,7 +21,7 @@ private struct AccountOverlaysModifier: ViewModifier {
         let account = app.account.state
         let signedIn = account.user != nil
         let signInShown = router.signInOpen && account.configured && !signedIn
-        let settingsShown = router.settingsOpen && signedIn
+        let settingsShown = router.settingsOpen
         return content
             .nfPanel(
                 isPresented: Binding(get: { signInShown }, set: { if !$0 { router.signInOpen = false } }),
@@ -36,12 +36,11 @@ private struct AccountOverlaysModifier: ViewModifier {
                 SettingsScreenHost()
             }
             .onChange(of: signedIn) { _, nowSignedIn in
-                // 登录成功就关掉登录窗口；退出 / 删除账号后设置没有东西可显示了。
+                // 身份切换（登录 / 退出 / 删除）时关掉登录窗口和设置，避免带着旧身份的状态。
                 if nowSignedIn {
                     router.signInOpen = false
-                } else {
-                    router.settingsOpen = false
                 }
+                router.settingsOpen = false
             }
     }
 }

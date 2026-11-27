@@ -338,6 +338,7 @@ enum Lucide {
         arrowLeft,
         chevronLeft,
         chevronRight,
+        externalLink,
         panelLeftClose,
         logOut,
         folderInput,

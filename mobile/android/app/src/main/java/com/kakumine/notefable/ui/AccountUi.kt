@@ -75,8 +75,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-// 侧栏最下面（网页 SidebarFooter）：上方 1px 分隔线，四周 8；左边账号（登录，或打开设置的入口，占满剩下的宽），
-// 右边"?"帮助菜单（关于、隐私政策、服务条款、特商法标示，未登录时还有界面语言）。登录用户的语言在设置里选。
+// 侧栏最下面（网页 SidebarFooter）：上方 1px 分隔线，四周 8；登录后整行是账号（点了打开设置），
+// 未登录时左边是登录按钮、右边是设置齿轮（语言、外观、图标与帮助链接）。
 @Composable
 fun SidebarFooter(
     account: AccountUiState,
@@ -85,29 +85,109 @@ fun SidebarFooter(
     profile: AccountViewModel,
     deleteAccount: suspend () -> Throwable?,
 ) {
-    Column(
+    // 未登录时（含账号加载中或加载失败）都放设置齿轮，保证语言、外观与帮助链接始终可达。
+    val showGuestSettings = !account.configured || account.user == null
+    var settingsOpen by rememberSaveable { mutableStateOf(false) }
+    // 头像编辑区和选好的照片放在这里而不是设置窗口里：选择器回来时（哪怕 Activity 重建）窗口还没组合好，结果也接得住。
+    var editor by rememberSaveable { mutableStateOf(AvatarEditor.Closed) }
+    var picked by rememberSaveable { mutableStateOf<String?>(null) }
+    // 系统选择器开着时返回键 / 点外面不关设置（网页 filePickerOpen）。
+    var pickerOpen by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val launcher = rememberLauncherForActivityResult(PickAvatarPhoto()) { uri ->
+        pickerOpen = false
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val (type, size) = withContext(Dispatchers.IO) { runCatching { pickedTypeAndSize(context, uri) }.getOrDefault(null to null) }
+            val problem = checkPickedPhoto(type, size)
+            profile.showPhotoError(problem)
+            if (problem == null) picked = uri.toString()
+        }
+    }
+    // 设置里的"图标"：选表情的框开没开、出错提示；选图片的结果和头像一样在这里接。
+    val appIcon = rememberAppIconEditor()
+    val pickAppIconImage = rememberAppIconImagePicker(appIcon) { pickerOpen = it }
+    val openSettings = {
+        profile.clearProfileError()
+        appIcon.reset()
+        settingsOpen = true
+    }
+
+    Row(
         Modifier.fillMaxWidth().drawBehind { drawRect(Sm.Border, size = androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx())) }.padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        // 账号读到之前不放语言项，免得登录用户看到一下（网页 guest）。
-        val guest = account.loaded && (!account.configured || account.user == null)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Box(Modifier.weight(1f)) {
-                if (account.configured) {
-                    val user = account.user
-                    // 网页 SignInButton：只放"登录"，点了打开登录窗口（SignInDialog）。侧栏底部使用柔和卡片样式。
-                    if (user == null) SignInButton(onClick = onSignIn, subtle = true)
-                    else ProfileRow(user, account, profile, onSignOut, deleteAccount)
-                }
+        Box(Modifier.weight(1f)) {
+            if (account.configured) {
+                val user = account.user
+                // 网页 SignInButton：只放"登录"，点了打开登录窗口（SignInDialog）。侧栏底部使用柔和卡片样式。
+                if (user == null) SignInButton(onClick = onSignIn, subtle = true)
+                else ProfileRow(user, onClick = openSettings)
             }
-            HelpMenuButton(guest = guest)
         }
-        // 切换失败的红字只给未登录的人（登录用户的语言在设置里选，失败也显示在那里）。
-        if (guest && languageChangeFailed) {
-            Text(
-                stringResource(R.string.language_change_failed), color = SettingsDanger, fontSize = 12.sp,
-                modifier = Modifier.padding(horizontal = 8.dp).semantics { liveRegion = LiveRegionMode.Assertive },
-            )
+        if (showGuestSettings) {
+            GuestSettingsButton(onClick = openSettings)
         }
+    }
+
+    if (settingsOpen) {
+        SettingsDialog(
+            user = account.user,
+            account = account,
+            profile = profile,
+            editor = editor,
+            picked = picked,
+            pickerOpen = pickerOpen,
+            appIcon = appIcon,
+            onPickAppIconImage = pickAppIconImage,
+            onEditor = { next ->
+                editor = next
+                picked = null
+                profile.showPhotoError(null)
+            },
+            onPickPhoto = {
+                pickerOpen = true
+                launcher.launch("image/*")
+            },
+            onCancelCrop = {
+                picked = null
+                profile.showPhotoError(null)
+            },
+            onPhotoSaved = {
+                picked = null
+                editor = AvatarEditor.Closed
+            },
+            // 网页退出后整页重新加载、设置随之消失；这里退出不会失败（见 AccountViewModel.signOut），所以先关设置再退出，
+            // 退出期间不会再有编辑或第二次点击。
+            onSignOut = {
+                settingsOpen = false
+                editor = AvatarEditor.Closed
+                picked = null
+                onSignOut()
+            },
+            deleteAccount = deleteAccount,
+            onClose = {
+                settingsOpen = false
+                editor = AvatarEditor.Closed
+                picked = null
+                profile.showPhotoError(null)
+            },
+        )
+    }
+}
+
+@Composable
+private fun GuestSettingsButton(onClick: () -> Unit) {
+    val label = stringResource(R.string.acct_settings)
+    Box(
+        Modifier.size(44.dp).clip(RoundedCornerShape(6.4.dp))
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) {
+        LucideIcon(Lucide.Settings, 17.dp, Sm.Faint)
     }
 }
 
@@ -163,38 +243,12 @@ private fun pickedTypeAndSize(context: Context, uri: Uri): Pair<String?, Long?> 
 // 登录后的账号行（.notion-sidebar-action.profile-row，手机）：高 44、左右 8、间距 8.8；头像 22、名字 16、右边齿轮 15（--notion-faint）。
 // 点了打开设置（网页 AccountButton → SettingsDialog）：个人资料、界面语言、自定义指令、退出登录都在里面，设置的入口只有这一个。
 @Composable
-private fun ProfileRow(user: AccountUser, account: AccountUiState, profile: AccountViewModel, onSignOut: () -> Unit, deleteAccount: suspend () -> Throwable?) {
-    var settingsOpen by rememberSaveable { mutableStateOf(false) }
-    // 头像编辑区和选好的照片放在这里而不是设置窗口里：选择器回来时（哪怕 Activity 重建）窗口还没组合好，结果也接得住。
-    var editor by rememberSaveable { mutableStateOf(AvatarEditor.Closed) }
-    var picked by rememberSaveable { mutableStateOf<String?>(null) }
-    // 系统选择器开着时返回键 / 点外面不关设置（网页 filePickerOpen）。
-    var pickerOpen by rememberSaveable { mutableStateOf(false) }
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val launcher = rememberLauncherForActivityResult(PickAvatarPhoto()) { uri ->
-        pickerOpen = false
-        if (uri == null) return@rememberLauncherForActivityResult
-        scope.launch {
-            val (type, size) = withContext(Dispatchers.IO) { runCatching { pickedTypeAndSize(context, uri) }.getOrDefault(null to null) }
-            val problem = checkPickedPhoto(type, size)
-            profile.showPhotoError(problem)
-            if (problem == null) picked = uri.toString()
-        }
-    }
-    // 设置里的"图标"：选表情的框开没开、出错提示；选图片的结果和头像一样在这里接。
-    val appIcon = rememberAppIconEditor()
-    val pickAppIconImage = rememberAppIconImagePicker(appIcon) { pickerOpen = it }
+private fun ProfileRow(user: AccountUser, onClick: () -> Unit) {
     val name = user.name ?: user.email ?: stringResource(R.string.account)
     val label = name + " · " + stringResource(R.string.acct_settings)
     Row(
         Modifier.fillMaxWidth().height(44.dp).clip(RoundedCornerShape(4.8.dp))
-            .clickable {
-                // 网页 clearSaveError：上一次的失败提示不带进新打开的设置。
-                profile.clearProfileError()
-                appIcon.reset()
-                settingsOpen = true
-            }
+            .clickable(onClick = onClick)
             .semantics(mergeDescendants = true) { role = Role.Button; contentDescription = label }
             .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -203,50 +257,6 @@ private fun ProfileRow(user: AccountUser, account: AccountUiState, profile: Acco
         UserAvatar(user, 22.dp)
         Text(name, modifier = Modifier.weight(1f), color = Sm.Text, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         LucideIcon(Lucide.Settings, 15.dp, Sm.Faint)
-    }
-    if (settingsOpen) {
-        SettingsDialog(
-            user = user,
-            account = account,
-            profile = profile,
-            editor = editor,
-            picked = picked,
-            pickerOpen = pickerOpen,
-            appIcon = appIcon,
-            onPickAppIconImage = pickAppIconImage,
-            onEditor = { next ->
-                editor = next
-                picked = null
-                profile.showPhotoError(null)
-            },
-            onPickPhoto = {
-                pickerOpen = true
-                launcher.launch("image/*")
-            },
-            onCancelCrop = {
-                picked = null
-                profile.showPhotoError(null)
-            },
-            onPhotoSaved = {
-                picked = null
-                editor = AvatarEditor.Closed
-            },
-            // 网页退出后整页重新加载、设置随之消失；这里退出不会失败（见 AccountViewModel.signOut），所以先关设置再退出，
-            // 退出期间不会再有编辑或第二次点击。
-            onSignOut = {
-                settingsOpen = false
-                editor = AvatarEditor.Closed
-                picked = null
-                onSignOut()
-            },
-            deleteAccount = deleteAccount,
-            onClose = {
-                settingsOpen = false
-                editor = AvatarEditor.Closed
-                picked = null
-                profile.showPhotoError(null)
-            },
-        )
     }
 }
 

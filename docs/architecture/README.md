@@ -93,7 +93,7 @@ flowchart LR
 | `src/lib/note-io.ts` | 笔记的 Markdown 导出格式、导入的个数 / 大小 / 扩展名上限与标题提取（[notes-flow.md](notes-flow.md#markdown-导出与导入)） |
 | `src/lib/session-messages.ts` | 读取一个会话当前显示的消息（附件、附加页面、提案）的函数，`GET /api/sessions/:id/messages` 使用 |
 | `src/components/split-note-pane.tsx`、`src/lib/split-view.ts` | 桌面端聊天右侧的页面面板，以及分屏开关、所开页面和比例的本机保存（[chat-flow.md](chat-flow.md#聊天与页面分屏)） |
-| `src/lib/theme.ts`、`src/lib/theme-init.ts`、`src/components/theme-settings.tsx`、`src/app/globals.css` 的 `:root[data-theme="dark"]` | 外观（跟随系统 / 浅色 / 深色）：本机偏好、首次绘制前写 `data-theme` 的内联脚本、设置里的“外观”一行和深色色板（访客的入口在 `help-menu.tsx`） |
+| `src/lib/theme.ts`、`src/lib/theme-init.ts`、`src/components/theme-settings.tsx`、`src/app/globals.css` 的 `:root[data-theme="dark"]` | 外观（跟随系统 / 浅色 / 深色）：本机偏好、首次绘制前写 `data-theme` 的内联脚本、设置里的“外观”一行和深色色板（访客从侧栏底部设置齿轮进入） |
 | `src/lib/page-ai/*`、`src/app/api/proposals/*` | AI 操控底座：各页面类型的适配器、工具定义、提案的保存 / 应用 / 放弃 / 撤销与接口 |
 | `src/lib/note-tree.ts`、`src/lib/note-tree-server.ts`、`src/lib/note-trash.ts`、`src/lib/note-revisions.ts` | 子页面树与元数据、Trash 保留期与惰性清理、编辑历史快照与裁剪 |
 | `src/components/note-trash-dialog.tsx`、`src/components/note-history-dialog.tsx`、`src/components/page-assistant.tsx`、`src/components/page-proposal.tsx` | Trash 对话框、编辑历史/恢复对话框、页面里的 AI 面板与通用提案卡片 |
@@ -102,7 +102,7 @@ flowchart LR
 | `src/lib/whiteboard/`、`src/components/whiteboard/` | 白板：Excalidraw 场景的保存形、编辑器与工具栏、PDF 导入与导出、公开只读视图、画成图的 Mermaid 转换、思维导图引擎与编辑模式、学习模板、草图变图片（[whiteboard.md](whiteboard.md)） |
 | `src/lib/slides/`、`src/components/slides/`、`src/components/public-slides-view.tsx` | 幻灯片的数据形状与纯函数、编辑器、放映、导出、公开放映页和 AI 生成幻灯片（向导另在 `src/components/slides-wizard.tsx`、`src/lib/slides-wizard-*.ts`，[slides.md](slides.md)） |
 | `src/lib/note-save-queue.ts` | 自动保存队列、重试和冲突状态 |
-| `src/lib/custom-instructions.ts`、`src/app/api/custom-instructions/route.ts`、`src/components/settings-dialog.tsx`、`src/lib/settings-navigation.ts` | 已登录用户的自定义指令与设置界面（通用/个性化/方案/账号，手机两级导航），整合个人资料（`profile-settings.tsx`）、语言、外观（`theme-settings.tsx`）、AI 角色图标（`app-icon-settings.tsx`）、方案（`plan-settings.tsx`）与退出/删号 |
+| `src/lib/custom-instructions.ts`、`src/app/api/custom-instructions/route.ts`、`src/components/settings-dialog.tsx`、`src/lib/settings-navigation.ts` | 设置界面（已登录：通用 / 个性化 / 方案 / 账号 / 帮助；访客：通用 / 帮助；手机两级导航且入口列表不重复列“账号”行），整合个人资料（`profile-settings.tsx`）、语言、外观（`theme-settings.tsx`）、AI 角色图标（`app-icon-settings.tsx`）、自定义指令、方案（`plan-settings.tsx`）、退出/删号与网站/法律链接 |
 | `src/lib/characters.ts`、`src/lib/app-icon.ts` | 7 个预设 AI 角色与本机图标配置 |
 | `src/lib/chat-project-context.ts`、`src/app/api/chat-projects/*`、`src/components/chat-project-settings.tsx` | 聊天项目的共通指示与参考页面：读取、截断、写入系统指令，及设置界面 |
 | `src/app/api/search/route.ts`、`src/lib/search.ts`、`src/lib/search-fold.ts`、`src/lib/note-embeddings.ts`、`src/components/search-dialog.tsx`、`src/lib/search-reveal.ts` | 跨 Chats / Pages 搜索（表记折叠的关键词、附件文本、项目和页面类型过滤，页面另用 OpenAI 嵌入做语义检索）、搜索面板、跳到命中的消息、块或元素 |
