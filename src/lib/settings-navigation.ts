@@ -2,7 +2,17 @@
 // スマホ幅の設定は 2 段（入口の一覧 → 欄の画面）。デスクトップ幅はいつも欄を出しているので onPage は false。
 // Android（SettingsDialog.kt）と iOS（SettingsDialogModel）も同じ決まり。
 
-export type SettingsTab = "general" | "personalization" | "plan" | "account";
+export type SettingsTab = "general" | "personalization" | "plan" | "account" | "help";
+
+// デスクトップ幅の左のナビに出す欄。未ログイン（guest）は「一般」と「ヘルプ」だけ。
+export function settingsVisibleTabs(signedIn: boolean): SettingsTab[] {
+  return signedIn ? ["general", "personalization", "plan", "account", "help"] : ["general", "help"];
+}
+
+// スマホ幅の入口の一覧に出す欄。「アカウント」は上の名前カード（.settings-identity）から開くので一覧には入れない。
+export function settingsHomeTabs(signedIn: boolean): SettingsTab[] {
+  return signedIn ? ["general", "personalization", "plan", "help"] : ["general", "help"];
+}
 
 export type SettingsStep =
   // 何もしない（保存・削除の最中）。

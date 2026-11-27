@@ -6,20 +6,21 @@ import SwiftUI
 /// 点了在按钮下方打开语言菜单（行尾边和按钮对齐）。标的是保存的偏好（null 选"自动"）；读不到账号的语言时哪一项都不标
 /// （按钮上写正在显示的语言）。只保存到账号，切换交给语言同步。内容规则在 Core 的 `LanguageSettingsRow`。
 struct LanguageSettingsRowView: View {
-    let user: AccountUser
+    let user: AccountUser?
 
     @Environment(AppEnvironment.self) private var app
     @Environment(\.nfChromePath) private var chromePath
     @State private var menuOpen = false
 
-    init(user: AccountUser) {
+    init(user: AccountUser?) {
         self.user = user
     }
 
     var body: some View {
         let showing = app.language.active
-        let row = LanguageSettingsRow(user: user, showing: showing)
-        let label = languageLabel(row.shown, showing: showing)
+        let row = user.map { LanguageSettingsRow(user: $0, showing: showing) }
+        let shown = row?.shown ?? app.language.preference
+        let label = languageLabel(shown, showing: showing)
         let fill = chromePath == .solid ? Sm.surface : Sm.hover
         let stroke: Color = menuOpen ? Sm.blue : (chromePath == .solid ? Sm.borderStrong : .clear)
         VStack(alignment: .leading, spacing: 0) {
@@ -40,7 +41,7 @@ struct LanguageSettingsRowView: View {
                             .lineLimit(3)
                             .multilineTextAlignment(.leading)
                             // 语言名按它自己的语言排版（网页 lang=）。
-                            .environment(\.locale, Locale(identifier: row.shown.tag ?? showing.tag ?? "en"))
+                            .environment(\.locale, Locale(identifier: shown.tag ?? showing.tag ?? "en"))
                         LucideIcon(Lucide.chevronsUpDown, size: 14, color: Sm.faint)
                     }
                     .padding(.leading, 14)
@@ -66,12 +67,13 @@ struct LanguageSettingsRowView: View {
             .padding(.vertical, 10)
             .frame(minHeight: 56)
 
-            // 上一次切换失败（网页 changeError）：红字 + "重试"（再切到保存的那一项）。
+            // 上一次切换失败（网页 changeError）：红字 + "重试"（再切到上次选择的项）。
             if app.language.changeFailed {
+                let retryTarget = user != nil ? row?.saved : (app.language.lastFailedPreference ?? app.language.preference)
                 VStack(alignment: .leading, spacing: 0) {
                     SettingsErrorLine(L("language_change_failed"))
-                    if let saved = row.saved {
-                        NotionButton(L("try_again")) { app.language.choose(saved) }
+                    if let retryTarget {
+                        NotionButton(L("try_again")) { app.language.choose(retryTarget) }
                             .padding(.top, 8)
                     }
                 }

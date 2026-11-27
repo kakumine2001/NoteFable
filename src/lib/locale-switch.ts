@@ -8,7 +8,7 @@ type Dictionary = { locale: Locale; messages: Messages };
 export function createLocaleSwitcher(state: {
   locale: Locale;
   pending: (target: LocalePreference | null) => void;
-  error: (message: string) => void;
+  error: (message: string, failedTarget?: LocalePreference | null) => void;
   commit: (preference: LocalePreference, dictionary?: Dictionary) => void;
 }, load = async (next: LocalePreference, signal: AbortSignal): Promise<unknown> => {
   const response = await fetch(`/api/i18n?preference=${encodeURIComponent(next)}`, { cache: "no-store", signal });
@@ -24,7 +24,7 @@ export function createLocaleSwitcher(state: {
   }
   async function choose(next: LocalePreference): Promise<boolean> {
     cancel();
-    state.error("");
+    state.error("", null);
     const controller = new AbortController();
     active = controller;
     try {
@@ -43,7 +43,7 @@ export function createLocaleSwitcher(state: {
       displayed = data.locale;
       return true;
     } catch {
-      if (!controller.signal.aborted) state.error(msg("Could not change language. Please try again."));
+      if (!controller.signal.aborted) state.error(msg("Could not change language. Please try again."), next);
       return false;
     } finally {
       if (active === controller) {
