@@ -25,6 +25,11 @@ final class ChatScrollController: NSObject {
     private var notifyTask: Task<Void, Never>?
     private var evaluating = false
     private var atBottom = true
+    #if DEBUG
+    /// 排查消息区空白（ChatDebug）：懒加载列表里出现着的行、出现过的行。
+    var debugRowsOn: Set<String> = []
+    var debugRowsEver: Set<String> = []
+    #endif
 
     /// 离底部不超过它算"在底部"（网页 2px）。
     private static let followThreshold: Double = 2
@@ -34,6 +39,9 @@ final class ChatScrollController: NSObject {
     // MARK: - 接上 / 断开 UIScrollView
 
     func attach(_ view: UIScrollView) {
+        #if DEBUG
+        ChatDebug.track(self)
+        #endif
         if scrollView === view { return }
         detach()
         scrollView = view
@@ -107,6 +115,15 @@ final class ChatScrollController: NSObject {
         guard let scrollView, !evaluating else { return }
         evaluating = true
         defer { evaluating = false }
+        #if DEBUG
+        // 候选修复 B 的规则（-NFChatPinPastEnd）：滚过了末尾、没在滚、也没有定位请求，就贴回去（跟不跟随都贴）。
+        if ChatDebug.pinPastEnd, !revealPending, !isUserScrolling(scrollView), !programmatic,
+           distanceToBottom < -Self.followThreshold {
+            pin(scrollView)
+            reportAtBottom()
+            return
+        }
+        #endif
         let action = followAction(
             following: following,
             distanceToBottom: distanceToBottom,
@@ -135,6 +152,10 @@ final class ChatScrollController: NSObject {
     /// 列表末尾（含底部内边距）离可视区底边还有多远。
     private var distanceToBottom: Double {
         guard let scrollView else { return 0 }
+        #if DEBUG
+        // 候选修复 B（-NFChatPinPastEnd）：保留负数，evaluate 能看出滚过了末尾。其它读它的地方遇到负数和 0 一样。
+        if ChatDebug.pinPastEnd { return Double(bottomOffset(scrollView) - scrollView.contentOffset.y) }
+        #endif
         return max(0, Double(bottomOffset(scrollView) - scrollView.contentOffset.y))
     }
 
@@ -149,6 +170,10 @@ final class ChatScrollController: NSObject {
     }
 
     private func pin(_ scrollView: UIScrollView) {
+        #if DEBUG
+        // 排查用（-NFChatNoPin）：从不贴底。
+        if ChatDebug.noPin { return }
+        #endif
         let target = bottomOffset(scrollView)
         guard abs(scrollView.contentOffset.y - target) > 0.5 else { return }
         scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: target), animated: false)
@@ -225,6 +250,35 @@ extension ChatScrollController {
         current.setContentOffset(CGPoint(x: current.contentOffset.x, y: target), animated: true)
         try? await Task.sleep(nanoseconds: 450_000_000)
         evaluate()
+    }
+
+    /// 列表的 UIScrollView 现在在窗口里。
+    var debugInWindow: Bool { scrollView?.window != nil }
+
+    /// `NF_CHAT_GEOMETRY` 里这个列表的部分（ChatDebug）：滚动位置、内边距、内容和可视区大小、跟随状态、出现过的行。
+    /// `pastEnd` 大于 0 表示滚过了末尾；`area` 是两条浮动栏之间的消息可见区在屏幕上的位置（点），
+    /// `chat-blank-check.py` 按它在截图里查是不是空白。只读不改。
+    var debugGeometry: String {
+        guard let scrollView else { return "attached=false following=\(following)" }
+        let number = { (value: CGFloat) in String(format: "%.1f", Double(value)) }
+        let insets = scrollView.adjustedContentInset
+        let bounds = scrollView.bounds
+        let content = scrollView.contentSize
+        let offset = scrollView.contentOffset.y
+        let end = bottomOffset(scrollView)
+        var line = "attached=true following=\(following) hasItems=\(hasItems) revealPending=\(revealPending)"
+        line += " offsetY=\(number(offset)) bottomY=\(number(end)) pastEnd=\(number(offset - end))"
+        line += " insetTop=\(number(insets.top)) insetBottom=\(number(insets.bottom))"
+        line += " contentW=\(number(content.width)) contentH=\(number(content.height))"
+        line += " boundsW=\(number(bounds.width)) boundsH=\(number(bounds.height))"
+        if let window = scrollView.window {
+            let area = scrollView.convert(bounds.inset(by: insets), to: window.screen.coordinateSpace)
+            let screen = window.screen.bounds.size
+            line += " area=\(number(area.minX)),\(number(area.minY)),\(number(area.width)),\(number(area.height))"
+            line += " screen=\(number(screen.width))x\(number(screen.height))"
+        }
+        line += " rowsOn=\(debugRowsOn.count) rowsEver=\(debugRowsEver.count) rows=\(debugRowsOn.sorted().joined(separator: ","))"
+        return line
     }
 }
 #endif

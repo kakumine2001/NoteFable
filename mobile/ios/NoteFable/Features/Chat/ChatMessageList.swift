@@ -145,6 +145,9 @@ struct ChatMessageList: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .modifier(ChatRevealFlashModifier(flash: flash?.messageId == message.id ? flash : nil))
+        #if DEBUG
+        .chatDebugRow(message.key, of: scroll)
+        #endif
     }
 
     /// 读完后滚到那条消息、放在可视区中间并闪一下；滚到了就停止跟随（否则马上被拉回底部），

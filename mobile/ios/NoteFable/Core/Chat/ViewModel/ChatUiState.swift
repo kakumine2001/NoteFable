@@ -175,6 +175,11 @@ struct ChatUiState: Equatable, Sendable {
     var generatingSessionIds: Set<String> = []
     /// 当前聊天的角色完成 / 出错短暂状态反馈（网页 characterOutcome）。
     var characterOutcome: CharacterOutcome? = nil
+    #if DEBUG
+    /// 排查消息区空白的候选修复 A（启动参数 `-NFChatListIdentity`，见 ChatDebug）：每换一次对话（`ChatViewModel.show`）
+    /// 换一个值；新聊天拿到会话 ID（migrate）、再点开着的聊天不算换。
+    var debugConversationId = 0
+    #endif
 
     private var hasActiveTurnOutput: Bool {
         guard let last = messages.last, last.role == .assistant else { return false }

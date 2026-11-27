@@ -172,6 +172,9 @@ struct ChatWorkspace: View {
                 busy: state.sending || state.upload != nil || state.messagesLoading,
                 maxEditorHeight: maxEditorHeight
             )
+            #if DEBUG
+            .chatDebugListIdentity(state.debugConversationId)
+            #endif
         }
     }
 

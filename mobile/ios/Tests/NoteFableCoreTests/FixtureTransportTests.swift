@@ -107,6 +107,7 @@ final class FixtureTransportTests: XCTestCase {
             FixtureCatalog.IDs.ramenSession,
             FixtureCatalog.IDs.meetingSession,
             FixtureCatalog.IDs.liveSession,
+            FixtureCatalog.IDs.longSession,
             FixtureCatalog.IDs.tripPage,
             FixtureCatalog.IDs.packingPage,
             FixtureCatalog.IDs.glassPage,
@@ -241,6 +242,74 @@ final class FixtureTransportTests: XCTestCase {
         let history = try await api.messages(sessionId: FixtureCatalog.IDs.liveSession)
         XCTAssertEqual(history.first?.content, FixtureCatalog.Prompts.streamed)
         XCTAssertEqual(history.last?.content, streamedText)
+    }
+
+    /// iOS 27 空白聊天的对照场景（App/FixtureChatControl）依赖的行为：读过的聊天直接换进来、拿到会话 ID 不算换对话、
+    /// 重新生成长回答时条数不变并保持生成中、`onIdentityChanged` 回到空白首页。
+    func testChatControlSceneAssumptions() async throws {
+        let misses = MissRecorder()
+        let catalog = FixtureCatalog(account: .signedIn, now: Self.fixedNow, image: Self.samplePNG)
+        let transport = FixtureTransport(catalog: catalog) { misses.add($0) }
+        let resourcesDir = directory.appendingPathComponent("res", isDirectory: true)
+        try FileManager.default.createDirectory(at: resourcesDir, withIntermediateDirectories: true)
+        let env = AppEnvironment(
+            config: AppConfig(baseURL: FixtureMode.baseURL, siteURL: FixtureMode.siteURL, googleIOSClientId: "fixture"),
+            resources: try XCTUnwrap(Bundle(path: resourcesDir.path)),
+            defaults: defaults,
+            dataDirectory: directory.appendingPathComponent("data", isDirectory: true),
+            transport: transport,
+            systemLanguages: { ["en"] },
+            l10n: L10n()
+        )
+        env.start()
+        defer { env.stop() }
+        let chat = env.chat
+        try await waitUntil { !chat.state.sessionsLoading }
+
+        chat.openSession(FixtureCatalog.IDs.glassSession)
+        try await waitUntil { !chat.state.messagesLoading && !chat.state.messages.isEmpty }
+        chat.openSession(FixtureCatalog.IDs.kyotoSession)
+        try await waitUntil { !chat.state.messagesLoading && chat.state.messages.count == 6 }
+        let kyoto = chat.state.debugConversationId
+        chat.openSession(FixtureCatalog.IDs.kyotoSession)
+        XCTAssertEqual(chat.state.debugConversationId, kyoto)
+        chat.openSession(FixtureCatalog.IDs.glassSession)
+        XCTAssertFalse(chat.state.messagesLoading)
+        XCTAssertEqual(chat.state.messages.count, 2)
+        XCTAssertNotEqual(chat.state.debugConversationId, kyoto)
+
+        chat.newChat()
+        let fresh = chat.state.debugConversationId
+        chat.send(FixtureCatalog.Prompts.streamed)
+        try await waitUntil { chat.state.activeSessionId == FixtureCatalog.IDs.liveSession && !chat.state.sending }
+        XCTAssertEqual(chat.state.debugConversationId, fresh)
+
+        chat.openSession(FixtureCatalog.IDs.longSession)
+        try await waitUntil { !chat.state.messagesLoading && chat.state.messages.count == 4 }
+        let answer = try XCTUnwrap(chat.state.messages.last)
+        XCTAssertGreaterThan(answer.content.split(separator: "\n").count, 40)
+        chat.regenerate(answer.id)
+        try await waitUntil { chat.state.messages.last.map { $0.id != answer.id && $0.content.contains("Liquid Glass") } == true }
+        XCTAssertEqual(chat.state.messages.count, 4)
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertTrue(chat.state.sending)
+
+        chat.onIdentityChanged()
+        XCTAssertNil(chat.state.activeSessionId)
+        XCTAssertTrue(chat.state.messages.isEmpty)
+        XCTAssertFalse(chat.state.sending)
+        chat.openSession(FixtureCatalog.IDs.longSession)
+        try await waitUntil { !chat.state.messagesLoading && chat.state.messages.count == 4 }
+        XCTAssertEqual(chat.state.messages.last?.id, answer.id)
+        XCTAssertTrue(misses.items.isEmpty, "unexpected fixture misses: \(misses.items)")
+    }
+
+    private func waitUntil(_ condition: () -> Bool, file: StaticString = #filePath, line: UInt = #line) async throws {
+        for _ in 0..<400 {
+            if condition() { return }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTFail("condition was not met in time", file: file, line: line)
     }
 
     func testUnknownHostTriggersOnMissAndReturns404() async throws {

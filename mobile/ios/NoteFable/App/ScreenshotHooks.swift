@@ -11,6 +11,16 @@ enum ScreenshotScene: String, CaseIterable, Sendable {
     case chatComposer = "chat-composer"
     case chatKeyboard = "chat-keyboard"
     case chatStreamed = "chat-streamed"
+    #if DEBUG
+    // iOS 27 上消息区空白的对照场景（FixtureChatControl 自己做准备）：只在 ci-chat-control.sh 的对照轮次里拍。
+    case chatEditorSend = "chat-editor-send"
+    case chatAfterEditor = "chat-after-editor"
+    case chatStreamedSettled = "chat-streamed-settled"
+    case chatSwitchVisible = "chat-switch-visible"
+    case chatEditorLink = "chat-editor-link"
+    case chatNewSend = "chat-new-send"
+    case chatRegenerate = "chat-regenerate"
+    #endif
     case drawer
     /// 宽屏（iPad）下手动收起常驻侧栏后的全宽聊天页（验证顶栏行首菜单按钮重新出现）。
     case sidebarCollapsed = "sidebar-collapsed"

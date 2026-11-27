@@ -164,6 +164,10 @@ final class FixtureLaunch {
             // 浮动外观走的是哪条路（native / material / solid）：和界面上的玻璃组件用同一个判断，脚本按系统版本和变体核对。
             let glass = NFChromePath.resolve(reduceTransparency: reduceTransparency, forceSolid: forceSolidChrome)
             let line = "NF_FIXTURE_READY\(idxPart) scene=\(target.rawValue) reduceTransparency=\(reduceTransparency) forcedSolid=\(forceSolidChrome) rtl=\(app.language.isRightToLeft) locale=\(app.language.uiLocale) glass=\(glass.rawValue) keyboard=\(keyboard) increaseContrast=\(increaseContrast) timeout=\(!sceneReady)\n"
+            // 聊天画面先记一行消息列表的几何（排查消息区空白，ChatDebug）。
+            if let geometry = ChatDebug.geometryLine(scene: target.rawValue, idxPart: idxPart, app: app, router: router) {
+                Self.writeStderr(geometry)
+            }
             Self.writeStderr(line)
 
             if let ackDir = ackDirectory {
@@ -321,6 +325,11 @@ final class FixtureLaunch {
                     && !app.chat.state.sending
                     && app.chat.state.messages.last.map { $0.role == .assistant && !$0.content.isEmpty } == true
             }
+
+        case .chatEditorSend, .chatAfterEditor, .chatStreamedSettled, .chatSwitchVisible, .chatEditorLink,
+             .chatNewSend, .chatRegenerate:
+            // 消息区空白的对照场景：自己从空白首页做准备（有自己的时限）。
+            return await FixtureChatControl(app: app, router: router).prepare(target)
 
         case .drawer:
             router.selectTab(.chat)

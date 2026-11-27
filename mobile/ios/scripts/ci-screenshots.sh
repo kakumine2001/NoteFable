@@ -309,6 +309,10 @@ run_batch() {
   return 0
 }
 
+# Env NF_CHAT_CONTROL: control captures for the blank chat message area, after the variants (see ci-chat-control.sh).
+SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
+source "$SCRIPT_DIR/ci-chat-control.sh"
+
 # Partition SCENES into signed-in and guest batches.
 declare -a SIGNED_IN_BATCH=()
 declare -a GUEST_BATCH=()
@@ -461,6 +465,10 @@ for major in "${MAJORS[@]}"; do
     fi
   done
 
+  if [[ -n "${NF_CHAT_CONTROL:-}" ]]; then
+    run_chat_control "$udid" "$major"
+  fi
+
   xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
   if [[ "$origin" == "created" ]]; then
     xcrun simctl delete "$udid" >/dev/null 2>&1 || true
@@ -583,5 +591,13 @@ if summary_path:
                 fh.write(f'| `{major}` | `{variant}` | `{line}` |\n')
             fh.write('\n')
 PY
+
+# Blank-screen check of the message area in the chat captures, appended to the step summary.
+if [[ -n "${NF_CHAT_CONTROL:-}" ]]; then
+  if ! python3 "$SCRIPT_DIR/chat-blank-check.py" "$OUT" "${GITHUB_STEP_SUMMARY:-}"; then
+    echo "::error::The chat blank-screen check did not run."
+    failed=1
+  fi
+fi
 
 exit "$failed"
