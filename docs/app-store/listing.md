@@ -2,6 +2,8 @@
 
 App Store Connect → App → App 信息 / iOS App 的版本页。iOS 版目前只发 TestFlight；这里是 App Store 产品页要填的文字，提交审核前按这里填。语言与 App 界面相同 17 种：English (U.S.)（主要语言）、Chinese (Simplified)、Chinese (Traditional)、Japanese、Korean、Spanish (Mexico) 和 Spanish (Spain)（同一份）、French、German、Portuguese (Brazil)、Italian、Indonesian、Vietnamese、Thai、Hindi、Arabic、Turkish、Russian。字数上限：名称 30、副标题 30、推广文本 170、关键词 100 字节（按 UTF-8 计；逗号分隔、逗号后不加空格）、描述 4000。
 
+填写不用登录网页：GitHub Actions 的 `iOS App Store listing` 工作流按本文写入（先 dry run 再 apply，见 [ios.md](../architecture/ios.md#app-store-商店信息写入)）。脚本按本文的结构读取：每个语言一节，节里五条按现在的顺序（副标题、推广文本、关键词、iOS 登录说明、iOS 价格说明），网址和类别取自下面的规则；改节标题、条目顺序或规则写法时同时改 `scripts/release/ios-store-listing.py`。改了本文或 Play 的名称、完整说明后运行 `python3 scripts/release/ios-store-listing.py --check`（拼出的描述比 Play 的长，Play 没超限这里也可能超；PR 里也会检查）。
+
 内容只写 iOS 版已经能用的功能（见 [ios-native.md](../architecture/ios-native.md)）。iOS 用 App Store 订阅内购（[billing.md](../architecture/billing.md)）：描述写清 Pro 提高什么、自动续订和取消方式，不写具体价格（各店面不同，以 App 内显示为准）和试用（有介绍优惠时由 App Store 显示），并附使用条款和隐私政策链接（审核指南 3.1.2）；不引导去别处购买（3.1.1）。内购要随 App 版本一起送审。关键词不放别家的品牌名（2.3.7）。
 
 ## 各语言共用的规则
@@ -10,7 +12,7 @@ App Store Connect → App → App 信息 / iOS App 的版本页。iOS 版目前�
 - **描述**：Play 同一语言的“完整说明”，换两处，其余不变（隐私政策链接保留）：① 同步那一节的第一条（讲不注册试用和登录后同步的那条）换成下面各语言的“iOS 登录说明”（保留行首的“• ”）。iOS 另有 Apple 登录，网页和 Android 没有，Apple 账户也不和 Google / 邮箱账户合并，所以不能写成会同步到 notefable.com；提交审核前要在服务端配好 Apple 登录（[deployment.md](../architecture/deployment.md)）。② 最后一段价格说明（NoteFable Pro 那段）换成各语言的“iOS 价格说明”（已含使用条款链接）。
 - **网址**：技术支持 https://notefable.com、营销 https://notefable.com、隐私政策 https://notefable.com/privacy。
 - **类别**：主要 教育（Education），次要 效率（Productivity）。
-- 截图：iPhone 必须提供 Dynamic Island 中尺寸（如 1206 × 2622），可另附 6.9 英寸（1320 × 2868）；App 支持 iPad，还必须提供 13 英寸 iPad（2064 × 2752）。还没有正式的 App Store 截图；PR 检查的模拟器截图（`mobile/ios/scripts/ci-screenshots.sh`）只用于核对界面，不直接上传。
+- 截图：iPhone 必须提供 Dynamic Island 中尺寸（如 1206 × 2622），可另附 6.9 英寸（1320 × 2868）；App 支持 iPad，还必须提供 13 英寸 iPad（2064 × 2752）。正式截图放进 `mobile/ios/app-store/screenshots/iphone/` 和 `ipad/`（按文件名排序，工作流传到 en-US）。还没有正式的 App Store 截图；PR 检查的模拟器截图（`mobile/ios/scripts/ci-screenshots.sh`）只用于核对界面，不直接上传。
 
 ## English (U.S.)
 

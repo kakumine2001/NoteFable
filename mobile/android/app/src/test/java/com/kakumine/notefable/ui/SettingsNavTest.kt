@@ -125,10 +125,18 @@ class SettingsNavTest {
     }
 
     @Test
-    fun `the entries are listed in the web order`() {
+    fun `the entries are listed in the web order and home list omits Account`() {
         assertEquals(
-            listOf(SettingsPage.General, SettingsPage.Personalization, SettingsPage.Plan, SettingsPage.Account),
+            listOf(SettingsPage.General, SettingsPage.Personalization, SettingsPage.Plan, SettingsPage.Account, SettingsPage.Help),
             SettingsPage.entries.toList(),
+        )
+        assertEquals(
+            listOf(SettingsPage.General, SettingsPage.Personalization, SettingsPage.Plan, SettingsPage.Help),
+            settingsHomePages(signedIn = true),
+        )
+        assertEquals(
+            listOf(SettingsPage.General, SettingsPage.Help),
+            settingsHomePages(signedIn = false),
         )
     }
 }

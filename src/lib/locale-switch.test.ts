@@ -38,11 +38,12 @@ describe("in-place locale switches", () => {
     s.requests[0].reject(new Error("offline"));
     await expect(first).resolves.toBe(false);
     expect(s.commit).not.toHaveBeenCalled();
-    expect(s.error).toHaveBeenLastCalledWith("Could not change language. Please try again.");
+    expect(s.error).toHaveBeenLastCalledWith("Could not change language. Please try again.", "auto");
     const retry = s.switcher.choose("auto");
     s.requests[1].resolve({ locale: "zh-Hant", messages: { Language: "語言" } });
     await expect(retry).resolves.toBe(true);
     expect(s.current()).toEqual({ locale: "zh-Hant", preference: "auto" });
+    expect(s.error).toHaveBeenLastCalledWith("", null);
   });
   it("gives the latest switch priority even if an aborted request still resolves", async () => {
     const s = setup();

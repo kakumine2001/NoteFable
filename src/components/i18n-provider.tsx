@@ -19,10 +19,11 @@ type I18nValue = {
   // 切り替え中の行き先（切り替えていなければ null）。表示がアカウントの言語に向かっているかを同期が確かめる。
   target: LocalePreference | null;
   changeError: string;
+  failedTarget: LocalePreference | null;
 };
 
 const fallback: I18nValue = {
-  locale: "en", tag: "en", dir: "ltr", preference: "auto", t: createTranslator({}), setPreference: async () => false, switching: false, target: null, changeError: "",
+  locale: "en", tag: "en", dir: "ltr", preference: "auto", t: createTranslator({}), setPreference: async () => false, switching: false, target: null, changeError: "", failedTarget: null,
 };
 
 const I18nContext = createContext<I18nValue>(fallback);
@@ -96,6 +97,7 @@ export function I18nProvider({ locale, messages, children }: {
 }) {
   const [target, setTarget] = useState<LocalePreference | null>(null);
   const [changeError, setChangeError] = useState("");
+  const [failedTarget, setFailedTarget] = useState<LocalePreference | null>(null);
   const preference = useSyncExternalStore(subscribePreference, readPreference, serverPreference);
   // 同じ言語の間は同じ t を使い、t に依存する処理を不要に読み込み直さない。
   const [translator, setTranslator] = useState(() => ({ locale, t: createTranslator(messages) }));
@@ -117,7 +119,10 @@ export function I18nProvider({ locale, messages, children }: {
   const [switcher] = useState(() => createLocaleSwitcher({
     locale,
     pending: setTarget,
-    error: setChangeError,
+    error: (message, failed = null) => {
+      setChangeError(message);
+      setFailedTarget(message ? failed : null);
+    },
     commit: (next, dictionary) => {
       writeLocaleCookie(next);
       if (dictionary) {
@@ -133,8 +138,8 @@ export function I18nProvider({ locale, messages, children }: {
   }, [switcher]);
   const switching = target !== null;
   const dir = LOCALE_DIRS[activeLocale];
-  const value = useMemo(() => ({ locale: activeLocale, tag: LOCALE_TAGS[activeLocale], dir, preference, t, setPreference, switching, target, changeError }),
-    [activeLocale, dir, preference, t, setPreference, switching, target, changeError]);
+  const value = useMemo(() => ({ locale: activeLocale, tag: LOCALE_TAGS[activeLocale], dir, preference, t, setPreference, switching, target, changeError, failedTarget }),
+    [activeLocale, dir, preference, t, setPreference, switching, target, changeError, failedTarget]);
   // data-locale-root: 静的 HTML の時点で表示言語と文字方向を持つ目印。global-error.tsx が落ちる前の言語を知るのに使う。
   return <I18nContext.Provider value={value}><div lang={LOCALE_TAGS[activeLocale]} dir={dir} data-locale-root="" className="contents">{children}</div></I18nContext.Provider>;
 }

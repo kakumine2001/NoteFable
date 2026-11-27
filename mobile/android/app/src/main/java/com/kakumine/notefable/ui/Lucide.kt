@@ -347,6 +347,7 @@ object Lucide {
         ArrowLeft,
         ChevronLeft,
         ChevronRight,
+        ExternalLink,
         PanelLeftClose,
         LogOut,
         FolderInput,

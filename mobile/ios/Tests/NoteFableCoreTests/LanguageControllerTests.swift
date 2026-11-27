@@ -185,13 +185,22 @@ final class LanguageControllerTests: XCTestCase {
         let (controller, store, _, l10n) = try makeController(stored: "ja", resources: makeResources(["en", "ja"]))
         controller.choose(.arabic)
         XCTAssertTrue(controller.changeFailed)
+        XCTAssertEqual(controller.lastFailedPreference, .arabic)
         XCTAssertEqual(controller.preference, .japanese)
         XCTAssertEqual(controller.active, .japanese)
         XCTAssertEqual(l10n.template("hello"), "こんにちは")
         XCTAssertEqual(store.code, "ja")
-        // 再选一个有的（设置里的"重试"），失败标记清掉。
+        // 失败后在设备菜单重选当前偏好，也能清掉失败状态。
+        controller.chooseOnDevice(.japanese)
+        XCTAssertFalse(controller.changeFailed)
+        XCTAssertNil(controller.lastFailedPreference)
+        // 再次失败，然后用有效的选择（设置里的"重试"）恢复。
+        controller.choose(.arabic)
+        XCTAssertTrue(controller.changeFailed)
+        XCTAssertEqual(controller.lastFailedPreference, .arabic)
         controller.choose(.english)
         XCTAssertFalse(controller.changeFailed)
+        XCTAssertNil(controller.lastFailedPreference)
         XCTAssertEqual(l10n.template("hello"), "Hello")
     }
 

@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -67,6 +68,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
+import com.kakumine.notefable.BuildConfig
 import com.kakumine.notefable.R
 import com.kakumine.notefable.data.AccountUser
 import com.kakumine.notefable.data.ApiException
@@ -91,6 +93,7 @@ private fun settingsPageLabel(page: SettingsPage): Int = when (page) {
     SettingsPage.Personalization -> R.string.settings_personalization
     SettingsPage.Plan -> R.string.plan_title
     SettingsPage.Account -> R.string.account
+    SettingsPage.Help -> R.string.help
 }
 
 private fun settingsPageIcon(page: SettingsPage): List<String> = when (page) {
@@ -98,16 +101,18 @@ private fun settingsPageIcon(page: SettingsPage): List<String> = when (page) {
     SettingsPage.Personalization -> Lucide.PenLine
     SettingsPage.Plan -> Lucide.CreditCard
     SettingsPage.Account -> Lucide.CircleUser
+    SettingsPage.Help -> Lucide.CircleHelp
 }
 
 /**
- * 设置（网页 SettingsDialog 的手机宽度，从侧栏的账号行打开；登录后才有）。全屏、灰底（--notion-sidebar），分两级
+ * 设置（网页 SettingsDialog 的手机宽度，从侧栏打开；未登录只显示「通用」和「帮助」）。全屏、灰底（--notion-sidebar），分两级
  * （和 ChatGPT、Claude 的手机 App 一样）：先是入口的一览，点一行进到那一栏自己的页面。
  * - 顶栏：最小高 64、左右 16，三列 40 | 剩下 | 40、间距 8。左边是圆形按钮（[SettingsBarButton]）：一览上是"关闭"（X 18），
  *   页面上是"返回"（ArrowLeft 20）；标题居中 17/650 墨色，一览上是"设置"，页面上是那一栏的名字；右边一列空着。
- * - 下面是左右 16、上 8、下 32 的滚动区。一览：账号行（[SettingsIdentityRow]，点了进"账号"页），隔 24 是四行的卡片
- *   （通用、个性化、方案、账号，[SettingsHomeRow]）。页面只有那一栏的内容，没有栏标题（名字在顶栏上）：
- *   通用（语言、图标）、个性化（自定义指令）、方案、账号（个人资料，隔 24 是退出登录 / 删除账号）。卡片白底、1px 细线、圆角 20。
+ * - 下面是左右 16、上 8、下 32 的滚动区。一览：登录后最上面是账号行（[SettingsIdentityRow]，点了进"账号"页），
+ *   隔 24 是各栏的卡片（登录后：通用、个性化、方案、帮助；访客：通用、帮助，[SettingsHomeRow]）。页面只有那一栏的内容，没有栏标题（名字在顶栏上）：
+ *   通用（语言、外观、图标）、个性化（自定义指令）、方案、账号（个人资料，隔 24 是退出登录 / 删除账号）、帮助（官网、隐私、条款、特商法标示）。
+ *   卡片白底、1px 细线、圆角 20。
  * - 换画面（网页 settings-page-forward / settings-page-back）：滚动区 200ms 淡入并横移 16，页面从结束边进来、一览从起始边进来
  *   （从右往左的语言里反过来）；系统关掉动画时不动，刚打开时的一览也不动。换了以后从最上面看起。
  * - 名字、头像、语言没存上的提示在滚动区的最上面，一览和各页面上都有。
@@ -120,7 +125,7 @@ private fun settingsPageIcon(page: SettingsPage): List<String> = when (page) {
  */
 @Composable
 internal fun SettingsDialog(
-    user: AccountUser,
+    user: AccountUser?,
     account: AccountUiState,
     profile: AccountViewModel,
     editor: AvatarEditor,
@@ -149,36 +154,43 @@ internal fun SettingsDialog(
     var justSaved by remember { mutableStateOf(false) }
     // 没保存就想关（或想回一览）的次数：每变一次，"未保存的更改"条晃一下。
     var attention by remember { mutableIntStateOf(0) }
+    val signedIn = user != null
     // 方案、删除账号的状态放在这里而不是各自的页面里：网页各栏一直挂着（只是不显示），进出页面状态都还在。
-    val plan = rememberPlanSettingsState(profile::loadPlan)
+    val plan = if (signedIn) rememberPlanSettingsState(profile::loadPlan) else null
     val deletion = remember { DeleteAccountState() }
     // 正在删除账号：和保存中一样不关、不让按其他按钮。
     val deleting = deletion.deleting
     val scope = rememberCoroutineScope()
     val system = rememberSystemText()
+    val uri = LocalUriHandler.current
 
     // 名字的输入框：没在编辑时跟着保存后的名字走（保存失败回滚时不盖掉用户接着输入、还没发出的文字）。
-    val savedName = user.displayName ?: user.googleName ?: ""
+    val savedName = user?.displayName ?: user?.googleName ?: ""
     var nameDraft by remember { mutableStateOf(savedName) }
     var editingName by remember { mutableStateOf(false) }
     LaunchedEffect(savedName) { if (!editingName) nameDraft = savedName }
 
     // 选了照片还没存、或正在上传：网页 photoBusy。
-    val photoBusy = picked != null || account.uploading
-    val dirty = initial?.let { customInstructionsChanged(it, instructions) } == true
+    val photoBusy = signedIn && (picked != null || account.uploading)
+    val dirty = signedIn && initial?.let { customInstructionsChanged(it, instructions) } == true
+    val activePage = nav.page?.takeIf { signedIn || it == SettingsPage.General || it == SettingsPage.Help }
+    val isHome = activePage == null
     // 网页 locked：保存中、删除中什么都不动。
     val locked = busy || deleting
     val closeNow = {
-        profile.saveName(nameDraft)
+        if (signedIn) profile.saveName(nameDraft)
         onClose()
     }
     // 换画面（网页 show / goHome）。离开"账号"页时名字的输入框就不在了：和失焦一样，先把输入中的名字存掉。
     val go: (SettingsNav) -> Unit = { next ->
-        if (nav.page == SettingsPage.Account && next.page != SettingsPage.Account) {
+        val safeNext = next.page?.let { target ->
+            if (signedIn || target == SettingsPage.General || target == SettingsPage.Help) next else next.toHome()
+        } ?: next
+        if (signedIn && activePage == SettingsPage.Account && safeNext.page != SettingsPage.Account) {
             profile.saveName(nameDraft)
             editingName = false
         }
-        nav = next
+        nav = safeNext
     }
     // 照 SettingsNav.kt 决定的那一步去做（网页 apply）。
     val perform: (SettingsStep) -> Unit = { step ->
@@ -190,10 +202,10 @@ internal fun SettingsDialog(
     // 系统的图片选择器开着时（头像、图标共用一个标记）按键到不了这里，万一到了也不动。
     val requestClose: () -> Unit = {
         val still = locked || pickerOpen
-        val guard = if (still) null else settingsEditorGuard(account.uploading, editor != AvatarEditor.Closed, appIcon.picking)
+        val guard = if (still) null else settingsEditorGuard(signedIn && account.uploading, signedIn && editor != AvatarEditor.Closed, appIcon.picking)
         if (guard?.closeAvatarEditor == true) onEditor(AvatarEditor.Closed)
         if (guard?.closeIconPicker == true) appIcon.picking = false
-        perform(settingsDismissStep(still, guard?.page, onPage = !nav.isHome, dirty = dirty))
+        perform(settingsDismissStep(still, guard?.page, onPage = !isHome, dirty = dirty))
     }
     // 一览顶栏的"关闭"（网页 closeAll）：开着的编辑区跟着一起关；选了照片还没存、在上传时不关，显示"账号"页。
     val closeAll: () -> Unit = { perform(settingsButtonStep(locked, photoBusy, onPage = false, dirty = dirty)) }
@@ -207,7 +219,8 @@ internal fun SettingsDialog(
         perform(step)
     }
 
-    LaunchedEffect(attempt) {
+    LaunchedEffect(attempt, signedIn) {
+        if (!signedIn) return@LaunchedEffect
         profile.loadCustomInstructions()
             .onSuccess {
                 initial = it
@@ -263,23 +276,23 @@ internal fun SettingsDialog(
             runCatching { Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f }.getOrDefault(false)
         }
         val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
-        val pageEnter = remember(nav.isHome) { Animatable(if (nav.navigated && !motionOff) 0f else 1f) }
+        val pageEnter = remember(isHome) { Animatable(if (nav.navigated && !motionOff) 0f else 1f) }
         LaunchedEffect(pageEnter) { pageEnter.animateTo(1f, tween(200, easing = SettingsEase)) }
         // 换了画面就从最上面看起（网页 bodyRef.scrollTop = 0）：每个画面用自己的滚动位置。
-        val scroll = key(nav.page) { rememberScrollState() }
+        val scroll = key(activePage) { rememberScrollState() }
 
         // 换了画面以后键盘的焦点跟着走（网页 backRef.focus() / opener.focus()）：页面上是"返回"，回到一览是刚才点的那一行。
         // 触摸操作时这些按钮不接焦点，所以不会凭空出现焦点框。读屏靠下面的 paneTitle：标题变了会念出来，并从顶栏重新读起。
         val backFocus = remember { FocusRequester() }
         val identityFocus = remember { FocusRequester() }
-        val rowFocus = remember { SettingsPage.entries.map { FocusRequester() } }
+        val rowFocus = remember { SettingsPage.entries.associateWith { FocusRequester() } }
         var opener by remember { mutableStateOf<FocusRequester?>(null) }
         LaunchedEffect(nav) {
             if (!nav.navigated) return@LaunchedEffect
-            runCatching { if (nav.isHome) opener?.requestFocus() else backFocus.requestFocus() }
+            runCatching { if (isHome) opener?.requestFocus() else backFocus.requestFocus() }
         }
 
-        val title = stringResource(nav.page?.let(::settingsPageLabel) ?: R.string.acct_settings)
+        val title = stringResource(activePage?.let(::settingsPageLabel) ?: R.string.acct_settings)
         Box(
             Modifier.fillMaxSize()
                 .graphicsLayer {
@@ -295,7 +308,7 @@ internal fun SettingsDialog(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    if (nav.isHome) {
+                    if (isHome) {
                         SettingsBarButton(Lucide.X, 18.dp, stringResource(R.string.close), onClick = closeAll)
                     } else {
                         SettingsBarButton(Lucide.ArrowLeft, 20.dp, stringResource(R.string.back), Modifier.focusRequester(backFocus), onClick = backHome)
@@ -312,7 +325,7 @@ internal fun SettingsDialog(
                         .graphicsLayer {
                             val shown = pageEnter.value
                             // 页面从结束边进来，一览从起始边进来；从右往左的语言里反过来（--settings-page-dir）。
-                            val from = (if (nav.isHome) -1f else 1f) * (if (rtl) -1f else 1f)
+                            val from = (if (isHome) -1f else 1f) * (if (rtl) -1f else 1f)
                             alpha = shown
                             translationX = (1f - shown) * 16.dp.toPx() * from
                         }
@@ -321,29 +334,35 @@ internal fun SettingsDialog(
                         .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = if (dirty) 96.dp else 32.dp),
                 ) {
                     // 名字、头像、语言保存失败的提示：放在最上面，一览和各页面上都有（网页 .settings-save-error，下距 12）。
-                    account.profileError?.let {
-                        val text = when (it) {
-                            is ProfileError.Server -> system.localize(it.message)
-                            ProfileError.CouldNotSave -> stringResource(R.string.acct_could_not_save)
-                        }
-                        Text(text, color = SettingsDanger, fontSize = 14.sp, lineHeight = 21.sp, modifier = Modifier.padding(bottom = 12.dp))
-                    }
-                    when (nav.page) {
-                        // 入口的一览（网页 .settings-home）：账号行，隔 24 是各栏的行。
-                        null -> {
-                            SettingsIdentityRow(user, user.name ?: user.email ?: stringResource(R.string.account), Modifier.focusRequester(identityFocus)) {
-                                opener = identityFocus
-                                go(nav.show(SettingsPage.Account))
+                    if (signedIn) {
+                        account.profileError?.let {
+                            val text = when (it) {
+                                is ProfileError.Server -> system.localize(it.message)
+                                ProfileError.CouldNotSave -> stringResource(R.string.acct_could_not_save)
                             }
-                            Spacer(Modifier.height(24.dp))
+                            Text(text, color = SettingsDanger, fontSize = 14.sp, lineHeight = 21.sp, modifier = Modifier.padding(bottom = 12.dp))
+                        }
+                    }
+                    when (activePage) {
+                        // 入口的一览（网页 .settings-home）：登录后是账号行 + 各栏（不重复"账号"行），访客是通用与帮助。
+                        null -> {
+                            if (user != null) {
+                                SettingsIdentityRow(user, user.name ?: user.email ?: stringResource(R.string.account), Modifier.focusRequester(identityFocus)) {
+                                    opener = identityFocus
+                                    go(nav.show(SettingsPage.Account))
+                                }
+                                Spacer(Modifier.height(24.dp))
+                            }
+                            val homePages = settingsHomePages(signedIn)
                             SettingsCard {
-                                SettingsPage.entries.forEachIndexed { index, page ->
+                                homePages.forEachIndexed { index, homePage ->
+                                    val requester = rowFocus.getValue(homePage)
                                     SettingsHomeRow(
-                                        settingsPageIcon(page), stringResource(settingsPageLabel(page)), divider = index > 0,
-                                        modifier = Modifier.focusRequester(rowFocus[index]),
+                                        settingsPageIcon(homePage), stringResource(settingsPageLabel(homePage)), divider = index > 0,
+                                        modifier = Modifier.focusRequester(requester),
                                     ) {
-                                        opener = rowFocus[index]
-                                        go(nav.show(page))
+                                        opener = requester
+                                        go(nav.show(homePage))
                                     }
                                 }
                             }
@@ -357,7 +376,7 @@ internal fun SettingsDialog(
                             AppIconSettings(appIcon, onPickImage = onPickAppIconImage)
                         }
 
-                        SettingsPage.Personalization -> SettingsCard(padded = true) {
+                        SettingsPage.Personalization -> if (user != null) SettingsCard(padded = true) {
                             CustomInstructionsSection(
                                 initial = initial,
                                 loadError = loadError?.let { (it as? ApiException)?.serverMessage()?.let(system::localize) ?: stringResource(R.string.acct_err_load_custom_instructions) },
@@ -378,10 +397,10 @@ internal fun SettingsDialog(
                             }
                         }
 
-                        SettingsPage.Plan -> SettingsCard(padded = true) { PlanSettings(plan) }
+                        SettingsPage.Plan -> if (plan != null) SettingsCard(padded = true) { PlanSettings(plan) }
 
                         // 账号：个人资料，隔 24 是退出登录 / 删除账号（网页 .settings-group.is-active ~ .settings-group.is-active）。
-                        SettingsPage.Account -> {
+                        SettingsPage.Account -> if (user != null) {
                             SettingsCard(padded = true) {
                                 ProfileSettings(
                                     user = user,
@@ -414,6 +433,26 @@ internal fun SettingsDialog(
                                     deleteAccount = deleteAccount,
                                     onDeleted = closeNow,
                                 )
+                            }
+                        }
+
+                        SettingsPage.Help -> SettingsCard {
+                            // 介绍页和法律页面在介绍页的主机（SITE_URL），不是工作区的主机（BASE_URL）。
+                            // 介绍页指定用浏览器打开，免得用户把站点链接设为由本 App 打开时又回到 App。
+                            SettingsRowButton(Lucide.Info, stringResource(R.string.visit_website), trailingIcon = Lucide.ExternalLink) {
+                                openInBrowser(context, BuildConfig.SITE_URL + "/?intro")
+                            }
+                            SettingsRowDivider()
+                            SettingsRowButton(Lucide.Shield, stringResource(R.string.privacy), trailingIcon = Lucide.ExternalLink) {
+                                uri.openUri(BuildConfig.SITE_URL + "/privacy")
+                            }
+                            SettingsRowDivider()
+                            SettingsRowButton(Lucide.FileText, stringResource(R.string.terms), trailingIcon = Lucide.ExternalLink) {
+                                uri.openUri(BuildConfig.SITE_URL + "/terms")
+                            }
+                            SettingsRowDivider()
+                            SettingsRowButton(Lucide.Scale, stringResource(R.string.commercial_disclosure), trailingIcon = Lucide.ExternalLink) {
+                                uri.openUri(BuildConfig.SITE_URL + "/legal-notice")
                             }
                         }
                     }
