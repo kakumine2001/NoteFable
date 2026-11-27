@@ -1,3 +1,3 @@
-The AI can now edit whiteboards, with a before/after preview you approve.
-Generate an AI image for a slide, or turn a whiteboard sketch into an image.
-Clearer wording: notes, slide decks and whiteboards are all pages in your Workspace.
+Ask the AI to edit your slide decks and review the changes.
+Generating slides now shows progress in the note menu.
+Fixes for long translations and more translated text.
