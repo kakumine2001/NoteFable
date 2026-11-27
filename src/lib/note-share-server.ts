@@ -1,13 +1,16 @@
 import { randomBytes } from "crypto";
 import { Prisma } from "@/generated/prisma/client";
+import { extractCanvasSegments } from "@/lib/canvas-document";
 import { splitHosts } from "@/lib/hosts";
 import { isShareRowActive, isValidShareToken, shareIconUrl, sharePageUrl } from "@/lib/note-share";
 import { isUploadedNoteIcon, noteIconText } from "@/lib/note-icon";
 import { PAGE_SUMMARY_SELECT } from "@/lib/note-tree-server";
-import { PAGE_KINDS, pageKindFeatures, pageKindOf, type PageKind } from "@/lib/page-kinds";
+import { isCanvasKind, PAGE_KINDS, pageKindFeatures, pageKindOf, type PageKind } from "@/lib/page-kinds";
 import { readCanvasDataForShare } from "@/lib/canvas-store";
 import { prisma, databaseSchema } from "@/lib/prisma";
+import { publicDeck } from "@/lib/slides/public-deck";
 import { extractPageCardSummary, isValidPageCardId, MAX_PAGE_CARD_BATCH, type PageCardPreview } from "@/lib/whiteboard/links";
+import { publicWhiteboardScene } from "@/lib/whiteboard/public";
 import type { NotePageFont, NoteShareAncestor, NoteShareState } from "@/types/notes";
 
 const table = () => Prisma.raw(`"${databaseSchema}"."NotePage"`);
@@ -318,6 +321,7 @@ type CardAncestorRow = {
 
 // 公開ホワイトボード内のページカードについて、同じ公開共有ツリーに属するページだけをまとめて解決する。
 // 共有ツリー外・削除済み・親から除外・スライド配下のページは返さず、アップロード画像アイコンの内部キーも外へ出さない。
+// スライド・ホワイトボードの要約は、非公開要素（隠しスライド・スピーカーノート・畳んだ思考マップ枝・非公開カード名）を除いた公開用の本体から作る。
 export async function resolvePublicShareCards(
   token: string,
   root: Pick<ResolvedPublicShare["root"], "id" | "kind" | "userId" | "shareIncludeSubpages">,
@@ -329,7 +333,6 @@ export async function resolvePublicShareCards(
     if (!isValidPageCardId(id) || seen.has(id)) continue;
     seen.add(id);
     uniqueIds.push(id);
-    if (uniqueIds.length >= MAX_PAGE_CARD_BATCH) break;
   }
   if (!uniqueIds.length) return {};
 
@@ -337,19 +340,32 @@ export async function resolvePublicShareCards(
   const queryIds = allowSubpages ? uniqueIds : uniqueIds.filter((id) => id === root.id);
   if (!queryIds.length) return {};
 
-  const rows = await prisma.notePage.findMany({
-    where: { id: { in: queryIds }, userId: root.userId, deletedAt: null },
-    select: {
-      id: true,
-      kind: true,
-      parentId: true,
-      title: true,
-      icon: true,
-      blocks: true,
-      shareExcludeFromParent: true,
-      canvas: { select: { segments: true } },
-    },
-  });
+  type CardPageRow = {
+    id: string;
+    kind: string;
+    parentId: string | null;
+    title: string;
+    icon: string | null;
+    blocks: unknown;
+    shareExcludeFromParent: boolean;
+  };
+  const rows: CardPageRow[] = [];
+  for (let offset = 0; offset < queryIds.length; offset += MAX_PAGE_CARD_BATCH) {
+    const chunk = queryIds.slice(offset, offset + MAX_PAGE_CARD_BATCH);
+    const batch = await prisma.notePage.findMany({
+      where: { id: { in: chunk }, userId: root.userId, deletedAt: null },
+      select: {
+        id: true,
+        kind: true,
+        parentId: true,
+        title: true,
+        icon: true,
+        blocks: true,
+        shareExcludeFromParent: true,
+      },
+    });
+    rows.push(...batch);
+  }
   if (!rows.length) return {};
 
   const candidates = rows.filter((row) => row.id === root.id || (allowSubpages && shareable(row) && !row.shareExcludeFromParent));
@@ -360,13 +376,14 @@ export async function resolvePublicShareCards(
   )];
 
   const validStarts = new Set<string>();
-  if (startParentIds.length) {
+  for (let offset = 0; offset < startParentIds.length; offset += MAX_PAGE_CARD_BATCH) {
+    const chunk = startParentIds.slice(offset, offset + MAX_PAGE_CARD_BATCH);
     const ancestors = await prisma.$queryRaw<CardAncestorRow[]>(Prisma.sql`
       WITH RECURSIVE chain AS (
         SELECT p."id" AS "startId", p."id", p."kind"::text AS "kind", p."parentId",
                p."shareExcludeFromParent", 1 AS depth, ARRAY[p."id"]::text[] AS seen
         FROM ${table()} p
-        WHERE p."id" = ANY(${startParentIds}::text[]) AND p."userId" = ${root.userId} AND p."deletedAt" IS NULL
+        WHERE p."id" = ANY(${chunk}::text[]) AND p."userId" = ${root.userId} AND p."deletedAt" IS NULL
         UNION ALL
         SELECT c."startId", p."id", p."kind"::text AS "kind", p."parentId",
                p."shareExcludeFromParent", c.depth + 1, c.seen || p."id"
@@ -395,18 +412,41 @@ export async function resolvePublicShareCards(
     }
   }
 
+  const inTreeRows = candidates.filter((row) => row.id === root.id || row.parentId === root.id || (row.parentId !== null && validStarts.has(row.parentId)));
+  const inTreeCanvasIds = inTreeRows.filter((row) => isCanvasKind(pageKindOf(row))).map((row) => row.id);
+  const canvasDataById = new Map<string, unknown>();
+  for (let offset = 0; offset < inTreeCanvasIds.length; offset += MAX_PAGE_CARD_BATCH) {
+    const chunk = inTreeCanvasIds.slice(offset, offset + MAX_PAGE_CARD_BATCH);
+    const canvases = await prisma.noteCanvas.findMany({
+      where: { noteId: { in: chunk } },
+      select: { noteId: true, data: true },
+    });
+    for (const canvas of canvases) canvasDataById.set(canvas.noteId, canvas.data);
+  }
+
   const cards: Record<string, PageCardPreview> = {};
-  for (const row of candidates) {
-    const inTree = row.id === root.id || row.parentId === root.id || (row.parentId !== null && validStarts.has(row.parentId));
-    if (!inTree) continue;
+  for (const row of inTreeRows) {
     const kind = pageKindOf(row);
+    let summary = "";
+    if (kind === "slides") {
+      const data = canvasDataById.get(row.id);
+      if (data) summary = extractPageCardSummary("slides", null, extractCanvasSegments("slides", publicDeck(data)));
+    } else if (kind === "whiteboard") {
+      const data = canvasDataById.get(row.id);
+      if (data) {
+        const sanitized = publicWhiteboardScene(data, token, row.id, { cards: {}, unavailableLabel: "" });
+        summary = extractPageCardSummary("whiteboard", null, extractCanvasSegments("whiteboard", sanitized));
+      }
+    } else {
+      summary = extractPageCardSummary("note", row.blocks, null);
+    }
     cards[row.id] = {
       id: row.id,
       kind,
       title: row.title,
       icon: noteIconText(row.icon) || null,
       iconUrl: isUploadedNoteIcon(row.icon) ? shareIconUrl(token, row.id) : null,
-      summary: extractPageCardSummary(kind, row.blocks, row.canvas?.segments),
+      summary,
     };
   }
   return cards;

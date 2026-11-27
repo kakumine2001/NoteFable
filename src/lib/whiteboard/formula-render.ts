@@ -68,7 +68,6 @@ export async function renderFormulaToPng(rawLatex: string): Promise<RenderedForm
   card.className = "whiteboard-formula-capture";
   card.style.display = "inline-block";
   card.style.width = "max-content";
-  card.style.maxWidth = "960px";
   card.style.padding = "12px 18px";
   card.style.borderRadius = "10px";
   card.style.border = "1.5px solid #d0d7de";
@@ -92,8 +91,9 @@ export async function renderFormulaToPng(rawLatex: string): Promise<RenderedForm
   let canvas: HTMLCanvasElement | null = null;
   try {
     const rect = card.getBoundingClientRect();
-    const logicalWidth = Math.max(48, Math.ceil(rect.width) + 2);
-    const logicalHeight = Math.max(36, Math.ceil(rect.height) + 2);
+    // 横長の display 数式は折り返されないため、実際の描画幅（scrollWidth を含む）を測ってから出力上限へ縮小する。
+    const logicalWidth = Math.max(48, Math.ceil(Math.max(rect.width, card.scrollWidth)) + 2);
+    const logicalHeight = Math.max(36, Math.ceil(Math.max(rect.height, card.scrollHeight)) + 2);
     const scale = Math.min(2, MAX_RENDER_SIDE / Math.max(logicalWidth, logicalHeight));
     const { domToCanvas } = await import("modern-screenshot");
     canvas = await domToCanvas(card, {

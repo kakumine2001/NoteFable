@@ -144,4 +144,64 @@ describe("public whiteboards", () => {
     expect(eqEl.customData).toBeUndefined();
     expect(scene.files?.a.dataURL).toBe(`/s/tok/file?page=page1&key=${encodeURIComponent(key)}&name=photo.png`);
   });
+
+  it("honors removed or retargeted page-card links on public shares instead of restoring stale metadata", () => {
+    const scene = publicWhiteboardScene({
+      elements: [
+        // リンクが外されたカード（元ページがツリー内でも link を復活させない）
+        {
+          id: "unlinked-in",
+          type: "rectangle",
+          width: 280,
+          height: 70,
+          link: null,
+          boundElements: [{ id: "unlinked-in-t", type: "text" }],
+          customData: { notefablePage: { id: "in1", kind: "note" } },
+        },
+        { id: "unlinked-in-t", type: "text", containerId: "unlinked-in", text: "Custom Note", originalText: "Custom Note", fontSize: 18 },
+        // 外部 URL に変えられたカード（外部リンクを保ち、notefablePage を外す）
+        {
+          id: "ext-card",
+          type: "rectangle",
+          width: 280,
+          height: 70,
+          link: "https://example.com/docs",
+          boundElements: [{ id: "ext-card-t", type: "text" }],
+          customData: { notefablePage: { id: "in1", kind: "note" } },
+        },
+        { id: "ext-card-t", type: "text", containerId: "ext-card", text: "Docs", originalText: "Docs", fontSize: 18 },
+        // 別の公開ページへ付け替えられたカード（新しい link 先へ追従）
+        {
+          id: "retargeted",
+          type: "rectangle",
+          width: 280,
+          height: 70,
+          link: "/app?view=pages&page=in2",
+          boundElements: [{ id: "retargeted-t", type: "text" }],
+          customData: { notefablePage: { id: "in1", kind: "note" } },
+        },
+        { id: "retargeted-t", type: "text", containerId: "retargeted", text: "Old Target", originalText: "Old Target", fontSize: 18 },
+      ],
+    }, "tok", "page1", {
+      cards: {
+        in1: { id: "in1", kind: "note", title: "Original In-Tree", icon: "📘", summary: "" },
+        in2: { id: "in2", kind: "whiteboard", title: "New In-Tree Target", icon: "🧩", summary: "" },
+      },
+      untitled: "Untitled",
+      unavailableLabel: "This page is not available",
+    });
+
+    const unlinked = scene.elements.find((e) => e.id === "unlinked-in")!;
+    const ext = scene.elements.find((e) => e.id === "ext-card")!;
+    const retargeted = scene.elements.find((e) => e.id === "retargeted")!;
+    const retargetedText = scene.elements.find((e) => e.id === "retargeted-t")!;
+
+    expect(unlinked.link).toBeNull();
+    expect(unlinked.customData).toBeUndefined();
+    expect(ext.link).toBe("https://example.com/docs");
+    expect(ext.customData).toBeUndefined();
+    expect(retargeted.link).toBe("/app?view=pages&page=in2");
+    expect(retargeted.customData).toEqual({ notefablePage: { id: "in2", kind: "whiteboard" } });
+    expect(retargetedText.originalText).toBe("🧩 New In-Tree Target");
+  });
 });

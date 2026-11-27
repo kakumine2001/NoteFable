@@ -21,7 +21,7 @@ import { expandWhiteboardSelection } from "@/lib/whiteboard/selection-capture";
 import type { PageSelection } from "@/lib/page-ai/types";
 import { getNativeExportEpoch, saveExportFile } from "@/lib/export-file";
 import { formulaDataOf, hitTestFormulaElement, makeFormulaCustomData } from "@/lib/whiteboard/formula";
-import { pageCardLabel, pageCardOf, pageIdFromLink, pageLinkUrl, whiteboardPageCardIds, type PageCardPreview } from "@/lib/whiteboard/links";
+import { effectivePageCardOf, MAX_PAGE_CARD_BATCH, pageCardLabel, pageCardOf, pageIdFromLink, pageLinkUrl, whiteboardPageCardIds, type PageCardPreview } from "@/lib/whiteboard/links";
 import { importPdfPages, MAX_PDF_IMPORT_PAGES, type PdfImportResult } from "@/lib/whiteboard/pdf-import";
 import { consumeWhiteboardReveal, WHITEBOARD_REVEAL_EVENT, type WhiteboardRevealDetail } from "@/lib/whiteboard/reveal";
 import { fitStoredWhiteboard, generatedImageDataOf, isStoredFileUrl, sceneToStored, storedToScene, type StoredWhiteboard, type WhiteboardElement } from "@/lib/whiteboard/scene";
@@ -991,17 +991,21 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     const controller = new AbortController();
     cardFetchControllers.current.add(controller);
     try {
-      const response = await fetch("/api/pages/card-previews", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: toFetch }),
-        cache: "no-store",
-        signal: controller.signal,
-      });
-      if (!response.ok) throw new Error(String(response.status));
-      const data = await response.json() as { cards?: Record<string, PageCardPreview> };
+      const returned: Record<string, PageCardPreview> = {};
+      for (let offset = 0; offset < toFetch.length; offset += MAX_PAGE_CARD_BATCH) {
+        const chunk = toFetch.slice(offset, offset + MAX_PAGE_CARD_BATCH);
+        const response = await fetch("/api/pages/card-previews", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids: chunk }),
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error(String(response.status));
+        const data = await response.json() as { cards?: Record<string, PageCardPreview> };
+        if (data.cards) Object.assign(returned, data.cards);
+      }
       if (!mounted.current || controller.signal.aborted) return;
-      const returned = data.cards ?? {};
       const next: Record<string, PageCardPreview | null> = { ...cardPreviewsRef.current };
       for (const id of toFetch) {
         next[id] = Object.hasOwn(returned, id) ? returned[id] : null;
@@ -1086,7 +1090,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     if (!id) return;
     const native = event.detail.nativeEvent;
     event.preventDefault();
-    const card = pageCardOf(element.customData);
+    const card = effectivePageCardOf(element);
     if (card && cardPreviewsRef.current[card.id] === null) {
       setNotice({ text: msg("Page does not exist") });
       return;
@@ -1230,11 +1234,30 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   const setLinkOnSelection = useCallback((link: string | null) => {
     if (!api) return;
     const state = api.getAppState();
+    const nextPageId = link ? pageIdFromLink(link, window.location.origin) : null;
+    const matchedPage = nextPageId ? props.pages?.find((page) => page.id === nextPageId) : undefined;
+    let retargetedCard = false;
     api.updateScene({
-      elements: api.getSceneElementsIncludingDeleted().map((element) => state.selectedElementIds[element.id] && !element.isDeleted ? newElementWith(element, { link }) : element),
+      elements: api.getSceneElementsIncludingDeleted().map((element) => {
+        if (!state.selectedElementIds[element.id] || element.isDeleted) return element;
+        if (!pageCardOf(element.customData)) return newElementWith(element, { link });
+        // ページカードのリンク編集・削除に合わせて notefablePage を同期する（削除・外部 URL 化時は印を外し、別ページ時は付け替える）。
+        const nextCustom = { ...(element.customData ?? {}) };
+        if (nextPageId) {
+          nextCustom.notefablePage = { id: nextPageId, kind: matchedPage?.kind ?? "note" };
+          retargetedCard = true;
+        } else {
+          delete nextCustom.notefablePage;
+        }
+        return newElementWith(element, {
+          link,
+          customData: Object.keys(nextCustom).length ? nextCustom : undefined,
+        });
+      }),
       captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     });
-  }, [api]);
+    if (retargetedCard && nextPageId) void fetchCardPreviews([nextPageId], { force: true });
+  }, [api, fetchCardPreviews, props.pages]);
 
   const insertPageCard = useCallback((page: MentionPage) => {
     if (!api) return;
@@ -1582,7 +1605,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
         const hit = hitTestGeneratedImage(api.getSceneElements(), { x: sceneX, y: sceneY });
         setReadonlyReportImageId(hit);
       }}
-      onDoubleClick={(event) => {
+      onDoubleClickCapture={(event) => {
         if (!editable || !api || ui?.editingText) return;
         const target = event.target as HTMLElement;
         if (!target.closest(".excalidraw") || target.closest("button, dialog, [role='menu'], [role='dialog'], input, textarea")) return;
@@ -1734,7 +1757,7 @@ function deriveUiState(selected: readonly NonDeletedExcalidrawElement[], appStat
     && formulaDataOf(selected[0].customData) !== null
     ? selected[0].id
     : null;
-  const selectedPageCardId = selected.length === 1 ? pageCardOf(selected[0].customData)?.id ?? null : null;
+  const selectedPageCardId = selected.length === 1 ? effectivePageCardOf(selected[0])?.id ?? null : null;
   const lockedEl = !singleGeneratedImageId && appState.activeLockedId ? byId.get(appState.activeLockedId) : undefined;
   const lockedGeneratedImageId = lockedEl && !lockedEl.isDeleted && lockedEl.type === "image" && generatedImageDataOf(lockedEl.customData) !== null
     ? lockedEl.id

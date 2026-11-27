@@ -4,7 +4,7 @@ import { newElementWith, restoreElements } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { useEffect, useMemo, useState } from "react";
-import { pageCardLabel, pageCardMissingLabel, pageCardOf, type PageCardPreview } from "@/lib/whiteboard/links";
+import { effectivePageCardOf, pageCardLabel, pageCardMissingLabel, type PageCardPreview } from "@/lib/whiteboard/links";
 
 // ホワイトボード上のページカード：
 // 1. 取得した最新の題名・アイコン（または「ページ不存在」）をカードの文字要素へ反映する（syncPageCardElements）。
@@ -36,7 +36,7 @@ export function syncPageCardElements(
 
   for (const element of elements) {
     if (element.isDeleted) continue;
-    const card = pageCardOf(element.customData);
+    const card = effectivePageCardOf(element);
     if (!card || !Object.hasOwn(previews, card.id)) continue;
     const preview = previews[card.id];
     if (preview === undefined) continue;
@@ -67,7 +67,7 @@ export function syncPageCardElements(
     const [, fitted] = restoreElements(
       [cardEl, { ...textEl, text: nextLabel, originalText: nextLabel }] as never,
       null,
-      { refreshDimensions: true },
+      { refreshDimensions: true, repairBindings: true },
     ) as unknown as ExcalidrawElement[];
     if (!fitted || fitted.id !== textId || fitted.type !== "text") continue;
     const neededHeight = Math.ceil(fitted.height + 24);
@@ -135,7 +135,7 @@ export function PageCardOverlay({
     const margin = 120;
     for (const element of elements) {
       if (element.isDeleted) continue;
-      const card = pageCardOf(element.customData);
+      const card = effectivePageCardOf(element);
       if (!card) continue;
       const preview = previews[card.id];
       if (!preview?.summary) continue;

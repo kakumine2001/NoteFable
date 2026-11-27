@@ -61,6 +61,20 @@ export function pageCardOf(customData: unknown): PageCardData | null {
   return { id, kind: kind === "whiteboard" || kind === "slides" ? kind : "note" };
 }
 
+// 要素の link と customData.notefablePage を突き合わせた実効ページカード。
+// 既存の「リンクを編集 / 削除」で link が外されたり外部 URL に変えられたカードはページカード扱いせず、
+// 別のページへ付け替えられた場合は新しい link 先のページ ID を使う。
+export function effectivePageCardOf(element: { link?: unknown; customData?: unknown } | Record<string, unknown>): PageCardData | null {
+  const card = pageCardOf(element.customData);
+  if (!card) return null;
+  if (element.link === undefined) return card;
+  if (typeof element.link !== "string" || !element.link.trim()) return null;
+  const linkedId = pageIdFromLink(element.link, "https://notefable.local");
+  if (!linkedId || !PAGE_ID.test(linkedId)) return null;
+  if (linkedId === card.id) return card;
+  return { id: linkedId, kind: "note" };
+}
+
 // カードに出す文字：アイコン（絵文字のときだけ）と題名。アップロードした画像のアイコンは文字にできないので、種類の記号を使う。
 const KIND_GLYPHS: Record<string, string> = { note: "📄", whiteboard: "🧩", slides: "📊" };
 export function pageCardLabel(page: { title: string; icon: string | null; kind?: string }, untitled: string) {
@@ -74,7 +88,8 @@ export function pageCardMissingLabel(missingText: string) {
 }
 
 // ホワイトボード本体（または要素一覧）に含まれる生きているページカードの参照先ページ ID（重複なし）。
-export function whiteboardPageCardIds(data: unknown, limit = MAX_PAGE_CARD_BATCH): string[] {
+// 200 件を超える盤面でも取りこぼさないよう既定では上限を掛けず、呼び出し側で MAX_PAGE_CARD_BATCH ごとに分けて取得する。
+export function whiteboardPageCardIds(data: unknown, limit?: number): string[] {
   const list = Array.isArray(data)
     ? data
     : (typeof data === "object" && data !== null && Array.isArray((data as { elements?: unknown }).elements)
@@ -83,13 +98,13 @@ export function whiteboardPageCardIds(data: unknown, limit = MAX_PAGE_CARD_BATCH
   const seen = new Set<string>();
   for (const raw of list) {
     if (typeof raw !== "object" || raw === null) continue;
-    const element = raw as { type?: unknown; isDeleted?: unknown; customData?: unknown };
+    const element = raw as { type?: unknown; isDeleted?: unknown; link?: unknown; customData?: unknown };
     if (element.isDeleted === true) continue;
     if (typeof element.type === "string" && !WHITEBOARD_ELEMENT_TYPES.has(element.type)) continue;
-    const card = pageCardOf(element.customData);
+    const card = effectivePageCardOf(element);
     if (!card || seen.has(card.id)) continue;
     seen.add(card.id);
-    if (seen.size >= limit) break;
+    if (limit !== undefined && seen.size >= limit) break;
   }
   return [...seen];
 }

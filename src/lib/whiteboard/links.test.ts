@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  effectivePageCardOf,
   extractPageCardSummary,
   normalizeExternalLink,
   pageCardLabel,
@@ -74,5 +75,19 @@ describe("page cards", () => {
     expect(longSummary.endsWith("…")).toBe(true);
 
     expect(wrapCardLabelText("📄 Very long title for a narrow whiteboard card", 180, 18)).toContain("\n");
+
+    // 既存カードでリンクが削除・外部 URL 化・別ページへ付け替えられた場合の実効ターゲット判定。
+    expect(effectivePageCardOf({ link: null, customData: { notefablePage: { id: "p1", kind: "note" } } })).toBeNull();
+    expect(effectivePageCardOf({ link: "https://example.com", customData: { notefablePage: { id: "p1", kind: "note" } } })).toBeNull();
+    expect(effectivePageCardOf({ link: "/app?view=pages&page=p2", customData: { notefablePage: { id: "p1", kind: "note" } } })).toEqual({ id: "p2", kind: "note" });
+
+    // 200 件を超えるカード参照も途中で打ち切らない。
+    const manyElements = Array.from({ length: 210 }, (_, i) => ({
+      id: `c_${i}`,
+      type: "rectangle",
+      link: pageLinkUrl(`p_${i}`),
+      customData: { notefablePage: { id: `p_${i}`, kind: "note" } },
+    }));
+    expect(whiteboardPageCardIds({ elements: manyElements })).toHaveLength(210);
   });
 });

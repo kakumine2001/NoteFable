@@ -41,7 +41,10 @@ export function WhiteboardFormulaDialog({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const mounted = useRef(true);
 
-  useBackToClose(true, () => { if (!submitting) onClose(); });
+  useBackToClose(true, () => {
+    if (submitting) return false;
+    onClose();
+  });
 
   useEffect(() => {
     mounted.current = true;
