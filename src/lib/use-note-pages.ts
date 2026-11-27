@@ -55,6 +55,18 @@ export function applyCanvasEditorChange(
   return true;
 }
 
+function mergeSummaryMeta(entry: NotePageSummary, page: NotePageSummary): NotePageSummary {
+  return {
+    ...entry,
+    favoritedAt: page.favoritedAt ?? null,
+    fullWidth: page.fullWidth,
+    smallText: page.smallText,
+    font: page.font,
+    locked: page.locked,
+    ...(page.shareEnabled !== undefined ? { shareEnabled: page.shareEnabled, shareExpiresAt: page.shareExpiresAt ?? null } : {}),
+  };
+}
+
 // 対応する保存キューのページメタデータ（ロック・お気に入り・表示設定）を最新値へそろえる。
 function syncQueueMeta(queueMap: ReadonlyMap<string, NoteSaveQueue>, page: NotePageSummary): boolean {
   const queue = queueMap.get(page.id);
@@ -298,23 +310,31 @@ export function useNotePages(
     let writtenDraft: { content: unknown; version: number } | null = null;
     const queue: NoteSaveQueue = new NoteSaveQueue(page, async (content, version): Promise<NotePage> => {
       const started = metaSequence.current;
-      if (isCanvasKind(kind)) {
-        // ホワイトボード・スライドは { title, icon, data?, version }。応答は版と一覧の 1 件だけなので、送った本体と合わせてページを作り直す。
-        // queue.page.data は最後に保存できた本体（読み込み・保存・最新版の読み込みのたびに替わる）。
-        const saved = queue.page.data;
-        const data = await pageRequest(`/api/pages/${page.id}`, "PATCH", canvasSaveBody(content, version, saved));
-        // 送っている間にゴミ箱へ移った（キューを捨てた）ページを、一覧に戻さない。
+      try {
+        if (isCanvasKind(kind)) {
+          // ホワイトボード・スライドは { title, icon, data?, version }。応答は版と一覧の 1 件だけなので、送った本体と合わせてページを作り直す。
+          // queue.page.data は最後に保存できた本体（読み込み・保存・最新版の読み込みのたびに替わる）。
+          const saved = queue.page.data;
+          const data = await pageRequest(`/api/pages/${page.id}`, "PATCH", canvasSaveBody(content, version, saved));
+          // 送っている間にゴミ箱へ移った（キューを捨てた）ページを、一覧に戻さない。
+          if (queues.current.get(page.id) === queue) upsertSummary(data.page, { since: started });
+          dispatchBacklinksStale(page.id);
+          return canvasSavedPage(queue.page, data, content, saved);
+        }
+        const data = await pageRequest(`/api/pages/${page.id}`, "PATCH", { ...content, version });
+        // 保存の間にこの画面でロックなどを変えていたら、応答の（変更前かもしれない）値で戻さない。変えていなければ別のタブ・アプリでの変更を拾う。
+        // 送っている間にゴミ箱へ移った（キューを捨てた）ページは、一覧に戻さない。
         if (queues.current.get(page.id) === queue) upsertSummary(data.page, { since: started });
+        // 開いている別のページのバックリンクを読み直してもらう（メンションを書いてすぐ移った先でも、保存の後に出る）。
         dispatchBacklinksStale(page.id);
-        return canvasSavedPage(queue.page, data, content, saved);
+        return data.page;
+      } catch (caught) {
+        if (caught instanceof NoteSaveError && caught.status === 409 && caught.latest && queues.current.get(page.id) === queue) {
+          syncQueueMeta(queues.current, caught.latest);
+          setPages((current) => current.map((entry) => entry.id === page.id ? mergeSummaryMeta(entry, caught.latest!) : entry));
+        }
+        throw caught;
       }
-      const data = await pageRequest(`/api/pages/${page.id}`, "PATCH", { ...content, version });
-      // 保存の間にこの画面でロックなどを変えていたら、応答の（変更前かもしれない）値で戻さない。変えていなければ別のタブ・アプリでの変更を拾う。
-      // 送っている間にゴミ箱へ移った（キューを捨てた）ページは、一覧に戻さない。
-      if (queues.current.get(page.id) === queue) upsertSummary(data.page, { since: started });
-      // 開いている別のページのバックリンクを読み直してもらう（メンションを書いてすぐ移った先でも、保存の後に出る）。
-      dispatchBacklinksStale(page.id);
-      return data.page;
     }, () => {
       upsertSummary({
         ...queue.page,
@@ -409,8 +429,8 @@ export function useNotePages(
           const currentQueue = queues.current.get(id);
           if (!currentQueue) return;
           if (latestPage.version > currentQueue.version) {
-            // ホワイトボード等に 400ms 待ちの未提出の線やアップロード中画像があれば、先に同期でキューへ渡してから判定する。
-            const hasPendingEditorWork = displayedId.current === id && flushCanvasEditorsSync(id);
+            // ホワイトボード等に 400ms 待ちの未提出の線や、切替後に進行中のアップロードがあれば、先に同期でキューへ渡してから判定する。
+            const hasPendingEditorWork = flushCanvasEditorsSync(id, displayedId.current !== id);
             if (!hasPendingEditorWork && !currentQueue.dirty && currentQueue.status !== "saving") {
               currentQueue.loadLatest(latestPage);
               if (displayedId.current === id) setEditorEpoch((value) => value + 1);
@@ -425,6 +445,7 @@ export function useNotePages(
             void currentQueue.flush();
           }
           if (latestPage.version >= currentQueue.version) {
+            if ((metaChanged.current.get(id) ?? 0) <= startedMeta) syncQueueMeta(queues.current, latestPage);
             upsertSummary({
               ...latestPage,
               title: currentQueue.content.title.trim() || "Untitled",
@@ -440,7 +461,7 @@ export function useNotePages(
           if ((invalidationSeq.current.get(id) ?? 0) !== seq) return;
           const currentQueue = queues.current.get(id);
           if (currentQueue !== queue) return;
-          const hasPendingEditorWork = displayedId.current === id && flushCanvasEditorsSync(id);
+          const hasPendingEditorWork = flushCanvasEditorsSync(id, displayedId.current !== id);
           if (currentQueue?.dirty || hasPendingEditorWork) {
             if (currentQueue) {
               currentQueue.gone = true;
@@ -508,7 +529,7 @@ export function useNotePages(
       } else {
         queue = existingAfter ?? install(latestPage);
         if (existingAfter && latestPage.version > existingAfter.version) {
-          const hasPendingEditorWork = displayedId.current === id && flushCanvasEditorsSync(id);
+          const hasPendingEditorWork = flushCanvasEditorsSync(id, displayedId.current !== id);
           if (!hasPendingEditorWork && !existingAfter.dirty && existingAfter.status !== "saving") {
             existingAfter.loadLatest(latestPage);
             setEditorEpoch((value) => value + 1);
@@ -602,9 +623,9 @@ export function useNotePages(
       const queue = queues.current.get(page.id);
       // 遅れて届いた古い版（自動適用の読み直しが前後したときなど）で、新しい版を古い版へ戻さない。
       if (!queue || page.version <= queue.version) return;
-      // 開いているホワイトボード等に 400ms 待ちの未提出ストローク・ドラッグがあれば、先に同期でキューへ渡してから判定する。
-      // そうしないと、エディターの再マウント時の unmount flush が古い画布を新しい版へ上書きして AI 編集を消してしまう。
-      const hasPendingEditorWork = displayedId.current === page.id && flushCanvasEditorsSync(page.id);
+      // 開いているホワイトボード等に 400ms 待ちの未提出ストローク・ドラッグや、切替後に進行中のアップロードがあれば、先に同期でキューへ渡してから判定する。
+      // そうしないと、エディターの再マウント時の unmount flush や遅延アップロードが古い画布を新しい版へ上書きしたり、進行中の画像を失ったりする。
+      const hasPendingEditorWork = flushCanvasEditorsSync(page.id, displayedId.current !== page.id);
       if (!hasPendingEditorWork && !queue.dirty && queue.status !== "saving") {
         // ホワイトボード・スライドで本体（data）の無い応答が届いたら、古い本体と新しい版を組み合わせない（別のタブの保存を上書きさせる）。
         // 読み直してから替える。
@@ -612,7 +633,7 @@ export function useNotePages(
           void pageRequest(`/api/pages/${page.id}`).then((data) => {
             const current = queues.current.get(page.id);
             if (!current || data.page.version <= current.version) return;
-            const pendingNow = displayedId.current === page.id && flushCanvasEditorsSync(page.id);
+            const pendingNow = flushCanvasEditorsSync(page.id, displayedId.current !== page.id);
             if (pendingNow || current.dirty || current.status === "saving") {
               if (current.status !== "saving") {
                 current.status = "conflict";
@@ -667,13 +688,14 @@ export function useNotePages(
         ids.add(id);
         for (const childId of descendantIdsOf(pagesRef.current, id)) ids.add(childId);
       }
-      // 開いているページ（ホワイトボードなど）が対象なら、エディターがまだ保存キューへ渡していない変更（アップロード中の画像も）を
+      // 開いているページや切替後にアップロード継続中のページが対象なら、エディターがまだ渡していない変更や進行中アップロードを
       // 先に渡してもらう（「ゴミ箱へ移す」と同じ）。渡し切れなければ元に戻すのを止める。
       const openPage = displayedId.current !== null && ids.has(displayedId.current);
+      const hasPendingUpload = [...ids].some((id) => flushCanvasEditorsSync(id, true));
       const pending = [...ids].flatMap((id) => { const queue = queues.current.get(id); return queue ? [queue] : []; });
-      if (!openPage && !pending.length) return;
+      if (!openPage && !hasPendingUpload && !pending.length) return;
       detail.waits.push((async () => {
-        if (openPage && !(await flushCanvasEditors())) return false;
+        if ((openPage || hasPendingUpload) && !(await flushCanvasEditors())) return false;
         return (await Promise.all(pending.map((queue) => queue.flush()))).every(Boolean);
       })());
     }
@@ -686,8 +708,12 @@ export function useNotePages(
       const removed = new Set(ids.filter((id): id is string => typeof id === "string"));
       for (const id of removed) {
         invalidatePageCache(id);
-        // 待っている保存も止める（送ると 404 になり、一覧に戻してしまう）。
-        queues.current.get(id)?.dispose();
+        // 待っている保存も止める（送ると 404 になり、一覧に戻してしまう）。遅れて完了した処理も再挿入させない。
+        const trashedQueue = queues.current.get(id);
+        if (trashedQueue) {
+          trashedQueue.gone = true;
+          trashedQueue.dispose();
+        }
         queues.current.delete(id);
         // ネイティブの常駐キャッシュ通知（preserveDrafts）では未保存の下書きを消さない（ゴミ箱から復元したときに戻せるようにする）。
         if (!preserveDrafts) {
@@ -720,10 +746,11 @@ export function useNotePages(
       if (!detail || !Array.isArray(detail.ids)) return;
       const ids = new Set(detail.ids.filter((id): id is string => typeof id === "string"));
       const openPage = displayedId.current !== null && ids.has(displayedId.current);
+      const hasPendingUpload = [...ids].some((id) => flushCanvasEditorsSync(id, true));
       const pending = [...ids].flatMap((id) => { const queue = queues.current.get(id); return queue ? [queue] : []; });
-      if (!openPage && !pending.length) return;
+      if (!openPage && !hasPendingUpload && !pending.length) return;
       detail.waits.push((async () => {
-        if (openPage && !(await flushCanvasEditors())) return false;
+        if ((openPage || hasPendingUpload) && !(await flushCanvasEditors())) return false;
         return (await Promise.all(pending.map((queue) => queue.flush()))).every(Boolean);
       })());
     }
@@ -862,6 +889,11 @@ export function useNotePages(
       const removed = new Set<string>([id, ...(Array.isArray(data.ids) ? data.ids as string[] : [])]);
       for (const removedId of removed) {
         invalidatePageCache(removedId);
+        const removedQueue = queues.current.get(removedId);
+        if (removedQueue) {
+          removedQueue.gone = true;
+          removedQueue.dispose();
+        }
         queues.current.delete(removedId);
         if (pendingId.current === removedId) cancelPending();
         try {
@@ -941,10 +973,7 @@ export function useNotePages(
   const applyMeta = (page: NotePageSummary) => { markMeta(page.id); applyMetaRows(page); };
   const applyMetaRows = (page: NotePageSummary) => {
     syncQueueMeta(queues.current, page);
-    setPages((current) => current.map((entry) => entry.id === page.id ? {
-      ...entry, favoritedAt: page.favoritedAt ?? null, fullWidth: page.fullWidth, smallText: page.smallText, font: page.font, locked: page.locked,
-      ...(page.shareEnabled !== undefined ? { shareEnabled: page.shareEnabled, shareExpiresAt: page.shareExpiresAt ?? null } : {}),
-    } : entry));
+    setPages((current) => current.map((entry) => entry.id === page.id ? mergeSummaryMeta(entry, page) : entry));
   };
 
   // 1 ページのお気に入り・表示設定は 1 つずつ送る（続けて切り替えたとき、古い応答が後から届いて新しい設定を戻さないように）。

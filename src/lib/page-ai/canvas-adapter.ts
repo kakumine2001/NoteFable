@@ -543,10 +543,20 @@ export function readSlides(page: AdapterPage, budget: number): string {
   const metaHeader = clipToBudget(metaLines.join("\n"), Math.max(0, budget - noticeReserve));
   const focus = focusIdSet(page.focusIds);
 
-  const formatSlideBlock = (slide: (typeof deck.slides)[number], index: number, prioritizeElements: boolean) => {
-    const section = sectionOf.get(slide.id);
-    const meta = [`id: ${slide.id}`, `layout: ${slide.layout}`, ...(section ? [`section: ${section}`] : [])].join(", ");
-    const lines = [`## Slide ${index + 1} (${meta})${slide.hidden ? " [hidden]" : ""}`];
+  const formatSlideBlock = (slide: (typeof deck.slides)[number], index: number, prioritizeElements: boolean, maxBlockBudget?: number) => {
+    const rawSection = sectionOf.get(slide.id);
+    const compactSection = rawSection
+      ? (prioritizeElements && rawSection.length > 24 ? `${rawSection.slice(0, 23)}…` : rawSection)
+      : undefined;
+    const buildHeader = (sectionLabel?: string) => {
+      const meta = [`id: ${slide.id}`, `layout: ${slide.layout}`, ...(sectionLabel ? [`section: ${sectionLabel}`] : [])].join(", ");
+      return `## Slide ${index + 1} (${meta})${slide.hidden ? " [hidden]" : ""}`;
+    };
+    let headerLine = buildHeader(compactSection);
+    if (prioritizeElements && maxBlockBudget !== undefined && compactSection && headerLine.length + 48 > maxBlockBudget) {
+      headerLine = buildHeader(undefined);
+    }
+    const lines = [headerLine];
 
     if (slide.elements.length) {
       const elements = prioritizeElements && focus.size > 0
@@ -601,7 +611,7 @@ export function readSlides(page: AdapterPage, budget: number): string {
     }
     const availableForFocused = Math.max(0, budget - metaHeader.length - focusedReserve);
     const minEqualShare = Math.floor(availableForFocused / focusedEntries.length) - 2;
-    if (minEqualShare < 120) {
+    if (minEqualShare < 140) {
       return [...focusedEntries, ...unfocusedEntries].map((entry) => ({ block: entry.block, indexLine: entry.indexLine }));
     }
     usedFocusedFairShare = true;
@@ -634,7 +644,7 @@ export function readSlides(page: AdapterPage, budget: number): string {
       const item = unresolved[k];
       const leftCount = unresolved.length - k;
       const share = Math.max(0, Math.floor(remainingBudget / leftCount) - 2);
-      const compact = formatSlideBlock(item.entry.slide, item.entry.index, true);
+      const compact = formatSlideBlock(item.entry.slide, item.entry.index, true, share);
       let block: string;
       if (compact.length <= share) {
         block = compact;

@@ -23,6 +23,7 @@ import { MAX_SLIDES, type CanvasData } from "@/lib/canvas-document";
 import { registerCanvasFlusher } from "@/lib/canvas-flush";
 import { getNativeExportEpoch } from "@/lib/export-file";
 import { localizeSystemText } from "@/lib/i18n/translate";
+import { trackSlideUpload } from "@/lib/slides/upload-tracker";
 import { nativeCanPresent, nativeCanShowUsageLimit, postToNative } from "@/lib/native-bridge";
 import { takeCanvasReveal } from "@/lib/search-reveal";
 import { useBackToClose } from "@/lib/use-back-to-close";
@@ -60,8 +61,6 @@ type History = { deck: Deck; past: Deck[]; future: Deck[]; merge: string | null;
 const HISTORY_LIMIT = 100;
 // 同じ操作（文字の入力・ノート・矢印キーでの移動など）が続く間は、取り消しを 1 回分にまとめる。
 const MERGE_MS = 1500;
-// 提案の適用・元に戻す・編集画面を閉じる前の flush で、アップロード中の画像を待つ時間。
-const UPLOAD_FLUSH_WAIT_MS = 10_000;
 
 type AdoptSlideImage = (
   image: SlideImage,
@@ -98,7 +97,6 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
   const historyRef = useRef<History>(history);
   const deckRef = useRef(deck);
   const mounted = useRef(true);
-  const uploadTasks = useRef(new Set<Promise<void>>());
 
   const flushPending = useCallback(() => {
     const latest = deckRef.current;
@@ -130,19 +128,11 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
   useEffect(() => registerCanvasFlusher(
     async () => {
       flushRef.current();
-      if (!uploadTasks.current.size) return true;
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      await Promise.race([
-        Promise.allSettled([...uploadTasks.current]),
-        new Promise<void>((resolve) => { timer = setTimeout(resolve, UPLOAD_FLUSH_WAIT_MS); }),
-      ]);
-      clearTimeout(timer);
-      flushRef.current();
-      return uploadTasks.current.size === 0;
+      return true;
     },
     () => {
       flushRef.current();
-      return uploadTasks.current.size > 0;
+      return false;
     },
     pageId,
   ), [pageId]);
@@ -524,6 +514,7 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
       if (!mounted.current) return "unmounted";
       if (!editableRef.current) return "rejected";
       placeImage(image, target, at, slideId);
+      flushRef.current();
       return "adopted";
     };
   }, [placeImage]);
@@ -551,6 +542,7 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
           const itemAt = at ? { x: at.x + index * 24, y: at.y + index * 24 } : undefined;
           if (mounted.current) {
             placeImage(image, itemTarget, itemAt, slideId);
+            flushRef.current();
             continue;
           }
           // ページ切替や再マウント後にアップロードが完了した場合：同じ世代で開き直したエディターへ渡す。
@@ -579,13 +571,8 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
         }
       }
     })();
-    uploadTasks.current.add(task);
-    try {
-      await task;
-    } finally {
-      uploadTasks.current.delete(task);
-    }
-  }, [applyImageToDeck, current, liveKey, placeImage, t]);
+    await trackSlideUpload(pageId, task);
+  }, [applyImageToDeck, current, liveKey, pageId, placeImage, t]);
 
   const requestImage = (target: string | null) => {
     imageTarget.current = target;

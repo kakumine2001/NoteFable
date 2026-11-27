@@ -33,15 +33,30 @@ export default function SlidesProposalPreview({ data, focusIds }: { data: unknow
 
   const slidesToShow = useMemo(() => {
     if (!deck.slides.length) return [];
-    const focus = new Set(focusIds ?? []);
-    if (focus.size > 0) {
+    const focusList = focusIds ?? [];
+    if (focusList.length > 0) {
+      const rankById = new Map<string, number>();
+      focusList.forEach((id, rank) => { if (!rankById.has(id)) rankById.set(id, rank); });
       const matched = deck.slides
-        .map((slide, index) => ({ slide, index }))
-        .filter(({ slide }) => focus.has(slide.id) || slide.elements.some((el) => focus.has(el.id)));
-      if (matched.length) return matched.slice(0, 4);
+        .map((slide, index) => {
+          let rank = rankById.get(slide.id);
+          for (const el of slide.elements) {
+            const elRank = rankById.get(el.id);
+            if (elRank !== undefined && (rank === undefined || elRank < rank)) rank = elRank;
+          }
+          return rank !== undefined ? { slide, index, rank } : null;
+        })
+        .filter((entry): entry is { slide: (typeof deck.slides)[number]; index: number; rank: number } => entry !== null);
+      if (matched.length) {
+        return matched
+          .sort((a, b) => a.rank - b.rank || a.index - b.index)
+          .slice(0, 4)
+          .sort((a, b) => a.index - b.index)
+          .map(({ slide, index }) => ({ slide, index }));
+      }
     }
     return deck.slides.slice(0, 3).map((slide, index) => ({ slide, index }));
-  }, [deck.slides, focusIds]);
+  }, [deck, focusIds]);
 
   if (!slidesToShow.length) {
     return <p className="canvas-placeholder-empty">{t("Empty page")}</p>;

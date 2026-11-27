@@ -101,7 +101,7 @@ async function saveCanvas(body: unknown, userId: string, pageId: string, kind: C
     // ノートと同じく、上書きされる前の状態を間隔を空けて履歴に残す（題名だけの変更でも。本体は DB の中で写す）。
     await snapshotBeforeSave(tx, { noteId: pageId, userId, version, kind });
     const changed = await tx.notePage.updateMany({
-      where: { id: pageId, userId, version, deletedAt: null, kind },
+      where: { id: pageId, userId, version, deletedAt: null, kind, locked: false },
       data: { title: input.title, ...(iconPresent ? { icon: input.icon } : {}), version: { increment: 1 } },
     });
     if (changed.count && canvas) await writeCanvas(tx, pageId, canvas);

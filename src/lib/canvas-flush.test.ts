@@ -54,4 +54,16 @@ describe("canvas flush", () => {
     offA();
     offB();
   });
+
+  it("ignores ownerless flushers when exactOnly is true", () => {
+    const calls: string[] = [];
+    const offOwnerless = registerCanvasFlusher(() => true, () => { calls.push("ownerless"); return true; });
+    const offA = registerCanvasFlusher(() => true, () => { calls.push("a"); return false; }, "page-a");
+    expect(flushCanvasEditorsSync("page-a", true)).toBe(false);
+    expect(calls).toEqual(["a"]);
+    expect(flushCanvasEditorsSync("page-a")).toBe(true);
+    expect(calls).toEqual(["a", "ownerless", "a"]);
+    offOwnerless();
+    offA();
+  });
 });

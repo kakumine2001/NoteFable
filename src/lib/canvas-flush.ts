@@ -23,10 +23,11 @@ export function registerCanvasFlusher(flusher: CanvasFlusher, syncFlush?: Canvas
 
 // 開いているエディターの未提出の編集（400ms 待ちなど）を同期でキューへ渡す。
 // 画像アップロード中など同期では渡し切れない作業が残っていれば true を返す。pageId を渡すとそのページのエディターだけを見る。
-export function flushCanvasEditorsSync(pageId?: string): boolean {
+// exactOnly を true にすると、その pageId に紐付く作業だけを見る（別ページ表示中のバックグラウンドアップロード判定用）。
+export function flushCanvasEditorsSync(pageId?: string, exactOnly = false): boolean {
   let pending = false;
   for (const [flush, owner] of syncFlushers) {
-    if (pageId !== undefined && owner !== undefined && owner !== pageId) continue;
+    if (pageId !== undefined && (exactOnly ? owner !== pageId : owner !== undefined && owner !== pageId)) continue;
     try { if (flush()) pending = true; } catch { pending = true; }
   }
   return pending;

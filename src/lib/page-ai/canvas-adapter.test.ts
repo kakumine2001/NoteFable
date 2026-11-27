@@ -418,4 +418,25 @@ describe("canvasTextAdapter structured slides read", () => {
     }
     expect(result).not.toContain("Omitted slides (stable IDs):");
   });
+
+  it("keeps actual element content on selected slides when 100 slides have 200-char section names", () => {
+    const slides = Array.from({ length: 500 }, (_, idx) => ({
+      id: `s500_${idx}`,
+      layout: "bullets",
+      ...(idx < 100 ? { section: `Section ${idx + 1} ${"S".repeat(185)}` } : {}),
+      elements: [{
+        id: `t500_${idx}`,
+        type: "text",
+        role: "title",
+        doc: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: `ElementBody-${idx} Key point` }] }] },
+      }],
+    }));
+    const result = adapter.read(page("slides", {
+      data: { format: 1, theme: { id: "simple", mode: "light" }, slides },
+      focusIds: slides.slice(0, 100).map((s) => s.id),
+    }));
+    expect(result.length).toBeLessThanOrEqual(MAX_READ_CHARS);
+    expect(result).toContain("ElementBody-0 Key point");
+    expect(result).toContain("ElementBody-99 Key point");
+  });
 });

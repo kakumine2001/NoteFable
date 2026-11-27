@@ -151,9 +151,10 @@ vi.mock("@/lib/preload-editor", () => ({
 }));
 
 import { registerCanvasFlusher } from "@/lib/canvas-flush";
-import { PAGES_TRASHED_EVENT } from "@/lib/proposal-sync";
+import { PAGES_TRASHED_EVENT, saveBeforePageChange } from "@/lib/proposal-sync";
 import { createSlide } from "@/lib/slides/layouts";
 import { DECK_FORMAT, normalizeDeck } from "@/lib/slides/model";
+import { trackSlideUpload } from "@/lib/slides/upload-tracker";
 import { NoteSaveQueue } from "./note-save-queue";
 import { applyCanvasEditorChange, useNotePages } from "./use-note-pages";
 
@@ -1242,5 +1243,117 @@ describe("useNotePages instant switching & prefetch", () => {
     queue.gone = false;
     queue.status = "conflict";
     expect(applyCanvasEditorChange(queue, 0, false, (latest) => latest)).toBe(false);
+  });
+
+  it("disposes and marks queues gone on manual Trash and syncs locked state from 409 conflict responses", async () => {
+    createFakeBrowser("https://app.notefable.com/app?view=pages&page=sl1");
+    const initialDeck = normalizeDeck({
+      format: DECK_FORMAT,
+      theme: { id: "simple", mode: "light" },
+      slides: [{ ...createSlide("bullets", { title: "Deck" }), id: "s1" }],
+    });
+    const page: NotePage = {
+      ...makePage("sl1", "Deck", 1),
+      kind: "slides",
+      data: initialDeck as unknown as NotePage["data"],
+    };
+    const lockedSummary = { ...makeSummary(page), locked: true };
+    vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+      if (url === "/api/pages") return Promise.resolve(jsonResponse({ pages: [makeSummary(page)], groups: [] }));
+      if (url === "/api/pages/sl1" && (!init?.method || init.method === "GET")) return Promise.resolve(jsonResponse({ page }));
+      if (url === "/api/pages/sl1" && init?.method === "PATCH") {
+        return Promise.resolve(jsonResponse({ error: "This page was changed in another tab.", page: lockedSummary }, 409));
+      }
+      if (url === "/api/pages/sl1" && init?.method === "DELETE") {
+        return Promise.resolve(jsonResponse({ ids: [] }));
+      }
+      return Promise.reject(new Error(`unexpected ${url}`));
+    }));
+
+    const hook = hookRuntime.mount(() => useNotePages(true));
+    await flushMicrotasks();
+    const queue = hook.current.active!;
+    expect(queue).toBeDefined();
+
+    // 409 carrying locked: true immediately updates both pages list and queue.page.locked.
+    queue.edit({ ...queue.content, title: "Updated offline" });
+    expect(await queue.flush()).toBe(false);
+    await flushMicrotasks();
+    expect(hook.current.pages.find((p) => p.id === "sl1")?.locked).toBe(true);
+    expect(queue.page.locked).toBe(true);
+    expect(queue.status).toBe("conflict");
+
+    // Load latest resolved version (matching UI Trash resolution), then verify manual Trash marks queue gone
+    // and prevents late detached callbacks from writing or reinserting the page.
+    queue.loadLatest(page);
+    expect(await hook.current.remove("sl1")).toBe(true);
+    await flushMicrotasks();
+    expect(queue.gone).toBe(true);
+    expect(hook.current.pages).toEqual([]);
+    expect(applyCanvasEditorChange(queue, queue.generation, false, (latest) => latest)).toBe(false);
+    expect(localStorage.getItem("notefable:canvas-draft:v1:sl1")).toBeNull();
+  });
+
+  it("waits for detached slide uploads on PAGES_WILL_CHANGE and avoids loadLatest overwrite on background page updates", async () => {
+    const { fakeWindow } = createFakeBrowser("https://app.notefable.com/app?view=pages&page=sl1");
+    const initialDeck = normalizeDeck({
+      format: DECK_FORMAT,
+      theme: { id: "simple", mode: "light" },
+      slides: [{ ...createSlide("bullets", { title: "Deck" }), id: "s1" }],
+    });
+    const sl1: NotePage = {
+      ...makePage("sl1", "Deck", 1),
+      kind: "slides",
+      data: initialDeck as unknown as NotePage["data"],
+    };
+    const sl1v2: NotePage = {
+      ...sl1,
+      title: "Deck v2",
+      version: 2,
+    };
+    const otherNote = makePage("n2", "Other Note", 1);
+
+    vi.stubGlobal("fetch", vi.fn((url: string) => {
+      if (url === "/api/pages") return Promise.resolve(jsonResponse({ pages: [makeSummary(sl1), makeSummary(otherNote)], groups: [] }));
+      if (url === "/api/pages/sl1") return Promise.resolve(jsonResponse({ page: sl1 }));
+      if (url === "/api/pages/n2") return Promise.resolve(jsonResponse({ page: otherNote }));
+      return Promise.reject(new Error(`unexpected ${url}`));
+    }));
+
+    const hook = hookRuntime.mount(() => useNotePages(true));
+    await flushMicrotasks();
+    const slQueue = hook.current.active!;
+    expect(slQueue.page.id).toBe("sl1");
+
+    const upload1 = deferred<void>();
+    trackSlideUpload("sl1", upload1.promise, 5000);
+    await hook.current.select("n2", "push");
+    await flushMicrotasks();
+    expect(hook.current.activeId).toBe("n2");
+
+    // 1. PAGES_WILL_CHANGE waits for the detached upload on sl1 even while n2 is displayed.
+    let changeReady = false;
+    const waiting = saveBeforePageChange(["sl1"]).then((ok) => {
+      changeReady = true;
+      return ok;
+    });
+    await flushMicrotasks();
+    expect(changeReady).toBe(false);
+    upload1.resolve();
+    expect(await waiting).toBe(true);
+
+    // 2. Background page-updated while another detached upload is still running flags conflict instead of loadLatest().
+    const upload2 = deferred<void>();
+    trackSlideUpload("sl1", upload2.promise, 5000);
+    try {
+      fakeWindow.dispatchEvent(new CustomEvent("notefable:page-updated", { detail: sl1v2 }));
+      await flushMicrotasks();
+      expect(slQueue.status).toBe("conflict");
+      expect(slQueue.generation).toBe(0);
+      expect(slQueue.latest?.version).toBe(2);
+    } finally {
+      upload2.resolve();
+      await flushMicrotasks();
+    }
   });
 });

@@ -35,7 +35,7 @@ KEEP IT IN YOUR WORKSPACE
 
 LET AI HELP
 • Attach notes, slides or whiteboards to a chat and the AI reads them as context.
-• Ask the AI to rewrite or extend a note, or to edit a whiteboard: it proposes the change, and you decide whether to apply it.
+• Ask the AI to rewrite or extend a note, or to edit slides or a whiteboard: it proposes the change, and you decide whether to apply it.
 • Let the AI draw an answer or a note as an editable diagram on a whiteboard.
 • Let the AI make a slide deck from a topic, your notes or a chat; you can edit the outline first.
 • Turn a whiteboard sketch into a polished image with AI.
@@ -84,7 +84,7 @@ NoteFable 把 AI 对话和你的工作区放在一起：把回答存成笔记，
 
 让 AI 帮忙
 • 把笔记、幻灯片或白板添加到对话里，AI 会把它们作为参考内容。
-• 让 AI 改写或扩充笔记、修改白板：AI 先提出修改建议，由你决定是否应用。
+• 让 AI 改写或扩充笔记、修改幻灯片或白板：AI 先提出修改建议，由你决定是否应用。
 • 让 AI 把回答或笔记画成白板上可编辑的图。
 • 让 AI 根据主题、笔记或对话生成幻灯片，生成前可以修改大纲。
 • 用 AI 把白板草图变成图片。
@@ -133,7 +133,7 @@ NoteFable 把 AI 對話和你的工作區放在一起：把回答存成筆記，
 
 讓 AI 幫忙
 • 把筆記、投影片或白板加入對話，AI 會把它們當作參考內容。
-• 讓 AI 改寫或擴充筆記、修改白板：AI 先提出修改建議，由你決定是否套用。
+• 讓 AI 改寫或擴充筆記、修改投影片或白板：AI 先提出修改建議，由你決定是否套用。
 • 讓 AI 把回答或筆記畫成白板上可編輯的圖。
 • 讓 AI 根據主題、筆記或對話生成投影片，生成前可以修改大綱。
 • 用 AI 把白板草圖變成圖片。
@@ -182,7 +182,7 @@ NoteFable は AI チャットとワークスペースをひとつにまとめた
 
 AI が手伝う
 • ノート・スライド・ホワイトボードをチャットに添付すると、AI がそれを参考にして答えます。
-• ノートの書き直しや追記、ホワイトボードの編集を頼むと、AI が変更を提案し、適用するかはあなたが決めます。
+• ノートの書き直しや追記、スライドやホワイトボードの編集を頼むと、AI が変更を提案し、適用するかはあなたが決めます。
 • 回答やノートを、AI がホワイトボード上の編集できる図として描きます。
 • テーマ・ノート・チャットから AI がスライドを作ります。作る前に構成を直せます。
 • ホワイトボードのスケッチを AI で画像にできます。
@@ -231,7 +231,7 @@ NoteFable은 AI 채팅과 워크스페이스를 한곳에 모았습니다. 답�
 
 AI가 도와줘요
 • 노트, 슬라이드, 화이트보드를 채팅에 첨부하면 AI가 그 내용을 참고해 답해요.
-• 노트를 다시 쓰거나 보충하거나 화이트보드를 편집해 달라고 하면 AI가 변경안을 제안하고, 적용할지는 직접 결정해요.
+• 노트를 다시 쓰거나 보충하거나 슬라이드나 화이트보드를 편집해 달라고 하면 AI가 변경안을 제안하고, 적용할지는 직접 결정해요.
 • 답변이나 노트를 AI가 화이트보드 위에 편집할 수 있는 다이어그램으로 그려 줘요.
 • 주제, 노트, 채팅으로 AI가 슬라이드를 만들어 줘요. 생성 전에 개요를 고칠 수 있어요.
 • 화이트보드에 그린 스케치를 AI가 이미지로 바꿔 줘요.
@@ -280,7 +280,7 @@ GUÁRDALO EN TU ESPACIO
 
 DEJA QUE LA IA TE AYUDE
 • Adjunta notas, presentaciones o pizarras a un chat y la IA las usa como contexto.
-• Pide a la IA que reescriba o amplíe una nota, o que edite una pizarra: propone el cambio y tú decides si aplicarlo.
+• Pide a la IA que reescriba o amplíe una nota, o que edite presentaciones o una pizarra: propone el cambio y tú decides si aplicarlo.
 • Deja que la IA dibuje una respuesta o una nota como un diagrama editable en una pizarra.
 • Deja que la IA cree presentaciones a partir de un tema, tus notas o un chat; antes revisas el esquema.
 • Convierte un boceto de la pizarra en una imagen con IA.
@@ -329,7 +329,7 @@ GARDEZ TOUT DANS VOTRE ESPACE
 
 L'IA VOUS AIDE
 • Joignez des notes, des présentations ou des tableaux blancs à une conversation : l'IA s'en sert comme contexte.
-• Demandez à l'IA de réécrire ou de compléter une note, ou de modifier un tableau blanc : elle propose la modification, vous décidez de l'appliquer.
+• Demandez à l'IA de réécrire ou de compléter une note, ou de modifier des présentations ou un tableau blanc : elle propose la modification, vous décidez de l'appliquer.
 • Laissez l'IA dessiner une réponse ou une note sous forme de schéma modifiable sur un tableau blanc.
 • Laissez l'IA créer des présentations à partir d'un sujet, de notes ou d'une conversation ; vous relisez d'abord le plan.
 • Transformez un croquis du tableau en image avec l'IA.
@@ -378,7 +378,7 @@ ALLES IN DEINEM ARBEITSBEREICH
 
 LASS DIR VON DER KI HELFEN
 • Hänge Notizen, Präsentationen oder Whiteboards an einen Chat an, und die KI nutzt sie als Kontext.
-• Bitte die KI, eine Notiz umzuschreiben oder zu ergänzen oder ein Whiteboard zu bearbeiten: Sie schlägt die Änderung vor, und du entscheidest, ob sie übernommen wird.
+• Bitte die KI, eine Notiz umzuschreiben oder zu ergänzen oder Folien oder ein Whiteboard zu bearbeiten: Sie schlägt die Änderung vor, und du entscheidest, ob sie übernommen wird.
 • Lass die KI eine Antwort oder Notiz als bearbeitbares Diagramm auf ein Whiteboard zeichnen.
 • Lass die KI aus einem Thema, Notizen oder einem Chat eine Präsentation erstellen; die Gliederung prüfst du vorher.
 • Verwandle eine Whiteboard-Skizze mit KI in ein Bild.
@@ -427,7 +427,7 @@ GUARDE TUDO NO SEU ESPAÇO
 
 DEIXE A IA AJUDAR
 • Anexe notas, apresentações ou quadros brancos a uma conversa e a IA usa o conteúdo como contexto.
-• Peça à IA para reescrever ou ampliar uma nota, ou para editar um quadro branco: ela sugere a mudança e você decide se aplica.
+• Peça à IA para reescrever ou ampliar uma nota, ou para editar slides ou um quadro branco: ela sugere a mudança e você decide se aplica.
 • Deixe a IA desenhar uma resposta ou uma nota como um diagrama editável em um quadro branco.
 • Deixe a IA criar apresentações a partir de um tema, notas ou conversa; antes, você ajusta o roteiro.
 • Transforme um esboço do quadro branco em imagem com IA.
@@ -476,7 +476,7 @@ TUTTO NEL TUO SPAZIO
 
 LASCIATI AIUTARE DALL'IA
 • Allega note, presentazioni o lavagne a una chat e l'IA le usa come contesto.
-• Chiedi all'IA di riscrivere o ampliare una nota, o di modificare una lavagna: propone la modifica e decidi tu se applicarla.
+• Chiedi all'IA di riscrivere o ampliare una nota, o di modificare diapositive o una lavagna: propone la modifica e decidi tu se applicarla.
 • Lascia che l'IA disegni una risposta o una nota come diagramma modificabile su una lavagna.
 • Lascia che l'IA crei presentazioni da un argomento, dalle note o da una chat; prima rivedi la scaletta.
 • Trasforma uno schizzo della lavagna in un'immagine con l'IA.
@@ -525,7 +525,7 @@ SIMPAN DI RUANG KERJA
 
 BIARKAN AI MEMBANTU
 • Lampirkan catatan, presentasi, atau papan tulis ke chat dan AI memakainya sebagai konteks.
-• Minta AI menulis ulang atau melengkapi catatan, atau mengedit papan tulis: AI mengusulkan perubahan, Anda yang memutuskan untuk menerapkannya.
+• Minta AI menulis ulang atau melengkapi catatan, atau mengedit slide maupun papan tulis: AI mengusulkan perubahan, Anda yang memutuskan untuk menerapkannya.
 • Biarkan AI menggambar jawaban atau catatan sebagai diagram yang bisa diedit di papan tulis.
 • Biarkan AI membuat presentasi dari topik, catatan, atau chat; kerangkanya bisa Anda edit dulu.
 • Ubah sketsa di papan tulis menjadi gambar dengan AI.
@@ -574,7 +574,7 @@ LƯU VÀO KHÔNG GIAN
 
 ĐỂ AI GIÚP BẠN
 • Đính kèm ghi chú, bản trình chiếu hoặc bảng trắng vào cuộc trò chuyện và AI dùng chúng làm ngữ cảnh.
-• Nhờ AI viết lại hoặc bổ sung ghi chú, hay chỉnh sửa bảng trắng: AI đề xuất thay đổi, bạn quyết định có áp dụng hay không.
+• Nhờ AI viết lại hoặc bổ sung ghi chú, hay chỉnh sửa bản trình chiếu hoặc bảng trắng: AI đề xuất thay đổi, bạn quyết định có áp dụng hay không.
 • Để AI vẽ câu trả lời hoặc ghi chú thành sơ đồ có thể chỉnh sửa trên bảng trắng.
 • Để AI tạo bản trình chiếu từ chủ đề, ghi chú hoặc cuộc trò chuyện; bạn sửa dàn ý trước.
 • Biến phác thảo trên bảng trắng thành hình ảnh bằng AI.
@@ -623,7 +623,7 @@ NoteFable รวมแชท AI และพื้นที่ทำงานข
 
 ให้ AI ช่วย
 • แนบโน้ต ชุดสไลด์ หรือไวท์บอร์ดเข้าแชท แล้ว AI จะใช้เป็นบริบทในการตอบ
-• ขอให้ AI เขียนใหม่หรือเพิ่มเติมโน้ต หรือแก้ไขไวท์บอร์ด: AI จะเสนอการเปลี่ยนแปลง และคุณเป็นคนตัดสินใจว่าจะใช้หรือไม่
+• ขอให้ AI เขียนใหม่หรือเพิ่มเติมโน้ต หรือแก้ไขสไลด์และไวท์บอร์ด: AI จะเสนอการเปลี่ยนแปลง และคุณเป็นคนตัดสินใจว่าจะใช้หรือไม่
 • ให้ AI วาดคำตอบหรือโน้ตออกมาเป็นแผนภาพที่แก้ไขได้บนไวท์บอร์ด
 • ให้ AI สร้างชุดสไลด์จากหัวข้อ โน้ต หรือแชท โดยแก้โครงร่างก่อนได้
 • เปลี่ยนภาพร่างบนไวท์บอร์ดเป็นรูปภาพด้วย AI
@@ -672,7 +672,7 @@ NoteFable AI चैट और आपके वर्कस्पेस को �
 
 AI से मदद लें
 • नोट्स, स्लाइड डेक या व्हाइटबोर्ड को चैट में जोड़ें, AI उन्हें संदर्भ के रूप में पढ़ता है।
-• AI से किसी नोट को दोबारा लिखने या बढ़ाने, या किसी व्हाइटबोर्ड को संपादित करने को कहें: वह बदलाव सुझाता है और लागू करना है या नहीं, यह आप तय करते हैं।
+• AI से किसी नोट को दोबारा लिखने या बढ़ाने, या स्लाइड डेक या व्हाइटबोर्ड को संपादित करने को कहें: वह बदलाव सुझाता है और लागू करना है या नहीं, यह आप तय करते हैं।
 • AI से किसी जवाब या नोट को व्हाइटबोर्ड पर एडिट करने लायक डायग्राम के रूप में बनवाएँ।
 • AI से किसी विषय, नोट्स या चैट पर स्लाइड डेक बनवाएँ; रूपरेखा पहले आप ठीक करें।
 • व्हाइटबोर्ड के स्केच को AI से इमेज में बदलें।
@@ -721,7 +721,7 @@ AI संदेशों और इमेज की दैनिक और म�
 
 دع الذكاء الاصطناعي يساعدك
 • أرفق الملاحظات أو الشرائح أو السبورات بالمحادثة ليستخدمها الذكاء الاصطناعي كسياق.
-• اطلب من الذكاء الاصطناعي إعادة كتابة ملاحظة أو توسيعها، أو تعديل سبورة: يقترح التغيير وأنت تقرر تطبيقه.
+• اطلب من الذكاء الاصطناعي إعادة كتابة ملاحظة أو توسيعها، أو تعديل الشرائح أو السبورة: يقترح التغيير وأنت تقرر تطبيقه.
 • دع الذكاء الاصطناعي يرسم إجابة أو ملاحظة كمخطط قابل للتعديل على سبورة.
 • دع الذكاء الاصطناعي ينشئ مجموعة شرائح من موضوع أو ملاحظات أو محادثة، ويمكنك تعديل المخطط التفصيلي أولًا.
 • حوّل رسمًا على السبورة إلى صورة بالذكاء الاصطناعي.
@@ -770,7 +770,7 @@ HER ŞEYİ SOR
 
 YAPAY ZEKÂ YARDIM ETSİN
 • Notları, slaytları veya beyaz tahtaları bir sohbete ekle, yapay zekâ onları bağlam olarak kullansın.
-• Yapay zekâdan bir notu yeniden yazmasını veya genişletmesini ya da bir beyaz tahtayı düzenlemesini iste: Değişikliği önerir, uygulayıp uygulamamaya sen karar verirsin.
+• Yapay zekâdan bir notu yeniden yazmasını veya genişletmesini ya da slaytları veya bir beyaz tahtayı düzenlemesini iste: Değişikliği önerir, uygulayıp uygulamamaya sen karar verirsin.
 • Bir yanıtı veya notu yapay zekâya beyaz tahtada düzenlenebilir bir diyagram olarak çizdir.
 • Yapay zekâ bir konudan, notlarından veya sohbetten slayt destesi oluştursun; ana hattı önce sen düzenle.
 • Beyaz tahtadaki bir çizimi yapay zekâyla görsele dönüştür.
@@ -819,7 +819,7 @@ NoteFable объединяет ИИ-чат и ваше «Пространств�
 
 ИИ ПОМОГАЕТ
 • Прикрепите заметки, презентации или доски к чату, и ИИ будет опираться на них.
-• Попросите ИИ переписать или дополнить заметку либо отредактировать доску: он предложит изменение, а применять ли его — решаете вы.
+• Попросите ИИ переписать или дополнить заметку либо отредактировать презентацию или доску: он предложит изменение, а применять ли его — решаете вы.
 • Попросите ИИ нарисовать ответ или заметку в виде редактируемой схемы на доске.
 • Пусть ИИ создаст презентацию по теме, заметкам или чату — план сначала можно поправить.
 • Превращайте набросок на доске в изображение с помощью ИИ.

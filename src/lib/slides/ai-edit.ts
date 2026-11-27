@@ -323,11 +323,34 @@ function applyMetadata(
   return out;
 }
 
+function alignRichDoc(doc: RichDoc, align: string | null): RichDoc {
+  return {
+    type: "doc",
+    content: doc.content.map((block) => (
+      block.type === "paragraph"
+        ? { ...block, attrs: { align } }
+        : block
+    )),
+  };
+}
+
+function hasRichFormattingInDoc(doc: RichDoc): boolean {
+  if (doc.content.length > 1) return true;
+  for (const block of doc.content) {
+    if (block.type !== "paragraph") return true;
+    for (const node of block.content ?? []) {
+      if (node.type !== "text" || (node.marks && node.marks.length > 0)) return true;
+    }
+  }
+  return false;
+}
+
 // 1 枚分のタイトル・ブロック列・版式から、安全領域に収まる 1 枚以上のスライドを作る。
 function buildSlidesFromParsedBlocks(
   input: {
     title: string;
     titleInline?: readonly NoteRawInline[];
+    titleDoc?: RichDoc;
     bodyBlocks: NoteRawBlock[];
     notes: string | null;
     layout: LayoutId | null;
@@ -340,18 +363,19 @@ function buildSlidesFromParsedBlocks(
   const title = input.title.trim();
   const bodyParsed = input.bodyBlocks;
   const hasVisibleBody = blocksHaveVisibleContent(bodyParsed);
-  const hasRichTitle = Boolean(
+  const hasTitleDoc = Boolean(input.titleDoc && !isRichDocEmpty(input.titleDoc));
+  const hasRichTitle = Boolean(input.titleDoc && hasRichFormattingInDoc(input.titleDoc)) || Boolean(
     input.titleInline?.some(
       (node) => node.type !== "text" || (node.styles && Object.keys(node.styles).length > 0),
     ),
   );
 
-  if (!title && !input.titleInline?.length && !hasVisibleBody) {
+  if (!title && !hasTitleDoc && !input.titleInline?.length && !hasVisibleBody) {
     const empty = createSlide(input.layout ?? "blank");
     return [applyMetadata(empty, { notes: input.notes, hidden: input.hidden, transition: input.transition, section: input.section })];
   }
 
-  // title / section / quote は単純な文字（プレーン見出し）だけなら専用プレースホルダーに直接入れて自然な見た目を保つ。
+  // title / section / quote は単純な文字だけなら専用プレースホルダーに直接入れて自然な見た目を保つ。
   if (input.layout === "title" && !hasRichTitle) {
     const simpleSub = isSimpleBodyBlocks(bodyParsed, 320);
     if (simpleSub !== null) {
@@ -368,13 +392,22 @@ function buildSlidesFromParsedBlocks(
       return [applyMetadata(slide, { notes: input.notes, hidden: input.hidden, transition: input.transition, section: input.section })];
     }
   }
-  if (input.layout === "quote" && !hasRichTitle) {
+  if (input.layout === "quote") {
     const simpleBody = isSimpleBodyBlocks(bodyParsed, 400);
     if (simpleBody !== null) {
+      const hasAttr = Boolean(simpleBody && (title || hasTitleDoc));
       const quoteText = simpleBody || title;
-      const attribution = simpleBody && title ? title : "";
+      const attribution = hasAttr ? title : "";
       const slide = createSlide("quote", { quote: quoteText, ...(attribution ? { attribution } : {}) });
-      if (!attribution) slide.elements = slide.elements.filter((el) => el.role !== "attribution");
+      if (hasTitleDoc && input.titleDoc) {
+        const targetRole = hasAttr ? "attribution" : "quote";
+        const idx = slide.elements.findIndex((el) => el.type === "text" && el.role === targetRole);
+        if (idx >= 0) {
+          const targetEl = slide.elements[idx] as TextElement;
+          slide.elements[idx] = { ...targetEl, doc: normalizeRichDoc(alignRichDoc(input.titleDoc, targetEl.style.align)) };
+        }
+      }
+      if (!hasAttr) slide.elements = slide.elements.filter((el) => el.role !== "attribution");
       return [applyMetadata(slide, { notes: input.notes, hidden: input.hidden, transition: input.transition, section: input.section })];
     }
   }
@@ -391,6 +424,14 @@ function buildSlidesFromParsedBlocks(
   const built = deck.slides.map(stripSection);
   if (!built.length) {
     const fallback = createSlide(input.layout ?? "blank", title ? (isQuoteRichBody ? { attribution: title } : { title }) : {});
+    if (hasTitleDoc && input.titleDoc) {
+      const targetRole = isQuoteRichBody ? "attribution" : "title";
+      const idx = fallback.elements.findIndex((el) => el.type === "text" && el.role === targetRole);
+      if (idx >= 0) {
+        const targetEl = fallback.elements[idx] as TextElement;
+        fallback.elements[idx] = { ...targetEl, doc: normalizeRichDoc(alignRichDoc(input.titleDoc, targetEl.style.align)) };
+      }
+    }
     return [applyMetadata(fallback, { notes: input.notes, hidden: input.hidden, transition: input.transition, section: input.section })];
   }
 
@@ -404,13 +445,24 @@ function buildSlidesFromParsedBlocks(
 
   if (isQuoteRichBody) {
     const attrIdx = built[0].elements.findIndex((el) => el.type === "text" && el.role === "attribution");
-    if (title) {
+    if (title || hasTitleDoc) {
       if (attrIdx >= 0) {
         const attrEl = built[0].elements[attrIdx] as TextElement;
-        built[0].elements[attrIdx] = { ...attrEl, doc: richDocFromText(title, attrEl.style.align) };
+        built[0].elements[attrIdx] = {
+          ...attrEl,
+          doc: hasTitleDoc && input.titleDoc
+            ? normalizeRichDoc(alignRichDoc(input.titleDoc, attrEl.style.align))
+            : richDocFromText(title, attrEl.style.align),
+        };
       } else {
         const addedAttr = createHeadingElement("quote", "attribution", title);
-        if (addedAttr) built[0].elements.push(addedAttr);
+        if (addedAttr) {
+          built[0].elements.push(
+            hasTitleDoc && input.titleDoc
+              ? { ...addedAttr, doc: normalizeRichDoc(alignRichDoc(input.titleDoc, addedAttr.style.align)) }
+              : addedAttr,
+          );
+        }
       }
     } else if (attrIdx >= 0 && isRichDocEmpty((built[0].elements[attrIdx] as TextElement).doc)) {
       built[0].elements.splice(attrIdx, 1);
@@ -436,6 +488,7 @@ function buildSlidesFromContent(
   input: {
     title: string;
     titleInline?: readonly NoteRawInline[];
+    titleDoc?: RichDoc;
     body: string;
     notes: string | null;
     layout: LayoutId | null;
@@ -451,6 +504,7 @@ function buildSlidesFromContent(
     {
       title: input.title,
       titleInline: input.titleInline,
+      titleDoc: input.titleDoc,
       bodyBlocks: bodyParsed,
       notes: input.notes,
       layout: input.layout,
@@ -514,6 +568,121 @@ function visualWidthUnits(text: string): number {
   return units;
 }
 
+const DISPLAY_FRAC_CMDS = new Set(["dfrac", "cfrac", "dbinom"]);
+const STACK_CMDS = new Set(["dfrac", "cfrac", "frac", "tfrac", "binom", "dbinom", "genfrac", "stackrel", "overset", "underset"]);
+const INFIX_FRAC_CMDS = new Set(["over", "atop", "above"]);
+const BIG_OP_CMDS = new Set(["sum", "int", "iint", "iiint", "oint", "prod", "coprod", "bigcup", "bigcap", "bigoplus", "bigotimes", "lim", "sup", "inf"]);
+
+// 分数（\dfrac / \cfrac / \frac / \over 等）・大型演算子・複数行（\\）の入れ子から KaTeX 表示高さの倍率を概算する。
+function estimateLatexHeightMultiplier(latex: string, displayMode: boolean): number {
+  const src = latex.trim();
+  if (!src) return displayMode ? 1.8 : 1.0;
+
+  const parseSequence = (start: number, stopOnClose: boolean, depth: number, inDisplay: boolean): { em: number; next: number } => {
+    if (depth > 32) return { em: 1.0, next: start };
+    let i = start;
+    let totalRowEm = 0;
+    let rowMaxEm = 1.0;
+    let infixNumEm: number | null = null;
+    let infixWeight = inDisplay ? 1.0 : 0.72;
+
+    const readArg = (pos: number, argDisplay: boolean): { em: number; next: number } => {
+      let j = pos;
+      while (j < src.length && /\s/.test(src[j])) j++;
+      if (j >= src.length) return { em: 1.0, next: j };
+      if (src[j] === "{") {
+        return parseSequence(j + 1, true, depth + 1, argDisplay);
+      }
+      if (src[j] === "\\") {
+        let k = j + 1;
+        if (k < src.length && /[A-Za-z]/.test(src[k])) {
+          while (k < src.length && /[A-Za-z]/.test(src[k])) k++;
+        } else if (k < src.length) {
+          k++;
+        }
+        return { em: 1.0, next: k };
+      }
+      return { em: 1.0, next: j + 1 };
+    };
+
+    const finalizeRow = () => {
+      let em = rowMaxEm;
+      if (infixNumEm !== null) {
+        em = infixWeight * (infixNumEm + rowMaxEm + 0.15);
+        infixNumEm = null;
+      }
+      totalRowEm += em;
+      rowMaxEm = 1.0;
+    };
+
+    while (i < src.length) {
+      const ch = src[i];
+      if (stopOnClose && ch === "}") {
+        finalizeRow();
+        return { em: Math.max(1.0, totalRowEm), next: i + 1 };
+      }
+      if (ch === "{") {
+        const inner = parseSequence(i + 1, true, depth + 1, inDisplay);
+        rowMaxEm = Math.max(rowMaxEm, inner.em);
+        i = inner.next;
+        continue;
+      }
+      if (ch === "\\") {
+        if (src[i + 1] === "\\") {
+          finalizeRow();
+          i += 2;
+          continue;
+        }
+        let j = i + 1;
+        if (j < src.length && /[A-Za-z]/.test(src[j])) {
+          while (j < src.length && /[A-Za-z]/.test(src[j])) j++;
+          const cmd = src.slice(i + 1, j);
+          if (INFIX_FRAC_CMDS.has(cmd)) {
+            infixNumEm = rowMaxEm;
+            infixWeight = inDisplay ? 1.0 : 0.72;
+            rowMaxEm = 1.0;
+            i = j;
+            continue;
+          }
+          if (STACK_CMDS.has(cmd)) {
+            const argDisplay = DISPLAY_FRAC_CMDS.has(cmd) ? true : cmd === "tfrac" ? false : inDisplay;
+            let cursor = j;
+            while (cursor < src.length && /\s/.test(src[cursor])) cursor++;
+            if (cmd === "cfrac" && src[cursor] === "[") {
+              const closeBracket = src.indexOf("]", cursor + 1);
+              if (closeBracket >= 0) cursor = closeBracket + 1;
+            } else if (cmd === "genfrac") {
+              for (let g = 0; g < 4; g++) cursor = readArg(cursor, argDisplay).next;
+            }
+            const first = readArg(cursor, argDisplay);
+            const second = readArg(first.next, argDisplay);
+            const weight = (cmd === "stackrel" || cmd === "overset" || cmd === "underset")
+              ? 0.75
+              : (argDisplay ? 1.0 : 0.72);
+            const stackedEm = weight * (first.em + second.em + 0.15);
+            rowMaxEm = Math.max(rowMaxEm, stackedEm);
+            i = second.next;
+            continue;
+          }
+          if (BIG_OP_CMDS.has(cmd)) {
+            rowMaxEm = Math.max(rowMaxEm, inDisplay ? 1.65 : 1.35);
+          }
+          i = j;
+          continue;
+        }
+        i = Math.min(src.length, i + 2);
+        continue;
+      }
+      i++;
+    }
+    finalizeRow();
+    return { em: Math.max(1.0, totalRowEm), next: i };
+  };
+
+  const result = parseSequence(0, false, 0, displayMode).em;
+  return displayMode ? Math.max(1.8, result) : Math.max(1.0, result);
+}
+
 function measureRichDocHeight(doc: RichDoc, box: Pick<TextElement, "w" | "h" | "style">): { requiredHeight: number; innerHeight: number } {
   const innerHeight = Math.max(16, box.h - 24);
   if (isRichDocEmpty(doc)) {
@@ -537,6 +706,12 @@ function measureRichDocHeight(doc: RichDoc, box: Pick<TextElement, "w" | "h" | "
             }
           }
         }
+        let maxInlineMathPx = 0;
+        for (const node of block.content ?? []) {
+          if (node.type === "math_inline") {
+            maxInlineMathPx = Math.max(maxInlineMathPx, paraFontSize * estimateLatexHeightMultiplier(node.attrs.latex, false));
+          }
+        }
         const paraUnitsPerLine = Math.max(1, innerWidth / (paraFontSize * 0.56));
         const paraLinePx = paraFontSize * lineHeight;
         const text = richDocText({ type: "doc", content: [block] });
@@ -544,7 +719,7 @@ function measureRichDocHeight(doc: RichDoc, box: Pick<TextElement, "w" | "h" | "
           (sum, seg) => sum + Math.max(1, Math.ceil(visualWidthUnits(seg) / Math.max(1, paraUnitsPerLine - indentUnits))),
           0,
         );
-        heightPx += lines * paraLinePx + paraFontSize * 0.25;
+        heightPx += Math.max(0, lines - 1) * paraLinePx + Math.max(paraLinePx, maxInlineMathPx) + paraFontSize * 0.25;
       } else if (block.type === "bullet_list" || block.type === "ordered_list") {
         for (const item of block.content) {
           heightPx += measureBlocks(item.content, indentUnits + 2.5);
@@ -557,7 +732,8 @@ function measureRichDocHeight(doc: RichDoc, box: Pick<TextElement, "w" | "h" | "
         );
         heightPx += lines * linePx * 0.9 + fontSize * 0.6;
       } else if (block.type === "math_block") {
-        heightPx += linePx * 1.8;
+        const mathMult = estimateLatexHeightMultiplier(block.attrs.latex, true);
+        heightPx += Math.max(linePx * 1.8, fontSize * mathMult + fontSize * 0.5);
       }
     }
     return heightPx;
@@ -627,7 +803,9 @@ function richInlinesToNoteInlines(inlines: readonly RichInline[] | undefined): N
       else if (mark.type === "code") styles.code = true;
       else if (mark.type === "color") {
         const mapped = REVERSE_NOTE_TEXT_COLORS[mark.attrs.color.toLowerCase()];
-        if (mapped) styles.textColor = mapped;
+        styles.textColor = mapped ?? mark.attrs.color;
+      } else if (mark.type === "size") {
+        styles.fontSize = mark.attrs.size;
       } else if (mark.type === "link") {
         linkHref = mark.attrs.href;
       }
@@ -724,6 +902,7 @@ function tableElementToNoteBlock(el: Extract<SlideElement, { type: "table" }>): 
     props: {},
     content: {
       type: "tableContent",
+      preserveCellWhitespace: true,
       columnWidths: el.cols.map((w) => (w > 0 ? w : null)),
       headerRows: el.header ? 1 : 0,
       rows: el.rows.map((row) => ({
@@ -744,40 +923,53 @@ function createHeadingElement(layout: LayoutId, headingRole: "title" | "attribut
 // 1 枚のスロット（title / body / quote / subtitle 等）を既存要素のまま更新し、画像・白板枠・図形・線を残す。
 function applyContentUpdateToSlide(
   slide: Slide,
-  updates: { title: string | null; body: string | null },
+  updates: { title: string | null; body: string | null; targetLayout?: LayoutId | null },
   theme: DeckTheme,
 ): { primary: Slide; continuations: Slide[] } {
   const hasTitleUpdate = updates.title !== null;
   const hasBodyUpdate = updates.body !== null;
   if (!hasTitleUpdate && !hasBodyUpdate) return { primary: slide, continuations: [] };
 
-  const elements = slide.elements.map((el) => ({ ...el }));
-  const headingRole: "title" | "attribution" = slide.layout === "quote" ? "attribution" : "title";
+  const targetLayout = updates.targetLayout ?? null;
+  const layoutChanged = targetLayout !== null && targetLayout !== slide.layout;
+  const effectiveLayout = targetLayout ?? slide.layout;
+  const headingRole: "title" | "attribution" = effectiveLayout === "quote" ? "attribution" : "title";
 
   // 1. タイトルのみの更新：既存のタイトル枠（無ければ新規追加）だけを差し替える。
   if (hasTitleUpdate && !hasBodyUpdate) {
+    let baseSlide: Slide = { ...slide, elements: slide.elements.map((el) => ({ ...el })) };
+    if (layoutChanged) {
+      if (effectiveLayout === "quote" && slide.elements.some((el) => el.type === "text" && (el.role === "body" || el.role === "quote") && !isRichDocEmpty(el.doc))) {
+        // 既存の本文があるスライドを quote へ切り替えながら title（= attribution）を指定したときは、
+        // 旧 title が FALLBACK_ROLES 経由で quote 本文に入らないよう先に外す。
+        baseSlide = { ...baseSlide, elements: baseSlide.elements.filter((el) => !(el.type === "text" && el.role === "title")) };
+      }
+      baseSlide = effectiveLayout === "twoColumn" ? splitBodyIntoTwoColumns(baseSlide) : applyLayout(baseSlide, effectiveLayout);
+    }
+    const elements = [...baseSlide.elements];
     const newTitle = updates.title!;
     const headingIdx = elements.findIndex((el) => el.type === "text" && el.role === headingRole);
     if (headingIdx >= 0) {
       const existing = elements[headingIdx] as TextElement;
       elements[headingIdx] = { ...existing, doc: richDocFromText(newTitle, existing.style.align) };
-      return { primary: { ...slide, elements }, continuations: [] };
+      return { primary: { ...baseSlide, elements }, continuations: [] };
     }
     if (newTitle) {
-      const addedHeading = createHeadingElement(slide.layout, headingRole, newTitle);
+      const addedHeading = createHeadingElement(effectiveLayout, headingRole, newTitle);
       if (addedHeading) elements.push(addedHeading);
     }
-    return { primary: { ...slide, elements }, continuations: [] };
+    return { primary: { ...baseSlide, elements }, continuations: [] };
   }
 
-  // 2. 本文（および任意でタイトル）の更新：単純なリッチテキストで、実際の配置枠に収まるなら
+  // 2. 本文（および任意でタイトル）の更新：版式が変わらず単純なリッチテキストで、実際の配置枠に収まるなら
   //    既存の枠をその場で差し替えて座標・書式・装飾をすべて保つ。
+  const elements = slide.elements.map((el) => ({ ...el }));
   const simpleBody = singleBodyRichDoc(updates.body!, theme);
-  const bodyRole = slide.layout === "title" || slide.layout === "section"
+  const bodyRole = effectiveLayout === "title" || effectiveLayout === "section"
     ? "subtitle"
-    : slide.layout === "quote"
+    : effectiveLayout === "quote"
       ? "quote"
-      : slide.layout === "fullImage"
+      : effectiveLayout === "fullImage"
         ? "caption"
         : "body";
   const existingBody = elements.find((el): el is TextElement => el.type === "text" && el.role === bodyRole);
@@ -785,14 +977,14 @@ function applyContentUpdateToSlide(
     (el) => (el.type === "text" && el.role === "body2" && !isRichDocEmpty(el.doc)) || el.type === "table",
   );
   // 2 段組みで複数箇条書き・複数段落が来た場合は、左枠に詰め込まず 2 列へ分ける（空の body2 がある場合も含む）。
-  const wantsTwoColumnSplit = slide.layout === "twoColumn" && simpleBody !== null && (
+  const wantsTwoColumnSplit = effectiveLayout === "twoColumn" && simpleBody !== null && (
     simpleBody.content.length >= 2 ||
     (simpleBody.content.length === 1 &&
       (simpleBody.content[0].type === "bullet_list" || simpleBody.content[0].type === "ordered_list") &&
       simpleBody.content[0].content.length >= 2)
   );
 
-  if (simpleBody && existingBody && !hasExtraBody2OrTables && !wantsTwoColumnSplit && fitsInTextBox(simpleBody, existingBody)) {
+  if (!layoutChanged && simpleBody && existingBody && !hasExtraBody2OrTables && !wantsTwoColumnSplit && fitsInTextBox(simpleBody, existingBody)) {
     const existingBodyId = existingBody.id;
     if (hasTitleUpdate) {
       const titleIdx = elements.findIndex((el) => el.type === "text" && el.role === headingRole);
@@ -800,7 +992,7 @@ function applyContentUpdateToSlide(
         const existingTitle = elements[titleIdx] as TextElement;
         elements[titleIdx] = { ...existingTitle, doc: richDocFromText(updates.title!, existingTitle.style.align) };
       } else if (updates.title) {
-        const addedTitle = createHeadingElement(slide.layout, headingRole, updates.title);
+        const addedTitle = createHeadingElement(effectiveLayout, headingRole, updates.title);
         if (addedTitle) elements.unshift(addedTitle);
       }
     }
@@ -813,10 +1005,11 @@ function applyContentUpdateToSlide(
     return { primary: { ...slide, elements }, continuations: [] };
   }
 
-  // 3. 表・複数要素・あふれ・2段組み振り分けを含む本文更新、または既存本文枠が無いスライド：
+  // 3. 表・複数要素・あふれ・版式変更・2段組み振り分けを含む本文更新、または既存本文枠が無いスライド：
   //    画像・ホワイトボード枠・図形・線と、未変更の既存タイトル要素（ID・書式込み）を守りながら再レイアウトする。
   const preservedDecorations = slide.elements.filter(isNonBodyDecoration);
-  const existingTitleEl = slide.elements.find((el): el is TextElement => el.type === "text" && el.role === headingRole);
+  const existingTitleEl = slide.elements.find((el): el is TextElement => el.type === "text" && el.role === headingRole)
+    ?? (headingRole !== "attribution" ? slide.elements.find((el): el is TextElement => el.type === "text" && el.role === "title") : undefined);
   const keepExistingTitleVerbatim = !hasTitleUpdate && existingTitleEl !== undefined && !isRichDocEmpty(existingTitleEl.doc);
   const effectiveTitle = hasTitleUpdate ? updates.title! : (existingTitleEl ? oneLine(richDocText(existingTitleEl.doc)) : "");
 
@@ -825,7 +1018,7 @@ function applyContentUpdateToSlide(
       title: effectiveTitle,
       body: updates.body!,
       notes: null,
-      layout: slide.layout === "blank" ? null : slide.layout,
+      layout: effectiveLayout === "blank" ? null : effectiveLayout,
     },
     theme,
   );
@@ -966,7 +1159,11 @@ export function extractDeckTextInventory(deck: Deck): SlideTextInventory[] {
 
 // 整套换风格（restyle_deck）のサーバー側ハード不変条件：
 // 1 文字・1 リンク・1 書式・1 コード言語・1 図形/線/表/画像メタでも書き換わったり消えたり増えていたら必ず拒否する。
-export function assertDeckTextPreserved(before: Deck, after: Deck): void {
+export function assertDeckTextPreserved(
+  before: Deck,
+  after: Deck,
+  options?: { allowPlaceholderToDemotedStyleChange?: boolean },
+): void {
   const beforeInv = extractDeckTextInventory(before);
   const afterInv = extractDeckTextInventory(after);
   if (beforeInv.length !== afterInv.length) {
@@ -1003,7 +1200,7 @@ export function assertDeckTextPreserved(before: Deck, after: Deck): void {
       if (
         beforeEl?.type === "text"
         && afterEl?.type === "text"
-        && (!beforeEl.role || !afterEl.role)
+        && (options?.allowPlaceholderToDemotedStyleChange ? !beforeEl.role : (!beforeEl.role || !afterEl.role))
         && stableStringify({ style: beforeEl.style, fill: beforeEl.fill, autoHeight: beforeEl.autoHeight })
           !== stableStringify({ style: afterEl.style, fill: afterEl.fill, autoHeight: afterEl.autoHeight })
       ) {
@@ -1123,29 +1320,45 @@ function extractLosslessRichDocSignature(value: unknown): unknown[] {
   return blocks.length ? blocks : [{ type: "paragraph", align: null, content: [] }];
 }
 
-function assertRawSlideNotLossy(rawSlide: unknown, initialSlide: Slide, index: number): void {
+type SlideRawExemptions = {
+  entireSlide?: boolean;
+  notes?: boolean;
+  section?: boolean;
+  bodyElements?: boolean;
+  headingRole?: "title" | "attribution";
+  elementIds?: Set<string>;
+};
+
+function assertRawSlideNotLossy(rawSlide: unknown, initialSlide: Slide, index: number, exemption?: SlideRawExemptions): void {
   if (!isObject(rawSlide)) {
     throw new SlidesEditError(`Restyle invariant violated: stored slide ${index + 1} is malformed.`);
   }
   if (typeof rawSlide.id !== "string" || !rawSlide.id || rawSlide.id !== initialSlide.id) {
     throw new SlidesEditError(`Restyle invariant violated: stored slide ID changed on slide ${index + 1}.`);
   }
-  if (typeof rawSlide.section === "string" && rawSlide.section !== (initialSlide.section ?? "")) {
+  if (!exemption?.section && typeof rawSlide.section === "string" && rawSlide.section !== (initialSlide.section ?? "")) {
     throw new SlidesEditError(`Restyle invariant violated: stored section would be truncated on slide ${initialSlide.id}.`);
   }
-  if (typeof rawSlide.notes === "string" && rawSlide.notes !== (initialSlide.notes ?? "")) {
+  if (!exemption?.notes && typeof rawSlide.notes === "string" && rawSlide.notes !== (initialSlide.notes ?? "")) {
     throw new SlidesEditError(`Restyle invariant violated: stored speaker notes would be altered on slide ${initialSlide.id}.`);
   }
   const rawElements = Array.isArray(rawSlide.elements) ? rawSlide.elements : [];
   if (rawElements.length !== initialSlide.elements.length) {
     throw new SlidesEditError(`Restyle invariant violated: stored elements would be dropped on slide ${initialSlide.id}.`);
   }
+  const slideHeadingRole: "title" | "attribution" = initialSlide.layout === "quote" ? "attribution" : "title";
   for (let j = 0; j < rawElements.length; j++) {
     const rawEl = rawElements[j];
     const initEl = initialSlide.elements[j];
     if (!isObject(rawEl) || rawEl.id !== initEl.id || rawEl.type !== initEl.type) {
       throw new SlidesEditError(`Restyle invariant violated: stored element metadata would be altered on slide ${initialSlide.id}.`);
     }
+    const isExemptedElement = Boolean(
+      exemption?.elementIds?.has(initEl.id)
+      || (exemption?.headingRole !== undefined && initEl.role === exemption.headingRole)
+      || (exemption?.bodyElements && !isNonBodyDecoration(initEl) && initEl.role !== slideHeadingRole),
+    );
+    if (isExemptedElement) continue;
     if (initEl.type === "text" || initEl.type === "shape") {
       if (stableStringify(extractLosslessRichDocSignature(rawEl.doc)) !== stableStringify(extractLosslessRichDocSignature(initEl.doc))) {
         throw new SlidesEditError(`Restyle invariant violated: stored text/math/code content would be truncated on slide ${initialSlide.id} element ${initEl.id}.`);
@@ -1206,7 +1419,7 @@ function assertRawSlideNotLossy(rawSlide: unknown, initialSlide: Slide, index: n
 function assertRawStoredDeckNotLossyForRestyle(
   rawData: unknown,
   initialDeck: Deck,
-  skipSlideIds?: ReadonlySet<string>,
+  exemptions?: ReadonlyMap<string, SlideRawExemptions>,
 ): void {
   if (!isObject(rawData) || !Array.isArray(rawData.slides)) return;
   const rawSlides = rawData.slides;
@@ -1216,8 +1429,9 @@ function assertRawStoredDeckNotLossyForRestyle(
   for (let i = 0; i < rawSlides.length; i++) {
     const rawSlide = rawSlides[i];
     const initialSlide = initialDeck.slides[i];
-    if (skipSlideIds?.has(initialSlide.id)) continue;
-    assertRawSlideNotLossy(rawSlide, initialSlide, i);
+    const exemption = exemptions?.get(initialSlide.id);
+    if (exemption?.entireSlide) continue;
+    assertRawSlideNotLossy(rawSlide, initialSlide, i, exemption);
   }
 }
 
@@ -1376,7 +1590,7 @@ function registerRef(refs: Map<string, string>, knownSlideIds: Set<string>, rawR
 function combineSlidesToBlocks(
   slides: Slide[],
   targetLayout: LayoutId | null,
-): { title: string; titleInline: NoteRawInline[]; bodyBlocks: NoteRawBlock[] } {
+): { title: string; titleInline: NoteRawInline[]; titleDoc?: RichDoc; bodyBlocks: NoteRawBlock[] } {
   const first = slides[0];
   const explicitTitleEl = first.elements.find((el): el is TextElement => el.type === "text" && el.role === "title");
   const quoteAttrEl = targetLayout === "quote"
@@ -1385,6 +1599,7 @@ function combineSlidesToBlocks(
   const firstHeadingEl = explicitTitleEl ?? quoteAttrEl;
   const firstTitle = firstHeadingEl ? oneLine(richDocText(firstHeadingEl.doc)) : "";
   const titleInline = firstHeadingEl ? richDocToHeadingInline(firstHeadingEl.doc) : [];
+  const firstTitleKey = stableStringify(titleInline);
 
   const bodyBlocks: NoteRawBlock[] = [];
   for (let i = 0; i < slides.length; i++) {
@@ -1393,7 +1608,7 @@ function combineSlidesToBlocks(
     if (i > 0 && titleEl) {
       const headingText = oneLine(richDocText(titleEl.doc));
       const headingInline = richDocToHeadingInline(titleEl.doc);
-      if (headingText && headingText !== firstTitle && headingInline.length) {
+      if (headingText && headingInline.length && stableStringify(headingInline) !== firstTitleKey) {
         bodyBlocks.push({
           id: newId(),
           type: "heading",
@@ -1413,7 +1628,12 @@ function combineSlidesToBlocks(
       }
     }
   }
-  return { title: firstTitle, titleInline, bodyBlocks };
+  return {
+    title: firstTitle,
+    titleInline,
+    ...(firstHeadingEl ? { titleDoc: normalizeRichDoc(firstHeadingEl.doc) } : {}),
+    bodyBlocks,
+  };
 }
 
 function attachPreservedDecorations(
@@ -1472,10 +1692,26 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
     if (id && !focusIds.includes(id)) focusIds.push(id);
   };
   const refs = new Map<string, string>();
+  const initialLayoutById = new Map<string, LayoutId>(initialDeck.slides.map((slide) => [slide.id, slide.layout]));
   const knownSlideIds = new Set<string>(initialDeck.slides.map((slide) => slide.id));
   let allOpsAreRestyle = rawOperations.length > 0;
   let hasRestyleOp = false;
-  const mutatedSlideIds = new Set<string>();
+  const rawExemptions = new Map<string, SlideRawExemptions>();
+  const exemptSlide = (slideId: string, patch: { entireSlide?: boolean; notes?: boolean; section?: boolean; bodyElements?: boolean; headingRole?: "title" | "attribution"; elementId?: string }) => {
+    if (!initialLayoutById.has(slideId)) return;
+    const prev = rawExemptions.get(slideId) ?? {};
+    const elementIds = prev.elementIds ? new Set(prev.elementIds) : new Set<string>();
+    if (patch.elementId) elementIds.add(patch.elementId);
+    rawExemptions.set(slideId, {
+      ...prev,
+      ...(patch.entireSlide ? { entireSlide: true } : {}),
+      ...(patch.notes ? { notes: true } : {}),
+      ...(patch.section ? { section: true } : {}),
+      ...(patch.bodyElements ? { bodyElements: true } : {}),
+      ...(patch.headingRole ? { headingRole: patch.headingRole } : {}),
+      ...(elementIds.size ? { elementIds } : {}),
+    });
+  };
 
   for (let opIndex = 0; opIndex < rawOperations.length; opIndex++) {
     const rawOp = rawOperations[opIndex];
@@ -1498,8 +1734,14 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
         const transition = asOptionalTransition(rawOp.transition);
         const section = validateSectionText(asOptionalString(rawOp.section, "section"));
 
-        if (title !== null || body !== null || notes !== null || section !== null) {
-          mutatedSlideIds.add(slideId);
+        const initLayout = initialLayoutById.get(slideId);
+        if (initLayout) {
+          exemptSlide(slideId, {
+            notes: notes !== null,
+            section: section !== null,
+            bodyElements: body !== null,
+            headingRole: title !== null ? ((layout ?? initLayout) === "quote" ? "attribution" : "title") : undefined,
+          });
         }
 
         if (title === null && body === null && notes === null && layout === null && hidden === null && transition === null && section === null) {
@@ -1507,7 +1749,7 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
         }
 
         const beforeSummary = slideSummary(beforeSlide);
-        const { primary, continuations } = applyContentUpdateToSlide(beforeSlide, { title, body }, deck.theme);
+        const { primary, continuations } = applyContentUpdateToSlide(beforeSlide, { title, body, targetLayout: layout }, deck.theme);
         let updated = applyMetadata(primary, { notes, hidden, transition, section });
         if (layout && updated.layout !== layout) {
           updated = layout === "twoColumn" ? splitBodyIntoTwoColumns(updated) : applyLayout(updated, layout);
@@ -1575,7 +1817,7 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
         if (targetEl.type !== "text" && targetEl.type !== "shape") {
           throw new SlidesEditError(`Element "${elementId}" is a ${targetEl.type} element and cannot be rewritten with update_element.`);
         }
-        mutatedSlideIds.add(slideId);
+        exemptSlide(slideId, { elementId });
 
         const nextDoc = singleBodyRichDoc(body, deck.theme);
         if (!nextDoc) {
@@ -1642,7 +1884,6 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
 
       case "split_slide": {
         const slideId = resolveSlideId(asOptionalString(rawOp.slideId, "slideId"), deck, refs, "slideId");
-        mutatedSlideIds.add(slideId);
         const idx = findSlideIndexOrThrow(deck, slideId);
         const beforeSlide = deck.slides[idx];
 
@@ -1656,6 +1897,15 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
         const secondNotes = validateNotes(asOptionalString(rawOp.secondNotes, "secondNotes"));
         const secondLayout = asOptionalLayout(rawOp.secondLayout, "secondLayout");
         const ref = asOptionalString(rawOp.ref, "ref");
+
+        const initLayout = initialLayoutById.get(slideId);
+        if (initLayout) {
+          exemptSlide(slideId, {
+            notes: firstNotes !== null,
+            bodyElements: true,
+            headingRole: (firstLayout ?? initLayout) === "quote" ? "attribution" : "title",
+          });
+        }
 
         if ((firstTitle === null || !firstTitle) && (firstBody === null || !firstBody.trim())) {
           throw new SlidesEditError("split_slide requires title or body for the first slide.");
@@ -1738,7 +1988,6 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
 
       case "merge_slides": {
         const targetIds = parseSlideIdList(rawOp.slideIds, deck, refs, "slideIds", 2);
-        for (const id of targetIds) mutatedSlideIds.add(id);
         const indices = targetIds.map((id) => findSlideIndexOrThrow(deck, id));
         const orderedTargets = targetIds
           .map((id, i) => ({ id, idx: indices[i], slide: deck.slides[indices[i]] }))
@@ -1751,6 +2000,19 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
         const requestedNotes = validateNotes(asOptionalString(rawOp.notes, "notes"));
         const requestedLayout = asOptionalLayout(rawOp.layout);
         const effectiveLayout = requestedLayout ?? (primaryTarget.slide.layout === "blank" ? null : primaryTarget.slide.layout);
+
+        for (const entry of orderedTargets) {
+          const initLayout = initialLayoutById.get(entry.id);
+          if (!initLayout) continue;
+          const isPrimary = entry.id === primaryTarget.id;
+          exemptSlide(entry.id, {
+            notes: requestedNotes !== null,
+            bodyElements: requestedBody !== null,
+            headingRole: requestedTitle !== null || (!isPrimary && requestedBody !== null)
+              ? ((isPrimary && effectiveLayout === "quote") || initLayout === "quote" ? "attribution" : "title")
+              : undefined,
+          });
+        }
 
         const combined = combineSlidesToBlocks(
           orderedTargets.map((entry) => entry.slide),
@@ -1774,6 +2036,7 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
             {
               title: mergedTitle,
               ...(requestedTitle === null && combined.titleInline.length ? { titleInline: combined.titleInline } : {}),
+              ...(requestedTitle === null && combined.titleDoc ? { titleDoc: combined.titleDoc } : {}),
               body: requestedBody,
               notes: mergedNotes,
               layout: effectiveLayout,
@@ -1787,6 +2050,7 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
             {
               title: mergedTitle,
               ...(requestedTitle === null && combined.titleInline.length ? { titleInline: combined.titleInline } : {}),
+              ...(requestedTitle === null && combined.titleDoc ? { titleDoc: combined.titleDoc } : {}),
               bodyBlocks: combined.bodyBlocks,
               notes: mergedNotes,
               layout: effectiveLayout,
@@ -1893,7 +2157,7 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
 
       case "delete_slides": {
         const targetIds = parseSlideIdList(rawOp.slideIds, deck, refs, "slideIds", 1);
-        for (const id of targetIds) mutatedSlideIds.add(id);
+        for (const id of targetIds) exemptSlide(id, { entireSlide: true });
         const targets = targetIds.map((id) => {
           const idx = findSlideIndexOrThrow(deck, id);
           return { id, idx, slide: deck.slides[idx] };
@@ -2043,15 +2307,26 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
 
         const beforeParts = [`Theme: ${beforeRestyle.theme.id} (${beforeRestyle.theme.mode})`];
         const afterParts = [`Theme: ${restyledDeck.theme.id} (${restyledDeck.theme.mode})`];
+        const themeChanged = beforeRestyle.theme.id !== restyledDeck.theme.id || beforeRestyle.theme.mode !== restyledDeck.theme.mode;
+        const changedLayoutIds: string[] = [];
         for (const { slideId, layout } of layoutUpdates) {
           const idx = beforeRestyle.slides.findIndex((s) => s.id === slideId);
           if (idx >= 0 && beforeRestyle.slides[idx].layout !== layout) {
             beforeParts.push(`Slide ${idx + 1}: ${beforeRestyle.slides[idx].layout}`);
             afterParts.push(`Slide ${idx + 1}: ${layout}`);
+            changedLayoutIds.push(slideId);
           }
-          addFocus(slideId);
         }
-        for (const slide of restyledDeck.slides.slice(0, 3)) addFocus(slide.id);
+        for (const slideId of changedLayoutIds) addFocus(slideId);
+        if (changedLayoutIds.length === 0) {
+          for (const { slideId } of layoutUpdates) addFocus(slideId);
+        }
+        if (themeChanged || focusIds.length === 0) {
+          for (const slide of restyledDeck.slides.slice(0, 3)) {
+            if (focusIds.length >= 4) break;
+            addFocus(slide.id);
+          }
+        }
 
         deck = restyledDeck;
         changes.push({
@@ -2074,12 +2349,12 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
 
   const { deck: normalizedDeck, data } = finalizeDeck(deck);
   if (allOpsAreRestyle) {
-    // 全体の最終検証結果についても、生データからの切り詰めや変質が無いことを再確認する。
+    // 全体の最終検証結果についても、生データからの切り詰めや変質が無いことを再確認する（複数回の段組変更による降格も含む）。
     assertRawStoredDeckNotLossyForRestyle(rawData, initialDeck);
-    assertDeckTextPreserved(initialDeck, normalizedDeck);
+    assertDeckTextPreserved(initialDeck, normalizedDeck, { allowPlaceholderToDemotedStyleChange: true });
   } else if (hasRestyleOp) {
-    // 複合操作でも、書き換えていない既存スライドが生データ正規化で黙って切り詰められていないか確かめる。
-    assertRawStoredDeckNotLossyForRestyle(rawData, initialDeck, mutatedSlideIds);
+    // 複合操作でも、書き換えていない既存フィールド・要素が生データ正規化で黙って切り詰められていないか確かめる。
+    assertRawStoredDeckNotLossyForRestyle(rawData, initialDeck, rawExemptions);
   }
   const unchanged = JSON.stringify(initialDeck) === JSON.stringify(normalizedDeck);
 

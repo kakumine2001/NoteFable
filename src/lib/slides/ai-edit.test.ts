@@ -941,4 +941,254 @@ describe("applySlidesEdits (propose_slides_edit)", () => {
     expect(res.deck.slides[2].section).toBe("Alpha");
     expect(res.deck.slides[3].section).toBeUndefined();
   });
+
+  it("rejects mixed restyle runs when untouched fields on an edited slide have >20k chars", () => {
+    const baseRaw = () => JSON.parse(JSON.stringify(sampleDeck())) as Record<string, unknown> & {
+      slides: Array<{ id: string; elements: Array<Record<string, unknown>> }>;
+    };
+    const overTitleDeck = () => {
+      const raw = baseRaw();
+      (raw.slides[1].elements[0].doc as { content: unknown[] }).content = [
+        { type: "paragraph", content: [{ type: "text", text: "T".repeat(20_001) }] },
+      ];
+      return raw;
+    };
+
+    // Notes-only update_slide before or after restyle_deck must not exempt the untouched 20,001-char title.
+    expect(() => applySlidesEdits(overTitleDeck(), [
+      op({ op: "update_slide", slideId: "slide_goals", notes: "New speaker note" }),
+      op({ op: "restyle_deck", themeId: "editorial" }),
+    ])).toThrow(/Restyle invariant violated/);
+
+    expect(() => applySlidesEdits(overTitleDeck(), [
+      op({ op: "restyle_deck", themeId: "editorial" }),
+      op({ op: "update_slide", slideId: "slide_goals", notes: "New speaker note" }),
+    ])).toThrow(/Restyle invariant violated/);
+
+    // Editing one element on slide_goals must not exempt the sibling untouched 20,001-char title element.
+    const bodyDeck = overTitleDeck();
+    const bodyElId = String(bodyDeck.slides[1].elements[1].id);
+    expect(() => applySlidesEdits(bodyDeck, [
+      op({ op: "update_element", slideId: "slide_goals", elementId: bodyElId, body: "Short replacement" }),
+      op({ op: "restyle_deck", themeId: "editorial" }),
+    ])).toThrow(/Restyle invariant violated/);
+  });
+
+  it("preserves same-text linked titles, custom colors/sizes, rich quote attribution, and table cell whitespace on default merge_slides", () => {
+    const q1 = { ...createSlide("quote", { quote: "First quote" }), id: "mq1" };
+    const attrEl = q1.elements.find((e) => e.type === "text" && e.role === "attribution");
+    if (attrEl?.type === "text") {
+      attrEl.doc = {
+        type: "doc",
+        content: [{
+          type: "paragraph",
+          content: [
+            { type: "text", text: "Ada ", marks: [{ type: "strong" }] },
+            { type: "text", text: "Lovelace", marks: [{ type: "strong" }, { type: "link", attrs: { href: "https://example.com/ada" } }] },
+          ],
+        }],
+      };
+    }
+    const q2 = { ...createSlide("bullets", { title: "More notes", body: "Second item" }), id: "mq2" };
+    const mergedQuoteDeck = normalizeDeck({ format: DECK_FORMAT, theme: { id: "simple", mode: "light" }, slides: [q1, q2] });
+    const mergedQuoteRes = applySlidesEdits(mergedQuoteDeck, [op({ op: "merge_slides", slideIds: ["mq1", "mq2"] })]);
+    const attrAfter = mergedQuoteRes.deck.slides[0].elements.find((e) => e.type === "text" && e.role === "attribution");
+    expect(attrAfter?.type === "text" && attrAfter.doc.content[0]?.type === "paragraph"
+      ? attrAfter.doc.content[0].content?.some((n) => n.type === "text" && n.marks?.some((m) => m.type === "strong") && n.marks?.some((m) => m.type === "link" && m.attrs.href === "https://example.com/ada"))
+      : false).toBe(true);
+
+    // Same visible title with different link, custom color/font size, and leading/trailing whitespace in table cell.
+    const b1 = { ...createSlide("bullets", { body: "Alpha" }), id: "mb1" };
+    const t1 = b1.elements.find((e) => e.type === "text" && e.role === "title");
+    if (t1?.type === "text") {
+      t1.doc = {
+        type: "doc",
+        content: [{
+          type: "paragraph",
+          content: [{ type: "text", text: "Topic", marks: [{ type: "link", attrs: { href: "https://example.com/one" } }] }],
+        }],
+      };
+    }
+    const p1 = b1.elements.find((e) => e.type === "text" && e.role === "body");
+    if (p1?.type === "text") {
+      p1.doc = {
+        type: "doc",
+        content: [{
+          type: "paragraph",
+          content: [{ type: "text", text: "Styled", marks: [{ type: "color", attrs: { color: "#123456" } }, { type: "size", attrs: { size: 54 } }] }],
+        }],
+      };
+    }
+    const b2 = { ...createSlide("bullets", { body: "Beta" }), id: "mb2" };
+    const t2 = b2.elements.find((e) => e.type === "text" && e.role === "title");
+    if (t2?.type === "text") {
+      t2.doc = {
+        type: "doc",
+        content: [{
+          type: "paragraph",
+          content: [{ type: "text", text: "Topic", marks: [{ type: "link", attrs: { href: "https://example.com/two" } }] }],
+        }],
+      };
+    }
+    b2.elements.push({
+      id: "tbl_ws",
+      type: "table",
+      x: 120,
+      y: 600,
+      w: 800,
+      h: 200,
+      rotation: 0,
+      rows: [{ cells: [{ text: "  padded cell  " }] }],
+      cols: [1],
+      header: true,
+      style: { size: 28, color: "text", border: "line", headerFill: "surface", font: "body" },
+    });
+
+    const richMerged = applySlidesEdits(
+      normalizeDeck({ format: DECK_FORMAT, theme: { id: "simple", mode: "light" }, slides: [b1, b2] }),
+      [op({ op: "merge_slides", slideIds: ["mb1", "mb2"] })],
+    );
+    const mergedEls = richMerged.deck.slides[0].elements;
+    const allTextInlines = mergedEls
+      .filter((e): e is Extract<typeof e, { type: "text" }> => e.type === "text")
+      .flatMap((e) => e.doc.content)
+      .flatMap((b) => (b.type === "paragraph" ? (b.content ?? []) : []));
+    expect(allTextInlines.some((n) => n.type === "text" && n.marks?.some((m) => m.type === "link" && m.attrs.href === "https://example.com/two"))).toBe(true);
+    expect(allTextInlines.some((n) => n.type === "text" && n.marks?.some((m) => m.type === "color" && m.attrs.color === "#123456") && n.marks?.some((m) => m.type === "size" && m.attrs.size === 54))).toBe(true);
+    const tblAfter = mergedEls.find((e) => e.type === "table");
+    expect(tblAfter?.type === "table" ? tblAfter.rows[0].cells[0].text : "").toBe("  padded cell  ");
+  });
+
+  it("allows sequential restyle transitions in one batch (bullets -> quote -> blank)", () => {
+    const deck = normalizeDeck({
+      format: DECK_FORMAT,
+      theme: { id: "simple", mode: "light" },
+      slides: [{ ...createSlide("bullets", { title: "Title", body: "Item 1" }), id: "r1" }],
+    });
+    const res = applySlidesEdits(deck, [
+      op({ op: "restyle_deck", slideLayouts: [{ slideId: "r1", layout: "quote" }] }),
+      op({ op: "restyle_deck", slideLayouts: [{ slideId: "r1", layout: "blank" }] }),
+    ]);
+    expect(res.deck.slides[0].layout).toBe("blank");
+  });
+
+  it("places attribution correctly when updating content and switching to quote layout in one op", () => {
+    const deck = normalizeDeck({
+      format: DECK_FORMAT,
+      theme: { id: "simple", mode: "light" },
+      slides: [{ ...createSlide("bullets", { title: "Old Title", body: "Old body" }), id: "b1" }],
+    });
+    const res = applySlidesEdits(deck, [
+      op({
+        op: "update_slide",
+        slideId: "b1",
+        layout: "quote",
+        title: "Ada Lovelace",
+        body: "Analytical engines weave algebra.\n\n| Metric | Value |\n| --- | --- |\n| P99 | 12ms |",
+      }),
+    ]);
+    const slide = res.deck.slides[0];
+    expect(slide.layout).toBe("quote");
+    const attrEl = slide.elements.find((e) => e.type === "text" && e.role === "attribution");
+    expect(attrEl?.type === "text" ? richDocText(attrEl.doc) : "").toBe("Ada Lovelace");
+    const freeAda = slide.elements.filter((e) => e.type === "text" && !e.role && richDocText(e.doc).includes("Ada Lovelace"));
+    expect(freeAda).toHaveLength(0);
+  });
+
+  it("rejects overflowing nested LaTeX formulas on update_element for fixed text, autoHeight bottom text, and shapes", () => {
+    const nestedFrac = "\\dfrac{1}{1 + \\dfrac{1}{1 + \\dfrac{1}{1 + \\dfrac{1}{1 + \\dfrac{1}{2}}}}}";
+    const slide = {
+      ...createSlide("blank"),
+      id: "math_box_slide",
+      elements: [
+        {
+          id: "fixed_math_box",
+          type: "text" as const,
+          x: 100,
+          y: 100,
+          w: 600,
+          h: 110,
+          rotation: 0,
+          doc: richDocFromText("short"),
+          style: { font: "body" as const, size: 32, color: "text" as const, align: "left" as const, valign: "top" as const, lineHeight: 1.3, bold: false, italic: false },
+          fill: null,
+          autoHeight: false,
+        },
+        {
+          id: "auto_bottom_box",
+          type: "text" as const,
+          x: 100,
+          y: 900,
+          w: 600,
+          h: 110,
+          rotation: 0,
+          doc: richDocFromText("short"),
+          style: { font: "body" as const, size: 32, color: "text" as const, align: "left" as const, valign: "top" as const, lineHeight: 1.3, bold: false, italic: false },
+          fill: null,
+          autoHeight: true,
+        },
+        {
+          id: "shape_math_box",
+          type: "shape" as const,
+          x: 800,
+          y: 100,
+          w: 400,
+          h: 110,
+          rotation: 0,
+          shape: "rect" as const,
+          fill: "accent" as const,
+          stroke: null,
+          strokeWidth: 0,
+          dash: "solid" as const,
+          doc: richDocFromText("short"),
+          style: { font: "body" as const, size: 32, color: "background" as const, align: "center" as const, valign: "middle" as const, lineHeight: 1.3, bold: false, italic: false },
+        },
+      ],
+    };
+    const deck = normalizeDeck({ format: DECK_FORMAT, theme: { id: "simple", mode: "light" }, slides: [slide] });
+
+    expect(() =>
+      applySlidesEdits(deck, [op({ op: "update_element", slideId: "math_box_slide", elementId: "fixed_math_box", body: `$$\n${nestedFrac}\n$$` })]),
+    ).toThrow(/overflows text box/);
+
+    expect(() =>
+      applySlidesEdits(deck, [op({ op: "update_element", slideId: "math_box_slide", elementId: "auto_bottom_box", body: `$$\n${nestedFrac}\n$$` })]),
+    ).toThrow(/overflows slide bounds/);
+
+    expect(() =>
+      applySlidesEdits(deck, [op({ op: "update_element", slideId: "math_box_slide", elementId: "shape_math_box", body: `$${nestedFrac}$` })]),
+    ).toThrow(/overflows shape element/);
+  });
+
+  it("prioritizes changed layout slides over unchanged earlier slides in restyle_deck focusIds", () => {
+    const slides = Array.from({ length: 8 }, (_, idx) => ({
+      ...createSlide("bullets", { title: `Slide ${idx + 1}`, body: "Point" }),
+      id: `s${idx + 1}`,
+    }));
+    const deck = normalizeDeck({ format: DECK_FORMAT, theme: { id: "simple", mode: "light" }, slides });
+
+    const layoutOnly = applySlidesEdits(deck, [
+      op({
+        op: "restyle_deck",
+        slideLayouts: [
+          { slideId: "s6", layout: "twoColumn" },
+          { slideId: "s8", layout: "imageText" },
+        ],
+      }),
+    ]);
+    expect(layoutOnly.focusIds.slice(0, 2)).toEqual(["s6", "s8"]);
+
+    const withTheme = applySlidesEdits(deck, [
+      op({
+        op: "restyle_deck",
+        themeId: "editorial",
+        slideLayouts: [
+          { slideId: "s6", layout: "twoColumn" },
+          { slideId: "s8", layout: "imageText" },
+        ],
+      }),
+    ]);
+    expect(withTheme.focusIds.slice(0, 2)).toEqual(["s6", "s8"]);
+    expect(withTheme.focusIds.length).toBeLessThanOrEqual(4);
+  });
 });
