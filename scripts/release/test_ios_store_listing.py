@@ -1225,28 +1225,68 @@ class SubmissionTests(unittest.TestCase):
         fake = FakeAppStoreConnect()
         fake.fail[("POST", "/appStoreReviewDetails")] = self.refusal("/data/attributes/contactPhone")
         self.assertTrue(self.sync(fake, apply=True), self.text())
-        self.assertIn("::warning::App Store Connect refused review notes without a contact.", self.text())
+        self.assertIn("::warning::App Store Connect refused the review details until", self.text())
         self.assertNotIn("Wrote the App Review notes.", self.output)
+
+    def test_a_refusal_to_change_the_details_without_a_contact_is_only_a_warning(self) -> None:
+        fake = FakeAppStoreConnect()
+        fake.review_detail = {"notes": REVIEW.review_notes, "demoAccountRequired": True}
+        fake.fail[("PATCH", "/appStoreReviewDetails/")] = self.refusal(
+            "/data/attributes/contactEmail", "/data/attributes/contactPhone"
+        )
+        self.assertTrue(self.sync(fake, apply=True), self.text())
+        self.assertIn("Apple may refuse this until it is entered", self.text())
+        self.assertIn("::warning::App Store Connect refused the review details until", self.text())
+        self.assertNotIn("Turned off the demo account requirement.", self.output)
+        self.assertIs(fake.review_detail["demoAccountRequired"], True)
+        self.assertEqual(list(fake.beta_texts.values()), [{"locale": "en-US", "description": REVIEW.beta_description}])
+
+    def test_a_complete_contact_needs_no_warning_about_it(self) -> None:
+        fake = FakeAppStoreConnect()
+        fill_personal_data(fake)
+        fake.review_detail["demoAccountRequired"] = True
+        fake.review_detail["demoAccountName"] = fake.review_detail["demoAccountPassword"] = ""
+        fake.review_detail["notes"] = REVIEW.review_notes
+        self.assertTrue(self.sync(fake, apply=True), self.text())
+        self.assert_no_personal_data()
+        self.assertNotIn("Apple may refuse this", self.text())
+        self.assertIn("Turned off the demo account requirement.", self.output)
 
     @staticmethod
     def refusal(*pointers: str) -> AscError:
         errors = [{"code": "ENTITY_ERROR.X", "source": {"pointer": p}} for p in pointers]
         return AscError("HTTP 409: refused", status=409, body={"errors": errors})
 
-    def test_another_refusal_to_create_the_notes_is_a_failure(self) -> None:
-        for pointers in (
-            (),
-            ("/data/relationships/appStoreVersion",),
-            ("/data/attributes/contactPhone", "/data/attributes/notes"),
+    def test_another_refusal_of_the_review_details_is_a_failure(self) -> None:
+        for method, pointers in (
+            (method, pointers)
+            for method in ("POST", "PATCH")
+            for pointers in (
+                (),
+                ("/data/relationships/appStoreVersion",),
+                ("/data/attributes/contactPhone", "/data/attributes/notes"),
+            )
         ):
-            with self.subTest(pointers):
+            with self.subTest(method=method, pointers=pointers):
                 fake = FakeAppStoreConnect()
-                fake.fail[("POST", "/appStoreReviewDetails")] = self.refusal(*pointers)
+                if method == "PATCH":
+                    fake.review_detail = {"notes": "old", "demoAccountRequired": False}
+                fake.fail[(method, "/appStoreReviewDetails")] = self.refusal(*pointers)
                 self.assertFalse(self.sync(fake, apply=True), self.text())
-                self.assertNotIn("refused review notes without a contact", self.text())
+                self.assertNotIn("refused the review details until", self.text())
                 self.assertIn("::error::review notes: HTTP 409", self.text())
                 for pointer in pointers:
                     self.assertIn(f"ENTITY_ERROR.X at {pointer}", self.text())
+
+    def test_a_refusal_with_a_complete_contact_is_a_failure(self) -> None:
+        # A stored contact Apple no longer accepts: the notes stay unwritten, so the run must say so.
+        fake = FakeAppStoreConnect()
+        fill_personal_data(fake)
+        fake.fail[("PATCH", "/appStoreReviewDetails/")] = self.refusal("/data/attributes/contactPhone")
+        self.assertFalse(self.sync(fake, apply=True), self.text())
+        self.assert_no_personal_data()
+        self.assertIn("::error::review notes: HTTP 409", self.text())
+        self.assertNotIn("enter it there and run again", self.text())
 
     def test_a_forbidden_submission_write_does_not_stop_the_rest(self) -> None:
         fake = FakeAppStoreConnect()

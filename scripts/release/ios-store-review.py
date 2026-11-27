@@ -411,6 +411,7 @@ class ReviewPlan:
     notes: tuple[str | None, str] | None = None  # (current, new); None: not readable
     detail_id: str | None = None
     clear_demo_flag: bool = False  # the app needs no demo account
+    contact_missing: bool = False  # App Store Connect then refuses to change the review details
     copyright: tuple[str | None, str] | None = None
     subscriptions: list[SubscriptionPlan] = field(default_factory=list)
     beta: tuple[str | None, str] | None = None
@@ -452,6 +453,7 @@ def _plan_notes(client: Any, info: ReviewInfo, plan: ReviewPlan) -> None:
     plan.detail_id = detail["id"] if detail else None
     values = attributes(detail or {})
     plan.notes = (values.get("notes"), info.review_notes)
+    plan.contact_missing = not all(values.get(name) for name in CONTACT_FIELDS)
     # Apple turns "demo account required" on by default; turn it off unless someone set one up.
     plan.clear_demo_flag = detail is None or bool(
         values.get("demoAccountRequired") and not any(values.get(name) for name in DEMO_FIELDS)
@@ -567,8 +569,8 @@ def print_review(plan: ReviewPlan, out=print) -> None:
         _private_change(out, "review notes", plan.notes_changed, *plan.notes)
         if plan.clear_demo_flag:
             out("  App Review demo account: set to not required")
-        if plan.notes_changed and not plan.detail_id:
-            out("    (no review details yet: Apple may refuse them until the contact is entered)")
+        if plan.contact_missing and (plan.notes_changed or plan.clear_demo_flag):
+            out("    (no complete App Review contact yet: Apple may refuse this until it is entered)")
     if plan.copyright:
         _private_change(out, "copyright", plan.copyright_changed, *plan.copyright)
     for subscription in plan.subscriptions:
@@ -624,30 +626,31 @@ def _write_notes(client: Any, plan: ReviewPlan, out) -> None:
     if plan.clear_demo_flag:
         values["demoAccountRequired"] = False
     if plan.detail_id:
+        method, path = "PATCH", f"/appStoreReviewDetails/{plan.detail_id}"
         payload = _body("appStoreReviewDetails", values, plan.detail_id)
-        path = f"/appStoreReviewDetails/{plan.detail_id}"
-        _without_details(lambda: client.request("PATCH", path, payload=payload))
     else:
+        method, path = "POST", "/appStoreReviewDetails"
         payload = _body(
             "appStoreReviewDetails", values, appStoreVersion=("appStoreVersions", plan.version_id)
         )
-        try:
-            _without_details(lambda: client.request("POST", "/appStoreReviewDetails", payload=payload))
-        except AscError as exc:
-            if exc.status != 409:
-                raise
-            if not _asks_for_a_contact(exc):
-                # Some other refusal: a failure, with the likeliest remedy.
-                raise AscError(
-                    f"{exc}. If App Store Connect has no App Review contact yet, enter it there and run again.",
-                    status=exc.status,
-                ) from None
-            out(
-                "::warning::App Store Connect refused review notes without a contact. Enter the App Review "
-                f"contact in App Store Connect, then run again. {exc}"
-            )
-            return
-    out("Wrote the App Review notes.")
+    try:
+        _without_details(lambda: client.request(method, path, payload=payload))
+    except AscError as exc:
+        if exc.status != 409 or not plan.contact_missing:
+            raise
+        if not _asks_for_a_contact(exc):
+            # Some other refusal: a failure, with the likeliest remedy.
+            raise AscError(
+                f"{exc}. If App Store Connect has no App Review contact yet, enter it there and run again.",
+                status=exc.status,
+            ) from None
+        # The contact is the owner's to enter: nothing to fix here, so the run does not fail.
+        out(
+            "::warning::App Store Connect refused the review details until the App Review contact is "
+            f"complete. Enter it in App Store Connect, then run again. {exc}"
+        )
+        return
+    out("Wrote the App Review notes." if "notes" in values else "Turned off the demo account requirement.")
 
 
 def _write_copyright(client: Any, plan: ReviewPlan, out) -> None:
