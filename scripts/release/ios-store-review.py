@@ -583,7 +583,9 @@ def print_review(plan: ReviewPlan, out=print) -> None:
         if plan.beta_changed:
             _private_change(out, name, True, *plan.beta)
         else:
-            out(f"  {name}: already set, kept (not shown)")
+            stored, wanted = plan.beta
+            differs = "differs from the document" if normalized(stored) != normalized(wanted) else "matches the document"
+            out(f"  {name}: already set, kept (not shown; {differs})")
     out(
         "Submission summary: "
         f"{len(plan.age_changes)} age rating answers, "
@@ -852,7 +854,8 @@ def audit(
         out(f"  [info] Beta App Review notes: {_set(values.get('notes'))}")
         localizations = _beta_localizations(client, app_id)
         item = attributes(localizations.get(BETA_LOCALE) or {})
-        line(bool(item.get("description")), f"TestFlight beta app description ({BETA_LOCALE}): {_set(item.get('description'))}")
+        description = normalized(item.get("description"))
+        line(bool(description), f"TestFlight beta app description ({BETA_LOCALE}): {_set(description)}")
         line(bool(item.get("feedbackEmail")), f"TestFlight feedback email ({BETA_LOCALE}): {_set(item.get('feedbackEmail'))}")
 
     out("")

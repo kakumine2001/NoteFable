@@ -1198,7 +1198,7 @@ class SubmissionTests(unittest.TestCase):
         self.assert_no_personal_data()
         self.assertEqual(fake.beta_texts["beta-en"]["description"], "Mail owner@example.com")
         self.assertFalse(any("betaAppLocalizations" in path for _, path, _ in self.sent(fake)))
-        self.assertIn("TestFlight beta app description (en-US): already set, kept (not shown)", self.text())
+        self.assertIn("TestFlight beta app description (en-US): already set, kept (not shown; differs from the document)", self.text())
         self.assertIn("0 beta description to write.", self.text())
         self.assertIn("[ok] TestFlight beta app description (en-US): set", self.text())
 
