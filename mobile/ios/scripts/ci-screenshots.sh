@@ -3,6 +3,12 @@
 # Usage: ci-screenshots.sh <NoteFable.app> <out-dir>
 #        ci-screenshots.sh --boot-only   (CI: boot the simulators ahead of time, leave them running, capture nothing)
 # Env: NF_IOS_MAJORS, NF_VARIANTS, NF_SCENES, NF_ALL_SCENES, NF_DEVICE_FAMILY
+#      NF_APP_ARGS       extra launch arguments, split on spaces
+#      NF_DEVICE_NAMES   comma-separated simulator names to use instead of the family's defaults, with no other fallback
+#      NF_WARMUP_SCENES  scenes run once per boot before the variants, captures thrown away (a fresh simulator can leave
+#                        the first web view blank for the whole app process)
+#      NF_BATTERY_STATE  status bar battery state (default charged; discharging shows a plain full battery)
+#      NF_READY_TIMEOUT  seconds to wait for each scene's READY line (default 90)
 # Every READY line must report the chrome path the app took (glass=native on iOS 26+, material below, solid for rt).
 # Written for macOS /bin/bash (bash 3.2): no mapfile, no associative arrays, no ${var,,}, no sort -V.
 set -euo pipefail
@@ -30,6 +36,13 @@ case "$DEVICE_FAMILY" in
   iPad) DEVICES=("iPad Air 11-inch (M4)" "iPad Air 11-inch (M3)" "iPad Pro 11-inch (M5)" "iPad Pro 11-inch (M4)") ;;
   *) echo "::error::Unsupported simulator family: $DEVICE_FAMILY"; exit 1 ;;
 esac
+# Exact names only when asked: another size would silently give screenshots at the wrong pixel size.
+EXACT_DEVICES=0
+if [[ -n "${NF_DEVICE_NAMES:-}" ]]; then
+  IFS=',' read -r -a DEVICES <<<"$NF_DEVICE_NAMES"
+  EXACT_DEVICES=1
+fi
+read -r -a APP_ARGS <<<"${NF_APP_ARGS:-}"
 USER_DEVELOPER_DIR="${DEVELOPER_DIR:-}"
 BUNDLE_ID=""
 if (( ! BOOT_ONLY )); then
@@ -121,6 +134,7 @@ devicetype_for() {
       return 0
     fi
   done
+  if (( EXACT_DEVICES )); then return 1; fi
   picked=$(awk -F'\t' -v family="$DEVICE_FAMILY" 'index($1, family) == 1 { print $2; exit }' <<<"$supported")
   if [[ -n "$picked" ]]; then
     printf '%s\n' "$picked"
@@ -146,7 +160,10 @@ find_or_create_device() {
         return 0
       fi
     done
-    udid=$(awk -F'\t' -v family="$DEVICE_FAMILY" 'index($1, family) == 1 { print $2; exit }' <<<"$available")
+    udid=""
+    if (( ! EXACT_DEVICES )); then
+      udid=$(awk -F'\t' -v family="$DEVICE_FAMILY" 'index($1, family) == 1 { print $2; exit }' <<<"$available")
+    fi
     if [[ -n "$udid" ]]; then
       name=$(awk -F'\t' -v u="$udid" '$2 == u { print $1; exit }' <<<"$available")
       printf 'existing\t%s\t%s\n' "$udid" "$name"
@@ -166,7 +183,7 @@ boot_device() {
     --dataNetwork wifi --wifiMode active --wifiBars 3 \
     --cellularMode active --cellularBars 4 \
     --operatorName '' \
-    --batteryState charged --batteryLevel 100
+    --batteryState "${NF_BATTERY_STATE:-charged}" --batteryLevel 100
 }
 
 set_variant_environment() {
@@ -182,7 +199,7 @@ set_variant_environment() {
 
 wait_for_ready_idx() {
   local log=$1 idx=$2
-  local deadline=$((SECONDS + 90))
+  local deadline=$((SECONDS + ${NF_READY_TIMEOUT:-90}))
   while (( SECONDS < deadline )); do
     if grep -qE "^NF_FIXTURE_READY idx=${idx}( |$)" "$log" 2>/dev/null; then
       return 0
@@ -237,6 +254,8 @@ run_batch() {
       args+=(-AppleLanguages "(en)" -AppleLocale en_US)
       ;;
   esac
+  # bash 3.2 treats an empty array as unbound under set -u.
+  args+=(${APP_ARGS[@]+"${APP_ARGS[@]}"})
 
   xcrun simctl terminate "$udid" "$BUNDLE_ID" >/dev/null 2>&1 || true
   xcrun simctl launch --terminate-running-process --stderr="$log" "$udid" "$BUNDLE_ID" "${args[@]}" >/dev/null
@@ -410,6 +429,17 @@ for major in "${MAJORS[@]}"; do
     xcrun simctl uninstall "$udid" "$BUNDLE_ID" >/dev/null 2>&1 || true
   fi
   xcrun simctl install "$udid" "$APP"
+
+  if [[ -n "${NF_WARMUP_SCENES:-}" ]]; then
+    read -r -a warmup <<<"$NF_WARMUP_SCENES"
+    set_variant_environment "$udid" light
+    mkdir -p "$OUT/ios${major}/warmup"
+    # In a pipeline's subshell, so a slow warm-up never fails the run; its errors are only labelled.
+    run_batch "$udid" "$major" warmup signed-in 0 "${warmup[@]}" 2>&1 | sed 's/^::error::/warm-up (ignored): /' || true
+    # Kept for debugging, but not as *.log: a fixture miss during the warm-up must not fail the run either.
+    mv "$OUT/logs/ios${major}-warmup-signed-in.log" "$OUT/logs/ios${major}-warmup.txt" 2>/dev/null || true
+    rm -rf "$OUT/ios${major}/warmup"
+  fi
 
   for variant in "${VARIANTS[@]}"; do
     set_variant_environment "$udid" "$variant"

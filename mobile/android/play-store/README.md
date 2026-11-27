@@ -16,3 +16,5 @@
 3. 外框：标题区 + 800px 宽的手机，截图上方裁掉状态栏（原图上方 109px）。底色 `#f7f6f2`，小标题 `#2383e2`、30px、字距 0.14em、全大写，标题 `#0f172a`、79px 粗体、字距 -0.045em，字体都是 Segoe UI Variable Display；手机从 (140, 520) 起，18px 的 `#111` 边框、圆角 70px，带柔和的阴影，下端超出画面。本地准备 `frame.html` 后执行 `chrome --headless=new --window-size=1080,1920 --screenshot=… frame.html?s=<名字>&e=<小标题>&t=<标题>`。
 
 Play 的截图长宽比不能超过 2:1，模拟器原图（20:9）不能直接上传。
+
+iOS 的 App Store 截图沿用这套标题和顺序（写在 `mobile/ios/scripts/ci-store-compose.sh`，对话内容在 iOS 的 `FixtureStoreData.swift`）：改这里的画面或标题时一起改。
