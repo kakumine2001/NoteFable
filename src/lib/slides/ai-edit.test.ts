@@ -9,6 +9,7 @@ import {
   buildAiSlidesDeck,
   extractDeckTextInventory,
   MAX_AI_SLIDES_OPS,
+  measureRichDocHeight,
   SLIDE_THEME_IDS,
   SlidesEditError,
 } from "@/lib/slides/ai-edit";
@@ -1269,11 +1270,15 @@ describe("applySlidesEdits (propose_slides_edit)", () => {
     const primary = updated.deck.slides[0];
     expect(primary.elements.some((el) => el.id === "free_footnote" && el.type === "text" && richDocText(el.doc) === "Source: Annual report 2025")).toBe(true);
     expect(primary.elements.some((el) => el.id === "existing_tbl" && el.type === "table")).toBe(true);
-    // Rebuilt body narrows to avoid overlapping the preserved right-half table at x=1100.
+    // Rebuilt body narrows to avoid overlapping the preserved right-half table at x=1100 and fits without overflow.
     const rebuiltBody = primary.elements.find((el) => el.type === "text" && el.role === "body");
     expect(rebuiltBody && rebuiltBody.x + rebuiltBody.w <= 1052).toBe(true);
+    if (rebuiltBody?.type === "text") {
+      const m = measureRichDocHeight(rebuiltBody.doc, rebuiltBody);
+      expect(m.requiredHeight).toBeLessThanOrEqual(m.innerHeight);
+    }
 
-    // When a preserved table is on the left/bottom half, rebuilt body stops above the table.
+    // When a preserved table is on the left/bottom half, rebuilt body stops above the table and overflows cleanly to continuation slides.
     const bottomTableSlide = JSON.parse(JSON.stringify(slide)) as Slide;
     const bottomTbl = bottomTableSlide.elements.find((el) => el.id === "existing_tbl");
     if (bottomTbl?.type === "table") { bottomTbl.x = 120; bottomTbl.y = 660; bottomTbl.w = 1600; }
@@ -1283,6 +1288,16 @@ describe("applySlidesEdits (propose_slides_edit)", () => {
     );
     const bottomBody = bottomUpdated.deck.slides[0].elements.find((el) => el.type === "text" && el.role === "body");
     expect(bottomBody && bottomBody.y + bottomBody.h <= 636).toBe(true);
+    if (bottomBody?.type === "text") {
+      const m = measureRichDocHeight(bottomBody.doc, bottomBody);
+      expect(m.requiredHeight).toBeLessThanOrEqual(m.innerHeight);
+    }
+    const allBottomText = bottomUpdated.deck.slides
+      .flatMap((s) => s.elements)
+      .filter((el): el is Extract<typeof el, { type: "text" }> => el.type === "text" && el.role !== "title")
+      .map((el) => richDocText(el.doc))
+      .join("\n");
+    expect(allBottomText).toContain("Key milestone #14");
 
     // delete_element lets the AI explicitly drop a table and replace it with bullets in one proposal.
     const tableToBullets = applySlidesEdits(deck, [
@@ -1323,6 +1338,56 @@ describe("applySlidesEdits (propose_slides_edit)", () => {
         expect(overlaps).toBe(false);
       }
     }
+
+    // Title + 6-row table rewritten with 8 bullets: slide 1 body fits strictly inside its box below the table
+    // with zero overlap, and remaining bullets continue onto a continuation slide.
+    const sixRowMd = [
+      "| Metric | Value |",
+      "| --- | --- |",
+      ...Array.from({ length: 6 }, (_, i) => `| Row ${i + 1} | ${i + 1}0ms |`),
+    ].join("\n");
+    const sixRowCreated = applySlidesEdits(deck, [
+      op({ op: "add_slide", title: "Latency Breakdown", body: sixRowMd, ref: "six_row" }),
+    ]);
+    const sixRowId = sixRowCreated.deck.slides[1].id;
+    const sixRowOrigTbl = sixRowCreated.deck.slides[1].elements.find((el) => el.type === "table")!;
+    const eightBullets = Array.from({ length: 8 }, (_, i) => `- Finding #${i + 1} observed across regions`).join("\n");
+    const sixRowRewritten = applySlidesEdits(sixRowCreated.deck, [
+      op({ op: "update_slide", slideId: sixRowId, body: eightBullets }),
+    ]);
+    const sixRowSlide = sixRowRewritten.deck.slides[1];
+    const sixRowKeptTbl = sixRowSlide.elements.find((el) => el.id === sixRowOrigTbl.id)!;
+    const sixRowBody = sixRowSlide.elements.find((el) => el.type === "text" && el.role !== "title")!;
+    expect(sixRowBody?.type).toBe("text");
+    if (sixRowBody?.type === "text") {
+      const overlaps = sixRowBody.x < sixRowKeptTbl.x + sixRowKeptTbl.w
+        && sixRowBody.x + sixRowBody.w > sixRowKeptTbl.x
+        && sixRowBody.y < sixRowKeptTbl.y + sixRowKeptTbl.h
+        && sixRowBody.y + sixRowBody.h > sixRowKeptTbl.y;
+      expect(overlaps).toBe(false);
+      expect(sixRowBody.y + sixRowBody.h).toBeLessThanOrEqual(1080);
+      const m = measureRichDocHeight(sixRowBody.doc, sixRowBody);
+      expect(m.requiredHeight).toBeLessThanOrEqual(m.innerHeight);
+    }
+    expect(sixRowRewritten.deck.slides.length).toBeGreaterThan(2);
+    const sixRowCombined = sixRowRewritten.deck.slides
+      .slice(1)
+      .flatMap((s) => s.elements)
+      .filter((el): el is Extract<typeof el, { type: "text" }> => el.type === "text" && el.role !== "title")
+      .map((el) => richDocText(el.doc))
+      .join("\n");
+    for (let i = 1; i <= 8; i++) {
+      expect(sixRowCombined).toContain(`Finding #${i}`);
+    }
+
+    // When even a single unbreakable block cannot fit in the remaining space below a tall table, reject clearly.
+    const tallBlockSlide = JSON.parse(JSON.stringify(sixRowCreated.deck.slides[1])) as Slide;
+    const tallTbl = tallBlockSlide.elements.find((el) => el.type === "table");
+    if (tallTbl?.type === "table") { tallTbl.y = 220; tallTbl.h = 640; }
+    expect(() => applySlidesEdits(
+      normalizeDeck({ format: DECK_FORMAT, theme: { id: "simple", mode: "light" }, slides: [tallBlockSlide] }),
+      [op({ op: "update_slide", slideId: tallBlockSlide.id, body: "```ts\n" + Array.from({ length: 12 }, (_, i) => `const line${i} = ${i};`).join("\n") + "\n```" })],
+    )).toThrow(/delete_element/);
 
     // When a kept table fills the entire content area leaving no room above or below, reject clearly.
     const fullTableSlide = JSON.parse(JSON.stringify(slide)) as Slide;

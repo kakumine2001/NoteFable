@@ -694,7 +694,7 @@ function estimateLatexHeightMultiplier(latex: string, displayMode: boolean): num
   return displayMode ? Math.max(1.8, result) : Math.max(1.0, result);
 }
 
-function measureRichDocHeight(doc: RichDoc, box: Pick<TextElement, "w" | "h" | "style">): { requiredHeight: number; innerHeight: number } {
+export function measureRichDocHeight(doc: RichDoc, box: Pick<TextElement, "w" | "h" | "style">): { requiredHeight: number; innerHeight: number } {
   const innerHeight = Math.max(16, box.h - 24);
   if (isRichDocEmpty(doc)) {
     return { requiredHeight: 0, innerHeight };
@@ -756,6 +756,63 @@ function measureRichDocHeight(doc: RichDoc, box: Pick<TextElement, "w" | "h" | "
 function fitsInTextBox(doc: RichDoc, box: Pick<TextElement, "w" | "h" | "style">): boolean {
   const { requiredHeight, innerHeight } = measureRichDocHeight(doc, box);
   return requiredHeight <= innerHeight * 1.05;
+}
+
+function fitsStrictlyInTextBox(doc: RichDoc, box: Pick<TextElement, "w" | "h" | "style">): boolean {
+  const { requiredHeight, innerHeight } = measureRichDocHeight(doc, box);
+  return requiredHeight <= innerHeight;
+}
+
+// 既存メディアや表を避けるために本文枠を縮小・移動した後、枠内に収まる分だけを残し、溢れたブロック/箇条書きを続ページ用へ切り分ける。
+function splitDocToFitBox(
+  doc: RichDoc,
+  box: Pick<TextElement, "w" | "h" | "style">,
+): { fitted: RichDoc | null; overflow: RichBlock[] } {
+  if (fitsStrictlyInTextBox(doc, box)) return { fitted: doc, overflow: [] };
+  const kept: RichBlock[] = [];
+  const overflow: RichBlock[] = [];
+  for (const block of doc.content) {
+    if (overflow.length > 0) {
+      overflow.push(block);
+      continue;
+    }
+    if (fitsStrictlyInTextBox({ type: "doc", content: [...kept, block] }, box)) {
+      kept.push(block);
+      continue;
+    }
+    if (block.type === "bullet_list" || block.type === "ordered_list") {
+      const takenItems: typeof block.content = [];
+      for (const item of block.content) {
+        const candidateList: RichBlock = block.type === "ordered_list"
+          ? { type: "ordered_list", attrs: block.attrs, content: [...takenItems, item] }
+          : { type: "bullet_list", content: [...takenItems, item] };
+        if (fitsStrictlyInTextBox({ type: "doc", content: [...kept, candidateList] }, box)) {
+          takenItems.push(item);
+        } else {
+          break;
+        }
+      }
+      if (takenItems.length > 0) {
+        kept.push(
+          block.type === "ordered_list"
+            ? { type: "ordered_list", attrs: block.attrs, content: takenItems }
+            : { type: "bullet_list", content: takenItems },
+        );
+        const remaining = block.content.slice(takenItems.length);
+        if (remaining.length > 0) {
+          overflow.push(
+            block.type === "ordered_list"
+              ? { type: "ordered_list", attrs: { order: (block.attrs?.order ?? 1) + takenItems.length }, content: remaining }
+              : { type: "bullet_list", content: remaining },
+          );
+        }
+        continue;
+      }
+    }
+    overflow.push(block);
+  }
+  if (!kept.length) return { fitted: null, overflow };
+  return { fitted: { type: "doc", content: kept }, overflow };
 }
 
 // 本文 Markdown が単一のリッチテキスト枠（表・コールアウト・複数カラム・あふれ無し）に収まるなら、その RichDoc を返す。
@@ -1070,10 +1127,12 @@ function applyContentUpdateToSlide(
 
   // 右半分に画像やホワイトボード枠がある場合は、新しく置いた文字枠が重ならないように幅を調整する。
   const rightMedia = toAttach.find((el) => isPreservedMediaElement(el) && el.x >= SLIDE_WIDTH * 0.45);
+  const adjustedElementIds = new Set<string>();
   if (rightMedia) {
     const safeRight = Math.max(640, rightMedia.x - 48);
     nextElements = nextElements.map((el) => {
       if ((el.type === "text" || el.type === "table") && el.x < safeRight && el.x + el.w > safeRight) {
+        adjustedElementIds.add(el.id);
         return { ...el, w: Math.max(360, safeRight - el.x) };
       }
       return el;
@@ -1089,6 +1148,7 @@ function applyContentUpdateToSlide(
       let adjusted: TextElement = el;
       for (const tbl of keptTables) {
         if (!boxesOverlap(adjusted, tbl)) continue;
+        adjustedElementIds.add(adjusted.id);
         const narrowLeftW = tbl.x - 48 - adjusted.x;
         const shiftRightX = tbl.x + tbl.w + 48;
         const shiftRightW = adjusted.x + adjusted.w - shiftRightX;
@@ -1121,6 +1181,26 @@ function applyContentUpdateToSlide(
     });
   }
 
+  // 縮小・移動した本文枠から溢れるテキストを測り、入り切る分だけを残して残りは続ページへ送る。
+  // 1 項目も入らない狭い余白しか残らない場合は、はみ出しを許さず明示的にエラーを返す。
+  const overflowBlocks: RichBlock[] = [];
+  if (adjustedElementIds.size > 0) {
+    nextElements = nextElements.map((el) => {
+      if (el.type !== "text" || el.role === headingRole || !adjustedElementIds.has(el.id)) return el;
+      const { fitted, overflow } = splitDocToFitBox(el.doc, el);
+      if (!fitted) {
+        throw new SlidesEditError(
+          "The updated body overflows the space left around existing elements on this slide. Shorten the body, use split_slide, or remove an existing table with delete_element first.",
+        );
+      }
+      if (overflow.length > 0) {
+        overflowBlocks.push(...overflow);
+        return { ...el, doc: fitted };
+      }
+      return el;
+    });
+  }
+
   // 画像は奥、テキストや表は手前に置く。
   const backMedia = toAttach.filter(isPreservedMediaElement);
   const frontDecor = toAttach.filter((el) => !isPreservedMediaElement(el));
@@ -1134,7 +1214,43 @@ function applyContentUpdateToSlide(
     layout: first.layout,
     elements: mergedElements,
   };
-  const continuations = rebuilt.slice(1).map((extra) =>
+  let continuationSlides = rebuilt.slice(1);
+  if (overflowBlocks.length > 0) {
+    const canRepackTail = !continuationSlides.some((s) => s.elements.some((el) => el.type !== "text" && el.type !== "table"));
+    if (canRepackTail) {
+      const tailBlocks: NoteRawBlock[] = richBlocksToNoteBlocks(overflowBlocks);
+      for (const extraSlide of continuationSlides) {
+        for (const extraEl of extraSlide.elements) {
+          if (extraEl.type === "text" && extraEl.role !== headingRole && !isRichDocEmpty(extraEl.doc)) {
+            tailBlocks.push(...richBlocksToNoteBlocks(extraEl.doc.content));
+          } else if (extraEl.type === "table") {
+            tailBlocks.push(tableElementToNoteBlock(extraEl));
+          }
+        }
+      }
+      continuationSlides = buildSlidesFromParsedBlocks(
+        {
+          title: effectiveTitle,
+          bodyBlocks: tailBlocks,
+          notes: null,
+          layout: effectiveLayout === "blank" ? null : effectiveLayout,
+        },
+        theme,
+      );
+    } else {
+      const prepended = buildSlidesFromParsedBlocks(
+        {
+          title: effectiveTitle,
+          bodyBlocks: richBlocksToNoteBlocks(overflowBlocks),
+          notes: null,
+          layout: effectiveLayout === "blank" ? null : effectiveLayout,
+        },
+        theme,
+      );
+      continuationSlides = [...prepended, ...continuationSlides];
+    }
+  }
+  const continuations = continuationSlides.map((extra) =>
     applyMetadata(extra, { hidden: slide.hidden ?? null, transition: slide.transition ?? null }),
   );
   return { primary, continuations };
