@@ -629,6 +629,9 @@ enum EmbedMessage: Equatable, Sendable {
     /// AI 生成幻灯片的向导（#150，网页 SlidesWizardHost）出现（[open]）或消失。[busy]：消失时还有生成没完成（WebView 多留一会儿）。
     /// 只有 bootstrap 里声明了 `canShowSlidesWizard()` 的 App 才会收到。
     case slidesWizard(open: Bool, busy: Bool = false)
+    /// PowerPoint（.pptx）导入窗口（#154，网页 PptxImportHost）出现（[open]）或消失。
+    /// 只有 bootstrap 里声明了 `canShowPptxImport()` 的 App 才会收到。
+    case pptxImport(open: Bool)
     /// 网页现在正在做幻灯片的笔记（页面加载时和每次变化时发）：这些笔记的"…"里「生成幻灯片」显示生成中（网页菜单同）。
     case slidesJobs(pageIds: Set<String>)
     /// [kept]：没保存成功，但草稿已存在 WebView 里、之后会重试（不是冲突）。这时可以先离开。
@@ -691,6 +694,15 @@ enum EmbedMessage: Equatable, Sendable {
                     return .slidesWizard(open: true, busy: false)
                 case "closed":
                     return .slidesWizard(open: false, busy: try flag(fields["busy"]))
+                default:
+                    return nil
+                }
+            case "pptxImport":
+                switch try text(fields["state"]) {
+                case "open":
+                    return .pptxImport(open: true)
+                case "closed":
+                    return .pptxImport(open: false)
                 default:
                     return nil
                 }
@@ -777,4 +789,11 @@ enum SlidesWizardSource: Equatable, Sendable {
     case new(groupId: String? = nil, parentId: String? = nil)
     case note(pageId: String)
     case chat(sessionId: String)
+}
+
+/// PowerPoint（.pptx）导入的目标位置，即 `window.notefableEmbed.pptxImport({ action: "open", groupId?, parentId? })`
+/// （src/lib/native-bridge.ts 的 parsePptxImportRequest；Android `PptxImportTarget`）。
+struct PptxImportTarget: Equatable, Sendable {
+    var groupId: String? = nil
+    var parentId: String? = nil
 }

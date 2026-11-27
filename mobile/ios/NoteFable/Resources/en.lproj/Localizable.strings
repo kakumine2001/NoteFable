@@ -602,6 +602,7 @@
 "slides_export_png" = "Export PNG images";
 "slides_export_pptx" = "Export PowerPoint (PPTX)";
 "slides_export_pptx_transition_note" = "Slide transitions aren’t included in PPTX export.";
+"slides_import_pptx" = "Import PowerPoint";
 
 /* strings_slides_wizard.xml */
 "slides_generate" = "Generate slides";

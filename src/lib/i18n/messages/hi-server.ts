@@ -319,4 +319,5 @@ export const hiServer: Record<string, string> = {
   "Gantt chart": "गैंट चार्ट",
   "quadrant chart": "चतुर्थांश चार्ट",
   "mind map": "माइंड मैप",
+  "Could not import this PowerPoint file. Try again.": "यह PowerPoint फ़ाइल इंपोर्ट नहीं की जा सकी। फिर से कोशिश करें।",
 };

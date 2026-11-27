@@ -77,6 +77,7 @@ struct NotesHomeView: View {
                             busy: busy,
                             onCreate: { notes.createNote(kind: $0) },
                             onGenerateSlides: { router.openSlidesWizard(.new()) },
+                            onImportPptx: { router.openPptxImport() },
                             onImport: { importing = true }
                         )
                     }
@@ -85,6 +86,7 @@ struct NotesHomeView: View {
                         busy: busy,
                         reorder: reorder,
                         onGenerateSlides: { router.openSlidesWizard(.new()) },
+                        onImportPptx: { router.openPptxImport() },
                         onImport: { importing = true },
                         activeFilter: activeFilter,
                         dialog: $dialog
@@ -167,6 +169,7 @@ private struct NotesHomeList: View {
     let busy: Bool
     let reorder: ReorderDragController
     let onGenerateSlides: () -> Void
+    let onImportPptx: () -> Void
     let onImport: () -> Void
     let activeFilter: PageKind?
     @Binding var dialog: NotesDialogState?
@@ -228,8 +231,13 @@ private struct NotesHomeList: View {
         .padding(.top, 12)
         .padding(.bottom, 14)
 
-        // Studio Quick-Create Deck 卡片 + 下方的「用 AI 生成」胶囊
-        CreateDeck(kinds: kinds, busy: busy, alignment: .trailing, onCreate: { notes.createNote(kind: $0) }, onGenerateSlides: onGenerateSlides)
+        // Studio Quick-Create Deck 卡片 + 下方的「用 AI 生成」与「导入 PowerPoint」胶囊
+        CreateDeck(
+            kinds: kinds, busy: busy, alignment: .trailing,
+            onCreate: { notes.createNote(kind: $0) },
+            onGenerateSlides: onGenerateSlides,
+            onImportPptx: onImportPptx
+        )
             .padding(.bottom, 18)
 
         // 最近编辑（网页 notes-recent-list）：显示封面、图标、标题和日期
@@ -490,25 +498,43 @@ extension NotesHomeUtilPill where Leading == LucideIcon {
     }
 }
 
-/// 新建卡片和它下面的「用 AI 生成」胶囊（网页 .ws-create-with-ai：间距 9.6，首页靠右、空状态居中）。能建幻灯片时才有胶囊。
+/// 新建卡片和它下面的「用 AI 生成」/「导入 PowerPoint」胶囊（网页 .ws-create-actions：间距 9.6，首页靠右、空状态居中）。能建幻灯片时才有胶囊。
 private struct CreateDeck: View {
     let kinds: [PageKind]
     let busy: Bool
     let alignment: HorizontalAlignment
     let onCreate: (PageKind) -> Void
     let onGenerateSlides: () -> Void
+    let onImportPptx: () -> Void
     @Environment(AppEnvironment.self) private var app
 
     var body: some View {
         VStack(alignment: alignment, spacing: 9.6) {
             CreateDeckCards(kinds: kinds, busy: busy, onCreate: onCreate)
             if kinds.contains(.slides) {
-                NotesHomeUtilPill(title: L("slides_generate_with_ai"), busy: busy, action: onGenerateSlides) {
-                    AppIconView(icon: app.appIcon.icon, size: 16)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) {
+                        generatePill
+                        importPptxPill
+                    }
+                    VStack(alignment: alignment, spacing: 8) {
+                        generatePill
+                        importPptxPill
+                    }
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .center))
+    }
+
+    private var generatePill: some View {
+        NotesHomeUtilPill(title: L("slides_generate_with_ai"), busy: busy, action: onGenerateSlides) {
+            AppIconView(icon: app.appIcon.icon, size: 16)
+        }
+    }
+
+    private var importPptxPill: some View {
+        NotesHomeUtilPill(icon: Lucide.upload, title: L("slides_import_pptx"), busy: busy, action: onImportPptx)
     }
 }
 
@@ -952,6 +978,7 @@ private struct NotesEmptyView: View {
     let busy: Bool
     let onCreate: (PageKind) -> Void
     let onGenerateSlides: () -> Void
+    let onImportPptx: () -> Void
     let onImport: () -> Void
     @Environment(\.layoutDirection) private var layoutDirection
 
@@ -976,7 +1003,7 @@ private struct NotesEmptyView: View {
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 8)
-            CreateDeck(kinds: kinds, busy: busy, alignment: .center, onCreate: onCreate, onGenerateSlides: onGenerateSlides)
+            CreateDeck(kinds: kinds, busy: busy, alignment: .center, onCreate: onCreate, onGenerateSlides: onGenerateSlides, onImportPptx: onImportPptx)
                 .padding(.top, 24)
             NotesHomeUtilPill(icon: Lucide.upload, title: L("import_markdown"), busy: busy, action: onImport)
                 .padding(.top, 14)

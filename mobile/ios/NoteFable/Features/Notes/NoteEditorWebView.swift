@@ -104,12 +104,38 @@ final class NoteEditorPool {
         if let controller, controller.isWizardActive, !controller.hasEverResponded { destroy() }
     }
 
+    /// 全屏 PowerPoint 导入打不开（页面没加载成、旧服务端）：丢掉这个 WebView，下次重新加载。
+    func discardPptxImport() {
+        if controller?.isPptxImportActive == true { destroy() }
+    }
+
+    /// 网页还没出现 PowerPoint 导入就被用户关闭：如果从未成功响应过，直接丢掉避免停靠坏页面。
+    func discardPptxImportIfUnready() {
+        if let controller, controller.isPptxImportActive, !controller.hasEverResponded { destroy() }
+    }
+
     /// 用 `NoteEmbedScripts.slidesWizardOpen` 打开向导：冷启动时 `.task` 可能先于 `makeUIView` 执行，
     /// 在池上一起等 `controller` 与 `webView` 就绪（每 250ms 轮询，最多 20 秒），避免 `controller == nil` 时提前退出一直停在加载中。
     func openSlidesWizard(script: String) async -> Bool {
         let deadline = ContinuousClock.now + NoteEditorController.wizardOpenTimeout
         while !Task.isCancelled && ContinuousClock.now < deadline {
             if let controller, let answer = await controller.tryOpenSlidesWizard(script: script) {
+                return answer
+            }
+            do {
+                try await Task.sleep(for: NoteEditorController.wizardPollInterval)
+            } catch {
+                return false
+            }
+        }
+        return false
+    }
+
+    /// 用 `NoteEmbedScripts.pptxImportOpen` 打开 PowerPoint 导入窗口（同 `openSlidesWizard`）。
+    func openPptxImport(script: String) async -> Bool {
+        let deadline = ContinuousClock.now + NoteEditorController.wizardOpenTimeout
+        while !Task.isCancelled && ContinuousClock.now < deadline {
+            if let controller, let answer = await controller.tryOpenPptxImport(script: script) {
                 return answer
             }
             do {
@@ -226,6 +252,8 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
     private static let handlerName = "notefableNative"
     /// 全屏向导借用常驻 WebView 时的占位编辑器标识（没有打开任何页面）。
     static let slidesWizardEditorId = "__slides_wizard__"
+    /// 全屏 PowerPoint 导入借用常驻 WebView 时的占位编辑器标识（没有打开任何页面）。
+    static let pptxImportEditorId = "__pptx_import__"
     static let wizardOpenTimeout: Duration = .seconds(20)
     static let wizardPollInterval: Duration = .milliseconds(250)
 
@@ -255,10 +283,13 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
     private(set) var slidesWizardVisible = false
     /// 关掉向导时还有 AI 生成在后台跑。
     private(set) var slidesWizardBusy = false
+    /// 网页里的 PowerPoint 导入窗口现在是否可见。
+    private(set) var pptxImportVisible = false
     /// 这次加载的网页是否真的回应过（ready / slidesWizard open / openSlidesWizard 成功）：离线或加载失败停在错误页时为 false。
     private(set) var hasEverResponded = false
     var isParked: Bool { activeEditor == nil }
     var isWizardActive: Bool { activeEditor == Self.slidesWizardEditorId }
+    var isPptxImportActive: Bool { activeEditor == Self.pptxImportEditorId }
 
     /// 每开始一次加载（或销毁）加一：等 Cookie 期间又开始了新的加载时，旧的不再继续。
     private var loadRun = 0
@@ -319,10 +350,22 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
                 self.slidesWizardBusy = open ? false : busy
                 self.onWizardBusyChanged()
                 if open {
-                    let editorForOpen = self.activeEditor == Self.slidesWizardEditorId ? nil : self.activeEditor
+                    let editorForOpen = (self.activeEditor == Self.slidesWizardEditorId || self.activeEditor == Self.pptxImportEditorId) ? nil : self.activeEditor
                     self.app.notes.onSlidesWizardOpened(editor: editorForOpen)
                 } else {
                     self.app.notes.onSlidesWizardClosed()
+                }
+                return
+            }
+            if case .pptxImport(let open) = message {
+                guard self.webView != nil else { return }
+                self.hasEverResponded = true
+                self.pptxImportVisible = open
+                if open {
+                    let editorForOpen = (self.activeEditor == Self.pptxImportEditorId || self.activeEditor == Self.slidesWizardEditorId) ? nil : self.activeEditor
+                    self.app.notes.onPptxImportOpened(editor: editorForOpen)
+                } else {
+                    self.app.notes.onPptxImportClosed()
                 }
                 return
             }
@@ -341,6 +384,19 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
                     self.app.notes.onWizardUsageLimit(tier: tier, kind: kind)
                 case .storageLimit(let tier, let used, let limit):
                     self.app.notes.onWizardStorageLimit(tier: tier, used: used, limit: limit)
+                default:
+                    break
+                }
+                return
+            }
+            if editor == Self.pptxImportEditorId {
+                switch message {
+                case .openPage(let id):
+                    self.pptxImportVisible = false
+                    self.app.notes.dismissPptxImport()
+                    self.router.openNote(id)
+                case .storageLimit(let tier, let used, let limit):
+                    self.app.notes.onPptxImportStorageLimit(tier: tier, used: used, limit: limit)
                 default:
                     break
                 }
@@ -401,6 +457,14 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         let webView = ensureWebView(edgeBack: true)
         webView.removeFromSuperview()
         showWizard(appIcon: appIcon, language: language, theme: theme)
+        return webView
+    }
+
+    /// 全屏 PowerPoint 导入挂上常驻 WKWebView（没有打开任何页面时）。
+    func attachPptxImportView(appIcon: String?, language: String, theme: String) -> WKWebView {
+        let webView = ensureWebView(edgeBack: true)
+        webView.removeFromSuperview()
+        showPptxImport(appIcon: appIcon, language: language, theme: theme)
         return webView
     }
 
@@ -510,6 +574,67 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         return answer
     }
 
+    func syncPptxImport(appIcon: String?, language: String, theme: String) {
+        if activeEditor != Self.pptxImportEditorId {
+            showPptxImport(appIcon: appIcon, language: language, theme: theme)
+            return
+        }
+        if theme != pushedTheme {
+            pushedTheme = theme
+            bridge.pushTheme(theme)
+        }
+        if appIcon != pushedIcon {
+            pushedIcon = appIcon
+            bridge.pushAppIcon(appIcon)
+        }
+        if language != pushedLanguage {
+            pushedLanguage = language
+            bridge.pushLanguage(language)
+            edgePan?.edges = app.language.isRightToLeft ? .right : .left
+        }
+    }
+
+    private func showPptxImport(appIcon: String?, language: String, theme: String) {
+        openTask?.cancel()
+        openTask = nil
+        showEpoch += 1
+        dismissOpenDialog()
+
+        crashedEditor = nil
+        activeEditor = Self.pptxImportEditorId
+        currentPageId = nil
+        awaitingPageId = nil
+        pushedIcon = appIcon
+        pushedLanguage = language
+        pushedTheme = theme
+        edgePan?.isEnabled = true
+        edgePan?.edges = app.language.isRightToLeft ? .right : .left
+        bridge.pushTheme(theme)
+        if app.editorBridge === bridge { app.registerEditor(nil) }
+
+        if isLoaded, webView != nil {
+            bridge.pushLanguage(language)
+            bridge.pushAppIcon(appIcon)
+        } else {
+            loadPptxImport()
+        }
+    }
+
+    func tryOpenPptxImport(script: String) async -> Bool? {
+        guard let webView else { return nil }
+        let raw: String? = await withCheckedContinuation { (done: CheckedContinuation<String?, Never>) in
+            webView.evaluateJavaScript(script) { result, _ in
+                done.resume(returning: result as? String)
+            }
+        }
+        guard let answer = NoteEmbedScripts.slidesWizardAnswer(raw) else { return nil }
+        if answer {
+            pptxImportVisible = true
+            hasEverResponded = true
+        }
+        return answer
+    }
+
     /// 设置里换了图标 / 界面语言 / 外观（或跟随系统时系统切了深浅）：推给网页（就地换，不重新加载笔记）。
     /// 页面类型变了（网页的 ready 改正了检索结果带来的类型）：边缘返回跟着开关。
     /// 直接从一篇笔记切到另一篇时（`open.editor` 变化）：就地切换页面，不重建 WKWebView。
@@ -610,6 +735,7 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         isLoaded = false
         slidesWizardVisible = false
         slidesWizardBusy = false
+        pptxImportVisible = false
         app.notes.onSlidesJobs([])
         hasEverResponded = false
         activeEditor = nil
@@ -688,6 +814,36 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
             let cookies = URL(string: self.app.config.baseURL).map { self.app.cookies(for: $0) } ?? []
             await NoteEditorController.replaceCookies(cookies)
             guard self.loadRun == current, self.app.identityGeneration == identity, self.activeEditor == Self.slidesWizardEditorId, let webView = self.webView else { return }
+            self.isLoaded = true
+            self.historyFloor = webView.backForwardList.currentItem == nil ? 0 : webView.backForwardList.backList.count + 1
+            webView.load(URLRequest(url: url))
+        }
+    }
+
+    private func loadPptxImport() {
+        guard let webView, let url = wizardURL() else { return }
+        loadRun += 1
+        let current = loadRun
+
+        let content = webView.configuration.userContentController
+        content.removeAllUserScripts()
+        content.addUserScript(WKUserScript(
+            source: NoteEmbedScripts.bootstrap(
+                handler: Self.handlerName, appIcon: app.appIcon.icon, language: app.language.uiLocale,
+                theme: pushedTheme.isEmpty ? nil : pushedTheme
+            ),
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        ))
+
+        let previous = Self.cookieChain
+        Self.cookieChain = Task { @MainActor [weak self] in
+            await previous?.value
+            guard let self, self.loadRun == current, self.activeEditor == Self.pptxImportEditorId, self.webView != nil else { return }
+            let identity = self.app.identityGeneration
+            let cookies = URL(string: self.app.config.baseURL).map { self.app.cookies(for: $0) } ?? []
+            await NoteEditorController.replaceCookies(cookies)
+            guard self.loadRun == current, self.app.identityGeneration == identity, self.activeEditor == Self.pptxImportEditorId, let webView = self.webView else { return }
             self.isLoaded = true
             self.historyFloor = webView.backForwardList.currentItem == nil ? 0 : webView.backForwardList.backList.count + 1
             webView.load(URLRequest(url: url))
@@ -897,6 +1053,15 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         }
     }
 
+    func pptxImportBack() async -> Bool {
+        guard let webView else { return false }
+        return await withCheckedContinuation { (answer: CheckedContinuation<Bool, Never>) in
+            webView.evaluateJavaScript(NoteEmbedScripts.pptxImportBack) { result, _ in
+                answer.resume(returning: (result as? Bool) == true)
+            }
+        }
+    }
+
     private func run(_ script: String) {
         webView?.evaluateJavaScript(script, completionHandler: nil)
     }
@@ -929,6 +1094,20 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
                 }
             } else if activeEditor == Self.slidesWizardEditorId {
                 notes.dismissSlidesWizard(wizard.request)
+            }
+            return
+        }
+        // PowerPoint 导入窗口开着：优先关导入窗口（导入中时中止并清理），不离开笔记、也不走 WebView 的后退。
+        if let pptx = notes.state.pptxImport {
+            if pptx.shown {
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    if !(await self.pptxImportBack()) {
+                        self.app.notes.dismissPptxImport(pptx.request)
+                    }
+                }
+            } else if activeEditor == Self.pptxImportEditorId {
+                notes.dismissPptxImport(pptx.request)
             }
             return
         }
@@ -1106,6 +1285,7 @@ extension NoteEditorController: WKNavigationDelegate {
         }
         slidesWizardVisible = false
         slidesWizardBusy = false
+        pptxImportVisible = false
         // 新的网页进程里没有在做的幻灯片（加载后也会发空的）。
         app.notes.onSlidesJobs([])
         if editor == Self.slidesWizardEditorId {
@@ -1117,6 +1297,18 @@ extension NoteEditorController: WKNavigationDelegate {
             bridge.attach(self)
             openedPageIds = []
             loadWizard()
+            onProcessRestarted()
+            return
+        }
+        if editor == Self.pptxImportEditorId {
+            isLoaded = false
+            showEpoch += 1
+            openTask?.cancel()
+            openTask = nil
+            bridge.release(self)
+            bridge.attach(self)
+            openedPageIds = []
+            loadPptxImport()
             onProcessRestarted()
             return
         }

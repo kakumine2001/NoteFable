@@ -319,4 +319,5 @@ export const jaServer: Record<string, string> = {
   "Gantt chart": "ガントチャート",
   "quadrant chart": "4 象限チャート",
   "mind map": "マインドマップ",
+  "Could not import this PowerPoint file. Try again.": "この PowerPoint ファイルを読み込めませんでした。もう一度お試しください。",
 };

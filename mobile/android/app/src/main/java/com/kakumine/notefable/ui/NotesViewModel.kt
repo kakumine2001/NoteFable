@@ -19,6 +19,7 @@ import com.kakumine.notefable.data.NotesBackend
 import com.kakumine.notefable.data.NotesList
 import com.kakumine.notefable.data.PageKind
 import com.kakumine.notefable.data.PageKindTable
+import com.kakumine.notefable.data.PptxImportTarget
 import com.kakumine.notefable.data.SlidesWizardSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -89,6 +90,16 @@ data class SlidesWizardUi(
     val shown: Boolean = false,
 )
 
+/**
+ * 开着的 PowerPoint（.pptx）导入窗口（#154）。窗口本身是网页（常驻 /note-embed WebView 里的 `notefableEmbed.pptxImport`）。
+ */
+data class PptxImportUi(
+    val target: PptxImportTarget,
+    val request: Int,
+    val editor: String? = null,
+    val shown: Boolean = false,
+)
+
 data class NotesUiState(
     val workspace: Workspace = Workspace.Chat,
     val pages: List<NotePageSummary> = emptyList(),
@@ -124,6 +135,8 @@ data class NotesUiState(
     val importTarget: Boolean = false,
     /** AI 生成幻灯片的向导；null 是没开。 */
     val slidesWizard: SlidesWizardUi? = null,
+    /** PowerPoint（.pptx）导入窗口；null 是没开。 */
+    val pptxImport: PptxImportUi? = null,
 ) {
     /** 画面上的编辑器（[OpenNote.editor]）；停在聊天或笔记列表时是 null。 */
     val visibleEditor: String? get() = open?.editor?.takeIf { workspace == Workspace.Notes }
@@ -887,7 +900,7 @@ class NotesViewModel(
     /** 从一个入口打开向导：画面上有编辑器时盖在它上面，否则开全屏向导画面。要读的笔记正开着时网页自己先保存。 */
     fun openSlidesWizard(source: SlidesWizardSource) {
         val request = ++slidesWizardRequests
-        _state.update { it.copy(slidesWizard = SlidesWizardUi(source, request, editor = it.visibleEditor)) }
+        _state.update { it.copy(slidesWizard = SlidesWizardUi(source, request, editor = it.visibleEditor), pptxImport = null) }
     }
 
     /** 打开的脚本说网页里出来了。 */
@@ -931,6 +944,57 @@ class NotesViewModel(
     /** 画面上的编辑器换了：盖在别的编辑器上的向导、有了编辑器时的全屏向导画面都不再算数。 */
     fun dropStaleSlidesWizard() = _state.update {
         if (it.slidesWizard != null && it.slidesWizard.editor != it.visibleEditor) it.copy(slidesWizard = null) else it
+    }
+
+    // ---- PowerPoint（.pptx）导入（#154 PR 12） ----
+
+    private var pptxImportRequests = 0
+
+    /** 从一个入口打开 PPTX 导入窗口：画面上有编辑器时盖在它上面，否则开全屏导入画面。 */
+    fun openPptxImport(target: PptxImportTarget = PptxImportTarget()) {
+        val request = ++pptxImportRequests
+        _state.update { it.copy(pptxImport = PptxImportUi(target, request, editor = it.visibleEditor), slidesWizard = null) }
+    }
+
+    /** 打开的脚本说网页里出来了。 */
+    fun onPptxImportShown(request: Int) = _state.update { state ->
+        val current = state.pptxImport?.takeIf { it.request == request } ?: return@update state
+        state.copy(pptxImport = current.copy(shown = true))
+    }
+
+    /**
+     * 网页的 `pptxImport` open 消息。[editor] 是发消息时画面上的编辑器（全屏导入画面是 null）。
+     * App 没打开过时是幻灯片工具栏里的「导入 PowerPoint」：记成盖在这个编辑器上。
+     */
+    fun onPptxImportOpened(editor: String?) {
+        val state = _state.value
+        val current = state.pptxImport
+        if (current != null) {
+            if (current.editor == editor) onPptxImportShown(current.request)
+            return
+        }
+        val open = state.open?.takeIf { editor != null && state.visibleEditor == editor } ?: return
+        val groupId = state.pages.firstOrNull { it.id == open.id }?.groupId
+        val request = ++pptxImportRequests
+        _state.update { it.copy(pptxImport = PptxImportUi(PptxImportTarget(groupId = groupId), request, editor = editor, shown = true)) }
+    }
+
+    /** 网页的 closed 消息。还没出来的那一次不动：这是上一次被藏起来时晚到的。 */
+    fun onPptxImportClosed() = _state.update { if (it.pptxImport?.shown == true) it.copy(pptxImport = null) else it }
+
+    /** App 这边关掉导入窗口（返回键、打开了幻灯片、打不开）；[request] 指定时只关那一次。 */
+    fun dismissPptxImport(request: Int? = null) = _state.update {
+        if (request == null || it.pptxImport?.request == request) it.copy(pptxImport = null) else it
+    }
+
+    /** 外部链接、系统分享要换画面：关掉全屏 PPTX 导入画面。 */
+    fun dismissFullScreenPptxImport() = _state.update {
+        if (it.pptxImport != null && it.pptxImport.editor == null) it.copy(pptxImport = null) else it
+    }
+
+    /** 画面上的编辑器换了：盖在别的编辑器上的导入窗口、有了编辑器时的全屏导入画面都不再算数。 */
+    fun dropStalePptxImport() = _state.update {
+        if (it.pptxImport != null && it.pptxImport.editor != it.visibleEditor) it.copy(pptxImport = null) else it
     }
 
     // ---- Markdown 导出 / 导入（网页 use-note-pages.ts 的 exportPage / importMarkdown） ----

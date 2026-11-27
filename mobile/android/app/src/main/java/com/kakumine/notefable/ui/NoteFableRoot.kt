@@ -67,6 +67,7 @@ import com.kakumine.notefable.data.EmbedMessage
 import com.kakumine.notefable.data.NoteGroupSummary
 import com.kakumine.notefable.data.NotePageSummary
 import com.kakumine.notefable.data.PageKind
+import com.kakumine.notefable.data.PptxImportTarget
 import com.kakumine.notefable.data.SlidesWizardSource
 import com.kakumine.notefable.data.TRASH_RETENTION_DAYS
 import kotlinx.coroutines.launch
@@ -108,6 +109,8 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     // AI 生成幻灯片的全屏向导里撞到使用次数上限或存储空间上限：提示放在向导上方（盖在编辑器上的向导用上面的 noteUsageLimit / noteStorageLimit）。
     var wizardUsageLimit by remember { mutableStateOf<UsageLimitInfo?>(null) }
     var wizardStorageLimit by remember { mutableStateOf<StorageLimitInfo?>(null) }
+    // 全屏 PPTX 导入画面里撞到存储空间上限：提示放在导入窗口上方。
+    var pptxImportStorageLimit by remember { mutableStateOf<StorageLimitInfo?>(null) }
     // 画布提案（白板 / 幻灯片）改前・改后可视化预览当前打开的提案。
     var previewProposal by remember { mutableStateOf<com.kakumine.notefable.data.Proposal?>(null) }
     // 白板正在用画图工具的编辑器（网页经桥发来的 drawing 为 true）：只在那个编辑器上让开两侧的返回手势。
@@ -124,13 +127,20 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
         noteUsageLimit = null
         wizardUsageLimit = null
         wizardStorageLimit = null
+        pptxImportStorageLimit = null
         previewProposal = null
     }
-    // 画面上的编辑器换了，上一处开的向导不再算数；换了一次向导（或关掉），它的上限提示也去掉。
-    LaunchedEffect(notes.visibleEditor) { notesViewModel.dropStaleSlidesWizard() }
+    // 画面上的编辑器换了，上一处开的向导和导入窗口不再算数；换了一次（或关掉），它的上限提示也去掉。
+    LaunchedEffect(notes.visibleEditor) {
+        notesViewModel.dropStaleSlidesWizard()
+        notesViewModel.dropStalePptxImport()
+    }
     LaunchedEffect(notes.slidesWizard?.request) {
         wizardUsageLimit = null
         wizardStorageLimit = null
+    }
+    LaunchedEffect(notes.pptxImport?.request) {
+        pptxImportStorageLimit = null
     }
     // 白板开着（类型和编辑页顶栏一样：列表里有这一篇就用列表的，否则用打开时知道的）：横向拖动是在画布上画 / 平移，
     // 不从边上拉出抽屉（菜单按钮照常打开）；抽屉开着时照常能拖回去、点遮罩关上。
@@ -175,6 +185,20 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                 else -> Unit
             }
         }
+        noteEmbedHost.onPptxImport = { editor, message ->
+            when (message) {
+                is EmbedMessage.PptxImport ->
+                    if (message.open) notesViewModel.onPptxImportOpened(editor) else notesViewModel.onPptxImportClosed()
+                is EmbedMessage.OpenPage -> {
+                    notesViewModel.dismissPptxImport()
+                    notesViewModel.openNoteFromLink(message.id)
+                }
+                is EmbedMessage.StorageLimit -> {
+                    pptxImportStorageLimit = StorageLimitInfo(message.tier, message.used, message.limit)
+                }
+                else -> Unit
+            }
+        }
         notesViewModel.notifyPagesTrashed = noteEmbedHost::pageTrashed
         notesViewModel.notifyPageUpdated = { pageId, pageJson -> noteEmbedHost.pageUpdated(pageJson, pageId) }
         notesViewModel.notifyPageSettings = { page ->
@@ -183,6 +207,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
         onDispose {
             noteEmbedHost.onPagesChanged = {}
             noteEmbedHost.onSlidesWizard = { _, _ -> }
+            noteEmbedHost.onPptxImport = { _, _ -> }
             notesViewModel.notifyPagesTrashed = null
             notesViewModel.notifyPageUpdated = null
             notesViewModel.notifyPageSettings = null
@@ -255,11 +280,18 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
         diagramKey = null
         diagrams.clear()
         wizardUsageLimit = null
+        wizardStorageLimit = null
+        pptxImportStorageLimit = null
     }
     // AI 生成幻灯片的向导：聊天的“＋”、笔记“…”菜单、侧栏和笔记首页的“用 AI 生成”都从这里打开。
     val openSlidesWizard: (SlidesWizardSource) -> Unit = { source ->
         wizardUsageLimit = null
         notesViewModel.openSlidesWizard(source)
+    }
+    // PowerPoint（.pptx）导入窗口：侧栏、笔记首页、幻灯片“…”菜单都从这里打开。
+    val openPptxImport: (PptxImportTarget) -> Unit = { target ->
+        pptxImportStorageLimit = null
+        notesViewModel.openPptxImport(target)
     }
 
     // 返回键：先关抽屉；笔记编辑页自己处理（先交给网页关面板，再保存后回列表）；笔记列表回到聊天；最后退出 App。
@@ -294,6 +326,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
         viewModel.linkRequests.collect { link ->
             searchOpen = false
             notesViewModel.dismissFullScreenSlidesWizard()
+            notesViewModel.dismissFullScreenPptxImport()
             closeDrawer()
             openChatLink(link, viewModel, notesViewModel)
         }
@@ -306,6 +339,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
         viewModel.shareRequests.collect { share ->
             searchOpen = false
             notesViewModel.dismissFullScreenSlidesWizard()
+            notesViewModel.dismissFullScreenPptxImport()
             closeDrawer()
             deferredShares = deferredShares + share
             if (notesViewModel.state.value.workspace != Workspace.Chat) {
@@ -365,7 +399,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
         drawerState = drawerState,
         // 白板开着时横向拖动留给画布，幻灯片放映中和翻页、呼出系统栏的手势冲突，向导开着时原生菜单收起：这些时候不让侧栏跟着
         // 边缘滑动打开（开着时照常能拖回）。
-        gesturesEnabled = drawerState.isOpen || (!whiteboardOpen && !slidesPresenting && notes.slidesWizard?.shown != true),
+        gesturesEnabled = drawerState.isOpen || (!whiteboardOpen && !slidesPresenting && notes.slidesWizard?.shown != true && notes.pptxImport?.shown != true),
         drawerContent = {
             AppDrawer(
                 workspace = notes.workspace,
@@ -422,6 +456,10 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         onGenerateSlides = { groupId, parentId ->
                             closeDrawer()
                             openSlidesWizard(SlidesWizardSource.New(groupId, parentId))
+                        },
+                        onImportPptx = { groupId, parentId ->
+                            closeDrawer()
+                            openPptxImport(PptxImportTarget(groupId, parentId))
                         },
                     )
                 } else {
@@ -584,7 +622,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                             // 放映（横屏、全屏、常亮）由编辑页自己处理（NoteEditorScreen）。
                             // 向导的出现 / 消失走 NoteEmbedHost.onSlidesWizard。
                             is EmbedMessage.Flushed, is EmbedMessage.Presentation, is EmbedMessage.FileStart, is EmbedMessage.FileChunk,
-                            is EmbedMessage.FileEnd, is EmbedMessage.FileAbort, is EmbedMessage.SlidesWizard, is EmbedMessage.SlidesJobs -> Unit
+                            is EmbedMessage.FileEnd, is EmbedMessage.FileAbort, is EmbedMessage.SlidesWizard, is EmbedMessage.PptxImport, is EmbedMessage.SlidesJobs -> Unit
                         }
                     },
                     registerFlush = { bridge ->
@@ -596,8 +634,8 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         notesViewModel.refreshBacklinks = bridge?.let { b -> { b.refreshBacklinks() } }
                     },
                     onExportFile = saveExportFile,
-                    // 抽屉、检索或向导盖在白板上时不在画图，两侧照常能返回（关掉它们）。
-                    drawing = drawingEditor == open.editor && !drawerState.isOpen && !searchOpen && notes.slidesWizard == null,
+                    // 抽屉、检索、向导或导入窗口盖在白板上时不在画图，两侧照常能返回（关掉它们）。
+                    drawing = drawingEditor == open.editor && !drawerState.isOpen && !searchOpen && notes.slidesWizard == null && notes.pptxImport == null,
                     onSearch = openSearch,
                     onChatLink = { link -> openChatLink(link, viewModel, notesViewModel) },
                     page = notes.pages.firstOrNull { it.id == open.id },
@@ -631,10 +669,15 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         // 生成幻灯片：向导盖在编辑器上，读这篇之前由网页自己保存。
                         onGenerateSlides = { openSlidesWizard(SlidesWizardSource.Note(open.id)) },
                         generatingSlides = open.id in noteEmbedHost.generatingSlides,
+                        // 导入 PowerPoint：窗口盖在编辑器上，默认放到当前幻灯片所在项目。
+                        onImportPptx = { openPptxImport(PptxImportTarget(groupId = notes.pages.firstOrNull { it.id == open.id }?.groupId)) },
                     ),
                     slidesWizard = notes.slidesWizard?.takeIf { it.editor == open.editor },
                     onSlidesWizardShown = notesViewModel::onSlidesWizardShown,
                     onSlidesWizardDismiss = notesViewModel::dismissSlidesWizard,
+                    pptxImport = notes.pptxImport?.takeIf { it.editor == open.editor },
+                    onPptxImportShown = notesViewModel::onPptxImportShown,
+                    onPptxImportDismiss = notesViewModel::dismissPptxImport,
                     onShare = { dialog = NotesDialogState.Share(open.id, notes.pages.firstOrNull { it.id == open.id }?.kind ?: open.kind) },
                     prompt = noteStorageLimit?.takeIf { it.first == open.editor }?.let<Pair<String, StorageLimitInfo>, @Composable () -> Unit> { (_, limit) ->
                         {
@@ -667,6 +710,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                     onToggleExpanded = notesViewModel::toggleExpanded,
                     onImport = pickMarkdownImport,
                     onGenerateSlides = { openSlidesWizard(SlidesWizardSource.New()) },
+                    onImportPptx = { openPptxImport(PptxImportTarget()) },
                 )
             }
         }
@@ -727,6 +771,22 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
             prompt = wizardStorageLimit?.let { limit ->
                 { StorageLimitPrompt(limit = limit, account = account, attachmentsLost = false, onSignIn = openSignIn) { wizardStorageLimit = null } }
             } ?: wizardUsageLimit?.let { usageLimitPrompt(it, account, openSignIn) { wizardUsageLimit = null } },
+        )
+    }
+
+    // 画面上没有编辑器时的 PowerPoint 导入（笔记列表、空状态、侧栏）：全屏画面接过常驻 WebView 与系统文件选择器。
+    notes.pptxImport?.takeIf { it.editor == null && notes.visibleEditor == null }?.let { pptxImport ->
+        PptxImportScreen(
+            host = noteEmbedHost,
+            pptxImport = pptxImport,
+            embedUrl = { lang, theme -> app.api.slidesWizardUrl(lang, state.selectedModel?.id, state.selectedReasoning, theme) },
+            baseUrl = BuildConfig.BASE_URL,
+            cookieJar = app.cookieJar,
+            onShown = notesViewModel::onPptxImportShown,
+            onDismiss = notesViewModel::dismissPptxImport,
+            prompt = pptxImportStorageLimit?.let { limit ->
+                { StorageLimitPrompt(limit = limit, account = account, attachmentsLost = false, onSignIn = openSignIn) { pptxImportStorageLimit = null } }
+            },
         )
     }
 

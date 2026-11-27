@@ -2,6 +2,7 @@ package com.kakumine.notefable.ui
 
 import com.kakumine.notefable.data.EmbedMessage
 import com.kakumine.notefable.data.PageKind
+import com.kakumine.notefable.data.PptxImportTarget
 import com.kakumine.notefable.data.SlidesWizardSource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -145,5 +146,45 @@ class NoteEmbedBridgeTest {
         assertTrue(supportsPresentation(PageKind.Note))
         assertTrue(supportsPresentation(PageKind.Slides))
         assertFalse(supportsPresentation(PageKind.Whiteboard))
+    }
+
+    @Test
+    fun `pptx import parses messages, builds scripts, routes events and expands file chooser mime types`() {
+        assertEquals(EmbedMessage.PptxImport(open = true), EmbedMessage.parse("""{"type":"pptxImport","state":"open"}"""))
+        assertEquals(EmbedMessage.PptxImport(open = false), EmbedMessage.parse("""{"type":"pptxImport","state":"closed"}"""))
+        assertNull(EmbedMessage.parse("""{"type":"pptxImport","state":"other"}"""))
+
+        fun script(request: String) =
+            "(function(){var e=window.notefableEmbed;if(!e)return 'loading';if(typeof e.pptxImport!=='function')return 'unsupported';" +
+                "return e.pptxImport($request)===true?'open':'rejected'})()"
+        assertEquals(script("""{"action":"open"}"""), NoteEmbedBridge.pptxImportOpenScript())
+        assertEquals(script("""{"action":"open","groupId":"g_1"}"""), NoteEmbedBridge.pptxImportOpenScript(PptxImportTarget(groupId = "g_1")))
+        assertEquals(script("""{"action":"open","parentId":"p-2"}"""), NoteEmbedBridge.pptxImportOpenScript(PptxImportTarget(parentId = "p-2")))
+        assertNull(NoteEmbedBridge.pptxImportOpenScript(PptxImportTarget(groupId = "bad/id")))
+        assertNull(NoteEmbedBridge.pptxImportOpenScript(PptxImportTarget(parentId = "x'y")))
+        assertEquals(
+            "(function(){var e=window.notefableEmbed;if(e&&typeof e.pptxImport==='function')return e.pptxImport({\"action\":\"back\"})===true;return false})()",
+            NoteEmbedBridge.PPTX_IMPORT_BACK_SCRIPT,
+        )
+
+        val opened = EmbedMessage.PptxImport(open = true)
+        val openPage = EmbedMessage.OpenPage("deck_1")
+        val storage = EmbedMessage.StorageLimit("member", 10L, 20L)
+        for (editor in listOf(null, "p1", PPTX_IMPORT_EDITOR)) {
+            assertEquals(EmbedRoute.PptxImport, embedRoute(opened, editor))
+        }
+        assertEquals(EmbedRoute.PptxImport, embedRoute(openPage, PPTX_IMPORT_EDITOR))
+        assertEquals(EmbedRoute.PptxImport, embedRoute(storage, PPTX_IMPORT_EDITOR))
+        assertEquals(EmbedRoute.Drop, embedRoute(EmbedMessage.SaveState("saved"), PPTX_IMPORT_EDITOR))
+        assertEquals(EmbedRoute.Editor, embedRoute(openPage, "p1"))
+        assertEquals(EmbedRoute.Drop, embedRoute(openPage, null))
+
+        val pptxMimes = webFileChooserMimeTypes(arrayOf(".pptx,$PPTX_MIME_TYPE"))
+        assertTrue(PPTX_MIME_TYPE in pptxMimes)
+        assertTrue("application/octet-stream" in pptxMimes)
+        assertTrue("application/zip" in pptxMimes)
+        assertEquals(listOf("application/pdf"), webFileChooserMimeTypes(arrayOf(".pdf")))
+        assertEquals(emptyList<String>(), webFileChooserMimeTypes(arrayOf("*/*")))
+        assertEquals(emptyList<String>(), webFileChooserMimeTypes(emptyArray()))
     }
 }

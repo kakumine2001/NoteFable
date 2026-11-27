@@ -602,6 +602,7 @@
 "slides_export_png" = "تصدير صور PNG";
 "slides_export_pptx" = "تصدير إلى PowerPoint (PPTX)";
 "slides_export_pptx_transition_note" = "لا تُضمَّن انتقالات الشرائح عند التصدير إلى PPTX.";
+"slides_import_pptx" = "استيراد PowerPoint";
 
 /* strings_slides_wizard.xml */
 "slides_generate" = "إنشاء شرائح";

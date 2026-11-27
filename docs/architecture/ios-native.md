@@ -198,3 +198,9 @@ mobile/ios/
 截图看不出、要在 TestFlight 真机上看的：输入栏走 `safeAreaBar` 时是否跟着键盘升降（包括拖动列表收起键盘；不跟时把 `ChatChrome.composerUsesSystemBar` 改成 `false`）、聊天里标签栏随滚动收起和展开（不对时把 `ChatChrome.tabBarMinimize` 改成 `.never`）、可交互玻璃（顶栏圆钮、按钮组、标题胶囊）的按压反馈。App 同时面向 iPhone 和 iPad（`TARGETED_DEVICE_FAMILY` 为 `1,2`）。浮动外壳按当前窗口排版：聊天列、输入卡片与搜索列收到 760、工作区收到 960，弹层和对话框列表按窗口高度封顶；宽且足够高的窗口（`AdaptiveLayout.supportsDockedSidebar`：可用宽 `>= 640pt` 且窗口总高 `>= 560pt`，覆盖 iPad 与展开态 iPhone Duo 竖/横屏）默认常驻侧栏并可手动收起，窄屏或低矮横屏手机保持推入式抽屉。PR 检查的 iPad 截图覆盖浅色 / 深色 / 阿拉伯语 RTL / 降低透明度下的聊天（常驻展开与 `sidebar-collapsed` 收起）、表情选择器（常规宽 `.popover`）、检索、工作区、编辑页与页面菜单（`.popover`）、设置与登录；iPad 横竖屏切换、调整过大小的多任务窗口、分屏和 iPhone Duo 双屏及折叠 / 展开也还待真机或本地 Mac 模拟器逐项验证。
 
 发布：只在需要上传 TestFlight 的 PR 里调高 `project.yml` 的 `CURRENT_PROJECT_VERSION`（[ios.md](ios.md)）。
+
+## PowerPoint（`.pptx`）导入
+
+- 与网页和 Android 对齐：侧栏新建菜单、项目 / 页面 `+`、幻灯片分区 `+`、工作区首页与空状态的 `CreateDeck` 卡片（`ViewThatFits` 随当前窗口宽度在横排 / 竖排间切换，适配 iPhone、iPad 与 iPhone Duo）以及幻灯片编辑页“…”菜单均提供 **导入 PowerPoint**（`L("slides_import_pptx")`）。
+- 交互承载复用常驻 `NoteEditorPool`（`Features/Notes/NoteEditorWebView.swift`、`Features/Notes/PptxImportScreen.swift`、`Core/Notes/NoteEditor.swift`、`Core/Notes/NotesViewModel.swift`、`Core/App/AppRouter.swift`）：JS 桥声明 `canShowPptxImport()`，通过 `notefableEmbed.pptxImport({action:"open", groupId?, parentId?})` / `back` 与 `EmbedMessage.pptxImport(open:)` 双向同步，并以全窗口自适应浮层呈现网页导入对话框（`WKWebView` 原生拉起系统 `UIDocumentPickerViewController` 处理 `<input type="file" accept=".pptx,…">`）。导入完成自动发 `pagesChanged` / `openPage`，存储不足转交原生 `storageLimit` 提示。
+- 验证状态：已通过 Core 单元测试（`SlidesBridgeTests`）与 `swiftc -frontend -parse` 语法检查；由于本机为 Windows，iPhone、iPad（横竖屏及多任务窗口）和 iPhone Duo（折叠 / 展开 / 分屏）上的界面、导航与系统文件选择尚未在真机或 macOS 模拟器实测，需在 Mac 模拟器或 TestFlight 补充验证。

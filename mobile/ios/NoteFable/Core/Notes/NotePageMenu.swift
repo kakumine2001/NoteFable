@@ -28,6 +28,8 @@ struct NotePageMenuActions {
     var onGenerateSlides: (() -> Void)? = nil
     /// 这篇的幻灯片正在生成（网页的菜单项显示转圈和"正在生成幻灯片…"）。
     var generatingSlides = false
+    /// 「导入 PowerPoint」（#154，只给幻灯片，打开 PPTX 导入窗口）。nil 时不显示。
+    var onImportPptx: (() -> Void)? = nil
 }
 
 /// 菜单 "Style" 一栏的字体：[key] 是 NotePageSummary.font 的值，[label] 是文案的键。

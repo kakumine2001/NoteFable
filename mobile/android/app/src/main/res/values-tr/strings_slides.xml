@@ -7,4 +7,5 @@
     <string name="slides_export_png">PNG görseller olarak dışa aktar</string>
     <string name="slides_export_pptx">PowerPoint (PPTX) olarak dışa aktar</string>
     <string name="slides_export_pptx_transition_note">Slayt geçişleri PPTX dışa aktarımına dahil edilmez.</string>
+    <string name="slides_import_pptx">PowerPoint içe aktar</string>
 </resources>

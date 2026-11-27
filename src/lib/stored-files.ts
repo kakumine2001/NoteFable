@@ -143,6 +143,53 @@ export async function discardStoredFiles(paths: string[]) {
   }
 }
 
+// アップロード直後に取り込みが中止・失敗した未使用の NOTE_FILE を、本人の分かつ未参照のものに限ってすぐ消す。
+// どのページ・履歴・提案からも参照されず、まだ使用中へ戻されていない（releasedAt != null）行だけを削除中にする。
+export async function discardUnreferencedNoteFiles(userId: string, paths: string[]) {
+  const prefix = `${STORED_FILE_PREFIXES.NOTE_FILE}${userId}/`;
+  const unique = [...new Set(paths.filter((path) => path.startsWith(prefix)))];
+  if (!unique.length) return 0;
+  const rows = await prisma.storedFile.findMany({
+    where: { path: { in: unique }, userId, kind: "NOTE_FILE", releasedAt: { not: null }, deletingAt: null },
+    select: { path: true, userId: true, kind: true },
+  });
+  if (!rows.length) return 0;
+  const usedBefore = await referencedPaths(rows);
+  const candidates = rows.filter((row) => !usedBefore.has(row.path));
+  if (!candidates.length) return 0;
+  const now = new Date();
+  await prisma.storedFile.updateMany({
+    where: { path: { in: candidates.map((row) => row.path) }, userId, kind: "NOTE_FILE", releasedAt: { not: null }, deletingAt: null },
+    data: { deletingAt: now },
+  });
+  // 同時にページ作成・保存が走って参照が付いた分は戻す。
+  const marked = await prisma.storedFile.findMany({
+    where: { path: { in: candidates.map((row) => row.path) }, userId, kind: "NOTE_FILE", deletingAt: now },
+    select: { path: true, userId: true, kind: true },
+  });
+  if (!marked.length) return 0;
+  const usedAfter = await referencedPaths(marked);
+  const reclaimed = marked.filter((row) => usedAfter.has(row.path)).map((row) => row.path);
+  if (reclaimed.length) {
+    await prisma.storedFile.updateMany({
+      where: { path: { in: reclaimed }, userId, kind: "NOTE_FILE", deletingAt: now },
+      data: { deletingAt: null, releasedAt: null },
+    });
+  }
+  const toDelete = marked.filter((row) => !usedAfter.has(row.path)).map((row) => row.path);
+  let deleted = 0;
+  for (const path of toDelete) {
+    try {
+      await deleteStoredImage(path);
+      await prisma.storedFile.deleteMany({ where: { path, userId, deletingAt: { not: null } } });
+      deleted += 1;
+    } catch (error) {
+      console.error("Failed to delete an unreferenced note file; the cleanup will retry", error instanceof Error ? error.message : error);
+    }
+  }
+  return deleted;
+}
+
 // ---------- 参照を付けるとき ----------
 
 // ページのカバー・アイコンを保存する処理の中で呼ぶ（同じトランザクション）。行を「使用中」に戻す。

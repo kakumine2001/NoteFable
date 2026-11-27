@@ -319,4 +319,5 @@ export const idServer: Record<string, string> = {
   "Gantt chart": "diagram Gantt",
   "quadrant chart": "bagan kuadran",
   "mind map": "peta pikiran",
+  "Could not import this PowerPoint file. Try again.": "Tidak dapat mengimpor file PowerPoint ini. Coba lagi.",
 };

@@ -319,4 +319,5 @@ export const zhServer: Record<string, string> = {
   "Gantt chart": "甘特图",
   "quadrant chart": "象限图",
   "mind map": "思维导图",
+  "Could not import this PowerPoint file. Try again.": "无法导入这个 PowerPoint 文件，请重试。",
 };

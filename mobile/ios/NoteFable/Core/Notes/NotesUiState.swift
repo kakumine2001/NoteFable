@@ -106,6 +106,14 @@ struct SlidesWizardUi: Equatable, Sendable {
     var shown: Bool = false
 }
 
+/// 开着的 PowerPoint（.pptx）导入窗口（#154）。窗口本身是网页（常驻 `/note-embed` WKWebView 里的 `notefableEmbed.pptxImport`）。
+struct PptxImportUi: Equatable, Sendable {
+    var target: PptxImportTarget
+    var request: Int
+    var editor: String? = nil
+    var shown: Bool = false
+}
+
 struct NotesUiState: Equatable, Sendable {
     var workspace: Workspace = .chat
     var pages: [NotePageSummary] = [] {
@@ -161,6 +169,10 @@ struct NotesUiState: Equatable, Sendable {
     var wizardUsageLimit: UsageLimitInfo? = nil
     /// 全屏向导里逐页配图撞到文件存储空间上限（没有打开的编辑器时显示在向导上方）。
     var wizardStorageLimit: StorageLimitInfo? = nil
+    /// PowerPoint（.pptx）导入窗口；nil 是没开。
+    var pptxImport: PptxImportUi? = nil
+    /// 全屏 PPTX 导入里撞到文件存储空间上限（没有打开的编辑器时显示在导入窗口上方）。
+    var pptxImportStorageLimit: StorageLimitInfo? = nil
 
     init(workspace: Workspace = .chat, collapsed: Set<String> = [], expanded: Set<String> = [], collapsedSections: Set<PageKind> = []) {
         self.workspace = workspace
