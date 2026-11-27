@@ -38,7 +38,7 @@ export async function GET(request: Request, { params }: Params) {
   try {
     const { token } = await params;
     const pageId = new URL(request.url).searchParams.get("page");
-    const resolved = await resolvePublicShare(token, pageId);
+    const resolved = await resolvePublicShare(token, pageId, undefined, { includeEmbeddedWhiteboards: false });
     if (!resolved || resolved.page.kind !== "whiteboard") return NextResponse.json({ error: "Not found." }, { status: 404, headers: { "Cache-Control": "no-store" } });
     // ゴミ箱に入ったページの本体は出さない（readCanvasDataForShare は deletedAt: null で読む。読めなければ空の白板）。
     const data = await readCanvasDataForShare(resolved.page.id) ?? { elements: [] };

@@ -319,6 +319,7 @@ export const itServer: Record<string, string> = {
   "Gantt chart": "diagramma di Gantt",
   "quadrant chart": "grafico a quadranti",
   "mind map": "mappa mentale",
+  "This page embeds a whiteboard that is not available.": "Questa pagina incorpora una lavagna non disponibile.",
   "Could not import this PowerPoint file. Try again.": "Impossibile importare questo file PowerPoint. Riprova.",
   "Could not generate a quiz. Try again.": "Impossibile generare il quiz. Riprova.",
   "Could not save the review note. Try again.": "Impossibile salvare la nota di ripasso. Riprova.",

@@ -21,6 +21,7 @@ export type NoteToDeckLabels = {
   untitled?: string;
   file?: string;
   image?: string;
+  whiteboard?: string;
 };
 
 export type NoteToDeckInput = {
@@ -45,6 +46,7 @@ type ResolvedLabels = {
   untitled: string;
   file: string;
   image: string;
+  whiteboard: string;
 };
 
 type RawBlock = {
@@ -278,6 +280,9 @@ function blockHasVisibleContent(block: RawBlock): boolean {
   if (block.type === "file") {
     const hasMeta = Boolean(cleanStr(props.name, 200).trim() || cleanStr(props.caption, 500).trim() || safeImageSrc(props.url));
     return hasMeta || children.some(blockHasVisibleContent);
+  }
+  if (block.type === "whiteboard") {
+    return Boolean(cleanStr(props.pageId, 64).trim()) || children.some(blockHasVisibleContent);
   }
   if (block.type === "table") {
     const content = isObject(block.content) ? block.content : null;
@@ -536,6 +541,10 @@ function childrenToRichBlocks(children: RawBlock[], depth: number, labels: Resol
     } else if (child.type === "file") {
       const label = fileLabel(props, labels);
       if (label) out.push(paragraphNode([{ type: "text", text: label, marks: [{ type: "color", attrs: { color: "muted" } }] }]));
+    } else if (child.type === "whiteboard") {
+      if (cleanStr(props.pageId, 64).trim()) {
+        out.push(paragraphNode([{ type: "text", text: `[${labels.whiteboard}]`, marks: [{ type: "color", attrs: { color: "muted" } }] }]));
+      }
     } else if (child.type === "image") {
       const alt = cleanStr(props.caption || props.name || labels.image, 200).trim() || labels.image;
       if (safeImageSrc(props.url)) out.push(paragraphNode([{ type: "text", text: `[${labels.image}: ${alt}]`, marks: [{ type: "color", attrs: { color: "muted" } }] }]));
@@ -1009,6 +1018,15 @@ function blocksToFlowItems(blocks: RawBlock[], boxWidth: number, maxItemHeight: 
         const label = fileLabel(props, labels);
         if (label) {
           const p = paragraphNode([{ type: "text", text: label, marks: [{ type: "color", attrs: { color: "muted" } }] }]);
+          out.push({ kind: "richBlock", block: p, height: estimateRichBlockHeight(p, boxWidth) });
+        }
+        if (children.length) out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight, labels));
+        break;
+      }
+
+      case "whiteboard": {
+        if (cleanStr(props.pageId, 64).trim()) {
+          const p = paragraphNode([{ type: "text", text: `[${labels.whiteboard}]`, marks: [{ type: "color", attrs: { color: "muted" } }] }]);
           out.push({ kind: "richBlock", block: p, height: estimateRichBlockHeight(p, boxWidth) });
         }
         if (children.length) out.push(...blocksToFlowItems(children, boxWidth, maxItemHeight, labels));
@@ -1585,6 +1603,7 @@ export function noteToDeckResult({ title, blocks, theme, untitledLabel, labels, 
     untitled: cleanStr(labels?.untitled ?? untitledLabel, 200).trim() || "Untitled",
     file: cleanStr(labels?.file, 60).trim() || "File",
     image: cleanStr(labels?.image, 60).trim() || "Image",
+    whiteboard: cleanStr(labels?.whiteboard, 60).trim() || "Whiteboard",
   };
   const cleanTitle = cleanStr(title, 200).trim();
   const hasTitle = cleanTitle.length > 0 && cleanTitle !== "Untitled";

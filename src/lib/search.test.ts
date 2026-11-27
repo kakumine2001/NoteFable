@@ -120,6 +120,15 @@ describe("findMatchingBlock", () => {
     for (let depth = 0; depth < 20_000; depth++) deepest = block(`n${depth}`, "paragraph", [text("x")], [deepest]);
     expect(findMatchingBlock([deepest], ["needle"])?.blockId).toBe("leaf");
   });
+
+  it("matches embedded whiteboard titles and frame names when live metadata is provided", () => {
+    const blocks = [{ id: "w1", type: "whiteboard", props: { pageId: "wb1", frameId: "f1" }, children: [] }];
+    const whiteboards = new Map([["wb1", { id: "wb1", title: "System Architecture", frames: new Map([["f1", "Payment Gateway"]]) }]]);
+    expect(findMatchingBlock(blocks, ["gateway"], { whiteboards })).toEqual({ blockId: "w1", text: "System Architecture — Payment Gateway" });
+    expect(findMatchingBlock(blocks, ["architecture"], { whiteboards })?.blockId).toBe("w1");
+    // Without live metadata (e.g. trashed whiteboard), nothing matches.
+    expect(findMatchingBlock(blocks, ["gateway"])).toBeNull();
+  });
 });
 
 describe("searchNotes", () => {

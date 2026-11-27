@@ -5,7 +5,7 @@ import { codeBlockOptions, syntaxHighlighter } from "@blocknote/code-block";
 import { BlockNoteView } from "@blocknote/ariakit";
 import { SideMenuExtension, SuggestionMenu, filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from "@blocknote/core/extensions";
 import { BasicTextStyleButton, BlockColorsItem, ColorStyleButton, CreateLinkButton, DragHandleButton, DragHandleMenu, FileCaptionButton, FileDeleteButton, FileDownloadButton, FilePanel, FilePanelController, FilePreviewButton, FileRenameButton, FormattingToolbar, FormattingToolbarController, SideMenu, SideMenuController, SuggestionMenuController, TableCellMergeButton, TableColumnHeaderItem, TableRowHeaderItem, getDefaultReactSlashMenuItems, useBlockNoteEditor, useComponentsContext, useCreateBlockNote, useDictionary, useEditorState, useExtensionState, usePortalElement, type DefaultReactSuggestionItem, type FilePanelProps, type SuggestionMenuProps } from "@blocknote/react";
-import { CalendarDays, Check, CheckSquare, ChevronRight, Code2, Columns2, Columns3, Columns4, Copy, GripVertical, Heading1, Lightbulb, ListTree, Loader2, Palette, Radical, Sigma, Sparkles, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Table, Text, Type, Upload } from "lucide-react";
+import { CalendarDays, Check, CheckSquare, ChevronRight, Code2, Columns2, Columns3, Columns4, Copy, GripVertical, Heading1, Lightbulb, ListTree, Loader2, Palette, Radical, Shapes, Sigma, Sparkles, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Table, Text, Type, Upload } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref, type RefObject } from "react";
 import "@blocknote/ariakit/style.css";
 import { AppIcon } from "@/components/app-icon";
@@ -24,6 +24,7 @@ import { NoteIcon } from "@/components/note-icon";
 import { NoteMentionContext, createMentionSpec, formatNoteDate, type MentionPage } from "@/components/note-mention";
 import { dateMention, isNoteDate, localDate, notePageIdFromUrl, pageMention } from "@/lib/note-mention";
 import { MathEditorProvider, canInsertInlineMath, convertSelectionToInlineMath, createMathBlockSpec, markNextMathBlockAutoOpen, markNextMathInlineAutoOpen, mathInlineSpec } from "@/components/note-math";
+import { NoteWhiteboardProvider, createWhiteboardBlockSpec, markNextWhiteboardBlockAutoOpen } from "@/components/note-whiteboard";
 import { NOTE_TEXT_BLOCKS, blockMatchesTarget, codeBlockText, selectedRootBlocks } from "@/lib/note-block-actions";
 import { BLOCK_COLORS, NoteBlockSelectionOverlay, blockSelectionExtension, convertBlocks, duplicateBlocks, paintBlocksColor, useNoteBlockSelection, type NoteBlockEditorLike } from "@/components/note-block-selection-ui";
 import { buildNoteBlockSelection, normalizeBlockSelection, type SelectableBlock } from "@/lib/note-block-selection";
@@ -89,6 +90,7 @@ const schema = BlockNoteSchema.create({
     image: defaultBlockSpecs.image,
     file: defaultBlockSpecs.file,
     mathBlock: createMathBlockSpec(),
+    whiteboard: createWhiteboardBlockSpec(),
     // 段組み（ブロックを左右に並べる）。ブロックを他のブロックの左右へドラッグするか、/2 columns などで作る。
     columnList: columnListSpec,
     column: columnSpec,
@@ -158,6 +160,7 @@ const SLASH_LOOK: Record<string, { icon: ReactNode; hint?: string }> = {
   table_of_contents: { icon: <ListTree size={18} /> },
   math_block: { icon: <Sigma size={18} />, hint: "$$" },
   math_inline: { icon: <Radical size={18} />, hint: "$" },
+  whiteboard: { icon: <Shapes size={18} /> },
   columns_2: { icon: <Columns2 size={18} /> },
   columns_3: { icon: <Columns3 size={18} /> },
   columns_4: { icon: <Columns4 size={18} /> },
@@ -558,7 +561,7 @@ type NoteEditorProps = {
   // 「@」で選べる自分のページ（/note-embed では渡さず、「@」を打った時に読む）と、メンションやページのリンクを押した時に開く処理。
   // onOpenPage はその場で開けたら true。false なら（古いアプリの埋め込みなど）リンクを新しいウィンドウで開く。
   // pageMentions が偽（openPage を処理できない古いアプリの埋め込み）のときは、ページのメンションを「@」の候補に出さない。
-  pages?: MentionPage[]; currentPageId?: string; onOpenPage?: (id: string) => boolean; pageMentions?: boolean;
+  pages?: MentionPage[]; currentPageId?: string; onOpenPage?: (id: string, reveal?: string) => boolean; pageMentions?: boolean;
 };
 
 export default function NoteEditor(props: NoteEditorProps) {
@@ -643,9 +646,11 @@ function NoteEditorBody({ blocks, onChange, editable, embedded = false, generate
   const { t, dir, locale } = useI18n();
   const { resolved: resolvedTheme } = useTheme();
   const { pages, loadPages } = useMentionPages(givenPages, blocks);
-  const openPage = useCallback((id: string) => {
-    if (onOpenPage?.(id)) return;
-    window.open(`/app?view=pages&page=${encodeURIComponent(id)}`, "_blank", "noopener,noreferrer");
+  const openPage = useCallback((id: string, reveal?: string) => {
+    if (onOpenPage?.(id, reveal)) return;
+    const params = new URLSearchParams({ view: "pages", page: id });
+    if (reveal) params.set("reveal", reveal);
+    window.open(`/app?${params.toString()}`, "_blank", "noopener,noreferrer");
   }, [onOpenPage]);
   // エディターの設定は最初の 1 回だけ作られるので、リンクのクリックからは最新の onOpenPage を参照で読む。
   const openPageRef = useRef(onOpenPage);
@@ -913,6 +918,7 @@ function NoteEditorBody({ blocks, onChange, editable, embedded = false, generate
 
   return <NoteMentionContext.Provider value={mentionContext}><NoteAskAiContext.Provider value={onAskAi ?? null}><NoteImageGenContext.Provider value={editable ? openImageGenForBlock : null}><BlockSelectionContext.Provider value={blockSelectionCtx}><div ref={editorWrapRef} className="notes-block-editor" onClickCapture={onClickCapture} onKeyDownCapture={onKeyDown} onMouseMove={trackCodeHover} onFocus={trackCodeHover} onMouseLeave={() => setCodeHover(null)}>
     <MathEditorProvider editor={editor} editable={editable}>
+    <NoteWhiteboardProvider editor={editor} editable={editable} pages={pages} openPage={openPage}>
     <BlockNoteView editor={editor} theme={resolvedTheme} editable={editable} slashMenu={false} sideMenu={false} formattingToolbar={false} filePanel={false} onChange={() => {
       // 入力ルールで未知の言語が入った場合も、保存前に Plain Text へ直す。
       const unknown: string[] = [];
@@ -982,17 +988,28 @@ function NoteEditorBody({ blocks, onChange, editable, embedded = false, generate
             openImageGenerator(editor.getTextCursorPosition().block.id);
           },
         };
+        const whiteboardItem: SlashItem = {
+          key: "whiteboard",
+          title: t("Whiteboard"),
+          group: imageGroup,
+          aliases: ["whiteboard", "board", "canvas", "frame", "diagram", "sketch", "白板", "画板", "白板框", "ホワイトボード", "화이트보드"],
+          onItemClick: () => {
+            markNextWhiteboardBlockAutoOpen();
+            insertOrUpdateBlockForSlashMenu(editor, { type: "whiteboard", props: { pageId: "", frameId: "" } });
+          },
+        };
         const restDefaults = defaults.filter((item) => !NOTE_TEXT_BLOCKS.some((target) => target.key === item.key));
         const imageIndex = restDefaults.findIndex((item) => item.key === "image");
         const mediaAndRest = imageIndex >= 0
-          ? [...restDefaults.slice(0, imageIndex + 1), aiImageItem, ...restDefaults.slice(imageIndex + 1)]
-          : [...restDefaults, aiImageItem];
+          ? [...restDefaults.slice(0, imageIndex + 1), aiImageItem, ...restDefaults.slice(imageIndex + 1), whiteboardItem]
+          : [...restDefaults, aiImageItem, whiteboardItem];
         const blockItems = [...textItems, tocItem, ...mathItems, ...columnItems, ...mediaAndRest];
         // 一覧が長くなるので、色と操作のコマンド（Notion の /red、/blue background、/duplicate、/delete）は文字を打った時だけ候補に出す。
         return filterSuggestionItems(query.trim() ? [...blockItems, ...commandItems(editor, t)] : blockItems, query);
       }} />
       <SuggestionMenuController triggerCharacter="@" suggestionMenuComponent={MentionMenu} getItems={async (query) => mentionItems(query)} />
     </BlockNoteView>
+    </NoteWhiteboardProvider>
     </MathEditorProvider>
     {codeHover && <button type="button" className={`notes-code-copy ${copiedId === codeHover.id ? "is-copied" : ""}`} style={{ top: codeHover.top, right: codeHover.right }}
       aria-label={copiedId === codeHover.id ? t("Copied") : t("Copy code")} title={copiedId === codeHover.id ? t("Copied") : t("Copy code")}

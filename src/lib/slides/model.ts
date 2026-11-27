@@ -97,7 +97,15 @@ export type TableElement = ElementBase & {
   style: { size: number; color: ColorRef; border: ColorRef; headerFill: ColorRef; font: FontRole };
 };
 // ホワイトボードの枠の静止画（#152 のホワイトボードから取り込む）。src はその時点の画像（note-files）。
-export type WhiteboardElement = ElementBase & { type: "whiteboard"; src: string; pageId: string; frameId: string; frameName: string };
+// sourceVersion は取り込んだ時点のホワイトボードの版番号（白板の更新を検知して「可刷新」を出すため。公開ページには出さない）。
+export type WhiteboardElement = ElementBase & {
+  type: "whiteboard";
+  src: string;
+  pageId: string;
+  frameId: string;
+  frameName: string;
+  sourceVersion?: number;
+};
 export type SlideElement = TextElement | ShapeElement | LineElement | ImageElement | TableElement | WhiteboardElement;
 export type ElementType = SlideElement["type"];
 
@@ -221,10 +229,15 @@ export function normalizeElement(value: unknown, id: string): SlideElement | nul
         },
       };
     }
-    case "whiteboard":
-      return {
+    case "whiteboard": {
+      const whiteboard: WhiteboardElement = {
         ...base, type: "whiteboard", src: safeImageSrc(value.src), pageId: shortText(value.pageId, 64), frameId: shortText(value.frameId, 120), frameName: shortText(value.frameName, 200),
       };
+      if (typeof value.sourceVersion === "number" && Number.isSafeInteger(value.sourceVersion) && value.sourceVersion >= 0) {
+        whiteboard.sourceVersion = value.sourceVersion;
+      }
+      return whiteboard;
+    }
     default:
       return null;
   }

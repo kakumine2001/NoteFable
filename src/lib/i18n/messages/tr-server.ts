@@ -319,6 +319,7 @@ export const trServer: Record<string, string> = {
   "Gantt chart": "Gantt şeması",
   "quadrant chart": "dörtlü bölge grafiği",
   "mind map": "zihin haritası",
+  "This page embeds a whiteboard that is not available.": "Bu sayfa kullanılamayan bir beyaz tahta içeriyor.",
   "Could not import this PowerPoint file. Try again.": "Bu PowerPoint dosyası içe aktarılamadı. Tekrar deneyin.",
   "Could not generate a quiz. Try again.": "Test oluşturulamadı. Tekrar deneyin.",
   "Could not save the review note. Try again.": "Tekrar notu kaydedilemedi. Tekrar deneyin.",

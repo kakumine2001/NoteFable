@@ -5,6 +5,7 @@ import { assertCoverOwner, claimCover } from "@/lib/note-covers";
 import { isEmojiIcon } from "@/lib/emoji-icon";
 import { MAX_NOTE_TITLE, NoteValidationError, uploadedCoverPath, validateNoteContent } from "@/lib/note-document";
 import { assertNoteFilesOwner } from "@/lib/note-files";
+import { assertNoteWhiteboardsOwner } from "@/lib/note-whiteboards";
 import { lockNoteOrder, resolveParent } from "@/lib/note-tree-server";
 import { isCanvasKind, pageKindOf, type CanvasKind } from "@/lib/page-kinds";
 import { prisma } from "@/lib/prisma";
@@ -39,10 +40,11 @@ export const noteStorage: Storage = {
     checkIcon(content.icon, userId);
     return { title: checked.title, ...(content.icon === undefined ? {} : { icon: checked.icon }), blocks: checked.blocks };
   },
-  async claim(tx, userId, content) {
+  async claim(tx, userId, content, options) {
     // ファイルの行を、履歴・ページの行より先に取る（保存と同じ順序）。後片付けが削除を始めていたら書かない。
     if (content.icon !== undefined) await claimCover(tx, content.icon, userId, "icon");
     await claimNoteFiles(tx, content.blocks as never, userId);
+    await assertNoteWhiteboardsOwner(tx, content.blocks, userId, { allowExistingIds: options?.allowExistingWhiteboards });
   },
   async write(tx, target, content, { ai, requireUnlocked }) {
     const changed = await tx.notePage.updateMany({
@@ -65,6 +67,7 @@ export const noteStorage: Storage = {
     const parent = await parentGroup(tx, userId, parentId);
     if (content.icon) await claimCover(tx, content.icon, userId, "icon");
     await claimNoteFiles(tx, content.blocks as never, userId);
+    await assertNoteWhiteboardsOwner(tx, content.blocks, userId);
     const page = await tx.notePage.create({
       data: {
         userId, ...parent, title: content.title, icon: content.icon ?? null, cover: null, coverPosition: null,

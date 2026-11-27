@@ -3,6 +3,8 @@ import { MAX_MATH_LATEX } from "@/lib/note-document";
 import { isNoteImageUrl, noteFileUrlName } from "@/lib/note-file-keys";
 import { mentionFromHref, mentionHref, mentionText, type MentionProps } from "@/lib/note-mention";
 import { unwrapColumns } from "@/lib/note-columns";
+import { validWhiteboardEmbedFrameId, validWhiteboardEmbedPageId } from "@/lib/whiteboard/embed-id";
+import type { WhiteboardMetaMap } from "@/lib/whiteboard/frames";
 // BlockNote のブロック JSON と Markdown の相互変換。チャットのツールがページを読む（JSON → Markdown）、
 // 編集案を作る（Markdown → JSON）ために使う。対応するのは note-document.ts が検証する範囲のブロックだけ。
 
@@ -360,10 +362,16 @@ function inlineToMarkdown(content: unknown, plain = false, pipes = false, forPre
   }).join("");
 }
 
+export type BlocksToMarkdownOptions = {
+  forPreview?: boolean;
+  whiteboards?: WhiteboardMetaMap;
+  portable?: boolean;
+};
+
 // 保存済みの BlockNote JSON を、モデルが読みやすい Markdown にする。不明なブロックは本文だけ残す。
 // counter を渡すと、全ブロックを深さ優先の順に 1 から番号付けして `[n] ` を行頭に付ける（空ブロックも 1 行出す）。
 // 編集ツールはこの番号でブロックを指す。
-export function blocksToMarkdown(blocks: unknown, depth = 0, counter?: { n: number }, options?: { forPreview?: boolean }): string {
+export function blocksToMarkdown(blocks: unknown, depth = 0, counter?: { n: number }, options?: BlocksToMarkdownOptions): string {
   if (!Array.isArray(blocks) || depth > 8) return "";
   const forPreview = options?.forPreview === true;
   const indent = "  ".repeat(depth);
@@ -412,6 +420,25 @@ export function blocksToMarkdown(blocks: unknown, depth = 0, counter?: { n: numb
       const name = typeof props.name === "string" && props.name ? props.name : "untitled";
       const caption = typeof props.caption === "string" && props.caption ? ` — ${props.caption}` : "";
       lines.push(`${indent}${label}[${block.type === "image" ? "Image" : "File"}: ${name}${caption}]`);
+    } else if (block.type === "whiteboard") {
+      // ホワイトボード埋め込みブロック。編集ツール・往返には [Whiteboard...](whiteboard:pageId[#frameId]) を使い、
+      // Markdown ファイルへの書き出し（portable）では他のアプリで壊れたリンクにならないよう平文の目印にする。
+      const pageId = typeof props.pageId === "string" ? props.pageId.trim() : "";
+      const frameId = typeof props.frameId === "string" ? props.frameId.trim() : "";
+      const meta = pageId ? options?.whiteboards?.get(pageId) : undefined;
+      const frameName = meta && frameId ? meta.frames.get(frameId) : undefined;
+      const titleText = meta ? (meta.title.trim() || "Untitled") : "";
+      const heading = titleText
+        ? (frameName ? `Whiteboard: ${titleText} — ${frameName}` : `Whiteboard: ${titleText}`)
+        : "Whiteboard";
+      if (!pageId) {
+        if (counter) lines.push(`${indent}${label}[Whiteboard]`);
+      } else if (options?.portable || forPreview) {
+        lines.push(`${indent}${label}[${heading}]`);
+      } else {
+        const target = frameId ? `whiteboard:${pageId}#${frameId}` : `whiteboard:${pageId}`;
+        lines.push(`${indent}${label}[${escapeText(heading)}](${target})`);
+      }
     } else {
       const text = inlineToMarkdown(block.content, false, false, forPreview);
       const start = Number(props.start);
@@ -904,6 +931,13 @@ export function markdownToBlocks(markdown: string): NewBlock[] {
       // 自分のアップロード画像だけを画像ブロックにする（外部 URL は通常の段落のまま）。保存時に所有者を確かめる。
       const caption = match[1].replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 500);
       add("image", { url: match[2], name: noteFileUrlName(match[2]), caption, showPreview: true });
+    } else if (
+      (match = /^\[((?:\\.|[^\]\\\n])*)\]\(whiteboard:([A-Za-z0-9_-]{1,64})(?:#([^\s)#\u0000-\u001f\u007f]{1,120}))?\)$/.exec(text))
+      && validWhiteboardEmbedPageId(match[2])
+      && validWhiteboardEmbedFrameId(match[3] ?? "")
+    ) {
+      // ホワイトボード埋め込みブロック。保存時に自分の未削除ホワイトボードかサーバーで確かめる。
+      add("whiteboard", { pageId: match[2], frameId: match[3] ?? "" });
     } else {
       // 行頭の \| は「表ではない | で始まる段落」の退避（escapeBlockStart）なので、\ だけ外す。
       add("paragraph", {}, parseInline(text.startsWith("\\|") ? text.slice(1) : text));

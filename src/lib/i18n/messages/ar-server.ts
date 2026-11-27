@@ -319,6 +319,7 @@ export const arServer: Record<string, string> = {
   "Gantt chart": "مخطط جانت",
   "quadrant chart": "مخطط رباعي",
   "mind map": "خريطة ذهنية",
+  "This page embeds a whiteboard that is not available.": "تُضمّن هذه الصفحة سبورة غير متاحة.",
   "Could not import this PowerPoint file. Try again.": "تعذّر استيراد ملف PowerPoint هذا. حاول مرة أخرى.",
   "Could not generate a quiz. Try again.": "تعذّر إنشاء الاختبار. حاول مرة أخرى.",
   "Could not save the review note. Try again.": "تعذّر حفظ ملاحظة المراجعة. حاول مرة أخرى.",

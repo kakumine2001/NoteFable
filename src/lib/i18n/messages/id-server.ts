@@ -319,6 +319,7 @@ export const idServer: Record<string, string> = {
   "Gantt chart": "diagram Gantt",
   "quadrant chart": "bagan kuadran",
   "mind map": "peta pikiran",
+  "This page embeds a whiteboard that is not available.": "Halaman ini menyematkan papan tulis yang tidak tersedia.",
   "Could not import this PowerPoint file. Try again.": "Tidak dapat mengimpor file PowerPoint ini. Coba lagi.",
   "Could not generate a quiz. Try again.": "Tidak dapat membuat kuis. Coba lagi.",
   "Could not save the review note. Try again.": "Tidak dapat menyimpan catatan ulasan. Coba lagi.",

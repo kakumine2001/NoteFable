@@ -2,13 +2,14 @@ import { randomBytes } from "crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { extractCanvasSegments } from "@/lib/canvas-document";
 import { splitHosts } from "@/lib/hosts";
-import { isShareRowActive, isValidShareToken, shareIconUrl, sharePageUrl } from "@/lib/note-share";
+import { isShareRowActive, isValidShareToken, shareIconUrl, sharePagePath, sharePageUrl } from "@/lib/note-share";
 import { isUploadedNoteIcon, noteIconText } from "@/lib/note-icon";
 import { PAGE_SUMMARY_SELECT } from "@/lib/note-tree-server";
 import { isCanvasKind, PAGE_KINDS, pageKindFeatures, pageKindOf, type PageKind } from "@/lib/page-kinds";
 import { readCanvasDataForShare } from "@/lib/canvas-store";
-import { prisma, databaseSchema } from "@/lib/prisma";
+import { databaseSchema, prisma } from "@/lib/prisma";
 import { publicDeck } from "@/lib/slides/public-deck";
+import { extractNoteWhiteboardPageIds } from "@/lib/whiteboard/frames";
 import { extractPageCardSummary, isValidPageCardId, MAX_PAGE_CARD_BATCH, type PageCardPreview } from "@/lib/whiteboard/links";
 import { publicWhiteboardScene } from "@/lib/whiteboard/public";
 import type { NotePageFont, NoteShareAncestor, NoteShareState } from "@/types/notes";
@@ -74,6 +75,10 @@ export function shareOriginForRequest(request: Request): string {
 // kind はページの種類（パンくず・サブページの一覧のアイコン）。
 export type PublicShareCrumb = { id: string; title: string; icon: string | null; kind?: PageKind };
 
+// 同じ公開共有ツリーに含まれる埋め込みホワイトボード（公開ノート内のプレビュー・遷移先）。
+// 同じツリーに無いホワイトボードはここに入らず、閲覧者にはプレースホルダーだけを見せる（メタデータを一切漏らさない）。
+export type PublicEmbeddedWhiteboard = { id: string; title: string; icon: string | null; href: string };
+
 export type ResolvedPublicShare = {
   token: string;
   root: {
@@ -104,6 +109,7 @@ export type ResolvedPublicShare = {
   };
   breadcrumbs: PublicShareCrumb[];
   children: PublicShareCrumb[];
+  embeddedWhiteboards?: Record<string, PublicEmbeddedWhiteboard>;
 };
 
 const PUBLIC_PAGE_SELECT = {
@@ -132,12 +138,125 @@ function normalizeFont(value: string): NotePageFont {
   return value === "serif" || value === "mono" ? value : "default";
 }
 
+type AncestorNodeRow = {
+  id: string;
+  kind: string;
+  parentId: string | null;
+  shareExcludeFromParent: boolean;
+};
+
+// 複数の親 ID から公開ルートまでの祖先ノードを 1 回の再帰 CTE でまとめて取得する（循環安全・root で打ち切り）。
+async function fetchAncestorsBatch(userId: string, rootId: string, startParentIds: string[]): Promise<Map<string, AncestorNodeRow>> {
+  const unique = [...new Set(startParentIds.filter((id) => id && id !== rootId))];
+  const map = new Map<string, AncestorNodeRow>();
+  if (!unique.length) return map;
+  const rows = await prisma.$queryRaw<AncestorNodeRow[]>(Prisma.sql`
+    WITH RECURSIVE chain AS (
+      SELECT p."id", p."kind"::text AS "kind", p."parentId", p."shareExcludeFromParent",
+             ARRAY[p."id"]::text[] AS seen
+      FROM ${table()} p
+      WHERE p."id" = ANY(${unique}::text[]) AND p."userId" = ${userId} AND p."deletedAt" IS NULL
+      UNION ALL
+      SELECT p."id", p."kind"::text AS "kind", p."parentId", p."shareExcludeFromParent",
+             c.seen || p."id"
+      FROM ${table()} p
+      JOIN chain c ON p."id" = c."parentId"
+      WHERE c."id" <> ${rootId} AND p."userId" = ${userId} AND p."deletedAt" IS NULL AND NOT (p."id" = ANY(c.seen))
+    )
+    SELECT DISTINCT "id", "kind", "parentId", "shareExcludeFromParent"
+    FROM chain
+  `);
+  for (const row of rows) map.set(row.id, row);
+  return map;
+}
+
+async function resolveEmbeddedWhiteboards(
+  token: string,
+  root: { id: string; userId: string; kind: unknown; title: string; icon: string | null; shareIncludeSubpages: boolean },
+  blocks: unknown,
+): Promise<Record<string, PublicEmbeddedWhiteboard> | undefined> {
+  const embeddedIds = extractNoteWhiteboardPageIds(blocks);
+  if (!embeddedIds.length) return undefined;
+  const resolved: Record<string, PublicEmbeddedWhiteboard> = {};
+  const nonRootIds: string[] = [];
+  for (const wbId of embeddedIds) {
+    if (wbId === root.id) {
+      if (pageKindOf(root) === "whiteboard") {
+        resolved[wbId] = { id: root.id, title: root.title, icon: root.icon, href: sharePagePath(token) };
+      }
+    } else {
+      nonRootIds.push(wbId);
+    }
+  }
+  if (nonRootIds.length > 0 && root.shareIncludeSubpages && !leafKind(root)) {
+    const candidates = await prisma.notePage.findMany({
+      where: {
+        id: { in: nonRootIds },
+        userId: root.userId,
+        kind: "whiteboard",
+        deletedAt: null,
+        shareExcludeFromParent: false,
+      },
+      select: { id: true, parentId: true, title: true, icon: true },
+    });
+    const nonDirectParents = candidates
+      .map((candidate) => candidate.parentId)
+      .filter((parentId): parentId is string => Boolean(parentId) && parentId !== root.id);
+    const ancestorsById = await fetchAncestorsBatch(root.userId, root.id, nonDirectParents);
+    const parentAllowed = new Map<string, boolean>([[root.id, true]]);
+
+    const isParentAllowed = (startId: string | null): boolean => {
+      if (!startId) return false;
+      const cached = parentAllowed.get(startId);
+      if (cached !== undefined) return cached;
+      const visited: string[] = [];
+      const seen = new Set<string>();
+      let curr: string | null = startId;
+      let ok = false;
+      while (curr) {
+        const memo = parentAllowed.get(curr);
+        if (memo !== undefined) {
+          ok = memo;
+          break;
+        }
+        if (seen.has(curr)) {
+          ok = false;
+          break;
+        }
+        seen.add(curr);
+        visited.push(curr);
+        const node = ancestorsById.get(curr);
+        if (!node || node.shareExcludeFromParent || !shareable(node) || leafKind(node)) {
+          ok = false;
+          break;
+        }
+        curr = node.parentId;
+      }
+      for (const id of visited) parentAllowed.set(id, ok);
+      return ok;
+    };
+
+    for (const candidate of candidates) {
+      if (isParentAllowed(candidate.parentId)) {
+        resolved[candidate.id] = {
+          id: candidate.id,
+          title: candidate.title,
+          icon: candidate.icon,
+          href: sharePagePath(token, candidate.id),
+        };
+      }
+    }
+  }
+  return Object.keys(resolved).length ? resolved : undefined;
+}
+
 // 公開トークン（と任意のサブページ ID）から閲覧可能なページ・パンくず・直下の公開サブページを解決する。
 // 非公開・期限切れ・ゴミ箱・親からの除外・別ユーザーのページはすべて null。
 export async function resolvePublicShare(
   token: string,
   requestedPageId?: string | null,
   now = new Date(),
+  options?: { includeEmbeddedWhiteboards?: boolean },
 ): Promise<ResolvedPublicShare | null> {
   if (!isValidShareToken(token)) return null;
   const root = await prisma.notePage.findFirst({
@@ -187,6 +306,11 @@ export async function resolvePublicShare(
       }).then((rows) => rows.map((row) => ({ id: row.id, title: row.title, icon: row.icon, kind: pageKindOf(row) })))
     : [];
 
+  const targetKind = pageKindOf(target);
+  const embeddedWhiteboards = targetKind === "note" && options?.includeEmbeddedWhiteboards !== false
+    ? await resolveEmbeddedWhiteboards(token, root, target.blocks)
+    : undefined;
+
   return {
     token,
     root: {
@@ -200,9 +324,9 @@ export async function resolvePublicShare(
     },
     page: {
       id: target.id,
-      kind: pageKindOf(target),
+      kind: targetKind,
       // スライドの本体（公開の 1 回の読み込みで、ページの行の後に読む）。ノートは blocks を使う。
-      data: pageKindOf(target) === "slides" ? await readCanvasDataForShare(target.id) : null,
+      data: targetKind === "slides" ? await readCanvasDataForShare(target.id) : null,
       userId: target.userId,
       title: target.title,
       icon: target.icon,
@@ -216,6 +340,7 @@ export async function resolvePublicShare(
     },
     breadcrumbs,
     children,
+    ...(embeddedWhiteboards !== undefined ? { embeddedWhiteboards } : {}),
   };
 }
 

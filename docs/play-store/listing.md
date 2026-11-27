@@ -34,6 +34,7 @@ KEEP IT IN YOUR WORKSPACE
 • Link pages with @, see what links to each note, and publish notes to the web with a read-only link.
 • Edit history and a trash bin, so nothing is lost by accident.
 • Import Markdown files as notes, and export any note as Markdown.
+• Embed live whiteboards or frames right in your notes, and insert whiteboard frames into slides with manual refresh.
 
 LET AI HELP
 • Attach notes, slides or whiteboards to a chat and the AI reads them as context.
@@ -84,6 +85,7 @@ NoteFable 把 AI 对话和你的工作区放在一起：把回答存成笔记，
 • 用 @ 链接页面，查看链接到笔记的页面和对话，还能把笔记发布成只读链接。
 • 编辑历史和回收站，误删也能找回。
 • 把 Markdown 文件导入成笔记，也可以把笔记导出为 Markdown。
+• 在笔记中直接嵌入实时白板或单个框，也可将白板框插入幻灯片并随时手动刷新。
 
 让 AI 帮忙
 • 把笔记、幻灯片或白板添加到对话里，AI 会把它们作为参考内容。
@@ -134,6 +136,7 @@ NoteFable 把 AI 對話和你的工作區放在一起：把回答存成筆記，
 • 用 @ 連結頁面，查看連結到筆記的頁面和對話，還能把筆記發布成唯讀連結。
 • 編輯紀錄和垃圾桶，誤刪也能找回。
 • 把 Markdown 檔案匯入成筆記，也可以把筆記匯出為 Markdown。
+• 在筆記中直接嵌入即時白板或單個框，也可將白板框插入投影片並隨時手動重新整理。
 
 讓 AI 幫忙
 • 把筆記、投影片或白板加入對話，AI 會把它們當作參考內容。
@@ -184,6 +187,7 @@ NoteFable は AI チャットとワークスペースをひとつにまとめた
 • @ でページ同士をリンクし、ノートへのバックリンクを確認。ノートは閲覧専用リンクで公開もできます。
 • 編集履歴とゴミ箱があるので、うっかり消しても戻せます。
 • Markdown ファイルをノートとして読み込み、ノートを Markdown で書き出せます。
+• ホワイトボード全体やフレームをノートに埋め込め、スライドにもホワイトボードの枠を挿入して手動で更新できます。
 
 AI が手伝う
 • ノート・スライド・ホワイトボードをチャットに添付すると、AI がそれを参考にして答えます。
@@ -234,6 +238,7 @@ NoteFable은 AI 채팅과 워크스페이스를 한곳에 모았습니다. 답�
 • @로 페이지를 링크해 노트의 백링크를 확인하고, 노트를 보기 전용 링크로 게시할 수도 있어요.
 • 편집 기록과 휴지통이 있어 실수로 지워도 되살릴 수 있어요.
 • Markdown 파일을 노트로 가져오고, 어떤 노트든 Markdown으로 내보낼 수 있어요.
+• 화이트보드 전체나 프레임을 노트에 바로 삽입하고, 슬라이드에도 화이트보드 프레임을 넣어 필요할 때 새로고침할 수 있어요.
 
 AI가 도와줘요
 • 노트, 슬라이드, 화이트보드를 채팅에 첨부하면 AI가 그 내용을 참고해 답해요.
@@ -284,6 +289,7 @@ GUÁRDALO EN TU ESPACIO
 • Enlaza páginas con @, mira qué enlaza a cada nota y publica notas con un enlace de solo lectura.
 • Historial de ediciones y papelera, para que nada se pierda por error.
 • Importa archivos Markdown como notas y exporta cualquier nota en Markdown.
+• Incrusta pizarras o marcos en vivo en tus notas e inserta marcos de pizarra en presentaciones con actualización manual.
 
 DEJA QUE LA IA TE AYUDE
 • Adjunta notas, presentaciones o pizarras a un chat y la IA las usa como contexto.
@@ -320,20 +326,21 @@ NoteFable réunit le chat IA et votre Espace. Gardez vos réponses en notes, cr�
 
 POSEZ VOS QUESTIONS
 • Discutez avec plusieurs modèles d'IA (OpenAI GPT, Anthropic Claude et DeepSeek) et choisissez leur niveau de réflexion.
-• La recherche web intégrée apporte des réponses à jour avec leurs sources quand c'est utile (modèles compatibles).
+• Recherche web intégrée avec sources à jour si besoin (modèles compatibles).
 • Joignez des photos, des PDF et des fichiers texte, et posez des questions dessus.
 • Créez et modifiez des images à partir d'une description.
 
 GARDEZ TOUT DANS VOTRE ESPACE
-• Enregistrez une réponse comme note, ou transformez toute une conversation en page.
-• Notes : un éditeur par blocs épuré avec titres, listes, tâches, code, équations, images et fichiers.
+• Enregistrez une réponse en note ou transformez une conversation en page.
+• Notes : éditeur par blocs (titres, listes, tâches, code, équations, images, fichiers).
 • Des présentations avec mises en page, thèmes, texte, équations, images et formes : importez/exportez en PowerPoint ou PDF, présentez en plein écran, ajoutez des notes du présentateur ou partagez un lien. Toute note peut aussi être présentée sous forme de diapositives.
 • Tableaux blancs : dessinez, ajoutez notes adhésives, formes, flèches, équations et images, annotez des PDF et partagez un lien en lecture seule.
 • Cartes mentales et modèles d'étude sur les tableaux : notes Cornell, frise chronologique, diagramme de Venn et tableau comparatif.
 • Organisez tout avec des projets, des sous-pages, des favoris et des icônes emoji.
 • Liez des pages avec @, voyez ce qui renvoie à une note et publiez-la avec un lien en lecture seule.
 • Historique des modifications et corbeille : rien ne se perd par erreur.
-• Importez des fichiers Markdown comme notes et exportez n'importe quelle note en Markdown.
+• Importez et exportez vos notes en Markdown.
+• Intégrez tableaux blancs et cadres dans vos notes, ou des cadres actualisables dans vos présentations.
 
 L'IA VOUS AIDE
 • Joignez des notes, des présentations ou des tableaux blancs à une conversation : l'IA s'en sert comme contexte.
@@ -366,7 +373,7 @@ Politique de confidentialité : https://notefable.com/privacy
 
 **Vollständige Beschreibung**:
 
-NoteFable bringt KI-Chat und deinen Arbeitsbereich an einen Ort. Halte Antworten als Notizen fest, erstelle Präsentationen und denk auf Whiteboards weiter, damit dein Wissen nicht im Chatverlauf verloren geht.
+NoteFable vereint KI-Chat und Arbeitsbereich. Halte Antworten als Notizen fest, erstelle Folien und denk auf Whiteboards weiter, ohne Wissen im Chat zu verlieren.
 
 FRAG, WAS DU WILLST
 • Chatte mit mehreren KI-Modellen (OpenAI GPT, Anthropic Claude und DeepSeek) und wähle, wie gründlich jedes nachdenkt.
@@ -377,13 +384,14 @@ FRAG, WAS DU WILLST
 ALLES IN DEINEM ARBEITSBEREICH
 • Speichere jede Antwort als Notiz oder mache aus einem ganzen Chat eine Seite.
 • Notizen: ein übersichtlicher Block-Editor mit Überschriften, Listen, To-dos, Code, Formeln, Bildern und Dateien.
-• Präsentationen mit Layouts, Designs, Text, Formeln, Bildern und Formen: PowerPoint-Dateien importieren, im Vollbild präsentieren, Sprechernotizen hinzufügen, als PDF oder PowerPoint exportieren oder per Link teilen. Jede Notiz lässt sich auch als Folien präsentieren.
+• Präsentationen mit Layouts, Designs, Text, Formeln, Bildern und Formen: PowerPoint im- und exportieren, als PDF exportieren, im Vollbild oder per Link teilen. Auch Notizen lassen sich präsentieren.
 • Whiteboards zum freien Denken: zeichnen, Haftnotizen, Formen, Pfeile, Formeln und Bilder hinzufügen, PDF-Seiten beschriften und einen schreibgeschützten Link teilen.
 • Mindmaps und Lernvorlagen auf Whiteboards: Cornell-Notizen, Zeitleiste, Venn-Diagramm, Vergleichstabelle.
 • Ordne alles mit Projekten, Unterseiten, Favoriten und Emoji-Symbolen.
 • Verlinke Seiten mit @, sieh Rückverweise und veröffentliche Notizen per schreibgeschütztem Link.
 • Bearbeitungsverlauf und Papierkorb, damit nichts versehentlich verloren geht.
 • Importiere Markdown-Dateien als Notizen und exportiere jede Notiz als Markdown.
+• Live-Whiteboards oder Rahmen direkt in Notizen einbetten und Whiteboard-Rahmen in Folien einfügen.
 
 LASS DIR VON DER KI HELFEN
 • Hänge Notizen, Präsentationen oder Whiteboards an einen Chat an, und die KI nutzt sie als Kontext.
@@ -391,7 +399,7 @@ LASS DIR VON DER KI HELFEN
 • Lass die KI eine Antwort oder Notiz als bearbeitbares Diagramm auf ein Whiteboard zeichnen.
 • Lass die KI aus einem Thema, Notizen oder einem Chat eine Präsentation erstellen; die Gliederung prüfst du vorher.
 • Verwandle eine Whiteboard-Skizze mit KI in ein Bild.
-• Erstelle Quizze und Lernkarten aus deinen Notizen oder Folien und speichere sie als Wiederholungsnotiz.
+• Erstelle Quizze und Lernkarten aus Notizen oder Folien und speichere sie als Lernnotiz.
 • Projekte bündeln zusammengehörige Chats mit gemeinsamen Anweisungen und Referenzseiten.
 • Mit eigenen Anweisungen erzählst du NoteFable, wer du bist und wie du Antworten magst.
 • Wähle eine KI-Figur als Begleiter – oder lade dein eigenes Symbol hoch – für Chat und Arbeitsbereich.
@@ -434,6 +442,7 @@ GUARDE TUDO NO SEU ESPAÇO
 • Vincule páginas com @, veja o que aponta para cada nota e publique notas com um link somente leitura.
 • Histórico de edições e lixeira, para nada se perder por engano.
 • Importe arquivos Markdown como notas e exporte qualquer nota em Markdown.
+• Incorpore quadros brancos ou quadros ao vivo nas suas notas e insira quadros em slides com atualização manual.
 
 DEIXE A IA AJUDAR
 • Anexe notas, apresentações ou quadros brancos a uma conversa e a IA usa o conteúdo como contexto.
@@ -484,6 +493,7 @@ TUTTO NEL TUO SPAZIO
 • Collega le pagine con @, vedi cosa rimanda a ogni nota e pubblica le note con un link di sola lettura.
 • Cronologia delle modifiche e cestino, così niente va perso per errore.
 • Importa file Markdown come note ed esporta qualsiasi nota in Markdown.
+• Incorpora lavagne o riquadri in tempo reale nelle note e inserisci riquadri nelle presentazioni con aggiornamento manuale.
 
 LASCIATI AIUTARE DALL'IA
 • Allega note, presentazioni o lavagne a una chat e l'IA le usa come contesto.
@@ -534,6 +544,7 @@ SIMPAN DI RUANG KERJA
 • Tautkan halaman dengan @, lihat tautan balik tiap catatan, dan publikasikan catatan lewat tautan hanya-baca.
 • Riwayat edit dan tempat sampah, jadi tidak ada yang hilang karena salah hapus.
 • Impor file Markdown sebagai catatan, dan ekspor catatan apa pun sebagai Markdown.
+• Sematkan papan tulis atau bingkai langsung di catatan, dan sisipkan bingkai papan tulis ke slide dengan pembaruan manual.
 
 BIARKAN AI MEMBANTU
 • Lampirkan catatan, presentasi, atau papan tulis ke chat dan AI memakainya sebagai konteks.
@@ -584,6 +595,7 @@ LƯU VÀO KHÔNG GIAN
 • Liên kết trang bằng @, xem liên kết ngược của ghi chú và xuất bản ghi chú qua liên kết chỉ xem.
 • Lịch sử chỉnh sửa và thùng rác, để không mất gì vì lỡ tay.
 • Nhập tệp Markdown thành ghi chú và xuất bất kỳ ghi chú nào ra Markdown.
+• Nhúng trực tiếp bảng trắng hoặc khung vào ghi chú và chèn khung bảng trắng vào bản trình chiếu với nút làm mới thủ công.
 
 ĐỂ AI GIÚP BẠN
 • Đính kèm ghi chú, bản trình chiếu hoặc bảng trắng vào cuộc trò chuyện và AI dùng chúng làm ngữ cảnh.
@@ -634,6 +646,7 @@ NoteFable รวมแชท AI และพื้นที่ทำงานข
 • ลิงก์หน้าด้วย @ ดูลิงก์ย้อนกลับของโน้ต และเผยแพร่โน้ตด้วยลิงก์แบบดูอย่างเดียว
 • มีประวัติการแก้ไขและถังขยะ ไม่ต้องกลัวลบผิด
 • นำเข้าไฟล์ Markdown เป็นโน้ต และส่งออกโน้ตใดก็ได้เป็น Markdown
+• ฝังไวท์บอร์ดหรือกรอบแบบเรียลไทม์ลงในโน้ต และแทรกกรอบไวท์บอร์ดลงในสไลด์พร้อมรีเฟรชเองได้ทุกเมื่อ
 
 ให้ AI ช่วย
 • แนบโน้ต ชุดสไลด์ หรือไวท์บอร์ดเข้าแชท แล้ว AI จะใช้เป็นบริบทในการตอบ
@@ -684,6 +697,7 @@ NoteFable AI चैट और आपके वर्कस्पेस को �
 • @ से पेज लिंक करें, नोट के बैकलिंक देखें और नोट को केवल देखने वाले लिंक से प्रकाशित करें।
 • एडिट हिस्ट्री और ट्रैश, ताकि गलती से कुछ न खोए।
 • Markdown फ़ाइलों को नोट्स के रूप में इंपोर्ट करें और किसी भी नोट को Markdown में एक्सपोर्ट करें।
+• नोट्स में लाइव व्हाइटबोर्ड या फ़्रेम एम्बेड करें, और स्लाइड में व्हाइटबोर्ड फ़्रेम जोड़कर ज़रूरत पर रिफ़्रेश करें।
 
 AI से मदद लें
 • नोट्स, स्लाइड डेक या व्हाइटबोर्ड को चैट में जोड़ें, AI उन्हें संदर्भ के रूप में पढ़ता है।
@@ -734,6 +748,7 @@ AI संदेशों और इमेज की दैनिक और म�
 • اربط الصفحات باستخدام @، واطّلع على الروابط الخلفية، وانشر الملاحظات برابط للقراءة فقط.
 • سجل للتعديلات وسلة مهملات، فلا يضيع شيء بالخطأ.
 • استورد ملفات Markdown كملاحظات، وصدّر أي ملاحظة بصيغة Markdown.
+• ضمّن السبورات أو إطاراتها مباشرة في ملاحظاتك، وأدرج إطارات السبورة في الشرائح مع إمكانية التحديث اليدوي.
 
 دع الذكاء الاصطناعي يساعدك
 • أرفق الملاحظات أو الشرائح أو السبورات بالمحادثة ليستخدمها الذكاء الاصطناعي كسياق.
@@ -784,6 +799,7 @@ HER ŞEYİ SOR
 • Sayfaları @ ile bağla, notların geri bağlantılarını gör ve notları salt okunur bağlantıyla yayımla.
 • Düzenleme geçmişi ve çöp kutusu sayesinde yanlışlıkla hiçbir şey kaybolmaz.
 • Markdown dosyalarını not olarak içe aktar, istediğin notu Markdown olarak dışa aktar.
+• Notlarına canlı beyaz tahtalar veya çerçeveler yerleştir, slaytlara da elle yenilenebilen beyaz tahta çerçeveleri ekle.
 
 YAPAY ZEKÂ YARDIM ETSİN
 • Notları, slaytları veya beyaz tahtaları bir sohbete ekle, yapay zekâ onları bağlam olarak kullansın.
@@ -834,6 +850,7 @@ NoteFable объединяет ИИ-чат и ваше «Пространств�
 • Связывайте страницы через @, смотрите обратные ссылки и публикуйте заметки по ссылке только для чтения.
 • История правок и корзина — ничего не пропадёт по ошибке.
 • Импортируйте файлы Markdown как заметки и экспортируйте любую заметку в Markdown.
+• Встраивайте живые доски или их рамки прямо в заметки и вставляйте рамки досок в слайды с ручным обновлением.
 
 ИИ ПОМОГАЕТ
 • Прикрепите заметки, презентации или доски к чату, и ИИ будет опираться на них.

@@ -1,7 +1,9 @@
 import { canvasReadableText, parseCanvasSegments } from "@/lib/canvas-document";
 import { blocksToMarkdown } from "@/lib/note-markdown";
+import { loadEmbeddedWhiteboardMeta } from "@/lib/note-whiteboards";
 import { isCanvasKind, pageKindOf, type PageKind } from "@/lib/page-kinds";
 import { prisma } from "@/lib/prisma";
+import { extractNoteWhiteboardPageIds, type WhiteboardMetaMap } from "@/lib/whiteboard/frames";
 import { MAX_PROJECT_NOTES } from "@/types/chat";
 
 // プロジェクトの共通指示と参照ノートを、チャットのシステム指示に渡す形にする。
@@ -15,9 +17,14 @@ export type ProjectContextNote = { id: string; kind?: PageKind; title: string; m
 export type ProjectContext = { projectName: string; instructions: string | null; notes: ProjectContextNote[] };
 
 // ページをモデルに渡す文字にする。ノートは Markdown、ホワイトボード・スライドは保存時に取り出した文字（本体は読まない）。
-export function pageContextText(page: { kind?: unknown; blocks: unknown; canvas?: { segments: unknown } | null }) {
+export function pageContextText(
+  page: { kind?: unknown; blocks: unknown; canvas?: { segments: unknown } | null },
+  whiteboards?: WhiteboardMetaMap,
+) {
   const kind = pageKindOf(page);
-  return isCanvasKind(kind) ? canvasReadableText(kind, parseCanvasSegments(page.canvas?.segments)) : blocksToMarkdown(page.blocks);
+  return isCanvasKind(kind)
+    ? canvasReadableText(kind, parseCanvasSegments(page.canvas?.segments))
+    : blocksToMarkdown(page.blocks, 0, undefined, whiteboards ? { whiteboards } : undefined);
 }
 
 // ノート以外のページの見出しに付ける印（モデルがどの種類のページか分かるように）。
@@ -50,9 +57,15 @@ export async function loadProjectContext(userId: string, projectId: string): Pro
   });
   if (!project) return null;
   const instructions = project.instructions?.trim() || null;
+  const noteBlocksWithEmbeds = project.notes
+    .filter(({ note }) => pageKindOf(note) === "note" && extractNoteWhiteboardPageIds(note.blocks).length > 0)
+    .map(({ note }) => note.blocks);
+  const whiteboards = noteBlocksWithEmbeds.length > 0
+    ? await loadEmbeddedWhiteboardMeta(userId, noteBlocksWithEmbeds)
+    : undefined;
   let remaining = MAX_CONTEXT_TOTAL_CHARS;
   const notes = project.notes.map(({ note }) => {
-    const { text, truncated } = clip(pageContextText(note).trim(), Math.min(MAX_CONTEXT_NOTE_CHARS, remaining));
+    const { text, truncated } = clip(pageContextText(note, whiteboards).trim(), Math.min(MAX_CONTEXT_NOTE_CHARS, remaining));
     remaining -= text.length;
     return { id: note.id, kind: pageKindOf(note), title: note.title.trim() || "Untitled", markdown: text, truncated };
   });

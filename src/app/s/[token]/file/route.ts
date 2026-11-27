@@ -20,7 +20,7 @@ export async function GET(request: Request, { params }: Params) {
     const key = noteFileKeyParts(searchParams.get("key"));
     if (!key) return new NextResponse(null, { status: 404 });
 
-    const resolved = await resolvePublicShare(token, pageId);
+    const resolved = await resolvePublicShare(token, pageId, undefined, { includeEmbeddedWhiteboards: false });
     if (!resolved || key.ownerId !== resolved.page.userId) return new NextResponse(null, { status: 404 });
 
     // ノートは本文のブロック、ホワイトボードは本体（NoteCanvas）の生きている画像要素、スライドは見せる枚（隠していない枚）の画像が参照するファイルだけ。

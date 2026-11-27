@@ -2,8 +2,8 @@
 
 import "@/components/slides/slides.css";
 import {
-  ChevronDown, Copy, Download, Eye, EyeOff, FileImage, FileText, Flag, Image as ImageIcon, ImagePlus, LayoutGrid, LayoutTemplate, LoaderCircle, MessageSquareText, Minus, Monitor, MoveRight, Palette, PenTool,
-  Play, Plus, Presentation, Redo2, Scissors, Shapes, SquareDashed, StickyNote, Table, Trash2, Type, Undo2, Upload, Clipboard,
+  ArrowUpRight, ChevronDown, Copy, Download, Eye, EyeOff, FileImage, FileText, Flag, Frame, Image as ImageIcon, ImagePlus, LayoutGrid, LayoutTemplate, LoaderCircle, MessageSquareText, Minus, Monitor, MoveRight, Palette, PenTool,
+  Play, Plus, Presentation, Redo2, RefreshCw, Scissors, Shapes, SquareDashed, StickyNote, Table, Trash2, Type, Undo2, Upload, Clipboard,
 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { AppIcon } from "@/components/app-icon";
@@ -11,13 +11,14 @@ import type { CanvasEditorProps } from "@/components/canvas-editors";
 import { GuestLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
 import { useT } from "@/components/i18n-provider";
 import { ChatImagesDialog, GenerateImageDialog, ReportImageDialog } from "@/components/slides/slide-dialogs";
-import { ELEMENT_LABELS, LayoutPreview, SlideInspector, TextFormatBar } from "@/components/slides/slide-inspector";
+import { ELEMENT_LABELS, LayoutPreview, SlideInspector, TextFormatBar, type WhiteboardElementStatus } from "@/components/slides/slide-inspector";
 import { SlideFilmstrip, SlideGrid, type SelectMode } from "@/components/slides/slide-lists";
 import { MenuButton, MenuItem, PointMenu } from "@/components/slides/slide-menus";
 import { SlidePlayer, type PlayerControl } from "@/components/slides/slide-player";
 import { SlideRenderRoot } from "@/components/slides/slide-render";
 import { SlideStage, type StageHandle } from "@/components/slides/slide-stage";
 import type { TextCommands } from "@/components/slides/text-editor";
+import { ensureWhiteboardSlidesEmbedRegistered } from "@/components/whiteboard/register-slides-embed";
 import { useAccount } from "@/lib/account-store";
 import { MAX_SLIDES, type CanvasData } from "@/lib/canvas-document";
 import { registerCanvasFlusher } from "@/lib/canvas-flush";
@@ -28,14 +29,14 @@ import { nativeCanPresent, nativeCanShowPptxImport, nativeCanShowUsageLimit, pos
 import { openPptxImport } from "@/lib/pptx-import-jobs";
 import { takeCanvasReveal } from "@/lib/search-reveal";
 import { useBackToClose } from "@/lib/use-back-to-close";
-import { hasWhiteboardFrameProvider, renderWhiteboardFramePicker, subscribeWhiteboardFrameProvider } from "@/lib/slides/whiteboard-embed";
+import { hasWhiteboardFrameProvider, refreshWhiteboardFrame, renderWhiteboardFramePicker, subscribeWhiteboardFrameProvider, type WhiteboardFrame, type WhiteboardPickerPage } from "@/lib/slides/whiteboard-embed";
 import { applyGeneratedSlideImage, clearPendingSlideImages, pendingSlideImageTasks } from "@/lib/slides/ai-build";
 import { createImageElement, createLineElement, createShapeElement, createTableElement, createTextElement, createWhiteboardElement } from "@/lib/slides/factory";
 import { clipboardSource, editorKeyScope, inSlideList } from "@/lib/slides/editor-keys";
 import { expandGroups } from "@/lib/slides/geometry";
 import { uploadSlideImage, SLIDE_IMAGE_TYPES, type SlideImage } from "@/lib/slides/images";
 import { applyLayout, createSlide, LAYOUTS } from "@/lib/slides/layouts";
-import { normalizeDeck, SHAPE_KINDS, slideRows, SLIDE_HEIGHT, SLIDE_WIDTH, type Deck, type ImageElement, type LayoutId, type ShapeKind, type Slide, type SlideElement } from "@/lib/slides/model";
+import { normalizeDeck, SHAPE_KINDS, slideRows, SLIDE_HEIGHT, SLIDE_WIDTH, type Deck, type ImageElement, type LayoutId, type ShapeKind, type Slide, type SlideElement, type WhiteboardElement } from "@/lib/slides/model";
 import {
   addElements, cloneElements, clipboardPayload, CLIPBOARD_MIME, deleteElements, deleteSlides, duplicateSlides, groupElements, insertSlides, joinRowAt, moveSlides,
   moveSlidesToRow, parseClipboard, renameRow, reorderElements, replaceSlide, setHidden, setTransition, startRowAt, ungroupElements, updateElements, updateSlide,
@@ -69,8 +70,40 @@ type AdoptSlideImage = (
   at: { x: number; y: number } | undefined,
   slideId: string | null,
 ) => "adopted" | "rejected" | "unmounted";
-// ページ切替後にアップロードが完了した画像を、同じページ・同じ世代で開き直したエディターへ引き継ぐ（whiteboard-editor.tsx と同じ仕組み）。
-const liveSlideEditors = new Map<string, Set<{ adopt: AdoptSlideImage }>>();
+type AdoptWhiteboardRefresh = (
+  slideId: string,
+  elementId: string,
+  expectedPageId: string,
+  expectedFrameId: string,
+  frame: WhiteboardFrame,
+) => "adopted" | "rejected" | "unmounted";
+// ページ切替後にアップロード・白板スナップショット刷新が完了した結果を、同じページ・同じ世代で開き直したエディターへ引き継ぐ（whiteboard-editor.tsx と同じ仕組み）。
+const liveSlideEditors = new Map<string, Set<{ adopt: AdoptSlideImage; adoptWhiteboardRefresh: AdoptWhiteboardRefresh }>>();
+
+function applyWhiteboardRefreshToDeck(
+  latest: Deck,
+  slideId: string,
+  elementId: string,
+  expectedPageId: string,
+  expectedFrameId: string,
+  frame: WhiteboardFrame,
+  fallbackTitle: string,
+): Deck {
+  if (!latest.slides.some((slide) => slide.id === slideId)) return latest;
+  return updateSlide(latest, slideId, (slide) =>
+    updateElements(slide, new Set([elementId]), (element) => {
+      // 刷新中に別の白板や別の枠へ差し替えられていた場合、古い刷新結果で上書きしない。
+      if (element.type !== "whiteboard" || element.pageId !== expectedPageId || element.frameId !== expectedFrameId) {
+        return element;
+      }
+      return {
+        ...element,
+        src: frame.src,
+        frameName: (frame.frameName || element.frameName || fallbackTitle).slice(0, 200),
+        sourceVersion: frame.sourceVersion,
+      };
+    }));
+}
 
 function isTypingTarget(target: EventTarget | null) {
   const element = target as HTMLElement | null;
@@ -80,7 +113,10 @@ function isTypingTarget(target: EventTarget | null) {
 const MOD = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
 
 // aiSlot: AI の面板（#150）を置く場所。単ページ編集の面の右下（スマホでは縮小図の帯の上）に重ねて出す。
-export default function SlidesEditor({ pageId, title, data, version, generation = 0, editable, embedded, onChange, onTitleChange, onAskAi, onSelectionChange, aiSlot, generateImageSignal = 0, onConsumeGenerateImage }: CanvasEditorProps & { aiSlot?: ReactNode }) {
+export default function SlidesEditor({ pageId, title, data, version, generation = 0, editable, embedded, onChange, onTitleChange, onAskAi, onSelectionChange, aiSlot, generateImageSignal = 0, onConsumeGenerateImage, pages, onOpenPage }: CanvasEditorProps & { aiSlot?: ReactNode }) {
+  useEffect(() => {
+    ensureWhiteboardSlidesEmbedRegistered();
+  }, []);
   const t = useT();
   const phone = useMediaQuery("(max-width: 640px)");
   const liveKey = `${pageId}:${generation}`;
@@ -510,6 +546,7 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
   }, [applyImageToDeck, commit, current]);
 
   const adoptImageRef = useRef<AdoptSlideImage>(() => "unmounted");
+  const adoptWhiteboardRefreshRef = useRef<AdoptWhiteboardRefresh>(() => "unmounted");
   useLayoutEffect(() => {
     adoptImageRef.current = (image, target, at, slideId) => {
       if (!mounted.current) return "unmounted";
@@ -520,7 +557,11 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
     };
   }, [placeImage]);
   useEffect(() => {
-    const entry = { adopt: ((image, target, at, slideId) => adoptImageRef.current(image, target, at, slideId)) as AdoptSlideImage };
+    const entry = {
+      adopt: ((image, target, at, slideId) => adoptImageRef.current(image, target, at, slideId)) as AdoptSlideImage,
+      adoptWhiteboardRefresh: ((slideId, elementId, expectedPageId, expectedFrameId, frame) =>
+        adoptWhiteboardRefreshRef.current(slideId, elementId, expectedPageId, expectedFrameId, frame)) as AdoptWhiteboardRefresh,
+    };
     let set = liveSlideEditors.get(liveKey);
     if (!set) { set = new Set(); liveSlideEditors.set(liveKey, set); }
     set.add(entry);
@@ -579,6 +620,264 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
     imageTarget.current = target;
     fileInput.current?.click();
   };
+
+  // ---- ホワイトボード枠の更新検知と手動刷新 ----
+  const pickerPages = pages as WhiteboardPickerPage[] | undefined;
+  // 参照している白板 ID の集合を文字列キーに先に畳み、文字入力などの無関係な編集で effect が再実行されないようにする。
+  const whiteboardIdsKey = useMemo(() => {
+    const ids = new Set<string>();
+    for (const slide of deck.slides) {
+      for (const element of slide.elements) {
+        if (element.type === "whiteboard" && element.pageId) ids.add(element.pageId);
+      }
+    }
+    return [...ids].sort().join("\0");
+  }, [deck.slides]);
+  const whiteboardPageIds = useMemo(
+    () => (whiteboardIdsKey ? whiteboardIdsKey.split("\0") : []),
+    [whiteboardIdsKey],
+  );
+  const [whiteboardVersions, setWhiteboardVersions] = useState<Record<string, { version: number; title: string } | "missing">>({});
+  const [refreshingWhiteboardIds, setRefreshingWhiteboardIds] = useState<Set<string>>(() => new Set());
+  const refreshingWhiteboardRef = useRef<Set<string>>(new Set());
+  const [replacingWhiteboardId, setReplacingWhiteboardId] = useState<string | null>(null);
+
+  const commitWhiteboardRefresh = useCallback((
+    slideId: string,
+    elementId: string,
+    expectedPageId: string,
+    expectedFrameId: string,
+    frame: WhiteboardFrame,
+  ) => {
+    commit((latest) => applyWhiteboardRefreshToDeck(latest, slideId, elementId, expectedPageId, expectedFrameId, frame, t("Untitled")));
+    flushRef.current();
+    if (typeof frame.sourceVersion === "number") {
+      setWhiteboardVersions((prev) => {
+        const existing = prev[expectedPageId];
+        const boardTitle = typeof frame.boardTitle === "string"
+          ? frame.boardTitle
+          : existing && existing !== "missing" ? existing.title : "";
+        return { ...prev, [expectedPageId]: { version: frame.sourceVersion!, title: boardTitle } };
+      });
+    }
+  }, [commit, t]);
+
+  useLayoutEffect(() => {
+    adoptWhiteboardRefreshRef.current = (slideId, elementId, expectedPageId, expectedFrameId, frame) => {
+      if (!mounted.current) return "unmounted";
+      if (!editableRef.current) return "rejected";
+      commitWhiteboardRefresh(slideId, elementId, expectedPageId, expectedFrameId, frame);
+      return "adopted";
+    };
+  }, [commitWhiteboardRefresh]);
+
+  // 親の一覧（NotesWorkspace）が渡されている時は、最新バージョンと削除を即座に反映する。
+  // 別タブで更新・削除された白板を fetch('/api/pages') や手動刷新が先に検知した直後、スライド保存による
+  // 親一覧の参照更新で古いキャッシュ版へ巻き戻らないよう、単調増加で反映する。
+  const prevPickerIdsRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!pickerPages) return;
+    const byId = new Map(pickerPages.map((page) => [page.id, page]));
+    const prevIds = prevPickerIdsRef.current;
+    prevPickerIdsRef.current = new Set(byId.keys());
+    if (!whiteboardPageIds.length) return;
+    queueMicrotask(() => {
+      setWhiteboardVersions((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const id of whiteboardPageIds) {
+          const found = byId.get(id);
+          if (!found || found.kind !== "whiteboard") {
+            if (next[id] !== "missing") { next[id] = "missing"; changed = true; }
+          } else if (typeof found.version === "number") {
+            const title = typeof found.title === "string" ? found.title : "";
+            const existing = next[id];
+            if (!existing) {
+              next[id] = { version: found.version, title };
+              changed = true;
+            } else if (existing === "missing") {
+              // ゴミ箱からの復元などで親一覧に新しく戻った時だけ "missing" を解除する。
+              if (prevIds !== null && !prevIds.has(id)) {
+                next[id] = { version: found.version, title };
+                changed = true;
+              }
+            } else if (found.version > existing.version || (found.version === existing.version && existing.title !== title)) {
+              next[id] = { version: found.version, title };
+              changed = true;
+            }
+          }
+        }
+        return changed ? next : prev;
+      });
+    });
+  }, [pickerPages, whiteboardPageIds]);
+
+  // /note-embed や別タブでの白板更新を検知するため、フォーカス・ページ更新イベントで最新バージョンを確認する。
+  useEffect(() => {
+    if (!whiteboardPageIds.length) return;
+    let cancelled = false;
+    const check = () => {
+      void fetch("/api/pages", { cache: "no-store" })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((payload: { pages?: WhiteboardPickerPage[] } | null) => {
+          if (cancelled || !Array.isArray(payload?.pages)) return;
+          const byId = new Map(payload.pages.map((page) => [page.id, page]));
+          setWhiteboardVersions((prev) => {
+            const next = { ...prev };
+            for (const id of whiteboardPageIds) {
+              const found = byId.get(id);
+              if (!found || found.kind !== "whiteboard") next[id] = "missing";
+              else next[id] = { version: typeof found.version === "number" ? found.version : 0, title: typeof found.title === "string" ? found.title : "" };
+            }
+            return next;
+          });
+        })
+        .catch(() => undefined);
+    };
+    check();
+    const onVisibility = () => { if (document.visibilityState === "visible") check(); };
+    window.addEventListener("focus", check);
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("notefable:page-updated", check);
+    window.addEventListener("notefable:pages-trashed", check);
+    window.addEventListener("notefable:page-created", check);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", check);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("notefable:page-updated", check);
+      window.removeEventListener("notefable:pages-trashed", check);
+      window.removeEventListener("notefable:page-created", check);
+    };
+  }, [whiteboardPageIds]);
+
+  const whiteboardStatus = useMemo(() => {
+    const map = new Map<string, WhiteboardElementStatus>();
+    if (!current) return map;
+    for (const element of current.elements) {
+      if (element.type !== "whiteboard") continue;
+      if (!element.pageId) { map.set(element.id, { state: "missing" }); continue; }
+      const info = whiteboardVersions[element.pageId];
+      if (!info) { map.set(element.id, { state: "loading" }); continue; }
+      if (info === "missing") { map.set(element.id, { state: "missing" }); continue; }
+      const outdated = element.sourceVersion === undefined || info.version > element.sourceVersion;
+      map.set(element.id, { state: outdated ? "outdated" : "current", boardTitle: info.title });
+    }
+    return map;
+  }, [current, whiteboardVersions]);
+
+  const outdatedWhiteboardIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const [id, status] of whiteboardStatus) {
+      if (status.state === "outdated") ids.add(id);
+    }
+    return ids;
+  }, [whiteboardStatus]);
+
+  const refreshWhiteboardElement = useCallback(async (elementId: string) => {
+    if (!editableRef.current || !current) return;
+    if (refreshingWhiteboardRef.current.has(elementId)) return;
+    const slideId = current.id;
+    const target = current.elements.find((element): element is WhiteboardElement => element.type === "whiteboard" && element.id === elementId);
+    if (!target || !target.pageId) return;
+    refreshingWhiteboardRef.current.add(elementId);
+    setRefreshingWhiteboardIds((prev) => {
+      const next = new Set(prev);
+      next.add(elementId);
+      return next;
+    });
+    setNotice("");
+    const expectedPageId = target.pageId;
+    const expectedFrameId = target.frameId;
+    const fallbackTitle = t("Untitled");
+    const job = (async () => {
+      try {
+        const result = await refreshWhiteboardFrame({ pageId: expectedPageId, frameId: expectedFrameId });
+        if (!result.ok) {
+          if (!mounted.current) return;
+          if (result.reason === "not-found") {
+            setWhiteboardVersions((prev) => ({ ...prev, [expectedPageId]: "missing" }));
+            setNotice(t("This whiteboard is no longer available."));
+          } else if (result.reason === "missing-frame") {
+            setNotice(t("This frame is no longer on the whiteboard."));
+          } else if (result.reason === "empty") {
+            setNotice(t("This whiteboard is empty."));
+          } else if (result.reason !== "storage-limit") {
+            setNotice(result.message || t("Could not refresh the whiteboard snapshot."));
+          }
+          return;
+        }
+        const frame = result.frame;
+        if (mounted.current) {
+          commitWhiteboardRefresh(slideId, elementId, expectedPageId, expectedFrameId, frame);
+          return;
+        }
+        // ページ切替や再マウント後にスナップショットの刷新が終わった場合：同じ世代で開き直したエディター、または保存キューへ渡す。
+        const liveEntries = [...(liveSlideEditors.get(liveKey) ?? [])];
+        let handledByLive = false;
+        for (let i = liveEntries.length - 1; i >= 0; i--) {
+          const status = liveEntries[i].adoptWhiteboardRefresh(slideId, elementId, expectedPageId, expectedFrameId, frame);
+          if (status === "adopted" || status === "rejected") {
+            handledByLive = true;
+            break;
+          }
+        }
+        if (handledByLive || !editableRef.current) return;
+        onChangeRef.current((latestData) => {
+          const latestDeck = normalizeDeck(latestData);
+          const nextDeck = applyWhiteboardRefreshToDeck(latestDeck, slideId, elementId, expectedPageId, expectedFrameId, frame, fallbackTitle);
+          return nextDeck === latestDeck ? null : (nextDeck as unknown as CanvasData);
+        });
+      } finally {
+        refreshingWhiteboardRef.current.delete(elementId);
+        if (mounted.current) {
+          setRefreshingWhiteboardIds((prev) => {
+            if (!prev.has(elementId)) return prev;
+            const next = new Set(prev);
+            next.delete(elementId);
+            return next;
+          });
+        }
+      }
+    })();
+    await trackSlideUpload(pageId, job);
+  }, [commitWhiteboardRefresh, current, liveKey, pageId, t]);
+
+  const replaceWhiteboardElement = useCallback((elementId: string, frame: WhiteboardFrame) => {
+    if (!editableRef.current || !current) return;
+    const slideId = current.id;
+    commit((latest) => updateSlide(latest, slideId, (slide) =>
+      updateElements(slide, new Set([elementId]), (element) => (element.type === "whiteboard"
+        ? {
+            ...element,
+            src: frame.src,
+            pageId: frame.pageId.slice(0, 64),
+            frameId: frame.frameId.slice(0, 120),
+            frameName: frame.frameName.slice(0, 200),
+            ...(typeof frame.sourceVersion === "number" ? { sourceVersion: frame.sourceVersion } : {}),
+          }
+        : element))));
+    if (typeof frame.sourceVersion === "number") {
+      setWhiteboardVersions((prev) => {
+        const existing = prev[frame.pageId];
+        const boardTitle = typeof frame.boardTitle === "string"
+          ? frame.boardTitle
+          : existing && existing !== "missing" ? existing.title : "";
+        return { ...prev, [frame.pageId]: { version: frame.sourceVersion!, title: boardTitle } };
+      });
+    }
+  }, [commit, current]);
+
+  const openWhiteboardElement = useCallback((elementId: string) => {
+    if (!current) return;
+    const target = current.elements.find((element): element is WhiteboardElement => element.type === "whiteboard" && element.id === elementId);
+    if (!target?.pageId) return;
+    const reveal = target.frameId || undefined;
+    if (onOpenPage?.(target.pageId, reveal)) return;
+    const params = new URLSearchParams({ view: "pages", page: target.pageId });
+    if (reveal) params.set("reveal", reveal);
+    window.open(`/app?${params.toString()}`, "_blank", "noopener,noreferrer");
+  }, [current, onOpenPage]);
 
   // ---- クリップボード ----
   // 写すもの（選んだ要素、または縮小図の一覧で選んだ枚）を作る。cut なら消す。写すものが無ければ null。
@@ -825,7 +1124,18 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
       <MenuButton label={t("Table")} icon={<Table size={18} />} disabled={!current}>
         {(close) => <TableSizePicker onPick={(rows, cols) => { close(); insertElements([createTableElement(rows, cols)]); }} />}
       </MenuButton>
-      <WhiteboardFrameButton disabled={!current} onInsert={(element) => insertElements([element])} />
+      <WhiteboardFrameButton disabled={!current} pages={pickerPages} onInsert={(element, frame) => {
+        if (element.type === "whiteboard" && element.pageId && typeof element.sourceVersion === "number") {
+          setWhiteboardVersions((prev) => {
+            const existing = prev[element.pageId];
+            const boardTitle = typeof frame?.boardTitle === "string"
+              ? frame.boardTitle
+              : existing && existing !== "missing" ? existing.title : "";
+            return { ...prev, [element.pageId]: { version: element.sourceVersion!, title: boardTitle } };
+          });
+        }
+        insertElements([element]);
+      }} />
     </div>}
     {editable && <div className="slides-toolbar-group" role="group" aria-label={t("Design")}>
       <MenuButton label={t("Layout")} icon={<LayoutTemplate size={18} />} disabled={!current && view !== "grid"}>{layoutMenu}</MenuButton>
@@ -892,6 +1202,10 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
   const textCommands = editingId ? commandsRef.current : null;
   const inspector = current && view === "slide" ? <SlideInspector slide={current} slideCount={deck.slides.length} selection={liveSelection} theme={theme} editable={editable}
     onChange={(next, merge) => commitSlide(next, merge)} onReplaceImage={(id) => requestImage(id)} onGenerateImage={(id) => setDialog({ kind: "generate", target: id })} onReportImage={(id) => setDialog({ kind: "report", target: id })}
+    whiteboardStatus={whiteboardStatus} refreshingWhiteboardIds={refreshingWhiteboardIds}
+    onRefreshWhiteboard={(id) => void refreshWhiteboardElement(id)}
+    onReplaceWhiteboard={(id) => setReplacingWhiteboardId(id)}
+    onOpenWhiteboard={openWhiteboardElement}
     onDelete={deleteSelection} onLayout={setLayout} onToggleHidden={() => commit(setHidden(deck, new Set([current.id]), !current.hidden))}
     onTransition={(transition) => commit(setTransition(deck, new Set([current.id]), transition))}
     onApplyTransitionAll={(transition) => commit(setTransition(deck, new Set(deck.slides.map((entry) => entry.id)), transition))}
@@ -982,6 +1296,10 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
                 ? { ...element, doc, ...(height && element.type === "text" && element.autoHeight ? { h: height } : {}) } : element)), `text:${id}`)}
               onTableChange={(next) => commitSlide((latest) => updateElements(latest, new Set([next.id]), () => next), `table:${next.id}`)}
               onRequestImage={(id) => requestImage(id)}
+              onReplaceWhiteboard={(id) => { if (!refreshingWhiteboardRef.current.has(id)) setReplacingWhiteboardId(id); }}
+              outdatedWhiteboardIds={outdatedWhiteboardIds}
+              refreshingWhiteboardIds={refreshingWhiteboardIds}
+              onRefreshWhiteboard={(id) => void refreshWhiteboardElement(id)}
               onContextMenu={(x, y, id) => { if (id) setMenu({ x, y, kind: "element" }); else setMenu(null); }}
               onDropFiles={(files, point) => void uploadFiles(files, null, point)}
               commandsRef={commandsRef} onTextSelection={() => setFormatTick((value) => value + 1)} stageRef={stageRef} padding={phone ? 12 : 32} />
@@ -1015,6 +1333,14 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
         <MenuItem icon={<Copy size={16} />} label={t("Duplicate")} shortcut={`${MOD}D`} disabled={!editable} onClick={() => { setMenu(null); duplicateSelection(); }} />
         <MenuItem icon={<SquareDashed size={16} />} label={t("Bring to front")} disabled={!editable} onClick={() => { setMenu(null); commitSlide((latest) => reorderElements(latest, liveSelection, "front")); }} />
         <MenuItem icon={<SquareDashed size={16} />} label={t("Send to back")} disabled={!editable} onClick={() => { setMenu(null); commitSlide((latest) => reorderElements(latest, liveSelection, "back")); }} />
+        {selectedElement?.type === "whiteboard" && <>
+          <MenuItem icon={<RefreshCw size={16} />} label={t("Refresh snapshot")} disabled={!editable || !selectedElement.pageId || whiteboardStatus.get(selectedElement.id)?.state === "missing" || refreshingWhiteboardIds.has(selectedElement.id)}
+            onClick={() => { setMenu(null); void refreshWhiteboardElement(selectedElement.id); }} />
+          <MenuItem icon={<Frame size={16} />} label={t("Change frame")} disabled={!editable || refreshingWhiteboardIds.has(selectedElement.id)} onClick={() => { setMenu(null); setReplacingWhiteboardId(selectedElement.id); }} />
+          {selectedElement.pageId && whiteboardStatus.get(selectedElement.id)?.state !== "missing" && (
+            <MenuItem icon={<ArrowUpRight size={16} className="rtl-mirror" />} label={t("Open whiteboard")} onClick={() => { setMenu(null); openWhiteboardElement(selectedElement.id); }} />
+          )}
+        </>}
         {selectedElement?.type === "image" && selectedElement.generated && <MenuItem icon={<Flag size={16} />} label={t("Report image")} onClick={() => { setMenu(null); setDialog({ kind: "report", target: selectedElement.id }); }} />}
         <MenuItem icon={<Trash2 size={16} />} label={t("Delete")} danger disabled={!editable} onClick={() => { setMenu(null); deleteSelection(); }} />
       </PointMenu>}
@@ -1033,6 +1359,20 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
       {activeDialog?.kind === "chat" && <ChatImagesDialog onClose={closeDialog} onPicked={(image) => placeImage(image, activeDialog.target)} />}
       {activeDialog?.kind === "generate" && <GenerateImageDialog pageId={pageId} embedded={embedded} mode={activeDialog.target ? "replace" : "insert"} onClose={closeDialog} onGenerated={(image) => placeImage(image, activeDialog.target)} />}
       {activeDialog?.kind === "report" && <ReportImageDialog pageId={pageId} elementId={activeDialog.target} onClose={closeDialog} />}
+      {replacingWhiteboardId && current && (() => {
+        const target = current.elements.find((element): element is WhiteboardElement => element.type === "whiteboard" && element.id === replacingWhiteboardId);
+        if (!target) return null;
+        return renderWhiteboardFramePicker({
+          initialPageId: target.pageId || undefined,
+          initialFrameId: target.frameId || undefined,
+          pages: pickerPages,
+          onPick: (frame) => {
+            setReplacingWhiteboardId(null);
+            replaceWhiteboardElement(target.id, frame);
+          },
+          onClose: () => setReplacingWhiteboardId(null),
+        });
+      })()}
       {presenting && <SlidePlayer deck={deck} startId={presenting.startId} onExit={() => setPresenting(null)} allowPresenter={!embedded && !phone} fullscreen={!embedded}
         controlRef={playerControl}
         onChange={(_slide, index, count) => { if (embedded && nativeCanPresent()) postToNative({ type: "presentation", state: "slide", index, count }); }} />}
@@ -1056,21 +1396,22 @@ function TableSizePicker({ onPick }: { onPick: (rows: number, cols: number) => v
 }
 
 // ホワイトボードの枠を静止画として置く（#152 のホワイトボードが提供する。無いあいだはボタンを出さない）。
-function WhiteboardFrameButton({ disabled, onInsert }: { disabled: boolean; onInsert: (element: SlideElement) => void }) {
+function WhiteboardFrameButton({ disabled, pages, onInsert }: { disabled: boolean; pages?: WhiteboardPickerPage[]; onInsert: (element: SlideElement, frame?: WhiteboardFrame) => void }) {
   const t = useT();
   // ホワイトボードがあとから登録しても出るよう、登録の変化を聞く。
   const available = useSyncExternalStore(subscribeWhiteboardFrameProvider, hasWhiteboardFrameProvider, () => false);
-  const [picker, setPicker] = useState<ReactNode>(null);
+  const [open, setOpen] = useState(false);
   if (!available) return null;
   return <>
     <button type="button" className="slides-tool" disabled={disabled} aria-label={t("Whiteboard frame")} title={t("Whiteboard frame")}
-      onClick={() => setPicker(renderWhiteboardFramePicker({
-        onPick: (frame) => { setPicker(null); onInsert(createWhiteboardElement(frame)); },
-        onClose: () => setPicker(null),
-      }))}>
+      onClick={() => setOpen(true)}>
       <PenTool size={18} />
     </button>
-    {picker}
+    {open && renderWhiteboardFramePicker({
+      pages,
+      onPick: (frame) => { setOpen(false); onInsert(createWhiteboardElement(frame), frame); },
+      onClose: () => setOpen(false),
+    })}
   </>;
 }
 

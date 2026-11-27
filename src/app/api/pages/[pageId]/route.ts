@@ -7,8 +7,10 @@ import { prepareCanvas, readCanvasData, writeCanvas } from "@/lib/canvas-store";
 import { noteApiError } from "@/lib/note-api";
 import { assertCoverOwner, claimCover } from "@/lib/note-covers";
 import { assertNoteFilesOwner } from "@/lib/note-files";
+import { assertNoteWhiteboardsOwner } from "@/lib/note-whiteboards";
 import { claimNoteFiles, claimStoredFiles } from "@/lib/stored-files";
 import { NoteValidationError, readNoteRequest, validateNoteUpdate } from "@/lib/note-document";
+import { extractNoteWhiteboardPageIds } from "@/lib/whiteboard/frames";
 import { scheduleNoteEmbeddingSync } from "@/lib/note-embeddings";
 import { snapshotBeforeSave } from "@/lib/note-revisions";
 import { tryPurgeExpiredNotes } from "@/lib/note-trash";
@@ -60,6 +62,12 @@ export async function PATCH(request: Request, context: Context) {
     assertNoteFilesOwner(update.blocks, user.id);
     // 版番号を更新条件に含め、別タブの新しい内容を上書きしない。
     const result = await prisma.$transaction(async (tx) => {
+      if (extractNoteWhiteboardPageIds(update.blocks).length > 0) {
+        const current = await tx.notePage.findFirst({ where: { id: pageId, userId: user.id, deletedAt: null }, select: { blocks: true } });
+        if (current) {
+          await assertNoteWhiteboardsOwner(tx, update.blocks, user.id, { allowExistingIds: extractNoteWhiteboardPageIds(current.blocks) });
+        }
+      }
       if (update.present.includes("cover")) await claimCover(tx, update.cover, user.id);
       if (update.present.includes("icon")) await claimCover(tx, update.icon, user.id, "icon");
       await claimNoteFiles(tx, update.blocks, user.id);

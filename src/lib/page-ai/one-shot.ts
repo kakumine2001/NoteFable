@@ -2,12 +2,14 @@ import { createHash } from "node:crypto";
 import { parseCanvasSegments, type CanvasData } from "@/lib/canvas-document";
 import { buildTranscript, MAX_TRANSCRIPT_MESSAGES } from "@/lib/chat-page";
 import { clip, pageContextText } from "@/lib/chat-project-context";
+import { loadEmbeddedWhiteboardMeta } from "@/lib/note-whiteboards";
 import { readSlides } from "@/lib/page-ai/canvas-adapter";
 import { delimitPageContent } from "@/lib/page-ai/delimit";
 import { PAGE_SUMMARY_SELECT } from "@/lib/note-tree-server";
 import { prisma } from "@/lib/prisma";
 import { normalizeDeck } from "@/lib/slides/model";
 import { isRichDocEmpty } from "@/lib/slides/rich-text";
+import { extractNoteWhiteboardPageIds } from "@/lib/whiteboard/frames";
 
 // AI の 1 回きりの生成（画成図、スライド生成。今後の出題も同じ）の共通部分（docs/architecture/chat-flow.md の「画成図」）：
 // - 材料の読み方：回答は表示中の枝（active: true）の USER / ASSISTANT の本文だけ（SYSTEM や providerContext は読まない）。
@@ -213,7 +215,10 @@ export async function readQuizMaterial(userId: string, pageId: string): Promise<
   const pageKind: "note" | "slides" = page.kind === "slides" ? "slides" : "note";
   const title = oneLine(page.title) || "Untitled";
   if (pageKind === "note") {
-    const body = clip(pageContextText({ kind: "note", blocks: page.blocks }).trim(), MAX_MATERIAL_CHARS);
+    const whiteboards = extractNoteWhiteboardPageIds(page.blocks).length > 0
+      ? await loadEmbeddedWhiteboardMeta(userId, [page.blocks])
+      : undefined;
+    const body = clip(pageContextText({ kind: "note", blocks: page.blocks }, whiteboards).trim(), MAX_MATERIAL_CHARS);
     if (!body.text) return { pageKind, title, text: "", truncated: false };
     return {
       pageKind,

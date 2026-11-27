@@ -123,6 +123,7 @@
 ## 与其他功能的接口
 
 - **白板（#152）**：`src/lib/slides/whiteboard-embed.tsx`。白板端调用 `registerWhiteboardFrameProvider({ renderPicker })` 注册“选框并转成图片”的组件后，幻灯片工具栏才出现“白板框”按钮；选中的框由白板端上传成 note-files 后通过 `onPick({ pageId, frameId, frameName, src, width, height })` 交回，幻灯片里放的是那一刻的静态图（`whiteboard` 元素）。没注册时不显示按钮。
+  - **已接入白板框与手动刷新（#154 PR 10）**：`SlidesEditor` 挂载时调用 `ensureWhiteboardSlidesEmbedRegistered()`（`src/components/whiteboard/register-slides-embed.tsx`）注册两步选择器（选白板 → 选整板或框）与按源刷新的 `refreshFrame`。工具栏已显示“白板框”按钮，快照经 `POST /api/pages/files` 计入存储额度；`WhiteboardElement` 新增可选 `sourceVersion`（由 `publicDeck` 剥离，不泄露到公开页），编辑器对照工作区实时白板版本，源白板改动后在单页画布编辑态（反向缩放不随页面缩放失真、放映/导出/公开页不出现）与右侧属性栏显示“可刷新”标记，由用户手动点“刷新快照”更新图片或“更换框”重选。
 - **AI（#150 / #158）**：编辑器在选择变化时发 `notefable:slides-selection`（`{ pageId, slideIds, elementIds }`），并通过 `CanvasEditorProps.onSelectionChange` 把选中的元素或总览多选页实时同步到 `PageAssistant`（点右下角 AI 按钮或在已展开的面板里提问也会自动附带选区，且不抢画布焦点）；同时接入 `CanvasEditorProps.onAskAi`（工具栏、右侧检查器顶部统一的 **Ask NoteFable** 入口（置于锁页禁用的 `<fieldset>` 外以便锁页可问）及元素 / 幻灯片右键菜单）。`slidesContextText(deck, selection, options?)` 把所选页 / 元素变成给 AI 看的文字（仅选中整页或显式 `includeNotes: true` 时附带演讲备注；仅选中个别元素时不自动带入整页备注），`slidesSelectionIds(deck, selection)` 生成与 `read_note` 对齐的稳定 ID。模型支持看图时，通过 `slide-capture.tsx` + `captureSlideSelectionPng` 导出当前选中页或选中元素外接区域的浅色/主题 PNG（长边 ≤ 1568 px）随对话上传，失败时降级发纯文字并轻提示。`GenerateImageDialog` 遇到 429 `usage_limit` 时保留已输入的描述词（并在登录 / 升级跳转间用 `pending-draft` 暂存）：网页端显示 `GuestLimitPrompt` / `UpgradePrompt`，`/note-embed` 优先发 `usageLimit` 交由原生处理。编辑器的 `aiSlot` 属性（`ReactNode`，`CanvasEditorProps.aiSlot`）放在单页编辑画面的右下（`.slides-ai-slot`）：#158 的 AI 按钮没被拖动过时就放在这里（`NotesWorkspace` 放一个看不见的目印，`PageAssistant` 的 `anchor`），重叠顺序和这个位置一样（z-index 5），所以手机的设置面板和菜单会盖住它。
   - **AI 编辑与整套换风格（`src/lib/page-ai/slides-adapter.ts`、`src/lib/slides/ai-edit.ts`）**：`propose_slides_create` 与 `propose_slides_edit` 均无像素坐标参数，严格按 `read_note` 返回的稳定 `slide.id`（精确匹配，不按页码）定位，由服务端确定性排版、校验并走提案卡片的改前/改后版本化可视化预览（支持自动应用与一键 Undo，写入前留 `AI_EDIT` 历史，自动应用写入原子带 `locked: false` 条件防与锁页竞态）。支持 `update_slide`（保留既有图片/白板框/图形/线、自由文本框与未替换的既有表格并避让重排）、`update_element`（按稳定 `element.id` 仅改选中文本框或图形，不波及同页其他元素）、`delete_element`（按稳定 `element.id` 删除指定元素）、`set_layout`、`split_slide`、`merge_slides`、`add_slide`、`delete_slides`、`reorder_slides`（按行/章维护节标题）与 `restyle_deck`。`restyle_deck` 只改 8 套内置主题、深浅色与每页版式，服务端通过 `assertDeckTextPreserved` 按稳定 `slide.id` 与 `element.id` 校验 100% 保留全部文字、富文本格式/链接/代码语言/公式、表格、演讲备注、章名、媒体（含 `pendingImagePrompt`）与装饰图形，任何改动或归一化截断即拒绝；超过 20,000 字符的大幻灯片集在 `read_note` 截断尾部附带省略页的稳定 ID 索引。面板按选区类型与锁页状态动态过滤快捷操作（整套：Restyle deck / Summarize / Suggest improvements；元素选区仅展示走 `update_element` 的改写类按钮；单页含拆分；多页含合并；锁页隐藏自动应用开关）。`SlidesEditor` 以单一同步 `historyRef` 同步 `commit`/`undo`/`redo`，通过 `registerCanvasFlusher` 挂接共享冲刷机制，在 AI 发送/历史/提案应用前传递冲刷结果并等待进行中的图片上传，切页或重挂载后完成的上传经 `liveSlideEditors` 接管或直接写入保存队列不丢图。
 
@@ -139,7 +140,6 @@
 ## 已知限制
 
 - PPTX 里的公式是 TeX 文字；表格单元格是纯文字（不支持单元格内的格式）；幻灯片转场不包含在 PPTX 导出中；PPTX 导入不支持可编辑图表、SmartArt、音视频、动画、EMF/WMF/SVG 与外部链接图片（导入报告逐页列出，有静态预览图时保留为静态图）。
-- 白板框只有接口，白板端注册之前不显示入口。
 - iOS 的横屏放映、文件保存、常亮、PPTX 导入与复习和测验界面只做了 Core 测试与语法/CI 编译检查，没在真机 / 模拟器上验证（[ios-native.md](ios-native.md)）。
 
 ## 复习和测验

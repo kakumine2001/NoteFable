@@ -319,6 +319,7 @@ export const ptBRServer: Record<string, string> = {
   "Gantt chart": "gráfico de Gantt",
   "quadrant chart": "gráfico de quadrantes",
   "mind map": "mapa mental",
+  "This page embeds a whiteboard that is not available.": "Esta página incorpora um quadro branco que não está disponível.",
   "Could not import this PowerPoint file. Try again.": "Não foi possível importar este arquivo do PowerPoint. Tente novamente.",
   "Could not generate a quiz. Try again.": "Não foi possível gerar o quiz. Tente novamente.",
   "Could not save the review note. Try again.": "Não foi possível salvar a nota de revisão. Tente novamente.",

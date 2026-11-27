@@ -319,6 +319,7 @@ export const zhServer: Record<string, string> = {
   "Gantt chart": "甘特图",
   "quadrant chart": "象限图",
   "mind map": "思维导图",
+  "This page embeds a whiteboard that is not available.": "此页面嵌入的白板不可用。",
   "Could not import this PowerPoint file. Try again.": "无法导入这个 PowerPoint 文件，请重试。",
   "Could not generate a quiz. Try again.": "无法生成测验，请重试。",
   "Could not save the review note. Try again.": "无法保存复习笔记，请重试。",

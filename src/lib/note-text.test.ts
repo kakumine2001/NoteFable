@@ -78,4 +78,14 @@ describe("note-text helpers", () => {
     const huge = Array.from({ length: MAX_CHUNKS_PER_NOTE + 8 }, (_, index) => block(`b${index}`, "paragraph", [text("x".repeat(MAX_CHUNK_CHARS))]));
     expect(extractNoteChunks("Huge", huge)).toHaveLength(MAX_CHUNKS_PER_NOTE);
   });
+
+  it("reads live title and frame name for embedded whiteboard blocks", () => {
+    const whiteboards = new Map([["wb1", { id: "wb1", title: "Roadmap", frames: new Map([["f1", "Q3 Milestones"]]) }]]);
+    const blocks = [
+      { id: "w1", type: "whiteboard", props: { pageId: "wb1", frameId: "f1" }, children: [] },
+      { id: "w2", type: "whiteboard", props: { pageId: "wb1", frameId: "" }, children: [] },
+    ];
+    expect(leadingText(blocks, 200, { whiteboards })).toBe("Roadmap — Q3 Milestones Roadmap");
+    expect(leadingText(blocks)).toBe("");
+  });
 });
