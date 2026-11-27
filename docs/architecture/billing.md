@@ -26,7 +26,7 @@ NoteFable 的收费只有一种：月额订阅 **Pro**，每月 ¥300（税込�
 - Pro 用满（2,000 条 + 60 张）最坏约 ¥440–1,480（聊天 ¥200–1,000 + 图片 ¥240–480），高于到手的 ¥287；平均用量远低于此，初期允许亏损。web search 的额外费用未计入。
 - 免费用户没有收入：登录用户每天用满，每月最坏约 ¥200–780（聊天 1,240 条 + 图片 20 张）；未登录每个 IP 的图片最坏约 ¥120–240 / 月。实际用量明显偏高时先收紧这些数值。
 
-改上限（含存储上限）或价格只改 `usage-plans.ts`，然后重新生成 Android 与 iOS 共用的 `mobile/android/app/src/main/assets/usage-limits.json`（`npx tsx scripts/gen-native-usage-limits.ts`；每档带 `storage` 字节数，原生的存储提示和 Pro 说明用它）。服务条款第 3、4 节和特商法标示直接读这里的数值；写成文字的 [Play 商店说明](../play-store/listing.md) 和 [App Store 商店说明](../app-store/listing.md) 要手动改，并改 `legal-page.tsx` 的 `LEGAL_UPDATED_ISO`。
+改上限（含存储上限）或价格只改 `usage-plans.ts`，然后重新生成 Android 与 iOS 共用的 `mobile/android/app/src/main/assets/usage-limits.json`（`npx tsx scripts/gen-native-usage-limits.ts`；每档带 `storage` 字节数，原生的存储提示和 Pro 说明用它）。服务条款第 3、4 节和特商法标示直接读这里的数值；写成文字的 [Play 商店说明](../play-store/listing.md) 、[App Store 商店说明](../app-store/listing.md) 和 [订阅描述](../app-store/review-info.md#订阅) 要手动改，并改 `legal-page.tsx` 的 `LEGAL_UPDATED_ISO`。
 
 ## iOS
 

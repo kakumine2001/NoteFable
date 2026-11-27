@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write the repository's App Store listing to App Store Connect.
+"""Write the repository's App Store listing and submission information to App Store Connect.
 
 Sources of truth:
   docs/app-store/listing.md    subtitle, promotional text, keywords, URLs, categories and the two
@@ -8,6 +8,9 @@ Sources of truth:
                                one with the sync bullet and the price paragraph replaced
   mobile/ios/app-store/screenshots/{iphone,ipad}/
                                en-US screenshots, in file-name order (optional)
+  docs/app-store/review-info.md
+                               age rating answers, App Review notes, copyright, subscription texts and
+                               TestFlight beta app description (handled by ios-store-review.py)
 
 Modes:
   --check    parse and validate the documents and screenshot files; no network, no credentials
@@ -15,9 +18,14 @@ Modes:
   --apply    make the changes
 
 Writes name, subtitle, privacy policy URL, description, keywords, promotional text, support and
-marketing URL, primary and secondary category, and en-US screenshots (App Asset Library). It never
-submits anything for review, never touches pricing, availability, age rating, app privacy, in-app
-purchases or builds, never creates a version or app info, and deletes nothing except the screenshot
+marketing URL, primary and secondary category, en-US screenshots (App Asset Library), the age rating
+answers, the App Review notes, the copyright, the display names and descriptions of the existing
+subscription group and monthly product (creating a draft metadata version when there is none, or
+when changed texts meet only versions whose review is over) and the TestFlight beta app
+description. Every run ends with a read-only audit of what a submission
+still misses. It never submits anything for review, never touches pricing, availability, the content
+rights declaration, app privacy or builds, never creates a product, subscription group, App Store
+version or app info, never writes a contact or credential, and deletes nothing except the screenshot
 placements of the placement groups it replaces (the images stay in the asset library).
 
 Python standard library only. JWT signing, API requests and credential handling come from
@@ -43,13 +51,21 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-_DIST_SPEC = importlib.util.spec_from_file_location(
-    "ios_testflight_distribute",
-    Path(__file__).resolve().with_name("ios-testflight-distribute.py"),
+_REVIEW_SPEC = importlib.util.spec_from_file_location(
+    "ios_store_review", Path(__file__).resolve().with_name("ios-store-review.py")
 )
-dist = importlib.util.module_from_spec(_DIST_SPEC)
-_DIST_SPEC.loader.exec_module(dist)
-AscError = dist.AscError
+review_mod = importlib.util.module_from_spec(_REVIEW_SPEC)
+sys.modules[_REVIEW_SPEC.name] = review_mod  # dataclasses look their module up here
+_REVIEW_SPEC.loader.exec_module(review_mod)
+dist = review_mod.dist
+AscError = review_mod.AscError
+ListingError = review_mod.ListingError
+WriteRefused = review_mod.WriteRefused
+_read_text = review_mod.read_text
+_sections = review_mod.sections
+_get_all = review_mod.get_all
+_attributes = review_mod.attributes
+_normalized = review_mod.normalized
 
 BUNDLE_ID = "com.kakumine.notefable"
 APP_STORE_DOC = "docs/app-store/listing.md"
@@ -115,8 +131,8 @@ REQUIRED_DISPLAY_CLASSES = {
 IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg")
 MAX_SCREENSHOTS_PER_GROUP = 10
 
-# Every write the script may send. Anything else (review submissions, pricing, versions, builds,
-# in-app purchases, ...) is refused before it reaches App Store Connect.
+# Every write the script may send. Anything else (review submissions, pricing, availability, new
+# versions or products, builds, ...) is refused before it reaches App Store Connect.
 ALLOWED_WRITES = (
     ("PATCH", r"/appInfos/[^/?]+"),  # categories only, see GuardedClient
     ("POST", r"/appInfoLocalizations"),
@@ -130,12 +146,26 @@ ALLOWED_WRITES = (
     ("POST", r"/appAssetLibraryPlacementOrderingRequests"),
 )
 
+_V2 = re.escape(review_mod.ASC_V2)
+# Writes limited to named fields: (method, path, attributes, relationships). The payload may hold
+# nothing else, so for example no review contact, demo account or content rights can be sent.
+SCOPED_WRITES = (
+    ("PATCH", r"/ageRatingDeclarations/[^/?]+", set(review_mod.AGE_RATING_ATTRIBUTES), set()),
+    ("POST", r"/appStoreReviewDetails", {"notes"}, {"appStoreVersion"}),
+    ("PATCH", r"/appStoreReviewDetails/[^/?]+", {"notes"}, set()),
+    ("PATCH", r"/appStoreVersions/[^/?]+", {"copyright"}, set()),
+    ("POST", r"/subscriptionGroupVersions", set(), {"subscriptionGroup"}),
+    ("POST", r"/subscriptionVersions", set(), {"subscription"}),
+    ("POST", _V2 + r"/subscriptionGroupLocalizations", {"locale", "name"}, {"version"}),
+    ("PATCH", _V2 + r"/subscriptionGroupLocalizations/[^/?]+", {"name"}, set()),
+    ("POST", _V2 + r"/subscriptionLocalizations", {"locale", "name", "description"}, {"version"}),
+    ("PATCH", _V2 + r"/subscriptionLocalizations/[^/?]+", {"name", "description"}, set()),
+    ("POST", r"/betaAppLocalizations", {"locale", "description"}, {"app"}),
+    ("PATCH", r"/betaAppLocalizations/[^/?]+", {"description"}, set()),
+)
+
 
 # --- Documents ---------------------------------------------------------------------------------
-
-
-class ListingError(ValueError):
-    """The documents or screenshots can't be turned into a listing."""
 
 
 @dataclass(frozen=True)
@@ -189,29 +219,6 @@ class AppStoreEntry:
 BULLET = "• "
 _PLAY_LABEL = re.compile(r"^\*\*[^*]+\*\*\s*[:：]\s*(.*?)\s*$")
 _APP_STORE_ENTRY = re.compile(r"^- \*\*[^*]+\*\*\s*[:：]\s*(.*?)\s*$")
-
-
-def _read_text(path: Path) -> str:
-    try:
-        return path.read_text(encoding="utf-8-sig")
-    except OSError as exc:
-        raise ListingError(f"Can't read {path}: {exc}") from exc
-
-
-def _sections(text: str, source: str) -> dict[str, list[str]]:
-    """Level-2 headings and their lines."""
-    sections: dict[str, list[str]] = {}
-    current: list[str] | None = None
-    for line in text.splitlines():
-        match = re.match(r"^## +(.*\S)\s*$", line)
-        if match:
-            heading = match.group(1)
-            if heading in sections:
-                raise ListingError(f"{source}: duplicate section '## {heading}'.")
-            current = sections[heading] = []
-        elif current is not None:
-            current.append(line.rstrip())
-    return sections
 
 
 def parse_play_listing(text: str) -> dict[str, tuple[str, str]]:
@@ -503,7 +510,7 @@ def load_screenshots(repo_root: Path) -> list[Screenshot] | None:
 
 
 class GuardedClient:
-    """AscClient wrapper: every read, only the writes in ALLOWED_WRITES, and none in a dry run."""
+    """AscClient wrapper: every read, only the listed writes, and none in a dry run."""
 
     def __init__(self, client: Any, allow_writes: bool) -> None:
         self._client = client
@@ -518,31 +525,25 @@ class GuardedClient:
     ) -> Any:
         if method != "GET":
             allowed = any(method == m and re.fullmatch(p, path_or_url) for m, p in ALLOWED_WRITES)
+            for scoped_method, pattern, fields, related in SCOPED_WRITES:
+                if method == scoped_method and re.fullmatch(pattern, path_or_url):
+                    data = (payload or {}).get("data") or {}
+                    sent = set(data.get("attributes") or {})
+                    allowed = (
+                        set(payload or {}) == {"data"}
+                        and set(data) <= {"type", "id", "attributes", "relationships"}
+                        and sent <= fields
+                        and bool(sent) == bool(fields)
+                        and set(data.get("relationships") or {}) <= related
+                    )
             if not self.allow_writes or not allowed:
-                raise AscError(f"Refusing to send {method} {path_or_url}.")
+                raise WriteRefused(f"Refusing to send {method} {path_or_url}.")
             if path_or_url.startswith("/appInfos/"):
                 data = (payload or {}).get("data") or {}
                 other = set(data.get("relationships") or {}) - {"primaryCategory", "secondaryCategory"}
                 if data.get("attributes") or other:
-                    raise AscError("Refusing to change anything on the app info except its categories.")
+                    raise WriteRefused("Refusing to change anything on the app info except its categories.")
         return self._client.request(method, path_or_url, payload=payload, allow_404=allow_404)
-
-
-def _get_all(client: Any, path: str) -> tuple[list[dict], list[dict]]:
-    """All data and included resources of a paginated collection."""
-    data: list[dict] = []
-    included: list[dict] = []
-    next_url: str | None = path
-    while next_url:
-        response = client.request("GET", next_url) or {}
-        data.extend(response.get("data") or [])
-        included.extend(response.get("included") or [])
-        next_url = (response.get("links") or {}).get("next")
-    return data, included
-
-
-def _attributes(resource: dict) -> dict:
-    return resource.get("attributes") or {}
 
 
 def _related_id(resource: dict, name: str) -> str | None:
@@ -719,10 +720,6 @@ def screenshot_counts(client: Any, localization_id: str) -> Counter:
     return Counter(str(_attributes(placement).get("placementGroup")) for placement in data)
 
 
-def _normalized(value: str | None) -> str:
-    return (value or "").replace("\r\n", "\n").strip()
-
-
 @dataclass
 class LocalizationPlan:
     resource_type: str  # appInfoLocalizations or appStoreVersionLocalizations
@@ -752,6 +749,8 @@ class Plan:
     version: dict[str, LocalizationPlan]
     screenshots: list[ScreenshotGroup] | None = None
     library_id: str | None = None
+    app_id: str = ""
+    copyright: str | None = None
 
 
 def build_plan(client: Any, listing: Listing, shots: list[Screenshot] | None, bundle_id: str) -> Plan:
@@ -799,6 +798,8 @@ def build_plan(client: Any, listing: Listing, shots: list[Screenshot] | None, bu
         },
         info=info,
         version=version_plans,
+        app_id=app_id,
+        copyright=_attributes(version).get("copyright"),
     )
     localization_id = version_plans[PRIMARY_LOCALE].resource_id
     if shots:
@@ -1084,16 +1085,22 @@ def replace_screenshots(
 
 
 def apply_plan(
-    client: Any, plan: Plan, out=print, uploader=upload_part, sleep_fn=time.sleep, time_fn=time.time
+    client: Any,
+    plan: Plan,
+    out=print,
+    uploader=upload_part,
+    sleep_fn=time.sleep,
+    time_fn=time.time,
+    review_plan=None,
 ) -> list[str]:
     """Make the planned changes; return what failed (one failure doesn't stop the others)."""
     failures: list[str] = []
 
-    def attempt(label: str, action) -> None:
+    def attempt(label: str, action, fatal: tuple = (401, 403)) -> None:
         try:
             action()
         except AscError as exc:
-            if exc.status in (401, 403):
+            if exc.status in fatal:
                 raise  # a key or role problem would fail every other request too
             failures.append(f"{label}: {exc}")
             out(f"::error::{label}: {exc}")
@@ -1115,6 +1122,12 @@ def apply_plan(
             lambda: write_localization(client, resource, "appInfo", plan.app_info_id, out),
         )
 
+    if review_plan:
+        for error in review_plan.errors:  # what could not be read was not written
+            failures.append(error)
+        # Apple also answers 403 for one record's role or state: here only a bad key (401) stops.
+        review_mod.apply_review(client, review_plan, lambda label, action: attempt(label, action, (401,)), out)
+
     changed = [group for group in plan.screenshots or [] if not group.unchanged]
     localization_id = plan.version[PRIMARY_LOCALE].resource_id
     if changed and not localization_id:
@@ -1132,6 +1145,24 @@ def apply_plan(
     return failures
 
 
+def _audit_targets(client: Any, bundle_id: str) -> tuple[str, str | None, str | None]:
+    """(app, app info, version) to audit when the plan could not be built; None: no single one."""
+    app_id = dist.find_app_id(client, bundle_id)
+
+    def pick(path: str, states: frozenset, state_key: str) -> str | None:
+        resources, _ = _get_all(client, path)
+        editable = [r for r in resources if _attributes(r).get(state_key) in states]
+        chosen = editable if len(editable) == 1 else resources
+        return chosen[0]["id"] if len(chosen) == 1 else None
+
+    query = urllib.parse.urlencode({"filter[platform]": "IOS", "limit": 50})
+    return (
+        app_id,
+        pick(f"/apps/{app_id}/appInfos?limit=50", EDITABLE_APP_INFO_STATES, "state"),
+        pick(f"/apps/{app_id}/appStoreVersions?{query}", EDITABLE_VERSION_STATES, "appVersionState"),
+    )
+
+
 def sync(
     client: Any,
     listing: Listing,
@@ -1142,17 +1173,47 @@ def sync(
     uploader=upload_part,
     sleep_fn=time.sleep,
     time_fn=time.time,
+    review=None,
+    marketing_version: str | None = None,
 ) -> bool:
-    """Print the plan and, with apply, carry it out. Returns False if any change failed."""
+    """Print the plan and, with apply, carry it out; then audit. Returns False if any change failed."""
     guarded = GuardedClient(client, allow_writes=apply)
-    plan = build_plan(guarded, listing, shots, bundle_id)
-    print_plan(plan, out)
+    reader = GuardedClient(client, allow_writes=False)  # the audit can only read
+
+    def audit(app_id: str, app_info_id: str | None, version_id: str | None) -> None:
+        review_mod.audit(reader, app_id, app_info_id, version_id, marketing_version, list(listing.locales), out)
+
+    plan = None
+    failures: list[str] = []
+    try:
+        plan = build_plan(guarded, listing, shots, bundle_id)
+        print_plan(plan, out)
+        review_plan = None
+        if review:
+            review_plan = review_mod.plan_review(
+                guarded, review, plan.app_id, plan.version_id, plan.app_info_id, plan.copyright
+            )
+            review_mod.print_review(review_plan, out)
+        if apply:
+            out("")
+            out("Applying...")
+            failures = apply_plan(guarded, plan, out, uploader, sleep_fn, time_fn, review_plan)
+    except (AscError, ListingError):
+        # A run that stops still reports what is missing, without hiding why it stopped.
+        try:
+            if plan:
+                audit(plan.app_id, plan.app_info_id, plan.version_id)
+            else:
+                audit(*_audit_targets(reader, bundle_id))
+        except AscError as exc:
+            out(f"::warning::The submission audit could not run: HTTP {exc.status or '(no status)'}.")
+        raise
+    # After the writes, so that it shows what is still missing now.
+    audit(plan.app_id, plan.app_info_id, plan.version_id)
+    out("")
     if not apply:
         out("Dry run: nothing was changed. Run with apply to write these values.")
         return True
-    out("")
-    out("Applying...")
-    failures = apply_plan(guarded, plan, out, uploader, sleep_fn, time_fn)
     if failures:
         out(f"{len(failures)} change(s) failed. Fix the cause and run again; finished changes are kept.")
         return False
@@ -1175,13 +1236,27 @@ def main(argv: list[str] | None = None) -> int:
     try:
         listing = load_listing(args.repo_root)
         shots = load_screenshots(args.repo_root)
+        review = review_mod.load_review_info(args.repo_root, LANGUAGES)
         if args.check:
             print_check(listing, shots)
+            print(
+                f"Submission information OK: {len(review.age_rating)} age rating answers, review notes "
+                f"{len(review.review_notes.encode('utf-8'))} bytes, {len(review.subscription)} subscription locales."
+            )
             return 0
         key_id, issuer_id, key_b64 = dist.read_api_credentials()
         with dist.temporary_key_file(key_id, key_b64) as key_file:
             client = dist.AscClient(key_id=key_id, issuer_id=issuer_id, key_file=key_file)
-            return 0 if sync(client, listing, shots, args.apply, args.bundle_id) else 1
+            done = sync(
+                client,
+                listing,
+                shots,
+                args.apply,
+                args.bundle_id,
+                review=review,
+                marketing_version=review_mod.read_marketing_version(args.repo_root),
+            )
+            return 0 if done else 1
     except (ListingError, AscError) as exc:
         for line in str(exc).split("\n"):
             print(f"::error::{line}", file=sys.stderr)

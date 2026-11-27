@@ -180,5 +180,6 @@ Stripe 还有 4 项没亲眼确认（商品价格、Webhook、扣款失败后的
 - [architecture/i18n.md](architecture/i18n.md)：17 种界面语言与 RTL
 - [play-store/](play-store/console-answers.md)：Play Console 要填的答案和商店介绍
 - [app-store/listing.md](app-store/listing.md)：App Store 产品页要填的文字
+- [app-store/review-info.md](app-store/review-info.md)：App Store 提交审核用的年龄分级答案、审核备注、版权、订阅文字和 TestFlight 说明
 - [architecture/deployment.md](architecture/deployment.md)：服务器、分域和环境变量
 - [architecture/README.md](architecture/README.md)：所有架构文档的入口

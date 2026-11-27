@@ -1,8 +1,9 @@
 name: iOS App Store listing
 
 # 手动运行：把 docs/app-store/listing.md（名称和描述取自 docs/play-store/listing.md）和
-# mobile/ios/app-store/screenshots/ 写到 App Store Connect。默认 dry run 只读取并列出差异，
-# 勾选 apply 才写入；任何情况都不提交审核。说明见 docs/architecture/ios.md。
+# mobile/ios/app-store/screenshots/ 以及 docs/app-store/review-info.md（年龄分级、审核备注、版权、订阅文字、
+# TestFlight 说明）写到 App Store Connect。默认 dry run 只读取并列出差异，勾选 apply 才写入；每次最后列出提交
+# 审核还缺什么；任何情况都不提交审核。仓库和日志是公开的，脚本不打印个人信息。说明见 docs/architecture/ios.md。
 on:
   workflow_dispatch:
     inputs:
