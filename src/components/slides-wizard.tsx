@@ -27,7 +27,7 @@ import {
 import {
   closeSlidesWizard, dismissSlidesError, getSlidesJobState, getSlidesWizard, isSlidesWizardBusy, requestSlides, retrySlidesWizardLoad,
   setSlidesPicker, SLIDES_FAILED, slidesRequestInput, slidesWizardBack, startOverSlides, subscribeSlidesWizard, syncSlidesNotes,
-  updateSlidesDraft, type SlidesFlush, type SlidesJob, type SlidesWizardView,
+  updateSlidesDraft, workingSlidesNoteIds, type SlidesFlush, type SlidesJob, type SlidesWizardView,
 } from "@/lib/slides-wizard-jobs";
 import { useBackToClose } from "@/lib/use-back-to-close";
 
@@ -73,6 +73,20 @@ export function SlidesWizardHost({ embedded = false, flush }: { embedded?: boole
     reportedClosedBusy.current = false;
     postToNative({ type: "slidesWizard", state: "closed", busy: false });
   }, [embedded, visible, busy]);
+  // アプリのノートの「…」メニューが「Generating slides…」を出せるように、作っている最中のノートを知らせる（読み込み直しでは空を送る）。
+  useEffect(() => {
+    if (!embedded || !nativeCanShowSlidesWizard()) return;
+    let reported = "";
+    const report = () => {
+      const pageIds = workingSlidesNoteIds();
+      const next = JSON.stringify(pageIds);
+      if (next === reported) return;
+      reported = next;
+      postToNative({ type: "slidesJobs", pageIds });
+    };
+    report();
+    return subscribeSlidesWizard(report);
+  }, [embedded]);
   if (!view) return null;
   return <SlidesWizardDialog key={view.key} view={view} embedded={embedded} flush={flush} />;
 }

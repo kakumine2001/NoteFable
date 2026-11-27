@@ -57,9 +57,11 @@ import com.kakumine.notefable.data.ProposalError
 import com.kakumine.notefable.data.ProposalState
 import com.kakumine.notefable.data.ProposalTarget
 import com.kakumine.notefable.data.ReportTarget
+import com.kakumine.notefable.data.WhiteboardProposalText
 
 // AI 的页面提案卡片（网页 page-proposal.tsx + globals.css 的 .page-edit*）。笔记、白板、幻灯片共用这一张卡片，
-// 改前 / 改后（文字和缩略图）直接显示服务端适配器给的 changes，按页面类型只换图标、标题和按钮的文字：
+// 改前 / 改后（文字和缩略图）直接显示服务端适配器给的 changes（白板的英文说明在显示时翻译，见 data/WhiteboardProposalText.kt），
+// 按页面类型只换图标、标题和按钮的文字：
 //  - 外框：上距 13.6、1px --notion-border-strong、圆角 8；字 13.6 / 行高 1.55；已处理（应用 / 放弃 / 撤销）的卡片透明度 .72；
 //  - 标题行：内边距 8×12、--notion-sidebar 底、600、正文色；箭头 14（描边 2，--notion-faint），展开转 90°，图标 14（描边 1.9），间距 7.2；
 //    右端是 24 的旗子按钮（.page-edit-report：Flag 13、描边 1.9、--notion-faint、圆角 4），打开"报告 AI 内容"；
@@ -153,9 +155,10 @@ internal fun ProposalCard(
         ) {
             // 建成子页面时，先说建在哪一页里（标题是空的显示 Untitled）。
             proposal.parentTitle?.let { parent -> Op(stringResource(R.string.proposal_inside, parent.ifEmpty { stringResource(R.string.sb_untitled) })) }
+            val content = if (kind == PageKind.Whiteboard) WhiteboardProposalText.summary(proposal.content, rememberSystemText()) else proposal.content
             // 空のページの一行は、本文も改动（缩略图）も無いときだけ（网页と同じ）。
-            if (proposal.content.isNotEmpty() || proposal.changes.isEmpty()) Change {
-                if (proposal.content.isNotEmpty()) After(proposal.content)
+            if (content.isNotEmpty() || proposal.changes.isEmpty()) Change {
+                if (content.isNotEmpty()) After(content)
                 else Op(stringResource(if (note) R.string.proposal_empty_note else R.string.proposal_empty_page))
             }
             proposal.changes.forEach { ChangeItem(it, kind) }
@@ -374,7 +377,9 @@ private fun Link(text: String, size: androidx.compose.ui.unit.TextUnit, onClick:
 
 /** 一处改动：操作名（对象）、缩略图、改前、改后、警告（网页 page-proposal.tsx 的 Change）。 */
 @Composable
-private fun ChangeItem(change: ProposalChange, kind: PageKind) {
+private fun ChangeItem(stored: ProposalChange, kind: PageKind) {
+    val systemText = rememberSystemText()
+    val change = if (kind == PageKind.Whiteboard) WhiteboardProposalText.change(stored, systemText) else stored
     Change {
         Op(changeLabel(change, kind))
         Thumbnails(change.beforeImage, change.afterImage)

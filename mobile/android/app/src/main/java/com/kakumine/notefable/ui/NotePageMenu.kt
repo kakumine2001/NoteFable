@@ -73,10 +73,12 @@ class NotePageMenuActions(
     val drawingDiagram: Boolean = false,
     /** 「生成幻灯片」（#150）：只给笔记，用这一篇开向导。 */
     val onGenerateSlides: (() -> Unit)? = null,
+    /** 这篇的幻灯片正在生成（网页的菜单项显示转圈和"正在生成幻灯片…"）。 */
+    val generatingSlides: Boolean = false,
 ) {
     fun withSlides(handler: (String) -> Unit) = NotePageMenuActions(
         error, busy, onSettings, onFavorite, onDuplicate, onAddInside, onMove, onExport, onTrash, onSlides = handler,
-        onDrawDiagram = onDrawDiagram, drawingDiagram = drawingDiagram, onGenerateSlides = onGenerateSlides,
+        onDrawDiagram = onDrawDiagram, drawingDiagram = drawingDiagram, onGenerateSlides = onGenerateSlides, generatingSlides = generatingSlides,
     )
 }
 
@@ -169,7 +171,10 @@ fun NotePageMenuButton(page: NotePageSummary, actions: NotePageMenuActions) {
             }
             val generateSlides = actions.onGenerateSlides
             if (generateSlides != null && page.kind == PageKind.Note) {
-                MenuItem(stringResource(R.string.slides_generate), Lucide.Presentation, onClick = run(generateSlides))
+                MenuItem(
+                    stringResource(if (actions.generatingSlides) R.string.slides_generating else R.string.slides_generate),
+                    Lucide.Presentation, spinning = actions.generatingSlides, onClick = run(generateSlides),
+                )
             }
             MenuItem(stringResource(R.string.pg_move_to), Lucide.FolderInput, onClick = run(actions.onMove))
             if (features.markdownExport) MenuItem(stringResource(R.string.export_markdown), Lucide.Download, onClick = run(actions.onExport))

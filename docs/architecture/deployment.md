@@ -51,7 +51,7 @@ NEXT_PUBLIC_APP_ORIGIN=https://app.notefable.com
 | `notefable.com/{locale}/app` | 转到 `app.notefable.com/`，保留查询参数 |
 | `app.notefable.com/app` | 转到 `app.notefable.com/`（Stripe 付款后的返回地址 `/app?billing=…` 走这里） |
 | `app.notefable.com/api/*` | 接口只在工作区主机提供。Android App 的 `BASE_URL`、iOS App 的 `NOTEFABLE_BASE_URL`、Stripe Webhook、Google Play RTDN（Pub/Sub push 和 `GOOGLE_PLAY_PUSH_AUDIENCE`）都登记这个主机（[billing.md](billing.md)） |
-| `notefable.com/api/*` | 421（JSON，`code: "wrong_host"`；不跳转：Webhook 和 App 不跟随跳转，登记错了要马上看得出来；不用 404，因为界面把 404 当成“笔记或会话已删除”）。例外只有 `/api/i18n`（介绍页的语言菜单取词典）；介绍页的语言菜单在这个主机上不向账号保存（没有登录，选择靠共用的语言 Cookie 带到工作区）。规则是 `next.config.ts` 的 rewrite（`siteApiBlockRewrites`，`src/lib/hosts.ts`），按主机名匹配，转到 `/api/unavailable`；没分域的环境、两个主机名相同只差端口的配置和 `*.vercel.app` 别名不受影响 |
+| `notefable.com/api/*` | 421（JSON，`code: "wrong_host"`；不跳转：Webhook 和 App 不跟随跳转，登记错了要马上看得出来；不用 404，因为界面把 404 当成“页面或会话已删除”）。例外只有 `/api/i18n`（介绍页的语言菜单取词典）；介绍页的语言菜单在这个主机上不向账号保存（没有登录，选择靠共用的语言 Cookie 带到工作区）。规则是 `next.config.ts` 的 rewrite（`siteApiBlockRewrites`，`src/lib/hosts.ts`），按主机名匹配，转到 `/api/unavailable`；没分域的环境、两个主机名相同只差端口的配置和 `*.vercel.app` 别名不受影响 |
 
 Cookie 和浏览器存储按主机分开：匿名设备 Cookie、登录会话 Cookie 和 `localStorage`（草稿、模型选择等）不会从 `notefable.com` 带到 `app.notefable.com`。分域时的决定（2026-11-19）是不迁移：旧的匿名数据留在数据库里，在新主机上从新的匿名身份开始；登录用户在新主机重新登录后数据照常可见。界面语言 Cookie（`notefable-locale`）在分域后写到 `Domain=notefable.com`，两个主机共用。
 
@@ -306,7 +306,7 @@ NOTEFABLE_MODELS=[{"id":"gpt-6-luna"},{"id":"claude-haiku-5-5","label":"Claude",
 
 ### File & Image Storage
 
-生产环境使用私有 Vercel Blob（`notefable-images`），存放聊天图片（`images/YYYY/MM/DD/...`）、临时上传（`chat-uploads/<userId>/`）、笔记封面和页面图片图标（`page-covers/<userId>/`）、页面里的图片和文件（`note-files/<userId>/`）、用户头像（`avatars/<userId>/`）、设置里的图标（`app-icons/<userId>/`）和 AI 提案卡片的缩略图（`proposal-images/<userId>/`）：
+生产环境使用私有 Vercel Blob（`notefable-images`），存放聊天图片（`images/YYYY/MM/DD/...`）、临时上传（`chat-uploads/<userId>/`）、页面封面和页面图片图标（`page-covers/<userId>/`）、页面里的图片和文件（`note-files/<userId>/`）、用户头像（`avatars/<userId>/`）、设置里的图标（`app-icons/<userId>/`）和 AI 提案卡片的缩略图（`proposal-images/<userId>/`）：
 
 ```text
 Client -> POST /api/uploads -> @vercel/blob/client 直传临时附件（chat-uploads/）

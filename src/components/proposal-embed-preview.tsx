@@ -6,6 +6,7 @@ import { useT } from "@/components/i18n-provider";
 import { PageKindIcon } from "@/components/page-kind-icon";
 import { changeLabel } from "@/components/page-proposal";
 import type { ProposalContentPayload } from "@/lib/page-ai/proposals";
+import { localizeWhiteboardChange, localizeWhiteboardSummary } from "@/lib/whiteboard/proposal-text";
 
 // /note-embed?proposal=<id>：Android / iOS 原生アプリの提案カードから開く、キャンバス提案の改前・改後プレビュー画面。
 // 静的ページ（src/app/[locale]/note-embed/page.tsx）のまま動作し、クライアント側で /api/proposals/[id]/content を取得する。
@@ -40,6 +41,10 @@ export function ProposalEmbedPreview({ proposalId }: { proposalId: string }) {
         : t("New slide deck “{title}”", { title: meta.title }))
       : t("Proposed edit to “{title}”", { title: meta.pageTitle || meta.title })
     : t("Visual preview");
+  // 白板の説明の英語は表示のときに訳す（提案カードと同じ）。
+  const whiteboard = meta?.pageKind === "whiteboard";
+  const content = meta?.content && whiteboard ? localizeWhiteboardSummary(meta.content, t) : meta?.content;
+  const changes = (whiteboard ? meta?.changes.map((change) => localizeWhiteboardChange(change, t)) : meta?.changes) ?? [];
 
   return (
     <main className="proposal-embed-shell">
@@ -73,12 +78,12 @@ export function ProposalEmbedPreview({ proposalId }: { proposalId: string }) {
                   <div className="page-edit-after">{meta.titleDiff.after}</div>
                 </div>
               )}
-              {meta.content && (
+              {content && (
                 <div className="page-edit-change">
-                  <div className="page-edit-after">{meta.content}</div>
+                  <div className="page-edit-after">{content}</div>
                 </div>
               )}
-              {meta.changes.map((change, index) => (
+              {changes.map((change, index) => (
                 <div key={index} className="page-edit-change">
                   <div className="page-edit-op">{changeLabel(change, t, meta.pageKind)}</div>
                   {change.before !== undefined && <div className="page-edit-before">{change.before}</div>}

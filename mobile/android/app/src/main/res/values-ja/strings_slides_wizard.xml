@@ -3,6 +3,7 @@
      src/lib/i18n/messages/{zh,ja}.ts。values / values-zh / values-ja 三份的键一一对应。 -->
 <resources>
     <string name="slides_generate">スライドを生成</string>
+    <string name="slides_generating">スライドを生成中…</string>
     <string name="slides_generate_from_chat">このチャットからスライドを作成</string>
     <string name="slides_generate_with_ai">AI で生成</string>
 </resources>

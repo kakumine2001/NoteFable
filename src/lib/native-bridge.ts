@@ -28,6 +28,9 @@ export type NativeMessage =
   // 戻る操作を slidesWizard({ action: "back" }) に渡す。busy はまだ生成中（WebView をしばらく残してほしい）。canShowSlidesWizard を持つアプリにだけ送る。
   | { type: "slidesWizard"; state: "open" }
   | { type: "slidesWizard"; state: "closed"; busy: boolean }
+  // いまスライドを作っているノート（入口がノートのもの）。アプリはそのノートの「…」の「Generate slides」を作成中の表示にする。
+  // 読み込んだとき（空でも）と変わるたびに送る。canShowSlidesWizard を持つアプリにだけ送り、知らない古いアプリは無視する。
+  | { type: "slidesJobs"; pageIds: string[] }
   // kept: 保存できなかったが、下書きはこの WebView の localStorage に残っていて後で送り直す（衝突ではない）。アプリはこのとき離れてよい。
   | { type: "flushed"; requestId: string; ok: boolean; kept?: boolean }
   // ファイル置き場の容量が足りず、画像・ファイル・カバーのアップロードが断られた（used / limit はバイト）。

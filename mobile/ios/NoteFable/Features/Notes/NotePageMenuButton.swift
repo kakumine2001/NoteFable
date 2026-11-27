@@ -205,7 +205,10 @@ private struct NotePageMenuContent: View {
             )
         }
         if notePageDrawable(page), let onGenerateSlides = actions.onGenerateSlides {
-            ActionsMenuItem(L("slides_generate"), icon: Lucide.presentation, action: run(onGenerateSlides))
+            ActionsMenuItem(
+                L(actions.generatingSlides ? "slides_generating" : "slides_generate"), icon: Lucide.presentation,
+                isBusy: actions.generatingSlides, action: run(onGenerateSlides)
+            )
         }
         ActionsMenuItem(L("pg_move_to"), icon: Lucide.folderInput, action: run(actions.onMove))
         if page.kind.features.markdownExport {

@@ -303,6 +303,11 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
                 }
                 return
             }
+            if case .slidesJobs(let pageIds) = message {
+                // 离开编辑页（停靠中）时生成还在跑、做完了也要收到。
+                if self.webView != nil { self.app.notes.onSlidesJobs(pageIds) }
+                return
+            }
             if case .slidesWizard(let open, let busy) = message {
                 guard self.webView != nil else { return }
                 self.hasEverResponded = true
@@ -598,6 +603,7 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         isLoaded = false
         slidesWizardVisible = false
         slidesWizardBusy = false
+        app.notes.onSlidesJobs([])
         hasEverResponded = false
         activeEditor = nil
         currentPageId = nil
@@ -1044,6 +1050,8 @@ extension NoteEditorController: WKNavigationDelegate {
         }
         slidesWizardVisible = false
         slidesWizardBusy = false
+        // 新的网页进程里没有在做的幻灯片（加载后也会发空的）。
+        app.notes.onSlidesJobs([])
         if editor == Self.slidesWizardEditorId {
             isLoaded = false
             showEpoch += 1

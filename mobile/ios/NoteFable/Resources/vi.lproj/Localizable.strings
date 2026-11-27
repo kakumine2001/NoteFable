@@ -605,6 +605,7 @@
 
 /* strings_slides_wizard.xml */
 "slides_generate" = "Tạo bản trình chiếu";
+"slides_generating" = "Đang tạo bản trình chiếu…";
 "slides_generate_from_chat" = "Tạo bản trình chiếu từ đoạn chat này";
 "slides_generate_with_ai" = "Tạo bằng AI";
 

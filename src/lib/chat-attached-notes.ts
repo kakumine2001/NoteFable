@@ -114,9 +114,9 @@ export function formatAttachedNotes(notes: AttachedContextNote[], canReadNotes =
   ];
   notes.forEach((note, index) => {
     lines.push(
-      `=== Attached note ${index + 1}: ${JSON.stringify(note.title.slice(0, 200))} (id: ${note.id})${pageKindMarker(note.kind)}${note.latest ? " [attached to this message]" : ""}${note.truncated ? " [truncated]" : ""} ===`,
+      `=== Attached page ${index + 1}: ${JSON.stringify(note.title.slice(0, 200))} (id: ${note.id})${pageKindMarker(note.kind)}${note.latest ? " [attached to this message]" : ""}${note.truncated ? " [truncated]" : ""} ===`,
       defang(note.markdown) || (note.truncated ? "(left out because of the size limit)" : "(empty)"),
-      `=== End of attached note ${index + 1} ===`,
+      `=== End of attached page ${index + 1} ===`,
     );
   });
   return lines.join("\n");

@@ -142,7 +142,7 @@ flowchart LR
   - 局限：Chats 只做关键词匹配，无同义词、翻译、繁简转换和无空格中文分词；顺序扫描无索引（本地 20,000 消息单词约 50 ms，Neon 生产未实测），数据库需 UTF8。详见 [chat-flow.md](docs/architecture/chat-flow.md#跨-chats--pages-搜索)。
 - **聊天项目共通指示与参考页面**：
   - 项目菜单 “Project settings” 支持最多 4,000 字符共通指示 + 手动选最多 5 个参考页面（笔记、白板、幻灯片均可；Trash 里的不生效）。
-  - 每次发送实时读取并注入系统指令（共通指示优先于默认语言与格式；参考页面的文字仅作为资料，白板 / 幻灯片取保存时提取的文字，每篇最多 8,000 字符、合计最多 20,000 字符，超出截断，计入模型输入用量）。回答前过程条显示 “Used project …”，可点击标签打开参考页面。详见 [chat-flow.md](docs/architecture/chat-flow.md#项目的共通指示与参考笔记)。
+  - 每次发送实时读取并注入系统指令（共通指示优先于默认语言与格式；参考页面的文字仅作为资料，白板 / 幻灯片取保存时提取的文字，每篇最多 8,000 字符、合计最多 20,000 字符，超出截断，计入模型输入用量）。回答前过程条显示 “Used project …”，可点击标签打开参考页面。详见 [chat-flow.md](docs/architecture/chat-flow.md#项目的共通指示与参考页面)。
 - **Trash 与编辑历史**：
   - 删除页面先移入 Trash，30 天内可完整复原（保留位置、分组、正文），也可单篇或清空永久删除；超期页面在打开 Trash、删除另一篇或清空时惰性清除（无定时任务），永久删除同时清理编辑历史与项目参考关联，页面 AI 面板的聊天保留在 Chats。
   - 每篇笔记保留最多 50 份编辑历史（自动保存快照 30 份，间隔 ≥ 10 分钟；AI 提案应用前与每次恢复前的快照 20 份）；白板 / 幻灯片的本体较大，只留 10 份（自动 5 份，间隔 ≥ 30 分钟；AI / 恢复前 5 份）；自动快照 90 天后清除。恢复仅改标题、图标和正文（白板 / 幻灯片为本体），不动封面、分组和位置。详见 [notes-flow.md](docs/architecture/notes-flow.md#trash回收站)。
@@ -157,7 +157,7 @@ flowchart LR
 ### 移动应用（Android / iOS）
 
 - **Android**（`mobile/android/`，Kotlin / Compose）：聊天、侧栏、搜索、附件、图片生成、工作区首页与页面列表（笔记 / 白板 / 幻灯片）/项目/子页面/收藏/页面菜单、公开只读分享、笔记与幻灯片放映、白板与幻灯片导出、AI 生成幻灯片、回收站、两级设置（含 Google Play Pro 订阅）、Google / 邮箱验证码登录、引用追问、回答举报、发言添加页面、整理成笔记、画成图、系统分享接收、外观切换、Markdown 导入/导出均已实现；笔记、白板和幻灯片的编辑器通过 WebView 加载 `/note-embed`。默认连接 `https://app.notefable.com`（接口仅在该主机提供，`notefable.com/api/*` 返回 421）。详见 [android-native.md](docs/architecture/android-native.md) 与 [android.md](docs/architecture/android.md)。
-- **iOS**（`mobile/ios/`，Swift / SwiftUI）：对照 Android 移植的原生客户端，通过 CI 编译、Core 单元测试和模拟器截图检查；合入调高构建号的 PR 后自动上传 TestFlight，构建已装到真机，界面尚未逐项验收。Sign in with Apple 与 App Store 订阅内购已实现（服务端与 App Store Connect 配置齐全后开放），仍需真机 / 沙盒验收；通用链接（网站已提供 `apple-app-site-association`，仅匹配分享链接）同样待真机验证。结构与待补项见 [ios-native.md](docs/architecture/ios-native.md)，PR 检查与 TestFlight 自动上传见 [ios.md](docs/architecture/ios.md)。
+- **iOS**（`mobile/ios/`，Swift / SwiftUI）：对照 Android 移植的原生客户端，通过 CI 编译、Core 单元测试和模拟器截图检查；合入调高构建号的 PR 后自动上传 TestFlight，构建已装到真机，界面尚未逐项验收。Sign in with Apple 与 App Store 订阅内购已实现（Apple 登录的生产服务端已配置；内购在服务端与 App Store Connect 配置齐全后开放），仍需真机 / 沙盒验收；通用链接（网站已提供 `apple-app-site-association`，仅匹配分享链接）同样待真机验证。结构与待补项见 [ios-native.md](docs/architecture/ios-native.md)，PR 检查与 TestFlight 自动上传见 [ios.md](docs/architecture/ios.md)。
 
 ---
 

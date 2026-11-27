@@ -2,6 +2,7 @@
 // 不另外维护一份：从 Android 的字符串资源（res/values*/strings*.xml，17 种语言）逐条转换。键就是 Android 的资源名，
 // 只有 iOS 才需要的少数几条写在下面的 IOS_ONLY_STRINGS 里。
 // Swift 端用 L("键", 参数…) 读（mobile/ios/NoteFable/Core/Text/L10n.swift）。
+// 权限说明（系统弹窗里显示的 Info.plist 的 …UsageDescription）按语言写进同一目录的 InfoPlist.strings（下面的 INFO_PLIST_STRINGS）。
 // 值去掉 XML 转义和 Android 转义（\'、\n、"…" 包裹等，规则同 aapt2），占位符（%1$s / %2$d）和 %% 原样保留：
 // L10n.format 自己替换它们，不走 String(format:)。遇到没处理过的写法（plurals、数组、内嵌标签、不认识的转义）直接报错。
 // 生成：npx tsx scripts/gen-ios-strings.ts；src/lib/ios-strings.test.ts 在文件过期时失败。
@@ -13,6 +14,7 @@ import { defaultStringXmlFileNames, NATIVE_LOCALE_RES_DIRS, NATIVE_RES_DIR, unes
 const root = path.resolve(import.meta.dirname, "..");
 export const IOS_RESOURCES_DIR = path.join(root, "mobile", "ios", "NoteFable", "Resources");
 export const IOS_STRINGS_FILE = "Localizable.strings";
+export const IOS_INFO_PLIST_STRINGS_FILE = "InfoPlist.strings";
 
 // 网页 Locale → iOS 的 lproj 名（和 mobile/ios/Support/Info.plist 的 CFBundleLocalizations、AppLanguage.swift 一致）。
 export const IOS_LPROJ: Record<Locale, string> = {
@@ -37,6 +39,10 @@ export const IOS_LPROJ: Record<Locale, string> = {
 
 export function iosStringsPath(locale: Locale): string {
   return path.join(IOS_RESOURCES_DIR, `${IOS_LPROJ[locale]}.lproj`, IOS_STRINGS_FILE);
+}
+
+export function iosInfoPlistStringsPath(locale: Locale): string {
+  return path.join(IOS_RESOURCES_DIR, `${IOS_LPROJ[locale]}.lproj`, IOS_INFO_PLIST_STRINGS_FILE);
 }
 
 export type AndroidStringEntry = { name: string; raw: string; translatable: boolean };
@@ -235,6 +241,70 @@ export const IOS_ONLY_STRINGS: Record<string, Record<Locale, string>> = {
   },
 };
 
+/**
+ * 权限说明：系统在第一次用到相机、麦克风、照片图库时显示（Info.plist 里的是英文原值，en 要和它一样，
+ * src/lib/ios-strings.test.ts 核对）。麦克风是笔记编辑器里选文件时拍视频用的。
+ */
+export const INFO_PLIST_STRINGS: Record<string, Record<Locale, string>> = {
+  NSCameraUsageDescription: {
+    en: "Take photos or videos to attach to your messages or add to your pages.",
+    zh: "拍摄照片或视频，用于添加到消息或页面中。",
+    "zh-Hant": "拍攝照片或影片，用於加到訊息或頁面中。",
+    ja: "メッセージに添付したりページに追加したりする写真や動画を撮影します。",
+    ko: "메시지에 첨부하거나 페이지에 추가할 사진 또는 동영상을 촬영합니다.",
+    es: "Haz fotos o vídeos para adjuntarlos a tus mensajes o añadirlos a tus páginas.",
+    fr: "Prenez des photos ou des vidéos à joindre à vos messages ou à ajouter à vos pages.",
+    de: "Nimm Fotos oder Videos auf, um sie an Nachrichten anzuhängen oder zu deinen Seiten hinzuzufügen.",
+    "pt-BR": "Tire fotos ou grave vídeos para anexar às suas mensagens ou adicionar às suas páginas.",
+    it: "Scatta foto o registra video da allegare ai messaggi o aggiungere alle tue pagine.",
+    id: "Ambil foto atau video untuk dilampirkan ke pesan atau ditambahkan ke halaman Anda.",
+    vi: "Chụp ảnh hoặc quay video để đính kèm vào tin nhắn hoặc thêm vào trang của bạn.",
+    th: "ถ่ายรูปหรือวิดีโอเพื่อแนบกับข้อความหรือเพิ่มลงในหน้าของคุณ",
+    hi: "अपने संदेशों में अटैच करने या अपने पेजों में जोड़ने के लिए फ़ोटो या वीडियो लें।",
+    ar: "التقط صورًا أو مقاطع فيديو لإرفاقها برسائلك أو إضافتها إلى صفحاتك.",
+    tr: "Mesajlarınıza eklemek veya sayfalarınıza koymak için fotoğraf ya da video çekin.",
+    ru: "Делайте фото и видео, чтобы прикреплять их к сообщениям или добавлять на свои страницы.",
+  },
+  NSMicrophoneUsageDescription: {
+    en: "Record sound for the videos you add to your pages.",
+    zh: "为添加到页面的视频录制声音。",
+    "zh-Hant": "為加到頁面的影片錄製聲音。",
+    ja: "ページに追加する動画の音声を録音します。",
+    ko: "페이지에 추가하는 동영상의 소리를 녹음합니다.",
+    es: "Graba el sonido de los vídeos que añadas a tus páginas.",
+    fr: "Enregistrez le son des vidéos que vous ajoutez à vos pages.",
+    de: "Nimm den Ton für Videos auf, die du zu deinen Seiten hinzufügst.",
+    "pt-BR": "Grave o som dos vídeos que você adicionar às suas páginas.",
+    it: "Registra l’audio dei video che aggiungi alle tue pagine.",
+    id: "Rekam suara untuk video yang Anda tambahkan ke halaman Anda.",
+    vi: "Ghi âm cho video bạn thêm vào trang của mình.",
+    th: "บันทึกเสียงสำหรับวิดีโอที่คุณเพิ่มลงในหน้าของคุณ",
+    hi: "अपने पेजों में जोड़े जाने वाले वीडियो की आवाज़ रिकॉर्ड करें।",
+    ar: "سجّل صوت مقاطع الفيديو التي تضيفها إلى صفحاتك.",
+    tr: "Sayfalarınıza eklediğiniz videoların sesini kaydedin.",
+    ru: "Записывайте звук для видео, которые вы добавляете на свои страницы.",
+  },
+  NSPhotoLibraryAddUsageDescription: {
+    en: "Save generated images to your photo library.",
+    zh: "将生成的图片保存到你的照片图库。",
+    "zh-Hant": "將生成的圖片儲存到你的照片圖庫。",
+    ja: "生成した画像を写真ライブラリに保存します。",
+    ko: "생성한 이미지를 사진 보관함에 저장합니다.",
+    es: "Guarda las imágenes generadas en tu fototeca.",
+    fr: "Enregistrez les images générées dans votre photothèque.",
+    de: "Speichere generierte Bilder in deiner Fotomediathek.",
+    "pt-BR": "Salve imagens geradas na sua fototeca.",
+    it: "Salva le immagini generate nella tua libreria foto.",
+    id: "Simpan gambar yang dibuat ke perpustakaan foto Anda.",
+    vi: "Lưu hình ảnh đã tạo vào thư viện ảnh của bạn.",
+    th: "บันทึกรูปภาพที่สร้างขึ้นลงในคลังรูปภาพของคุณ",
+    hi: "बनाई गई इमेज को अपनी फ़ोटो लाइब्रेरी में सेव करें।",
+    ar: "احفظ الصور المُنشأة في مكتبة الصور.",
+    tr: "Oluşturulan görselleri fotoğraf arşivinize kaydedin.",
+    ru: "Сохраняйте созданные изображения в медиатеку.",
+  },
+};
+
 function readLocaleEntries(locale: Locale): Map<string, Map<string, AndroidStringEntry>> {
   const dirName = NATIVE_LOCALE_RES_DIRS[locale];
   const dir = path.join(NATIVE_RES_DIR, dirName);
@@ -337,12 +407,27 @@ export function iosStringsFile(locale: Locale): string {
   return lines.join("\n");
 }
 
-/** 全部 17 种语言：Localizable.strings 的路径 → 内容。 */
-export function iosStringsFiles(): Map<string, string> {
-  return new Map(LOCALES.map((locale) => [iosStringsPath(locale), iosStringsFile(locale)]));
+/** 一种语言的 InfoPlist.strings 的内容（UTF-8、LF）。 */
+export function iosInfoPlistStringsFile(locale: Locale): string {
+  const lines = ["/* Generated by scripts/gen-ios-strings.ts from INFO_PLIST_STRINGS (scripts/ios-strings.ts). Do not edit by hand. */", ""];
+  for (const [key, values] of Object.entries(INFO_PLIST_STRINGS)) {
+    const value = values[locale];
+    if (!value) throw new Error(`INFO_PLIST_STRINGS: ${key} has no ${locale} text`);
+    lines.push(`"${key}" = "${escapeStringsValue(value, `INFO_PLIST_STRINGS:${key}:${locale}`)}";`);
+  }
+  lines.push("");
+  return lines.join("\n");
 }
 
-/** Resources 下现有的 <名字>.lproj/Localizable.strings（用来找出已经不在语言表里的旧文件）。 */
+/** 全部 17 种语言：Localizable.strings 和 InfoPlist.strings 的路径 → 内容。 */
+export function iosStringsFiles(): Map<string, string> {
+  return new Map(LOCALES.flatMap((locale): [string, string][] => [
+    [iosStringsPath(locale), iosStringsFile(locale)],
+    [iosInfoPlistStringsPath(locale), iosInfoPlistStringsFile(locale)],
+  ]));
+}
+
+/** Resources 下现有的 <名字>.lproj/ 里这两种文件（用来找出已经不在语言表里的旧文件）。 */
 export function existingIosStringsPaths(): string[] {
   let names: string[];
   try {
@@ -352,7 +437,7 @@ export function existingIosStringsPaths(): string[] {
   }
   return names
     .filter((name) => name.endsWith(".lproj"))
-    .map((name) => path.join(IOS_RESOURCES_DIR, name, IOS_STRINGS_FILE))
+    .flatMap((name) => [IOS_STRINGS_FILE, IOS_INFO_PLIST_STRINGS_FILE].map((file) => path.join(IOS_RESOURCES_DIR, name, file)))
     .filter((file) => {
       try {
         readFileSync(file);

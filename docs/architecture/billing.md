@@ -80,7 +80,7 @@ Stripe 后台要做的事：
 
 ## Android（Google Play 结算）
 
-Google Play 要求 App 内的数字订阅走 Play 结算，不能引导去网页付款。所以 App 里用 Play Billing 卖同一个 Pro，网页用 Stripe；两边写进同一组 `User` 列（`subscriptionProvider` = `stripe` / `google`，iOS 的 App Store 订阅是 `apple`；`src/lib/subscription-state.ts`）。服务端的上限提示句不提“升级”，升级提示由各端界面自己显示；App 内嵌的笔记编辑页（`/note-embed`）不显示网页的 Stripe 升级提示。Play 收 15%，¥300 到手约 ¥255。
+Google Play 要求 App 内的数字订阅走 Play 结算，不能引导去网页付款。所以 App 里用 Play Billing 卖同一个 Pro，网页用 Stripe；两边写进同一组 `User` 列（`subscriptionProvider` = `stripe` / `google`，iOS 的 App Store 订阅是 `apple`；`src/lib/subscription-state.ts`）。服务端的上限提示句不提“升级”，升级提示由各端界面自己显示；App 内嵌的页面编辑页（`/note-embed`）不显示网页的 Stripe 升级提示。Play 收 15%，¥300 到手约 ¥255。
 
 1. **购买**（`data/PlayBilling.kt`，billing-ktx 9.1.0）：设置的“方案”（`ui/PlanSettings.kt`）和上限提示（`UpgradeLimitPrompt`）在 `GET /api/billing` 的 `googlePlay` 为 true、且能读到 Play 商品时显示“升级到 Pro”，价格用 Play 返回的本地化价格。购买窗口带上 `accountId`（`setObfuscatedAccountId`，就是 `User.id`）。不是从 Play 安装的 APK（例如 Drive 发的）连不上 Play 结算，不显示购买按钮。
 2. **报告**：买到后 App 把购买令牌发到 `POST /api/billing/google`。服务端用 Play Developer API（`purchases.subscriptionsv2.get`）核对：令牌上的 `obfuscatedExternalAccountId`（Play 商店里重新购买时是原购买的）必须是当前用户；没有这个 ID 时，只认已经记录在当前用户上的令牌（或它的前一个令牌）；令牌也不能已被别的用户用过。有效就确认（acknowledge）并写入，返回 Pro。付款还在处理（`PENDING`）时返回 202。网页（Stripe）已经是 Pro 时不确认这笔购买，Google 3 天后自动退款，返回 409。App 打开设置时会把没报告成功的购买（还没确认的）再报告一次。

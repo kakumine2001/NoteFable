@@ -63,7 +63,7 @@
 
 ## 公开放映链接
 
-沿用笔记的分享（“Share” → 发布到网页，`/s/:token`）。幻灯片是分享树的**叶子**（`leafKind`，`src/lib/note-share-server.ts`）：只公开这套幻灯片本身，下面的子页面永远不公开（分享对话框也不显示“包含子页面”）；作为笔记的子页面时，可以在那个笔记的分享里打开它，但它下面的页面仍然不可达。
+沿用页面的分享（“Share” → 发布到网页，`/s/:token`）。幻灯片是分享树的**叶子**（`leafKind`，`src/lib/note-share-server.ts`）：只公开这套幻灯片本身，下面的子页面永远不公开（分享对话框也不显示“包含子页面”）；作为别的页面的子页面时，可以在那个页面的分享里打开它，但它下面的页面仍然不可达。
 
 公开页面（`PublicSlidesView`）一页一页大图显示、下面是缩略图，可以全屏放映（同样的键位），只读。由于外层 `body` 锁定 `overflow: hidden`，`.public-slides-shell` 在自身 `100dvh` 容器内纵向滚动，矮屏或横屏时也能滑到下方缩略图条。服务端先过 `publicDeck`：去掉隐藏页、演讲者备注以及 AI 图片的 `generated` 和 `pendingImagePrompt` 说明；图片地址改成 `/s/:token/file?…`，该路由对幻灯片只放行公开页面引用的图片（`publicDeckFilePaths`）；公式在服务端用 KaTeX 预先渲染，浏览器不加载 KaTeX。
 
@@ -99,7 +99,7 @@
 
 ### 在 App 的 WebView 里
 
-同一个向导开在常驻的 `/note-embed` WebView 里（页面开着或只是温着都行），约定见 [notes-flow.md](notes-flow.md#原生应用内嵌编辑器note-embed)：App 调 `notefableEmbed.slidesWizard({ action: "open", source, model? })` 打开、`{ action: "back" }` 返回；网页发 `slidesWizard` 的 `open` / `closed`、`openPage`（Open slides，先于 `closed`）、`pagesChanged`、`usageLimit`、`storageLimit`。笔记 AI 面板里的 “Generate slides” 只对声明了 `canShowSlidesWizard()` 的 App 显示。Android（`SlidesWizardScreen.kt`）与 iOS（`SlidesWizardScreen.swift`）已接入与网页一致的全部入口和常驻 WebView 承载，详见 [android-native.md](android-native.md#ai-生成幻灯片) 与 [ios-native.md](ios-native.md)。
+同一个向导开在常驻的 `/note-embed` WebView 里（页面开着或只是温着都行），约定见 [notes-flow.md](notes-flow.md#原生应用内嵌编辑器note-embed)：App 调 `notefableEmbed.slidesWizard({ action: "open", source, model? })` 打开、`{ action: "back" }` 返回；网页发 `slidesWizard` 的 `open` / `closed`、`slidesJobs`（正在做幻灯片的笔记，原生“…”菜单的“生成幻灯片”显示进行中）、`openPage`（Open slides，先于 `closed`）、`pagesChanged`、`usageLimit`、`storageLimit`。笔记 AI 面板里的 “Generate slides” 只对声明了 `canShowSlidesWizard()` 的 App 显示。Android（`SlidesWizardScreen.kt`）与 iOS（`SlidesWizardScreen.swift`）已接入与网页一致的全部入口和常驻 WebView 承载，详见 [android-native.md](android-native.md#ai-生成幻灯片) 与 [ios-native.md](ios-native.md)。
 
 ### 服务端
 

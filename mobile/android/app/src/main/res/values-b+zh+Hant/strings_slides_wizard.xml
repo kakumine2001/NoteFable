@@ -4,6 +4,7 @@
      src/lib/i18n/messages/{zh,ja}.ts。values / values-zh / values-ja 三份的键一一对应。 -->
 <resources>
     <string name="slides_generate">生成投影片</string>
+    <string name="slides_generating">正在生成投影片…</string>
     <string name="slides_generate_from_chat">用這段聊天做一份投影片</string>
     <string name="slides_generate_with_ai">用 AI 生成</string>
 </resources>
