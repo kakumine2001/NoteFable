@@ -22,7 +22,7 @@ marketing URL, primary and secondary category, en-US screenshots (App Asset Libr
 answers, the App Review notes, the copyright, the display names and descriptions of the existing
 subscription group and monthly product (creating a draft metadata version when there is none, or
 when changed texts meet only versions whose review is over) and the TestFlight beta app
-description. Every run ends with a read-only audit of what a submission
+description (only while none is set). Every run ends with a read-only audit of what a submission
 still misses. It never submits anything for review, never touches pricing, availability, the content
 rights declaration, app privacy or builds, never creates a product, subscription group, App Store
 version or app info, never writes a contact or credential, and deletes nothing except the screenshot

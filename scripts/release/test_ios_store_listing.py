@@ -1146,6 +1146,7 @@ class SubmissionTests(unittest.TestCase):
     def test_dry_run_reads_only_and_never_prints_personal_data(self) -> None:
         fake = FakeAppStoreConnect()
         fill_personal_data(fake)
+        fake.beta_texts["beta-en"]["description"] = ""
         self.assertTrue(self.sync(fake))
         self.assertEqual(fake.writes(), [])
         self.assert_no_personal_data()
@@ -1156,7 +1157,7 @@ class SubmissionTests(unittest.TestCase):
             "      | NO ACCOUNT NEEDED",
             "copyright: CHANGE (current: set, 16 characters, not shown)",
             "subscription group [ja] name: CHANGE (empty) -> NoteFable Pro",
-            "TestFlight beta app description (en-US): CHANGE (current: set",
+            "TestFlight beta app description (en-US): CHANGE (current: empty)",
             "26 age rating answers, 1 review notes, 1 copyright, 36 subscription localizations, 1 beta description",
         ):
             self.assertIn(expected, self.text())
@@ -1164,6 +1165,7 @@ class SubmissionTests(unittest.TestCase):
     def test_apply_writes_only_the_allowed_fields_and_is_idempotent(self) -> None:
         fake = FakeAppStoreConnect()
         fill_personal_data(fake)
+        fake.beta_texts["beta-en"]["description"] = ""
         self.assertTrue(self.sync(fake, apply=True), self.text())
         self.assert_no_personal_data()
         self.assertEqual(fake.age, REVIEW.age_rating)
@@ -1188,6 +1190,17 @@ class SubmissionTests(unittest.TestCase):
         fake.calls.clear()
         self.assertTrue(self.sync(fake, apply=True), self.text())
         self.assertEqual(fake.writes(), [])
+
+    def test_an_existing_beta_description_is_kept_and_not_printed(self) -> None:
+        fake = FakeAppStoreConnect()
+        fill_personal_data(fake)
+        self.assertTrue(self.sync(fake, apply=True), self.text())
+        self.assert_no_personal_data()
+        self.assertEqual(fake.beta_texts["beta-en"]["description"], "Mail owner@example.com")
+        self.assertFalse(any("betaAppLocalizations" in path for _, path, _ in self.sent(fake)))
+        self.assertIn("TestFlight beta app description (en-US): already set, kept (not shown)", self.text())
+        self.assertIn("0 beta description to write.", self.text())
+        self.assertIn("[ok] TestFlight beta app description (en-US): set", self.text())
 
     def test_creates_the_review_details_with_notes_only(self) -> None:
         fake = FakeAppStoreConnect()
@@ -1245,6 +1258,7 @@ class SubmissionTests(unittest.TestCase):
     def test_errors_on_personal_records_hide_apples_text(self) -> None:
         fake = FakeAppStoreConnect()
         fill_personal_data(fake)
+        fake.beta_texts["beta-en"]["description"] = ""
         leak = "owner@example.com +81 90 1234 5678"
         error = AscError(f"HTTP 409: {leak}", status=409, body={"errors": [{"code": "X.INVALID", "detail": leak}]})
         fake.fail[("PATCH", "/appStoreReviewDetails")] = error

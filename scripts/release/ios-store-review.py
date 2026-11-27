@@ -4,7 +4,7 @@
   - reads docs/app-store/review-info.md
   - plans and writes the age rating answers, the App Review notes, the copyright, the display names
     and descriptions of the existing subscription group and monthly product, and the TestFlight beta
-    app description
+    app description (that one only while none is set)
   - audits, read-only, what App Store Connect still misses for a submission
 
 The repository and its Actions logs are public: personal data held by App Store Connect (review
@@ -427,7 +427,8 @@ class ReviewPlan:
 
     @property
     def beta_changed(self) -> bool:
-        return self.beta is not None and normalized(self.beta[0]) != normalized(self.beta[1])
+        # Only filled in: a description someone already wrote is never replaced.
+        return self.beta is not None and not normalized(self.beta[0])
 
 
 def _plan_age_rating(client: Any, info: ReviewInfo, plan: ReviewPlan, app_info_id: str) -> None:
@@ -578,7 +579,11 @@ def print_review(plan: ReviewPlan, out=print) -> None:
                 current = normalized(text.current.get(name))
                 out(f"  {label} [{text.locale}] {name}: CHANGE {current or '(empty)'} -> {new}")
     if plan.beta:
-        _private_change(out, f"TestFlight beta app description ({BETA_LOCALE})", plan.beta_changed, *plan.beta)
+        name = f"TestFlight beta app description ({BETA_LOCALE})"
+        if plan.beta_changed:
+            _private_change(out, name, True, *plan.beta)
+        else:
+            out(f"  {name}: already set, kept (not shown)")
     out(
         "Submission summary: "
         f"{len(plan.age_changes)} age rating answers, "
