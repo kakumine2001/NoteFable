@@ -11,10 +11,12 @@ import { localizeSystemText, msg, type Translate } from "@/lib/i18n/translate";
 import { noteIconText } from "@/lib/note-icon";
 import { isCanvasKind, pageKindOf, type PageKind } from "@/lib/page-kinds";
 import { PAGES_TRASHED_EVENT, saveBeforePageChange, saveBeforeTrash } from "@/lib/proposal-sync";
+import { localizeWhiteboardChange, localizeWhiteboardSummary } from "@/lib/whiteboard/proposal-text";
 import type { ProposalChange, ProposalOp } from "@/lib/page-ai/types";
 
 // AI の提案カード（ページの編集案・新しいページの案）。ページの種類によらない 1 つのカードで、改前・改後（文字と縮小画像）は
-// サーバーのアダプターが作った changes をそのまま出す。Android（ui/ProposalCard.kt）・iOS（ProposalCard.swift）も同じ形を描く。
+// サーバーのアダプターが作った changes をそのまま出す（白板の説明の英語だけは表示のときに訳す。lib/whiteboard/proposal-text.ts）。
+// Android（ui/ProposalCard.kt）・iOS（ProposalCard.swift）も同じ形を描く。
 
 type EditProposal = Extract<StoredProposal, { kind: "proposal" }>;
 type CreateProposal = Extract<StoredProposal, { kind: "create_proposal" }>;
@@ -185,8 +187,9 @@ export function changeLabel(change: ProposalChange, t: Translate, kind: PageKind
   return change.block ? t("{op} · block {block}", { op, block: change.block }) : t("{op} · start of note", { op });
 }
 
-function Change({ change, kind }: { change: ProposalChange; kind: PageKind }) {
+function Change({ change: stored, kind }: { change: ProposalChange; kind: PageKind }) {
   const t = useT();
+  const change = kind === "whiteboard" ? localizeWhiteboardChange(stored, t) : stored;
   return (
     <div className="page-edit-change">
       <div className="page-edit-op">{changeLabel(change, t, kind)}</div>
@@ -284,6 +287,7 @@ export function PageCreateProposal({ proposal }: { proposal: CreateProposal }) {
   const state = useProposalState(proposal);
   const kind = pageKindOf({ kind: proposal.pageKind });
   const icon = noteIconText(proposal.icon);
+  const content = kind === "whiteboard" ? localizeWhiteboardSummary(proposal.content, t) : proposal.content;
   const title = kind === "whiteboard" ? t("New whiteboard “{title}”", { title: proposal.title })
     : kind === "slides" ? t("New slide deck “{title}”", { title: proposal.title })
     : t("New note{icon} “{title}”", { icon: icon ? ` ${icon}` : "", title: proposal.title });
@@ -298,8 +302,8 @@ export function PageCreateProposal({ proposal }: { proposal: CreateProposal }) {
         <CanvasProposalPreview proposalId={proposal.id} pageKind={kind} proposalKind="create_proposal" status={state.status} mode="card" />
       )}
       {/* 文字の無いページでも、縮小画像などの変更があれば「空のページ」とは書かない。 */}
-      {(proposal.content || (!proposal.changes?.length && !isCanvasKind(kind))) && <div className="page-edit-change">
-        {proposal.content ? <div className="page-edit-after">{proposal.content}</div> : <div className="page-edit-op">{kind === "note" ? t("Empty note") : t("Empty page")}</div>}
+      {(content || (!proposal.changes?.length && !isCanvasKind(kind))) && <div className="page-edit-change">
+        {content ? <div className="page-edit-after">{content}</div> : <div className="page-edit-op">{kind === "note" ? t("Empty note") : t("Empty page")}</div>}
       </div>}
       {proposal.changes?.map((change, index) => <Change key={index} change={change} kind={kind} />)}
     </Card>

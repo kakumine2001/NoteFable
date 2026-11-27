@@ -605,6 +605,7 @@
 
 /* strings_slides_wizard.xml */
 "slides_generate" = "Slayt oluştur";
+"slides_generating" = "Slaytlar oluşturuluyor…";
 "slides_generate_from_chat" = "Bu sohbetten bir slayt destesi oluştur";
 "slides_generate_with_ai" = "Yapay zekâyla oluştur";
 

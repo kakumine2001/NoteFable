@@ -605,6 +605,7 @@
 
 /* strings_slides_wizard.xml */
 "slides_generate" = "Generar diapositivas";
+"slides_generating" = "Generando diapositivas…";
 "slides_generate_from_chat" = "Crear una presentación a partir de este chat";
 "slides_generate_with_ai" = "Generar con IA";
 

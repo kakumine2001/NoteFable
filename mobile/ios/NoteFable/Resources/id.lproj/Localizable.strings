@@ -605,6 +605,7 @@
 
 /* strings_slides_wizard.xml */
 "slides_generate" = "Buat slide";
+"slides_generating" = "Membuat slide…";
 "slides_generate_from_chat" = "Buat presentasi dari chat ini";
 "slides_generate_with_ai" = "Buat dengan AI";
 

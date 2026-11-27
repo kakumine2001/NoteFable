@@ -304,7 +304,8 @@ struct NoteEditorScreen: View {
             onDrawDiagram: { _ = router.drawDiagramFromNote(id) },
             drawingDiagram: app.diagrams.job(.note(pageId: id)) == .working,
             // 「生成幻灯片」：盖在当前编辑器上打开向导，读这篇之前由网页自己保存。
-            onGenerateSlides: { router.openSlidesWizard(.note(pageId: id)) }
+            onGenerateSlides: { router.openSlidesWizard(.note(pageId: id)) },
+            generatingSlides: notes.state.generatingSlides.contains(id)
         )
     }
 }

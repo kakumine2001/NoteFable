@@ -5,6 +5,8 @@ import {
   escapeStringsValue,
   existingIosStringsPaths,
   formatSpecs,
+  INFO_PLIST_STRINGS,
+  iosInfoPlistStringsPath,
   IOS_LPROJ,
   IOS_ONLY_STRINGS,
   iosStringsFiles,
@@ -61,7 +63,7 @@ function parseStringsFile(text: string, label: string): Map<string, string> {
 
 const read = (file: string) => readFileSync(file, "utf8");
 
-describe("iOS Localizable.strings", { timeout: 60_000 }, () => {
+describe("iOS .strings files", { timeout: 60_000 }, () => {
   it("are up to date (regenerate with npx tsx scripts/gen-ios-strings.ts)", () => {
     const expected = iosStringsFiles();
     expect(existingIosStringsPaths()).toEqual([...expected.keys()].sort());
@@ -93,6 +95,22 @@ describe("iOS Localizable.strings", { timeout: 60_000 }, () => {
     const block = /<key>CFBundleLocalizations<\/key>\s*<array>([\s\S]*?)<\/array>/.exec(plist);
     expect(block, "CFBundleLocalizations").not.toBeNull();
     expect([...block![1].matchAll(/<string>([^<]+)<\/string>/g)].map((match) => match[1])).toEqual(LOCALES.map((locale) => IOS_LPROJ[locale]));
+  });
+
+  it("localizes every permission prompt of Info.plist in all 17 languages", () => {
+    const plist = read("mobile/ios/Support/Info.plist");
+    const prompts = new Map([...plist.matchAll(/<key>(NS\w+UsageDescription)<\/key>\s*<string>([^<]+)<\/string>/g)].map((match) => [match[1], match[2]]));
+    expect([...prompts.keys()].sort()).toEqual(["NSCameraUsageDescription", "NSMicrophoneUsageDescription", "NSPhotoLibraryAddUsageDescription"]);
+    expect(Object.keys(INFO_PLIST_STRINGS).sort()).toEqual([...prompts.keys()].sort());
+    for (const locale of LOCALES) {
+      const strings = parseStringsFile(read(iosInfoPlistStringsPath(locale)), `${IOS_LPROJ[locale]}.lproj/InfoPlist`);
+      expect([...strings.keys()].sort(), locale).toEqual([...prompts.keys()].sort());
+      for (const [key, value] of strings) {
+        expect(value, `${locale}:${key}`).toBe(INFO_PLIST_STRINGS[key][locale]);
+        if (locale === "en") expect(value, key).toBe(prompts.get(key));
+        else expect(value, `${locale}:${key}`).not.toBe(prompts.get(key));
+      }
+    }
   });
 
   it("carries the Android text over without its XML and Android escapes", () => {

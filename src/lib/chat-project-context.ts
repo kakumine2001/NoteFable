@@ -83,9 +83,9 @@ export function formatProjectContext(context: ProjectContext, canReadNotes = tru
     );
     context.notes.forEach((note, index) => {
       lines.push(
-        `=== Reference note ${index + 1}: ${JSON.stringify(note.title.slice(0, 200))} (id: ${note.id})${pageKindMarker(note.kind)}${note.truncated ? " [truncated]" : ""} ===`,
+        `=== Reference page ${index + 1}: ${JSON.stringify(note.title.slice(0, 200))} (id: ${note.id})${pageKindMarker(note.kind)}${note.truncated ? " [truncated]" : ""} ===`,
         defang(note.markdown) || (note.truncated ? "(left out because of the size limit)" : "(empty)"),
-        `=== End of reference note ${index + 1} ===`,
+        `=== End of reference page ${index + 1} ===`,
       );
     });
   }

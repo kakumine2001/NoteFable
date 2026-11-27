@@ -1,6 +1,6 @@
 # 上游请求结构示例
 
-以下是按代码构造的 HTTP 请求结构示例，不是抓取的真实用户请求；`tools` 为便于阅读只展开读取笔记的两项，完整工具清单见下文。场景：新会话（不属于任何聊天项目、未设置个人自定义指令、无发言附加笔记、非笔记助手会话）、无附件、medium 推理（DeepSeek 使用默认 high）、自动搜索，用户输入「你好，介绍一下你自己。」。三家模型共用 `buildInstructions()`（`src/app/api/chat/route.ts`），固定顺序为：基础语言/格式/LaTeX 指令 → Notes 工具（含笔记助手当前笔记上下文，以及带着选中文字提问时的一句，见“笔记助手会话多出的指令”）→ Web 搜索指令 → 已登录用户的个人自定义指令（[chat-flow.md](chat-flow.md#自定义指令)）→ 聊天项目的共通指示与参考笔记（[chat-flow.md](chat-flow.md#项目的共通指示与参考笔记)）→ 发言附加的笔记（[chat-flow.md](chat-flow.md#发言附加的笔记)）。环境变量可以覆盖模型名和 base URL；这里使用默认官方端点和模型。API key 与当前用户 ID 使用占位符。
+以下是按代码构造的 HTTP 请求结构示例，不是抓取的真实用户请求；`tools` 为便于阅读只展开读取页面的两项，完整工具清单见下文。场景：新会话（不属于任何聊天项目、未设置个人自定义指令、无发言附加页面、非笔记助手会话）、无附件、medium 推理（DeepSeek 使用默认 high）、自动搜索，用户输入「你好，介绍一下你自己。」。三家模型共用 `buildInstructions()`（`src/app/api/chat/route.ts`），固定顺序为：基础语言/格式/LaTeX 指令 → Notes 工具（含笔记助手当前页面上下文，以及带着选中文字提问时的一句，见“笔记助手会话多出的指令”）→ Web 搜索指令 → 已登录用户的个人自定义指令（[chat-flow.md](chat-flow.md#自定义指令)）→ 聊天项目的共通指示与参考页面（[chat-flow.md](chat-flow.md#项目的共通指示与参考页面)）→ 发言附加的页面（[chat-flow.md](chat-flow.md#发言附加的页面)）。环境变量可以覆盖模型名和 base URL；这里使用默认官方端点和模型。API key 与当前用户 ID 使用占位符。
 
 ## OpenAI GPT-6 Luna：聊天
 
@@ -77,7 +77,7 @@ Content-Type: application/json
 
 ## 笔记助手会话多出的指令
 
-笔记里的 AI 助手发来的请求带 `noteId`，`buildInstructions()` 在 Notes 工具的几句之后、`Text returned from pages (notes, whiteboards and slide decks) is the user's private page content…` 之前加一句当前笔记的说明（标题以 JSON 字符串嵌入，最长 80 字符）：
+页面里的 AI 助手发来的请求带 `noteId`，`buildInstructions()` 在 Notes 工具的几句之后、`Text returned from pages (notes, whiteboards and slide decks) is the user's private page content…` 之前加一句当前页面的说明（标题以 JSON 字符串嵌入，最长 80 字符）：
 
 ```text
 The user is asking from inside the editor of their note "<标题>" (noteId: <id>). Unless they clearly mean something else, treat requests as being about this note: call read_note with this noteId first, then use propose_note_edit with the version it returns. Change only what was asked and leave the rest of the note as it is. The note changes only after the user applies your proposal.
@@ -108,7 +108,7 @@ The user selected these <部分> in it (their IDs as shown by read_note): ["…"
 The user selected a specific excerpt in this note (quoted at the start of their message). Focus your answer and propose_note_edit changes strictly on the block(s) matching that excerpt unless they explicitly ask to edit other parts of the note.
 ```
 
-`noteSelection` 只在有 `noteId` 且模型能用 Notes 工具时生效，普通聊天带上它不改变指令。三家模型用的是同一段文字，请求的其余部分与上面的示例相同（笔记助手固定 `webSearch=off`，所以不带搜索工具，搜索说明换成 “Web search is unavailable…” 那一句）。流程见 [notes-flow.md](notes-flow.md#页面里的-ai-助手)。
+`noteSelection` 只在有 `noteId` 且模型能用 Notes 工具时生效，普通聊天带上它不改变指令。三家模型用的是同一段文字，请求的其余部分与上面的示例相同（页面 AI 面板固定 `webSearch=off`，所以不带搜索工具，搜索说明换成 “Web search is unavailable…” 那一句）。流程见 [notes-flow.md](notes-flow.md#页面里的-ai-助手)。
 
 ## 后续轮次及运行中的续传
 

@@ -1267,7 +1267,7 @@ export const vi: Record<string, string> = {
   "Before preview is not available.": "Không có bản xem trước trước khi sửa.",
   "Generate images for slides": "Tạo hình ảnh cho trang chiếu",
   "Adds AI illustrations to key slides. Uses 1 image credit per illustrated slide (up to {count} image credits).": "Thêm hình minh họa AI cho các trang chiếu chính. Dùng 1 lượt tạo ảnh cho mỗi trang có ảnh (tối đa {count} lượt tạo ảnh).",
-  "This counts as 1 chat message, plus up to {count} image credits.": "Tính là 1 tin nhắn trò chuyện, cộng thêm tối đa {count} lượt tạo ảnh.",
+  "This counts as 1 chat message, plus up to {count} image credits.": "Tính là 1 tin nhắn chat, cộng thêm tối đa {count} lượt tạo ảnh.",
   "Generating slide images… ({done}/{total})": "Đang tạo hình ảnh trang chiếu… ({done}/{total})",
   "Current slide: {title}": "Trang chiếu hiện tại: {title}",
   "Stop": "Dừng",

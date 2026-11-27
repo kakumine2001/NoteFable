@@ -436,7 +436,7 @@
 "theme_dark" = "深色";
 "export_markdown" = "匯出 Markdown";
 "import_markdown" = "匯入 Markdown";
-"note_export_failed" = "無法匯出此頁面。";
+"note_export_failed" = "無法匯出頁面。";
 "note_export_unsaved" = "請先處理未儲存的草稿，再匯出此頁面。";
 "note_import_failed" = "無法匯入 Markdown 檔案。";
 "note_import_too_many" = "一次最多可匯入 %1$d 個檔案。";
@@ -605,6 +605,7 @@
 
 /* strings_slides_wizard.xml */
 "slides_generate" = "生成投影片";
+"slides_generating" = "正在生成投影片…";
 "slides_generate_from_chat" = "用這段聊天做一份投影片";
 "slides_generate_with_ai" = "用 AI 生成";
 

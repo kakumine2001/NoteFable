@@ -584,7 +584,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                             // 放映（横屏、全屏、常亮）由编辑页自己处理（NoteEditorScreen）。
                             // 向导的出现 / 消失走 NoteEmbedHost.onSlidesWizard。
                             is EmbedMessage.Flushed, is EmbedMessage.Presentation, is EmbedMessage.FileStart, is EmbedMessage.FileChunk,
-                            is EmbedMessage.FileEnd, is EmbedMessage.FileAbort, is EmbedMessage.SlidesWizard -> Unit
+                            is EmbedMessage.FileEnd, is EmbedMessage.FileAbort, is EmbedMessage.SlidesWizard, is EmbedMessage.SlidesJobs -> Unit
                         }
                     },
                     registerFlush = { bridge ->
@@ -630,6 +630,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         drawingDiagram = diagramJobs[com.kakumine.notefable.data.DiagramSource.Note(open.id).key] is com.kakumine.notefable.data.DiagramJob.Working,
                         // 生成幻灯片：向导盖在编辑器上，读这篇之前由网页自己保存。
                         onGenerateSlides = { openSlidesWizard(SlidesWizardSource.Note(open.id)) },
+                        generatingSlides = open.id in noteEmbedHost.generatingSlides,
                     ),
                     slidesWizard = notes.slidesWizard?.takeIf { it.editor == open.editor },
                     onSlidesWizardShown = notesViewModel::onSlidesWizardShown,

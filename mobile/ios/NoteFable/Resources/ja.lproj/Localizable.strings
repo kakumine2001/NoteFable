@@ -437,7 +437,7 @@
 "export_markdown" = "Markdown を書き出す";
 "import_markdown" = "Markdown を読み込む";
 "note_export_failed" = "ページを書き出せませんでした。";
-"note_export_unsaved" = "このページを書き出す前に、未保存の下書きを処理してください。";
+"note_export_unsaved" = "このページを書き出す前に、未保存の下書きを解決してください。";
 "note_import_failed" = "Markdown ファイルを読み込めませんでした。";
 "note_import_too_many" = "一度に読み込めるファイルは %1$d 個までです。";
 "note_import_bad_type" = "読み込めるのは Markdown ファイル（.md、.markdown、.txt）だけです。";
@@ -605,6 +605,7 @@
 
 /* strings_slides_wizard.xml */
 "slides_generate" = "スライドを生成";
+"slides_generating" = "スライドを生成中…";
 "slides_generate_from_chat" = "このチャットからスライドを作成";
 "slides_generate_with_ai" = "AI で生成";
 

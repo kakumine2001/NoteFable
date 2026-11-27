@@ -605,6 +605,7 @@
 
 /* strings_slides_wizard.xml */
 "slides_generate" = "슬라이드 생성";
+"slides_generating" = "슬라이드를 생성하는 중…";
 "slides_generate_from_chat" = "이 채팅으로 슬라이드 만들기";
 "slides_generate_with_ai" = "AI로 생성";
 

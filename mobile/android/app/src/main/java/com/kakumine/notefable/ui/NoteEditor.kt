@@ -284,7 +284,7 @@ class NoteEmbedBridge(
                     return@post
                 }
             }
-            if (message is EmbedMessage.PagesChanged || message is EmbedMessage.SlidesWizard) {
+            if (message is EmbedMessage.PagesChanged || message is EmbedMessage.SlidesWizard || message is EmbedMessage.SlidesJobs) {
                 // 笔记 AI 面板的后台画成图、生成幻灯片可能在用户离开编辑页（常驻 WebView 停靠中）后完成；离开页面时网页收起向导的
                 // closed（带 busy）也在停靠中才到。只要 WebView 还在就转发，不要求 activeEditor。
                 if (webView != null) onMessage(message)
@@ -507,7 +507,7 @@ class NoteEmbedBridge(
 internal const val SLIDES_WIZARD_EDITOR = "#slides-wizard"
 
 /** 常驻 WebView 发来的消息交给谁。 */
-internal enum class EmbedRoute { PagesChanged, Wizard, Editor, Drop }
+internal enum class EmbedRoute { PagesChanged, Wizard, SlidesJobs, Editor, Drop }
 
 /**
  * [activeEditor] 是 [NoteEmbedBridge.activeEditor]。向导的出现 / 消失和 pagesChanged 在编辑器停靠时也要收（生成中关了向导、离开了页面）；
@@ -516,6 +516,7 @@ internal enum class EmbedRoute { PagesChanged, Wizard, Editor, Drop }
 internal fun embedRoute(message: EmbedMessage, activeEditor: String?): EmbedRoute = when {
     message is EmbedMessage.PagesChanged -> EmbedRoute.PagesChanged
     message is EmbedMessage.SlidesWizard -> EmbedRoute.Wizard
+    message is EmbedMessage.SlidesJobs -> EmbedRoute.SlidesJobs
     activeEditor == null -> EmbedRoute.Drop
     activeEditor != SLIDES_WIZARD_EDITOR -> EmbedRoute.Editor
     message is EmbedMessage.OpenPage || message is EmbedMessage.UsageLimit || message is EmbedMessage.StorageLimit -> EmbedRoute.Wizard
@@ -585,6 +586,10 @@ class NoteEmbedHost(
     var slidesWizardBusy = false
         private set
 
+    /** 网页正在做幻灯片的笔记（slidesJobs 消息）：笔记"…"的「生成幻灯片」显示生成中。WebView 换掉后清空。 */
+    var generatingSlides by mutableStateOf(emptySet<String>())
+        private set
+
     /** 幻灯片放映中（网页发 presentation start / end）：横屏、全屏、屏幕常亮，原生顶栏收起。 */
     var presenting by mutableStateOf(false)
         private set
@@ -620,6 +625,10 @@ class NoteEmbedHost(
             }
             EmbedRoute.Wizard -> {
                 if (webView != null) receiveWizard(message)
+                return@NoteEmbedBridge
+            }
+            EmbedRoute.SlidesJobs -> {
+                if (webView != null) generatingSlides = (message as EmbedMessage.SlidesJobs).pageIds
                 return@NoteEmbedBridge
             }
             EmbedRoute.Drop -> return@NoteEmbedBridge
@@ -1001,6 +1010,7 @@ class NoteEmbedHost(
         excludeEdges = false
         slidesWizardVisible = false
         slidesWizardBusy = false
+        generatingSlides = emptySet()
         bridge.activeEditor = null
         val view = webView
         webView = null

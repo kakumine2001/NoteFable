@@ -9,7 +9,7 @@
     <string name="export_markdown">Markdown を書き出す</string>
     <string name="import_markdown">Markdown を読み込む</string>
     <string name="note_export_failed">ページを書き出せませんでした。</string>
-    <string name="note_export_unsaved">このページを書き出す前に、未保存の下書きを処理してください。</string>
+    <string name="note_export_unsaved">このページを書き出す前に、未保存の下書きを解決してください。</string>
     <string name="note_import_failed">Markdown ファイルを読み込めませんでした。</string>
     <string name="note_import_too_many">一度に読み込めるファイルは %1$d 個までです。</string>
     <string name="note_import_bad_type">読み込めるのは Markdown ファイル（.md、.markdown、.txt）だけです。</string>

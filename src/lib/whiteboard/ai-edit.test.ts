@@ -407,4 +407,33 @@ describe("applyWhiteboardEdits", () => {
       applyWhiteboardEdits(withLine, [{ op: "update_element", elementId: "line-1", text: "Not allowed" }], seqId()),
     ).toThrow(/cannot hold a bound text label/);
   });
+
+  it("describes the size change together with new text on a labelled shape", () => {
+    const created = buildStructuredWhiteboard({
+      items: [
+        { ref: "a", type: "rectangle", text: "Research" },
+        { ref: "t", type: "text", text: "Free note" },
+        { ref: "b", type: "ellipse", text: "" },
+      ],
+    }, seqId()).data;
+    const rect = created.elements.find((el) => el.type === "rectangle")!;
+    const freeText = created.elements.find((el) => el.type === "text" && !el.containerId)!;
+    const blank = created.elements.find((el) => el.type === "ellipse")!;
+    const { data, changes } = applyWhiteboardEdits(created, [
+      { op: "update_element", elementId: rect.id, text: "Interviews", fontSize: "large" },
+      { op: "update_element", elementId: freeText.id, text: "Next steps", fontSize: "large" },
+      { op: "update_element", elementId: rect.id, text: "Surveys", fontSize: "large" },
+      { op: "update_element", elementId: blank.id, text: "New label", fontSize: "large" },
+    ], seqId());
+
+    expect(changes.map((change) => [change.before, change.after])).toEqual([
+      ["Research", "Interviews · size: large"],
+      ["Free note", "Next steps · size: large"],
+      // 大きさが前と同じなら書かない。新しく作ったラベルには前の大きさが無い。
+      ["Interviews", "Surveys"],
+      ["(empty)", "New label"],
+    ]);
+    const label = data.elements.find((el) => el.type === "text" && el.containerId === rect.id)!;
+    expect(label.fontSize).toBe(28);
+  });
 });
