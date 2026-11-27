@@ -30,6 +30,7 @@ import { ChatTitleIcon, ChatTopbarIcon } from "@/components/chat-icon";
 import { ChatMessage } from "@/components/chat-message";
 import { QuoteSelectionButton } from "@/components/quote-selection";
 import { composeQuotedMessage, normalizeQuote, splitQuotedMessage } from "@/lib/chat-quote";
+import { remainingComposerText, withoutSent } from "@/lib/composer-after-send";
 import { dispatchBacklinksStale } from "@/lib/note-backlinks";
 import { ANSWER_RESIZED_EVENT } from "@/components/assistant-markdown";
 import { TurnBusyContext, type TurnActions } from "@/components/turn-actions";
@@ -81,7 +82,7 @@ import { cancelCanvasReveal, revealChatMessage, revealNoteBlock } from "@/lib/se
 import { cancelWhiteboardReveal, requestWhiteboardReveal } from "@/lib/whiteboard/reveal";
 import { flushCanvasEditors } from "@/lib/canvas-flush";
 import { getSubmissionValidationError } from "@/lib/submission-validation";
-import { afterSheetHistory, restoreSheetMarker, useBackToClose } from "@/lib/use-back-to-close";
+import { afterSheetHistory, isSheetCleanupPopState, replaceSheetUrl, restoreSheetMarker, useBackToClose } from "@/lib/use-back-to-close";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { StorageLimitError, UsageLimitError, storageLimitErrorFrom, usageLimitErrorFrom, type UsageKind } from "@/lib/usage-plans";
 import { readModelPreference, resolveModelPreference, saveModelPreference } from "@/lib/model-preference";
@@ -231,7 +232,12 @@ export default function Home() {
       else if (animate && isPhone && list !== shownRef.current.list) runTransition(apply, "back");
       else runTransition(apply, "back", false);
     }
-    const onPopState = () => syncWorkspace(true);
+    // シート・ドロワーの目印を退ける history.back()（後始末・replaceSheetUrl）は「戻る」ではない。戻った先の URL は
+    // このあと書き換えられることがある（ゴミ箱に入ったノートの page= を外すなど）ので、ここでは画面を決めない。
+    const onPopState = (event: PopStateEvent) => {
+      if (isSheetCleanupPopState(event)) return;
+      syncWorkspace(true);
+    };
     queueMicrotask(() => syncWorkspace(false));
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
@@ -297,14 +303,15 @@ export default function Home() {
   }
 
   // 開けなかった（別のタブでゴミ箱に入った・削除された）ノートの指定は URL に残さず、ホームに戻す。
+  // ドロワーなどが開いていても「戻る」の目印は消さない（replaceSheetUrl）。書き換えを待つことがあるので、書き終わってから合わせる。
   function forgetMissingNote(id: string) {
     cancelReveal();
-    const url = new URL(window.location.href);
-    if (url.searchParams.get("page") === id) {
+    replaceSheetUrl((url) => {
+      if (url.searchParams.get("page") !== id) return false;
       url.searchParams.delete("page");
-      window.history.replaceState(null, "", url);
-    }
-    syncNotesList();
+      return true;
+    });
+    afterSheetHistory(syncNotesList);
   }
 
   async function deleteNote(id: string) {
@@ -313,8 +320,11 @@ export default function Home() {
     // 参照ノートに選ばれていたノートがゴミ箱へ入ると、プロジェクトの参照ノート数が変わる。
     refreshChatProjects();
     // 開いていたノートを消したら、URL から page= が外れているのでホームに戻る。
-    if (window.matchMedia("(max-width: 639px)").matches) runTransition(syncNotesList, "back");
-    else syncNotesList();
+    // ドロワーを閉じた後始末（history.back）を待って URL を書く場合があるので、書き終わってから合わせる。
+    afterSheetHistory(() => {
+      if (window.matchMedia("(max-width: 639px)").matches) runTransition(syncNotesList, "back");
+      else syncNotesList();
+    });
     return true;
   }
 
@@ -1030,7 +1040,7 @@ export default function Home() {
     const icon = notes.active?.content.icon ?? summary?.icon ?? null;
     const ids = [...new Set((selection.ids ?? []).filter(isSelectionId))].slice(0, MAX_SELECTION_IDS);
     const quoteText = normalizeQuote(selection.text)
-      || (ids.length ? `${title} (${t("{count} items selected", { count: ids.length })})` : "");
+      || (ids.length ? `${title} (${t("Selected items: {count}", { count: ids.length })})` : "");
     if (quoteText) quoteSelection(quoteText);
     else {
       setSplitSelection(null);
@@ -1457,6 +1467,8 @@ export default function Home() {
     let requestSessionId = activeSessionIdRef.current;
     let requestSessionKey = getMessagesKey(requestSessionId);
     const initialRequestSessionKey = requestSessionKey;
+    // 送信の始めに取った initialRequestSessionKey のロックをまだ持っているか（新規チャットは会話ができた時点で手放す）。
+    let holdsInitialKey = true;
     if (
       !userContent ||
       uploadProgress ||
@@ -1577,17 +1589,24 @@ export default function Home() {
       setUploadProgress(null);
     }
 
+    // 会話を作るのを待つ間に、利用者が別の会話へ移ったか。移っていたら、送信は裏で続けるが（返答中の会話から移ったときと同じ）、
+    // 移った先から作った会話へ引き戻さず、入力欄からは送った分だけを外す（移った先で書き始めた本文や添付は消さない）。
+    let navigatedAway = false;
     if (!requestSessionId) {
       // 未保存の新規チャットは送信開始前に実セッション化する。
       // 画像生成も完了待ちにならず、他セッションと同じ単位で並行管理できる。
       const sentIcon = draftIconRef.current;
       const draftEpoch = draftEpochRef.current;
       const { error, session } = await createEmptySession(sentIcon);
+      navigatedAway = navigationIntent !== sessionNavigationIntentRef.current;
       if (!session) {
         releaseSelectionPreview();
         await cleanupClientUploads(uploadedTickets);
-        setSendError(error || msg("Database is unavailable. Start local PostgreSQL and try again."));
-        flashCharacterOutcome(requestSessionKey, "error");
+        // 何も送っていないので、本文と添付は入力欄に残っている。別の会話を見ているなら、そこへ失敗を出さない。
+        if (!navigatedAway) {
+          setSendError(error || msg("Database is unavailable. Start local PostgreSQL and try again."));
+          flashCharacterOutcome(requestSessionKey, "error");
+        }
         submittingSessionKeysRef.current.delete(initialRequestSessionKey);
         return;
       }
@@ -1595,6 +1614,9 @@ export default function Home() {
       requestSessionId = session.id;
       requestSessionKey = session.id;
       submittingSessionKeysRef.current.add(requestSessionKey);
+      // 送信は作った会話のものになった。未保存の新規チャットのロックは外し、裏で返答を待つ間も新しいチャットから送れるようにする。
+      submittingSessionKeysRef.current.delete(initialRequestSessionKey);
+      holdsInitialKey = false;
       setSessions((current) =>
         current.some((item) => item.id === session.id) ? current : [session, ...current],
       );
@@ -1608,8 +1630,11 @@ export default function Home() {
           (value) => setSessions((list) => list.map((item) => (item.id === created ? { ...item, icon: value } : item))),
           () => setSendError(msg("Failed to change the chat icon.")));
       }
-      activeSessionIdRef.current = session.id;
-      setActiveSessionId(session.id);
+      // 別の会話へ移っていたら、作った会話は一覧に足すだけで開かない（返答は裏で届き、一覧から開ける）。
+      if (!navigatedAway) {
+        activeSessionIdRef.current = session.id;
+        setActiveSessionId(session.id);
+      }
     }
 
     // 送信後すぐにユーザー発言と空のアシスタント枠を追加する。
@@ -1651,24 +1676,26 @@ export default function Home() {
         isImageTurn: imageGenerationMode,
       },
     ]);
-    submittedInputRestoreGuardRef.current = {
-      value: submittedInputValue,
-      expiresAt: new Date().getTime() + INPUT_RESTORE_GUARD_MS,
-    };
     const liveInputValue = inputRef.current?.value ?? input;
-    const remainingInput = liveInputValue === submittedInputValue
-      ? ""
-      : liveInputValue.startsWith(submittedInputValue)
-        ? liveInputValue.slice(submittedInputValue.length).trimStart()
-        : liveInputValue;
-    setInput(remainingInput);
-    if (inputRef.current) {
-      inputRef.current.value = remainingInput;
+    const remainingInput = remainingComposerText(liveInputValue, submittedInputValue);
+    // 送った本文が入力欄に残っているときだけ外す。別の下書きに書き換わっていたら触らない
+    // （値を入れ直すとカーソルや変換中の文字が崩れ、復元ガードが同じ文字の入力を消してしまう）。
+    if (remainingInput !== liveInputValue) {
+      submittedInputRestoreGuardRef.current = {
+        value: submittedInputValue,
+        expiresAt: new Date().getTime() + INPUT_RESTORE_GUARD_MS,
+      };
+      setInput(remainingInput);
+      if (inputRef.current) {
+        inputRef.current.value = remainingInput;
+      }
     }
-    setFiles([]);
-    setAttachedPages([]);
-    if (submittedQuote) setQuote(null);
-    if (splitSelection) setSplitSelection(null);
+    // 会話を作るのを待つ間（アップロードの表示はもう消えている）や、別の会話へ移った先で足した添付・ページ・引用・選区は残し、
+    // 送った分だけを外す（入力欄は会話をまたいで同じもの）。
+    setFiles((current) => withoutSent(current, submittedFiles, (item) => item.id));
+    setAttachedPages((current) => withoutSent(current, submittedPages, (page) => page.id));
+    if (submittedQuote) setQuote((current) => (current === submittedQuote ? null : current));
+    if (splitSelection) setSplitSelection((current) => (current === splitSelection ? null : current));
 
     const streamStartedAt = new Date().getTime();
     startStreamingSession(requestSessionKey, streamStartedAt);
@@ -1865,7 +1892,8 @@ export default function Home() {
       if (pendingOutcome) flashCharacterOutcome(requestSessionKey, pendingOutcome);
       // 送信ロックはコントロールが使えるようになった時点で外す。cleanup（最大 10 秒）の完了を待つと、
       // その間 Send を押しても無言で弾かれてしまう。
-      submittingSessionKeysRef.current.delete(initialRequestSessionKey);
+      // 手放した新規チャットのロックは、その後に新規チャットから始めた別の送信のものなので触らない。
+      if (holdsInitialKey) submittingSessionKeysRef.current.delete(initialRequestSessionKey);
       submittingSessionKeysRef.current.delete(requestSessionKey);
       await cleanupClientUploads(uploadedTickets);
     }
@@ -2299,10 +2327,10 @@ export default function Home() {
       linkOpenersRef.current.projects();
     }
     // AI の提案で作ったページを「元に戻す」でゴミ箱へ移した：参照ノートの件数を合わせ、開いていたページが消えたら一覧に戻す。
-    // 一覧と URL は use-note-pages.ts が先に直すので、その後で一覧の表示を決め直す。
+    // 一覧と URL は use-note-pages.ts が先に直す（URL はシートの目印を退けてから書き換えることがある）ので、書き終わってから一覧の表示を決め直す。
     function onPagesTrashed() {
       linkOpenersRef.current.projects();
-      queueMicrotask(() => linkOpenersRef.current.notesList());
+      queueMicrotask(() => afterSheetHistory(() => linkOpenersRef.current.notesList()));
     }
     function onNoteChatSaved(event: Event) {
       const id = detailOf(event)?.id;
@@ -2444,7 +2472,7 @@ export default function Home() {
       onCreate={(request) => { setSidebarOpen(false); createNote(request); }}
       onGenerateSlides={(placement) => { setSidebarOpen(false); generateSlides(placement); }} onImport={(files) => void importMarkdownFiles(files)} onSearch={() => setSearchOpen(true)} onSelect={(id) => { setSidebarOpen(false); openNote(id); }}
       onPrefetch={notes.prefetch} onCancelPrefetch={notes.cancelPrefetch}
-      onDelete={deleteNote} onClose={closeSidebar} onWorkspaceChange={changeWorkspace}
+      onDelete={deleteNote} deleteError={notes.trashError} onClose={closeSidebar} onWorkspaceChange={changeWorkspace}
       groups={notes.groups} groupError={notes.groupError} onReorder={notes.reorder} onMoveNote={notes.moveNote} onChangeIcon={notes.changeIcon} onRenamePage={notes.renamePage} onCreateGroup={notes.createGroup}
       onRenameGroup={notes.renameGroup} onDeleteGroup={notes.deleteGroup} onMoveToPage={notes.moveToPage} onFavorite={notes.setFavorite} />
   ) : (
@@ -2563,7 +2591,7 @@ export default function Home() {
             </button>
             {workspaceView === "pages" && notes.active && !notesList && (
               <button type="button" className="notion-icon-button grid sm:hidden" onClick={openNotesList}
-                aria-label={t("All notes")} title={t("All notes")}>
+                aria-label={t("All pages")} title={t("All pages")}>
                 <ChevronLeft size={22} className="rtl-mirror" />
               </button>
             )}
@@ -2607,7 +2635,7 @@ export default function Home() {
           <div className="flex shrink-0 items-center gap-1.5">
             {/* サイドバーの Search 行が見えているパソコン幅では出さない（サイドバーを畳んだとき・タブレット・スマホ用）。 */}
             <button type="button" className={`notion-icon-button grid${sidebarVisible ? " lg:hidden" : ""}`} onClick={() => setSearchOpen(true)}
-              aria-label={t("Search chats and notes")} title={t("Search (Ctrl+K)")} aria-haspopup="dialog">
+              aria-label={t("Search chats and pages")} title={t("Search (Ctrl+K)")} aria-haspopup="dialog">
               <Search size={18} />
             </button>
             {workspaceView === "chat" && isSplitViewport && (
@@ -2660,7 +2688,7 @@ export default function Home() {
                 onGenerateSlides={() => openSlidesWizard({ entry: { type: "note", pageId: activeSummary.id, title: activeSummary.title, icon: activeSummary.icon }, model })}
                 onMove={() => setMovingNoteId(activeSummary.id)}
                 onExport={() => void notes.exportPage(activeSummary.id)}
-                onTrash={() => setTrashingNoteId(activeSummary.id)} />
+                onTrash={() => { notes.clearTrashError(); setTrashingNoteId(activeSummary.id); }} />
             )}
           </div>
         </header>
@@ -3052,7 +3080,7 @@ export default function Home() {
             onOpenHistory={(id) => setHistoryNoteId(id)}
             onMoveNote={(id) => setMovingNoteId(id)}
             onExportNote={(id) => void notes.exportPage(id)}
-            onTrashNote={(id) => setTrashingNoteId(id)}
+            onTrashNote={(id) => { notes.clearTrashError(); setTrashingNoteId(id); }}
             onAskSelectionInChat={askSplitNoteSelectionInChat}
             onClose={() => { void notes.active?.flush(); setSplitOpen(false); }}
           />
@@ -3075,7 +3103,7 @@ export default function Home() {
         onChoose={(groupId) => { const files = importingFiles; setImportingFiles(null); void importMarkdownFiles(files, groupId); }} />}
       {movingNote && <MoveNoteDialog page={movingNote} groups={notes.groups} error={notes.groupError} pages={notes.pages}
         onMove={notes.moveNote} onMoveToPage={notes.moveToPage} onCreateGroup={notes.createGroup} onClose={() => setMovingNoteId(null)} />}
-      {trashingNote && <ConfirmDialog title={t("Move note to Trash?")} confirmLabel={t("Move to Trash")} error={notes.error} onClose={() => setTrashingNoteId(null)}
+      {trashingNote && <ConfirmDialog title={t("Move page to Trash?")} confirmLabel={t("Move to Trash")} error={notes.trashError} onClose={() => setTrashingNoteId(null)}
         body={`${t("“{title}” will be moved to Trash. You can restore it for {count} days.", { title: trashingNote.title, count: TRASH_RETENTION_DAYS })}${descendantIdsOf(notes.pages, trashingNote.id).size ? ` ${t("Its sub-pages move to Trash with it.")}` : ""}`}
         onConfirm={() => deleteNote(trashingNote.id)} />}
       {historyQueue && historyNoteId && (

@@ -6,7 +6,7 @@
     <string name="share_publish">公開</string>
     <string name="share_republish">重新公開</string>
     <string name="share_unpublish">取消公開</string>
-    <string name="share_desc">公開這篇筆記後，擁有連結的人即可線上檢視。</string>
+    <string name="share_desc">公開這個頁面後，擁有連結的人即可線上檢視。</string>
     <string name="share_expired">此分享連結已過期。</string>
     <string name="share_public_link">公開連結</string>
     <string name="share_copy_link">複製連結</string>

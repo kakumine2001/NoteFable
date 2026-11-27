@@ -27,7 +27,7 @@ async function parentGroup(tx: Tx, userId: string, parentId: string | null) {
 // アイコンは絵文字 1 つか、自分のアップロード画像（保存・作成と同じ規則）。undefined は「変えない」。
 function checkIcon(icon: unknown, userId: string) {
   if (icon === undefined || icon === null) return;
-  if (typeof icon !== "string" || (!isEmojiIcon(icon) && !uploadedCoverPath(icon))) throw new NoteValidationError(msg("Note icon must be a single emoji or an uploaded image."));
+  if (typeof icon !== "string" || (!isEmojiIcon(icon) && !uploadedCoverPath(icon))) throw new NoteValidationError(msg("Page icon must be a single emoji or an uploaded image."));
   assertCoverOwner(icon, userId, "icon");
 }
 
@@ -86,7 +86,7 @@ export function canvasStorage(kind: CanvasKind): Storage {
   return {
     validate(userId, content) {
       if (typeof content.title !== "string" || content.title.length > MAX_NOTE_TITLE) {
-        throw new NoteValidationError(fmt("Note title must be at most {max} characters.", { max: MAX_NOTE_TITLE }));
+        throw new NoteValidationError(fmt("Page title must be at most {max} characters.", { max: MAX_NOTE_TITLE }));
       }
       const canvas = validateCanvasData(kind, content.data ?? emptyCanvasData(kind));
       assertCanvasFilesOwner(canvas, userId);

@@ -656,6 +656,19 @@ describe("canvas proposal before/after versioned preview (proposalContent)", () 
     });
   });
 
+  it("says page, not note, when a whiteboard proposal is stale or its page is gone", async () => {
+    db.pages.push({ kind: "whiteboard", id: "wb2", userId: "u1", title: "Board", icon: null, blocks: [], version: 5, deletedAt: null });
+    db.canvases.push({ noteId: "wb2", data: wbBefore, segments: [], hash: "h", size: 10 });
+    const edit = (pageId: string) => saveProposal("u1", "s1", {
+      kind: "EDIT",
+      pageKind: "whiteboard",
+      page: { id: pageId, title: "Board", version: 2 },
+      draft: { changes: [], proposed: { title: "Board", data: wbAfter } },
+    });
+    expect(await applyProposal("u1", (await edit("wb2")).id)).toMatchObject({ ok: false, httpStatus: 409, error: "This page changed after the proposal was made. Ask again to get a fresh proposal." });
+    expect(await applyProposal("u1", (await edit("missing")).id)).toMatchObject({ ok: false, httpStatus: 404, error: "Page not found." });
+  });
+
   it("returns empty: true for CREATE before preview and rejects note proposals with 400", async () => {
     const wbCreate = await saveProposal("u1", "s1", {
       kind: "CREATE",

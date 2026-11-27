@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, ChevronRight, Ellipsis, Folder, FolderInput, House, PanelLeftClose, Pencil, Plus, Search, Star, StarOff, Trash2, Upload } from "lucide-react";
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { AnswerMenu } from "@/components/answer-actions";
 import { FloatingEmojiPopover, floatingPositionFor, usePickerBackToClose, type FloatingPosition } from "@/components/emoji-picker";
 import { ReorderRowButton } from "@/components/reorder-row-button";
@@ -48,14 +48,16 @@ type GroupActions = {
   onFavorite: (pageId: string, favorite: boolean) => Promise<unknown>;
 };
 
-export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, onGenerateSlides, onImport, onSearch, onSelect, onPrefetch, onCancelPrefetch, onDelete, onClose, onWorkspaceChange, groups, groupError, onMoveNote, onChangeIcon, onRenamePage, onCreateGroup, onRenameGroup, onDeleteGroup, onReorder, onMoveToPage, onFavorite }: {
+export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, onGenerateSlides, onImport, onSearch, onSelect, onPrefetch, onCancelPrefetch, onDelete, deleteError, onClose, onWorkspaceChange, groups, groupError, onMoveNote, onChangeIcon, onRenamePage, onCreateGroup, onRenameGroup, onDeleteGroup, onReorder, onMoveToPage, onFavorite }: {
   pages: NotePageSummary[]; activeId: string | null; busy: boolean;
   // Notes のホーム（最近のノートと一覧）を出しているか、とホームへ戻る操作。
   home: boolean; onHome: () => void;
   // 作り先（種類・親ページ・プロジェクト）を渡して新しいページを作る。省略はプロジェクトなしのノート。
   onWorkspaceChange: (view: WorkspaceView) => void; onCreate: (request?: NewPageRequest) => void;
   // AI のスライド生成の窓を開く。作り先（プロジェクト・親ページ）はそのまま渡す。
-  onGenerateSlides?: (placement?: { groupId?: string; parentId?: string }) => void; onImport: (files: File[]) => void; onSearch: () => void; onSelect: (id: string) => void; onPrefetch?: (id: string, immediate?: boolean) => void; onCancelPrefetch?: (id?: string) => void; onDelete: (id: string) => Promise<unknown>; onClose: () => void;
+  onGenerateSlides?: (placement?: { groupId?: string; parentId?: string }) => void; onImport: (files: File[]) => void; onSearch: () => void; onSelect: (id: string) => void; onPrefetch?: (id: string, immediate?: boolean) => void; onCancelPrefetch?: (id?: string) => void; onDelete: (id: string) => Promise<boolean>; onClose: () => void;
+  // ゴミ箱へ移せなかった理由（確認の小窓の中に出す）。
+  deleteError: string;
 } & GroupActions) {
   const t = useT();
   const rowMenuId = useId();
@@ -79,10 +81,6 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
   const closePicker = () => setPicker(null);
   usePickerBackToClose(picker !== null, closePicker);
   const pickerPage = picker ? pages.find((page) => page.id === picker.id) : undefined;
-  const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    if (deleting) dialog.current?.showModal();
-  }, [deleting]);
   function toggle(id: string) {
     setCollapsed((current) => {
       const next = { ...current, [id]: !current[id] };
@@ -266,7 +264,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
                   </span>
                 </div>
                 {open && <div className="notes-group-members">
-                  {members.length ? members.map(tree) : <p className="px-2 py-1.5 text-xs text-[var(--notion-faint)]">{t("No notes in this project.")}</p>}
+                  {members.length ? members.map(tree) : <p className="px-2 py-1.5 text-xs text-[var(--notion-faint)]">{t("No pages in this project.")}</p>}
                 </div>}
               </div>
             );
@@ -310,14 +308,10 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
         </button>
         <button type="button" className="notion-sidebar-action is-subtle" aria-haspopup="dialog" onClick={() => setTrashOpen(true)}><Trash2 size={15} /><span>{t("Trash")}</span></button>
       </div>
-      {deleting && <dialog ref={dialog} onCancel={() => setDeleting(null)} aria-labelledby="delete-page-title" aria-describedby="delete-page-description" className="notes-dialog">
-          <h2 id="delete-page-title" className="text-base font-semibold">{t("Move note to Trash?")}</h2>
-          <p id="delete-page-description" className="mt-2 text-sm text-[var(--notion-muted)]">{t("“{title}” will be moved to Trash. You can restore it for {count} days.", { title: deleting.title, count: TRASH_RETENTION_DAYS })}{children.has(deleting.id) ? ` ${t("Its sub-pages move to Trash with it.")}` : ""}</p>
-          <div className="mt-5 flex justify-end gap-2">
-            <button autoFocus type="button" disabled={busy} className="notion-button" onClick={() => setDeleting(null)}>{t("Cancel")}</button>
-            <button type="button" disabled={busy} className="notion-button notes-delete" onClick={async () => { await onDelete(deleting.id); setDeleting(null); }}>{t("Move to Trash")}</button>
-          </div>
-      </dialog>}
+      {/* 上部バーの「ゴミ箱へ」と同じ確認の小窓。移せなかったら閉じずに理由を出す。送っている間は Esc・「戻る」でも閉じない。 */}
+      {deleting && <ConfirmDialog title={t("Move page to Trash?")} confirmLabel={t("Move to Trash")} error={deleteError} onClose={() => setDeleting(null)}
+        body={`${t("“{title}” will be moved to Trash. You can restore it for {count} days.", { title: deleting.title, count: TRASH_RETENTION_DAYS })}${children.has(deleting.id) ? ` ${t("Its sub-pages move to Trash with it.")}` : ""}`}
+        onConfirm={async () => (await onDelete(deleting.id)) === true} />}
       {trashOpen && <NoteTrashDialog onClose={() => setTrashOpen(false)} />}
       {moving && <MoveNoteDialog page={pages.find((page) => page.id === moving.id) ?? moving} groups={groups} error={groupError}
         onMove={onMoveNote} onCreateGroup={onCreateGroup} onClose={() => setMoving(null)} pages={pages}
@@ -354,7 +348,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
         submitLabel={naming.mode === "create" ? t("Create") : t("Save")} error={groupError} onClose={() => setNaming(null)}
         onSubmit={async (name) => naming.mode === "create" ? Boolean(await onCreateGroup(name)) : Boolean(await onRenameGroup(naming.group.id, name))} />}
       {deletingGroup && <ConfirmDialog title={t("Delete project?")} confirmLabel={t("Delete project")} error={groupError} onClose={() => setDeletingGroup(null)}
-        body={t("“{name}” will be deleted. Its notes are kept and move out of the project.", { name: deletingGroup.name })}
+        body={t("“{name}” will be deleted. Its pages are kept and move out of the project.", { name: deletingGroup.name })}
         onConfirm={async () => Boolean(await onDeleteGroup(deletingGroup.id))} />}
       <SidebarFooter />
       {picker && pickerPage && (

@@ -68,7 +68,7 @@ export async function POST(request: Request) {
 
     const material = source.type === "answer" ? await readAnswerMaterial(user.id, source.messageId) : await readNoteMaterial(user.id, source.pageId);
     if (!material) {
-      return NextResponse.json({ error: source.type === "answer" ? msg("Message not found.") : msg("Note not found.") }, { status: 404 });
+      return NextResponse.json({ error: source.type === "answer" ? msg("Message not found.") : msg("Page not found.") }, { status: 404 });
     }
     if (!material.text) return NextResponse.json({ error: msg("There is nothing to draw yet.") }, { status: 400 });
 

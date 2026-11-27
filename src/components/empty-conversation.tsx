@@ -28,7 +28,7 @@ export function EmptyConversation({ icon, title, hasDraft, characterState, loadi
           {!loading && <Mascot state={characterState ?? (hasDraft ? "typing" : "idle")} lookDown={hasDraft} />}
         </div>
         <h1 aria-labelledby="chat-heading-text"><ChatTitleIcon icon={icon} onChange={onIconChange} /><span id="chat-heading-text">{title ?? t("New chat")}</span></h1>
-        <p>{t("Ask a question, work through your notes, or bring in a file.")}</p>
+        <p>{t("Ask a question, work through your Workspace, or bring in a file.")}</p>
       </header>
     </>
   );

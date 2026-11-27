@@ -3,7 +3,7 @@
      英文原句和中 / 日译文取自网页字典 src/lib/i18n/messages/{zh,ja}.ts。 -->
 <resources>
     <string name="attach_pages">Attach pages</string>
-    <string name="attach_pages_desc">Let the AI read your notes</string>
+    <string name="attach_pages_desc">Let the AI read your pages</string>
     <string name="attached_pages">Attached pages</string>
     <string name="ask_notefable">Ask NoteFable</string>
     <string name="quote">Quote</string>

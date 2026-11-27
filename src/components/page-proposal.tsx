@@ -151,7 +151,7 @@ async function undo(proposal: Proposal) {
   setState(proposal.id, { ...before, status: "undoing", error: "" });
   // 新しいページはゴミ箱へ移るので、開いている編集（サブページも）を先に保存する。保存できなければ移さない（未保存の内容を捨てない）。
   if (proposal.kind === "create_proposal" && before.pageId && !(await saveBeforeTrash([before.pageId]))) {
-    setState(proposal.id, { ...before, error: msg("Resolve the unsaved draft before moving this note to Trash.") });
+    setState(proposal.id, { ...before, error: msg("Resolve the unsaved draft before moving this page to Trash.") });
     return;
   }
   // 既存ページの編集を元に戻す前も、開いているエディターの未保存変更を先に送り切る。

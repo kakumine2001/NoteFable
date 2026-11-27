@@ -128,13 +128,10 @@ struct ChatSessionRow: View {
 
     @Environment(AppEnvironment.self) private var app
     @State private var pickerOpen = false
-    @State private var menuOpen = false
-    /// 菜单里“置顶 / 取消置顶”的保存（每次打开菜单新建一个）。
-    @State private var runner: SidebarActionRunner? = nil
 
     var body: some View {
         let line = reorder.dropLine(session.id)
-        let shape = RoundedRectangle(cornerRadius: 8)
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
         HStack(spacing: 0) {
             iconButton
             titleButton
@@ -149,19 +146,19 @@ struct ChatSessionRow: View {
             if line.after { ReorderDropLine() }
         }
         .clipShape(shape)
-        .sidebarActiveRow(active: active, accent: Sm.blue, cornerRadius: 8)
+        .sidebarActiveRow(active: active, accent: Sm.blue, cornerRadius: 12)
         .reorderRow(session.id, in: reorder, showsDropLine: false)
         .reorderError(errorText) { app.sidebar.dismissReorderError() }
     }
 
-    /// 图标按钮 40×40（左距 2、圆角 4）：表情 15 或 MessageSquareText 15 灰，点开表情选择器。
+    /// 图标按钮 40×40（左距 2、圆角 8）：表情 15 或 MessageSquareText 15 灰，点开表情选择器。
     private var iconButton: some View {
         Button {
             pickerOpen.toggle()
         } label: {
             NFIconTile(emoji: session.icon, fallback: Lucide.messageSquareText, box: 40, glyph: 15)
         }
-        .buttonStyle(.pressable(background: pickerOpen ? Sm.hover : Color.clear, cornerRadius: 4))
+        .buttonStyle(.pressable(background: pickerOpen ? Sm.hover : Color.clear, cornerRadius: 8))
         .accessibilityLabel(L("em_change_icon_of", session.title))
         .emojiPicker(isPresented: $pickerOpen, current: session.icon) { icon in
             app.chat.changeSessionIcon(session.id, icon)
@@ -190,55 +187,72 @@ struct ChatSessionRow: View {
 
     private var moreButton: some View {
         let label = L("sb_actions_for_title", session.title)
-        return NFIconButton(Lucide.moreHorizontal, label: label, iconSize: 16, cornerRadius: 4) {
-            runner = SidebarActionRunner(onClose: { menuOpen = false })
-            menuOpen = true
+        return Menu {
+            ChatSessionMenuItems(session: session, onAction: onAction)
+        } label: {
+            LucideIcon(Lucide.moreHorizontal, size: 16, strokeWidth: 2, color: Sm.muted)
+                .frame(width: 40, height: 40)
+                .contentShape(Rectangle())
         }
-        // 保存中不能关（否则服务端改了而本地列表没跟上）。
-        .actionsMenu(isPresented: $menuOpen, dismissDisabled: runner?.busy ?? false, label: label) {
-            ChatSessionMenu(session: session, runner: runner) { action in
-                menuOpen = false
-                onAction(action)
-            }
-        }
+        .accessibilityLabel(label)
         .padding(.trailing, 3.2)
     }
 }
 
-/// 聊天行的“更多”菜单（`.chat-actions-menu.chat-row-menu`）：置顶 / 取消置顶（点了就保存：成功关菜单，失败留着、在下面显示原因）、
-/// 改名、移到项目、删除。保存中其它项也不能点（网页 disabled={busy}）。聊天顶栏的“…”菜单也用它（`ChatTopBar`）。
-struct ChatSessionMenu: View {
+/// 聊天行的“更多”菜单与聊天顶栏“…”共用的系统原生 Liquid Glass 菜单项。
+@MainActor
+struct ChatSessionMenuItems: View {
     let session: SessionSummary
-    let runner: SidebarActionRunner?
+    var onChangeIcon: (() -> Void)? = nil
     let onAction: (ChatAction) -> Void
 
     @Environment(AppEnvironment.self) private var app
 
     var body: some View {
-        let busy = runner?.busy ?? false
         let pinned = session.pinned
-        VStack(alignment: .leading, spacing: 0) {
-            ActionsMenuItem(L(pinned ? "sb_unpin" : "sb_pin"), icon: pinned ? Lucide.pinOff : Lucide.pin, isBusy: busy) {
-                let sidebar = app.sidebar
-                let id = session.id
-                runner?.run { await sidebar.setPinned(id, !pinned) }
+        let pinBusy = app.sidebar.state.pinBusy.contains(session.id)
+        if let onChangeIcon {
+            Button(action: onChangeIcon) {
+                NFMenuLabel(title: L("em_change_chat_icon"), icon: Lucide.smile)
             }
-            ActionsMenuItem(L("sb_rename"), icon: Lucide.pencil) { onAction(.rename(session)) }
-            ActionsMenuItem(L("move_to_project"), icon: Lucide.folderInput) { onAction(.move(session)) }
-            ActionsMenuDivider()
-            ActionsMenuItem(L("sb_delete_"), icon: Lucide.trash2, role: .danger) { onAction(.delete(session)) }
-            if let error = runner?.error {
-                ActionsMenuError(sidebarErrorText(error, app.systemText))
-            }
+            Divider()
         }
-        .disabled(busy)
+        Button {
+            let sidebar = app.sidebar
+            let systemText = app.systemText
+            let id = session.id
+            Task { @MainActor in
+                if let error = await sidebar.setPinned(id, !pinned) {
+                    Toast.show(sidebarErrorText(error, systemText), long: true)
+                }
+            }
+        } label: {
+            NFMenuLabel(title: L(pinned ? "sb_unpin" : "sb_pin"), icon: pinned ? Lucide.pinOff : Lucide.pin)
+        }
+        .disabled(pinBusy)
+        Button {
+            onAction(.rename(session))
+        } label: {
+            NFMenuLabel(title: L("sb_rename"), icon: Lucide.pencil)
+        }
+        Button {
+            onAction(.move(session))
+        } label: {
+            NFMenuLabel(title: L("move_to_project"), icon: Lucide.folderInput)
+        }
+        Divider()
+        Button(role: .destructive) {
+            onAction(.delete(session))
+        } label: {
+            NFMenuLabel(title: L("sb_delete_"), icon: Lucide.trash2)
+        }
     }
 }
 
 // MARK: - 项目行
 
-/// 项目行（高 44、圆角 6.4）：折叠箭头 13 + 文件夹 15 + 名称 14（间距 6.4，左右 3.2），有共通指示 / 参考笔记时名称后加 ScrollText 12 浅灰；
-/// 右侧“在项目里新建聊天”＋ 和“更多”各 40（图标 16，右距 3.2）。整行是投放区：把聊天拖到上面就移进这个项目。
+/// 项目行（高 44、圆角 10）：折叠箭头 13 + 文件夹 15 + 名称 14（间距 6.4，左右 3.2），有共通指示 / 参考笔记时名称后加 ScrollText 12 浅灰；
+/// 右侧“在项目里新建聊天”＋ 和系统原生菜单“更多”。整行是投放区：把聊天拖到上面就移进这个项目。
 struct ChatProjectRow: View {
     let project: ChatProjectSummary
     let collapsed: Bool
@@ -246,8 +260,6 @@ struct ChatProjectRow: View {
     let onToggle: () -> Void
     let onNewChat: () -> Void
     let onAction: (ChatAction) -> Void
-
-    @State private var menuOpen = false
 
     var body: some View {
         let hint = projectHint(project)
@@ -273,30 +285,36 @@ struct ChatProjectRow: View {
             .buttonStyle(.pressable(cornerRadius: 0))
             .accessibilityLabel(hint.isEmpty ? project.name : "\(project.name) (\(hint))")
 
-            NFIconButton(Lucide.plus, label: L("sb_new_chat_in_name", project.name), iconSize: 16, cornerRadius: 4, action: onNewChat)
+            NFIconButton(Lucide.plus, label: L("sb_new_chat_in_name", project.name), iconSize: 16, cornerRadius: 8, action: onNewChat)
                 .padding(.trailing, 3.2)
 
-            NFIconButton(Lucide.moreHorizontal, label: L("sb_actions_for_project", project.name), iconSize: 16, cornerRadius: 4) {
-                menuOpen = true
-            }
-            .actionsMenu(isPresented: $menuOpen, label: L("sb_actions_for_name", project.name)) {
-                ActionsMenuItem(L("sb_project_settings"), icon: Lucide.settings2) {
-                    menuOpen = false
+            Menu {
+                Button {
                     onAction(.projectSettings(project))
+                } label: {
+                    NFMenuLabel(title: L("sb_project_settings"), icon: Lucide.settings2)
                 }
-                ActionsMenuItem(L("rename_project"), icon: Lucide.pencil) {
-                    menuOpen = false
+                Button {
                     onAction(.renameProject(project))
+                } label: {
+                    NFMenuLabel(title: L("rename_project"), icon: Lucide.pencil)
                 }
-                ActionsMenuItem(L("delete_project"), icon: Lucide.trash2, role: .danger) {
-                    menuOpen = false
+                Divider()
+                Button(role: .destructive) {
                     onAction(.deleteProject(project))
+                } label: {
+                    NFMenuLabel(title: L("delete_project"), icon: Lucide.trash2)
                 }
+            } label: {
+                LucideIcon(Lucide.moreHorizontal, size: 16, strokeWidth: 2, color: Sm.muted)
+                    .frame(width: 40, height: 40)
+                    .contentShape(Rectangle())
             }
+            .accessibilityLabel(L("sb_actions_for_project", project.name))
             .padding(.trailing, 3.2)
         }
         .frame(height: 44)
-        .clipShape(RoundedRectangle(cornerRadius: 6.4))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .reorderDropZone(project.id, in: reorder)
     }
 }

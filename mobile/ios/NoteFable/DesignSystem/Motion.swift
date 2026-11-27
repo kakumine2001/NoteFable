@@ -20,6 +20,12 @@ enum NFMotion {
         .timingCurve(0.34, 1.45, 0.64, 1, duration: duration)
     }
 
+    /// iOS 原生弹性曲线（物理弹簧，收起与回弹不产生负向过冲）。
+    static let iosSpring: Animation = .spring(duration: 0.34, bounce: 0.12)
+
+    /// iOS 原生平滑弹性曲线（分栏伸缩等无过冲过渡）。
+    static let iosSmooth: Animation = .smooth(duration: 0.28)
+
     /// CSS 关键字 `ease-out` = cubic-bezier(0, 0, .58, 1)（Android 的 `CssEaseOut`）。
     static func cssEaseOut(_ duration: Double) -> Animation {
         .timingCurve(0, 0, 0.58, 1, duration: duration)

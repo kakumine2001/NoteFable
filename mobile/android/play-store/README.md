@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | `icon-512.png` | 应用图标 | 512×512 PNG，满版方形（Play 自己加圆角），与 `src/app/icon.svg` 同一图形 |
 | `feature-graphic-1024x500.png` | 置顶大图 | 1024×500 PNG |
-| `screenshots/01-…05-*.png` | 手机屏幕截图 | 1080×1920（9:16），按文件名顺序上传 |
+| `screenshots/01-…07-*.png` | 手机屏幕截图 | 1080×1920（9:16），按文件名顺序上传 |
 | `release-notes.txt` | 版本说明（`whatsnew-en-US`） | UTF-8 纯文本；仅在发版 PR 修改该文件时由 `.github/workflows/android-release.yml` 随 AAB 上传 |
 
 截图来自原生 App（`Medium_Phone_API_37.0` 模拟器，1080×2400，英文界面，演示账号的聊天和笔记），再放进带标题的手机外框里。外框模板是一个临时 HTML 页面（未入仓库），用 Chrome 无头模式截成 PNG。界面改版后重新截图：

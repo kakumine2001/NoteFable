@@ -30,6 +30,7 @@ struct GuestLimitPrompt: View {
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.nfChromePath) private var chromePath
 
     /// 进场（guest-limit-enter）、图标弹出（guest-limit-pop）、按钮高光（sheen）、按钮光晕（halo）的进度。
     @State private var enter: Double = 0
@@ -128,9 +129,10 @@ struct GuestLimitPrompt: View {
     }
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 12)
+        let shape = RoundedRectangle(cornerRadius: 22, style: .continuous)
         let reduced = reduceMotion
         let enterValue = reduced ? 1 : enter
+        let closeBg = chromePath == .native ? Color.primary.opacity(0.065) : .clear
 
         HStack(alignment: .top, spacing: 12) {
             Group {
@@ -202,35 +204,29 @@ struct GuestLimitPrompt: View {
         .padding(.trailing, 40)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
-            // linear-gradient(135deg, --nf-accent-soft, rgba(255,226,122,.16))，叠在白底上。
+            // 轻微品牌渐变叠加在玻璃 / 实色底之上，保持浅蓝到浅黄的识别度。
             GeometryReader { proxy in
                 let points = CSSGradientAngle.points(degrees: 135, size: proxy.size)
-                ZStack {
-                    Sm.surface
-                    LinearGradient(
-                        colors: [Sm.accentSoft, Color(argb: 0x29FFE27A)],
-                        startPoint: points.start,
-                        endPoint: points.end
-                    )
-                }
+                LinearGradient(
+                    colors: [Sm.accentSoft, Color(argb: 0x24FFE27A)],
+                    startPoint: points.start,
+                    endPoint: points.end
+                )
             }
         }
-        .clipShape(shape)
-        .overlay { shape.strokeBorder(Sm.accentLine, lineWidth: 1) }
         .overlay(alignment: .topTrailing) {
             Button(action: close) {
-                LucideIcon(Lucide.x, size: 16, color: Sm.faint)
+                LucideIcon(Lucide.x, size: 15, color: Sm.muted)
                     .frame(width: 28, height: 28)
             }
-            .buttonStyle(.pressable(cornerRadius: 6))
+            .buttonStyle(.pressable(background: closeBg, pressedBackground: Sm.active, cornerRadius: 14, scale: 0.95))
             .accessibilityLabel(L("close"))
-            .padding(.top, 8)
-            .padding(.trailing, 8)
+            .padding(.top, 10)
+            .padding(.trailing, 10)
         }
-        // Android 的 shadow(8.dp, ComposerShadow)。
-        .background {
-            shape.fill(Sm.surface).shadow(color: Sm.composerShadow, radius: 8, x: 0, y: 4)
-        }
+        .clipShape(shape)
+        .nfGlassBackground(.regular, in: shape, solidFill: Sm.surface, stroke: Sm.accentLine)
+        .nfChromeShadow(Sm.composerShadow, radius: 8, y: 4)
         // 进场：从下方 14 处、缩放 .97 淡入（420ms）。
         .scaleEffect(0.97 + 0.03 * enterValue)
         .offset(y: (1 - enterValue) * 14)

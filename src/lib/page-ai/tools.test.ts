@@ -81,7 +81,7 @@ describe("page tools", () => {
     expect(sql.sql).not.toMatch(/normalize\(|translate\(|lower\(/i);
     expect(sql.values).toEqual(expect.arrayContaining([termMatcher("api").regex, termMatcher("データ").regex, "%期待値%"]));
     expect(JSON.parse(result.content).results).toEqual([{ id: "p1", kind: "note", title: "Biology", snippet: "ＲＥＳＴ ＡＰＩ の でーた", updatedAt: updatedAt.toISOString() }]);
-    expect(result.label).toBe("Searched notes for “api データ 期待値”");
+    expect(result.label).toBe("Searched pages for “api データ 期待値”");
   });
 
   it("merges semantic matches after keyword matches and deduplicates by note id", async () => {
@@ -104,10 +104,10 @@ describe("page tools", () => {
     mocks.findFirst.mockResolvedValue(null);
     const result = await runPageTool("read_note", { noteId: "p1", userId: "someone-else" }, ctx);
     expect(mocks.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "p1", userId: "mine", deletedAt: null } }));
-    expect(result).toMatchObject({ isError: true, content: "Note not found." });
+    expect(result).toMatchObject({ isError: true, content: "Page not found." });
 
     mocks.queryRaw.mockResolvedValue([]);
-    expect(JSON.parse((await runPageTool("search_notes", { query: "" }, ctx)).content).note).toBe("No matching notes.");
+    expect(JSON.parse((await runPageTool("search_notes", { query: "" }, ctx)).content).note).toBe("No matching pages.");
     // 空の検索では ORDER BY に数値リテラル（列番号扱い）を入れない。
     expect((mocks.queryRaw.mock.calls.at(-1)?.[0] as { sql: string }).sql).toMatch(/ORDER BY p\."updatedAt" DESC/);
   });
@@ -268,7 +268,7 @@ describe("page tools", () => {
       expect(await runPageTool("propose_note_edit", { ...args(), version: "4" }, ctx)).toMatchObject({ isError: true });
       expect(await runPageTool("propose_note_edit", args({ title: 5 }), ctx)).toMatchObject({ isError: true });
       mocks.findFirst.mockResolvedValue(null);
-      expect(await runPageTool("propose_note_edit", args(), ctx)).toMatchObject({ isError: true, content: "Note not found." });
+      expect(await runPageTool("propose_note_edit", args(), ctx)).toMatchObject({ isError: true, content: "Page not found." });
     });
 
     it("rejects edits whose result fails the page validation", async () => {

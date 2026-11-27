@@ -16,6 +16,8 @@ struct NotePageMenuButton: View {
     private let actions: NotePageMenuActions
     private let buttonWidth: CGFloat
     @State private var open = false
+    /// 菜单收起动画结束后再执行的动作（避免导出文件的 `.fileExporter` 或后续弹窗与 `.popover` 收起冲突）。
+    @State private var pendingAction: (() -> Void)? = nil
     /// "报告 AI 内容"的窗口（网页 NotePageMenu 的 reporting）。
     @State private var reporting = false
 
@@ -32,11 +34,32 @@ struct NotePageMenuButton: View {
         NFGlassBarButton(Lucide.ellipsis, label: label, width: buttonWidth) {
             if !actions.busy { open = true }
         }
-        .actionsMenu(isPresented: $open, width: 248, label: label) {
-            NotePageMenuContent(pageId: pageId, actions: actions, close: { open = false }, report: { reporting = true })
+        .nfPopover(
+            isPresented: $open,
+            width: 268,
+            adaptCompactToSheet: false,
+            onDismiss: {
+                guard let action = pendingAction else { return }
+                pendingAction = nil
+                action()
+            }
+        ) {
+            NotePageMenuContent(
+                pageId: pageId,
+                actions: actions,
+                scheduleAfterDismiss: { action in
+                    pendingAction = action
+                    open = false
+                },
+                report: { reporting = true }
+            )
         }
         .reportDialog(.page(pageId: pageId), isPresented: $reporting)
+        .onDisappear {
+            pendingAction = nil
+        }
         .onChange(of: ScreenshotHooks.dismissTick) { _, _ in
+            pendingAction = nil
             open = false
         }
         .task(id: ScreenshotHooks.sceneTick) {
@@ -44,6 +67,8 @@ struct NotePageMenuButton: View {
             try? await Task.sleep(for: .milliseconds(150))
             if !actions.busy, ScreenshotHooks.consume(.pageMenu) {
                 open = true
+                // 等系统原生 .popover 进场与动态高度测量落稳。
+                try? await Task.sleep(for: .milliseconds(400))
                 ScreenshotHooks.markReady(.pageMenu)
             }
         }
@@ -55,53 +80,59 @@ struct NotePageMenuButton: View {
 private struct NotePageMenuContent: View {
     let pageId: String
     let actions: NotePageMenuActions
-    let close: () -> Void
+    let scheduleAfterDismiss: (@escaping () -> Void) -> Void
     /// 打开"报告 AI 内容"的窗口。
     let report: () -> Void
     @Environment(AppEnvironment.self) private var app
+    @Environment(\.nfChromePath) private var chromePath
 
     var body: some View {
         if let page = app.notes.state.pages.first(where: { $0.id == pageId }) {
-            if page.kind.features.typography {
-                ActionsMenuLabel(L("pg_style"))
-                fonts(page)
-                ActionsMenuDivider()
-            }
-            ForEach(NotePageToggle.visible(for: page.kind), id: \.self) { toggle in
-                ActionsMenuToggle(L(toggle.label), icon: toggle == .locked ? Lucide.lock : nil, isOn: toggle.isOn(page)) {
-                    actions.onSettings(toggle.toggled(page))
-                }
-            }
-            ActionsMenuDivider()
-            if notePageSupportsPresentation(page.kind), let onSlides = actions.onSlides {
-                ActionsMenuItem(L("slides_present"), icon: Lucide.presentation, action: run { onSlides(#"{"action":"present"}"#) })
-                if page.kind == .slides {
-                    slideExportCommands(onSlides)
+            VStack(alignment: .leading, spacing: 0) {
+                if page.kind.features.typography {
+                    ActionsMenuLabel(L("pg_style"))
+                    fonts(page)
                     ActionsMenuDivider()
                 }
-            }
-            commands(page)
-            if let error = app.notes.state.groupError {
-                ActionsMenuError(notesErrorText(error, app.systemText), tone: .answer)
+                ForEach(NotePageToggle.visible(for: page.kind), id: \.self) { toggle in
+                    ActionsMenuToggle(L(toggle.label), icon: toggle == .locked ? Lucide.lock : nil, isOn: toggle.isOn(page)) {
+                        actions.onSettings(toggle.toggled(page))
+                    }
+                }
+                ActionsMenuDivider()
+                if notePageSupportsPresentation(page.kind), let onSlides = actions.onSlides {
+                    ActionsMenuItem(L("slides_present"), icon: Lucide.presentation, action: run { onSlides(#"{"action":"present"}"#) })
+                    if page.kind == .slides {
+                        slideExportCommands(onSlides)
+                        ActionsMenuDivider()
+                    }
+                }
+                commands(page)
+                if let error = app.notes.state.groupError {
+                    ActionsMenuError(notesErrorText(error, app.systemText), tone: .answer)
+                }
             }
         }
     }
 
-    /// 关掉菜单再执行。
+    /// 先收起 `.popover`，等 UIKit 收起完成后再执行动作（避免和 `.fileExporter` 等系统弹窗抢呈现）。
     private func run(_ action: @escaping () -> Void) -> () -> Void {
-        let close = self.close
+        let schedule = self.scheduleAfterDismiss
         return {
-            close()
-            action()
+            schedule(action)
         }
     }
 
     private func fonts(_ page: NotePageSummary) -> some View {
-        HStack(spacing: 4) {
+        let trackShape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        let trackFill = chromePath == .native ? Color.primary.opacity(0.06) : Sm.hover
+        return HStack(spacing: 4) {
             ForEach(NotePageFontOption.all, id: \.key) { option in
                 fontButton(option, checked: page.font == option.key)
             }
         }
+        .padding(4)
+        .background(trackFill, in: trackShape)
         .padding(.horizontal, 8)
         .padding(.top, 4)
         .padding(.bottom, 5.6)
@@ -109,6 +140,7 @@ private struct NotePageMenuContent: View {
 
     private func fontButton(_ option: NotePageFontOption, checked: Bool) -> some View {
         Button {
+            Haptics.selection()
             actions.onSettings(NotePageSettings(font: option.key))
         } label: {
             VStack(spacing: 0) {
@@ -117,7 +149,7 @@ private struct NotePageMenuContent: View {
                     .nfLineHeight(26.4, fontSize: 22)
                     .foregroundStyle(checked ? Sm.blue : Sm.text)
                 Text(L(option.label))
-                    .font(.nf(12))
+                    .font(.nf(12, weight: checked ? 600 : 400))
                     .nfLineHeight(16, fontSize: 12)
                     .foregroundStyle(checked ? Sm.blue : Sm.muted)
                     .lineLimit(1)
@@ -126,7 +158,7 @@ private struct NotePageMenuContent: View {
             .padding(.vertical, 6.4)
             .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.pressable(cornerRadius: 6.4))
+        .buttonStyle(.pressable(background: checked ? Sm.accentSoft : .clear, cornerRadius: 9, scale: 0.97))
         .accessibilityAddTraits(checked ? .isSelected : [])
     }
 

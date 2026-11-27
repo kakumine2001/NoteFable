@@ -31,8 +31,6 @@ enum ScreenshotScene: String, CaseIterable, Sendable {
     // #195 Phase 2a：内容从浮动栏下面滚过、玻璃菜单 / 选择器、提示条的位置。
     /// 京都聊天往上滚一段：消息在顶栏和输入栏下面，「滚到底部」按钮出现。
     case chatScrolled = "chat-scrolled"
-    /// 京都聊天顶栏「…」菜单打开。
-    case chatMenu = "chat-menu"
     /// 京都聊天的换图标选择器打开。
     case emojiPicker = "emoji-picker"
     /// 检索结果往上滚一段：结果在浮动的检索栏下面。

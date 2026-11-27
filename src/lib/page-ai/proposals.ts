@@ -216,21 +216,26 @@ const finalState = (row: Pick<Row, "status" | "appliedPageId" | "appliedVersion"
   status: STATUS[row.status], pageId: row.appliedPageId, undoable: row.status === "APPLIED" && row.appliedVersion !== null,
 });
 
+// 消えたページの文言は、提案した種類に合わせる。
+const gone = (row: Pick<Row, "pageKind">) => row.pageKind === "note" ? msg("This note no longer exists.") : msg("This page no longer exists.");
+
 // 適用済みなら、そのときの結果（いまのページ）をそのまま返す。
 async function appliedResult(userId: string, row: Row): Promise<ApplyResult> {
   const pageId = row.appliedPageId ?? (row.kind === "EDIT" ? editPayload(row.payload, row.pageKind)?.pageId : null);
   const page = pageId ? await loadFullPage(userId, pageId) : null;
-  if (!page) return fail(404, msg("This note no longer exists."), finalState(row));
+  if (!page) return fail(404, gone(row), finalState(row));
   return { ok: true, status: "applied", kind: row.kind === "EDIT" ? "edit" : "create", page };
 }
 
 // 編集を書けなかった理由（ページが消えた・種類が違う・版が進んだ）。
 async function editConflict(userId: string, row: Row, pageId: string): Promise<ApplyResult> {
   const exists = await prisma.notePage.findFirst({ where: { id: pageId, userId, deletedAt: null }, select: { id: true, kind: true } });
-  if (!exists) return fail(404, msg("Note not found."));
+  if (!exists) return fail(404, msg("Page not found."));
   const kind = pageKindOf(exists);
   if (kind !== row.pageKind && row.pageKind === "note" && isCanvasKind(kind)) return fail(409, NOT_A_NOTE_ERRORS[kind]);
-  return fail(409, msg("This note changed after the proposal was made. Ask again to get a fresh proposal."));
+  return fail(409, row.pageKind === "note"
+    ? msg("This note changed after the proposal was made. Ask again to get a fresh proposal.")
+    : msg("This page changed after the proposal was made. Ask again to get a fresh proposal."));
 }
 
 // auto は AI パネルの「自動適用」（利用者が確認せずに適用した）。
@@ -292,7 +297,7 @@ export async function applyProposal(userId: string, id: string, { auto = false }
     }, { timeout: 20_000 });
     if (!applied) return afterLostClaim();
     const page = await loadFullPage(userId, applied);
-    if (!page) return fail(404, msg("This note no longer exists."), { status: "applied", pageId: applied, undoable: true });
+    if (!page) return fail(404, gone(row), { status: "applied", pageId: applied, undoable: true });
     return { ok: true, status: "applied", kind: edit ? "edit" : "create", page };
   } catch (error) {
     if (error instanceof Conflict) return editConflict(userId, row, edit!.pageId);
@@ -377,12 +382,12 @@ export async function undoProposal(userId: string, id: string): Promise<UndoResu
     }, { timeout: 20_000 });
     if (!done) return undoneAfterLostClaim(userId, id);
     const page = await loadFullPage(userId, pageId);
-    if (!page) return fail(404, msg("Note not found."), { status: "undone", pageId });
+    if (!page) return fail(404, msg("Page not found."), { status: "undone", pageId });
     return { ok: true, status: "undone", kind: "edit", page };
   } catch (error) {
     if (error instanceof Changed) {
       const exists = await prisma.notePage.findFirst({ where: { id: pageId, userId, deletedAt: null }, select: { id: true } });
-      return exists ? fail(409, msg("This page changed after the AI edit. Restore an earlier version from the page history.")) : fail(404, msg("Note not found."));
+      return exists ? fail(409, msg("This page changed after the AI edit. Restore an earlier version from the page history.")) : fail(404, msg("Page not found."));
     }
     if (error instanceof NoteValidationError) return fail(409, fmt("This version cannot be restored. {detail}", { detail: error.message }));
     throw error;
@@ -399,7 +404,7 @@ async function undoneResult(userId: string, row: Row): Promise<UndoResult> {
     return { ok: true, status: "undone", kind: "create", trashedIds: trashed ? [trashed.id] : [] };
   }
   const page = row.appliedPageId ? await loadFullPage(userId, row.appliedPageId) : null;
-  if (!page) return fail(404, msg("Note not found."), finalState(row));
+  if (!page) return fail(404, msg("Page not found."), finalState(row));
   return { ok: true, status: "undone", kind: "edit", page };
 }
 

@@ -6,7 +6,7 @@
     <string name="share_publish">Опубликовать</string>
     <string name="share_republish">Опубликовать снова</string>
     <string name="share_unpublish">Снять с публикации</string>
-    <string name="share_desc">Опубликуйте заметку, чтобы её мог просмотреть любой, у кого есть ссылка.</string>
+    <string name="share_desc">Опубликуйте страницу, чтобы её мог просмотреть любой, у кого есть ссылка.</string>
     <string name="share_expired">Срок действия этой ссылки истёк.</string>
     <string name="share_public_link">Публичная ссылка</string>
     <string name="share_copy_link">Копировать ссылку</string>

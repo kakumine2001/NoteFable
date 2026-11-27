@@ -106,13 +106,13 @@ struct NFDialogLayer: View {
     private var cardTransition: AnyTransition {
         if reduceMotion { return .identity }
         return .asymmetric(
-            insertion: AnyTransition.nfRise(offsetY: 4, scale: 0.98).animation(NFMotion.cssEaseOut(0.16)),
+            insertion: AnyTransition.nfRise(offsetY: 6, scale: 0.96).animation(NFMotion.spring(0.28)),
             removal: AnyTransition.opacity.animation(NFMotion.cssEaseOut(0.1))
         )
     }
 
     private var card: some View {
-        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: 28, style: .continuous)
         // 卡片最高到“可用高度 − 38”，再高就在里面滚动。
         return FittingScrollView(maxHeight: max(120, metrics.availableHeight - 38)) {
             VStack(alignment: .leading, spacing: 0) {
@@ -133,7 +133,7 @@ struct NFDialogLayer: View {
 
 // MARK: - 对话框里的部件
 
-/// 标题：16 / 600、行高 24。
+/// 标题：17 / 650、行高 24。
 struct NFDialogTitle: View {
     private let text: String
 
@@ -143,8 +143,8 @@ struct NFDialogTitle: View {
 
     var body: some View {
         Text(text)
-            .font(.nf(16, weight: 600))
-            .nfLineHeight(24, fontSize: 16)
+            .font(.nf(17, weight: 650))
+            .nfLineHeight(24, fontSize: 17)
             .foregroundStyle(Sm.text)
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityAddTraits(.isHeader)
@@ -248,6 +248,7 @@ struct NFDialogTextField: View {
     private let topSpacing: CGFloat
     private let onSubmit: () -> Void
     @FocusState private var focused: Bool
+    @Environment(\.nfChromePath) private var chromePath
 
     init(
         text: Binding<String>,
@@ -268,7 +269,9 @@ struct NFDialogTextField: View {
     }
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 6)
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+        let fill = chromePath == .native ? Color.primary.opacity(0.065) : Sm.surface
+        let stroke = focused ? Sm.blue : (chromePath == .native ? Color.primary.opacity(0.10) : Sm.borderStrong)
         TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(Sm.faint))
             .textFieldStyle(.plain)
             .font(.nf(16))
@@ -284,11 +287,9 @@ struct NFDialogTextField: View {
             // 网页的内边距 8.8×11.2 在 1px 描边里面，这里描边画在框内，所以各加 1。
             .padding(.horizontal, 12.2)
             .padding(.vertical, 9.8)
-            .frame(minHeight: 43.6)
-            .background(Sm.surface, in: shape)
-            .overlay { shape.strokeBorder(Sm.borderStrong, lineWidth: 1) }
-            // outline: 2px solid --notion-blue; outline-offset: -1px。
-            .overlay { shape.stroke(focused ? Sm.blue : .clear, lineWidth: 2) }
+            .frame(minHeight: 44)
+            .background(fill, in: shape)
+            .overlay { shape.strokeBorder(stroke, lineWidth: focused ? 2 : 1) }
             .contentShape(shape)
             .onTapGesture { focused = true }
             .padding(.top, topSpacing)

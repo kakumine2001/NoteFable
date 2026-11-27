@@ -60,6 +60,8 @@ private struct SearchPanel: View {
 
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Namespace private var searchTabThumb
     @State private var toolbarWidth: CGFloat = 0
 
     var body: some View {
@@ -149,11 +151,12 @@ private struct SearchPanel: View {
         HStack(spacing: 0) {
             NFGlassContainer(spacing: NFChromeMetrics.containerSpacing) {
                 HStack(spacing: 4) {
-                    SearchTab(title: L("search_tab_all"), selected: state.scope == .all) { model.setScope(.all) }
-                    SearchTab(title: L("search_tab_chats"), selected: state.scope == .chats) { model.setScope(.chats) }
-                    SearchTab(title: L("notes"), selected: state.scope == .notes) { model.setScope(.notes) }
+                    SearchTab(title: L("search_tab_all"), selected: state.scope == .all, thumb: searchTabThumb) { model.setScope(.all) }
+                    SearchTab(title: L("search_tab_chats"), selected: state.scope == .chats, thumb: searchTabThumb) { model.setScope(.chats) }
+                    SearchTab(title: L("pg_pages"), selected: state.scope == .notes, thumb: searchTabThumb) { model.setScope(.notes) }
                 }
                 .padding(4)
+                .animation(NFMotion.unlessReduced(NFMotion.spring(0.28), reduceMotion), value: state.scope)
                 .nfGlassCapsule()
             }
             // 窄屏放不下时先省略右边的筛选，不省略标签名。
@@ -310,27 +313,38 @@ private struct GlassSearchField: View {
 private struct SearchTab: View {
     let title: String
     let selected: Bool
+    let thumb: Namespace.ID
     let action: () -> Void
 
     @Environment(\.nfChromePath) private var chromePath
 
     var body: some View {
-        Button(action: action) {
+        let shape = Capsule()
+        let selectedBg = chromePath == .native ? Color.primary.opacity(0.11) : Sm.active
+        Button {
+            Haptics.selection()
+            action()
+        } label: {
             Text(title)
                 .font(.nf(15, weight: selected ? 600 : 500))
                 .foregroundStyle(selected ? chromePath.primaryInk : chromePath.secondaryInk)
                 .lineLimit(1)
                 .padding(.horizontal, 14.4)
                 .frame(height: 40)
+                .background {
+                    if selected {
+                        shape.fill(selectedBg)
+                            .matchedGeometryEffect(id: "searchTabThumb", in: thumb)
+                    }
+                }
         }
-        // 玻璃胶囊里的一段：选中的是 --notion-active 的全圆角底。
-        .buttonStyle(.pressable(background: selected ? Sm.active : Color.clear, cornerRadius: 20))
+        .buttonStyle(.pressable(pressedBackground: nil, cornerRadius: 20, scale: 0.98))
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 
 /// 筛选（项目、类型；网页是原生 <select>，这里用系统的菜单）：触发框按最长的选项定宽（外面再限制到 48%），箭头在行尾。
-/// 触发框是高 40、左右 12 的玻璃胶囊（普通玻璃）；菜单本身不放进 GlassEffectContainer（FORUM 826863 / 799491）。
+/// 触发框是高 40、左右 12 的可交互玻璃胶囊；菜单本身不放进 GlassEffectContainer（FORUM 826863 / 799491）。
 /// [options] 是（值, 名字），第一项是“全部”（值 ""）。[label] 是读屏名字。
 private struct SearchFilter: View {
     let options: [(String, String)]
@@ -370,7 +384,7 @@ private struct SearchFilter: View {
             }
             .padding(.horizontal, 12)
             .frame(height: 40)
-            .nfGlassCapsule()
+            .nfGlassCapsule(.interactive)
             .contentShape(Capsule())
         }
         .accessibilityLabel(label)
@@ -466,7 +480,7 @@ private struct SearchResultList: View {
                     ForEach(entries) { entry in
                         switch entry {
                         case .header(let isChats):
-                            Text(L(isChats ? "search_tab_chats" : "notes"))
+                            Text(L(isChats ? "search_tab_chats" : "pg_pages"))
                                 .font(.nf(12, weight: 600))
                                 .nfLineHeight(18, fontSize: 12)
                                 .foregroundStyle(Sm.muted)

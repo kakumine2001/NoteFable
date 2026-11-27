@@ -34,6 +34,8 @@ struct SheetActionRow: View {
     private let isOn: Bool
     private let action: () -> Void
 
+    @Environment(\.nfChromePath) private var chromePath
+
     init(_ title: String, detail: String? = nil, icon: [String], isOn: Bool = false, action: @escaping () -> Void) {
         self.title = title
         self.detail = detail
@@ -43,6 +45,7 @@ struct SheetActionRow: View {
     }
 
     var body: some View {
+        let activeBg = chromePath == .native ? Color.primary.opacity(0.08) : Sm.hover
         Button(action: action) {
             HStack(spacing: 14.4) {
                 LucideIcon(icon, size: 22, color: Sm.text)
@@ -59,18 +62,18 @@ struct SheetActionRow: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                if isOn { LucideIcon(Lucide.check, size: 20, color: Sm.text) }
+                if isOn { LucideIcon(Lucide.check, size: 20, color: Sm.blue) }
             }
             .padding(.horizontal, 13.6)
             .padding(.vertical, 6.4)
             .frame(minHeight: 60)
         }
-        .buttonStyle(.pressable(background: isOn ? Sm.hover : .clear, cornerRadius: 11.2, scale: 0.97))
+        .buttonStyle(.pressable(background: isOn ? activeBg : .clear, cornerRadius: 14, scale: 0.97))
         .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 }
 
-/// 抽屉最下面的“完成”（`.model-sheet-done`）：整宽、最小高 48、圆角 12、`--notion-text` 底白字 16 / 600，上距 16。
+/// 抽屉最下面的“完成”（`.model-sheet-done`）：整宽、最小高 50、全圆角胶囊、`--nf-ink` 底白字 16 / 600，上距 16。
 struct SheetDoneButton: View {
     private let title: String
     private let action: () -> Void
@@ -86,9 +89,9 @@ struct SheetDoneButton: View {
                 .font(.nf(16, weight: 600))
                 .foregroundStyle(Sm.onInk)
                 .frame(maxWidth: .infinity)
-                .frame(minHeight: 48)
+                .frame(minHeight: 50)
         }
-        .buttonStyle(.pressable(background: Sm.text, pressedBackground: nil, cornerRadius: 12, scale: 0.97))
+        .buttonStyle(.pressable(background: Sm.ink, pressedBackground: Sm.inkHover, cornerRadius: 25, scale: 0.97))
         .padding(.top, 16)
     }
 }

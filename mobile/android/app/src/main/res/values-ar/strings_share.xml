@@ -6,7 +6,7 @@
     <string name="share_publish">نشر</string>
     <string name="share_republish">إعادة النشر</string>
     <string name="share_unpublish">إلغاء النشر</string>
-    <string name="share_desc">انشر هذه الملاحظة ليتمكن أي شخص لديه الرابط من عرضها.</string>
+    <string name="share_desc">انشر هذه الصفحة ليتمكن أي شخص لديه الرابط من عرضها.</string>
     <string name="share_expired">انتهت صلاحية رابط المشاركة هذا.</string>
     <string name="share_public_link">الرابط العام</string>
     <string name="share_copy_link">نسخ الرابط</string>

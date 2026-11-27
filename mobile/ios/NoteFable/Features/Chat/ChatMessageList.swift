@@ -79,6 +79,7 @@ struct ChatMessageList: View {
         }
         .overlay(alignment: .bottom) {
             ChatScrollToBottomButton(visible: !atBottom) {
+                Haptics.light()
                 scroll.scrollToBottom(animated: !state.sending && !reduceMotion)
             }
         }

@@ -26,7 +26,7 @@ export type DiagramDialog = { key: string; notice?: string };
 type Entry = { source: DiagramSource; model: string; clientRequestId: string; job: DiagramJob };
 
 const FAILED = msg("Could not draw a diagram. Try again.");
-export const UNSAVED_NOTE = msg("Resolve the note's unsaved changes first, then ask again.");
+export const UNSAVED_NOTE = msg("Resolve the page's unsaved changes first, then ask again.");
 // サーバーの理由をそのまま見せる応答（検証・見つからない・大きすぎる・変換できない・上限）。他は共通の文。
 const SERVER_REASONS = new Set([400, 404, 413, 422, 429]);
 

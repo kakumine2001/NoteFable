@@ -6,7 +6,7 @@
     <string name="share_publish">เผยแพร่</string>
     <string name="share_republish">เผยแพร่อีกครั้ง</string>
     <string name="share_unpublish">ยกเลิกการเผยแพร่</string>
-    <string name="share_desc">เผยแพร่โน้ตนี้เพื่อให้ทุกคนที่มีลิงก์สามารถดูได้</string>
+    <string name="share_desc">เผยแพร่หน้านี้เพื่อให้ทุกคนที่มีลิงก์สามารถดูได้</string>
     <string name="share_expired">ลิงก์แชร์นี้หมดอายุแล้ว</string>
     <string name="share_public_link">ลิงก์สาธารณะ</string>
     <string name="share_copy_link">คัดลอกลิงก์</string>

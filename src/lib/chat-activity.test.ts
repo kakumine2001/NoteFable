@@ -214,13 +214,13 @@ describe("project context activity", () => {
   it("shows the used instructions and note chips, and summarizes them once the answer is done", () => {
     const steps = [step] as ProgressStep[];
     const open = renderToStaticMarkup(createElement(ChatActivity, { steps, isThinking: true, seconds: 2 }));
-    expect(open).toContain("Used project “Mail”: instructions + 2 reference notes");
+    expect(open).toContain("Used project “Mail”: instructions + 2 reference pages");
     expect(open).toContain("Style guide");
     expect(open).toContain("chat-context-partial");
     // ノートのチップはボタンで、押すとそのノートを開く。
     expect(open.match(/<button[^>]*chat-context-chip/g)).toHaveLength(2);
     const done = renderToStaticMarkup(createElement(ChatActivity, { steps, isThinking: false, seconds: 2 }));
-    expect(done).toContain("Thought for 2s · 2 project notes");
+    expect(done).toContain("Thought for 2s · 2 project pages");
     expect(renderToStaticMarkup(createElement(ChatActivity, { steps: [{ ...step, notes: [] } as ProgressStep], isThinking: false, seconds: 2 }))).toContain("project instructions");
   });
 });

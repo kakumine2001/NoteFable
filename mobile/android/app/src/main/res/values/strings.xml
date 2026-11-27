@@ -11,7 +11,7 @@
     <string name="retry">Retry</string>
     <string name="messages_load_failed">Failed to load conversation.</string>
 
-    <string name="empty_hint">Ask a question, work through your notes, or bring in a file.</string>
+    <string name="empty_hint">Ask a question, work through your Workspace, or bring in a file.</string>
     <string name="message_hint">Ask anything...</string>
     <string name="send">Send message</string>
     <string name="stop">Stop generating</string>
@@ -87,10 +87,10 @@
     <string name="new_note">New note</string>
     <string name="projects">Projects</string>
     <string name="new_project">New project</string>
-    <string name="no_notes_in_project">No notes in this project.</string>
+    <string name="no_notes_in_project">No pages in this project.</string>
     <string name="notes_list_empty">Your notes will appear here.</string>
     <string name="trash">Trash</string>
-    <string name="trash_note_title">Move note to Trash?</string>
+    <string name="trash_note_title">Move page to Trash?</string>
     <string name="trash_note_body">“%1$s” will be moved to Trash. You can restore it for %2$d days.</string>
     <string name="cancel">Cancel</string>
     <string name="move_to_trash">Move to Trash</string>
@@ -102,12 +102,11 @@
     <string name="save">Save</string>
     <string name="delete_project_title">Delete project?</string>
     <string name="delete_project">Delete project</string>
-    <string name="delete_project_body">“%1$s” will be deleted. Its notes are kept and move out of the project.</string>
+    <string name="delete_project_body">“%1$s” will be deleted. Its pages are kept and move out of the project.</string>
     <string name="rename_name">Rename %1$s</string>
     <string name="delete_project_name">Delete project %1$s</string>
     <string name="project_name">Project name</string>
     <string name="no_project">No project</string>
-    <string name="move_note">Move note</string>
     <string name="move_note_to">Move “%1$s” to</string>
     <string name="project">Project</string>
     <string name="new_project_name">New project name</string>
@@ -116,9 +115,9 @@
     <string name="close">Close</string>
     <string name="empty_trash">Empty trash</string>
     <string name="close_trash">Close trash</string>
-    <string name="trash_hint">Notes in the trash can be restored for %1$d days. After that they are deleted for good.</string>
-    <string name="empty_trash_one">Permanently delete this note in the trash? This cannot be undone.</string>
-    <string name="empty_trash_all">Permanently delete all %1$d notes in the trash? This cannot be undone.</string>
+    <string name="trash_hint">Pages in the trash can be restored for %1$d days. After that they are deleted for good.</string>
+    <string name="empty_trash_one">Permanently delete this page in the trash? This cannot be undone.</string>
+    <string name="empty_trash_all">Permanently delete all %1$d pages in the trash? This cannot be undone.</string>
     <string name="loading_trash">Loading trash…</string>
     <string name="try_again">Try again</string>
     <string name="trash_is_empty">The trash is empty.</string>
@@ -133,19 +132,19 @@
     <string name="removing_soon">removing soon</string>
     <string name="one_day_left">1 day left</string>
     <string name="days_left">%1$d days left</string>
-    <string name="loading_notes">Loading notes…</string>
-    <string name="notes_intro">Write notes with blocks — type %1$s for headings, lists, to-dos and code.</string>
-    <string name="notes_storage_hint">Notes are saved on the server and linked to this device. Sign in to open them on other devices. If you clear app or site data before signing in, you lose access to them.</string>
-    <string name="all_notes">All notes</string>
+    <string name="loading_notes">Loading pages…</string>
+    <string name="notes_intro">Write notes, build slide decks and sketch on whiteboards. In a note, type %1$s for headings, lists, to-dos and code.</string>
+    <string name="notes_storage_hint">Your Workspace is saved on the server and linked to this device. Sign in to open it on other devices. If you clear app or site data before signing in, you lose access to it.</string>
+    <string name="all_notes">All pages</string>
     <string name="version_history">Version history</string>
     <string name="save_saved">Saved</string>
     <string name="save_saving">Saving…</string>
     <string name="save_not_saved">Not saved</string>
     <string name="save_conflict">Conflict</string>
-    <string name="err_trash_unsaved">Resolve the unsaved draft before moving this note to Trash.</string>
-    <string name="err_load_notes">Failed to load notes.</string>
-    <string name="err_create_note">Failed to create note.</string>
-    <string name="err_trash_note">Failed to move the note to Trash.</string>
+    <string name="err_trash_unsaved">Resolve the unsaved draft before moving this page to Trash.</string>
+    <string name="err_load_notes">Failed to load pages.</string>
+    <string name="err_create_note">Failed to create page.</string>
+    <string name="err_trash_note">Failed to move the page to Trash.</string>
     <string name="err_group">Could not change the group.</string>
     <string name="err_trash_request">Trash request failed. Please try again.</string>
     <string name="err_trash_load">Could not load the trash.</string>
@@ -153,7 +152,7 @@
     <!-- 登录窗口（网页 sign-in-dialog.tsx）。 -->
     <string name="sign_in">Sign in</string>
     <string name="signin_title">Sign in to NoteFable</string>
-    <string name="signin_subtitle">Keep your chats and notes, and open them on any device.</string>
+    <string name="signin_subtitle">Keep your chats and Workspace, and open them on any device.</string>
     <string name="continue_google">Continue with Google</string>
     <string name="signin_or">or</string>
     <string name="signin_email">Email address</string>

@@ -1,9 +1,10 @@
 import SwiftUI
+import UIKit
 
 // 项目设置（网页 ChatProjectSettings，dialog.chat-project-settings 的手机尺寸；Android ui/ProjectSettings.kt）：
 // 宽 374（412 屏宽时，左右各 19；最宽 544）、无内边距、圆角 8、--notion-shadow；遮罩 rgba(15,15,15,.2)；最高到可用高度 − 38。
 // 头部 16 / 16 / 8（标题 16 / 600 + 项目名 13 灰）；正文左右 16、上 4、下 16、可滚动；
-// 底部上边 1px 线、内边距 12 / 16 / 16，取消 / 保存靠右。点遮罩关闭；保存中整个窗口锁住，不能关。
+// 底部上边 1px 线、内边距 12 / 16 / 16，取消 / 保存靠右。点遮罩关闭；保存中整个窗口锁住，不能关；有没保存的改动时先确认。
 // 状态和规则在 Core 的 `ProjectSettingsModel`（打开时读详情和笔记，失败可以重试；保存只发改了的字段）。
 //
 // 这个窗口有固定的头尾、中间滚动，放不进 `.nfDialog` 的卡片（整卡滚动、内边距 24），所以借“全屏面板”那一层：
@@ -15,6 +16,7 @@ struct ProjectSettingsDialog: View {
     let model: ProjectSettingsModel
 
     @Environment(AppEnvironment.self) private var app
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var headerHeight: CGFloat = 0
     @State private var footerHeight: CGFloat = 0
 
@@ -39,7 +41,7 @@ struct ProjectSettingsDialog: View {
     }
 
     private func card(maxHeight: CGFloat) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: 28, style: .continuous)
         let state = model.state
         return VStack(alignment: .leading, spacing: 0) {
             header
@@ -83,13 +85,28 @@ struct ProjectSettingsDialog: View {
         .padding(.bottom, 8)
     }
 
+    // 没保存就想关时，底栏换成“未保存的更改”+ 放弃 / 保存（网页 .project-settings-unsaved），每次想关晃一下并念出来。
     private func footer(_ state: ProjectSettingsState) -> some View {
         HStack(spacing: 8) {
-            Spacer(minLength: 0)
-            NotionButton(L("cancel")) { model.close() }
-                .disabled(state.busy)
+            if model.confirming {
+                Text(L("settings_unsaved"))
+                    .font(.nf(14, weight: 500))
+                    .foregroundStyle(Sm.text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                NotionButton(L("proposal_discard")) { model.discard() }
+                    .disabled(state.busy)
+            } else {
+                Spacer(minLength: 0)
+                NotionButton(L("cancel")) { model.close() }
+                    .disabled(state.busy)
+            }
             NotionButton(L(state.busy ? "sb_saving" : "save"), kind: .primary) { model.save() }
                 .disabled(!model.canSave)
+        }
+        .modifier(SettingsShakeEffect(progress: CGFloat(state.attention)))
+        .animation(reduceMotion || state.attention == 0 ? nil : .linear(duration: 0.36), value: state.attention)
+        .onChange(of: state.attention) { _, value in
+            if value > 0 { UIAccessibility.post(notification: .announcement, argument: L("settings_unsaved")) }
         }
         .padding(.horizontal, 16)
         .padding(.top, 12)
@@ -267,7 +284,7 @@ private struct ProjectInstructionsField: View {
     private static let lineGap: CGFloat = 5.7
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 6)
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
         ZStack(alignment: .topLeading) {
             if text.isEmpty {
                 Text(placeholder)
@@ -294,23 +311,22 @@ private struct ProjectInstructionsField: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: 144)
-        .background(Sm.surface, in: shape)
+        .background(Color.primary.opacity(0.05), in: shape)
         .clipShape(shape)
-        .overlay { shape.strokeBorder(Sm.borderStrong, lineWidth: 1) }
-        // outline: 2px solid --notion-blue; outline-offset: -1px。
-        .overlay { shape.stroke(focused ? Sm.blue : Color.clear, lineWidth: 2) }
+        .overlay { shape.strokeBorder(Sm.borderStrong.opacity(0.45), lineWidth: 1) }
+        .overlay { shape.stroke(focused ? Sm.blue.opacity(0.75) : Color.clear, lineWidth: 1.5) }
         .padding(.top, 8)
     }
 }
 
-/// `.project-settings-search`：上距 9.6、1px 深描边、圆角 6、左右 9.6、放大镜 14 + 7.2；输入 16、上下 8；聚焦 2px 蓝框。
+/// 项目关联笔记的搜索栏：Glass 友好的柔和填充 + 14pt 连续圆角。
 private struct ProjectFilterField: View {
     @Binding var text: String
     let placeholder: String
     @FocusState private var focused: Bool
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 6)
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
         HStack(spacing: 7.2) {
             LucideIcon(Lucide.search, size: 14, color: Sm.muted)
             TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(Sm.faint))
@@ -327,16 +343,16 @@ private struct ProjectFilterField: View {
         .padding(.horizontal, 10.6)
         .padding(.vertical, 9)
         .frame(minHeight: 42)
-        .background(Sm.surface, in: shape)
-        .overlay { shape.strokeBorder(Sm.borderStrong, lineWidth: 1) }
-        .overlay { shape.stroke(focused ? Sm.blue : Color.clear, lineWidth: 2) }
+        .background(Color.primary.opacity(0.05), in: shape)
+        .overlay { shape.strokeBorder(Sm.borderStrong.opacity(0.45), lineWidth: 1) }
+        .overlay { shape.stroke(focused ? Sm.blue.opacity(0.75) : Color.clear, lineWidth: 1.5) }
         .contentShape(shape)
         .onTapGesture { focused = true }
         .padding(.top, 9.6)
     }
 }
 
-/// `.project-settings-chip`：全圆角、1px 深描边、#F7F7F5 底、13 字、内边距 2.4 / 3.2 / 2.4 / 8.8；页面类型图标 13 + 4.8；
+/// `.project-settings-chip`：Capsule 半透明胶囊标签、13 字、内边距 2.4 / 3.2 / 2.4 / 8.8；页面类型图标 13 + 4.8；
 /// 移除键 28 圆（✕ 12 灰）。标题最宽 220，放不下省略。
 private struct ProjectNoteChip: View {
     let title: String
@@ -364,12 +380,12 @@ private struct ProjectNoteChip: View {
         .padding(.leading, 8.8)
         .padding(.trailing, 3.2)
         .padding(.vertical, 2.4)
-        .background(Sm.sidebar, in: Capsule())
-        .overlay { Capsule().strokeBorder(Sm.borderStrong, lineWidth: 1) }
+        .background(Color.primary.opacity(0.06), in: Capsule())
+        .overlay { Capsule().strokeBorder(Sm.borderStrong.opacity(0.4), lineWidth: 0.75) }
     }
 }
 
-/// `.project-settings-option`（手机）：最小高 44、圆角 6、左右 8、间距 8.8、15 字；勾选框 16（蓝）；图标区 20（表情或页面类型图标 14 灰）；
+/// `.project-settings-option`（手机）：最小高 44、12pt 连续圆角、左右 8、间距 8.8、15 字；圆形勾选框 20（蓝）；图标区 20；
 /// 选中灰底；选满了以后没选的变浅灰且不能点。
 private struct ProjectNoteOption: View {
     let note: ChatProjectNote
@@ -393,30 +409,29 @@ private struct ProjectNoteOption: View {
             .padding(.horizontal, 8)
             .frame(minHeight: 44)
         }
-        .buttonStyle(.pressable(background: checked ? Sm.hover : Color.clear, cornerRadius: 6))
+        .buttonStyle(.pressable(background: checked ? Sm.hover : Color.clear, cornerRadius: 12))
         .disabled(busy || blocked)
         .accessibilityAddTraits(checked ? .isSelected : [])
     }
 }
 
-/// 浏览器默认的勾选框 16×16（accent-color 蓝）：选中蓝底白勾，没选 1px 灰框白底，禁用变淡。
+/// 圆形 20×20 勾选框：选中蓝底白勾，没选浅填充描边，禁用变淡。
 private struct ProjectCheckbox: View {
     let checked: Bool
     let enabled: Bool
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 2)
         let alpha = enabled ? 1.0 : 0.5
         ZStack {
             if checked {
-                shape.fill(Sm.blue.opacity(alpha))
+                Circle().fill(Sm.blue.opacity(alpha))
                 LucideIcon(Lucide.check, size: 12, color: .white)
             } else {
-                shape.fill(Sm.surface)
-                shape.strokeBorder(Color(argb: 0xFF767676).opacity(alpha), lineWidth: 1)
+                Circle().fill(Color.primary.opacity(0.05))
+                Circle().strokeBorder(Sm.borderStrong.opacity(0.6 * alpha), lineWidth: 1.2)
             }
         }
-        .frame(width: 16, height: 16)
+        .frame(width: 20, height: 20)
         .accessibilityHidden(true)
     }
 }

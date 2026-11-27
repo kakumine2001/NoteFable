@@ -9,6 +9,7 @@ struct LanguageSettingsRowView: View {
     let user: AccountUser
 
     @Environment(AppEnvironment.self) private var app
+    @Environment(\.nfChromePath) private var chromePath
     @State private var menuOpen = false
 
     init(user: AccountUser) {
@@ -19,7 +20,8 @@ struct LanguageSettingsRowView: View {
         let showing = app.language.active
         let row = LanguageSettingsRow(user: user, showing: showing)
         let label = languageLabel(row.shown, showing: showing)
-        let shape = RoundedRectangle(cornerRadius: 8)
+        let fill = chromePath == .solid ? Sm.surface : Sm.hover
+        let stroke: Color = menuOpen ? Sm.blue : (chromePath == .solid ? Sm.borderStrong : .clear)
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 0) {
                 Text(L("language"))
@@ -41,18 +43,19 @@ struct LanguageSettingsRowView: View {
                             .environment(\.locale, Locale(identifier: row.shown.tag ?? showing.tag ?? "en"))
                         LucideIcon(Lucide.chevronsUpDown, size: 14, color: Sm.faint)
                     }
-                    .padding(.leading, 12)
-                    .padding(.trailing, 10)
+                    .padding(.leading, 14)
+                    .padding(.trailing, 12)
                     .padding(.vertical, 5.6)
                     .frame(minHeight: 40)
-                    .overlay { shape.strokeBorder(menuOpen ? Sm.blue : Sm.borderStrong, lineWidth: 1) }
+                    .overlay { Capsule().strokeBorder(stroke, lineWidth: 1) }
                 }
-                .buttonStyle(.pressable(background: Sm.surface, cornerRadius: 8))
-                // 打开时外侧 3px 的光圈：0 0 0 3px rgba(35,131,226,.16)。
+                .buttonStyle(.pressable(background: fill, pressedBackground: Sm.active, cornerRadius: 999, scale: 0.98))
                 .background {
-                    RoundedRectangle(cornerRadius: 11)
-                        .fill(menuOpen ? Sm.focusRing : Color.clear)
-                        .padding(-3)
+                    if chromePath == .solid {
+                        Capsule()
+                            .fill(menuOpen ? Sm.focusRing : Color.clear)
+                            .padding(-3)
+                    }
                 }
                 .accessibilityLabel(L("language_current", label))
                 .languageMenu(isPresented: $menuOpen)

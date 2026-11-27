@@ -17,20 +17,27 @@ describe("native system text asset", { timeout: 60_000 }, () => {
     expect(Object.keys(messages)).toEqual(translatedLocales);
     for (const key of [
       "Request failed: {detail}",
-      "Note not found.",
+      "Page not found.",
       "Invalid purchase.",
       "This proposal was discarded.",
       "This note changed after the proposal was made. Ask again to get a fresh proposal.",
       "Upload up to {max} files at a time.",
       "You've used today's free messages. Sign in for more, or try again tomorrow.",
-      "Searched notes for “{query}”",
+      "Searched pages for “{query}”",
       "Could not save the chat. Please try again.",
     ]) {
       for (const locale of translatedLocales) {
         expect(messages[locale][key], `${locale}: ${key}`).toBeTruthy();
       }
     }
+    // 改名前的工具步骤标签：保存好的旧聊天记录靠它们继续翻译（#205），不能当成没用的词条删掉。
+    for (const key of ["Searched notes for “{query}”", "Listed recent notes", "Note not found", "Invalid note read", "Invalid note search"]) {
+      for (const locale of translatedLocales) {
+        expect(messages[locale][key], `${locale}: ${key}`).toBeTruthy();
+      }
+    }
     expect(templates).toContain("Read “{title}”");
+    expect(templates).toContain("Searched notes for “{query}”");
     expect(messages.zh["Request failed: {detail}"]).toBe("请求失败：{detail}");
   });
 

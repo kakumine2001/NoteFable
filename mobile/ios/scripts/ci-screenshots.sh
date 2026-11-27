@@ -21,7 +21,7 @@ read -r -a MAJORS   <<<"${NF_IOS_MAJORS:-26 18}"
 # ar-app and hc run only on request (NF_VARIANTS), to keep the default run short.
 read -r -a VARIANTS <<<"${NF_VARIANTS:-light dark ar rt}"
 # chat-streaming stays last in the signed-in batch because its stream never ends.
-DEFAULT_SCENES="chat-empty chat chat-scrolled chat-menu emoji-picker chat-composer chat-keyboard toast model-sheet attach-sheet drawer search search-scrolled settings settings-page settings-plan workspace workspace-scrolled editor page-menu editor-scrolled editor-locked editor-whiteboard editor-slides chat-streamed chat-streaming sign-in"
+DEFAULT_SCENES="chat-empty chat chat-scrolled emoji-picker chat-composer chat-keyboard toast model-sheet attach-sheet drawer search search-scrolled settings settings-page settings-plan workspace workspace-scrolled editor page-menu editor-scrolled editor-locked editor-whiteboard editor-slides chat-streamed chat-streaming sign-in"
 read -r -a SCENES   <<<"${NF_SCENES:-$DEFAULT_SCENES}"
 
 DEVICE_FAMILY="${NF_DEVICE_FAMILY:-iPhone}"
@@ -330,9 +330,9 @@ variant_scenes() {
     return 0
   fi
   case "$1" in
-    dark)   echo "chat chat-scrolled chat-menu emoji-picker chat-composer chat-keyboard model-sheet drawer search-scrolled settings settings-page workspace workspace-scrolled editor editor-scrolled editor-whiteboard" ;;
-    ar)     echo "chat chat-scrolled chat-menu chat-composer drawer search-scrolled settings workspace workspace-scrolled editor-locked" ;;
-    ar-app) echo "chat chat-menu model-sheet drawer workspace-scrolled" ;;
+    dark)   echo "chat chat-scrolled emoji-picker chat-composer chat-keyboard model-sheet drawer search-scrolled settings settings-page workspace workspace-scrolled editor editor-scrolled editor-whiteboard" ;;
+    ar)     echo "chat chat-scrolled chat-composer drawer search-scrolled settings workspace workspace-scrolled editor-locked" ;;
+    ar-app) echo "chat model-sheet drawer workspace-scrolled" ;;
     rt)     echo "chat chat-scrolled chat-keyboard toast model-sheet drawer search-scrolled settings-page workspace-scrolled editor-locked chat-streaming" ;;
     hc)     echo "chat-scrolled drawer workspace-scrolled" ;;
   esac

@@ -66,7 +66,7 @@ export async function POST(request: Request) {
     const effectiveParentId = parentId ?? (source.type === "notes" && source.pageIds.length === 1 ? source.pageIds[0] : null);
     if (parentId) {
       const parent = await prisma.notePage.findFirst({ where: { id: parentId, userId: user.id, deletedAt: null }, select: { id: true } });
-      if (!parent) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+      if (!parent) return NextResponse.json({ error: msg("Page not found.") }, { status: 404 });
     } else if (!effectiveParentId && groupId) {
       const group = await prisma.noteGroup.findFirst({ where: { id: groupId, userId: user.id }, select: { id: true } });
       if (!group) return NextResponse.json({ error: msg("Project not found.") }, { status: 404 });

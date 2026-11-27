@@ -67,8 +67,11 @@ private final class FakeSessions: SessionsBackend {
     var createGate: TestGate?
     /// 设了以后排序要等它。
     var reorderGate: TestGate?
+    /// 设了以后指定聊天的更新要等它。
+    var updateGates: [String: TestGate] = [:]
 
     func updateSession(id: String, title: String?, pinned: Bool?, project: ProjectChange?) async throws {
+        if let gate = updateGates[id] { await gate.pass() }
         if fail { throw TestIOError() }
         updates.append(Update(id: id, pinned: pinned, project: project))
         titles.append(title)
@@ -214,6 +217,37 @@ final class SidebarViewModelTests: XCTestCase {
         let failed = await sidebar.setPinned("a", false)
         XCTAssertEqual(failed, SidebarError(detail: nil, fallback: "sb_err_save_change"))
         XCTAssertEqual(chat.sessions.map(\.pinned), [true])
+    }
+
+    @MainActor
+    func testPinSuppressesOverlappingRequestsForTheSameChat() async {
+        let (chat, sidebar, api) = await setup([
+            SessionSummary(id: "a", title: "A"),
+            SessionSummary(id: "b", title: "B"),
+        ])
+        let gate = TestGate()
+        api.updateGates["a"] = gate
+
+        let first = Task { @MainActor in await sidebar.setPinned("a", true) }
+        await gate.entered()
+        XCTAssertTrue(sidebar.state.pinBusy.contains("a"))
+
+        // 同一聊天在保存中再点一次不发重复/相反请求。
+        let duplicate = await sidebar.setPinned("a", false)
+        XCTAssertNil(duplicate)
+        // 不同聊天互不阻塞。
+        let other = await sidebar.setPinned("b", true)
+        XCTAssertNil(other)
+
+        gate.open()
+        let firstError = await first.value
+        XCTAssertNil(firstError)
+        XCTAssertFalse(sidebar.state.pinBusy.contains("a"))
+        XCTAssertEqual(api.updates, [
+            FakeSessions.Update(id: "b", pinned: true, project: nil),
+            FakeSessions.Update(id: "a", pinned: true, project: nil),
+        ])
+        XCTAssertEqual(chat.sessions.map(\.pinned), [true, true])
     }
 
     @MainActor
@@ -476,6 +510,41 @@ final class SidebarViewModelTests: XCTestCase {
         XCTAssertEqual(projectsApi.settingsSaves, [ProjectSettingsChanges(instructions: "Be kind", noteIds: [])])
         XCTAssertEqual(closed, 2)
         XCTAssertEqual(sidebar.state.projects.first, ChatProjectSummary(id: "p1", name: "P", noteCount: 0, hasInstructions: true))
+    }
+
+    @MainActor
+    func testProjectSettingsConfirmUnsavedChangesBeforeClosing() async {
+        let (_, sidebar, _) = await setup([])
+        var closed = 0
+        let model = ProjectSettingsModel(project: p1, sidebar: sidebar, onClose: { closed += 1 })
+        await model.idle()
+        model.setInstructions("Be kind")
+        XCTAssertTrue(model.dirty)
+        model.close()
+        XCTAssertEqual(closed, 0, "unsaved changes: ask first")
+        XCTAssertTrue(model.confirming)
+        model.close()
+        XCTAssertEqual(model.state.attention, 2)
+        // 撤回改动：确认消失，再改一个字也不会没想关就出确认。
+        model.setInstructions("Be brief")
+        XCTAssertFalse(model.confirming)
+        XCTAssertEqual(model.state.attention, 0)
+        model.setInstructions("Be brie")
+        XCTAssertFalse(model.confirming)
+        model.close()
+        XCTAssertTrue(model.confirming)
+        model.discard()
+        XCTAssertEqual(closed, 1)
+        XCTAssertTrue(projectsApi.settingsSaves.isEmpty)
+    }
+
+    func testProjectSettingsDismissSteps() {
+        XCTAssertEqual(projectSettingsDismissStep(busy: true, dirty: true), .stay)
+        XCTAssertEqual(projectSettingsDismissStep(busy: true, dirty: false), .stay)
+        XCTAssertEqual(projectSettingsDismissStep(busy: false, dirty: true), .confirm)
+        XCTAssertEqual(projectSettingsDismissStep(busy: false, dirty: false), .close)
+        XCTAssertEqual(projectSettingsAttention(2, dirty: true), 2)
+        XCTAssertEqual(projectSettingsAttention(1, dirty: false), 0)
     }
 
     @MainActor
