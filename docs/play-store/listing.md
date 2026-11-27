@@ -4,6 +4,8 @@ Play Console → 发布 → 商店展示 → 主要商店详情。默认语言�
 
 内容只写已经上线的功能（见 [README.md](../../README.md)）；改了功能或额度后同步改这里。Play Console 分批同步这里的内容，不是每次改动后马上同步（见 `AGENTS.md`）。
 
+同步到 Google Play：GitHub Actions 的 `Google Play store listing` 工作流按本文和 `mobile/android/play-store/` 写入（先 dry run 看差异，再勾选 apply；apply 即送审，托管发布关闭时审核通过就上线，见 [android.md](../architecture/android.md#google-play-商店资料写入)）。分批同步的时机不变（见上一段和 `AGENTS.md`）。脚本按本文的结构读取：每个语言一节，标题末尾括号里是 Play 语言代码（共用一份的用逗号分开，如 es-419, es-ES），节里依次是应用名、简短说明（各和标签同一行）、完整说明（标签下面的全部文字）；增删语言时同时改 `scripts/release/play-store-listing.py` 的 `LANGUAGES`。改完运行 `python3 scripts/release/play-store-listing.py --check`。“其他字段”表里的内容工作流不写，仍在 Console 里手动填。
+
 定位：AI 对话 + 工作区（Workspace：笔记、幻灯片、白板）。应用名是 “AI Chat & Workspace”，30 字放不下的语言（德、印尼、越、泰、阿、土、俄）用“AI 工作区”；工作区的叫法和 App 里一致。notes 等搜索词由简短说明和完整说明带出，并写清三种页面。
 
 ## English (en-US)

@@ -1,0 +1,71 @@
+name: Google Play store listing
+
+# 手动运行：把 docs/play-store/listing.md 的文字和 mobile/android/play-store/ 的图片（只传 en-US）写到 Google
+# Play。默认 dry run 只读取并列出差异；勾选 apply 才提交，提交即送 Google 审核。说明见 docs/architecture/android.md。
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "提交到 Google Play：改动会送审（Console 里待送审的改动也一起送），托管发布关闭时审核通过即上线（不勾选：dry run，只读取）"
+        required: false
+        type: boolean
+        default: false
+      hold:
+        description: "只在勾选 apply 时有效：这次提交不送审（changesNotSentForReview），之后在 Play Console 里手动送审。不保证一直扣住：之后不带 hold 的提交（包括下一次 Android 版本发布）可能把它一起送审"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  listing:
+    name: Google Play store listing
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: play-publish
+    # 和 android-release.yml 的发布任务同一组、串行：同一个服务账号开新的编辑会让它上一个编辑失效。
+    concurrency:
+      group: android-play-alpha
+      cancel-in-progress: false
+      queue: max
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Check the listing document and images
+        run: python3 scripts/release/play-store-listing.py --check
+
+      - name: Compare with Google Play (and apply if requested)
+        shell: bash
+        env:
+          ALPHA_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.ALPHA_PLAY_SERVICE_ACCOUNT_JSON }}
+          APPLY: ${{ inputs.apply }}
+          HOLD: ${{ inputs.hold }}
+        run: |
+          set -euo pipefail
+          report="$RUNNER_TEMP/play-store-listing.txt"
+          mode=()
+          title="Google Play listing: dry run"
+          if [[ "$APPLY" == "true" ]]; then
+            mode=(--apply)
+            title="Google Play listing: apply"
+            if [[ "$HOLD" == "true" ]]; then
+              mode+=(--hold)
+              title="Google Play listing: apply, held from review"
+            fi
+          elif [[ "$HOLD" == "true" ]]; then
+            echo "::notice::hold has no effect without apply."
+          fi
+          status=0
+          python3 scripts/release/play-store-listing.py "${mode[@]}" 2>&1 | tee "$report" || status=$?
+          # Four backticks so that nothing in the listing text can close the block; the summary limit is 1 MiB.
+          {
+            printf '## %s\n\n````text\n' "$title"
+            head -c 900000 "$report"
+            printf '\n````\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
