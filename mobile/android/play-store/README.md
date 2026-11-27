@@ -1,6 +1,6 @@
 # Google Play 商店素材与发布说明
 
-上传到 Play Console → 商店展示 → 主要商店详情。文字见 [docs/play-store/listing.md](../../../docs/play-store/listing.md)。
+用 GitHub Actions 的 `Google Play store listing` 工作流写到 Google Play（图标、置顶大图和截图只传默认语言 en-US，见 [android.md](../../../docs/architecture/android.md#google-play-商店资料写入)）。文字见 [docs/play-store/listing.md](../../../docs/play-store/listing.md)。改图后运行 `python3 scripts/release/play-store-listing.py --check`。
 
 | 文件 | 用途 | 规格 |
 | --- | --- | --- |

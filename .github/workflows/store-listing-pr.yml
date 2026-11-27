@@ -1,8 +1,8 @@
 name: Store listing PR checks
 
 # App Store 的名称和描述由 docs/play-store/listing.md 拼出，比 Play 的完整说明长：Play 还没超限，App Store
-# 可能已经超了。只改商店文档或 App Store 截图的 PR 也在这里检查（文件名不以 ios- 开头，免得改它时启动 iOS 的
-# macOS 任务）。
+# 可能已经超了。只改商店文档或商店图片的 PR 也在这里检查（文件名不以 ios- 开头，免得改它时启动 iOS 的
+# macOS 任务）。Play 的文档、图片、写入脚本和它的工作流改动时检查 Play 商店信息。
 on:
   pull_request:
     branches: [main]
@@ -10,6 +10,13 @@ on:
       - "docs/app-store/listing.md"
       - "docs/play-store/listing.md"
       - "mobile/ios/app-store/screenshots/**"
+      - "mobile/android/play-store/**"
+      - "scripts/release/play-store-listing.py"
+      - "scripts/release/test_play_store_listing.py"
+      - ".github/workflows/play-store-listing.yml"
+      # 下面两个是 Play 脚本的测试对照的文件：发布任务的并发组，和 App Store 脚本对同一文档的解析。
+      - ".github/workflows/android-release.yml"
+      - "scripts/release/ios-store-listing.py"
       - ".github/workflows/store-listing-pr.yml"
 
 permissions:
@@ -21,14 +28,18 @@ concurrency:
 
 jobs:
   check:
-    name: Validate App Store listing documents
+    name: Validate store listing documents
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - name: Check the listing documents
+      - name: Check the App Store listing documents
         run: python3 scripts/release/ios-store-listing.py --check
       - name: Test the App Store listing script
         run: python3 -m unittest discover -s scripts/release -p 'test_ios_store_listing.py' -v
+      - name: Check the Google Play listing document and images
+        run: python3 scripts/release/play-store-listing.py --check
+      - name: Test the Google Play listing script
+        run: python3 -m unittest discover -s scripts/release -p 'test_play_store_listing.py' -v
