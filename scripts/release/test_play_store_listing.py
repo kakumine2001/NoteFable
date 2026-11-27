@@ -203,11 +203,14 @@ class DocumentTests(unittest.TestCase):
 
     def test_rejects_a_document_it_cannot_read_safely(self) -> None:
         cases = {
-            "no section for fr-FR": document().replace("(fr-FR)", "French"),
+            "no section for fr-FR": document().replace("## Language (fr-FR)", "## 其他字段"),
             "doesn't manage": document().replace("(fr-FR)", "(fr-CA)"),
             "two sections for ja-JP": document().replace("(ko-KR)", "(ja-JP)"),
             "three labels": document({"de-DE": "**Name**: A\n\n**Short**: first line\nwrapped\n\n**Full**:\n\nText"}),
             "no full description": document({"de-DE": "**Name**: A\n\n**Short**: B\n\n**Full**:"}),
+            "'## FEATURES' has no language code": document(
+                {"de-DE": "**Name**: A\n\n**Short**: B\n\n**Full**:\n\nText\n\n## FEATURES\n\nMore"}
+            ),
         }
         for message, source in cases.items():
             with self.subTest(message), self.assertRaisesRegex(ListingError, message):
@@ -457,6 +460,11 @@ class SyncTests(Base):
         self.assertNotIn("someone@example.com", text)
         self.assertFalse([line for line in self.lines if line.lstrip().startswith("::error")])
 
+    def test_a_dry_run_without_differences_does_not_suggest_apply(self) -> None:
+        self.sync(self.in_place())
+        self.assertIn("Dry run: nothing was changed. Nothing differs.", self.text())
+        self.assertNotIn("Run with apply", self.text())
+
     def test_apply_writes_only_the_differences_and_commits(self) -> None:
         fake = self.changed()
         self.sync(fake, apply=True)
@@ -557,7 +565,8 @@ class SyncTests(Base):
 
     def test_a_refused_commit_is_explained_and_not_forced(self) -> None:
         cases = (
-            (False, "HTTP 400 You already have changes in review. (CHANGES_ALREADY_IN_REVIEW)", "after that review"),
+            (False, "HTTP 400 You already have changes in review. (CHANGES_ALREADY_IN_REVIEW)",
+             'start a new run (Run workflow, not "Re-run jobs")'),
             (False, "HTTP 400 Please set the query parameter changesNotSentForReview to true.", "Run again with hold"),
             (True, "HTTP 400 The parameter changesNotSentForReview must not be set.", "doesn't accept hold"),
         )
@@ -591,6 +600,81 @@ class SyncTests(Base):
         self.assertIn("Manage store presence", text)
         self.assertNotIn(EMAIL, text)
         self.assertNotIn("PEM-SECRET", text)
+
+
+# --- Freshness ---------------------------------------------------------------------------------
+
+
+@unittest.skipUnless(shutil.which("git"), "git is not installed")
+class FreshnessTests(unittest.TestCase):
+    """--apply from a checkout of a commit that main may have moved on from."""
+
+    def setUp(self) -> None:
+        directory = Path(tempfile.mkdtemp(prefix="play-listing-git."))
+        self.addCleanup(shutil.rmtree, directory, True)
+        self.upstream = directory / "upstream"
+        write_assets(self.upstream, ASSETS)
+        self.write(play.PLAY_STORE_DOC, document())
+        self.git(self.upstream, "init", "--quiet", "--initial-branch=main")
+        self.commit()
+        self.checkout = directory / "checkout"
+        self.git(directory, "clone", "--quiet", "--depth=1", self.upstream.as_uri(), str(self.checkout))
+        # Runs before the removal: git's object files are read-only, which stops it on Windows.
+        self.addCleanup(self.make_writable, directory)
+
+    def make_writable(self, directory: Path) -> None:
+        for path in directory.rglob("*"):
+            if path.is_file():
+                path.chmod(0o600)
+
+    def git(self, cwd: Path, *args: str) -> None:
+        identity = ["-c", "user.name=t", "-c", "user.email=t@invalid", "-c", "commit.gpgsign=false"]
+        subprocess.run(["git", *identity, *args], cwd=cwd, capture_output=True, check=True)
+
+    def write(self, name: str, content: str) -> None:
+        path = self.upstream / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
+    def commit(self) -> None:
+        self.git(self.upstream, "add", "-A")
+        self.git(self.upstream, "commit", "--quiet", "-m", "c")
+
+    def apply(self) -> tuple[int, str, bool]:
+        """(exit status, errors, whether Google would have been called)."""
+        value = json.dumps({"client_email": EMAIL, "private_key": "PEM"})
+        errors = io.StringIO()
+        with mock.patch.dict(os.environ, {play.SECRET_ENV: value}), mock.patch.object(
+            play, "sync"
+        ) as sync, contextlib.redirect_stderr(errors):
+            status = play.main(["--apply", "--repo-root", str(self.checkout)])
+        return status, errors.getvalue(), sync.called
+
+    def test_apply_goes_on_while_main_has_the_same_listing(self) -> None:
+        self.write("unrelated.txt", "x")
+        self.commit()
+        self.assertEqual(self.apply(), (0, "", True))
+
+    def test_apply_refuses_a_listing_main_has_changed(self) -> None:
+        changes = {
+            "document": lambda: self.write(play.PLAY_STORE_DOC, document() + "\nnew"),
+            "image": lambda: write_assets(self.upstream, {"screenshots/03-c.png": png(1080, 1920, "c")}),
+        }
+        for name, change in changes.items():
+            with self.subTest(name):
+                change()
+                self.commit()
+                status, errors, called = self.apply()
+                self.assertEqual((status, called), (1, False))
+                self.assertIn("differs from what main has now", errors)
+                self.git(self.checkout, "pull", "--quiet", "--rebase")  # what a new run would check out
+                self.assertEqual(self.apply(), (0, "", True))
+
+    def test_apply_refuses_when_main_cannot_be_fetched(self) -> None:
+        self.git(self.checkout, "remote", "remove", "origin")
+        status, errors, called = self.apply()
+        self.assertEqual((status, called), (1, False))
+        self.assertIn("Can't fetch main", errors)
 
 
 # --- Repository setup --------------------------------------------------------------------------

@@ -13,7 +13,8 @@ Modes:
   (default)        dry run: open an edit, read, print the differences per language, delete the edit
   --apply          apply only the differences and commit the edit. Committing sends the changes to
                    Google's review, together with changes waiting in Play Console; with managed
-                   publishing off they go live once approved.
+                   publishing off they go live once approved. Refused unless the document and images
+                   here are still what origin's main has.
   --apply --hold   commit with changesNotSentForReview: this commit doesn't send the changes for
                    review. Not a lasting lock: held changes join the unsent ones in Play Console, and
                    a later commit without hold (an apply, or the next Android release) may send them
@@ -56,6 +57,7 @@ from typing import Any
 PACKAGE_NAME = "com.kakumine.notefable"
 PLAY_STORE_DOC = "docs/play-store/listing.md"
 ASSET_DIR = "mobile/android/play-store"
+OTHER_SECTION = "其他字段"  # the one level-2 section of PLAY_STORE_DOC that is not a language
 SECRET_ENV = "ALPHA_PLAY_SERVICE_ACCOUNT_JSON"
 
 # The Play languages the repository manages, as written in the headings of PLAY_STORE_DOC.
@@ -126,7 +128,13 @@ def parse_play_listing(text: str) -> dict[str, dict[str, str]]:
     for heading, lines in sections:
         match = re.search(r"\(([^()]+)\)$", heading)
         if not match:
-            continue  # not a language section (the other store fields)
+            if heading == OTHER_SECTION:
+                continue
+            # Most likely a "## " line inside a description, which would silently cut it short there.
+            raise ListingError(
+                f"{PLAY_STORE_DOC}: '## {heading}' has no language code. Only '## {OTHER_SECTION}' may go "
+                "without one; a description line can't start with '## '."
+            )
         codes = [code.strip() for code in match.group(1).split(",")]
         # Labels are translated, so they are read by position: name, short and full description.
         labels = [(i, m.group(1)) for i, line in enumerate(lines) if (m := _LABEL.match(line))]
@@ -269,6 +277,30 @@ def load_images(repo_root: Path) -> dict[str, list[Image]]:
     if problems:
         raise ListingError("\n".join(problems))
     return images
+
+
+# --- Freshness ---------------------------------------------------------------------------------
+
+
+def check_matches_main(repo_root: Path) -> None:
+    """Refuse to publish an outdated listing: "Re-run jobs" and queued runs keep their old commit."""
+
+    def git(*args: str) -> int:
+        try:
+            return subprocess.run(["git", "-C", str(repo_root), *args], capture_output=True, check=False).returncode
+        except OSError:
+            return -1
+
+    if git("fetch", "--quiet", "--no-tags", "--depth=1", "origin", "main") != 0:
+        raise ListingError("Can't fetch main to check that this listing is current; nothing was sent to Google.")
+    status = git("diff", "--quiet", "--no-ext-diff", "FETCH_HEAD", "--", PLAY_STORE_DOC, ASSET_DIR)
+    if status == 1:
+        raise ListingError(
+            f"{PLAY_STORE_DOC} or {ASSET_DIR}/ differs from what main has now; nothing was sent to Google. "
+            'Start a new run on main (Run workflow, not "Re-run jobs").'
+        )
+    if status != 0:
+        raise ListingError("Can't compare this listing with main; nothing was sent to Google.")
 
 
 # --- Credential --------------------------------------------------------------------------------
@@ -679,7 +711,10 @@ def apply_changes(client: Any, edit: str, plan: Plan, out=print) -> None:
 def _commit_hint(error: PlayError, hold: bool) -> str:
     text = str(error)
     if "CHANGES_ALREADY_IN_REVIEW" in text or "changes in review" in text:
-        return "Play already has changes in review. Run again after that review finishes."
+        return (
+            "Play already has changes in review. After that review finishes, start a new run (Run workflow, "
+            'not "Re-run jobs").'
+        )
     if "changesNotSentForReview" in text:
         if hold:
             return "Google doesn't accept hold for this app now. Run again without hold if the changes may be reviewed."
@@ -710,7 +745,8 @@ def sync(
         print_plan(plan, out)
         out("")
         if not apply:
-            out("Dry run: nothing was changed. Run with apply to write these values.")
+            advice = "Run with apply to write these values." if plan.has_changes else "Nothing differs."
+            out(f"Dry run: nothing was changed. {advice}")
             return
         if not plan.has_changes:
             out("Nothing to change; nothing was committed.")
@@ -769,6 +805,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.check:
             print_check(texts, images)
             return 0
+        if args.apply:
+            check_matches_main(args.repo_root)
         credentials = read_credentials()
         with temporary_key_file(credentials.private_key) as key_file:
             sync(PlayClient(credentials, key_file), texts, images, args.apply, args.hold)
