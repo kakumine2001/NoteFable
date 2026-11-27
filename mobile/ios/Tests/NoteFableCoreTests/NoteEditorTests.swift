@@ -263,12 +263,17 @@ final class NoteEditorTests: XCTestCase {
         editor.onFlush = { id in bridge.postMessage(#"{"type":"flushed","requestId":"\#(id)","ok":true}"#) }
         let updated = await vm.updateSettings("a", NotePageSettings(locked: true))
         XCTAssertTrue(updated)
+        XCTAssertNil(vm.state.notice)
         let pushed = try XCTUnwrap(editor.calls.last { $0.hasPrefix("settings:") })
         let json = try XCTUnwrap(JSONValue.parse(String(pushed.dropFirst("settings:".count))))
         XCTAssertEqual(json["id"], "a")
         XCTAssertEqual(json["locked"], true)
 
         editor.onFlush = { id in bridge.postMessage(#"{"type":"flushed","requestId":"\#(id)","ok":false,"kept":true}"#) }
+        vm.closeNote()
+        await notesSettle()
+        XCTAssertEqual(vm.state.notice?.kind, .unsavedDraft)
+        XCTAssertEqual(vm.state.open?.id, "a")
         vm.closeNote()
         await notesSettle()
         XCTAssertNil(vm.state.open)

@@ -777,9 +777,13 @@ class NotesViewModel(
 
     suspend fun updateSettings(pageId: String, settings: NotePageSettings): Boolean = serialMeta(pageId) {
         val owner = identity
-        if (settings.locked == true && _state.value.open?.id == pageId && !flushOpen().ok) {
-            if (owner == identity) _state.update { it.copy(notice = NotesError(NotesError.Kind.UnsavedDraft)) }
-            return@serialMeta false
+        if (settings.locked == true && _state.value.open?.id == pageId) {
+            if (!flushOpen().ok) {
+                if (owner == identity) _state.update { it.copy(notice = NotesError(NotesError.Kind.UnsavedDraft)) }
+                return@serialMeta false
+            }
+            if (owner != identity) return@serialMeta false
+            _state.update { if (it.notice?.kind == NotesError.Kind.UnsavedDraft) it.copy(notice = null) else it }
         }
         groupAction {
             val page = backend.updateSettings(pageId, settings)

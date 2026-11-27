@@ -1291,6 +1291,47 @@ describe("applySlidesEdits (propose_slides_edit)", () => {
     ]);
     expect(tableToBullets.deck.slides[0].elements.some((el) => el.type === "table")).toBe(false);
     expect(tableToBullets.deck.slides[0].elements.some((el) => el.id === "free_footnote")).toBe(true);
+    expect(tableToBullets.changes[0]).toMatchObject({ op: "delete" });
+    expect("after" in tableToBullets.changes[0]).toBe(false);
+
+    // Title + top table slide (created via add_slide with table-only body): rewriting with bullets (short or long)
+    // places the new body cleanly below the kept table with zero overlap.
+    const tableOnlyCreated = applySlidesEdits(deck, [
+      op({
+        op: "add_slide",
+        title: "Metrics",
+        body: "| Metric | Value |\n| --- | --- |\n| P99 | 12ms |",
+        ref: "tbl_slide",
+      }),
+    ]);
+    const tblSlideId = tableOnlyCreated.deck.slides[1].id;
+    const origTbl = tableOnlyCreated.deck.slides[1].elements.find((el) => el.type === "table")!;
+    for (const bulletBody of [
+      "- Point 1\n- Point 2\n- Point 3",
+      Array.from({ length: 14 }, (_, i) => `- Bullet ${i + 1}`).join("\n"),
+    ]) {
+      const rewritten = applySlidesEdits(tableOnlyCreated.deck, [
+        op({ op: "update_slide", slideId: tblSlideId, body: bulletBody }),
+      ]);
+      const slideAfter = rewritten.deck.slides[1];
+      const keptTbl = slideAfter.elements.find((el) => el.id === origTbl.id)!;
+      const bodyEls = slideAfter.elements.filter((el) => el.type === "text" && el.role !== "title");
+      expect(keptTbl).toBeDefined();
+      expect(bodyEls.length).toBeGreaterThan(0);
+      for (const b of bodyEls) {
+        const overlaps = b.x < keptTbl.x + keptTbl.w && b.x + b.w > keptTbl.x && b.y < keptTbl.y + keptTbl.h && b.y + b.h > keptTbl.y;
+        expect(overlaps).toBe(false);
+      }
+    }
+
+    // When a kept table fills the entire content area leaving no room above or below, reject clearly.
+    const fullTableSlide = JSON.parse(JSON.stringify(slide)) as Slide;
+    const fullTbl = fullTableSlide.elements.find((el) => el.id === "existing_tbl");
+    if (fullTbl?.type === "table") { fullTbl.x = 120; fullTbl.y = 240; fullTbl.w = 1680; fullTbl.h = 780; }
+    expect(() => applySlidesEdits(
+      normalizeDeck({ format: DECK_FORMAT, theme: { id: "simple", mode: "light" }, slides: [fullTableSlide] }),
+      [op({ op: "update_slide", slideId: "keep_extras", body: "- Bullet 1\n- Bullet 2" })],
+    )).toThrow(/delete_element/);
 
     // When the new body explicitly provides a replacement table, replace the old table while still keeping free text.
     const replacedTable = applySlidesEdits(deck, [

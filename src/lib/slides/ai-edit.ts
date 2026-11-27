@@ -562,6 +562,13 @@ function isPreservedFreeText(element: SlideElement): element is TextElement {
   return element.type === "text" && !element.role && !isRichDocEmpty(element.doc);
 }
 
+function boxesOverlap(
+  a: { x: number; y: number; w: number; h: number },
+  b: { x: number; y: number; w: number; h: number },
+): boolean {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
 // テキスト枠の実際の幅・高さ・文字サイズに対して、RichDoc が溢れず収まるかを概算する。
 function visualWidthUnits(text: string): number {
   let units = 0;
@@ -980,6 +987,9 @@ function applyContentUpdateToSlide(
   const hasExtraBody2 = elements.some(
     (el) => el.type === "text" && el.role === "body2" && !isRichDocEmpty(el.doc),
   );
+  const bodyOverlapsTable = Boolean(
+    existingBody && elements.some((el) => el.type === "table" && boxesOverlap(existingBody, el)),
+  );
   // 2 段組みで複数箇条書き・複数段落が来た場合は、左枠に詰め込まず 2 列へ分ける（空の body2 がある場合も含む）。
   const wantsTwoColumnSplit = effectiveLayout === "twoColumn" && simpleBody !== null && (
     simpleBody.content.length >= 2 ||
@@ -988,7 +998,7 @@ function applyContentUpdateToSlide(
       simpleBody.content[0].content.length >= 2)
   );
 
-  if (!layoutChanged && simpleBody && existingBody && !hasExtraBody2 && !wantsTwoColumnSplit && fitsInTextBox(simpleBody, existingBody)) {
+  if (!layoutChanged && simpleBody && existingBody && !hasExtraBody2 && !bodyOverlapsTable && !wantsTwoColumnSplit && fitsInTextBox(simpleBody, existingBody)) {
     const existingBodyId = existingBody.id;
     if (hasTitleUpdate) {
       const titleIdx = elements.findIndex((el) => el.type === "text" && el.role === headingRole);
@@ -1058,11 +1068,10 @@ function applyContentUpdateToSlide(
   const existingIds = new Set(nextElements.map((el) => el.id));
   const toAttach = preservedDecorations.filter((el) => !existingIds.has(el.id));
 
-  // 右半分に画像・ホワイトボード枠・既存表がある場合は、新しく置いた文字枠が重ならないように幅を調整する。
-  const rightObstacles = toAttach.filter((el) => (isPreservedMediaElement(el) || el.type === "table") && el.x >= SLIDE_WIDTH * 0.45);
-  if (rightObstacles.length) {
-    const minRightX = Math.min(...rightObstacles.map((el) => el.x));
-    const safeRight = Math.max(640, minRightX - 48);
+  // 右半分に画像やホワイトボード枠がある場合は、新しく置いた文字枠が重ならないように幅を調整する。
+  const rightMedia = toAttach.find((el) => isPreservedMediaElement(el) && el.x >= SLIDE_WIDTH * 0.45);
+  if (rightMedia) {
+    const safeRight = Math.max(640, rightMedia.x - 48);
     nextElements = nextElements.map((el) => {
       if ((el.type === "text" || el.type === "table") && el.x < safeRight && el.x + el.w > safeRight) {
         return { ...el, w: Math.max(360, safeRight - el.x) };
@@ -1071,16 +1080,44 @@ function applyContentUpdateToSlide(
     });
   }
 
-  // 左・中央側に残した既存表がある場合、新しく置いた本文枠が表と縦に重ならないよう表の上端で止める。
-  const lowerTables = toAttach.filter((el) => el.type === "table" && el.x < SLIDE_WIDTH * 0.45);
-  if (lowerTables.length) {
-    const minTableY = Math.min(...lowerTables.map((el) => el.y));
-    const safeBottom = minTableY - 24;
+  // 残した既存表と新しく置いた本文枠が XY 両軸で重なる場合は、左右または上下の空き領域へ逃がし、
+  // どこにも十分な余白が無いときだけ明示的なエラーで delete_element または表込み更新を案内する。
+  const keptTables = toAttach.filter((el) => el.type === "table");
+  if (keptTables.length) {
     nextElements = nextElements.map((el) => {
-      if (el.type === "text" && el.role !== headingRole && el.y < safeBottom && el.y + el.h > safeBottom) {
-        return { ...el, h: Math.max(120, safeBottom - el.y) };
+      if (el.type !== "text" || el.role === headingRole) return el;
+      let adjusted: TextElement = el;
+      for (const tbl of keptTables) {
+        if (!boxesOverlap(adjusted, tbl)) continue;
+        const narrowLeftW = tbl.x - 48 - adjusted.x;
+        const shiftRightX = tbl.x + tbl.w + 48;
+        const shiftRightW = adjusted.x + adjusted.w - shiftRightX;
+        const belowY = tbl.y + tbl.h + 24;
+        const belowH = SLIDE_HEIGHT - 48 - belowY;
+        const aboveH = tbl.y - 24 - adjusted.y;
+
+        if (tbl.x >= SLIDE_WIDTH * 0.45 && narrowLeftW >= 360) {
+          adjusted = { ...adjusted, w: narrowLeftW };
+        } else if (tbl.x + tbl.w <= SLIDE_WIDTH * 0.55 && shiftRightW >= 360) {
+          adjusted = { ...adjusted, x: shiftRightX, w: shiftRightW };
+        } else if (belowH >= aboveH && belowH >= 120) {
+          adjusted = { ...adjusted, y: belowY, h: Math.min(adjusted.h, belowH) };
+        } else if (aboveH >= 120) {
+          adjusted = { ...adjusted, h: aboveH };
+        } else {
+          throw new SlidesEditError(
+            "The slide's existing table leaves no room for the updated body text. Use delete_element to remove the table first, or include the updated table in body.",
+          );
+        }
       }
-      return el;
+      for (const tbl of keptTables) {
+        if (boxesOverlap(adjusted, tbl)) {
+          throw new SlidesEditError(
+            "The slide's existing table leaves no room for the updated body text. Use delete_element to remove the table first, or include the updated table in body.",
+          );
+        }
+      }
+      return adjusted;
     });
   }
 
@@ -1928,7 +1965,6 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
           block: 0,
           target: { type: "slide", number: idx + 1 },
           before: beforeDesc,
-          after: "",
         });
         break;
       }
