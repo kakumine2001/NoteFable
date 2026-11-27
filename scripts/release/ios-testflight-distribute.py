@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import argparse
 import base64
+import contextlib
+import http.client
 import json
 import os
 import shutil
@@ -219,7 +221,10 @@ class AscClient:
                         return None
                     return json.loads(raw.decode("utf-8"))
             except urllib.error.HTTPError as exc:
-                raw_err = exc.read().decode("utf-8", errors="replace")
+                try:
+                    raw_err = exc.read().decode("utf-8", errors="replace")
+                except (OSError, http.client.HTTPException):
+                    raw_err = ""  # the status code still says what happened
                 parsed_err: Any = raw_err
                 try:
                     parsed_err = json.loads(raw_err)
@@ -249,8 +254,43 @@ class AscClient:
                     self._sleep(2**attempt)
                     continue
                 raise AscError(f"Network error calling {method} {url}: {exc}") from exc
+            except (OSError, http.client.HTTPException) as exc:
+                # Timed out or disconnected while waiting for the response, which urllib doesn't
+                # wrap. A write may have gone through, so only a read is sent again.
+                if method == "GET" and attempt < self.max_retries:
+                    self._sleep(2**attempt)
+                    continue
+                raise AscError(f"Network error calling {method} {url}: {exc}") from exc
 
         raise AscError(f"Exhausted retries calling {method} {url}")
+
+
+def read_api_credentials() -> tuple[str, str, str]:
+    """Return (key id, issuer id, base64 .p8 key) from the APPSTORE_API_* variables."""
+    key_id = os.environ.get("APPSTORE_API_KEY_ID", "").strip()
+    issuer_id = os.environ.get("APPSTORE_API_ISSUER_ID", "").strip()
+    key_b64 = "".join(os.environ.get("APPSTORE_API_KEY_P8_B64", "").split())
+    if not key_id or not issuer_id or not key_b64:
+        raise AscError(
+            "APPSTORE_API_KEY_ID, APPSTORE_API_ISSUER_ID, and APPSTORE_API_KEY_P8_B64 are required."
+        )
+    return key_id, issuer_id, key_b64
+
+
+@contextlib.contextmanager
+def temporary_key_file(key_id: str, key_b64: str):
+    """Write the .p8 key into a private temporary directory that is removed on exit."""
+    key_dir = tempfile.mkdtemp(prefix="asc-key.")
+    try:
+        os.chmod(key_dir, 0o700)
+        key_file = os.path.join(key_dir, f"AuthKey_{key_id}.p8")
+        pem_bytes = base64.b64decode(key_b64, validate=True)
+        fd = os.open(key_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(pem_bytes)
+        yield key_file
+    finally:
+        shutil.rmtree(key_dir, ignore_errors=True)
 
 
 def find_app_id(client: AscClient, bundle_id: str) -> str:
@@ -544,14 +584,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--poll-timeout", type=int, default=1200)
     args = parser.parse_args(argv)
 
-    key_id = os.environ.get("APPSTORE_API_KEY_ID", "").strip()
-    issuer_id = os.environ.get("APPSTORE_API_ISSUER_ID", "").strip()
-    key_b64 = "".join(os.environ.get("APPSTORE_API_KEY_P8_B64", "").split())
-    if not key_id or not issuer_id or not key_b64:
-        print(
-            "::error::APPSTORE_API_KEY_ID, APPSTORE_API_ISSUER_ID, and APPSTORE_API_KEY_P8_B64 are required.",
-            file=sys.stderr,
-        )
+    try:
+        key_id, issuer_id, key_b64 = read_api_credentials()
+    except AscError as exc:
+        print(f"::error::{exc}", file=sys.stderr)
         return 1
 
     with open(args.whats_new_file, "r", encoding="utf-8") as fh:
@@ -560,27 +596,20 @@ def main(argv: list[str] | None = None) -> int:
         print("::error::What-to-Test file is empty.", file=sys.stderr)
         return 1
 
-    key_dir = tempfile.mkdtemp(prefix="asc-dist-key.")
     try:
-        os.chmod(key_dir, 0o700)
-        key_file = os.path.join(key_dir, f"AuthKey_{key_id}.p8")
-        pem_bytes = base64.b64decode(key_b64, validate=True)
-        fd = os.open(key_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "wb") as fh:
-            fh.write(pem_bytes)
-
-        client = AscClient(key_id=key_id, issuer_id=issuer_id, key_file=key_file)
-        result = distribute_external(
-            client=client,
-            bundle_id=args.bundle_id,
-            marketing_version=args.marketing_version,
-            build_number=args.build_number,
-            group_name=args.group_name,
-            locale=args.locale,
-            whats_new=whats_new,
-            poll_interval=args.poll_interval,
-            poll_timeout=args.poll_timeout,
-        )
+        with temporary_key_file(key_id, key_b64) as key_file:
+            client = AscClient(key_id=key_id, issuer_id=issuer_id, key_file=key_file)
+            result = distribute_external(
+                client=client,
+                bundle_id=args.bundle_id,
+                marketing_version=args.marketing_version,
+                build_number=args.build_number,
+                group_name=args.group_name,
+                locale=args.locale,
+                whats_new=whats_new,
+                poll_interval=args.poll_interval,
+                poll_timeout=args.poll_timeout,
+            )
         print(
             f"External TestFlight distribution complete: group={args.group_name} "
             f"build_id={result['build_id']} review_state={result['review_state']}"
@@ -589,8 +618,6 @@ def main(argv: list[str] | None = None) -> int:
     except AscError as exc:
         print(f"::error::{exc}", file=sys.stderr)
         return 1
-    finally:
-        shutil.rmtree(key_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":

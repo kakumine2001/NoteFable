@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import base64
+import http.client
 import importlib.util
 import json
 import os
@@ -11,7 +12,9 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import urllib.error
 from typing import Any
+from unittest import mock
 
 _SCRIPT_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "ios-testflight-distribute.py"
@@ -109,6 +112,63 @@ class DerToRawEcdsaTests(unittest.TestCase):
             self.assertEqual(len(sig), 64)
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+class CredentialTests(unittest.TestCase):
+    def test_reads_all_three_variables_or_fails(self) -> None:
+        env = {
+            "APPSTORE_API_KEY_ID": " KEY1 ",
+            "APPSTORE_API_ISSUER_ID": "issuer",
+            "APPSTORE_API_KEY_P8_B64": "aGVs\nbG8=\n",
+        }
+        with mock.patch.dict(os.environ, env):
+            self.assertEqual(dist_mod.read_api_credentials(), ("KEY1", "issuer", "aGVsbG8="))
+        with mock.patch.dict(os.environ, {**env, "APPSTORE_API_ISSUER_ID": ""}):
+            with self.assertRaises(dist_mod.AscError):
+                dist_mod.read_api_credentials()
+
+    def test_key_file_is_removed_after_use(self) -> None:
+        with dist_mod.temporary_key_file("KEY1", base64.b64encode(b"pem").decode()) as key_file:
+            with open(key_file, "rb") as fh:
+                self.assertEqual(fh.read(), b"pem")
+        self.assertFalse(os.path.exists(os.path.dirname(key_file)))
+
+
+class NetworkErrorTests(unittest.TestCase):
+    def client(self):
+        client = dist_mod.AscClient("KEY1", "issuer", "unused.p8", sleep_fn=lambda _: None)
+        client._get_token = lambda: "token"  # no openssl needed
+        return client
+
+    def test_timeouts_and_drops_become_asc_errors_and_only_reads_are_sent_again(self) -> None:
+        errors = (
+            TimeoutError("timed out"),
+            http.client.RemoteDisconnected("closed"),
+            http.client.IncompleteRead(b""),
+        )
+        for error in errors:
+            for method, sent in (("GET", 3), ("POST", 1), ("PATCH", 1), ("DELETE", 1)):
+                with self.subTest(error=type(error).__name__, method=method):
+                    with mock.patch("urllib.request.urlopen", side_effect=error) as urlopen:
+                        with self.assertRaises(dist_mod.AscError):
+                            self.client().request(method, "/apps")
+                    self.assertEqual(urlopen.call_count, sent)
+
+    def test_a_read_succeeds_after_a_dropped_response(self) -> None:
+        response = mock.MagicMock()
+        response.__enter__.return_value.status = 200
+        response.__enter__.return_value.read.return_value = b'{"data": []}'
+        with mock.patch("urllib.request.urlopen", side_effect=[TimeoutError("timed out"), response]):
+            self.assertEqual(self.client().request("GET", "/apps"), {"data": []})
+
+    def test_an_unreadable_error_body_keeps_the_status(self) -> None:
+        body = mock.Mock()
+        body.read.side_effect = ConnectionResetError("reset")
+        error = urllib.error.HTTPError("https://api.invalid/x", 409, "Conflict", None, body)
+        with mock.patch("urllib.request.urlopen", side_effect=error):
+            with self.assertRaises(dist_mod.AscError) as ctx:
+                self.client().request("POST", "/apps")
+        self.assertEqual(ctx.exception.status, 409)
 
 
 class DistributeExternalFlowTests(unittest.TestCase):
