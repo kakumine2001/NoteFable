@@ -1134,6 +1134,12 @@ export function applyWhiteboardEdits(
       const beforeSummary: string[] = [];
       const afterSummary: string[] = [];
       let changed = false;
+      // 文字の分岐が合わせ直すときにラベルの大きさを先に変えるので、大きさが変わったかは操作の前の値で見る。
+      const textElementOf = () => target.type === "text"
+        ? target
+        : elements.find((item) => item.isDeleted !== true && item.type === "text" && item.containerId === target.id);
+      const textBefore = textElementOf();
+      const sizeBefore = textBefore?.fontSize;
 
       if (op.text !== null && op.text !== undefined) {
         if (typeof op.text !== "string") throw new WhiteboardEditError(`Operation #${i + 1} (update_element): text must be a string or null.`);
@@ -1241,9 +1247,7 @@ export function applyWhiteboardEdits(
           throw new WhiteboardEditError(`Operation #${i + 1}: invalid fontSize "${op.fontSize}".`);
         }
         const px = FONT_SIZE_PX[op.fontSize];
-        const textTarget = target.type === "text"
-          ? target
-          : elements.find((item) => item.isDeleted !== true && item.type === "text" && item.containerId === target.id);
+        const textTarget = textElementOf();
         if (textTarget && textTarget.fontSize !== px) {
           const currentText = typeof textTarget.originalText === "string" ? textTarget.originalText : typeof textTarget.text === "string" ? textTarget.text : "";
           if (target.type === "text") {
@@ -1263,6 +1267,9 @@ export function applyWhiteboardEdits(
               if (found) relayoutRoots.add(found.tree.root.id);
             }
           }
+        }
+        // 前からあった文字の大きさが変わるときだけ書く（今ここで作ったラベルには前の大きさが無い）。
+        if (textBefore && sizeBefore !== px) {
           afterSummary.push(`size: ${op.fontSize}`);
           changed = true;
         }

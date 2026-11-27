@@ -75,7 +75,7 @@ describe("localizing whiteboard proposal descriptions", () => {
     expect(translated[4].after).toBe("框“Later”");
     expect(translated[5].after).toBe("Research -> Decide");
     expect(shown(translated[6])).toEqual([undefined, "椭圆 -> 矩形 (\"feeds\")", "feeds"]);
-    expect(shown(translated[7])).toEqual(["Research", "Research · users · 颜色：紫色 · 线型：虚线", "Research · users"]);
+    expect(shown(translated[7])).toEqual(["Research", "Research · users · 颜色：紫色 · 线型：虚线 · 字号：大", "Research · users"]);
     expect(shown(translated[8])).toEqual([undefined, "颜色：#d0ebff", "椭圆"]);
     expect(shown(translated[9])).toEqual([undefined, "字号：特大", "Decide"]);
     expect(translated[10].after).toBe("移入框“Plan”");

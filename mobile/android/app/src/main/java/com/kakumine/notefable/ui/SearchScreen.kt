@@ -39,13 +39,16 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -185,7 +188,14 @@ fun SearchScreen(
                 }),
                 decorationBox = { inner ->
                     Box(Modifier.fillMaxSize(), Alignment.CenterStart) {
-                        if (state.input.isEmpty()) Text(label, color = Sm.Faint, fontSize = 16.sp, lineHeight = 24.sp, maxLines = 1)
+                        // 长译文（法语等）缩小字号放进一行（最小 12sp），还放不下才省略。
+                        if (state.input.isEmpty()) BasicText(
+                            label,
+                            style = LocalTextStyle.current.merge(TextStyle(color = Sm.Faint, lineHeight = 24.sp)),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            autoSize = TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = 16.sp, stepSize = 0.5.sp),
+                        )
                         inner()
                     }
                 },
