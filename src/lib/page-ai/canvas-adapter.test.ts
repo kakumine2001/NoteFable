@@ -47,6 +47,7 @@ describe("canvasTextAdapter structured whiteboard read", () => {
           { id: "a1", type: "arrow", frameId: "f1", startBinding: { elementId: "r1" }, endBinding: { elementId: "r2" } },
           { id: "t_a1", type: "text", containerId: "a1", frameId: "f1", text: "HTTPS" },
           { id: "img1", type: "image", frameId: "f1", fileId: "secret-file-id" },
+          { id: "eq1", type: "image", frameId: "f1", fileId: "f2", customData: { notefableFormula: { v: 1, latex: "\\int_0^1 x^2\\,dx" } } },
           { id: "r2", type: "ellipse", customData: { notefablePage: { id: "note_42", kind: "note" } } },
           { id: "t_r2", type: "text", containerId: "r2", text: "Design Spec" },
           { id: "d1", type: "freedraw" },
@@ -62,6 +63,7 @@ describe("canvasTextAdapter structured whiteboard read", () => {
     expect(result).toContain('- stickynote (id: s1) [groups: g1, g2]: "Check limits"');
     expect(result).toContain('- arrow (id: a1): r1 -> r2 "HTTPS"');
     expect(result).toContain("- image (id: img1): [Image]");
+    expect(result).toContain("- image (id: eq1): [Formula] $\\int_0^1 x^2\\,dx$");
     expect(result).not.toContain("secret-file-id");
     expect(result).toContain("## Unframed");
     expect(result).toContain('- ellipse (id: r2) [page link: note note_42]: "Design Spec"');

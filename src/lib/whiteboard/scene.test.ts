@@ -76,6 +76,22 @@ describe("sceneToStored", () => {
     });
     expect(() => validateCanvasData("whiteboard", withDataPrefix)).not.toThrow();
   });
+
+  it("preserves sanitized customData.notefableFormula on image elements and strips invalid or non-image formula data", () => {
+    const { data } = sceneToStored({
+      elements: [
+        element("eq1", { type: "image", fileId: "f1", customData: { notefableFormula: { v: 1, latex: "  E = mc^2\u0000  ", extra: "drop" } } }),
+        element("eq2", { type: "image", fileId: "f1", customData: { notefableFormula: { v: 1, latex: "   " } } }),
+        element("rect1", { type: "rectangle", customData: { notefableFormula: { v: 1, latex: "x^2" }, notefablePage: { id: "p1", kind: "note" } } }),
+      ],
+      files: { f1: { id: "f1", mimeType: "image/png", dataURL: fileUrl } },
+      appState: {},
+    });
+    expect(data.elements[0].customData).toEqual({ notefableFormula: { v: 1, latex: "E = mc^2" } });
+    expect(data.elements[1].customData).toBeUndefined();
+    expect(data.elements[2].customData).toEqual({ notefablePage: { id: "p1", kind: "note" } });
+    expect(() => validateCanvasData("whiteboard", data)).not.toThrow();
+  });
 });
 
 describe("sceneToStored with files still being checked", () => {

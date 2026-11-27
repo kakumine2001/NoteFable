@@ -1302,6 +1302,13 @@ export const zh: Record<string, string> = {
   "Write speaker notes": "写演讲备注",
   "This page is locked.": "此页面已锁定。",
   "Resolve the unsaved draft before locking this page.": "请先处理未保存的草稿，再锁定此页面。",
+  // 白板页面卡片与公式标签
+  "Equation": "公式",
+  "Insert equation": "插入公式",
+  "Formula preview": "公式预览",
+  "Could not render the equation.": "无法渲染这个公式。",
+  "Page does not exist": "页面不存在",
+  "Linked page": "链接的页面",
   "Review & quiz": "复习和测验",
   "Multiple choice": "选择题",
   "True / False": "判断题",
