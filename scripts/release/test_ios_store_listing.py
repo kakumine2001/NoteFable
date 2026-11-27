@@ -1217,6 +1217,9 @@ class SubmissionTests(unittest.TestCase):
                     fake.review_detail["demoAccountName"] = name
                 self.assertTrue(self.sync(fake, apply=True), self.text())
                 self.assertIs(fake.review_detail["demoAccountRequired"], expected)
+                self.assertEqual("Also the demo account setting." in self.text(), name is None)
+                sent = [data["attributes"] for _, path, data in self.sent(fake) if path.startswith("/appStoreReviewDetails")]
+                self.assertEqual(sent, [] if name else [{"demoAccountRequired": False}])
 
     def test_a_refusal_to_create_notes_without_a_contact_is_only_a_warning(self) -> None:
         fake = FakeAppStoreConnect()

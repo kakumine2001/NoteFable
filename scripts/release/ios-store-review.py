@@ -600,6 +600,7 @@ def print_review(plan: ReviewPlan, out=print) -> None:
         f"{int(plan.notes_changed)} review notes, {int(plan.copyright_changed)} copyright, "
         f"{sum(len(s.pending) for s in plan.subscriptions)} subscription localizations, "
         f"{int(plan.beta_changed)} beta description to write."
+        + (" Also the demo account setting." if plan.notes and plan.clear_demo_flag else "")
     )
 
 
@@ -617,7 +618,9 @@ def _write_age_rating(client: Any, plan: ReviewPlan, out) -> None:
 
 
 def _write_notes(client: Any, plan: ReviewPlan, out) -> None:
-    values = {"notes": plan.notes[1]}
+    values: dict[str, Any] = {}
+    if plan.notes_changed or not plan.detail_id:
+        values["notes"] = plan.notes[1]
     if plan.clear_demo_flag:
         values["demoAccountRequired"] = False
     if plan.detail_id:
