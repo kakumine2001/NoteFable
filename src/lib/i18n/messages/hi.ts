@@ -1335,4 +1335,5 @@ export const hi: Record<string, string> = {
   "This presentation has too many slides to import (max 200).": "इस प्रेज़ेंटेशन में इंपोर्ट करने के लिए बहुत अधिक स्लाइड हैं (अधिकतम 200)।",
   "This PowerPoint file has no slides to import.": "इस PowerPoint फ़ाइल में इंपोर्ट करने के लिए कोई स्लाइड नहीं है।",
   "Import cancelled.": "इंपोर्ट रद्द किया गया।",
+  "Extra elements beyond the slide limit were omitted": "स्लाइड सीमा से अधिक अतिरिक्त तत्व छोड़ दिए गए",
 };

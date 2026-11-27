@@ -1335,4 +1335,5 @@ export const ko: Record<string, string> = {
   "This presentation has too many slides to import (max 200).": "슬라이드 수가 너무 많아 가져올 수 없습니다(최대 200장).",
   "This PowerPoint file has no slides to import.": "이 PowerPoint 파일에 가져올 슬라이드가 없습니다.",
   "Import cancelled.": "가져오기가 취소되었습니다.",
+  "Extra elements beyond the slide limit were omitted": "슬라이드 한도를 초과한 추가 요소는 생략되었습니다",
 };

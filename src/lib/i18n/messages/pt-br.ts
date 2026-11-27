@@ -1335,4 +1335,5 @@ export const ptBR: Record<string, string> = {
   "This presentation has too many slides to import (max 200).": "Esta apresentação tem slides demais para importar (máx. 200).",
   "This PowerPoint file has no slides to import.": "Este arquivo do PowerPoint não tem slides para importar.",
   "Import cancelled.": "Importação cancelada.",
+  "Extra elements beyond the slide limit were omitted": "Elementos extras além do limite do slide foram omitidos",
 };

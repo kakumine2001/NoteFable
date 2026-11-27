@@ -16,6 +16,8 @@ export type PptxImportView = {
   key: number;
   groupId: string | null;
   parentId: string | null;
+  /** 開いた時点で保存先（プロジェクト・親ページ）が固定されているか。固定でないときは失敗・中止後もプロジェクト選択を残す。 */
+  fixedTarget: boolean;
   phase: "pick" | "working" | "done" | "error";
   fileName: string;
   progress: PptxImportProgress;
@@ -44,7 +46,12 @@ export function getPptxImport(): PptxImportView | null {
   return state;
 }
 
+export function isPptxImportSaving(view: PptxImportView | null = state): boolean {
+  return view?.phase === "working" && view.progress.stage === "saving";
+}
+
 export function openPptxImport(placement: PptxImportPlacement = {}) {
+  if (isPptxImportSaving(state)) return;
   // 前の実行が残っていたら中止して片付けてから開く。
   activeController?.abort();
   activeController = null;
@@ -53,6 +60,7 @@ export function openPptxImport(placement: PptxImportPlacement = {}) {
     key: seq,
     groupId: placement.groupId ?? null,
     parentId: placement.parentId ?? null,
+    fixedTarget: Boolean(placement.groupId || placement.parentId),
     phase: "pick",
     fileName: "",
     progress: { stage: "parsing", done: 0, total: 1 },
@@ -64,6 +72,7 @@ export function openPptxImport(placement: PptxImportPlacement = {}) {
 
 export function closePptxImport(): boolean {
   if (!state) return false;
+  if (isPptxImportSaving(state)) return false;
   activeController?.abort();
   activeController = null;
   state = null;
@@ -76,11 +85,14 @@ export function hidePptxImport(): boolean {
 }
 
 export function pptxImportBack(): boolean {
+  if (!state) return false;
+  // 建页の確定中は閉じずに待機し、戻る操作を消費する。
+  if (isPptxImportSaving(state)) return true;
   return closePptxImport();
 }
 
 export function cancelPptxImport() {
-  if (!state || state.phase !== "working") return;
+  if (!state || state.phase !== "working" || isPptxImportSaving(state)) return;
   activeController?.abort();
   activeController = null;
   state = {

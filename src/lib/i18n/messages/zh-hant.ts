@@ -529,6 +529,7 @@ export const zhHant: Record<string, string> = {
   "Export as SVG": "匯出為 SVG",
   "Exporting…": "正在匯出…",
   "External linked image": "外部連結圖片",
+  "Extra elements beyond the slide limit were omitted": "超出單頁上限的額外元素已省略",
   "Extra large": "特大",
   "Fade": "淡入",
   "Failed to change the chat icon.": "更換聊天圖示失敗。",

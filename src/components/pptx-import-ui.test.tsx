@@ -35,9 +35,9 @@ vi.mock("@/lib/slides/pptx-import", async (original) => {
 import { NewPageButton } from "./new-page-button";
 import { NotePageMenu } from "./note-page-menu";
 import { PptxImportHost } from "./pptx-import-dialog";
-import { getPptxImport, openPptxImport, resetPptxImport, startPptxImport } from "@/lib/pptx-import-jobs";
+import { cancelPptxImport, clearPptxImportError, closePptxImport, getPptxImport, openPptxImport, pptxImportBack, resetPptxImport, startPptxImport } from "@/lib/pptx-import-jobs";
 import { StorageLimitError } from "@/lib/usage-plans";
-import type { NotePageSummary } from "@/types/notes";
+import type { NoteGroupSummary, NotePageSummary } from "@/types/notes";
 
 type AnyElement = ReactElement<Record<string, unknown>>;
 
@@ -66,8 +66,8 @@ const byLabel = (tree: ReactNode, label: string) => buttons(tree).find((el) => l
 const click = (el: AnyElement | undefined) => (el?.props.onClick as () => void)();
 const names = (tree: ReactNode) => elements(tree).map((el) => (typeof el.type === "function" ? el.type.name : ""));
 
-function renderDialog(embedded = false) {
-  const host = PptxImportHost({ embedded, groups: [] }) as AnyElement | null;
+function renderDialog(embedded = false, groups: NoteGroupSummary[] = []) {
+  const host = PptxImportHost({ embedded, groups }) as AnyElement | null;
   if (!host) return null;
   hooks.states = [];
   hooks.effects = [];
@@ -186,5 +186,47 @@ describe("PptxImportHost dialog & entries", () => {
       onAddSubpage: vi.fn(), onImportPptx, onMove: vi.fn(), onExport: vi.fn(), onTrash: vi.fn(),
     });
     expect(labels(noteMenu)).not.toContain("Import PowerPoint");
+  });
+
+  it("retains the project picker after cancel/error and blocks cancel/close during final page creation", async () => {
+    const groups = [{ id: "g1", name: "Roadmap" }] as NoteGroupSummary[];
+    openPptxImport();
+    expect(elements(renderDialog(false, groups)).some((el) => el.type === "select")).toBe(true);
+
+    // プロジェクトを選んで失敗しても、再選択画面でプロジェクト選択は消えない。
+    importerMock.run.mockRejectedValueOnce(new Error("Bad file"));
+    await startPptxImport(new File([new Uint8Array([1])], "bad.pptx"), "g1");
+    clearPptxImportError();
+    expect(getPptxImport()?.groupId).toBe("g1");
+    expect(getPptxImport()?.fixedTarget).toBe(false);
+    expect(elements(renderDialog(false, groups)).some((el) => el.type === "select")).toBe(true);
+
+    // 固定プロジェクトから開いた場合はプロジェクト選択を出さない。
+    openPptxImport({ groupId: "g1" });
+    expect(getPptxImport()?.fixedTarget).toBe(true);
+    expect(elements(renderDialog(false, groups)).some((el) => el.type === "select")).toBe(false);
+
+    // saving 段階中は Cancel / Close / Back が無視され、コミット完了まで閉じない。
+    openPptxImport();
+    let resolveSave!: (value: unknown) => void;
+    importerMock.run.mockImplementationOnce((_file: File, opts: { onProgress?: (p: { stage: string; done: number; total: number }) => void }) => {
+      opts.onProgress?.({ stage: "saving", done: 0, total: 1 });
+      return new Promise((resolve) => { resolveSave = resolve; });
+    });
+    const runPromise = startPptxImport(new File([new Uint8Array([1])], "ok.pptx"));
+    const savingTree = renderDialog(false, groups);
+    expect(byLabel(savingTree, "Cancel")?.props.disabled).toBe(true);
+    expect(byLabel(savingTree, "Close")?.props.disabled).toBe(true);
+    cancelPptxImport();
+    expect(closePptxImport()).toBe(false);
+    expect(pptxImportBack()).toBe(true);
+    expect(getPptxImport()?.phase).toBe("working");
+
+    resolveSave({
+      page: SLIDE_PAGE,
+      report: { slideCount: 1, uploadedImageCount: 0, totalUnsupported: 0, totalPreviews: 0, slides: [] },
+    });
+    await runPromise;
+    expect(getPptxImport()?.phase).toBe("done");
   });
 });

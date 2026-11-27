@@ -58,7 +58,8 @@ export type PptxUnsupportedKind =
   | "unsupportedImage"
   | "externalImage"
   | "oversizedImage"
-  | "ole";
+  | "ole"
+  | "elementLimit";
 
 export type PptxSlideIssue = {
   kind: PptxUnsupportedKind;
@@ -89,7 +90,7 @@ export type ImageCropRect = {
 };
 
 export type PendingPptxImage = {
-  /** 解析結果の中で同じ画像+切り抜きを重複アップロードしないための鍵。 */
+  /** 解析結果の中で同じ画像+切り抜き+反転を重複アップロードしないための鍵。 */
   assetKey: string;
   /** ZIP 内の正規化パス。 */
   zipPath: string;
@@ -99,6 +100,8 @@ export type PendingPptxImage = {
   height: number;
   bytes: Uint8Array;
   crop?: ImageCropRect;
+  flipH?: boolean;
+  flipV?: boolean;
 };
 
 export type ParsedPptx = {

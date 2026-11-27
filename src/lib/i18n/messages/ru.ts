@@ -1335,4 +1335,5 @@ export const ru: Record<string, string> = {
   "This presentation has too many slides to import (max 200).": "В этой презентации слишком много слайдов для импорта (макс. 200).",
   "This PowerPoint file has no slides to import.": "В этом файле PowerPoint нет слайдов для импорта.",
   "Import cancelled.": "Импорт отменён.",
+  "Extra elements beyond the slide limit were omitted": "Лишние элементы сверх лимита слайда были пропущены",
 };

@@ -1335,4 +1335,5 @@ export const ar: Record<string, string> = {
   "This presentation has too many slides to import (max 200).": "يحتوي هذا العرض التقديمي على شرائح أكثر من المسموح باستيراده (الحد الأقصى 200).",
   "This PowerPoint file has no slides to import.": "لا يحتوي ملف PowerPoint هذا على شرائح لاستيرادها.",
   "Import cancelled.": "تم إلغاء الاستيراد.",
+  "Extra elements beyond the slide limit were omitted": "تم استبعاد العناصر الإضافية التي تتجاوز حد الشريحة",
 };

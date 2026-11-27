@@ -1335,4 +1335,5 @@ export const es: Record<string, string> = {
   "This presentation has too many slides to import (max 200).": "Esta presentación tiene demasiadas diapositivas para importarla (máximo 200).",
   "This PowerPoint file has no slides to import.": "Este archivo de PowerPoint no tiene diapositivas para importar.",
   "Import cancelled.": "Importación cancelada.",
+  "Extra elements beyond the slide limit were omitted": "Se omitieron los elementos adicionales que superan el límite de la diapositiva",
 };

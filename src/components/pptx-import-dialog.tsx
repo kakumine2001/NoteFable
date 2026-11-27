@@ -11,6 +11,7 @@ import {
   clearPptxImportError,
   closePptxImport,
   getPptxImport,
+  isPptxImportSaving,
   startPptxImport,
   subscribePptxImport,
   type PptxImportView,
@@ -33,6 +34,7 @@ const ISSUE_LABELS: Record<PptxUnsupportedKind, string> = {
   externalImage: msg("External linked image"),
   oversizedImage: msg("Image exceeded size limit"),
   ole: msg("Embedded object"),
+  elementLimit: msg("Extra elements beyond the slide limit were omitted"),
 };
 
 function formatIssue(issue: PptxSlideIssue, t: Translate): string {
@@ -68,9 +70,10 @@ function PptxImportDialog({ view, embedded, initialGroups }: { view: PptxImportV
   const [loadedGroups, setLoadedGroups] = useState<NoteGroupSummary[]>(initialGroups ?? []);
   const [closedStorageLimit, setClosedStorageLimit] = useState<unknown>(null);
 
-  const canChooseProject = !view.parentId && !view.groupId;
+  const canChooseProject = !view.fixedTarget;
+  const isSaving = isPptxImportSaving(view);
 
-  useBackToClose(true, () => { closePptxImport(); });
+  useBackToClose(true, () => { if (!isSaving) closePptxImport(); });
   useEffect(() => { dialogRef.current?.showModal(); }, []);
 
   // プロジェクト未指定で開いたときだけ一覧を読み込む（/note-embed では親から渡されないため）。
@@ -132,7 +135,7 @@ function PptxImportDialog({ view, embedded, initialGroups }: { view: PptxImportV
       ref={dialogRef}
       className="notes-dialog slides-wizard pptx-import-dialog"
       aria-labelledby={titleId}
-      onCancel={(event) => { event.preventDefault(); closePptxImport(); }}
+      onCancel={(event) => { event.preventDefault(); if (!isSaving) closePptxImport(); }}
       onClick={(event) => { if (event.target === dialogRef.current && view.phase !== "working") closePptxImport(); }}
     >
       <div className="slides-wizard-header">
@@ -140,7 +143,7 @@ function PptxImportDialog({ view, embedded, initialGroups }: { view: PptxImportV
           <Presentation size={18} className="shrink-0 text-[var(--notion-muted)]" aria-hidden="true" />
           <h2 id={titleId} className="truncate text-[16px] font-semibold text-[var(--notion-text)]">{t("Import PowerPoint")}</h2>
         </div>
-        <button type="button" className="notion-icon-button grid" aria-label={t("Close")} onClick={() => closePptxImport()}>
+        <button type="button" className="notion-icon-button grid" aria-label={t("Close")} disabled={isSaving} onClick={() => closePptxImport()}>
           <X size={18} />
         </button>
       </div>
@@ -229,7 +232,7 @@ function PptxImportDialog({ view, embedded, initialGroups }: { view: PptxImportV
             </div>
           </div>
           <div className="slides-wizard-footer">
-            <button type="button" className="notion-button" onClick={() => cancelPptxImport()}>{t("Cancel")}</button>
+            <button type="button" className="notion-button" disabled={isSaving} onClick={() => cancelPptxImport()}>{t("Cancel")}</button>
           </div>
         </>
       )}

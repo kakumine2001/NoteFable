@@ -175,12 +175,13 @@ function canvasToBlob(canvas: HTMLCanvasElement, mime: string, quality?: number)
  */
 export async function preparePptxImageBlob(image: PendingPptxImage): Promise<{ blob: Blob; mimeType: SupportedImageMime }> {
   const needsCrop = hasMeaningfulCrop(image.crop);
+  const needsFlip = Boolean(image.flipH || image.flipV);
   const needsResize = Math.max(image.width, image.height) > MAX_PPTX_IMAGE_SIDE;
   const needsShrink = image.bytes.byteLength > MAX_NOTE_FILE_BYTES;
   const copy = new Uint8Array(image.bytes.byteLength);
   copy.set(image.bytes);
   const original = new Blob([copy], { type: image.mimeType });
-  if (!needsCrop && !needsResize && !needsShrink) {
+  if (!needsCrop && !needsFlip && !needsResize && !needsShrink) {
     return { blob: original, mimeType: image.mimeType };
   }
   if (typeof document === "undefined") {
@@ -209,6 +210,10 @@ export async function preparePptxImageBlob(image: PendingPptxImage): Promise<{ b
     try {
       const ctx = canvas.getContext("2d");
       if (!ctx) return { blob: original, mimeType: image.mimeType };
+      if (needsFlip) {
+        ctx.translate(image.flipH ? dw : 0, image.flipV ? dh : 0);
+        ctx.scale(image.flipH ? -1 : 1, image.flipV ? -1 : 1);
+      }
       ctx.drawImage(el, sx, sy, sw, sh, 0, 0, dw, dh);
       // 透過を持つ可能性がある PNG / GIF / WebP はまず PNG を試し、4 MiB を超えたら JPEG へ落とす。
       if (image.mimeType !== "image/jpeg") {

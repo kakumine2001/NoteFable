@@ -1335,4 +1335,5 @@ export const tr: Record<string, string> = {
   "This presentation has too many slides to import (max 200).": "Bu sunuda içe aktarmak için çok fazla slayt var (en fazla 200).",
   "This PowerPoint file has no slides to import.": "Bu PowerPoint dosyasında içe aktarılacak slayt yok.",
   "Import cancelled.": "İçe aktarma iptal edildi.",
+  "Extra elements beyond the slide limit were omitted": "Slayt sınırını aşan fazladan öğeler atlandı",
 };

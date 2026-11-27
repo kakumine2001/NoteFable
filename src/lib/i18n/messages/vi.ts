@@ -1335,4 +1335,5 @@ export const vi: Record<string, string> = {
   "This presentation has too many slides to import (max 200).": "Bản trình chiếu này có quá nhiều slide để nhập (tối đa 200).",
   "This PowerPoint file has no slides to import.": "Tệp PowerPoint này không có slide nào để nhập.",
   "Import cancelled.": "Đã hủy nhập.",
+  "Extra elements beyond the slide limit were omitted": "Các phần tử vượt quá giới hạn trang chiếu đã được bỏ qua",
 };

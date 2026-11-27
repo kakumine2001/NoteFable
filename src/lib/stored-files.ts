@@ -2,6 +2,7 @@ import { after } from "next/server";
 import { Prisma, type StoredFileKind } from "@/generated/prisma/client";
 import { APP_ICON_ROOT } from "@/lib/account-app-icon";
 import { msg } from "@/lib/i18n/translate";
+import { NoteValidationError } from "@/lib/note-document";
 import { noteFilePaths } from "@/lib/note-files";
 import { databaseSchema, prisma } from "@/lib/prisma";
 import { deleteStoredImage, listStoredFiles, sharesForeignStorage, writeStoredImageAt, type StoredFileListing } from "@/lib/storage";
@@ -145,38 +146,28 @@ export async function discardStoredFiles(paths: string[]) {
 
 // アップロード直後に取り込みが中止・失敗した未使用の NOTE_FILE を、本人の分かつ未参照のものに限ってすぐ消す。
 // どのページ・履歴・提案からも参照されず、まだ使用中へ戻されていない（releasedAt != null）行だけを削除中にする。
+// claimStoredFiles と同じ利用者単位のトランザクションロックを取り、同時のページ作成・保存と競合しないようにする。
 export async function discardUnreferencedNoteFiles(userId: string, paths: string[]) {
   const prefix = `${STORED_FILE_PREFIXES.NOTE_FILE}${userId}/`;
   const unique = [...new Set(paths.filter((path) => path.startsWith(prefix)))];
   if (!unique.length) return 0;
-  const rows = await prisma.storedFile.findMany({
-    where: { path: { in: unique }, userId, kind: "NOTE_FILE", releasedAt: { not: null }, deletingAt: null },
-    select: { path: true, userId: true, kind: true },
-  });
-  if (!rows.length) return 0;
-  const usedBefore = await referencedPaths(rows);
-  const candidates = rows.filter((row) => !usedBefore.has(row.path));
-  if (!candidates.length) return 0;
   const now = new Date();
-  await prisma.storedFile.updateMany({
-    where: { path: { in: candidates.map((row) => row.path) }, userId, kind: "NOTE_FILE", releasedAt: { not: null }, deletingAt: null },
-    data: { deletingAt: now },
-  });
-  // 同時にページ作成・保存が走って参照が付いた分は戻す。
-  const marked = await prisma.storedFile.findMany({
-    where: { path: { in: candidates.map((row) => row.path) }, userId, kind: "NOTE_FILE", deletingAt: now },
-    select: { path: true, userId: true, kind: true },
-  });
-  if (!marked.length) return 0;
-  const usedAfter = await referencedPaths(marked);
-  const reclaimed = marked.filter((row) => usedAfter.has(row.path)).map((row) => row.path);
-  if (reclaimed.length) {
-    await prisma.storedFile.updateMany({
-      where: { path: { in: reclaimed }, userId, kind: "NOTE_FILE", deletingAt: now },
-      data: { deletingAt: null, releasedAt: null },
+  const toDelete = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`notefable-note-files:${userId}`}))`);
+    const rows = await tx.storedFile.findMany({
+      where: { path: { in: unique }, userId, kind: "NOTE_FILE", releasedAt: { not: null }, deletingAt: null },
+      select: { path: true, userId: true, kind: true },
     });
-  }
-  const toDelete = marked.filter((row) => !usedAfter.has(row.path)).map((row) => row.path);
+    if (!rows.length) return [];
+    const used = await referencedPaths(rows, tx);
+    const unused = rows.filter((row) => !used.has(row.path)).map((row) => row.path);
+    if (!unused.length) return [];
+    await tx.storedFile.updateMany({
+      where: { path: { in: unused }, userId, kind: "NOTE_FILE", releasedAt: { not: null }, deletingAt: null },
+      data: { deletingAt: now },
+    });
+    return unused;
+  });
   let deleted = 0;
   for (const path of toDelete) {
     try {
@@ -200,10 +191,22 @@ export async function claimStoredFile(tx: Db, path: string, userId: string) {
 }
 
 // ノートの本文に入ったファイルを、保存の処理の中で「使用中」に戻す（参照が付いたので猶予の数え直しを止める）。
-// 行を書き換えるのは参照がないとされていたものだけ。消えかけ・記録のないファイルは何もしない（保存は止めない）。
+// 行を書き換えるのは参照がないとされていたものだけ。記録のない古いファイルは止めないが、
+// すでに削除中（deletingAt != null）の行を参照しようとした場合は保存を断り、消えるファイルを参照させない。
 export async function claimStoredFiles(tx: Db, paths: string[], userId: string) {
   const unique = [...new Set(paths)];
   if (!unique.length) return;
+  if (typeof tx.$executeRaw === "function") {
+    await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`notefable-note-files:${userId}`}))`);
+  }
+  if (typeof tx.storedFile?.findMany === "function") {
+    const deleting = await tx.storedFile.findMany({
+      where: { path: { in: unique }, userId, deletingAt: { not: null } },
+      select: { path: true },
+      take: 1,
+    });
+    if (deleting?.length) throw new NoteValidationError(msg("Stored image not found."), 400);
+  }
   await tx.storedFile.updateMany({ where: { path: { in: unique }, userId, deletingAt: null, releasedAt: { not: null } }, data: { releasedAt: null } });
 }
 
@@ -254,7 +257,7 @@ export const NOTE_FILE_SOURCES: ((userId: string) => Prisma.Sql)[] = [
   (userId) => Prisma.sql`SELECT "payload"::text AS body FROM ${table("NoteProposal")} WHERE "userId" = ${userId} AND "status" = 'PENDING'`,
 ];
 
-async function noteFileReferences(candidates: Candidate[]) {
+async function noteFileReferences(candidates: Candidate[], db: Db = prisma) {
   const found = new Set<string>();
   const byUser = new Map<string, Candidate[]>();
   for (const candidate of candidates) {
@@ -263,7 +266,7 @@ async function noteFileReferences(candidates: Candidate[]) {
   }
   for (const [userId, files] of byUser) {
     const sources = Prisma.join(NOTE_FILE_SOURCES.map((source) => source(userId)), " UNION ALL ");
-    const rows = await prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+    const rows = await db.$queryRaw<{ id: string }[]>(Prisma.sql`
       SELECT DISTINCT lower(m[1]) AS id FROM (
         SELECT regexp_matches(s.body, ${NOTE_FILE_REFERENCE}, 'gi') AS m FROM (${sources}) s
       ) found
@@ -277,12 +280,12 @@ async function noteFileReferences(candidates: Candidate[]) {
   return found;
 }
 
-async function coverReferences(candidates: Candidate[]) {
+async function coverReferences(candidates: Candidate[], db: Db = prisma) {
   // ページのアイコンにも同じ形の画像を使う。編集履歴のアイコンも、復元で使えるよう参照として数える。
   const keys = candidates.map((candidate) => `upload:${candidate.path}`);
   const [pages, revisions] = await Promise.all([
-    prisma.notePage.findMany({ where: { OR: [{ cover: { in: keys } }, { icon: { in: keys } }] }, select: { cover: true, icon: true } }),
-    prisma.noteRevision.findMany({ where: { icon: { in: keys } }, select: { icon: true } }),
+    db.notePage.findMany({ where: { OR: [{ cover: { in: keys } }, { icon: { in: keys } }] }, select: { cover: true, icon: true } }),
+    db.noteRevision.findMany({ where: { icon: { in: keys } }, select: { icon: true } }),
   ]);
   const found = new Set<string>();
   for (const value of [...pages.flatMap((page) => [page.cover, page.icon]), ...revisions.map((revision) => revision.icon)]) {
@@ -291,9 +294,9 @@ async function coverReferences(candidates: Candidate[]) {
   return found;
 }
 
-async function chatImageReferences(candidates: Candidate[]) {
+async function chatImageReferences(candidates: Candidate[], db: Db = prisma) {
   // 版の切り替えで戻せる（表示していない）発言の添付も参照に数える。会話を消すと添付の行が消える。
-  const rows = await prisma.attachment.findMany({
+  const rows = await db.attachment.findMany({
     where: { imageStoragePath: { in: candidates.map((candidate) => candidate.path) } },
     select: { imageStoragePath: true }, distinct: ["imageStoragePath"],
   });
@@ -301,17 +304,17 @@ async function chatImageReferences(candidates: Candidate[]) {
 }
 
 function userColumnReferences(column: "avatarImage" | "appIconImage") {
-  return async (candidates: Candidate[]) => {
+  return async (candidates: Candidate[], db: Db = prisma) => {
     const ids = [...new Set(candidates.map((candidate) => candidate.userId).filter((id): id is string => Boolean(id)))];
     if (!ids.length) return new Set<string>();
-    const rows = await prisma.user.findMany({ where: { id: { in: ids } }, select: { avatarImage: true, appIconImage: true } });
+    const rows = await db.user.findMany({ where: { id: { in: ids } }, select: { avatarImage: true, appIconImage: true } });
     return new Set(rows.map((row) => row[column]).filter((path): path is string => Boolean(path)));
   };
 }
 
 // AI の提案の縮小画像。状態（待確認・適用・破棄・元に戻した）によらず、提案が残っている間はカードに出るので使用中。
 // 提案は会話・アカウントと一緒に消える。そのあとは参照が無くなり、猶予のあとで消える。
-async function proposalImageReferences(candidates: Candidate[]) {
+async function proposalImageReferences(candidates: Candidate[], db: Db = prisma) {
   const found = new Set<string>();
   const byUser = new Map<string, string[]>();
   for (const candidate of candidates) {
@@ -319,7 +322,7 @@ async function proposalImageReferences(candidates: Candidate[]) {
   }
   for (const [userId, paths] of byUser) {
     // 提案の images の path だけを、持ち主ごとに 1 回で取り出す（本文全体を文字列にして探さない）。
-    const rows = await prisma.$queryRaw<{ path: string }[]>(Prisma.sql`
+    const rows = await db.$queryRaw<{ path: string }[]>(Prisma.sql`
       SELECT DISTINCT e->>'path' AS "path"
       FROM ${table("NoteProposal")} p
       CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(p."payload" -> 'images') = 'array' THEN p."payload" -> 'images' ELSE '[]'::jsonb END) AS e
@@ -329,7 +332,7 @@ async function proposalImageReferences(candidates: Candidate[]) {
   return found;
 }
 
-const REFERENCE_CHECKS: Record<StoredFileKind, (candidates: Candidate[]) => Promise<Set<string>>> = {
+const REFERENCE_CHECKS: Record<StoredFileKind, (candidates: Candidate[], db: Db) => Promise<Set<string>>> = {
   NOTE_FILE: noteFileReferences,
   NOTE_COVER: coverReferences,
   CHAT_IMAGE: chatImageReferences,
@@ -339,13 +342,13 @@ const REFERENCE_CHECKS: Record<StoredFileKind, (candidates: Candidate[]) => Prom
 };
 
 // 候補のうち、どこかから参照されているもののパス。持ち主のいない（アカウントを消した）ファイルは参照なし。
-export async function referencedPaths(candidates: Candidate[]) {
+export async function referencedPaths(candidates: Candidate[], db: Db = prisma) {
   const found = new Set<string>();
   for (const kind of KINDS) {
     const group = candidates.filter((candidate) => candidate.kind === kind && candidate.userId);
     if (!group.length) continue;
     const paths = new Set(group.map((candidate) => candidate.path));
-    for (const path of await REFERENCE_CHECKS[kind](group)) {
+    for (const path of await REFERENCE_CHECKS[kind](group, db)) {
       if (paths.has(path)) found.add(path);
     }
   }

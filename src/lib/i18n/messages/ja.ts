@@ -1336,4 +1336,5 @@ export const ja: Record<string, string> = {
   "This presentation has too many slides to import (max 200).": "スライド枚数が多すぎるため読み込めません（最大 200 枚）。",
   "This PowerPoint file has no slides to import.": "この PowerPoint ファイルには読み込めるスライドがありません。",
   "Import cancelled.": "読み込みをキャンセルしました。",
+  "Extra elements beyond the slide limit were omitted": "スライドの上限を超えた追加要素は省略されました",
 };

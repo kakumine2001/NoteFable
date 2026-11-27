@@ -1345,4 +1345,5 @@ export const zh: Record<string, string> = {
   "This presentation has too many slides to import (max 200).": "这份演示文稿页数过多，无法导入（最多 200 页）。",
   "This PowerPoint file has no slides to import.": "这个 PowerPoint 文件里没有可导入的幻灯片。",
   "Import cancelled.": "已取消导入。",
+  "Extra elements beyond the slide limit were omitted": "超出单页上限的额外元素已省略",
 };

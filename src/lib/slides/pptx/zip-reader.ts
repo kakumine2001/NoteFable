@@ -13,6 +13,14 @@ import {
 // - XML は DOMParser に渡す前に <!DOCTYPE / <!ENTITY を弾く。
 // - .rels の TargetMode="External" は外部URLとして印を付け、ファイル参照では一切たどらない（fetch もしない）。
 
+/** 単一エントリが個別のバイト上限を超えたときの例外（画像ならその画像だけ非対応扱いにして続行できる）。 */
+export class PptxEntryTooLargeError extends Error {
+  constructor(message = "ZIP entry exceeds per-entry limit.") {
+    super(message);
+    this.name = "PptxEntryTooLargeError";
+  }
+}
+
 export type RelEntry = {
   id: string;
   type: string;
@@ -182,6 +190,7 @@ export function boolAttr(el: Element | null | undefined, name: string): boolean 
 export class SafePptxZip {
   private readonly entries = new Map<string, ZipObjectWithStream>();
   private readonly bytesCache = new Map<string, Uint8Array>();
+  private readonly oversizedEntries = new Set<string>();
   private readonly xmlCache = new Map<string, Document>();
   private readonly relsCache = new Map<string, Map<string, RelEntry>>();
   private totalUncompressedBytes = 0;
@@ -240,11 +249,24 @@ export class SafePptxZip {
     if (!norm) return null;
     const key = norm.toLowerCase();
     const cached = this.bytesCache.get(key);
-    if (cached) return cached;
+    if (cached) {
+      if (cached.byteLength > maxEntryBytes) throw new PptxEntryTooLargeError();
+      return cached;
+    }
+    const oversizedKey = `${key}:${maxEntryBytes}`;
+    if (this.oversizedEntries.has(oversizedKey)) throw new PptxEntryTooLargeError();
     const entry = this.entries.get(key);
     if (!entry) return null;
 
-    const bytes = await this.decompressWithBudget(entry, maxEntryBytes, signal);
+    let bytes: Uint8Array;
+    try {
+      bytes = await this.decompressWithBudget(entry, maxEntryBytes, signal);
+    } catch (error) {
+      if (error instanceof PptxEntryTooLargeError) {
+        this.oversizedEntries.add(oversizedKey);
+      }
+      throw error;
+    }
     this.bytesCache.set(key, bytes);
     return bytes;
   }
@@ -252,10 +274,13 @@ export class SafePptxZip {
   private decompressWithBudget(entry: ZipObjectWithStream, maxEntryBytes: number, signal?: AbortSignal): Promise<Uint8Array> {
     if (typeof entry.internalStream !== "function") {
       return entry.async("uint8array").then((bytes) => {
-        if (bytes.byteLength > maxEntryBytes || this.totalUncompressedBytes + bytes.byteLength > this.maxUncompressedBytes) {
+        if (this.totalUncompressedBytes + bytes.byteLength > this.maxUncompressedBytes) {
           throw new PptxImportError("zip_too_large", PPTX_ERROR_MESSAGES.zipTooLarge);
         }
         this.totalUncompressedBytes += bytes.byteLength;
+        if (bytes.byteLength > maxEntryBytes) {
+          throw new PptxEntryTooLargeError();
+        }
         return bytes;
       });
     }
@@ -283,8 +308,14 @@ export class SafePptxZip {
           const chunk = rawChunk instanceof Uint8Array ? rawChunk : new Uint8Array(rawChunk as ArrayBuffer);
           entryBytes += chunk.byteLength;
           this.totalUncompressedBytes += chunk.byteLength;
-          if (entryBytes > maxEntryBytes || this.totalUncompressedBytes > this.maxUncompressedBytes) {
+          if (this.totalUncompressedBytes > this.maxUncompressedBytes) {
+            signal?.removeEventListener("abort", onAbort);
             fail(new PptxImportError("zip_too_large", PPTX_ERROR_MESSAGES.zipTooLarge));
+            return;
+          }
+          if (entryBytes > maxEntryBytes) {
+            signal?.removeEventListener("abort", onAbort);
+            fail(new PptxEntryTooLargeError());
             return;
           }
           chunks.push(chunk);
@@ -315,7 +346,15 @@ export class SafePptxZip {
     const key = norm.toLowerCase();
     const cached = this.xmlCache.get(key);
     if (cached) return cached;
-    const bytes = await this.readBytes(norm, MAX_PPTX_XML_ENTRY_BYTES, signal);
+    let bytes: Uint8Array | null;
+    try {
+      bytes = await this.readBytes(norm, MAX_PPTX_XML_ENTRY_BYTES, signal);
+    } catch (error) {
+      if (error instanceof PptxEntryTooLargeError) {
+        throw new PptxImportError("zip_too_large", PPTX_ERROR_MESSAGES.zipTooLarge);
+      }
+      throw error;
+    }
     if (!bytes) return null;
     let text = new TextDecoder("utf-8").decode(bytes);
     if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);

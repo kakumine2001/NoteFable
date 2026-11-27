@@ -1335,4 +1335,5 @@ export const th: Record<string, string> = {
   "This presentation has too many slides to import (max 200).": "งานนำเสนอนี้มีสไลด์มากเกินกว่าจะนำเข้าได้ (สูงสุด 200 สไลด์)",
   "This PowerPoint file has no slides to import.": "ไฟล์ PowerPoint นี้ไม่มีสไลด์ให้นำเข้า",
   "Import cancelled.": "ยกเลิกการนำเข้าแล้ว",
+  "Extra elements beyond the slide limit were omitted": "ข้ามองค์ประกอบเพิ่มเติมที่เกินขีดจำกัดของสไลด์แล้ว",
 };

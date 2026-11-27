@@ -921,4 +921,315 @@ describe("Case 3: Security, hard limits, and upload cleanup", () => {
       expect(shape.fill?.toLowerCase()).toBe("#10b981");
     }
   });
+
+  it("resolves theme fillStyle/bgFillStyle modifiers directly, preserves opaque text/outline on transparent shapes, and preserves reflections", async () => {
+    const shadedTheme = `<?xml version="1.0" encoding="UTF-8"?>
+      <a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Shaded">
+        <a:themeElements>
+          <a:clrScheme name="Shaded">
+            <a:dk1><a:srgbClr val="111111"/></a:dk1>
+            <a:lt1><a:srgbClr val="FFFFFF"/></a:lt1>
+            <a:dk2><a:srgbClr val="222222"/></a:dk2>
+            <a:lt2><a:srgbClr val="EEEEEE"/></a:lt2>
+            <a:accent1><a:srgbClr val="4080C0"/></a:accent1>
+            <a:accent2><a:srgbClr val="2060A0"/></a:accent2>
+            <a:accent3><a:srgbClr val="10B981"/></a:accent3>
+            <a:accent4><a:srgbClr val="8B5CF6"/></a:accent4>
+            <a:accent5><a:srgbClr val="0EA5E9"/></a:accent5>
+            <a:accent6><a:srgbClr val="F59E0B"/></a:accent6>
+            <a:hlink><a:srgbClr val="1D4ED8"/></a:hlink>
+            <a:folHlink><a:srgbClr val="7C3AED"/></a:folHlink>
+          </a:clrScheme>
+          <a:fontScheme name="Clean">
+            <a:majorFont><a:latin typeface="Inter"/></a:majorFont>
+            <a:minorFont><a:latin typeface="Inter"/></a:minorFont>
+          </a:fontScheme>
+          <a:fmtScheme name="Shaded">
+            <a:fillStyleLst>
+              <a:solidFill><a:schemeClr val="phClr"><a:shade val="50000"/></a:schemeClr></a:solidFill>
+            </a:fillStyleLst>
+            <a:lnStyleLst><a:ln w="12700"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst>
+            <a:bgFillStyleLst>
+              <a:solidFill><a:schemeClr val="phClr"><a:tint val="50000"/></a:schemeClr></a:solidFill>
+            </a:bgFillStyleLst>
+          </a:fmtScheme>
+        </a:themeElements>
+      </a:theme>`;
+
+    const bytes = await buildCustomPptx({
+      "_rels/.rels": ROOT_RELS,
+      "ppt/theme/theme1.xml": shadedTheme,
+      "ppt/presentation.xml": `<?xml version="1.0" encoding="UTF-8"?>
+        <p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+          <p:sldIdLst><p:sldId id="256" r:id="rId1"/></p:sldIdLst>
+          <p:sldSz cx="12192000" cy="6858000"/>
+        </p:presentation>`,
+      "ppt/_rels/presentation.xml.rels": `<?xml version="1.0" encoding="UTF-8"?>
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+          <Relationship Id="rIdTheme" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>
+        </Relationships>`,
+      "ppt/slides/_rels/slide1.xml.rels": `<?xml version="1.0" encoding="UTF-8"?>
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rIdPic" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/photo.png"/>
+        </Relationships>`,
+      "ppt/media/photo.png": TINY_PNG_BYTES,
+      "ppt/slides/slide1.xml": `<?xml version="1.0" encoding="UTF-8"?>
+        <p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+          <p:cSld>
+            <p:bg><p:bgRef idx="1001"><a:schemeClr val="accent1"/></p:bgRef></p:bg>
+            <p:spTree>
+              <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>
+              <!-- 1. fillRef idx=1 -> shaded 50% of accent1 (#4080C0 -> #204060) -->
+              <p:sp>
+                <p:nvSpPr><p:cNvPr id="2" name="Styled"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+                <p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="1270000" cy="635000"/></a:xfrm><a:prstGeom prst="roundRect"/></p:spPr>
+                <p:style><a:fillRef idx="1"><a:schemeClr val="accent1"/></a:fillRef><a:lnRef idx="0"/><a:fontRef idx="minor"/></p:style>
+              </p:sp>
+              <!-- 2. Transparent fill (alpha=0) with opaque text and border must stay visible (opacity undefined) -->
+              <p:sp>
+                <p:nvSpPr><p:cNvPr id="3" name="Outlined"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+                <p:spPr>
+                  <a:xfrm><a:off x="0" y="700000"/><a:ext cx="2540000" cy="635000"/></a:xfrm>
+                  <a:prstGeom prst="roundRect"/>
+                  <a:solidFill><a:srgbClr val="000000"><a:alpha val="0"/></a:srgbClr></a:solidFill>
+                  <a:ln w="25400"><a:solidFill><a:srgbClr val="112233"/></a:solidFill></a:ln>
+                </p:spPr>
+                <p:txBody><a:bodyPr/><a:p><a:r><a:rPr sz="2000"><a:solidFill><a:srgbClr val="111111"/></a:solidFill></a:rPr><a:t>Visible label</a:t></a:r></a:p></p:txBody>
+              </p:sp>
+              <!-- 3. Horizontally flipped group containing text, rightArrow, and picture -->
+              <p:grpSp>
+                <p:nvGrpSpPr><p:cNvPr id="10" name="FlippedGroup"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+                <p:grpSpPr>
+                  <a:xfrm flipH="1">
+                    <a:off x="3000000" y="0"/><a:ext cx="3000000" cy="1500000"/>
+                    <a:chOff x="0" y="0"/><a:chExt cx="3000000" cy="1500000"/>
+                  </a:xfrm>
+                </p:grpSpPr>
+                <p:sp>
+                  <p:nvSpPr><p:cNvPr id="11" name="UprightText"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>
+                  <p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="1000000" cy="500000"/></a:xfrm></p:spPr>
+                  <p:txBody><a:bodyPr/><a:p><a:r><a:t>Not upside down</a:t></a:r></a:p></p:txBody>
+                </p:sp>
+                <p:sp>
+                  <p:nvSpPr><p:cNvPr id="12" name="Arrow"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+                  <p:spPr>
+                    <a:xfrm><a:off x="0" y="600000"/><a:ext cx="1000000" cy="400000"/></a:xfrm>
+                    <a:prstGeom prst="rightArrow"/>
+                    <a:solidFill><a:srgbClr val="2563EB"/></a:solidFill>
+                  </p:spPr>
+                </p:sp>
+                <p:pic>
+                  <p:nvPicPr><p:cNvPr id="13" name="MirroredPhoto"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+                  <p:blipFill><a:blip r:embed="rIdPic"/></p:blipFill>
+                  <p:spPr><a:xfrm><a:off x="1200000" y="0"/><a:ext cx="1000000" cy="1000000"/></a:xfrm></p:spPr>
+                </p:pic>
+              </p:grpSp>
+            </p:spTree>
+          </p:cSld>
+        </p:sld>`,
+    });
+
+    const parsed = await parsePptx(bytes, { xmlParser });
+    const slide = parsed.deck.slides[0];
+    // bgRef idx=1001 applies tint 50% to #4080C0 -> (#40*0.5+255*0.5=160=a0, #80*0.5+127.5=192=c0, #c0*0.5+127.5=224=e0)
+    expect(slide.background).toBe("#a0c0e0");
+
+    const shapes = slide.elements.filter((e): e is ShapeElement => e.type === "shape");
+    const styled = shapes.find((s) => s.fill === "#204060");
+    expect(styled).toBeDefined();
+
+    const outlined = shapes.find((s) => richDocText(s.doc) === "Visible label")!;
+    expect(outlined).toBeDefined();
+    expect(outlined.fill).toBeNull();
+    expect(outlined.stroke).toBe("#112233");
+    expect(outlined.opacity).toBeUndefined();
+
+    const uprightText = slide.elements.find((e): e is TextElement => e.type === "text" && richDocText(e.doc) === "Not upside down")!;
+    expect(uprightText.rotation).toBe(0);
+
+    const flippedArrow = shapes.find((s) => s.fill === "#2563eb")!;
+    expect(flippedArrow.shape).toBe("arrowLeft");
+    expect(flippedArrow.rotation).toBe(0);
+
+    const mirroredImg = slide.elements.find((e): e is ImageElement => e.type === "image")!;
+    expect(mirroredImg.rotation).toBe(0);
+    expect(parsed.images).toHaveLength(1);
+    expect(parsed.images[0].flipH).toBe(true);
+    expect(parsed.images[0].flipV).toBeUndefined();
+  });
+
+  it("reports a single oversized media entry as oversizedImage without rejecting the whole deck", async () => {
+    const bigPng = new Uint8Array(4096);
+    bigPng.set(TINY_PNG_BYTES, 0);
+    const bytes = await buildCustomPptx({
+      "_rels/.rels": ROOT_RELS,
+      "ppt/presentation.xml": `<?xml version="1.0" encoding="UTF-8"?>
+        <p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+          <p:sldIdLst><p:sldId id="256" r:id="rId1"/></p:sldIdLst>
+          <p:sldSz cx="12192000" cy="6858000"/>
+        </p:presentation>`,
+      "ppt/_rels/presentation.xml.rels": `<?xml version="1.0" encoding="UTF-8"?>
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+        </Relationships>`,
+      "ppt/slides/_rels/slide1.xml.rels": `<?xml version="1.0" encoding="UTF-8"?>
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rIdHuge" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/huge.png"/>
+          <Relationship Id="rIdOk" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/ok.png"/>
+        </Relationships>`,
+      "ppt/media/huge.png": bigPng,
+      "ppt/media/ok.png": TINY_PNG_BYTES,
+      "ppt/slides/slide1.xml": `<?xml version="1.0" encoding="UTF-8"?>
+        <p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+          <p:cSld><p:spTree>
+            <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>
+            <p:pic><p:nvPicPr><p:cNvPr id="2" name="Huge"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="rIdHuge"/></p:blipFill><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="635000" cy="635000"/></a:xfrm></p:spPr></p:pic>
+            <p:pic><p:nvPicPr><p:cNvPr id="3" name="Ok"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="rIdOk"/></p:blipFill><p:spPr><a:xfrm><a:off x="635000" y="0"/><a:ext cx="635000" cy="635000"/></a:xfrm></p:spPr></p:pic>
+          </p:spTree></p:cSld>
+        </p:sld>`,
+    });
+
+    const parsed = await parsePptx(bytes, { xmlParser, maxMediaEntryBytes: 1024 });
+    expect(parsed.deck.slides).toHaveLength(1);
+    expect(parsed.images).toHaveLength(1);
+    expect(parsed.images[0].zipPath).toBe("ppt/media/ok.png");
+    expect(parsed.report.slides[0].issues).toEqual([{ kind: "oversizedImage", count: 1, previewCount: 0 }]);
+  });
+
+  it("prioritizes slide elements over master decorations, reports elementLimit truncation, and prunes dropped images", async () => {
+    const extraShapes = Array.from({ length: 1002 }, (_, i) => (
+      `<p:sp><p:nvSpPr><p:cNvPr id="${10 + i}" name="S${i}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="63500" cy="63500"/></a:xfrm><a:prstGeom prst="rect"/><a:solidFill><a:srgbClr val="2563EB"/></a:solidFill></p:spPr></p:sp>`
+    )).join("");
+    const bytes = await buildCustomPptx({
+      "_rels/.rels": ROOT_RELS,
+      "ppt/theme/theme1.xml": DEFAULT_THEME_XML,
+      "ppt/slideMasters/_rels/slideMaster1.xml.rels": `<?xml version="1.0" encoding="UTF-8"?>
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="../theme/theme1.xml"/>
+          <Relationship Id="rIdBgPic" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/master-bg.png"/>
+        </Relationships>`,
+      "ppt/slideMasters/slideMaster1.xml": `<?xml version="1.0" encoding="UTF-8"?>
+        <p:sldMaster xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+          <p:cSld><p:spTree>
+            <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>
+            <p:pic><p:nvPicPr><p:cNvPr id="2" name="MasterPic"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="rIdBgPic"/></p:blipFill><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="635000" cy="635000"/></a:xfrm></p:spPr></p:pic>
+          </p:spTree></p:cSld>
+        </p:sldMaster>`,
+      "ppt/slideLayouts/_rels/slideLayout1.xml.rels": `<?xml version="1.0" encoding="UTF-8"?>
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml"/>
+        </Relationships>`,
+      "ppt/slideLayouts/slideLayout1.xml": `<?xml version="1.0" encoding="UTF-8"?>
+        <p:sldLayout xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+          <p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld>
+        </p:sldLayout>`,
+      "ppt/presentation.xml": `<?xml version="1.0" encoding="UTF-8"?>
+        <p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+          <p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rIdM"/></p:sldMasterIdLst>
+          <p:sldIdLst><p:sldId id="256" r:id="rId1"/></p:sldIdLst>
+          <p:sldSz cx="12192000" cy="6858000"/>
+        </p:presentation>`,
+      "ppt/_rels/presentation.xml.rels": `<?xml version="1.0" encoding="UTF-8"?>
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rIdM" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>
+          <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+        </Relationships>`,
+      "ppt/slides/_rels/slide1.xml.rels": `<?xml version="1.0" encoding="UTF-8"?>
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rIdLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>
+          <Relationship Id="rIdTailPic" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/tail.png"/>
+        </Relationships>`,
+      "ppt/media/master-bg.png": TINY_PNG_BYTES,
+      "ppt/media/tail.png": TINY_PNG_BYTES,
+      "ppt/slides/slide1.xml": `<?xml version="1.0" encoding="UTF-8"?>
+        <p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+          <p:cSld><p:spTree>
+            <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>
+            ${extraShapes}
+            <p:pic><p:nvPicPr><p:cNvPr id="5000" name="DroppedTailPic"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="rIdTailPic"/></p:blipFill><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="635000" cy="635000"/></a:xfrm></p:spPr></p:pic>
+          </p:spTree></p:cSld>
+        </p:sld>`,
+    });
+
+    const parsed = await parsePptx(bytes, { xmlParser });
+    expect(parsed.deck.slides[0].elements).toHaveLength(1000);
+    // 全 1,000 件がスライド本体の図形で埋まり、落ちた母版装飾(1) + 超過スライド要素(3) = 4 件が報告される。
+    expect(parsed.deck.slides[0].elements.every((e) => e.type === "shape")).toBe(true);
+    expect(parsed.images).toHaveLength(0);
+    expect(parsed.report.uploadedImageCount).toBe(0);
+    expect(parsed.report.slides[0].issues).toEqual([{ kind: "elementLimit", count: 4, previewCount: 0 }]);
+  });
+
+  it("cleans up an in-flight upload on cancel and keeps final page creation non-cancelable", async () => {
+    const deckBytes = await buildCustomPptx({
+      "_rels/.rels": ROOT_RELS,
+      "ppt/presentation.xml": `<?xml version="1.0" encoding="UTF-8"?>
+        <p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+          <p:sldIdLst><p:sldId id="256" r:id="rId1"/></p:sldIdLst>
+          <p:sldSz cx="12192000" cy="6858000"/>
+        </p:presentation>`,
+      "ppt/_rels/presentation.xml.rels": `<?xml version="1.0" encoding="UTF-8"?>
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+        </Relationships>`,
+      "ppt/slides/_rels/slide1.xml.rels": `<?xml version="1.0" encoding="UTF-8"?>
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rIdImg1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/one.png"/>
+          <Relationship Id="rIdImg2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/two.png"/>
+        </Relationships>`,
+      "ppt/media/one.png": TINY_PNG_BYTES,
+      "ppt/media/two.png": TINY_PNG_BYTES,
+      "ppt/slides/slide1.xml": `<?xml version="1.0" encoding="UTF-8"?>
+        <p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+          <p:cSld><p:spTree>
+            <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>
+            <p:pic><p:nvPicPr><p:cNvPr id="2" name="One"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="rIdImg1"/></p:blipFill><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="635000" cy="635000"/></a:xfrm></p:spPr></p:pic>
+            <p:pic><p:nvPicPr><p:cNvPr id="3" name="Two"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="rIdImg2"/></p:blipFill><p:spPr><a:xfrm><a:off x="635000" y="0"/><a:ext cx="635000" cy="635000"/></a:xfrm></p:spPr></p:pic>
+          </p:spTree></p:cSld>
+        </p:sld>`,
+    });
+
+    const key1 = "note-files/user1/44444444-4444-4444-8444-444444444444.png";
+    const key2 = "note-files/user1/55555555-5555-4555-8555-555555555555.png";
+
+    // (a) 1 枚目のアップロード中に abort されても、1 枚目の応答の鍵を記録してから片付け、2 枚目は送らない。
+    const cancelDuringUpload = new AbortController();
+    const cleanedKeys: string[][] = [];
+    let uploadCalls = 0;
+    const createSpy = vi.fn();
+    await expect(importPptxFile(makeFileFromBytes(deckBytes, "cancel.pptx"), {
+      xmlParser,
+      signal: cancelDuringUpload.signal,
+      uploadFile: async (_blob, name, _mime, sig) => {
+        expect(sig).toBeUndefined();
+        uploadCalls += 1;
+        cancelDuringUpload.abort();
+        return { url: noteFileUrl(uploadCalls === 1 ? key1 : key2, name) };
+      },
+      cleanupFiles: async (keys) => { cleanedKeys.push(keys); },
+      createPage: createSpy,
+    })).rejects.toMatchObject({ code: "aborted" });
+    expect(uploadCalls).toBe(1);
+    expect(createSpy).not.toHaveBeenCalled();
+    expect(cleanedKeys).toEqual([[key1]]);
+
+    // (b) saving 段階に入ったあとの abort は建页を止めず、作成されたページをそのまま返す。
+    const abortDuringSave = new AbortController();
+    let idx = 0;
+    const saved = await importPptxFile(makeFileFromBytes(deckBytes, "commit.pptx"), {
+      xmlParser,
+      signal: abortDuringSave.signal,
+      uploadFile: async (_blob, name) => {
+        idx += 1;
+        return { url: noteFileUrl(idx === 1 ? key1 : key2, name) };
+      },
+      createPage: async (body, sig) => {
+        expect(sig).toBeUndefined();
+        abortDuringSave.abort();
+        return fakePageSummary("page-committed", body.title);
+      },
+    });
+    expect(saved.page.id).toBe("page-committed");
+  });
 });

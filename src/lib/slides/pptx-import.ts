@@ -142,6 +142,7 @@ export async function importPptxFile(file: File, options: ImportPptxOptions = {}
   const uploadedKeys: string[] = [];
   const urlByKey = new Map<string, string>();
   let pageCreated = false;
+  let savingStarted = false;
 
   try {
     const totalImages = parsed.images.length;
@@ -150,19 +151,22 @@ export async function importPptxFile(file: File, options: ImportPptxOptions = {}
       options.onProgress?.({ stage: "uploading", done: i, total: totalImages });
       const image = parsed.images[i];
       const prepared = await prepareImage(image);
+      if (options.signal?.aborted) throw new PptxImportError("aborted", PPTX_ERROR_MESSAGES.aborted);
       const baseName = image.zipPath.split("/").pop()?.replace(/\.[^.]+$/, "") || `slide-image-${i + 1}`;
       const fileName = `${baseName}.${extensionForMime(prepared.mimeType)}`;
-      const uploaded = await uploadFile(prepared.blob, fileName, prepared.mimeType, options.signal);
+      // 1 枚（最大 4 MiB）のアップロード途中に fetch を切ると、サーバー側で保存が終わった鍵を受け取れず
+      // 片付け漏れになるため、応答を受け取って鍵を記録してから中止を判定する。
+      const uploaded = await uploadFile(prepared.blob, fileName, prepared.mimeType);
       urlByKey.set(image.assetKey, uploaded.url);
       const keyParts = parseNoteFileUrl(uploaded.url);
       if (keyParts && keyParts !== "empty") uploadedKeys.push(keyParts.path);
+      if (options.signal?.aborted) throw new PptxImportError("aborted", PPTX_ERROR_MESSAGES.aborted);
     }
     if (totalImages > 0) {
       options.onProgress?.({ stage: "uploading", done: totalImages, total: totalImages });
     }
 
     if (options.signal?.aborted) throw new PptxImportError("aborted", PPTX_ERROR_MESSAGES.aborted);
-    options.onProgress?.({ stage: "saving", done: 0, total: 1 });
 
     // 最終の本体を正規化し、サーバーと同じ 2 MiB 上限と構造検査を通す。
     const finalDeck = normalizeDeck(replaceAssetUrls(parsed.deck, urlByKey));
@@ -175,13 +179,18 @@ export async function importPptxFile(file: File, options: ImportPptxOptions = {}
       throw error;
     }
 
+    if (options.signal?.aborted) throw new PptxImportError("aborted", PPTX_ERROR_MESSAGES.aborted);
+    // 建页の確定段階は中止しない（クライアント側だけ fetch を切るとサーバーで作成されたページが見えなくなり二重作成の元になる）。
+    savingStarted = true;
+    options.onProgress?.({ stage: "saving", done: 0, total: 1 });
+
     const page = await createPage({
       kind: "slides",
       title: parsed.title,
       icon: null,
       data: finalDeck,
       ...(options.parentId ? { parentId: options.parentId } : options.groupId ? { groupId: options.groupId } : {}),
-    }, options.signal);
+    });
     pageCreated = true;
     options.onProgress?.({ stage: "saving", done: 1, total: 1 });
 
@@ -196,7 +205,7 @@ export async function importPptxFile(file: File, options: ImportPptxOptions = {}
     if (!pageCreated && uploadedKeys.length > 0) {
       await cleanupFiles(uploadedKeys).catch(() => {});
     }
-    if (options.signal?.aborted && !(error instanceof PptxImportError)) {
+    if (!savingStarted && options.signal?.aborted && !(error instanceof PptxImportError)) {
       throw new PptxImportError("aborted", PPTX_ERROR_MESSAGES.aborted);
     }
     throw error;

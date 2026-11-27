@@ -301,7 +301,7 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 - `close()`：原生端返回页面列表或切到聊天、暂留常驻 WebView 热缓存时调用，卸载当前 `NotesWorkspace` 编辑器 DOM（释放 BlockNote / 白板 / 幻灯片实例与定时器），只保留轻量的网页壳与最多 8 篇的 LRU 队列缓存；未保存或保存中的队列绝不被 LRU 驱逐。
 - `pageTrashed(ids)`：原生端在列表、菜单或聊天提案撤销里把页面移入回收站时传入页面 ID 数组（即使当前未打开编辑器），从常驻 WebView 缓存中同步清除这些页面与草稿。
 - `refreshBacklinks()`：原生端在笔记上面改过别的页面或会话（改名、换图标、删除、从回收站复原）后调用，打开着的笔记重读反向链接。旧版网页没有这个函数时什么都不做。
-- `pptxImport(request)`：PowerPoint 导入窗口（对象或 JSON 字符串）。`{action:"open", groupId?, parentId?}` 打开导入窗口（ID 校验同 `slidesWizard`）；`{action:"back"}` 关闭窗口（导入进行中会中止并触发已上传图片的清理）。配套清理接口 `DELETE /api/pages/files`（body `{ keys: string[] }`）仅删除属于当前用户且未被任何页面引用的 `NOTE_FILE`，供客户端导入中途取消或失败时释放已上传图片。
+- `pptxImport(request)`：PowerPoint 导入窗口（对象或 JSON 字符串）。`{action:"open", groupId?, parentId?}` 打开导入窗口（ID 校验同 `slidesWizard`）；`{action:"back"}` 关闭窗口（解析/上传中会中止并触发已上传图片的清理，最终建页提交阶段则等待提交完成）。配套清理接口 `DELETE /api/pages/files`（body `{ keys: string[] }`）仅删除属于当前用户且未被任何页面引用的 `NOTE_FILE`（与保存时的 `claimStoredFiles` 共用用户级事务锁），供客户端导入中途取消或失败时释放已上传图片。
 
 消息的组装与 flush 的回复在 `src/lib/native-bridge.ts`（有单元测试）；更改约定时同时修改 Android / iOS 应用端以及 [android-native.md](android-native.md) / [ios-native.md](ios-native.md)。
 

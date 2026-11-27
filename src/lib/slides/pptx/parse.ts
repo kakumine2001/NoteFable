@@ -78,6 +78,7 @@ import {
   findDescendant,
   localName,
   numAttr,
+  PptxEntryTooLargeError,
   SafePptxZip,
   type RelEntry,
 } from "@/lib/slides/pptx/zip-reader";
@@ -193,19 +194,40 @@ function normalizeDeg(deg: number): number {
   return Math.abs(d) < 0.05 ? 0 : round2(d);
 }
 
-function resolveBox(parentMat: Mat2D, xfrm: Xfrm, fit: ViewportFit): { x: number; y: number; w: number; h: number; rotation: number } {
-  const m = mulMat(parentMat, xfrmBoxMat(xfrm, false));
+type ResolvedBox = { x: number; y: number; w: number; h: number; rotation: number; flipH: boolean; flipV: boolean };
+
+function resolveBox(parentMat: Mat2D, xfrm: Xfrm, fit: ViewportFit): ResolvedBox {
+  const m = mulMat(parentMat, xfrmBoxMat(xfrm, true));
   const [cx, cy] = applyMat(m, xfrm.w / 2, xfrm.h / 2);
   const finalW = Math.hypot(m[0] * xfrm.w, m[1] * xfrm.w);
   const finalH = Math.hypot(m[2] * xfrm.h, m[3] * xfrm.h);
-  // 親グループに反転がある場合でも、文字や画像が裏返りすぎないよう X 軸の向きで回転角を取り出す。
-  const angleDeg = normalizeDeg((Math.atan2(m[1], m[0]) * 180) / Math.PI);
+  const det = m[0] * m[3] - m[1] * m[2];
+  let rotation: number;
+  let flipH = false;
+  let flipV = false;
+  if (det >= 0) {
+    rotation = normalizeDeg((Math.atan2(m[1], m[0]) * 180) / Math.PI);
+  } else {
+    // 鏡映（det < 0）を R(rotation) * S(flipH, flipV) に分解する。
+    // 回転角の絶対値が小さい方を選び、水平反転が 180° 逆さ回転にならないようにする。
+    const rotH = normalizeDeg((Math.atan2(-m[1], -m[0]) * 180) / Math.PI);
+    const rotV = normalizeDeg((Math.atan2(m[1], m[0]) * 180) / Math.PI);
+    if (Math.abs(rotH) <= Math.abs(rotV)) {
+      rotation = rotH;
+      flipH = true;
+    } else {
+      rotation = rotV;
+      flipV = true;
+    }
+  }
   return {
     x: round2((cx - finalW / 2) * fit.scale + fit.offsetX),
     y: round2((cy - finalH / 2) * fit.scale + fit.offsetY),
     w: round2(finalW * fit.scale),
     h: round2(finalH * fit.scale),
-    rotation: angleDeg,
+    rotation,
+    flipH,
+    flipV,
   };
 }
 
@@ -398,24 +420,44 @@ function mapPlaceholderRole(phType: string | null): Role | undefined {
 
 // ---- 塗り・線の解決（spPr + p:style fillRef / lnRef） ----
 
-function resolveFillFromContainer(container: Element | null | undefined, colorCtx: ColorContext): ResolvedColor | "none" | null {
-  if (!container) return null;
-  if (findChild(container, "noFill")) return "none";
-  const solid = findChild(container, "solidFill");
-  if (solid) return resolveColorFromParent(solid, colorCtx);
+function blendHex(fgHex: `#${string}`, bgHex: `#${string}`, alpha: number): `#${string}` {
+  const a = Math.min(1, Math.max(0, alpha));
+  const parse = (h: string) => [
+    parseInt(h.slice(1, 3), 16) || 0,
+    parseInt(h.slice(3, 5), 16) || 0,
+    parseInt(h.slice(5, 7), 16) || 0,
+  ];
+  const [fr, fg, fb] = parse(fgHex);
+  const [br, bg, bb] = parse(bgHex);
+  const hex2 = (n: number) => Math.min(255, Math.max(0, Math.round(n))).toString(16).padStart(2, "0");
+  return `#${hex2(fr * a + br * (1 - a))}${hex2(fg * a + bg * (1 - a))}${hex2(fb * a + bb * (1 - a))}`;
+}
+
+function resolveFillNode(fillEl: Element | null | undefined, colorCtx: ColorContext): ResolvedColor | "none" | null {
+  if (!fillEl) return null;
+  const tag = localName(fillEl);
+  if (tag === "noFill") return "none";
+  if (tag === "solidFill") return resolveColorFromParent(fillEl, colorCtx);
   // グラデーションは中間のストップ色を代表色として使う（暗い背景が白く抜けないように）。
-  const grad = findChild(container, "gradFill");
-  if (grad) {
-    const gsLst = findChild(grad, "gsLst");
+  if (tag === "gradFill") {
+    const gsLst = findChild(fillEl, "gsLst");
     const stops = findChildren(gsLst, "gs");
     if (stops.length) {
       const mid = stops[Math.floor(stops.length / 2)];
       return resolveColorFromParent(mid, colorCtx);
     }
   }
-  const patt = findChild(container, "pattFill");
-  if (patt) {
-    return resolveColorFromParent(findChild(patt, "bgClr"), colorCtx) ?? resolveColorFromParent(findChild(patt, "fgClr"), colorCtx);
+  if (tag === "pattFill") {
+    return resolveColorFromParent(findChild(fillEl, "bgClr"), colorCtx) ?? resolveColorFromParent(findChild(fillEl, "fgClr"), colorCtx);
+  }
+  return null;
+}
+
+function resolveFillFromContainer(container: Element | null | undefined, colorCtx: ColorContext): ResolvedColor | "none" | null {
+  if (!container) return null;
+  for (const child of childElements(container)) {
+    const resolved = resolveFillNode(child, colorCtx);
+    if (resolved !== null) return resolved;
   }
   return null;
 }
@@ -432,8 +474,9 @@ function resolveStyleFill(shapeEl: Element, theme: ParsedTheme, colorCtx: ColorC
   const styleNode = list[(idx >= 1001 ? idx - 1001 : idx - 1)];
   if (styleNode) {
     const subCtx: ColorContext = { ...colorCtx, phClr };
-    const resolved = resolveFillFromContainer(styleNode, subCtx);
-    if (resolved && resolved !== "none") return resolved;
+    const resolved = resolveFillNode(styleNode, subCtx);
+    if (resolved === "none") return null;
+    if (resolved) return resolved;
   }
   return phClr;
 }
@@ -506,6 +549,7 @@ class AssetStore {
     rels: Map<string, RelEntry>,
     blipFill: Element | null | undefined,
     signal?: AbortSignal,
+    options: { flipH?: boolean; flipV?: boolean; maxMediaEntryBytes?: number } = {},
   ): Promise<{ ok: true; src: string; width: number; height: number } | { ok: false; kind: "externalImage" | "unsupportedImage" | "oversizedImage" } | null> {
     if (!blipFill) return null;
     const blip = findChild(blipFill, "blip");
@@ -517,7 +561,15 @@ class AssetStore {
     if (rel.external || !rel.resolvedPath) {
       return { ok: false, kind: "externalImage" };
     }
-    const bytes = await zip.readBytes(rel.resolvedPath, MAX_PPTX_MEDIA_ENTRY_BYTES, signal);
+    let bytes: Uint8Array | null;
+    try {
+      bytes = await zip.readBytes(rel.resolvedPath, options.maxMediaEntryBytes ?? MAX_PPTX_MEDIA_ENTRY_BYTES, signal);
+    } catch (error) {
+      if (error instanceof PptxEntryTooLargeError) {
+        return { ok: false, kind: "oversizedImage" };
+      }
+      throw error;
+    }
     if (!bytes) return { ok: false, kind: "unsupportedImage" };
     const probe = probePptxImage(bytes, rel.resolvedPath);
     if (!probe.ok) {
@@ -525,7 +577,8 @@ class AssetStore {
     }
     const crop = parseSrcRect(findChild(blipFill, "srcRect"));
     const cropKey = crop ? `${crop.left.toFixed(4)},${crop.top.toFixed(4)},${crop.right.toFixed(4)},${crop.bottom.toFixed(4)}` : "";
-    const assetKey = `${rel.resolvedPath.toLowerCase()}|${cropKey}`;
+    const flipKey = `${options.flipH ? "H" : ""}${options.flipV ? "V" : ""}`;
+    const assetKey = `${rel.resolvedPath.toLowerCase()}|${cropKey}${flipKey ? `|${flipKey}` : ""}`;
     if (!this.byKey.has(assetKey)) {
       const pending: PendingPptxImage = {
         assetKey,
@@ -535,6 +588,8 @@ class AssetStore {
         height: probe.height,
         bytes,
         ...(crop ? { crop } : {}),
+        ...(options.flipH ? { flipH: true } : {}),
+        ...(options.flipV ? { flipV: true } : {}),
       };
       this.byKey.set(assetKey, pending);
       this.ordered.push(pending);
@@ -793,10 +848,10 @@ function parseTextBody(
 
 type SlideIssueTracker = Map<PptxUnsupportedKind, { count: number; previewCount: number }>;
 
-function recordIssue(tracker: SlideIssueTracker, kind: PptxUnsupportedKind, hasPreview = false) {
+function recordIssue(tracker: SlideIssueTracker, kind: PptxUnsupportedKind, hasPreview = false, count = 1) {
   const entry = tracker.get(kind) ?? { count: 0, previewCount: 0 };
-  entry.count += 1;
-  if (hasPreview) entry.previewCount += 1;
+  entry.count += count;
+  if (hasPreview) entry.previewCount += count;
   tracker.set(kind, entry);
 }
 
@@ -805,6 +860,7 @@ type ParseSlideCtx = {
   rels: Map<string, RelEntry>;
   theme: ParsedTheme;
   colorCtx: ColorContext;
+  bgHex: `#${string}`;
   layout: ParsedLayout | null;
   master: ParsedMaster | null;
   defaultTextStyle: TextStyleLevels | null;
@@ -812,12 +868,18 @@ type ParseSlideCtx = {
   assets: AssetStore;
   issues: SlideIssueTracker;
   elements: SlideElement[];
+  omittedElements: number;
   isBackgroundLayer: boolean;
+  maxMediaEntryBytes: number;
   signal?: AbortSignal;
 };
 
 function pushElement(ctx: ParseSlideCtx, el: SlideElement) {
-  if (ctx.elements.length < MAX_SLIDE_ELEMENTS) ctx.elements.push(el);
+  if (ctx.elements.length < MAX_SLIDE_ELEMENTS) {
+    ctx.elements.push(el);
+  } else {
+    ctx.omittedElements += 1;
+  }
 }
 
 function isMediaPic(picEl: Element, rels: Map<string, RelEntry>): "video" | "audio" | null {
@@ -855,8 +917,13 @@ async function parsePicElement(
     return null;
   }
 
+  const box = resolveBox(parentMat, xfrm, ctx.fit);
   const blipFill = findChild(picEl, "blipFill");
-  const resolved = await ctx.assets.resolveBlip(ctx.zip, ctx.rels, blipFill, ctx.signal);
+  const resolved = await ctx.assets.resolveBlip(ctx.zip, ctx.rels, blipFill, ctx.signal, {
+    flipH: box.flipH,
+    flipV: box.flipV,
+    maxMediaEntryBytes: ctx.maxMediaEntryBytes,
+  });
   if (!resolved) {
     if (mediaKind && !suppressIssue) recordIssue(ctx.issues, mediaKind, false);
     return null;
@@ -872,7 +939,6 @@ async function parsePicElement(
 
   if (mediaKind && !suppressIssue) recordIssue(ctx.issues, mediaKind, true);
 
-  const box = resolveBox(parentMat, xfrm, ctx.fit);
   const cNvPr = findChild(findChild(picEl, "nvPicPr"), "cNvPr");
   const alt = (attr(cNvPr, "descr") ?? attr(cNvPr, "title") ?? attr(cNvPr, "name") ?? "").trim().slice(0, 500);
   const opacity = parseImageAlpha(blipFill);
@@ -1122,6 +1188,9 @@ function parseConnectorOrShape(
       else if (masterFill !== "none") fillResolved = resolveStyleFill(el, ctx.theme, ctx.colorCtx);
     }
   }
+  // ほぼ完全透過の塗り・線は「塗りなし／線なし」として扱い、要素全体の opacity で文字や枠線が消えないようにする。
+  if (fillResolved && fillResolved.alpha <= 0.02) fillResolved = null;
+  const effectiveLine = line && line.color.alpha <= 0.02 ? null : line;
 
   const cNvSpPr = findChild(findChild(el, "nvSpPr"), "cNvSpPr");
   const isTxBox = boolAttr(cNvSpPr, "txBox") === true;
@@ -1130,7 +1199,10 @@ function parseConnectorOrShape(
     ? ctx.master?.txStyles.title ?? null
     : ph ? ctx.master?.txStyles.body ?? null : ctx.master?.txStyles.other ?? null;
   const txBody = findChild(el, "txBody");
-  const hasDarkFill = fillResolved !== null && hexLuminance(fillResolved.hex) < 0.45;
+  const fillAppearanceHex = fillResolved
+    ? (fillResolved.alpha < 0.995 ? blendHex(fillResolved.hex, ctx.bgHex, fillResolved.alpha) : fillResolved.hex)
+    : null;
+  const hasDarkFill = fillAppearanceHex !== null && hexLuminance(fillAppearanceHex) < 0.45;
   const defaultValign: VAlign = isTxBox || ph ? "top" : "middle";
 
   const textResult = txBody
@@ -1142,16 +1214,33 @@ function parseConnectorOrShape(
 
   if (isChromePh && !textResult?.hasText) return;
   // 空のプレースホルダー（スライド上の未入力枠で塗りも線も無いもの）は出さない。
-  if (ph && !textResult?.hasText && !fillResolved && !line) return;
+  if (ph && !textResult?.hasText && !fillResolved && !effectiveLine) return;
   // 背景レイヤー（母版・版式）の空文字枠も出さない。
-  if (ctx.isBackgroundLayer && !textResult?.hasText && !fillResolved && !line) return;
+  if (ctx.isBackgroundLayer && !textResult?.hasText && !fillResolved && !effectiveLine) return;
 
   const box = resolveBox(parentMat, xfrm, ctx.fit);
   const isPlainRect = !prst || prst === "rect";
-  const asText = isTxBox || (isPlainRect && !line && (Boolean(textResult?.hasText) || Boolean(ph)));
-  const opacity = fillResolved && fillResolved.alpha < 0.995
-    ? round2(fillResolved.alpha)
-    : line && line.color.alpha < 0.995 ? round2(line.color.alpha) : undefined;
+  const asText = isTxBox || (isPlainRect && !effectiveLine && (Boolean(textResult?.hasText) || Boolean(ph)));
+
+  // 文字または不透明な枠線がある図形で塗りが半透明のときは、要素全体の opacity を落とさず背景色へ合成する。
+  const hasText = Boolean(textResult?.hasText);
+  const hasSemiFill = Boolean(fillResolved && fillResolved.alpha < 0.995);
+  const hasSemiStroke = Boolean(effectiveLine && effectiveLine.color.alpha < 0.995);
+  let fillHex: `#${string}` | null = fillResolved ? fillResolved.hex : null;
+  let strokeHex: `#${string}` | null = effectiveLine ? effectiveLine.color.hex : null;
+  let opacity: number | undefined;
+  if (hasText) {
+    if (hasSemiFill && fillResolved) fillHex = blendHex(fillResolved.hex, ctx.bgHex, fillResolved.alpha);
+    if (hasSemiStroke && effectiveLine) strokeHex = blendHex(effectiveLine.color.hex, ctx.bgHex, effectiveLine.color.alpha);
+  } else if (hasSemiFill && effectiveLine && !hasSemiStroke) {
+    fillHex = blendHex(fillResolved!.hex, ctx.bgHex, fillResolved!.alpha);
+  } else if (hasSemiStroke && fillResolved && !hasSemiFill) {
+    strokeHex = blendHex(effectiveLine!.color.hex, ctx.bgHex, effectiveLine!.color.alpha);
+  } else if (hasSemiFill && fillResolved) {
+    opacity = round2(fillResolved.alpha);
+  } else if (hasSemiStroke && effectiveLine) {
+    opacity = round2(effectiveLine.color.alpha);
+  }
   const role = mapPlaceholderRole(ph?.type ?? null);
 
   if (asText && textResult) {
@@ -1168,7 +1257,7 @@ function parseConnectorOrShape(
       ...(opacity !== undefined ? { opacity } : {}),
       doc: textResult.doc,
       style: textResult.style,
-      fill: fillResolved ? fillResolved.hex : null,
+      fill: fillHex,
       autoHeight: false,
     };
     pushElement(ctx, textEl);
@@ -1176,10 +1265,11 @@ function parseConnectorOrShape(
   }
 
   // 図形（ShapeElement）
-  const shapeKind: ShapeKind = mappedShape ? mappedShape.kind : "rect";
+  let shapeKind: ShapeKind = mappedShape ? mappedShape.kind : "rect";
   let { x, y, w, h, rotation } = box;
   if (mappedShape?.extraRotation) {
-    rotation = normalizeDeg(rotation + mappedShape.extraRotation);
+    const extraRot = mappedShape.swapSize && box.flipV ? -mappedShape.extraRotation : mappedShape.extraRotation;
+    rotation = normalizeDeg(rotation + extraRot);
     if (mappedShape.swapSize) {
       const cx = x + w / 2;
       const cy = y + h / 2;
@@ -1189,6 +1279,17 @@ function parseConnectorOrShape(
       h = nextH;
       x = round2(cx - w / 2);
       y = round2(cy - h / 2);
+    }
+  } else {
+    if (box.flipH) {
+      if (shapeKind === "arrowRight") shapeKind = "arrowLeft";
+      else if (shapeKind === "arrowLeft") shapeKind = "arrowRight";
+      else if (shapeKind === "chevron" && !hasText) rotation = normalizeDeg(rotation + 180);
+    }
+    if (box.flipV) {
+      if ((shapeKind === "triangle" || shapeKind === "pentagon" || shapeKind === "star") && !hasText) {
+        rotation = normalizeDeg(rotation + 180);
+      }
     }
   }
   const shapeEl: ShapeElement = {
@@ -1202,10 +1303,10 @@ function parseConnectorOrShape(
     ...(groupId ? { group: groupId } : {}),
     ...(opacity !== undefined ? { opacity } : {}),
     shape: shapeKind,
-    fill: fillResolved ? fillResolved.hex : null,
-    stroke: line ? line.color.hex : null,
-    strokeWidth: line ? line.widthPx : 0,
-    dash: line ? line.dash : "solid",
+    fill: fillHex,
+    stroke: strokeHex,
+    strokeWidth: effectiveLine ? effectiveLine.widthPx : 0,
+    dash: effectiveLine ? effectiveLine.dash : "solid",
     doc: textResult?.doc ?? richDocFromText(""),
     style: textResult?.style ?? { font: "body", size: 32, color: hasDarkFill ? "#ffffff" : "#000000", align: "center", valign: "middle", lineHeight: 1.25, bold: false, italic: false },
   };
@@ -1275,6 +1376,7 @@ async function resolveBackground(
   zip: SafePptxZip,
   assets: AssetStore,
   issues: SlideIssueTracker,
+  maxMediaEntryBytes: number,
   signal?: AbortSignal,
 ): Promise<{ color: `#${string}`; bgImage: ImageElement | null }> {
   for (const cand of bgCandidates) {
@@ -1283,7 +1385,7 @@ async function resolveBackground(
     if (bgPr) {
       const blipFill = findChild(bgPr, "blipFill");
       if (blipFill) {
-        const resolved = await assets.resolveBlip(zip, cand.rels, blipFill, signal);
+        const resolved = await assets.resolveBlip(zip, cand.rels, blipFill, signal, { maxMediaEntryBytes });
         if (resolved?.ok) {
           const img: ImageElement = {
             id: newId(),
@@ -1312,8 +1414,9 @@ async function resolveBackground(
       const idx = numAttr(bgRef, "idx") ?? 0;
       const styleNode = idx >= 1001 ? cand.theme.bgFillStyles[idx - 1001] : undefined;
       if (styleNode && phClr) {
-        const resolved = resolveFillFromContainer(styleNode, { ...cand.colorCtx, phClr });
-        if (resolved && resolved !== "none") return { color: resolved.hex, bgImage: null };
+        const resolved = resolveFillNode(styleNode, { ...cand.colorCtx, phClr });
+        if (resolved === "none") continue;
+        if (resolved) return { color: resolved.hex, bgImage: null };
       }
       if (phClr) return { color: phClr.hex, bgImage: null };
     }
@@ -1409,6 +1512,7 @@ export type ParsePptxOptions = {
   fileName?: string;
   xmlParser?: XmlParserLike;
   maxUncompressedBytes?: number;
+  maxMediaEntryBytes?: number;
   signal?: AbortSignal;
   onSlideProgress?: (done: number, total: number) => void;
 };
@@ -1525,8 +1629,10 @@ export async function parsePptx(data: ArrayBuffer | Uint8Array, options: ParsePp
     const colorMap = applyColorMapOverride(slideRoot, layout?.colorMap ?? master?.colorMap ?? DEFAULT_COLOR_MAP);
     const colorCtx: ColorContext = { scheme: theme.colors, map: colorMap };
 
+    const maxMediaEntryBytes = options.maxMediaEntryBytes ?? MAX_PPTX_MEDIA_ENTRY_BYTES;
     const issues: SlideIssueTracker = new Map();
-    const elements: SlideElement[] = [];
+    const bgElements: SlideElement[] = [];
+    let bgOmitted = 0;
 
     const cSld = findChild(slideRoot, "cSld");
     const slideBgEl = findChild(cSld, "bg");
@@ -1540,36 +1646,43 @@ export async function parsePptx(data: ArrayBuffer | Uint8Array, options: ParsePp
       zip,
       assets,
       issues,
+      maxMediaEntryBytes,
       options.signal,
     );
     if (hexLuminance(bg.color) < 0.35) darkBgCount += 1;
-    if (bg.bgImage) elements.push(bg.bgImage);
+    if (bg.bgImage) bgElements.push(bg.bgImage);
 
     // 母版・版式の非プレースホルダー装飾要素（showMasterSp が false でなければ後ろに置く）。
     const showMasterSp = boolAttr(slideRoot, "showMasterSp") !== false;
     if (showMasterSp && master && (!layout || layout.showMasterSp)) {
       const masterCtx: ParseSlideCtx = {
         zip, rels: master.rels, theme: master.theme, colorCtx: { scheme: master.theme.colors, map: master.colorMap },
-        layout: null, master, defaultTextStyle, fit, assets, issues, elements, isBackgroundLayer: true, signal: options.signal,
+        bgHex: bg.color, layout: null, master, defaultTextStyle, fit, assets, issues, elements: bgElements,
+        omittedElements: 0, isBackgroundLayer: true, maxMediaEntryBytes, signal: options.signal,
       };
       for (const shape of master.backgroundShapes) {
         await parseTreeNode(shape, MAT_ID, undefined, masterCtx);
       }
+      bgOmitted += masterCtx.omittedElements;
     }
     if (showMasterSp && layout) {
       const layoutCtx: ParseSlideCtx = {
         zip, rels: layout.rels, theme: layout.theme, colorCtx: { scheme: layout.theme.colors, map: layout.colorMap },
-        layout, master, defaultTextStyle, fit, assets, issues, elements, isBackgroundLayer: true, signal: options.signal,
+        bgHex: bg.color, layout, master, defaultTextStyle, fit, assets, issues, elements: bgElements,
+        omittedElements: 0, isBackgroundLayer: true, maxMediaEntryBytes, signal: options.signal,
       };
       for (const shape of layout.backgroundShapes) {
         await parseTreeNode(shape, MAT_ID, undefined, layoutCtx);
       }
+      bgOmitted += layoutCtx.omittedElements;
     }
 
-    // スライド本体の要素
+    // スライド本体の要素（1,000 件の上限に当たるときは母版・版式の装飾よりスライド本体を優先する）。
+    const slideElements: SlideElement[] = [];
     const slideCtx: ParseSlideCtx = {
-      zip, rels: slideRels, theme, colorCtx, layout, master, defaultTextStyle,
-      fit, assets, issues, elements, isBackgroundLayer: false, signal: options.signal,
+      zip, rels: slideRels, theme, colorCtx, bgHex: bg.color, layout, master, defaultTextStyle,
+      fit, assets, issues, elements: slideElements, omittedElements: 0, isBackgroundLayer: false,
+      maxMediaEntryBytes, signal: options.signal,
     };
     const spTree = findChild(cSld, "spTree");
     for (const child of childElements(spTree)) {
@@ -1577,6 +1690,12 @@ export async function parsePptx(data: ArrayBuffer | Uint8Array, options: ParsePp
       if (tag === "nvGrpSpPr" || tag === "grpSpPr") continue;
       await parseTreeNode(child, MAT_ID, undefined, slideCtx);
     }
+
+    const bgBudget = Math.max(0, MAX_SLIDE_ELEMENTS - slideElements.length);
+    const keptBg = bgElements.slice(0, bgBudget);
+    const omittedCount = slideCtx.omittedElements + bgOmitted + (bgElements.length - keptBg.length);
+    if (omittedCount > 0) recordIssue(issues, "elementLimit", false, omittedCount);
+    const elements: SlideElement[] = [...keptBg, ...slideElements];
 
     const hidden = boolAttr(slideRoot, "show") === false;
     const transition = parseSlideTransition(slideRoot, issues);
@@ -1621,13 +1740,24 @@ export async function parsePptx(data: ArrayBuffer | Uint8Array, options: ParsePp
   const totalUnsupported = slideReports.reduce((sum, s) => sum + s.issues.reduce((inner, item) => inner + item.count, 0), 0);
   const totalPreviews = slideReports.reduce((sum, s) => sum + s.issues.reduce((inner, item) => inner + item.previewCount, 0), 0);
 
+  // 要素上限で落ちたスライド要素の画像が余分にアップロードされないよう、最終の slides から参照されている画像だけを残す。
+  const usedAssetKeys = new Set<string>();
+  for (const slide of slides) {
+    for (const el of slide.elements) {
+      if (el.type === "image" && el.src.startsWith(PPTX_ASSET_PREFIX)) {
+        usedAssetKeys.add(el.src.slice(PPTX_ASSET_PREFIX.length));
+      }
+    }
+  }
+  const usedImages = assets.list().filter((img) => usedAssetKeys.has(img.assetKey));
+
   return {
     title,
     deck: { format: DECK_FORMAT, theme: deckTheme, slides },
-    images: assets.list(),
+    images: usedImages,
     report: {
       slideCount: slides.length,
-      uploadedImageCount: assets.list().length,
+      uploadedImageCount: usedImages.length,
       slides: slideReports,
       totalUnsupported,
       totalPreviews,

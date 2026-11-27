@@ -1335,4 +1335,5 @@ export const id: Record<string, string> = {
   "This presentation has too many slides to import (max 200).": "Presentasi ini memiliki terlalu banyak slide untuk diimpor (maks 200).",
   "This PowerPoint file has no slides to import.": "File PowerPoint ini tidak memiliki slide untuk diimpor.",
   "Import cancelled.": "Impor dibatalkan.",
+  "Extra elements beyond the slide limit were omitted": "Elemen tambahan yang melebihi batas slide dilewati",
 };

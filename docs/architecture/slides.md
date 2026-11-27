@@ -80,7 +80,7 @@
 | App → 网页 | `notefableEmbed.slides({ action, index?, format? })` | `present` / `end` / `next` / `previous` / `goto` / `export`（`pdf` / `pdf-notes` / `png` / `pptx`）；App 的“…”菜单（放映、导出）和返回键（放映中先结束放映）用它 |
 | App → 网页（能力） | `NoteFableNative.canShowPptxImport()` | 为 true 时，原生端承载 PowerPoint 导入全屏面板；网页按需发送 `pptxImport` / `openPage` / `pagesChanged` / `storageLimit` |
 | 网页 → App | `{ type: "pptxImport", state: "open" \| "closed" }` | PowerPoint 导入窗口打开 / 关闭；打开期间原生端隐藏顶栏并把返回键交给 `notefableEmbed.pptxImport({ action: "back" })` |
-| App → 网页 | `notefableEmbed.pptxImport({ action, groupId?, parentId? })` | `open`（带上可选的 `groupId` / `parentId` 定位新建目标）或 `back`（关闭导入窗口，导入进行中会中止并触发已上传图片的清理） |
+| App → 网页 | `notefableEmbed.pptxImport({ action, groupId?, parentId? })` | `open`（带上可选的 `groupId` / `parentId` 定位新建目标）或 `back`（关闭导入窗口；解析/上传中会中止并触发已上传图片的清理，最终建页提交阶段则等待提交完成而不丢弃已建页面） |
 
 旧版 App（没有 `canPresent` / `canSaveFile`）：放映只在 WebView 里进行（不横屏、不常亮），导出提示更新 App。
 
@@ -131,7 +131,7 @@
 在浏览器端用 `JSZip` + `DOMParser` 解析 PowerPoint（`.pptx`），不依赖服务端转换、不新增第三方包（`src/lib/slides/pptx/{types,zip-reader,colors,image-probe,theme-master,parse}.ts`、`src/lib/slides/pptx-import.ts`、`src/lib/pptx-import-jobs.ts`、`src/components/pptx-import-dialog.tsx`）。
 
 - **解析与映射**：解析 `slideMaster`、`slideLayout` 占位符继承（含默认文字样式、标题/正文/页脚字体与位置）、`theme1.xml` 主题色（含 `tint` / `shade` / `lumMod` / `lumOff` / `alpha` 与 `clrMap` 映射）与字体、嵌套组变换（`p:grpSp` 与旋转/翻转），并将原始幻灯片画幅等比适配到 1920 × 1080 居中画布。支持可编辑富文本（字号/颜色/加粗/斜体/下划线/删除线/项目符号与编号列表、仅保留 `http` / `https` / `mailto` 链接）、15 种常见形状及别名映射、线条/箭头连接符、按包内路径去重的图片与 `srcRect` 裁剪、基础表格（最多 50 × 20）、演讲备注、隐藏页与章节（`p14:sectionLst`）。
-- **明确兼容边界与逐页报告**：图表（`c:chart`）、SmartArt（`dgm:*`）、视频/音频、动画（`p:timing`）、不支持的转场（`fade` / `push` / `cover` / `uncover` 之外）、EMF/WMF/SVG 图片、外部链接图片、超限图片与嵌入式 OLE 对象不强行丢弃或静默忽略，导入后在完成界面**按页列出**；若文件内含静态预览图（如 `<mc:Fallback><p:pic>`、视频封面或 OLE 预览图），自动按原框位置放入静态图片并注明“已放置静态预览图”。
+- **明确兼容边界与逐页报告**：图表（`c:chart`）、SmartArt（`dgm:*`）、视频/音频、动画（`p:timing`）、不支持的转场（`fade` / `push` / `cover` / `uncover` 之外）、EMF/WMF/SVG 图片、外部链接图片、超限图片（单张超 32 MiB 或超像素上限时仅跳过该图而不中止整份导入）、嵌入式 OLE 对象以及单页超出 1,000 元素上限时被省略的额外元素（优先保留幻灯片正文元素而非母版/版式装饰，并裁剪被省略元素引用的图片）均不静默忽略，导入后在完成界面**按页列出**；若文件内含静态预览图（如 `<mc:Fallback><p:pic>`、视频封面或 OLE 预览图），自动按原框位置放入静态图片并注明“已放置静态预览图”。
 - **安全与硬上限**：文件大小上限 50 MB、页数上限 200 页；流式校验解压后总字节数不超过 160 MiB（防 ZIP 炸弹）；拒绝含 `<!DOCTYPE` / `<!ENTITY` 的 XML（防 XXE / 实体扩展）；忽略所有 `TargetMode="External"` 媒体/资源关系（仅允许安全协议超链接），绝不发起外部请求；按二进制魔数识别图片，仅接收 PNG / JPEG / GIF / WebP，解码前解析文件头拒绝超过 2500 万像素或单边超过 10,000 px 的超大图片；最终 `CanvasData` 序列化后不得超过 2 MiB。
 - **原子建页与清理**：所有图片先经 `POST /api/pages/files` 上传为当前用户的 `NOTE_FILE`（计入存储额度，单张超 4 MiB 时在客户端无损缩图/转码）并在全部转换成功后一次性 `POST /api/pages` 建页，不留半成品页面；用户取消、遇到 413 `storage_limit` 或任一步失败时调用 `DELETE /api/pages/files` 清理本次已上传但未被任何页面引用的文件（只删本人且未被引用的 `NOTE_FILE`）。
 - **入口**：网页、Android、iOS 所有“新建幻灯片”入口（侧栏新建、项目 `+`、页面 `+`、幻灯片分区 `+`、工作区首页与空状态新建卡片）以及幻灯片编辑器顶栏“…”菜单与工具栏均提供 **Import PowerPoint**；Android（`PptxImportScreen.kt` + `RememberWebFileChooser`）与 iOS（`PptxImportScreen.swift` + `NoteEditorWebView`）通过常驻 `/note-embed` 承载同一导入窗口。
