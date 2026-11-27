@@ -244,9 +244,8 @@ final class FixtureTransportTests: XCTestCase {
         XCTAssertEqual(history.last?.content, streamedText)
     }
 
-    /// iOS 27 空白聊天的对照场景（App/FixtureChatControl）依赖的行为：读过的聊天直接换进来、拿到会话 ID 不算换对话、
-    /// 重新生成长回答时条数不变并保持生成中、`onIdentityChanged` 回到空白首页。
-    func testChatControlSceneAssumptions() async throws {
+    /// 截图场景 chat-regenerate 和消息列表视图身份（`ChatUiState.conversationId` / `replacedRowsId`）依赖的行为。
+    func testChatListIdentityAndRegenerateFixture() async throws {
         let misses = MissRecorder()
         let catalog = FixtureCatalog(account: .signedIn, now: Self.fixedNow, image: Self.samplePNG)
         let transport = FixtureTransport(catalog: catalog) { misses.add($0) }
@@ -266,49 +265,43 @@ final class FixtureTransportTests: XCTestCase {
         let chat = env.chat
         try await waitUntil { !chat.state.sessionsLoading }
 
+        // 换对话换一个值（缓存里有、直接换进来的也算）；再点开着的聊天不算。
         chat.openSession(FixtureCatalog.IDs.glassSession)
         try await waitUntil { !chat.state.messagesLoading && !chat.state.messages.isEmpty }
         chat.openSession(FixtureCatalog.IDs.kyotoSession)
         try await waitUntil { !chat.state.messagesLoading && chat.state.messages.count == 6 }
-        let kyoto = chat.state.debugConversationId
+        let kyoto = chat.state.conversationId
         chat.openSession(FixtureCatalog.IDs.kyotoSession)
-        XCTAssertEqual(chat.state.debugConversationId, kyoto)
+        XCTAssertEqual(chat.state.conversationId, kyoto)
         chat.openSession(FixtureCatalog.IDs.glassSession)
         XCTAssertFalse(chat.state.messagesLoading)
-        XCTAssertEqual(chat.state.messages.count, 2)
-        XCTAssertNotEqual(chat.state.debugConversationId, kyoto)
+        XCTAssertNotEqual(chat.state.conversationId, kyoto)
 
+        // 追加、新聊天拿到会话 ID、回答结束后的对账（换 ID 沿用 key）都不换值。
         chat.newChat()
-        let fresh = chat.state.debugConversationId
+        let fresh = chat.state.conversationId
         chat.send(FixtureCatalog.Prompts.streamed)
         try await waitUntil { chat.state.activeSessionId == FixtureCatalog.IDs.liveSession && !chat.state.sending }
-        XCTAssertEqual(chat.state.debugConversationId, fresh)
-        // 追加、新聊天拿到会话 ID、回答结束后的对账（换 ID 沿用 key）都不算换行。
         try await waitUntil { chat.state.messages.last.map { !$0.id.hasPrefix("local-") } == true }
-        XCTAssertEqual(chat.state.debugBranchId, 0)
+        XCTAssertEqual(chat.state.conversationId, fresh)
+        XCTAssertEqual(chat.state.replacedRowsId, 0)
 
+        // 换对话不算换行。
         chat.openSession(FixtureCatalog.IDs.longSession)
         try await waitUntil { !chat.state.messagesLoading && chat.state.messages.count == 4 }
-        // 换对话不算换行。
-        XCTAssertEqual(chat.state.debugBranchId, 0)
+        XCTAssertEqual(chat.state.replacedRowsId, 0)
+        let long = chat.state.conversationId
+
+        // 重新生成长回答：条数不变、保持生成中；只记一次换行（之后的流式文字不算）。
         let answer = try XCTUnwrap(chat.state.messages.last)
         XCTAssertGreaterThan(answer.content.split(separator: "\n").count, 40)
         chat.regenerate(answer.id)
         try await waitUntil { chat.state.messages.last.map { $0.id != answer.id && $0.content.contains("Liquid Glass") } == true }
-        XCTAssertEqual(chat.state.messages.count, 4)
         try await Task.sleep(for: .milliseconds(200))
         XCTAssertTrue(chat.state.sending)
-        // 重新生成换掉了最后一行：只记一次（之后的流式文字不算），指着换上来的行。
-        XCTAssertEqual(chat.state.debugBranchId, 1)
-        XCTAssertEqual(chat.state.debugBranchRowKey, chat.state.messages.last?.key)
-
-        chat.onIdentityChanged()
-        XCTAssertNil(chat.state.activeSessionId)
-        XCTAssertTrue(chat.state.messages.isEmpty)
-        XCTAssertFalse(chat.state.sending)
-        chat.openSession(FixtureCatalog.IDs.longSession)
-        try await waitUntil { !chat.state.messagesLoading && chat.state.messages.count == 4 }
-        XCTAssertEqual(chat.state.messages.last?.id, answer.id)
+        XCTAssertEqual(chat.state.messages.count, 4)
+        XCTAssertEqual(chat.state.replacedRowsId, 1)
+        XCTAssertEqual(chat.state.conversationId, long)
         XCTAssertTrue(misses.items.isEmpty, "unexpected fixture misses: \(misses.items)")
     }
 

@@ -164,10 +164,6 @@ final class FixtureLaunch {
             // 浮动外观走的是哪条路（native / material / solid）：和界面上的玻璃组件用同一个判断，脚本按系统版本和变体核对。
             let glass = NFChromePath.resolve(reduceTransparency: reduceTransparency, forceSolid: forceSolidChrome)
             let line = "NF_FIXTURE_READY\(idxPart) scene=\(target.rawValue) reduceTransparency=\(reduceTransparency) forcedSolid=\(forceSolidChrome) rtl=\(app.language.isRightToLeft) locale=\(app.language.uiLocale) glass=\(glass.rawValue) keyboard=\(keyboard) increaseContrast=\(increaseContrast) timeout=\(!sceneReady)\n"
-            // 聊天画面先记一行消息列表的几何（排查消息区空白，ChatDebug）。
-            if let geometry = ChatDebug.geometryLine(scene: target.rawValue, idxPart: idxPart, app: app, router: router) {
-                Self.writeStderr(geometry)
-            }
             Self.writeStderr(line)
 
             if let ackDir = ackDirectory {
@@ -326,10 +322,26 @@ final class FixtureLaunch {
                     && app.chat.state.messages.last.map { $0.role == .assistant && !$0.content.isEmpty } == true
             }
 
-        case .chatEditorSend, .chatAfterEditor, .chatStreamedSettled, .chatSwitchVisible, .chatEditorLink,
-             .chatNewSend, .chatRegenerate:
-            // 消息区空白的对照场景：自己从空白首页做准备（有自己的时限）。
-            return await FixtureChatControl(app: app, router: router).prepare(target)
+        case .chatRegenerate:
+            // 很长的最后回答停在底部时重新生成：条数不变、内容一下子变短，新回答保持生成中。
+            // 就绪只看状态；消息区有没有画出来看截图。
+            router.selectTab(.chat)
+            app.chat.openSession(FixtureCatalog.IDs.longSession)
+            let opened = await poll(until: deadline) {
+                router.selectedTab == .chat
+                    && app.chat.state.activeSessionId == FixtureCatalog.IDs.longSession
+                    && !app.chat.state.messagesLoading
+                    && !app.chat.state.messages.isEmpty
+            }
+            // 等消息列表建好、停在底部。
+            try? await Task.sleep(for: .milliseconds(800))
+            guard opened, let answer = app.chat.state.messages.last else { return false }
+            app.chat.regenerate(answer.id)
+            let replaced = await poll(until: deadline) {
+                app.chat.state.messages.last.map { $0.id != answer.id && !$0.content.isEmpty } == true
+            }
+            try? await Task.sleep(for: .milliseconds(1000))
+            return replaced && app.chat.state.sending
 
         case .drawer:
             router.selectTab(.chat)

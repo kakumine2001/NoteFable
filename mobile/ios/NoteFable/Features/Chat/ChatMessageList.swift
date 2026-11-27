@@ -53,9 +53,8 @@ struct ChatMessageList: View {
                         )
                     }
                 }
-                #if DEBUG
-                .chatDebugStackIdentity(state.debugBranchId)
-                #endif
+                // iOS 27 起，开着的对话里有行换掉时换一个新的懒加载栈；UIScrollView 和位置保留（ChatListRepair）。
+                .chatListIdentity(state.replacedRowsId)
                 .padding(.horizontal, ChatMetrics.pageGutter)
                 .padding(.top, 4)
                 .padding(.bottom, ChatMetrics.listBottomPadding)
@@ -79,12 +78,9 @@ struct ChatMessageList: View {
                 if let last = messages.last, !revealPending { proxy.scrollTo(last.key, anchor: .bottom) }
             }
             .task(id: ChatRevealTrigger(state)) { await reveal(proxy) }
-            #if DEBUG
-            .onChange(of: state.debugBranchId) { _, _ in
-                let now = app.chat.state
-                scroll.debugRepairAfterReplace(proxy, replaced: now.debugBranchRowKey, last: now.messages.last?.key)
+            .onChange(of: state.replacedRowsId) { _, _ in
+                if ChatListRepair.isNeeded { scroll.repinAfterRebuild() }
             }
-            #endif
         }
         .overlay(alignment: .bottom) {
             ChatScrollToBottomButton(visible: !atBottom) {
@@ -154,9 +150,6 @@ struct ChatMessageList: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .modifier(ChatRevealFlashModifier(flash: flash?.messageId == message.id ? flash : nil))
-        #if DEBUG
-        .chatDebugRow(message.key, of: scroll)
-        #endif
     }
 
     /// 读完后滚到那条消息、放在可视区中间并闪一下；滚到了就停止跟随（否则马上被拉回底部），

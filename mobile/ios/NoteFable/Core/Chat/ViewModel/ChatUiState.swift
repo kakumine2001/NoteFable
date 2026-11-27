@@ -175,24 +175,17 @@ struct ChatUiState: Equatable, Sendable {
     var generatingSessionIds: Set<String> = []
     /// 当前聊天的角色完成 / 出错短暂状态反馈（网页 characterOutcome）。
     var characterOutcome: CharacterOutcome? = nil
-    #if DEBUG
-    /// 排查消息区空白的候选修复 A（启动参数 `-NFChatListIdentity`，见 ChatDebug）：每换一次对话（`ChatViewModel.show`）
-    /// 换一个值；新聊天拿到会话 ID（migrate）、再点开着的聊天不算换。
-    var debugConversationId = 0
-    /// 候选修复 C / D / E 用：开着的对话里有行被拿掉或换掉（重新生成、编辑、版本切换、失败退回）一次加一。
-    var debugBranchId = 0
-    /// 那一次换上来的第一行；只删没换时是最后一行。
-    var debugBranchRowKey: String? = nil
+    /// 消息列表的视图身份（下面两个值）：iOS 27 起界面层按它们重建列表（`ChatListRepair`），更早的系统不用。
+    /// 每换一次对话（`ChatViewModel.show`）换一个值；新聊天拿到会话 ID、再点开着的聊天不算换。
+    var conversationId = 0
+    /// 开着的对话里有行被拿掉或换掉（重新生成、编辑、版本切换、发送失败退回）一次加一。
+    var replacedRowsId = 0
 
-    /// 换消息列表前调用。只追加、原地更新（流式文字、对账换 ID 但沿用 key）不算；换对话不走这里（看 `debugConversationId`）。
-    mutating func debugNoteReplacedRows(_ next: [UiMessage]) {
+    /// 换开着的对话的消息前调用。只追加、原地更新（流式文字、对账换了 ID 但沿用 key）不算。
+    mutating func noteReplacedRows(_ next: [UiMessage]) {
         let nextKeys = Set(next.map(\.key))
-        guard messages.contains(where: { !nextKeys.contains($0.key) }) else { return }
-        let oldKeys = Set(messages.map(\.key))
-        debugBranchId += 1
-        debugBranchRowKey = next.first { !oldKeys.contains($0.key) }?.key ?? next.last?.key
+        if messages.contains(where: { !nextKeys.contains($0.key) }) { replacedRowsId += 1 }
     }
-    #endif
 
     private var hasActiveTurnOutput: Bool {
         guard let last = messages.last, last.role == .assistant else { return false }

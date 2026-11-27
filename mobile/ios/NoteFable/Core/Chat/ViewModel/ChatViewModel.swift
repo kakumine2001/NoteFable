@@ -174,9 +174,7 @@ final class ChatViewModel {
         cache[key] = messages
         if keyOf(state) == key {
             update {
-                #if DEBUG
-                $0.debugNoteReplacedRows(messages)
-                #endif
+                $0.noteReplacedRows(messages)
                 $0.messages = messages
             }
         }
@@ -443,9 +441,7 @@ final class ChatViewModel {
             $0.reveal = nil
             $0.rejectedEdit = nil
             $0.characterOutcome = outcomes[key]
-            #if DEBUG
-            $0.debugConversationId = navigationCount
-            #endif
+            $0.conversationId = navigationCount
         }
         syncDraftIcon()
         syncBusy()

@@ -30,7 +30,7 @@ struct FixtureCatalog: Sendable {
         static let ramenSession = "fx-session-ramen"
         static let meetingSession = "fx-session-meeting"
         static let liveSession = "fx-session-live"
-        /// 只给对照场景 chat-regenerate（FixtureChatControl）：最后一条回答很长。不在聊天列表里，别的截图不受影响。
+        /// 只给截图场景 chat-regenerate：最后一条回答很长。不在聊天列表里，别的截图不受影响。
         static let longSession = "fx-session-long"
 
         static let tripPage = "fx-page-trip"

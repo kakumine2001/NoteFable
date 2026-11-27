@@ -172,9 +172,8 @@ struct ChatWorkspace: View {
                 busy: state.sending || state.upload != nil || state.messagesLoading,
                 maxEditorHeight: maxEditorHeight
             )
-            #if DEBUG
-            .chatDebugListIdentity(conversation: state.debugConversationId, branch: state.debugBranchId)
-            #endif
+            // iOS 27 起每段对话一个新的消息列表（ChatListRepair）。
+            .chatListIdentity(state.conversationId)
         }
     }
 
