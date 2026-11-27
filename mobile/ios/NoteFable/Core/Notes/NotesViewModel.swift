@@ -912,7 +912,16 @@ final class NotesViewModel {
 
     func updateSettings(_ pageId: String, _ settings: NotePageSettings) async -> Bool {
         await serialMeta(pageId) { [self] in
-            await groupAction { [self] in
+            let owner = identity
+            if settings.locked == true, state.open?.id == pageId {
+                if !(await flushOpen()).ok {
+                    if owner == identity { update { $0.notice = NotesError(.unsavedDraft) } }
+                    return false
+                }
+                guard owner == identity else { return false }
+                update { if $0.notice?.kind == .unsavedDraft { $0.notice = nil } }
+            }
+            return await groupAction { [self] in
                 let page = try await backend.updateSettings(id: pageId, settings: settings)
                 return Applied(apply: { self.applyMeta(page) }, value: true)
             } ?? false

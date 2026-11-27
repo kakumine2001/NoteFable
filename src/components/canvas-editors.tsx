@@ -31,7 +31,7 @@ export type CanvasEditorProps = {
   // デスクトップの分割表示（チャットと並べた狭い枠）。
   split: boolean;
   saveStatus: NoteSaveStatus;
-  onChange: (data: CanvasData) => void;
+  onChange: (data: CanvasData | ((latest: CanvasData) => CanvasData | null)) => void;
   onTitleChange: (title: string) => void;
   // 選んだ要素・スライドについて AI に聞く（エディターの「Ask NoteFable / Ask AI」）。AI パネルが開き、text は引用、ids は要素・スライドの ID として送られる。
   onAskAi?: (selection: PageSelection) => void;

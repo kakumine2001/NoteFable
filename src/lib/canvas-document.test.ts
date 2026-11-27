@@ -27,8 +27,8 @@ describe("page kinds", () => {
     expect(PAGE_KIND_FEATURES.note).toEqual({ editor: true, markdownExport: true, typography: true, publicShare: true, aiEdit: true });
     // ホワイトボードのエディターと読み取り専用の公開ビュー（#152）＋ AI 編集（#153）。
     expect(PAGE_KIND_FEATURES.whiteboard).toEqual({ editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: true });
-    // スライドのエディターと公開の放映ページ（#149）。AI の編集は #150。
-    expect(PAGE_KIND_FEATURES.slides).toEqual({ editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false });
+    // スライドのエディターと公開の放映ページ（#149）＋ AI 編集（#150）。
+    expect(PAGE_KIND_FEATURES.slides).toEqual({ editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: true });
   });
 });
 

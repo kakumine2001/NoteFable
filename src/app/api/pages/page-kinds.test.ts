@@ -154,7 +154,7 @@ describe("reading and saving a whiteboard", () => {
     const body = await response.json();
     expect(body).toEqual({ version: 4, page: { id: "w1", kind: "whiteboard", title: "Board", icon: null, version: 4 } });
     expect(JSON.stringify(body)).not.toContain("freedraw");
-    expect(mocks.updateMany.mock.calls[0][0]).toEqual({ where: { id: "w1", userId: "mine", version: 3, deletedAt: null, kind: "whiteboard" }, data: { title: "Board", version: { increment: 1 } } });
+    expect(mocks.updateMany.mock.calls[0][0]).toEqual({ where: { id: "w1", userId: "mine", version: 3, deletedAt: null, kind: "whiteboard", locked: false }, data: { title: "Board", version: { increment: 1 } } });
     expect(mocks.canvasUpsert.mock.calls[0][0].update).toMatchObject({ data: board("Hi there"), segments: [{ id: "t1", text: "Hi there" }] });
     const snapshot = mocks.raw.mock.calls[0][0] as { sql: string };
     expect(snapshot.sql).toContain('LEFT JOIN "notefable"."NoteCanvas" c');
@@ -208,6 +208,24 @@ describe("reading and saving a whiteboard", () => {
     mocks.findFirst.mockResolvedValueOnce({ kind: "whiteboard" }).mockResolvedValue({ id: "w1", kind: "whiteboard", title: "Board", icon: null, version: 4 });
     mocks.canvasFindUnique.mockResolvedValue({ hash: canvasHash(board()) });
     expect((await save(patch({ title: "Board", data: board(), version: 3 }), context)).status).toBe(200);
+  });
+
+  it("rejects canvas saves with 423 PAGE_LOCKED when the page was locked in another tab and does not overwrite content", async () => {
+    mocks.updateMany.mockResolvedValue({ count: 0 });
+    mocks.findFirst.mockResolvedValueOnce({ kind: "slides" }).mockResolvedValue({
+      id: "w1",
+      kind: "slides",
+      title: "Deck",
+      icon: null,
+      version: 3,
+      locked: true,
+    });
+    mocks.canvasFindUnique.mockResolvedValue({ hash: "different" });
+
+    const response = await save(patch({ title: "Deck", data: { format: 1, theme: { id: "simple", mode: "light" }, slides: [] }, version: 3 }), context);
+    expect(response.status).toBe(423);
+    expect(await response.json()).toMatchObject({ error: "This page is locked.", code: "PAGE_LOCKED", version: 3, page: { id: "w1", locked: true } });
+    expect(mocks.canvasUpsert).not.toHaveBeenCalled();
   });
 
   it("answers a stale rename (no content sent) with 409, since it cannot tell whether the content changed meanwhile", async () => {

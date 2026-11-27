@@ -1284,4 +1284,13 @@ export const ru: Record<string, string> = {
   "Selected sketch": "Выбранный набросок",
   "Optional: watercolor illustration, clean 3D render, architectural diagram…": "Необязательно: акварельная иллюстрация, аккуратный 3D-рендер, архитектурная схема…",
   "Could not capture the selected sketch. Try again.": "Не удалось захватить выбранный набросок. Попробуйте ещё раз.",
+  "Ask AI to edit this slide deck…": "Попросить ИИ отредактировать эту презентацию…",
+  "Change tone": "Изменить тон",
+  "Merge slides": "Объединить слайды",
+  "Restyle deck": "Изменить стиль",
+  "Rewrite": "Переписать",
+  "Split into two slides": "Разделить на два слайда",
+  "Write speaker notes": "Написать заметки докладчика",
+  "This page is locked.": "Эта страница заблокирована.",
+  "Resolve the unsaved draft before locking this page.": "Сначала разберитесь с несохранённым черновиком, прежде чем блокировать эту страницу.",
 };

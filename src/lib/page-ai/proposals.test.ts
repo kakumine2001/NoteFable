@@ -39,7 +39,7 @@ function table(rows: () => Record<string, unknown>[], prefix: string, defaults: 
 vi.mock("@/lib/prisma", () => {
   const prisma = {
     noteProposal: table(() => db.proposals, "prop", { status: "PENDING", messageId: null, appliedPageId: null, pageKind: "note", autoApplied: false, appliedVersion: null, revisionId: null }),
-    notePage: table(() => db.pages, "page", { kind: "note", version: 0, deletedAt: null }),
+    notePage: table(() => db.pages, "page", { kind: "note", version: 0, deletedAt: null, locked: false }),
     // ホワイトボード・スライドの本体。readCanvasData の条件（note: { userId, deletedAt }）はページの表で確かめる。
     noteCanvas: {
       findUnique: async ({ where }: { where: { noteId: string } }) => db.canvases.find((row) => row.noteId === where.noteId) ?? null,
@@ -115,7 +115,7 @@ const reset = () => {
 
 describe("note proposals", () => {
   beforeEach(reset);
-  const seedPage = (userId = "u1", version = 3) => { db.pages.push({ kind: "note", id: "pg", userId, title: "Notes", icon: "📚", blocks: [para("a")], version, deletedAt: null }); return "pg"; };
+  const seedPage = (userId = "u1", version = 3) => { db.pages.push({ kind: "note", id: "pg", userId, title: "Notes", icon: "📚", blocks: [para("a")], version, deletedAt: null, locked: false }); return "pg"; };
 
   it("saves a pending proposal and returns it in the card shape", async () => {
     const view = await saveProposal("u1", "s1", edit(seedPage(), 3));
@@ -246,7 +246,7 @@ describe("note proposals", () => {
 
 describe("note proposals and the trash / edit history", () => {
   beforeEach(reset);
-  const seedPage = (extra: Record<string, unknown> = {}) => { db.pages.push({ kind: "note", id: "pg", userId: "u1", title: "Notes", icon: "📚", blocks: [para("a")], version: 3, deletedAt: null, ...extra }); return "pg"; };
+  const seedPage = (extra: Record<string, unknown> = {}) => { db.pages.push({ kind: "note", id: "pg", userId: "u1", title: "Notes", icon: "📚", blocks: [para("a")], version: 3, deletedAt: null, locked: false, ...extra }); return "pg"; };
 
   it("keeps the state it overwrites as an AI_EDIT revision when an edit is applied", async () => {
     const view = await saveProposal("u1", "s1", edit(seedPage(), 3));
@@ -326,7 +326,7 @@ describe("note proposals and the trash / edit history", () => {
 
 describe("auto-apply and undo", () => {
   beforeEach(reset);
-  const seedPage = (extra: Record<string, unknown> = {}) => { db.pages.push({ kind: "note", id: "pg", userId: "u1", title: "Notes", icon: "📚", blocks: [para("a")], version: 3, deletedAt: null, ...extra }); return "pg"; };
+  const seedPage = (extra: Record<string, unknown> = {}) => { db.pages.push({ kind: "note", id: "pg", userId: "u1", title: "Notes", icon: "📚", blocks: [para("a")], version: 3, deletedAt: null, locked: false, ...extra }); return "pg"; };
 
   it("marks an auto-applied proposal, offers undo, and marks the page as written by the AI", async () => {
     const view = await saveProposal("u1", "s1", edit(seedPage(), 3));
@@ -718,5 +718,77 @@ describe("canvas proposal before/after versioned preview (proposalContent)", () 
     expect(undone).toMatchObject({ ok: true, status: "undone", page: { id: "wb_lock", version: 3, data: wbBefore } });
     expect(db.revisions).toHaveLength(2);
     expect(db.revisions[1]).toMatchObject({ reason: "RESTORE", version: 2, data: wbAfter });
+  });
+
+  it("serves before/after content for slides proposals, applies with AI_EDIT revision, undoes cleanly, and refuses auto-apply on locked slide decks", async () => {
+    const slidesBefore = { format: 1, theme: { id: "simple", mode: "light" }, slides: [{ id: "s1", layout: "title", elements: [] }] };
+    const slidesAfter = { format: 1, theme: { id: "tech", mode: "dark" }, slides: [{ id: "s1", layout: "title", elements: [] }] };
+    db.pages.push({ kind: "slides", id: "deck_lock", userId: "u1", title: "Deck", icon: null, blocks: [], version: 2, deletedAt: null, locked: true });
+    db.canvases.push({ noteId: "deck_lock", data: slidesBefore, segments: [], hash: "h", size: 10 });
+
+    const view = await saveProposal("u1", "s1", {
+      kind: "EDIT",
+      pageKind: "slides",
+      page: { id: "deck_lock", title: "Deck", version: 2 },
+      draft: {
+        changes: [{ op: "update", block: 0, before: "Theme: simple (light)", after: "Theme: tech (dark)" }],
+        focusIds: ["s1"],
+        proposed: { title: "Deck", data: slidesAfter },
+      },
+    });
+
+    // Pending before/after preview serves live slides before and proposed slides after with focusIds.
+    expect(await proposalContent("u1", view.id, "before")).toMatchObject({
+      ok: true,
+      content: { kind: "edit", pageKind: "slides", status: "pending", side: "before", data: slidesBefore, focusIds: ["s1"] },
+    });
+    expect(await proposalContent("u1", view.id, "after")).toMatchObject({
+      ok: true,
+      content: { kind: "edit", pageKind: "slides", status: "pending", side: "after", data: slidesAfter, focusIds: ["s1"] },
+    });
+
+    // Auto-apply refuses a locked slide deck cleanly and keeps proposal pending.
+    expect(await applyProposal("u1", view.id, { auto: true })).toMatchObject({ ok: false, httpStatus: 409 });
+    expect(db.proposals.find((p) => p.id === view.id)?.status).toBe("PENDING");
+    expect(db.canvases[0].data).toEqual(slidesBefore);
+
+    // Manual apply creates AI_EDIT revision, bumps version, and before preview reads from revision snapshot.
+    const applied = await applyProposal("u1", view.id);
+    expect(applied).toMatchObject({ ok: true, kind: "edit", page: { id: "deck_lock", version: 3, data: slidesAfter } });
+    expect(db.revisions).toHaveLength(1);
+    expect(db.revisions[0]).toMatchObject({ reason: "AI_EDIT", version: 2, data: slidesBefore });
+    expect(await proposalContent("u1", view.id, "before")).toMatchObject({
+      ok: true,
+      content: { status: "applied", side: "before", data: slidesBefore },
+    });
+
+    // Undo restores slidesBefore and records RESTORE revision.
+    const undone = await undoProposal("u1", view.id);
+    expect(undone).toMatchObject({ ok: true, status: "undone", page: { id: "deck_lock", version: 4, data: slidesBefore } });
+    expect(db.revisions).toHaveLength(2);
+    expect(db.revisions[1]).toMatchObject({ reason: "RESTORE", version: 3, data: slidesAfter });
+
+    // Auto-apply refuses even if the deck is locked concurrently between the read and write inside the transaction.
+    db.pages.push({ kind: "slides", id: "deck_race", userId: "u1", title: "Race Deck", icon: null, blocks: [], version: 1, deletedAt: null, locked: false });
+    db.canvases.push({ noteId: "deck_race", data: slidesBefore, segments: [], hash: "h", size: 10 });
+    const raceView = await saveProposal("u1", "s1", {
+      kind: "EDIT",
+      pageKind: "slides",
+      page: { id: "deck_race", title: "Race Deck", version: 1 },
+      draft: {
+        changes: [{ op: "update", block: 0, before: "light", after: "dark" }],
+        focusIds: ["s1"],
+        proposed: { title: "Race Deck", data: slidesAfter },
+      },
+    });
+    db.beforePageWrite = () => {
+      // Simulate concurrent lock commit right before updateMany evaluates where.locked === false.
+      const row = db.pages.find((p) => p.id === "deck_race");
+      if (row) row.locked = true;
+    };
+    const raced = await applyProposal("u1", raceView.id, { auto: true });
+    expect(raced).toMatchObject({ ok: false, httpStatus: 409 });
+    expect(raced.ok ? "" : raced.error).toContain("locked");
+    expect(db.proposals.find((p) => p.id === raceView.id)?.status).toBe("PENDING");
   });
 });

@@ -3,7 +3,7 @@ import { isEmojiIcon } from "@/lib/emoji-icon";
 import { mentionText } from "@/lib/note-mention";
 import { validColumnWidth, COLUMN, COLUMN_LIST } from "@/lib/note-columns";
 import {
-  DEFAULT_TEXT_STYLE, DEFAULT_THEME, newId, normalizeDeck, safeImageSrc, SLIDE_WIDTH,
+  DEFAULT_TEXT_STYLE, DEFAULT_THEME, isColorRef, newId, normalizeDeck, safeImageSrc, SLIDE_WIDTH,
   type ColorRef, type Deck, type DeckTheme, type ImageElement, type LineElement, type ShapeElement, type Slide, type SlideElement, type TableElement, type TextElement,
   type TextStyle,
 } from "@/lib/slides/model";
@@ -210,8 +210,15 @@ function stylesToMarks(styles: Record<string, unknown> | undefined): RichMark[] 
   if (styles.underline === true) marks.push({ type: "underline" });
   if (styles.strike === true) marks.push({ type: "strike" });
   if (styles.code === true) marks.push({ type: "code" });
-  if (typeof styles.textColor === "string" && Object.hasOwn(NOTE_TEXT_COLORS, styles.textColor)) {
-    marks.push({ type: "color", attrs: { color: NOTE_TEXT_COLORS[styles.textColor] } });
+  if (typeof styles.textColor === "string") {
+    if (Object.hasOwn(NOTE_TEXT_COLORS, styles.textColor)) {
+      marks.push({ type: "color", attrs: { color: NOTE_TEXT_COLORS[styles.textColor] } });
+    } else if (isColorRef(styles.textColor)) {
+      marks.push({ type: "color", attrs: { color: styles.textColor } });
+    }
+  }
+  if (typeof styles.fontSize === "number" && Number.isFinite(styles.fontSize)) {
+    marks.push({ type: "size", attrs: { size: Math.min(800, Math.max(4, styles.fontSize)) } });
   }
   return marks;
 }
@@ -591,6 +598,7 @@ type TableBand = {
 function extractTableGrid(block: RawBlock): { rows: string[][]; rawWidths: (number | null)[]; headerRows: number } | null {
   const content = isObject(block.content) ? block.content : null;
   if (!content || content.type !== "tableContent" || !Array.isArray(content.rows) || !content.rows.length) return null;
+  const preserveWs = content.preserveCellWhitespace === true;
 
   const grid: string[][] = [];
   const occupied: boolean[][] = [];
@@ -612,9 +620,11 @@ function extractTableGrid(block: RawBlock): { rows: string[][]; rawWidths: (numb
       let colspan = 1;
       let rowspan = 1;
       if (Array.isArray(rawCell)) {
-        cellText = cleanStr(inlinePlain(rawCell), 2000).trim();
+        const text = cleanStr(inlinePlain(rawCell), 2000);
+        cellText = preserveWs ? text : text.trim();
       } else if (isObject(rawCell)) {
-        cellText = cleanStr(inlinePlain(rawCell.content), 2000).trim();
+        const text = cleanStr(inlinePlain(rawCell.content), 2000);
+        cellText = preserveWs ? text : text.trim();
         const cellProps = isObject(rawCell.props) ? rawCell.props : null;
         if (cellProps) {
           const cs = Number(cellProps.colspan);

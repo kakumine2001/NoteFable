@@ -65,9 +65,9 @@ class PageKindTest {
         val asset = java.io.File("src/main/assets/page-kinds.json").readText()
         try {
             PageKindTable.loadBundled(asset)
-            // 网页现在的表（白板、幻灯片的编辑器上线时这里跟着变）：能新建的类型按分区顺序；幻灯片有编辑器和公开的放映页（#149）。
+            // 网页现在的表（白板、幻灯片的编辑器、公开视图和 AI 编辑均已上线）。
             assertEquals(PageKindTable.parse(kotlinx.serialization.json.Json.parseToJsonElement(asset))?.filterValues { it.editor }?.keys?.let { keys -> PageKindTable.DisplayOrder.filter { it in keys } }, PageKindTable.creatable)
-            assertEquals(PageKindFeatures(editor = true, markdownExport = false, typography = false, publicShare = true, aiEdit = false), Slides.features)
+            assertEquals(PageKindFeatures(editor = true, markdownExport = false, typography = false, publicShare = true, aiEdit = true), Slides.features)
             // 白板（#152 / #153）：编辑器、公开只读视图和 AI 编辑。
             assertEquals(PageKindFeatures(editor = true, markdownExport = false, typography = false, publicShare = true, aiEdit = true), Whiteboard.features)
         } finally {
