@@ -1,4 +1,4 @@
-Ask the AI to edit your slide decks and review the changes.
-Help and legal links moved into Settings; the duplicate Account row is gone.
-Generating slides now shows progress in the note menu.
-Fixes for long translations.
+Embed whiteboards in notes and slides.
+Whiteboard page cards stay up to date; add formula labels.
+Import PowerPoint files as slide decks.
+Review and quiz yourself from notes and slides.
