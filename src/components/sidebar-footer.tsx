@@ -12,14 +12,16 @@ import { useAccount } from "@/lib/account-store";
 export function SidebarFooter() {
   const t = useT();
   const { account } = useAccount();
-  // アカウントを読み終えるまで出さない（ログインした人に一瞬だけ歯車が見えないように）。
-  const guest = account !== null && (!account.configured || !account.user);
+  // 未ログイン時・アカウント読込中／読込失敗時も歯車を出し、言語・外観・ヘルプへ必ず届くようにする。
+  const signedIn = Boolean(account?.user);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  if (signedIn && settingsOpen) setSettingsOpen(false);
 
   return (
     <div className="sidebar-footer">
       <div className="sidebar-footer-account"><AccountButton /></div>
-      {guest && <>
+      {!signedIn && <>
         <button type="button" className="sidebar-settings-trigger" aria-haspopup="dialog" aria-expanded={settingsOpen}
           aria-label={t("Settings")} title={t("Settings")} onClick={() => setSettingsOpen(true)}>
           <Settings size={17} aria-hidden="true" />

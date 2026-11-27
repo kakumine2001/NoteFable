@@ -85,8 +85,8 @@ fun SidebarFooter(
     profile: AccountViewModel,
     deleteAccount: suspend () -> Throwable?,
 ) {
-    // 账号读到之前不放设置齿轮，免得登录用户看到一下（网页 guest）。
-    val guest = account.loaded && (!account.configured || account.user == null)
+    // 未登录时（含账号加载中或加载失败）都放设置齿轮，保证语言、外观与帮助链接始终可达。
+    val showGuestSettings = !account.configured || account.user == null
     var settingsOpen by rememberSaveable { mutableStateOf(false) }
     // 头像编辑区和选好的照片放在这里而不是设置窗口里：选择器回来时（哪怕 Activity 重建）窗口还没组合好，结果也接得住。
     var editor by rememberSaveable { mutableStateOf(AvatarEditor.Closed) }
@@ -127,7 +127,7 @@ fun SidebarFooter(
                 else ProfileRow(user, onClick = openSettings)
             }
         }
-        if (guest) {
+        if (showGuestSettings) {
             GuestSettingsButton(onClick = openSettings)
         }
     }

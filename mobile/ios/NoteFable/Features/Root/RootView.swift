@@ -246,11 +246,11 @@ private struct DrawerFooter: View {
 
     var body: some View {
         let account = app.account.state
-        let guest = account.loaded && (!account.configured || account.user == nil)
+        let showGuestSettings = !account.configured || account.user == nil
         HStack(spacing: NFChromeMetrics.gap) {
             AccountRow(glassStyle: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            if guest {
+            if showGuestSettings {
                 guestSettingsButton
             }
             newActionButton

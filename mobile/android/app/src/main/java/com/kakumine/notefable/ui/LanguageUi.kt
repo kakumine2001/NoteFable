@@ -87,6 +87,8 @@ internal fun currentPreference(): AppLanguage.Preference =
 private object LocaleSyncMemory {
     /** 上一次切换失败（网页 changeError）：设置里显示"无法切换语言"和"重试"。 */
     var failed by mutableStateOf(false)
+    /** 上一次切换失败时尝试的语言（未登录用户关闭重开设置后点"重试"仍重试它）。 */
+    var lastFailedPreference by mutableStateOf<AppLanguage.Preference?>(null)
 }
 
 /** 换 App 的语言设置。语言变化由 MainActivity 的 configChanges 接住，界面就地重组，输入中的内容不丢。 */
@@ -97,9 +99,11 @@ private fun applyLanguage(preference: AppLanguage.Preference) {
             preference.tag?.let(LocaleListCompat::forLanguageTags) ?: LocaleListCompat.getEmptyLocaleList(),
         )
         LocaleSyncMemory.failed = false
+        LocaleSyncMemory.lastFailedPreference = null
     } catch (e: RuntimeException) {
         runCatching { AppCompatDelegate.setApplicationLocales(previous) }
         LocaleSyncMemory.failed = true
+        LocaleSyncMemory.lastFailedPreference = preference
     }
 }
 
@@ -147,7 +151,6 @@ fun AccountLocaleSync(account: AccountUiState) {
  */
 @Composable
 fun LanguageSettings(user: AccountUser?, onChoose: (String?) -> Unit) {
-    var lastAttempt by remember { mutableStateOf<AppLanguage.Preference?>(null) }
     val saved = when {
         user == null -> null
         user.locale == null -> AppLanguage.Preference.Auto
@@ -160,7 +163,7 @@ fun LanguageSettings(user: AccountUser?, onChoose: (String?) -> Unit) {
         else -> saved
     }
     val shown = checked ?: showingLanguage()
-    val retryTarget = if (user != null) saved else (lastAttempt ?: checked)
+    val retryTarget = if (user != null) saved else (LocaleSyncMemory.lastFailedPreference ?: checked)
     var anchor by remember { mutableStateOf<IntRect?>(null) }
     var bounds by remember { mutableStateOf<IntRect?>(null) }
     val label = stringResource(R.string.language_current, languageLabel(shown))
@@ -211,7 +214,6 @@ fun LanguageSettings(user: AccountUser?, onChoose: (String?) -> Unit) {
     anchor?.let { rect ->
         LanguageMenu(rect, current = checked, alignEnd = true, onClose = { anchor = null }) { choice ->
             anchor = null
-            lastAttempt = choice
             if (user != null) {
                 // Auto sends explicit null; manual options save their internal code.
                 if (choice != saved) onChoose(choice.code.takeUnless { choice == AppLanguage.Preference.Auto })
@@ -247,7 +249,7 @@ internal fun languageLabel(option: AppLanguage.Preference): String =
 
 /** 未登录时在设置里选了语言：马上换 App 的语言（只改本机）。按系统语言显示中选了同一种语言，也当作选择存下来，和网页一样。 */
 internal fun chooseLanguageOnDevice(choice: AppLanguage.Preference) {
-    if (choice != currentPreference()) applyLanguage(choice)
+    if (choice != currentPreference() || LocaleSyncMemory.failed) applyLanguage(choice)
 }
 
 /**

@@ -15,7 +15,7 @@ import { UserAvatar } from "@/components/user-avatar";
 import { saveProfile, settled, uploadPhoto, useAccount } from "@/lib/account-store";
 import { forgetAccountAppIcon } from "@/lib/app-icon-sync";
 import { settingsButtonStep, settingsDismissStep, settingsHomeTabs, settingsVisibleTabs, type SettingsStep, type SettingsTab } from "@/lib/settings-navigation";
-import { LOCALE_NAMES, type LocalePreference } from "@/lib/i18n/locale";
+import { LOCALE_NAMES } from "@/lib/i18n/locale";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import type { AccountUser } from "@/lib/user-profile";
@@ -31,10 +31,9 @@ const errorOf = (data: Record<string, unknown>, fallback: string) => typeof data
 
 // Save an explicit language or null (Auto) to the account when signed in, or to the device when guest.
 function LanguageSettings({ user }: { user: AccountUser | null }) {
-  const { t, locale, preference, target, switching, changeError, setPreference } = useI18n();
+  const { t, locale, preference, target, switching, changeError, failedTarget, setPreference } = useI18n();
   const labelId = useId();
   const { anchor, triggerRef, toggle, close } = useLanguageMenuAnchor();
-  const [lastAttempt, setLastAttempt] = useState<LocalePreference | null>(null);
   const saved = user ? (user.locale === undefined ? undefined : user.locale ?? "auto") : undefined;
   // Signed-in: null selects Auto; an unknown account preference selects no radio.
   // Guest: follow the local device preference (or in-flight target).
@@ -42,7 +41,7 @@ function LanguageSettings({ user }: { user: AccountUser | null }) {
   const valueText = checked === "auto"
     ? t("Auto (current: {language})", { language: LOCALE_NAMES[locale] })
     : LOCALE_NAMES[checked ?? locale];
-  const retryTarget = user ? saved : (lastAttempt ?? checked);
+  const retryTarget = user ? saved : (failedTarget ?? checked);
 
   return (
     <div className="settings-row-block">
@@ -62,8 +61,7 @@ function LanguageSettings({ user }: { user: AccountUser | null }) {
           if (user) {
             if (option !== saved) void saveProfile({ locale: option === "auto" ? null : option });
           } else {
-            setLastAttempt(option);
-            if (option !== preference) void setPreference(option);
+            void setPreference(option);
           }
         }} />}
       <span className="sr-only" role="status">{switching ? t("Changing language…") : ""}</span>

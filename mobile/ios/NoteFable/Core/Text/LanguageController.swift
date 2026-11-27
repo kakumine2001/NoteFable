@@ -98,7 +98,7 @@ final class LanguageController {
 
     /// 未登录时在设置里选了语言：只改本机。按系统语言显示着同一种语言时选它，也当作选择存下来（和网页一样）。
     func chooseOnDevice(_ choice: AppLanguage.Preference) {
-        if choice != preference { choose(choice) }
+        if choice != preference || changeFailed { choose(choice) }
     }
 
     /// 退出登录、删除账号后忘掉本机的选择，回到系统语言（网页 forgetLocaleChoice）。
