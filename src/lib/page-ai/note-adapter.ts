@@ -3,8 +3,11 @@ import { NoteValidationError, validateNoteContent } from "@/lib/note-document";
 import { isEmojiIcon } from "@/lib/emoji-icon";
 import { assertNoteFilesOwner } from "@/lib/note-files";
 import { blocksToMarkdown, type NoteBlock } from "@/lib/note-markdown";
+import { assertNoteWhiteboardsOwner } from "@/lib/note-whiteboards";
 import { applyPageEdits, MAX_EDITS, PageEditError, parseNewPageMarkdown } from "@/lib/page-edit";
+import { prisma } from "@/lib/prisma";
 import { discardStoredFiles } from "@/lib/stored-files";
+import { extractNoteWhiteboardPageIds } from "@/lib/whiteboard/frames";
 import { msg } from "@/lib/i18n/translate";
 import { AdapterError, type AdapterContext, type PageAdapter } from "@/lib/page-ai/adapter";
 import { noteStorage } from "@/lib/page-ai/storage";
@@ -13,7 +16,7 @@ import { noteStorage } from "@/lib/page-ai/storage";
 // ツール名（propose_note_edit・propose_note_create）は会話の履歴に残っているので、変えない。
 
 // 本文の Markdown の書き方（編集と新規で同じ）。
-const MARKDOWN_FORMAT = "each non-empty line becomes one block; # to ### headings, - bullets, 1. numbered items, - [ ] tasks, > quotes, code fences, --- dividers, [TOC] table of contents, '▸ text' toggles ('# ▸ text' is a toggle heading; indent the hidden content by 2 spaces below it), '> [!💡] text' callouts (any single emoji), GFM tables (a '| a | b |' header row, a '| --- | --- |' line, then rows; the whole table is one block, so replace it as a whole), and block math ('$$' on its own lines around LaTeX); indent nested list items by 2 spaces; **bold**, *italic*, ~~strike~~, `code`, `$inline math$`, [text](https://url)";
+const MARKDOWN_FORMAT = "each non-empty line becomes one block; # to ### headings, - bullets, 1. numbered items, - [ ] tasks, > quotes, code fences, --- dividers, [TOC] table of contents, '▸ text' toggles ('# ▸ text' is a toggle heading; indent the hidden content by 2 spaces below it), '> [!💡] text' callouts (any single emoji), GFM tables (a '| a | b |' header row, a '| --- | --- |' line, then rows; the whole table is one block, so replace it as a whole), block math ('$$' on its own lines around LaTeX), and whiteboard embeds ('[Whiteboard](whiteboard:PAGE_ID)' or '[Whiteboard](whiteboard:PAGE_ID#FRAME_ID)' on its own line using a whiteboard ID from search_notes or list_pages); indent nested list items by 2 spaces; **bold**, *italic*, ~~strike~~, `code`, `$inline math$`, [text](https://url)";
 
 const EDIT_TOOL = {
   name: "propose_note_edit",
@@ -82,7 +85,7 @@ export const noteAdapter: PageAdapter = {
   ...noteStorage,
 
   read(page) {
-    return `# ${page.title}\n\n${blocksToMarkdown(page.blocks, 0, { n: 0 })}`;
+    return `# ${page.title}\n\n${blocksToMarkdown(page.blocks, 0, { n: 0 }, { whiteboards: page.embeddedWhiteboards })}`;
   },
 
   edit: {
@@ -103,6 +106,7 @@ export const noteAdapter: PageAdapter = {
         const requested = typeof value.title === "string" ? value.title.trim() : "";
         const content = validateNoteContent({ title: requested || page.title, blocks });
         assertNoteFilesOwner(content.blocks, ctx.userId);
+        await assertNoteWhiteboardsOwner(prisma, content.blocks, ctx.userId, { allowExistingIds: extractNoteWhiteboardPageIds(page.blocks) });
         return {
           ...(content.title !== page.title ? { title: { before: page.title, after: content.title } } : {}),
           changes,
@@ -129,6 +133,7 @@ export const noteAdapter: PageAdapter = {
         const blocks = parseNewPageMarkdown(typeof value.markdown === "string" ? (await resolve([value.markdown]))[0] : value.markdown);
         const content = validateNoteContent({ title, icon, blocks });
         assertNoteFilesOwner(content.blocks, ctx.userId);
+        await assertNoteWhiteboardsOwner(prisma, content.blocks, ctx.userId);
         return {
           title: content.title, icon: content.icon, content: blocksToMarkdown(content.blocks), parentId,
           proposed: { title: content.title, icon: content.icon, blocks: content.blocks },

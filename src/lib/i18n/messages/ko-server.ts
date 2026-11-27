@@ -319,5 +319,6 @@ export const koServer: Record<string, string> = {
   "Gantt chart": "간트 차트",
   "quadrant chart": "사분면 차트",
   "mind map": "마인드맵",
+  "This page embeds a whiteboard that is not available.": "이 페이지에 사용할 수 없는 화이트보드가 삽입되어 있어요.",
   "Could not import this PowerPoint file. Try again.": "이 PowerPoint 파일을 가져오지 못했습니다. 다시 시도하세요.",
 };

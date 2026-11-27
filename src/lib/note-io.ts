@@ -2,6 +2,7 @@ import { answerFileName, extractLeadingHeadingTitle, fitMarkdownBlocksToNote } f
 import { blocksToMarkdown } from "@/lib/note-markdown";
 import { unwrapColumns } from "@/lib/note-columns";
 import { mentionText } from "@/lib/note-mention";
+import type { WhiteboardMetaMap } from "@/lib/whiteboard/frames";
 import type { NoteContent } from "@/types/notes";
 
 // 1 回の取り込みで受け付ける Markdown ファイル数と容量の上限（Vercel の 4.5 MB リクエスト上限の内側に収める）。
@@ -40,13 +41,13 @@ function mentionsAsText(value: unknown): unknown {
   return Object.fromEntries(Object.entries(node).map(([key, entry]) => [key, key === "props" ? entry : mentionsAsText(entry)]));
 }
 
-function portableMarkdown(blocks: unknown): string {
+function portableMarkdown(blocks: unknown, whiteboards?: WhiteboardMetaMap): string {
   if (!Array.isArray(blocks)) return "";
   let out = "";
   let previousType: unknown;
   // 段組みは外し、段の中のブロックも最上位のブロックと同じように空行で区切る。
   for (const block of unwrapColumns(blocks)) {
-    const text = blocksToMarkdown([mentionsAsText(block)]).trimEnd();
+    const text = blocksToMarkdown([mentionsAsText(block)], 0, undefined, { portable: true, whiteboards }).trimEnd();
     if (!text) continue;
     const type = (block as { type?: unknown } | null)?.type;
     const sameList = LIST_BLOCK_TYPES.has(type as string) && type === previousType;
@@ -57,9 +58,12 @@ function portableMarkdown(blocks: unknown): string {
 }
 
 // ノート 1 篇を「# 題名 + 本文」の Markdown ファイルへ書き出す。
-export function noteToMarkdownFile(note: { title: string; blocks: unknown }): { fileName: string; markdown: string } {
+export function noteToMarkdownFile(
+  note: { title: string; blocks: unknown },
+  options?: { whiteboards?: WhiteboardMetaMap },
+): { fileName: string; markdown: string } {
   const cleanTitle = note.title.replace(/[\r\n]+/g, " ").trim() || "Untitled";
-  const body = portableMarkdown(note.blocks);
+  const body = portableMarkdown(note.blocks, options?.whiteboards);
   // 見出しの末尾の # は「閉じる記号」として読まれて消える。題名が # で終わるときは、閉じる記号を 1 つ足して題名の # を残す。
   // 題名の中の * や _ などは、他のアプリで書式として読まれないよう \ を付ける（取り込みで外す）。
   const escaped = cleanTitle.replace(/[\\`*_[\]<>~]/g, "\\$&");

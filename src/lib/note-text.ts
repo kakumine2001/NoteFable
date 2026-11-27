@@ -1,7 +1,10 @@
+import type { WhiteboardMetaMap } from "@/lib/whiteboard/frames";
+
 // ノートのブロック JSON から文字列を取り出す純粋な関数（prisma を読み込まない）。
 // 検索（search.ts）と意味検索の索引（note-embeddings.ts）が同じ取り出し方を使う。
 
 export type BlockLike = { id?: unknown; props?: unknown; content?: unknown; children?: unknown; type?: unknown };
+export type NoteTextOptions = { whiteboards?: WhiteboardMetaMap };
 
 // 文書の順（親 → 子 → 次の兄弟）にブロックを返す。深さに依存しないよう再帰は使わない。
 export function* walkBlocks(blocks: unknown): Generator<BlockLike> {
@@ -72,10 +75,22 @@ export function blocksHaveMath(blocks: unknown): boolean {
   return false;
 }
 
-export function blockText(block: BlockLike): string {
+export function blockText(block: BlockLike, options?: NoteTextOptions): string {
   if (block.type === "mathBlock") {
     const latex = (block.props as { latex?: unknown } | null)?.latex;
     return typeof latex === "string" ? latex : "";
+  }
+  if (block.type === "whiteboard") {
+    const props = block.props as { pageId?: unknown; frameId?: unknown } | null;
+    const pageId = typeof props?.pageId === "string" ? props.pageId.trim() : "";
+    if (!pageId || !options?.whiteboards) return "";
+    const meta = options.whiteboards.get(pageId);
+    if (!meta) return "";
+    const frameId = typeof props?.frameId === "string" ? props.frameId.trim() : "";
+    const frameName = frameId ? meta.frames.get(frameId) : undefined;
+    const title = meta.title.trim();
+    if (title && frameName) return `${title} — ${frameName}`;
+    return title || frameName || "";
   }
   return inlineText(block.content);
 }
@@ -83,10 +98,10 @@ export function blockText(block: BlockLike): string {
 const LEADING_CHARS = 400;
 
 // ノート冒頭の本文（ブロックの文字列を空白でつないだもの）。一致するブロックが無いときのスニペットに使う。
-export function leadingText(blocks: unknown, limit = LEADING_CHARS) {
+export function leadingText(blocks: unknown, limit = LEADING_CHARS, options?: NoteTextOptions) {
   let text = "";
   for (const block of walkBlocks(blocks)) {
-    const own = blockText(block).trim();
+    const own = blockText(block, options).trim();
     if (!own) continue;
     text += (text ? " " : "") + own;
     if (text.length >= limit) break;
@@ -95,8 +110,8 @@ export function leadingText(blocks: unknown, limit = LEADING_CHARS) {
 }
 
 // 指定した blockId から始まる本文を抜き出す（意味検索で一致したチャンクの抜粋を、現在の本文から直接作るため）。
-export function excerptFromBlock(blocks: unknown, blockId: string | null, limit = LEADING_CHARS) {
-  if (!blockId) return leadingText(blocks, limit);
+export function excerptFromBlock(blocks: unknown, blockId: string | null, limit = LEADING_CHARS, options?: NoteTextOptions) {
+  if (!blockId) return leadingText(blocks, limit, options);
   let found = false;
   let text = "";
   for (const block of walkBlocks(blocks)) {
@@ -104,12 +119,12 @@ export function excerptFromBlock(blocks: unknown, blockId: string | null, limit 
       if (block.id !== blockId) continue;
       found = true;
     }
-    const own = blockText(block).trim();
+    const own = blockText(block, options).trim();
     if (!own) continue;
     text += (text ? " " : "") + own;
     if (text.length >= limit) break;
   }
-  return text || leadingText(blocks, limit);
+  return text || leadingText(blocks, limit, options);
 }
 
 // ---- 意味検索用のチャンク ----

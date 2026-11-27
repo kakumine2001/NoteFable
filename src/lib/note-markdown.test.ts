@@ -447,4 +447,39 @@ describe("numbered blocksToMarkdown", () => {
     expect(markdownToBlocks("[toc]")[0].type).toBe("tableOfContents");
     expect(markdownToBlocks("\\[TOC]")[0].type).toBe("paragraph");
   });
+
+  it("round-trips whiteboard embed blocks and formats live labels or portable text", () => {
+    const blocks = [
+      { id: "w1", type: "whiteboard", props: { pageId: "wb1", frameId: "" }, children: [] },
+      { id: "w2", type: "whiteboard", props: { pageId: "wb1", frameId: "frame-1" }, children: [] },
+    ];
+    const meta = new Map([["wb1", { id: "wb1", title: "System Map", frames: new Map([["frame-1", "Auth Flow"]]) }]]);
+    const md = blocksToMarkdown(blocks, 0, undefined, { whiteboards: meta });
+    expect(md).toBe("[Whiteboard: System Map](whiteboard:wb1)\n[Whiteboard: System Map — Auth Flow](whiteboard:wb1#frame-1)");
+    const parsed = markdownToBlocks(md);
+    expect(parsed.map((b) => ({ type: b.type, props: b.props }))).toEqual([
+      { type: "whiteboard", props: { pageId: "wb1", frameId: "" } },
+      { type: "whiteboard", props: { pageId: "wb1", frameId: "frame-1" } },
+    ]);
+    expect(() => validateNoteContent({ title: "WB", blocks: parsed })).not.toThrow();
+
+    const portable = blocksToMarkdown(blocks, 0, undefined, { portable: true, whiteboards: meta });
+    expect(portable).toBe("[Whiteboard: System Map]\n[Whiteboard: System Map — Auth Flow]");
+    expect(portable).not.toContain("whiteboard:");
+
+    const preview = blocksToMarkdown(blocks, 0, undefined, { forPreview: true, whiteboards: meta });
+    expect(preview).toBe("[Whiteboard: System Map]\n[Whiteboard: System Map — Auth Flow]");
+    expect(preview).not.toContain("whiteboard:");
+
+    // Escaped brackets in whiteboard or frame names must survive a Markdown round-trip.
+    const bracketMeta = new Map([["wb1", { title: "Review [draft]", frames: new Map([["frame-1", "Phase [2]"]]) }]]);
+    const bracketMd = blocksToMarkdown(blocks, 0, undefined, { whiteboards: bracketMeta });
+    expect(bracketMd).toContain("Review \\[draft\\]");
+    expect(bracketMd).toContain("Phase \\[2\\]");
+    const reparsed = markdownToBlocks(bracketMd);
+    expect(reparsed.map((b) => ({ type: b.type, props: b.props }))).toEqual([
+      { type: "whiteboard", props: { pageId: "wb1", frameId: "" } },
+      { type: "whiteboard", props: { pageId: "wb1", frameId: "frame-1" } },
+    ]);
+  });
 });

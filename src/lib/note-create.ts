@@ -3,6 +3,7 @@ import { assertCanvasFilesOwner, emptyCanvasData, type CanvasPageInput } from "@
 import { prepareCanvas, writeCanvas } from "@/lib/canvas-store";
 import { assertCoverOwner, claimCover } from "@/lib/note-covers";
 import { assertNoteFilesOwner } from "@/lib/note-files";
+import { assertNoteWhiteboardsOwner } from "@/lib/note-whiteboards";
 import { claimNoteFiles, claimStoredFiles } from "@/lib/stored-files";
 import { lockNoteOrder, resolveParent } from "@/lib/note-tree-server";
 import type { CanvasKind } from "@/lib/page-kinds";
@@ -29,6 +30,7 @@ export async function createNotePage(
     await claimCover(tx, content.cover, userId);
     await claimCover(tx, content.icon, userId, "icon");
     await claimNoteFiles(tx, content.blocks, userId);
+    await assertNoteWhiteboardsOwner(tx, content.blocks, userId);
     return tx.notePage.create({ data: {
       userId, parentId, groupId, title: content.title, icon: content.icon, cover: content.cover, coverPosition: content.coverPosition,
       blocks: content.blocks as unknown as Prisma.InputJsonValue, ...(ai ? { aiUpdatedAt: new Date() } : {}),

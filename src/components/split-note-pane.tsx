@@ -21,7 +21,7 @@ type SplitNotePaneProps = {
   notes: ReturnType<typeof useNotePages>;
   model: string;
   reasoning: string;
-  onSelectNote: (id: string) => void;
+  onSelectNote: (id: string, reveal?: string) => void;
   // バックリンクの会話を左のチャットで開く。
   onOpenChat: (id: string, messageId?: string) => void;
   onCreateNote: (parentId?: string) => void;

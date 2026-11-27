@@ -3,7 +3,7 @@
 import {
   AlignCenter, AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalDistributeCenter, AlignJustify, AlignLeft, AlignRight,
   AlignStartHorizontal, AlignStartVertical, AlignVerticalDistributeCenter, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, ArrowDown, ArrowUp,
-  Bold, BringToFront, Code, Eye, EyeOff, Flag, Group, ImagePlus, Italic, Link, List, ListOrdered, Minus, Plus, SendToBack, Sigma, SquareFunction, Strikethrough, Trash2,
+  ArrowUpRight, Bold, BringToFront, Code, Eye, EyeOff, Flag, Frame, Group, ImagePlus, Italic, Link, List, ListOrdered, LoaderCircle, Minus, Plus, RefreshCw, SendToBack, Sigma, SquareFunction, Strikethrough, Trash2,
   Underline, Ungroup, Upload,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -107,7 +107,17 @@ function tableWithSize(element: TableElement, rows: number, cols: number): Table
   return { ...element, rows: nextRows, cols: nextCols, h: Math.max(element.h * (rows / element.rows.length), 40) };
 }
 
-export function SlideInspector({ slide, slideCount, selection, theme, editable, onChange, onReplaceImage, onGenerateImage, onReportImage, onDelete, onLayout, onToggleHidden, onTransition, onApplyTransitionAll, onAskAi }: {
+export type WhiteboardElementStatus =
+  | { state: "current"; boardTitle: string }
+  | { state: "outdated"; boardTitle: string }
+  | { state: "missing" }
+  | { state: "loading" };
+
+export function SlideInspector({
+  slide, slideCount, selection, theme, editable, onChange, onReplaceImage, onGenerateImage, onReportImage,
+  whiteboardStatus, refreshingWhiteboardIds, onRefreshWhiteboard, onReplaceWhiteboard, onOpenWhiteboard,
+  onDelete, onLayout, onToggleHidden, onTransition, onApplyTransitionAll, onAskAi,
+}: {
   slide: Slide;
   slideCount: number;
   selection: Set<string>;
@@ -117,6 +127,11 @@ export function SlideInspector({ slide, slideCount, selection, theme, editable, 
   onReplaceImage: (elementId: string) => void;
   onGenerateImage: (elementId: string) => void;
   onReportImage: (elementId: string) => void;
+  whiteboardStatus?: ReadonlyMap<string, WhiteboardElementStatus>;
+  refreshingWhiteboardIds?: ReadonlySet<string>;
+  onRefreshWhiteboard?: (elementId: string) => void;
+  onReplaceWhiteboard?: (elementId: string) => void;
+  onOpenWhiteboard?: (elementId: string) => void;
   onDelete: () => void;
   onLayout: (layout: LayoutId) => void;
   onToggleHidden: () => void;
@@ -288,6 +303,45 @@ export function SlideInspector({ slide, slideCount, selection, theme, editable, 
       </label>
     </Section>}
 
+    {single?.type === "whiteboard" && (() => {
+      const status = whiteboardStatus?.get(single.id);
+      const refreshing = Boolean(refreshingWhiteboardIds?.has(single.id));
+      const missing = status?.state === "missing" || !single.pageId;
+      const outdated = status?.state === "outdated";
+      const sourceTitle = status && (status.state === "current" || status.state === "outdated")
+        ? ((status.boardTitle ?? "").trim() || t("Untitled"))
+        : "";
+      const frameLabel = (single.frameName ?? "").trim();
+      const subtitle = sourceTitle && frameLabel && sourceTitle !== frameLabel
+        ? `${sourceTitle} / ${frameLabel}`
+        : (frameLabel || sourceTitle || t("Whiteboard"));
+      return <Section title={t("Whiteboard frame")}>
+        <div className="slides-wb-meta">
+          <span className="slides-wb-source truncate" title={subtitle}>{subtitle}</span>
+          {outdated && <span className="slides-wb-badge">{t("Refresh available")}</span>}
+          {missing && <span className="slides-wb-missing">{t("Source whiteboard unavailable")}</span>}
+        </div>
+        {onRefreshWhiteboard && (
+          <button
+            type="button"
+            className={`slides-wide-button${outdated ? " is-accent" : ""}`}
+            disabled={!editable || missing || refreshing}
+            onClick={() => onRefreshWhiteboard(single.id)}
+          >
+            {refreshing
+              ? <LoaderCircle size={15} className="animate-spin" aria-hidden="true" />
+              : <RefreshCw size={15} aria-hidden="true" />}
+            {refreshing ? t("Refreshing…") : t("Refresh snapshot")}
+          </button>
+        )}
+        {onReplaceWhiteboard && (
+          <button type="button" className="slides-wide-button" disabled={!editable || refreshing} onClick={() => onReplaceWhiteboard(single.id)}>
+            <Frame size={15} aria-hidden="true" />{t("Change frame")}
+          </button>
+        )}
+      </Section>;
+    })()}
+
     {single?.type === "table" && <Section title={t("Table")}>
       <div className="slides-field-row">
         <div className="slides-stepper">
@@ -318,7 +372,12 @@ export function SlideInspector({ slide, slideCount, selection, theme, editable, 
         onChange={(event) => update(ids, (element) => ({ ...element, opacity: Number(event.target.value) >= 1 ? undefined : Number(event.target.value) }), "opacity")} />
     </Section>}
     </fieldset>
-    {/* AI で作った画像の報告は、読み取り専用でもできる。 */}
+    {/* AI で作った画像の報告・白板を開く操作は、読み取り専用でもできる。 */}
+    {single?.type === "whiteboard" && single.pageId && whiteboardStatus?.get(single.id)?.state !== "missing" && onOpenWhiteboard && <div className="slides-inspector-section">
+      <button type="button" className="slides-wide-button" onClick={() => onOpenWhiteboard(single.id)}>
+        <ArrowUpRight size={16} className="rtl-mirror" aria-hidden="true" />{t("Open whiteboard")}
+      </button>
+    </div>}
     {single?.type === "image" && single.generated && <div className="slides-inspector-section">
       <button type="button" className="slides-wide-button" onClick={() => onReportImage(single.id)}><Flag size={16} aria-hidden="true" />{t("Report image")}</button>
     </div>}

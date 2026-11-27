@@ -74,6 +74,8 @@ export function NoteEmbed() {
   const activeRef = useRef(active);
   // 開いたページの読み込みが終わってから動かす（ページの種類で動かし方が違う）。
   const revealRef = useRef<{ pageId: string; target: string } | null>(null);
+  // アプリへ openPage を送った直後の移動先（枠など）。古いアプリが openPage に reveal を載せて返さなくても引き継ぐ。
+  const pendingOutgoingRevealRef = useRef<{ pageId: string; target: string; expires: number } | null>(null);
   const initialLoadedRef = useRef(false);
   const backupErrorRef = useRef(notes.backupError);
   // 最後の flush で、ホワイトボードなどのエディターが変更を渡し切れたか（アップロードが終わらない画像が残ると false）。
@@ -210,7 +212,10 @@ export function NoteEmbed() {
       urlPageRef.current = id;
       openTokenRef.current += 1;
       setOpenToken(openTokenRef.current);
-      revealRef.current = reveal ? { pageId: id, target: reveal } : null;
+      const outgoing = pendingOutgoingRevealRef.current;
+      pendingOutgoingRevealRef.current = null;
+      const effectiveReveal = reveal ?? (outgoing && outgoing.pageId === id && outgoing.expires >= Date.now() ? outgoing.target : null);
+      revealRef.current = effectiveReveal ? { pageId: id, target: effectiveReveal } : null;
       applyModel(nextModel, nextReasoning);
       setIdle(false);
       setPageId(id);
@@ -227,6 +232,7 @@ export function NoteEmbed() {
       hideSlidesWizard();
       hidePptxImport();
       revealRef.current = null;
+      pendingOutgoingRevealRef.current = null;
       expectedPageRef.current = null;
       urlPageRef.current = null;
       sent.current = { readyId: "", meta: "", state: "", goneId: "" };
@@ -326,7 +332,8 @@ export function NoteEmbed() {
             {t(changeError)} <button type="button" className="notion-button" onClick={() => void setPreference(readNativeLanguage() ?? locale)}>{t("Try again")}</button>
           </div>}
           <NotesWorkspace notes={{ ...notes, load: retry }} listMode={false} embedded model={model} reasoning={reasoning}
-            onOpen={noop} onCreate={noop} onWorkspaceChange={noop} />
+            onOpen={noop} onCreate={noop} onWorkspaceChange={noop}
+            onNativeOpenReveal={(id, target) => { pendingOutgoingRevealRef.current = { pageId: id, target, expires: Date.now() + 15_000 }; }} />
         </div>
       </section>
       {historyOpen && active && activeId && (

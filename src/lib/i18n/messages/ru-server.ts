@@ -319,5 +319,6 @@ export const ruServer: Record<string, string> = {
   "Gantt chart": "диаграмма Ганта",
   "quadrant chart": "квадрантная диаграмма",
   "mind map": "интеллект-карта",
+  "This page embeds a whiteboard that is not available.": "На этой странице встроена недоступная доска.",
   "Could not import this PowerPoint file. Try again.": "Не удалось импортировать этот файл PowerPoint. Попробуйте ещё раз.",
 };

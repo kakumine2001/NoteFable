@@ -319,5 +319,6 @@ export const deServer: Record<string, string> = {
   "Gantt chart": "Gantt-Diagramm",
   "quadrant chart": "Quadrantendiagramm",
   "mind map": "Mindmap",
+  "This page embeds a whiteboard that is not available.": "Diese Seite bettet ein nicht verfügbares Whiteboard ein.",
   "Could not import this PowerPoint file. Try again.": "Diese PowerPoint-Datei konnte nicht importiert werden. Versuche es erneut.",
 };

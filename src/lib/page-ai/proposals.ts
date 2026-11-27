@@ -9,6 +9,7 @@ import { isCanvasKind, NOT_A_NOTE_ERRORS, pageKindOf, type CanvasKind, type Page
 import { prisma } from "@/lib/prisma";
 import { getImageExtension } from "@/lib/storage";
 import { discardStoredFiles, storeFile } from "@/lib/stored-files";
+import { extractNoteWhiteboardPageIds } from "@/lib/whiteboard/frames";
 import { fmt, msg } from "@/lib/i18n/translate";
 import type { CreateDraft, EditDraft, ProposalImage, ProposedContent, ValidatedContent } from "@/lib/page-ai/adapter";
 import { adapterFor } from "@/lib/page-ai/registry";
@@ -274,7 +275,7 @@ export async function applyProposal(userId: string, id: string, { auto = false }
         if (auto && current.locked) throw new Locked();
         const version = current.version;
         // ファイルの行を先に取る（保存と同じロックの順序：ファイル → 履歴とページの行）。
-        await adapter.claim(tx, userId, content);
+        await adapter.claim(tx, userId, content, { allowExistingWhiteboards: extractNoteWhiteboardPageIds(current.blocks) });
         // 上書きする直前の状態を履歴に残す。この後の書き込みが失敗して巻き戻れば、履歴も一緒に消える。
         const snapshot = await adapter.snapshot(tx, current);
         const revisionId = await createRevision(tx, { noteId: current.id, userId, reason: "AI_EDIT", ...snapshot, version, kind: row.pageKind });
@@ -373,8 +374,8 @@ export async function undoProposal(userId: string, id: string): Promise<UndoResu
       if (!revision) throw new Changed();
       // 保存と同じ検証を、履歴の内容にもかける（履歴からの復元と同じ）。
       const content = adapter.validate(userId, adapter.fromSnapshot(revision));
-      // ファイルの行を先に取る（保存と同じロックの順序）。
-      await adapter.claim(tx, userId, content);
+      // ファイルの行を先に取る（保存と同じロックの順序）。履歴復元では過去の自分の版に既にあった白板参照を許容する。
+      await adapter.claim(tx, userId, content, { allowExistingWhiteboards: extractNoteWhiteboardPageIds(content.blocks) });
       const snapshot = await adapter.snapshot(tx, current);
       await createRevision(tx, { noteId: current.id, userId, reason: "RESTORE", ...snapshot, version: current.version, kind: row.pageKind });
       if (!await adapter.write(tx, { id: current.id, userId, version: current.version }, content, { ai: false })) throw new Changed();

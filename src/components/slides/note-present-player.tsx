@@ -41,7 +41,7 @@ export default function NotePresentPlayer({
     title,
     blocks,
     theme: { id: "simple", mode: documentThemeMode() },
-    labels: { untitled: t("Untitled"), file: t("File"), image: t("Image") },
+    labels: { untitled: t("Untitled"), file: t("File"), image: t("Image"), whiteboard: t("Whiteboard") },
   }));
   const theme = useMemo(() => resolveTheme(deck.theme), [deck.theme]);
   const playerControl = useRef<PlayerControl | null>(null);

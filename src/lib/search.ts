@@ -3,8 +3,10 @@ import { searchableBlocks } from "@/lib/canvas-document";
 import { pageKindOf, type PageKind } from "@/lib/page-kinds";
 import { databaseSchema, prisma } from "@/lib/prisma";
 import { scheduleNoteEmbeddingBackfill, semanticSearchNotes, UI_SEMANTIC_THRESHOLD } from "@/lib/note-embeddings";
-import { blockText, leadingText, walkBlocks } from "@/lib/note-text";
+import { blockText, leadingText, walkBlocks, type NoteTextOptions } from "@/lib/note-text";
+import { loadEmbeddedWhiteboardMeta } from "@/lib/note-whiteboards";
 import { buildSearchSnippet, countMatchedTerms, foldSearchText, likePattern, termMatcher } from "@/lib/search-fold";
+import { extractNoteWhiteboardPageIds } from "@/lib/whiteboard/frames";
 import { MAX_SEARCH_TERMS, parseSearchTerms, SEARCH_RESULT_LIMIT, type ChatSearchResult, type NoteSearchResult } from "@/types/search";
 
 export { parseSearchTerms };
@@ -23,18 +25,34 @@ export const MENTION_TITLE_PATH = 'strict $.** ? (@.type() == "object" && @.type
 export const MENTION_DATE_PATH = 'strict $.** ? (@.type() == "object" && @.type == "mention" && exists(@.props)).props ? (@.kind == "date").date';
 
 export const MENTION_PAGE_ID_PATH = 'strict $.** ? (@.type() == "object" && @.type == "mention" && exists(@.props)).props ? (@.kind == "page").pageId';
+// ノートに埋め込まれたホワイトボード（props.pageId・props.frameId）。生きている自分のホワイトボードの題名と枠名も検索対象にする。
+export const WHITEBOARD_EMBED_PAGE_ID_PATH = 'strict $.** ? (@.type() == "object" && @.type == "whiteboard" && exists(@.props)).props.pageId';
+export const WHITEBOARD_EMBED_PROPS_PATH = 'strict $.** ? (@.type() == "object" && @.type == "whiteboard" && exists(@.props)).props';
 
-// ノートの本文として検索する文字列の配列（SQL）：文字、行内・独立の数式の TeX、メンションの表示文字。
+// ノートの本文として検索する文字列の配列（SQL）：文字、行内・独立の数式の TeX、メンションの表示文字、埋め込みホワイトボードの題名・枠名。
 // ページのメンションは、エディターが表示する「いまのタイトル」でも見つかるよう、同じ持ち主の生きているページのタイトルも足す
 // （p は NotePage の別名。書いた時のタイトルも残すので、相手のページが消えていても見つかる）。
-export function noteBodyValues(notePageTable: Prisma.Sql) {
+export function noteBodyValues(notePageTable: Prisma.Sql, noteCanvasTable: Prisma.Sql = table("NoteCanvas")) {
   return Prisma.sql`jsonb_path_query_array(p."blocks", ${TEXT_PATH}::jsonpath)
         || jsonb_path_query_array(p."blocks", ${LATEX_PATH}::jsonpath)
         || jsonb_path_query_array(p."blocks", ${MENTION_TITLE_PATH}::jsonpath)
         || jsonb_path_query_array(p."blocks", ${MENTION_DATE_PATH}::jsonpath)
         || COALESCE((SELECT jsonb_agg(m."title") FROM ${notePageTable} m
           WHERE m."userId" = p."userId" AND m."deletedAt" IS NULL
-            AND m."id" IN (SELECT jsonb_array_elements_text(jsonb_path_query_array(p."blocks", ${MENTION_PAGE_ID_PATH}::jsonpath)))), '[]'::jsonb)`;
+            AND m."id" IN (SELECT jsonb_array_elements_text(jsonb_path_query_array(p."blocks", ${MENTION_PAGE_ID_PATH}::jsonpath)))), '[]'::jsonb)
+        || COALESCE((SELECT jsonb_agg(wbt."val") FROM (
+          SELECT wb."title" AS "val"
+          FROM ${notePageTable} wb
+          WHERE wb."userId" = p."userId" AND wb."deletedAt" IS NULL AND wb."kind" = 'whiteboard'
+            AND wb."id" IN (SELECT jsonb_array_elements_text(jsonb_path_query_array(p."blocks", ${WHITEBOARD_EMBED_PAGE_ID_PATH}::jsonpath)))
+          UNION ALL
+          SELECT seg->>'text' AS "val"
+          FROM jsonb_array_elements(jsonb_path_query_array(p."blocks", ${WHITEBOARD_EMBED_PROPS_PATH}::jsonpath)) ref
+          JOIN ${notePageTable} wb ON wb."id" = ref->>'pageId' AND wb."userId" = p."userId" AND wb."deletedAt" IS NULL AND wb."kind" = 'whiteboard'
+          JOIN ${noteCanvasTable} wbc ON wbc."noteId" = wb."id"
+          CROSS JOIN LATERAL jsonb_array_elements(COALESCE(wbc."segments", '[]'::jsonb)) seg
+          WHERE COALESCE(ref->>'frameId', '') <> '' AND seg->>'id' = ref->>'frameId'
+        ) wbt), '[]'::jsonb)`;
 }
 // ホワイトボード・スライドの本文として検索する文字（SQL）。本体（NoteCanvas.data）は走査せず、保存時に取り出した segments の text だけを使う。
 // c は NoteCanvas の別名（LEFT JOIN。ノートには行が無いので空になる）。
@@ -50,13 +68,13 @@ const EXCERPT_BEFORE = 100;
 const EXCERPT_CHARS = 600;
 
 // 一致する語がいちばん多いブロック（同数なら文書の順で先）。ID の無いブロックは飛ばす（移動先にできない）。
-export function findMatchingBlock(blocks: unknown, terms: string[]): { blockId: string; text: string } | null {
+export function findMatchingBlock(blocks: unknown, terms: string[], options?: NoteTextOptions): { blockId: string; text: string } | null {
   const needles = prepareTerms(terms);
   if (!needles.length) return null;
   let best: { blockId: string; text: string; count: number } | null = null;
   for (const block of walkBlocks(blocks)) {
     if (typeof block.id !== "string" || !block.id) continue;
-    const text = blockText(block);
+    const text = blockText(block, options);
     const count = countMatchedTerms(text, needles);
     if (count > (best?.count ?? 0)) best = { blockId: block.id, text, count };
     if (count === needles.length) break;
@@ -113,17 +131,24 @@ async function searchNotesByKeyword(userId: string, needles: string[], kind?: Pa
       AND ${Prisma.join(needles.map((term) => Prisma.sql`(${termHit('p."title"', term)} OR ${termHit('t."body"', term)})`), " AND ")}
     ORDER BY ${Prisma.join(needles.map((term) => Prisma.sql`(CASE WHEN ${termHit('p."title"', term)} THEN 1 ELSE 0 END)`), " + ")} DESC, p."updatedAt" DESC, p."id" DESC
     LIMIT ${SEARCH_RESULT_LIMIT}`);
+  const noteBlocksWithEmbeds = rows
+    .filter((row) => pageKindOf(row) === "note" && extractNoteWhiteboardPageIds(row.blocks).length > 0)
+    .map((row) => row.blocks);
+  const whiteboards = noteBlocksWithEmbeds.length > 0
+    ? await loadEmbeddedWhiteboardMeta(userId, noteBlocksWithEmbeds)
+    : undefined;
+  const textOptions: NoteTextOptions | undefined = whiteboards ? { whiteboards } : undefined;
   return rows.map((row) => {
     const pageKind = pageKindOf(row);
     const blocks = searchableBlocks(pageKind, row.blocks, row.segments);
-    const hit = findMatchingBlock(blocks, needles);
+    const hit = findMatchingBlock(blocks, needles, textOptions);
     return {
       kind: "note",
       id: row.id,
       pageKind,
       title: row.title,
       icon: row.icon,
-      snippet: buildSearchSnippet(hit ? hit.text : leadingText(blocks), needles),
+      snippet: buildSearchSnippet(hit ? hit.text : leadingText(blocks, undefined, textOptions), needles),
       blockId: hit?.blockId ?? null,
       updatedAt: toIso(row.updatedAt),
     };

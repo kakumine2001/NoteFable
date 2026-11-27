@@ -109,6 +109,92 @@ describe("public share tree and page kinds", () => {
     expect((await resolveOwnerShareState("owner", "child", "https://example.com"))?.inheritedFrom).toMatchObject({ id: "root" });
   });
 
+  it("resolves embedded whiteboards only when they belong to the same public share tree", async () => {
+    const blocks = [
+      { id: "e1", type: "whiteboard", props: { pageId: "wb-in-tree", frameId: "f1" }, children: [] },
+      { id: "e2", type: "whiteboard", props: { pageId: "wb-nested-1", frameId: "" }, children: [] },
+      { id: "e3", type: "whiteboard", props: { pageId: "wb-nested-2", frameId: "" }, children: [] },
+      { id: "e4", type: "whiteboard", props: { pageId: "wb-excluded", frameId: "" }, children: [] },
+      { id: "e5", type: "whiteboard", props: { pageId: "wb-outside", frameId: "" }, children: [] },
+      { id: "e6", type: "whiteboard", props: { pageId: "wb-under-deck", frameId: "" }, children: [] },
+    ];
+    mocks.findFirst.mockResolvedValueOnce(root({ blocks }));
+    // 1st findMany: visible children of root; 2nd findMany: candidate embedded whiteboards
+    mocks.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { id: "wb-in-tree", title: "Allowed Board", icon: "🎨", parentId: "root" },
+        { id: "wb-nested-1", title: "Nested Board 1", icon: null, parentId: "folder-a" },
+        { id: "wb-nested-2", title: "Nested Board 2", icon: null, parentId: "folder-a" },
+        { id: "wb-outside", title: "Secret Board", icon: null, parentId: "other-root" },
+        { id: "wb-under-deck", title: "Deck Child Board", icon: null, parentId: "deck" },
+      ]);
+    // Single batched recursive query for all non-direct-child parent IDs.
+    mocks.queryRaw.mockResolvedValueOnce([
+      ancestor("folder-a", { parentId: "root" }),
+      ancestor("other-root", { parentId: null }),
+      ancestor("deck", { kind: "slides", parentId: "root" }),
+    ]);
+
+    const resolved = await resolvePublicShare(token);
+    expect(mocks.queryRaw).toHaveBeenCalledTimes(1);
+    expect(resolved?.embeddedWhiteboards).toEqual({
+      "wb-in-tree": {
+        id: "wb-in-tree",
+        title: "Allowed Board",
+        icon: "🎨",
+        href: `/s/${token}/p/wb-in-tree`,
+      },
+      "wb-nested-1": {
+        id: "wb-nested-1",
+        title: "Nested Board 1",
+        icon: null,
+        href: `/s/${token}/p/wb-nested-1`,
+      },
+      "wb-nested-2": {
+        id: "wb-nested-2",
+        title: "Nested Board 2",
+        icon: null,
+        href: `/s/${token}/p/wb-nested-2`,
+      },
+    });
+    // Verify candidate query restricts to owner, whiteboard, live, not excluded from parent.
+    expect(mocks.findMany.mock.calls[1][0].where).toMatchObject({
+      userId: "owner",
+      kind: "whiteboard",
+      deletedAt: null,
+      shareExcludeFromParent: false,
+    });
+
+    // Callers that do not render note HTML (files, covers, metadata) skip embedded whiteboard resolution.
+    vi.clearAllMocks();
+    mocks.findFirst.mockResolvedValueOnce(root({ blocks }));
+    mocks.findMany.mockResolvedValueOnce([]);
+    const lite = await resolvePublicShare(token, undefined, undefined, { includeEmbeddedWhiteboards: false });
+    expect(lite?.embeddedWhiteboards).toBeUndefined();
+    expect(mocks.findMany).toHaveBeenCalledTimes(1);
+    expect(mocks.queryRaw).not.toHaveBeenCalled();
+  });
+
+  it("blocks child whiteboards when shareIncludeSubpages is false, while allowing a child note to embed a whiteboard share root", async () => {
+    const blocks = [{ id: "e1", type: "whiteboard", props: { pageId: "wb-child", frameId: "" }, children: [] }];
+    mocks.findFirst.mockResolvedValueOnce(root({ shareIncludeSubpages: false, blocks }));
+    const resolvedRoot = await resolvePublicShare(token);
+    expect(resolvedRoot?.embeddedWhiteboards).toBeUndefined();
+    expect(mocks.findMany).not.toHaveBeenCalled();
+
+    // Child note under a whiteboard share root can embed that whiteboard root itself.
+    const childBlocks = [{ id: "e2", type: "whiteboard", props: { pageId: "root", frameId: "f1" }, children: [] }];
+    mocks.findFirst
+      .mockResolvedValueOnce(root({ kind: "whiteboard", title: "Root Board", icon: "🗺️" }))
+      .mockResolvedValueOnce(page("child-note", { parentId: "root", blocks: childBlocks }));
+    mocks.findMany.mockResolvedValueOnce([]);
+    const resolvedChild = await resolvePublicShare(token, "child-note");
+    expect(resolvedChild?.embeddedWhiteboards).toEqual({
+      root: { id: "root", title: "Root Board", icon: "🗺️", href: `/s/${token}` },
+    });
+  });
+
   it("resolves only same-tree page cards for public whiteboards, strips private canvas internals from summaries, and batches >200 ids", async () => {
     const shareRoot = { id: "root", kind: "note" as const, userId: "owner", shareIncludeSubpages: true };
     mocks.findMany.mockResolvedValueOnce([

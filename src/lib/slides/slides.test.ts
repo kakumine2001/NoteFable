@@ -387,10 +387,18 @@ describe("cross-review fixes", () => {
   });
 
   it("keeps section names and private whiteboard ids out of the public deck", () => {
-    const board = { id: "w1", type: "whiteboard", x: 0, y: 0, w: 100, h: 100, rotation: 0, src: FILE, pageId: "privatePage", frameId: "frame-1", frameName: "Sketch" };
+    const board = { id: "w1", type: "whiteboard", x: 0, y: 0, w: 100, h: 100, rotation: 0, src: FILE, pageId: "privatePage", frameId: "frame-1", frameName: "Sketch", sourceVersion: 7 };
+    const normalized = normalizeDeck({ format: 1, theme: { id: "simple", mode: "light" }, slides: [{ id: "s1", layout: "blank", elements: [board] }] });
+    expect(normalized.slides[0].elements[0]).toMatchObject({ type: "whiteboard", sourceVersion: 7 });
+    const zeroVersion = normalizeDeck({ format: 1, theme: { id: "simple", mode: "light" }, slides: [{ id: "s1", layout: "blank", elements: [{ ...board, sourceVersion: 0 }] }] });
+    expect(zeroVersion.slides[0].elements[0]).toMatchObject({ type: "whiteboard", sourceVersion: 0 });
+    const badVersion = normalizeDeck({ format: 1, theme: { id: "simple", mode: "light" }, slides: [{ id: "s1", layout: "blank", elements: [{ ...board, sourceVersion: -1 }] }] });
+    expect("sourceVersion" in badVersion.slides[0].elements[0]).toBe(false);
+
     const result = publicDeck({ slides: [{ id: "s1", layout: "blank", section: "Secret plan", elements: [board] }] });
     expect(result.slides[0].section).toBeUndefined();
     expect(result.slides[0].elements[0]).toMatchObject({ type: "whiteboard", pageId: "", frameId: "", frameName: "Sketch" });
+    expect("sourceVersion" in result.slides[0].elements[0]).toBe(false);
   });
 
   it("normalizes pendingImagePrompt only on empty image slots and strictly strips it from publicDeck", () => {

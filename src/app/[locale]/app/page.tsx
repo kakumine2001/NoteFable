@@ -271,7 +271,7 @@ export default function Home() {
     if (view === "chat") void notes.active?.flush();
   }
 
-  function openNote(id: string) {
+  function openNote(id: string, reveal?: string) {
     cancelReveal();
     const isPhone = window.matchMedia("(max-width: 639px)").matches;
     if (!isPhone) {
@@ -281,6 +281,7 @@ export default function Home() {
       if (notes.hasCached(id)) {
         void notes.select(id, "push").then((opened) => { if (!opened) forgetMissingNote(id); });
         setNotesList(false);
+        if (reveal) queueReveal({ kind: "note", noteId: id, blockId: reveal });
         return;
       }
       void notes.select(id, "push").then((opened) => {
@@ -288,6 +289,7 @@ export default function Home() {
         if (opened) afterSheetHistory(syncNotesList);
         else forgetMissingNote(id);
       });
+      if (reveal) queueReveal({ kind: "note", noteId: id, blockId: reveal });
       return;
     }
     // スマホ幅：戻るでホームへ戻れるよう page= 付きの履歴を 1 件積んでから表示する。
@@ -302,6 +304,7 @@ export default function Home() {
     void notes.select(id, "none", { keepCurrent: !notesList }).then((opened) => { if (!opened) forgetMissingNote(id); });
     // 一覧からノートへは、右から入ってくる動き。
     if (notesList) runTransition(() => setNotesList(false), "forward");
+    if (reveal) queueReveal({ kind: "note", noteId: id, blockId: reveal });
   }
 
   // 開けなかった（別のタブでゴミ箱に入った・削除された）ノートの指定は URL に残さず、ホームに戻す。
@@ -3078,7 +3081,7 @@ export default function Home() {
             notes={notes}
             model={model}
             reasoning={reasoning}
-            onSelectNote={(id) => openNoteInSplit(id)}
+            onSelectNote={(id, reveal) => openNoteInSplit(id, reveal)}
             onOpenChat={(id, messageId) => void openChatFromLink(id, messageId)}
             onCreateNote={createNoteInSplit}
             onOpenFullView={(id) => openNoteFullView(id)}

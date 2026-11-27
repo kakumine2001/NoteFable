@@ -20,7 +20,7 @@ type Block = ReturnType<typeof markdownToBlocks>[number];
 function bodyBlocks(blocks: Block[]): Block[] {
   return blocks.flatMap((block) => {
     const children = bodyBlocks(block.children);
-    if (block.type === "image" || block.type === "divider" || block.type === "tableOfContents") return children;
+    if (block.type === "image" || block.type === "whiteboard" || block.type === "divider" || block.type === "tableOfContents") return children;
     const props = block.type === "heading" && block.props.level === 1 ? { ...block.props, level: 3 } : block.props;
     return [{ ...block, props, children }];
   });

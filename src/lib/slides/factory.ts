@@ -37,9 +37,32 @@ export function createTableElement(rows: number, cols: number): TableElement {
 }
 
 // ホワイトボードの枠の静止画（画像と同じ大きさの決め方）。
-export function createWhiteboardElement(frame: { pageId: string; frameId: string; frameName: string; src: string; width: number; height: number }): WhiteboardElement {
+export function createWhiteboardElement(frame: {
+  pageId: string;
+  frameId: string;
+  frameName: string;
+  src: string;
+  width: number;
+  height: number;
+  sourceVersion?: number;
+}): WhiteboardElement {
   const { x, y, w, h } = createImageElement(frame.src, frame.width, frame.height);
-  return { id: newId(), type: "whiteboard", x, y, w, h, rotation: 0, src: frame.src, pageId: frame.pageId.slice(0, 64), frameId: frame.frameId.slice(0, 120), frameName: frame.frameName.slice(0, 200) };
+  return {
+    id: newId(),
+    type: "whiteboard",
+    x,
+    y,
+    w,
+    h,
+    rotation: 0,
+    src: frame.src,
+    pageId: frame.pageId.slice(0, 64),
+    frameId: frame.frameId.slice(0, 120),
+    frameName: frame.frameName.slice(0, 200),
+    ...(typeof frame.sourceVersion === "number" && Number.isSafeInteger(frame.sourceVersion) && frame.sourceVersion >= 0
+      ? { sourceVersion: frame.sourceVersion }
+      : {}),
+  };
 }
 
 // 画像を、元の縦横比のままスライドに収まる大きさで中央（または at の位置）に置く。
