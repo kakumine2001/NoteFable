@@ -173,6 +173,75 @@ final class FixtureTransportTests: XCTestCase {
         XCTAssertTrue(share.enabled)
     }
 
+    func testStoreStoryDecodesWithZeroMissesAndNoPlaceholderContent() async throws {
+        let misses = MissRecorder()
+        let catalog = FixtureCatalog(account: .signedIn, now: Self.fixedNow, image: Self.samplePNG, story: .store)
+        let transport = FixtureTransport(catalog: catalog) { misses.add($0) }
+        let api = makeApi(transport, baseUrl: FixtureMode.baseURL)
+        let projectsApi = ProjectsApi(http: api.http)
+
+        let account = try await api.account()
+        XCTAssertEqual(account.user?.name, "Alex")
+        let sessions = try await api.sessions()
+        XCTAssertEqual(Set(sessions.map(\.id)).count, sessions.count)
+        for session in sessions {
+            XCTAssertTrue(ChatLink.isLinkId(session.id), session.id)
+            let messages = try await api.messages(sessionId: session.id)
+            XCTAssertEqual(messages.map(\.role), ["USER", "ASSISTANT"], session.id)
+            XCTAssertFalse(Activity.parseStored(messages[1].activity).isEmpty, session.id)
+        }
+        for id in [FixtureStoreData.IDs.photosynthesisSession, FixtureStoreData.IDs.mitosisSession, FixtureStoreData.IDs.jlptSession] {
+            XCTAssertTrue(sessions.contains { $0.id == id }, id)
+        }
+
+        let projects = try await projectsApi.projects()
+        XCTAssertEqual(projects.map(\.name), ["Biology", "Japanese"])
+        for project in projects {
+            let detail = try await projectsApi.projectDetail(id: project.id)
+            XCTAssertEqual(detail.name, project.name)
+        }
+        XCTAssertTrue(sessions.compactMap(\.projectId).allSatisfy { id in projects.contains { $0.id == id } })
+
+        // 编辑页能打开的页面和工作区列表一致；CI 把种子页面建成这两个 ID。
+        let notes = try await api.notes()
+        XCTAssertEqual(Set(FixtureStoreData.editorPages.keys), Set(notes.pages.map(\.id)))
+        for page in notes.pages {
+            XCTAssertTrue(ChatLink.isLinkId(page.id), page.id)
+            let editorPage = try XCTUnwrap(FixtureCatalog.editorPage(page.id))
+            XCTAssertEqual(editorPage.title, page.title, page.id)
+            XCTAssertEqual(editorPage.icon, page.icon, page.id)
+            XCTAssertEqual(editorPage.kind, page.kind, page.id)
+        }
+        XCTAssertEqual(FixtureCatalog.editorPage(FixtureStoreData.IDs.board)?.kind, .whiteboard)
+        XCTAssertEqual(FixtureCatalog.editorPage(FixtureStoreData.IDs.deck)?.kind, .slides)
+        let recent = try await api.recentNotes()
+        XCTAssertEqual(recent.prefix(2).map(\.id), [FixtureStoreData.IDs.board, FixtureStoreData.IDs.deck])
+        _ = try await api.getShare(id: FixtureStoreData.IDs.board)
+
+        // 截图里看得到的内容没有测试用的占位字样。
+        var paths = ["/api/account", "/api/sessions", "/api/chat-projects", "/api/pages", "/api/pages?recent=1"]
+        paths += sessions.map { "/api/sessions/\($0.id)/messages" }
+        paths += projects.map { "/api/chat-projects/\($0.id)" }
+        for path in paths {
+            let url = try XCTUnwrap(URL(string: FixtureMode.baseURL + path))
+            let (data, response) = try await transport.send(HTTPRequest(url: url))
+            XCTAssertEqual(response.statusCode, 200, path)
+            let body = String(decoding: data, as: UTF8.self).lowercased()
+            for word in ["fixture", "liquid glass", "kyoto"] {
+                XCTAssertFalse(body.contains(word), "\(path) contains \(word)")
+            }
+        }
+        XCTAssertTrue(misses.items.isEmpty, "unexpected fixture misses: \(misses.items)")
+    }
+
+    func testStandardStoryIsUnchangedByDefault() async throws {
+        let catalog = FixtureCatalog(now: Self.fixedNow, image: Self.samplePNG)
+        XCTAssertEqual(catalog.story, .standard)
+        let api = makeApi(FixtureTransport(catalog: catalog), baseUrl: FixtureMode.baseURL)
+        let sessions = try await api.sessions()
+        XCTAssertEqual(sessions.first?.id, FixtureCatalog.IDs.kyotoSession)
+    }
+
     func testChatStreamYieldsEventsAndHoldsOpenUntilCancelled() async throws {
         let catalog = FixtureCatalog(account: .signedIn, now: Self.fixedNow, image: Self.samplePNG, streamHoldsOpen: true)
         let transport = FixtureTransport(catalog: catalog)

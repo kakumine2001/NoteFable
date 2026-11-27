@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NoteFable App Store frame</title>
+<!--
+  App Store 截图的外框：和 Google Play 商店截图（mobile/android/play-store/screenshots/）同一套版式和配色，字体换成可自由使用的
+  Inter（SIL OFL）。由 mobile/ios/scripts/ci-store-compose.sh 复制到临时目录（和原始截图、inter.woff2 放在一起），用无头 Chrome 截成图：
+  frame.html?device=iphone|ipad&img=<原始截图>&e=<小标题>&t=<标题，用 | 换行>
+  iPhone 1206×2622（原始图 1206×2622），iPad 2064×2752（原始图 2064×2752）；手机 / 平板的下端稍微超出画面，
+  iPad 同时盖掉模拟器右下角的窗口缩放弧线。
+-->
+<style>
+@font-face { font-family: "Frame Inter"; src: url("inter.woff2") format("woff2"); font-weight: 100 900; font-display: block; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100vw; height: 100vh; overflow: hidden; }
+body {
+  position: relative;
+  background: #f7f6f2;
+  font-family: "Frame Inter", sans-serif;
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+.eyebrow, .title { position: absolute; left: var(--side); right: var(--side); }
+.eyebrow { top: var(--eyebrow-top); color: #2383e2; font-size: var(--eyebrow-size); font-weight: 650; letter-spacing: 0.14em; text-transform: uppercase; white-space: nowrap; }
+.title { top: var(--title-top); color: #0f172a; font-size: var(--title-size); font-weight: 750; letter-spacing: -0.032em; line-height: 1.08; }
+.title span { display: block; width: max-content; white-space: nowrap; }
+.device {
+  position: absolute;
+  left: calc((100vw - var(--screen-width) - 2 * var(--bezel)) / 2);
+  top: var(--device-top);
+  border: var(--bezel) solid #111;
+  border-radius: calc(var(--radius) + var(--bezel));
+  overflow: hidden;
+  box-shadow: 0 60px 140px rgba(15, 23, 42, 0.16), 0 16px 48px rgba(15, 23, 42, 0.10);
+}
+.device img { display: block; width: var(--screen-width); height: var(--screen-height); border-radius: var(--radius); background: #fff; }
+
+body.iphone {
+  --side: 100px; --eyebrow-top: 160px; --eyebrow-size: 34px; --title-top: 236px; --title-size: 86px;
+  --device-top: 566px; --bezel: 22px; --screen-width: 944px; --screen-height: calc(944px * 2622 / 1206); --radius: 146px;
+}
+body.ipad {
+  --side: 168px; --eyebrow-top: 176px; --eyebrow-size: 52px; --title-top: 270px; --title-size: 132px;
+  --device-top: 682px; --bezel: 26px; --screen-width: 1560px; --screen-height: calc(1560px * 2752 / 2064); --radius: 30px;
+}
+</style>
+</head>
+<body>
+<p class="eyebrow" id="eyebrow"></p>
+<h1 class="title" id="title"></h1>
+<div class="device"><img id="screen" alt=""></div>
+<script>
+  const params = new URLSearchParams(location.search);
+  document.body.className = params.get("device") === "ipad" ? "ipad" : "iphone";
+  document.getElementById("eyebrow").textContent = params.get("e") || "";
+  const title = document.getElementById("title");
+  for (const line of (params.get("t") || "").split("|")) {
+    const span = document.createElement("span");
+    span.textContent = line;
+    title.appendChild(span);
+  }
+  document.getElementById("screen").src = params.get("img") || "";
+  // Shrink a title whose longest line would not fit (measured with the real font).
+  document.fonts.load('750 92px "Frame Inter"').then(() => document.fonts.ready).then(() => {
+    const widest = Math.max(...Array.from(title.children, (span) => span.getBoundingClientRect().width));
+    if (widest > title.clientWidth) {
+      title.style.fontSize = `${Math.floor(parseFloat(getComputedStyle(title).fontSize) * title.clientWidth / widest)}px`;
+    }
+  });
+</script>
+</body>
+</html>

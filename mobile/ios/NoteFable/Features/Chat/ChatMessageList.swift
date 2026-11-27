@@ -106,16 +106,20 @@ struct ChatMessageList: View {
     }
 
     /// CI 截图 chat-scrolled：离开底部，让消息在玻璃顶栏下面、"滚动到底部"按钮也显示出来。
+    /// 应用商店的回答、表格两张（store-answer / store-table）滚回最上面，提问也在画面里。
     private func runScrolledHook(hasMessages: Bool) async {
-        guard ScreenshotHooks.isActive, ScreenshotHooks.scene == .chatScrolled, hasMessages else { return }
+        guard ScreenshotHooks.isActive, hasMessages, let scene = ScreenshotHooks.scene,
+              scene == .chatScrolled || scene == .storeAnswer || scene == .storeTable
+        else { return }
         // 等打开会话时的贴底先做完。
         try? await Task.sleep(for: .milliseconds(250))
         if Task.isCancelled { return }
-        guard ScreenshotHooks.consume(.chatScrolled) else { return }
+        guard ScreenshotHooks.consume(scene) else { return }
         #if DEBUG
-        await scroll.fixtureScroll(distanceFromBottom: 360)
+        // 比内容还长的距离就是滚到最上面。
+        await scroll.fixtureScroll(distanceFromBottom: scene == .chatScrolled ? 360 : CGFloat.greatestFiniteMagnitude)
         #endif
-        ScreenshotHooks.markReady(.chatScrolled)
+        ScreenshotHooks.markReady(scene)
     }
 
     /// 所有消息。iOS 26 及更早是一个懒加载栈。iOS 27 起分成两段（`ChatTailSplit`）：历史仍然懒加载，最后一个回合和
