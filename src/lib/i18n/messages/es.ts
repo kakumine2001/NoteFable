@@ -1293,4 +1293,10 @@ export const es: Record<string, string> = {
   "Write speaker notes": "Escribir notas del orador",
   "This page is locked.": "Esta página está bloqueada.",
   "Resolve the unsaved draft before locking this page.": "Resuelve el borrador sin guardar antes de bloquear esta página.",
+  "Equation": "Ecuación",
+  "Insert equation": "Insertar ecuación",
+  "Formula preview": "Vista previa de la fórmula",
+  "Could not render the equation.": "No se pudo renderizar la ecuación.",
+  "Page does not exist": "La página no existe",
+  "Linked page": "Página enlazada",
 };

@@ -1293,4 +1293,10 @@ export const de: Record<string, string> = {
   "Write speaker notes": "Vortragsnotizen schreiben",
   "This page is locked.": "Diese Seite ist gesperrt.",
   "Resolve the unsaved draft before locking this page.": "Kläre den nicht gespeicherten Entwurf, bevor du diese Seite sperrst.",
+  "Equation": "Formel",
+  "Insert equation": "Formel einfügen",
+  "Formula preview": "Formelvorschau",
+  "Could not render the equation.": "Die Formel konnte nicht dargestellt werden.",
+  "Page does not exist": "Seite existiert nicht",
+  "Linked page": "Verlinkte Seite",
 };

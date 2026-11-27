@@ -1293,4 +1293,10 @@ export const ko: Record<string, string> = {
   "Write speaker notes": "발표자 노트 작성",
   "This page is locked.": "이 페이지는 잠겨 있습니다.",
   "Resolve the unsaved draft before locking this page.": "이 페이지를 잠그기 전에 저장되지 않은 초안을 먼저 해결하세요.",
+  "Equation": "수식",
+  "Insert equation": "수식 삽입",
+  "Formula preview": "수식 미리보기",
+  "Could not render the equation.": "수식을 렌더링할 수 없습니다.",
+  "Page does not exist": "페이지가 존재하지 않습니다",
+  "Linked page": "연결된 페이지",
 };

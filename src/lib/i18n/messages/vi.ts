@@ -1293,4 +1293,10 @@ export const vi: Record<string, string> = {
   "Write speaker notes": "Viết ghi chú diễn giả",
   "This page is locked.": "Trang này đã bị khóa.",
   "Resolve the unsaved draft before locking this page.": "Hãy xử lý bản nháp chưa lưu trước khi khóa trang này.",
+  "Equation": "Công thức",
+  "Insert equation": "Chèn công thức",
+  "Formula preview": "Xem trước công thức",
+  "Could not render the equation.": "Không thể hiển thị công thức.",
+  "Page does not exist": "Trang không tồn tại",
+  "Linked page": "Trang được liên kết",
 };

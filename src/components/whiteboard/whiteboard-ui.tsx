@@ -2,7 +2,7 @@
 
 import {
   Circle, Diamond, Ellipsis, Eraser, FileDown, FileUp, Frame, Grid3x3, Hand, Highlighter, ImagePlus, Lasso, LocateFixed, Magnet, Map as MapIcon,
-  Maximize, Minus, MousePointer2, MoveUpRight, Pen, Redo2, Square, StickyNote, Type, Undo2, Upload, Wand2, ZoomIn, ZoomOut, Link2, PenTool, Palette, LockOpen,
+  Maximize, Minus, MousePointer2, MoveUpRight, Pen, Redo2, Sigma, Square, StickyNote, Type, Undo2, Upload, Wand2, ZoomIn, ZoomOut, Link2, PenTool, Palette, LockOpen,
 } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { AnswerMenu } from "@/components/answer-actions";
@@ -12,6 +12,7 @@ import { PageKindIcon } from "@/components/page-kind-icon";
 import { FloatingEmojiPopover, floatingPositionFor, usePickerBackToClose, type FloatingPosition } from "@/components/emoji-picker";
 import { msg } from "@/lib/i18n/translate";
 import type { WhiteboardActions } from "@/lib/whiteboard/excalidraw-bridge";
+import type { PageCardPreview } from "@/lib/whiteboard/links";
 import { WhiteboardStylePanel, type WhiteboardMindmapPanel, type WhiteboardStyle } from "@/components/whiteboard/whiteboard-style-panel";
 import { TEMPLATE_ICONS, TEMPLATE_NAMES } from "@/components/whiteboard/whiteboard-mindmap";
 import { WHITEBOARD_TEMPLATES, type WhiteboardTemplate } from "@/lib/whiteboard/templates";
@@ -53,6 +54,10 @@ export type WhiteboardUiState = {
   lockedTarget: string | null;
   // 単一選択中またはクリックしたロック中の AI 生成画像要素の ID。
   reportableImageId: string | null;
+  // 単一選択中で未ロックの数式ラベル要素の ID。
+  editableFormulaId: string | null;
+  // 単一選択中のページカードが指すページ ID。
+  selectedPageCardId: string | null;
   style: WhiteboardStyle;
 };
 
@@ -92,6 +97,9 @@ export type WhiteboardChromeProps = {
   // ロック中の要素（またはグループ）を解除して選ぶ。
   onUnlock: (target: string) => void;
   onInsertPageCard: () => void;
+  onInsertFormula: () => void;
+  onEditFormula?: (elementId: string) => void;
+  selectedPageCard?: PageCardPreview | "missing" | null;
   onGenerateImage: () => void;
   onExport: (format: "png" | "svg" | "pdf") => void;
   onImportPdf: () => void;
@@ -129,6 +137,8 @@ export function WhiteboardChrome(props: WhiteboardChromeProps) {
     {showEditablePanel && <WhiteboardStylePanel ui={ui} drawMode={props.drawMode} compact={compact} theme={props.theme}
       actions={props.actions} onLink={props.onLink} onOpenLink={props.onOpenLink} onAskAi={props.onAskAi}
       onTurnIntoImage={props.onTurnIntoImage} reportImageId={ui.reportableImageId} onReportImage={props.onReportImage}
+      editableFormulaId={ui.editableFormulaId} onEditFormula={props.onEditFormula}
+      selectedPageCard={props.selectedPageCard}
       mindmap={props.mindmap} />}
     {reportOnlyImageId && props.onReportImage && <WhiteboardStylePanel ui={ui} drawMode={props.drawMode} compact={compact} theme={props.theme}
       actions={props.actions} onLink={props.onLink} onOpenLink={props.onOpenLink}
@@ -173,7 +183,7 @@ function ToolButton({ tool, active, onSelect, label }: { tool: WhiteboardTool; a
   </button>;
 }
 
-function WhiteboardToolbar({ ui, drawMode, compact, onSelectTool, onLink, onInsertPageCard, onGenerateImage, onImportPdf, onInsertTemplate }: WhiteboardChromeProps) {
+function WhiteboardToolbar({ ui, drawMode, compact, onSelectTool, onLink, onInsertPageCard, onInsertFormula, onGenerateImage, onImportPdf, onInsertTemplate }: WhiteboardChromeProps) {
   const t = useT();
   const active = activeToolOf(ui, drawMode);
   const [shape, setShape] = useState<WhiteboardTool>("rectangle");
@@ -207,6 +217,9 @@ function WhiteboardToolbar({ ui, drawMode, compact, onSelectTool, onLink, onInse
         {TOOL_ICONS.image}<span className="whiteboard-caret" aria-hidden="true" />
       </button>
     ) : <ToolButton key={tool} tool={tool} active={active === tool} onSelect={onSelectTool} />)}
+    {!compact && <button type="button" className="whiteboard-tool" aria-label={t("Equation")} title={t("Equation")} data-tool="formula" onClick={onInsertFormula}>
+      <Sigma size={18} />
+    </button>}
     <button type="button" className="whiteboard-tool" aria-haspopup="menu" aria-expanded={menu?.kind === "more"} aria-label={t("More tools")} title={t("More tools")} onClick={open("more")}>
       <Ellipsis size={18} />
     </button>
@@ -226,6 +239,7 @@ function WhiteboardToolbar({ ui, drawMode, compact, onSelectTool, onLink, onInse
         </button>)}
         <hr className="chat-menu-divider" />
         <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onGenerateImage(); }}><ImagePlus size={18} aria-hidden="true" /><span className="flex-1">{t("Generate with AI")}</span></button>
+        <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onInsertFormula(); }}><Sigma size={18} aria-hidden="true" /><span className="flex-1">{t("Equation")}</span></button>
         <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onInsertPageCard(); }}><PageKindIcon kind="note" size={18} /><span className="flex-1">{t("Link to a page")}</span></button>
         {ui.selectedCount > 0 && <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onLink(); }}><Link2 size={18} /><span className="flex-1">{t("Add link")}</span></button>}
         <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onImportPdf(); }}><FileUp size={18} /><span className="flex-1">{t("Import PDF")}</span></button>
