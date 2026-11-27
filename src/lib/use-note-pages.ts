@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { CanvasData } from "@/lib/canvas-document";
 import { validateNoteContent } from "@/lib/note-document";
 import { NoteSaveError, NoteSaveQueue, type NoteDraft } from "@/lib/note-save-queue";
 import { flushCanvasEditors, flushCanvasEditorsSync } from "@/lib/canvas-flush";
@@ -30,6 +31,45 @@ export type SelectPageOptions = {
   // 未キャッシュのページを読み込む間、いま表示しているページをそのまま残すか（デスクトップ・分割表示は true でちらつきを防ぎ、スマホでホームから開くときは false）。
   keepCurrent?: boolean;
 };
+
+// キャンバスエディターからの変更を保存キューへ反映する。再マウント前のアップロード完了などで関数アップデータが渡されたときは、
+// 保存キューが現在持っている最新の本体（再開後の編集も含む）に対してマージし、世代不一致・ロック・競合・削除時は無視する。
+export function applyCanvasEditorChange(
+  queue: Pick<NoteSaveQueue, "generation" | "gone" | "status" | "content" | "page" | "edit">,
+  expectedGeneration: number,
+  locked: boolean,
+  change: CanvasData | ((latest: CanvasData) => CanvasData | null),
+): boolean {
+  if (queue.generation !== expectedGeneration) return false;
+  if (typeof change === "function") {
+    if (queue.gone || queue.status === "conflict" || locked) return false;
+    const currentData = queue.content.data ?? queue.page.data;
+    if (!currentData) return false;
+    const next = change(currentData);
+    if (!next || next === currentData) return false;
+    queue.edit({ ...queue.content, data: next });
+    return true;
+  }
+  if (change === queue.content.data) return false;
+  queue.edit({ ...queue.content, data: change });
+  return true;
+}
+
+// 対応する保存キューのページメタデータ（ロック・お気に入り・表示設定）を最新値へそろえる。
+function syncQueueMeta(queueMap: ReadonlyMap<string, NoteSaveQueue>, page: NotePageSummary): boolean {
+  const queue = queueMap.get(page.id);
+  if (!queue) return false;
+  queue.page = {
+    ...queue.page,
+    favoritedAt: page.favoritedAt ?? null,
+    fullWidth: page.fullWidth,
+    smallText: page.smallText,
+    font: page.font,
+    locked: page.locked,
+    ...(page.shareEnabled !== undefined ? { shareEnabled: page.shareEnabled, shareExpiresAt: page.shareExpiresAt ?? null } : {}),
+  };
+  return true;
+}
 
 async function pageRequest(url: string, method = "GET", body?: unknown) {
   const response = await fetch(url, {
@@ -608,10 +648,13 @@ export function useNotePages(
     // アプリ（/note-embed）や別の画面から届いた表示設定・お気に入り。一覧を読んでいない埋め込みでも、開いたページの 1 件に効く。
     function onPageMeta(event: Event) {
       const page = (event as CustomEvent<NotePageSummary | undefined>).detail;
-      if (page) markMeta(page.id);
-      if (page) setPages((current) => current.map((entry) => entry.id === page.id ? {
+      if (!page) return;
+      markMeta(page.id);
+      const queueUpdated = syncQueueMeta(queues.current, page);
+      setPages((current) => current.map((entry) => entry.id === page.id ? {
         ...entry, favoritedAt: page.favoritedAt ?? null, fullWidth: page.fullWidth, smallText: page.smallText, font: page.font, locked: page.locked,
       } : entry));
+      if (queueUpdated) refresh((value) => value + 1);
     }
     // AI の提案で作ったページを「元に戻す」前に、そのページ（とサブページ）の入力中の内容を保存する（「ゴミ箱へ移す」と同じ）。
     // 保存できなければ false を返し、元に戻すのを止めてもらう（保存できない下書きを捨てない）。
@@ -894,12 +937,15 @@ export function useNotePages(
     return true;
   });
 
-  // 一覧の 1 件を、サーバーが返したメタデータ（お気に入り・表示設定）で置き換える。
+  // 一覧の 1 件と、対応する保存キューのページメタデータを最新値へそろえる。
   const applyMeta = (page: NotePageSummary) => { markMeta(page.id); applyMetaRows(page); };
-  const applyMetaRows = (page: NotePageSummary) => setPages((current) => current.map((entry) => entry.id === page.id ? {
-    ...entry, favoritedAt: page.favoritedAt ?? null, fullWidth: page.fullWidth, smallText: page.smallText, font: page.font, locked: page.locked,
-    ...(page.shareEnabled !== undefined ? { shareEnabled: page.shareEnabled, shareExpiresAt: page.shareExpiresAt ?? null } : {}),
-  } : entry));
+  const applyMetaRows = (page: NotePageSummary) => {
+    syncQueueMeta(queues.current, page);
+    setPages((current) => current.map((entry) => entry.id === page.id ? {
+      ...entry, favoritedAt: page.favoritedAt ?? null, fullWidth: page.fullWidth, smallText: page.smallText, font: page.font, locked: page.locked,
+      ...(page.shareEnabled !== undefined ? { shareEnabled: page.shareEnabled, shareExpiresAt: page.shareExpiresAt ?? null } : {}),
+    } : entry));
+  };
 
   // 1 ページのお気に入り・表示設定は 1 つずつ送る（続けて切り替えたとき、古い応答が後から届いて新しい設定を戻さないように）。
   const metaQueue = useRef(new Map<string, Promise<unknown>>());

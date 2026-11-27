@@ -18,6 +18,7 @@ import {
   isSlideTransition,
   newId,
   normalizeDeck,
+  SLIDE_HEIGHT,
   SLIDE_WIDTH,
   slideRows,
   slidesFromRows,
@@ -98,6 +99,19 @@ export type SlidesEditResult = {
 
 type Block = ReturnType<typeof markdownToBlocks>[number];
 
+type NoteRawInline =
+  | { type: "text"; text: string; styles?: Record<string, unknown> }
+  | { type: "link"; href: string; content: NoteRawInline[] }
+  | { type: "mathInline"; props: { latex: string } };
+
+type NoteRawBlock = {
+  id: string;
+  type: string;
+  props: Record<string, unknown>;
+  content?: unknown;
+  children: NoteRawBlock[];
+};
+
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -170,7 +184,7 @@ function validateSectionText(raw: string | null): string | null {
 }
 
 // 本文中の画像・区切り線・目次は取り除き（子は残す）、H1 は小見出しに落として 1 枚分の意図しない分割を防ぐ。
-function sanitizeBodyBlocks(blocks: Block[]): Block[] {
+function sanitizeBodyBlocks(blocks: Block[]): NoteRawBlock[] {
   return blocks.flatMap((block) => {
     const children = sanitizeBodyBlocks(block.children);
     if (block.type === "image" || block.type === "divider" || block.type === "tableOfContents") return children;
@@ -179,14 +193,17 @@ function sanitizeBodyBlocks(blocks: Block[]): Block[] {
   });
 }
 
-function headingBlockFor(title: string): Block[] {
+function headingBlockFor(title: string, titleInline?: readonly NoteRawInline[]): NoteRawBlock[] {
+  if (titleInline?.length) {
+    return [{ id: "", type: "heading", props: { level: 2 }, content: [...titleInline], children: [] }];
+  }
   if (!title) return [];
   const parsed = markdownToBlocks(prepareNoteMarkdown(`## ${title}`, { dropImages: true })).slice(0, 1);
   if (blocksHaveVisibleContent(parsed)) return parsed;
   return [{ id: "", type: "heading", props: { level: 2 }, content: [{ type: "text", text: title, styles: {} }], children: [] }];
 }
 
-function isSimpleBodyBlocks(blocks: Block[], maxChars: number): string | null {
+function isSimpleBodyBlocks(blocks: readonly NoteRawBlock[], maxChars: number): string | null {
   if (!blocks.length) return "";
   if (blocks.some((b) => b.type !== "paragraph" || b.children.length > 0)) return null;
   const lines: string[] = [];
@@ -306,11 +323,12 @@ function applyMetadata(
   return out;
 }
 
-// 1 枚分のタイトル・Markdown 本文・版式から、安全領域に収まる 1 枚以上のスライドを作る。
-function buildSlidesFromContent(
+// 1 枚分のタイトル・ブロック列・版式から、安全領域に収まる 1 枚以上のスライドを作る。
+function buildSlidesFromParsedBlocks(
   input: {
     title: string;
-    body: string;
+    titleInline?: readonly NoteRawInline[];
+    bodyBlocks: NoteRawBlock[];
     notes: string | null;
     layout: LayoutId | null;
     section?: string | null;
@@ -320,17 +338,21 @@ function buildSlidesFromContent(
   theme: DeckTheme,
 ): Slide[] {
   const title = input.title.trim();
-  const body = input.body.trim();
-  const bodyParsed = body ? sanitizeBodyBlocks(markdownToBlocks(prepareNoteMarkdown(body, { dropImages: true }))) : [];
+  const bodyParsed = input.bodyBlocks;
   const hasVisibleBody = blocksHaveVisibleContent(bodyParsed);
+  const hasRichTitle = Boolean(
+    input.titleInline?.some(
+      (node) => node.type !== "text" || (node.styles && Object.keys(node.styles).length > 0),
+    ),
+  );
 
-  if (!title && !hasVisibleBody) {
+  if (!title && !input.titleInline?.length && !hasVisibleBody) {
     const empty = createSlide(input.layout ?? "blank");
     return [applyMetadata(empty, { notes: input.notes, hidden: input.hidden, transition: input.transition, section: input.section })];
   }
 
-  // title / section / quote は単純な文字だけなら専用プレースホルダーに直接入れて自然な見た目を保つ。
-  if (input.layout === "title") {
+  // title / section / quote は単純な文字（プレーン見出し）だけなら専用プレースホルダーに直接入れて自然な見た目を保つ。
+  if (input.layout === "title" && !hasRichTitle) {
     const simpleSub = isSimpleBodyBlocks(bodyParsed, 320);
     if (simpleSub !== null) {
       const slide = createSlide("title", { ...(title ? { title } : {}), ...(simpleSub ? { subtitle: simpleSub } : {}) });
@@ -338,7 +360,7 @@ function buildSlidesFromContent(
       return [applyMetadata(slide, { notes: input.notes, hidden: input.hidden, transition: input.transition, section: input.section })];
     }
   }
-  if (input.layout === "section") {
+  if (input.layout === "section" && !hasRichTitle) {
     const simpleSub = isSimpleBodyBlocks(bodyParsed, 240);
     if (simpleSub !== null) {
       const slide = createSlide("section", { ...(title ? { title } : {}), ...(simpleSub ? { subtitle: simpleSub } : {}) });
@@ -346,7 +368,7 @@ function buildSlidesFromContent(
       return [applyMetadata(slide, { notes: input.notes, hidden: input.hidden, transition: input.transition, section: input.section })];
     }
   }
-  if (input.layout === "quote") {
+  if (input.layout === "quote" && !hasRichTitle) {
     const simpleBody = isSimpleBodyBlocks(bodyParsed, 400);
     if (simpleBody !== null) {
       const quoteText = simpleBody || title;
@@ -357,14 +379,18 @@ function buildSlidesFromContent(
     }
   }
 
-  const blocks = [...headingBlockFor(title), ...bodyParsed];
+  // quote 版式では title が引用元（attribution）を表すため、noteToDeckResult の見出しに入れると本文側（quote）へ誤流入する。
+  const isQuoteRichBody = input.layout === "quote";
+  const blocks = isQuoteRichBody
+    ? bodyParsed
+    : [...headingBlockFor(title, input.titleInline), ...bodyParsed];
   const { deck, truncatedSlides } = noteToDeckResult({ title: "", blocks, theme });
   if (truncatedSlides > 0) {
     throw new SlidesEditError(`Slide content exceeds the maximum of ${MAX_SLIDES} slides.`);
   }
   const built = deck.slides.map(stripSection);
   if (!built.length) {
-    const fallback = createSlide(input.layout ?? "blank", title ? { title } : {});
+    const fallback = createSlide(input.layout ?? "blank", title ? (isQuoteRichBody ? { attribution: title } : { title }) : {});
     return [applyMetadata(fallback, { notes: input.notes, hidden: input.hidden, transition: input.transition, section: input.section })];
   }
 
@@ -374,6 +400,21 @@ function buildSlidesFromContent(
       : built[0].layout === input.layout
         ? built[0]
         : applyLayout(built[0], input.layout);
+  }
+
+  if (isQuoteRichBody) {
+    const attrIdx = built[0].elements.findIndex((el) => el.type === "text" && el.role === "attribution");
+    if (title) {
+      if (attrIdx >= 0) {
+        const attrEl = built[0].elements[attrIdx] as TextElement;
+        built[0].elements[attrIdx] = { ...attrEl, doc: richDocFromText(title, attrEl.style.align) };
+      } else {
+        const addedAttr = createHeadingElement("quote", "attribution", title);
+        if (addedAttr) built[0].elements.push(addedAttr);
+      }
+    } else if (attrIdx >= 0 && isRichDocEmpty((built[0].elements[attrIdx] as TextElement).doc)) {
+      built[0].elements.splice(attrIdx, 1);
+    }
   }
 
   built[0] = applyMetadata(built[0], {
@@ -388,6 +429,37 @@ function buildSlidesFromContent(
     }
   }
   return built;
+}
+
+// 1 枚分のタイトル・Markdown 本文・版式から、安全領域に収まる 1 枚以上のスライドを作る。
+function buildSlidesFromContent(
+  input: {
+    title: string;
+    titleInline?: readonly NoteRawInline[];
+    body: string;
+    notes: string | null;
+    layout: LayoutId | null;
+    section?: string | null;
+    hidden?: boolean | null;
+    transition?: SlideTransition | null;
+  },
+  theme: DeckTheme,
+): Slide[] {
+  const body = input.body.trim();
+  const bodyParsed = body ? sanitizeBodyBlocks(markdownToBlocks(prepareNoteMarkdown(body, { dropImages: true }))) : [];
+  return buildSlidesFromParsedBlocks(
+    {
+      title: input.title,
+      titleInline: input.titleInline,
+      bodyBlocks: bodyParsed,
+      notes: input.notes,
+      layout: input.layout,
+      section: input.section,
+      hidden: input.hidden,
+      transition: input.transition,
+    },
+    theme,
+  );
 }
 
 // 既存スライドから表示用の短いタイトルと要約を取り出す（提案カードの before/after 表示用）。
@@ -442,28 +514,47 @@ function visualWidthUnits(text: string): number {
   return units;
 }
 
-function fitsInTextBox(doc: RichDoc, box: Pick<TextElement, "w" | "h" | "style">): boolean {
+function measureRichDocHeight(doc: RichDoc, box: Pick<TextElement, "w" | "h" | "style">): { requiredHeight: number; innerHeight: number } {
+  const innerHeight = Math.max(16, box.h - 24);
+  if (isRichDocEmpty(doc)) {
+    return { requiredHeight: 0, innerHeight };
+  }
   const fontSize = Math.max(12, box.style.size || 40);
   const lineHeight = Math.max(1.0, box.style.lineHeight || 1.3);
-  const innerWidth = Math.max(80, box.w - 32);
-  const innerHeight = Math.max(32, box.h - 24);
-  const unitsPerLine = Math.max(8, innerWidth / (fontSize * 0.56));
+  const innerWidth = Math.max(20, box.w - 32);
+  const unitsPerLine = Math.max(1, innerWidth / (fontSize * 0.56));
   const linePx = fontSize * lineHeight;
 
   const measureBlocks = (blocks: readonly RichBlock[], indentUnits: number): number => {
     let heightPx = 0;
     for (const block of blocks) {
       if (block.type === "paragraph") {
+        let paraFontSize = fontSize;
+        for (const node of block.content ?? []) {
+          if (node.type === "text") {
+            for (const mark of node.marks ?? []) {
+              if (mark.type === "size" && mark.attrs.size > paraFontSize) paraFontSize = mark.attrs.size;
+            }
+          }
+        }
+        const paraUnitsPerLine = Math.max(1, innerWidth / (paraFontSize * 0.56));
+        const paraLinePx = paraFontSize * lineHeight;
         const text = richDocText({ type: "doc", content: [block] });
-        const lines = text.split("\n").reduce((sum, seg) => sum + Math.max(1, Math.ceil(visualWidthUnits(seg) / Math.max(6, unitsPerLine - indentUnits))), 0);
-        heightPx += lines * linePx + fontSize * 0.25;
+        const lines = text.split("\n").reduce(
+          (sum, seg) => sum + Math.max(1, Math.ceil(visualWidthUnits(seg) / Math.max(1, paraUnitsPerLine - indentUnits))),
+          0,
+        );
+        heightPx += lines * paraLinePx + paraFontSize * 0.25;
       } else if (block.type === "bullet_list" || block.type === "ordered_list") {
         for (const item of block.content) {
           heightPx += measureBlocks(item.content, indentUnits + 2.5);
         }
       } else if (block.type === "code_block") {
         const text = (block.content ?? []).map((n) => n.text).join("");
-        const lines = text.split("\n").reduce((sum, seg) => sum + Math.max(1, Math.ceil(visualWidthUnits(seg) / Math.max(6, unitsPerLine - indentUnits - 2))), 0);
+        const lines = text.split("\n").reduce(
+          (sum, seg) => sum + Math.max(1, Math.ceil(visualWidthUnits(seg) / Math.max(1, unitsPerLine - indentUnits - 2))),
+          0,
+        );
         heightPx += lines * linePx * 0.9 + fontSize * 0.6;
       } else if (block.type === "math_block") {
         heightPx += linePx * 1.8;
@@ -472,7 +563,12 @@ function fitsInTextBox(doc: RichDoc, box: Pick<TextElement, "w" | "h" | "style">
     return heightPx;
   };
 
-  return measureBlocks(doc.content, 0) <= innerHeight * 1.05;
+  return { requiredHeight: measureBlocks(doc.content, 0), innerHeight };
+}
+
+function fitsInTextBox(doc: RichDoc, box: Pick<TextElement, "w" | "h" | "style">): boolean {
+  const { requiredHeight, innerHeight } = measureRichDocHeight(doc, box);
+  return requiredHeight <= innerHeight * 1.05;
 }
 
 // 本文 Markdown が単一のリッチテキスト枠（表・コールアウト・複数カラム・あふれ無し）に収まるなら、その RichDoc を返す。
@@ -490,77 +586,152 @@ function singleBodyRichDoc(body: string, theme: DeckTheme): RichDoc | null {
   return null;
 }
 
-// RichDoc をリンク・太字・斜体・打ち消し線・コード・数式・リストを保った Markdown へ戻す（merge_slides の既定結合用）。
-function serializeInlineToMarkdown(inlines: readonly RichInline[] | undefined): string {
-  if (!inlines?.length) return "";
-  return inlines
-    .map((node) => {
-      if (node.type === "hard_break") return "  \n";
-      if (node.type === "math_inline") return `$${node.attrs.latex}$`;
-      let out = node.text;
-      const marks = node.marks ?? [];
-      const hasCode = marks.some((m) => m.type === "code");
-      if (hasCode) {
-        const fence = out.includes("`") ? "``" : "`";
-        out = `${fence}${out}${fence}`;
+const REVERSE_NOTE_TEXT_COLORS: Record<string, string> = {
+  muted: "gray",
+  accent: "blue",
+  "#dc2626": "red",
+  "#ea580c": "orange",
+  "#ca8a04": "yellow",
+  "#16a34a": "green",
+  "#9333ea": "purple",
+  "#db2777": "pink",
+  "#92400e": "brown",
+};
+
+// RichDoc / TableElement を Markdown 文字列へ落とさずに noteToDeckResult 用の BlockNote 生ブロックへ直接変換する（merge_slides 用）。
+// リテラルな `![alt](url)`・`---`・`**...**` が再パースで画像・区切り線・太字に化けるのを防ぐ。
+function richInlinesToNoteInlines(inlines: readonly RichInline[] | undefined): NoteRawInline[] {
+  if (!inlines?.length) return [];
+  const out: NoteRawInline[] = [];
+  for (const node of inlines) {
+    if (node.type === "hard_break") {
+      const prev = out[out.length - 1];
+      if (prev && prev.type === "text" && (!prev.styles || Object.keys(prev.styles).length === 0)) {
+        prev.text += "\n";
       } else {
-        if (marks.some((m) => m.type === "strong")) out = `**${out}**`;
-        if (marks.some((m) => m.type === "em")) out = `*${out}*`;
-        if (marks.some((m) => m.type === "strike")) out = `~~${out}~~`;
+        out.push({ type: "text", text: "\n", styles: {} });
       }
-      const link = marks.find((m) => m.type === "link");
-      if (link && link.type === "link") {
-        out = `[${out}](${link.attrs.href})`;
+      continue;
+    }
+    if (node.type === "math_inline") {
+      out.push({ type: "mathInline", props: { latex: node.attrs.latex } });
+      continue;
+    }
+    const styles: Record<string, unknown> = {};
+    let linkHref: string | null = null;
+    for (const mark of node.marks ?? []) {
+      if (mark.type === "strong") styles.bold = true;
+      else if (mark.type === "em") styles.italic = true;
+      else if (mark.type === "underline") styles.underline = true;
+      else if (mark.type === "strike") styles.strike = true;
+      else if (mark.type === "code") styles.code = true;
+      else if (mark.type === "color") {
+        const mapped = REVERSE_NOTE_TEXT_COLORS[mark.attrs.color.toLowerCase()];
+        if (mapped) styles.textColor = mapped;
+      } else if (mark.type === "link") {
+        linkHref = mark.attrs.href;
       }
-      return out;
-    })
-    .join("");
+    }
+    const textNode: NoteRawInline = { type: "text", text: node.text, styles };
+    out.push(linkHref ? { type: "link", href: linkHref, content: [textNode] } : textNode);
+  }
+  return out;
 }
 
-function serializeBlocksToMarkdown(blocks: readonly RichBlock[], indent = ""): string {
-  const chunks: string[] = [];
-  for (const block of blocks) {
+function richDocToHeadingInline(doc: RichDoc): NoteRawInline[] {
+  const out: NoteRawInline[] = [];
+  for (const block of doc.content) {
+    let nodes: NoteRawInline[] = [];
     if (block.type === "paragraph") {
-      const text = serializeInlineToMarkdown(block.content).trim();
-      if (text) chunks.push(`${indent}${text}`);
-    } else if (block.type === "bullet_list") {
-      const lines: string[] = [];
-      for (const item of block.content) {
-        const [first, ...rest] = item.content;
-        const head = first?.type === "paragraph" ? serializeInlineToMarkdown(first.content).trim() : "";
-        lines.push(`${indent}- ${head}`);
-        if (rest.length) {
-          const nested = serializeBlocksToMarkdown(rest, `${indent}  `);
-          if (nested) lines.push(nested);
-        }
-      }
-      if (lines.length) chunks.push(lines.join("\n"));
-    } else if (block.type === "ordered_list") {
-      const start = block.attrs?.order ?? 1;
-      const lines: string[] = [];
-      block.content.forEach((item, idx) => {
-        const [first, ...rest] = item.content;
-        const head = first?.type === "paragraph" ? serializeInlineToMarkdown(first.content).trim() : "";
-        lines.push(`${indent}${start + idx}. ${head}`);
-        if (rest.length) {
-          const nested = serializeBlocksToMarkdown(rest, `${indent}   `);
-          if (nested) lines.push(nested);
-        }
+      nodes = richInlinesToNoteInlines(block.content).map((node) => {
+        if (node.type === "text") return { ...node, text: node.text.replace(/\r?\n/g, " ") };
+        return node;
       });
-      if (lines.length) chunks.push(lines.join("\n"));
     } else if (block.type === "code_block") {
-      const lang = block.attrs?.language ?? "";
-      const code = (block.content ?? []).map((n) => n.text).join("");
-      chunks.push(`${indent}\`\`\`${lang}\n${code}\n${indent}\`\`\``);
+      const text = oneLine((block.content ?? []).map((n) => n.text).join(""));
+      if (text) nodes = [{ type: "text", text, styles: { code: true } }];
     } else if (block.type === "math_block") {
-      chunks.push(`${indent}$$\n${block.attrs.latex}\n${indent}$$`);
+      nodes = [{ type: "mathInline", props: { latex: block.attrs.latex } }];
+    } else {
+      const text = oneLine(richDocText({ type: "doc", content: [block] }));
+      if (text) nodes = [{ type: "text", text, styles: {} }];
+    }
+    if (nodes.length) {
+      if (out.length) out.push({ type: "text", text: " ", styles: {} });
+      out.push(...nodes);
     }
   }
-  return chunks.join("\n\n");
+  return out;
 }
 
-function richDocToMarkdown(doc: RichDoc): string {
-  return serializeBlocksToMarkdown(doc.content);
+function richBlocksToNoteBlocks(blocks: readonly RichBlock[]): NoteRawBlock[] {
+  const out: NoteRawBlock[] = [];
+  for (const block of blocks) {
+    if (block.type === "paragraph") {
+      const content = richInlinesToNoteInlines(block.content);
+      const align = block.attrs?.align;
+      out.push({
+        id: newId(),
+        type: "paragraph",
+        props: align ? { textAlignment: align } : {},
+        content,
+        children: [],
+      });
+    } else if (block.type === "bullet_list" || block.type === "ordered_list") {
+      const order = block.type === "ordered_list" ? (block.attrs?.order ?? 1) : 1;
+      block.content.forEach((item, idx) => {
+        const [first, ...rest] = item.content;
+        const headContent = first?.type === "paragraph" ? richInlinesToNoteInlines(first.content) : [];
+        const align = first?.type === "paragraph" ? first.attrs?.align : null;
+        const children = first?.type === "paragraph" ? richBlocksToNoteBlocks(rest) : richBlocksToNoteBlocks(item.content);
+        const props: Record<string, unknown> = {};
+        if (block.type === "ordered_list" && idx === 0 && order !== 1) props.start = order;
+        if (align) props.textAlignment = align;
+        out.push({
+          id: newId(),
+          type: block.type === "ordered_list" ? "numberedListItem" : "bulletListItem",
+          props,
+          content: headContent,
+          children,
+        });
+      });
+    } else if (block.type === "code_block") {
+      const code = (block.content ?? []).map((n) => n.text).join("");
+      const lang = block.attrs?.language ?? "";
+      out.push({
+        id: newId(),
+        type: "codeBlock",
+        props: lang ? { language: lang } : {},
+        content: code ? [{ type: "text", text: code, styles: {} }] : [],
+        children: [],
+      });
+    } else if (block.type === "math_block") {
+      out.push({
+        id: newId(),
+        type: "mathBlock",
+        props: { latex: block.attrs.latex },
+        children: [],
+      });
+    }
+  }
+  return out;
+}
+
+function tableElementToNoteBlock(el: Extract<SlideElement, { type: "table" }>): NoteRawBlock {
+  return {
+    id: newId(),
+    type: "table",
+    props: {},
+    content: {
+      type: "tableContent",
+      columnWidths: el.cols.map((w) => (w > 0 ? w : null)),
+      headerRows: el.header ? 1 : 0,
+      rows: el.rows.map((row) => ({
+        cells: row.cells.map((cell) => [{ type: "text", text: cell.text, styles: {} }]),
+      })),
+    },
+    children: [],
+  };
 }
 
 function createHeadingElement(layout: LayoutId, headingRole: "title" | "attribution", text: string): TextElement | undefined {
@@ -735,20 +906,16 @@ function stableStringify(value: unknown): string {
 }
 
 // applyLayout が正当に書き換えるレイアウト所有フィールドだけを外し、本文・書式・リンク・コード言語・数式・表・画像メタ・図形・線を厳密比較する。
+// 自由要素および降格した元プレースホルダーの style / fill / autoHeight の変更検知は assertDeckTextPreserved 側で行う。
 function canonicalPreservedElement(element: SlideElement): Record<string, unknown> {
   if (element.type === "text") {
     const {
       x: _x, y: _y, w: _w, h: _h, rotation: _rotation, role: _role,
-      style, fill, autoHeight,
+      style: _style, fill: _fill, autoHeight: _autoHeight,
       ...rest
     } = element;
-    void _x; void _y; void _w; void _h; void _rotation; void _role;
-    // プレースホルダーだった文字枠は applyLayout が配置とプレースホルダー書式（style/fill/autoHeight）を更新する。
-    // 自由に置いた文字枠は style/fill/autoHeight も含めて一切変えない。
-    if (element.role) {
-      return { ...rest, doc: normalizeRichDoc(element.doc) };
-    }
-    return { ...rest, doc: normalizeRichDoc(element.doc), style, fill, autoHeight };
+    void _x; void _y; void _w; void _h; void _rotation; void _role; void _style; void _fill; void _autoHeight;
+    return { ...rest, doc: normalizeRichDoc(element.doc) };
   }
   if (element.type === "image" || element.type === "whiteboard") {
     const { x: _x, y: _y, w: _w, h: _h, rotation: _rotation, role: _role, ...rest } = element;
@@ -825,34 +992,232 @@ export function assertDeckTextPreserved(before: Deck, after: Deck): void {
     if (JSON.stringify(beforeIds) !== JSON.stringify(afterIds)) {
       throw new SlidesEditError(`Restyle invariant violated: elements added or removed on slide ${b.id}.`);
     }
+    const beforeById = new Map(before.slides[i].elements.map((el) => [el.id, el]));
+    const afterById = new Map(after.slides[i].elements.map((el) => [el.id, el]));
     for (const id of beforeIds) {
       if (stableStringify(b.elements[id]) !== stableStringify(a.elements[id])) {
         throw new SlidesEditError(`Restyle invariant violated: content changed on slide ${b.id} element ${id}.`);
+      }
+      const beforeEl = beforeById.get(id);
+      const afterEl = afterById.get(id);
+      if (
+        beforeEl?.type === "text"
+        && afterEl?.type === "text"
+        && (!beforeEl.role || !afterEl.role)
+        && stableStringify({ style: beforeEl.style, fill: beforeEl.fill, autoHeight: beforeEl.autoHeight })
+          !== stableStringify({ style: afterEl.style, fill: afterEl.fill, autoHeight: afterEl.autoHeight })
+      ) {
+        throw new SlidesEditError(`Restyle invariant violated: style changed on slide ${b.id} element ${id}.`);
       }
     }
   }
 }
 
-// normalizeDeck が保存済みデッキの section / notes / text を暗黙に切り詰めてしまわないか、restyle_deck 時に生データ側でも確かめる。
-function assertRawStoredDeckNotLossyForRestyle(rawData: unknown, finalDeck: Deck): void {
+const LOSSLESS_ALIGNS = ["left", "center", "right", "justify"];
+const LOSSLESS_SIMPLE_MARKS = ["strong", "em", "underline", "strike", "code"];
+
+function extractLosslessMarksSignature(value: unknown): unknown[] {
+  if (!Array.isArray(value)) return [];
+  const marks: unknown[] = [];
+  const seen = new Set<string>();
+  for (const mark of value) {
+    if (!isObject(mark) || typeof mark.type !== "string" || seen.has(mark.type)) continue;
+    const attrs = isObject(mark.attrs) ? mark.attrs : {};
+    if (LOSSLESS_SIMPLE_MARKS.includes(mark.type)) {
+      marks.push({ type: mark.type });
+    } else if (mark.type === "link") {
+      marks.push({ type: "link", href: typeof attrs.href === "string" ? attrs.href.trim() : attrs.href });
+    } else if (mark.type === "color") {
+      marks.push({ type: "color", color: attrs.color });
+    } else if (mark.type === "size") {
+      marks.push({
+        type: "size",
+        size: typeof attrs.size === "number" && Number.isFinite(attrs.size) ? Math.min(800, Math.max(4, attrs.size)) : attrs.size,
+      });
+    } else {
+      marks.push({ type: "unknown", raw: mark });
+    }
+    seen.add(mark.type);
+  }
+  return marks;
+}
+
+function extractLosslessInlineSignature(value: unknown): unknown[] {
+  if (!Array.isArray(value)) return [];
+  const out: unknown[] = [];
+  for (const node of value) {
+    if (!isObject(node)) {
+      out.push({ type: "unknown", raw: node });
+      continue;
+    }
+    if (node.type === "text" && typeof node.text === "string") {
+      const text = node.text.replace(/\u0000/g, "");
+      if (text) out.push({ type: "text", text, marks: extractLosslessMarksSignature(node.marks) });
+    } else if (node.type === "hard_break") {
+      out.push({ type: "hard_break" });
+    } else if (node.type === "math_inline") {
+      const attrs = isObject(node.attrs) ? node.attrs : {};
+      const latex = typeof attrs.latex === "string" ? attrs.latex.replace(/\u0000/g, "") : "";
+      out.push({ type: "math_inline", latex });
+    } else {
+      out.push({ type: "unknown", raw: node });
+    }
+  }
+  return out;
+}
+
+function extractLosslessBlocksSignature(value: unknown): unknown[] {
+  if (!Array.isArray(value)) return [];
+  const blocks: unknown[] = [];
+  for (const node of value) {
+    if (!isObject(node)) {
+      blocks.push({ type: "unknown", raw: node });
+      continue;
+    }
+    if (node.type === "paragraph") {
+      const align = isObject(node.attrs) && typeof node.attrs.align === "string" && LOSSLESS_ALIGNS.includes(node.attrs.align)
+        ? node.attrs.align
+        : null;
+      blocks.push({ type: "paragraph", align, content: extractLosslessInlineSignature(node.content) });
+    } else if (node.type === "bullet_list" || node.type === "ordered_list") {
+      const items: unknown[] = [];
+      for (const item of Array.isArray(node.content) ? node.content : []) {
+        if (!isObject(item) || item.type !== "list_item") continue;
+        const content = extractLosslessBlocksSignature(item.content);
+        if (!content.length || (content[0] as { type?: string }).type !== "paragraph") {
+          content.unshift({ type: "paragraph", align: null, content: [] });
+        }
+        items.push({ type: "list_item", content });
+      }
+      if (!items.length) continue;
+      if (node.type === "bullet_list") {
+        blocks.push({ type: "bullet_list", content: items });
+      } else {
+        const order = isObject(node.attrs) && typeof node.attrs.order === "number" && Number.isSafeInteger(node.attrs.order)
+          ? Math.min(9999, Math.max(0, node.attrs.order))
+          : 1;
+        blocks.push({ type: "ordered_list", order, content: items });
+      }
+    } else if (node.type === "code_block") {
+      const text = (Array.isArray(node.content) ? node.content : [])
+        .map((child) => (isObject(child) && typeof child.text === "string" ? child.text.replace(/\u0000/g, "") : ""))
+        .join("");
+      const rawLang = isObject(node.attrs) && typeof node.attrs.language === "string"
+        ? node.attrs.language.replace(/\u0000/g, "").trim()
+        : "";
+      const language = rawLang && !/^(text|plain|plaintext)$/i.test(rawLang) ? rawLang : "";
+      blocks.push({ type: "code_block", language, text });
+    } else if (node.type === "math_block") {
+      const attrs = isObject(node.attrs) ? node.attrs : {};
+      const latex = typeof attrs.latex === "string" ? attrs.latex.replace(/\u0000/g, "") : "";
+      blocks.push({ type: "math_block", latex });
+    } else {
+      blocks.push({ type: "unknown", raw: node });
+    }
+  }
+  return blocks;
+}
+
+function extractLosslessRichDocSignature(value: unknown): unknown[] {
+  const blocks = isObject(value) && value.type === "doc" ? extractLosslessBlocksSignature(value.content) : [];
+  return blocks.length ? blocks : [{ type: "paragraph", align: null, content: [] }];
+}
+
+function assertRawSlideNotLossy(rawSlide: unknown, initialSlide: Slide, index: number): void {
+  if (!isObject(rawSlide)) {
+    throw new SlidesEditError(`Restyle invariant violated: stored slide ${index + 1} is malformed.`);
+  }
+  if (typeof rawSlide.id !== "string" || !rawSlide.id || rawSlide.id !== initialSlide.id) {
+    throw new SlidesEditError(`Restyle invariant violated: stored slide ID changed on slide ${index + 1}.`);
+  }
+  if (typeof rawSlide.section === "string" && rawSlide.section !== (initialSlide.section ?? "")) {
+    throw new SlidesEditError(`Restyle invariant violated: stored section would be truncated on slide ${initialSlide.id}.`);
+  }
+  if (typeof rawSlide.notes === "string" && rawSlide.notes !== (initialSlide.notes ?? "")) {
+    throw new SlidesEditError(`Restyle invariant violated: stored speaker notes would be altered on slide ${initialSlide.id}.`);
+  }
+  const rawElements = Array.isArray(rawSlide.elements) ? rawSlide.elements : [];
+  if (rawElements.length !== initialSlide.elements.length) {
+    throw new SlidesEditError(`Restyle invariant violated: stored elements would be dropped on slide ${initialSlide.id}.`);
+  }
+  for (let j = 0; j < rawElements.length; j++) {
+    const rawEl = rawElements[j];
+    const initEl = initialSlide.elements[j];
+    if (!isObject(rawEl) || rawEl.id !== initEl.id || rawEl.type !== initEl.type) {
+      throw new SlidesEditError(`Restyle invariant violated: stored element metadata would be altered on slide ${initialSlide.id}.`);
+    }
+    if (initEl.type === "text" || initEl.type === "shape") {
+      if (stableStringify(extractLosslessRichDocSignature(rawEl.doc)) !== stableStringify(extractLosslessRichDocSignature(initEl.doc))) {
+        throw new SlidesEditError(`Restyle invariant violated: stored text/math/code content would be truncated on slide ${initialSlide.id} element ${initEl.id}.`);
+      }
+    } else if (initEl.type === "table") {
+      const rawRows = Array.isArray(rawEl.rows) ? rawEl.rows : [];
+      if (rawRows.length > 0) {
+        if (rawRows.length !== initEl.rows.length) {
+          throw new SlidesEditError(`Restyle invariant violated: stored table rows would be truncated on slide ${initialSlide.id} element ${initEl.id}.`);
+        }
+        for (let r = 0; r < rawRows.length; r++) {
+          const rawRow = rawRows[r];
+          const rawCells = isObject(rawRow) && Array.isArray(rawRow.cells) ? rawRow.cells : [];
+          if (rawCells.length > initEl.rows[r].cells.length) {
+            throw new SlidesEditError(`Restyle invariant violated: stored table columns would be truncated on slide ${initialSlide.id} element ${initEl.id}.`);
+          }
+          for (let c = 0; c < rawCells.length; c++) {
+            const rawCell = rawCells[c];
+            const rawText = isObject(rawCell) && typeof rawCell.text === "string" ? rawCell.text : "";
+            if (rawText !== initEl.rows[r].cells[c].text) {
+              throw new SlidesEditError(`Restyle invariant violated: stored table cell would be truncated on slide ${initialSlide.id} element ${initEl.id}.`);
+            }
+          }
+        }
+      }
+    } else if (initEl.type === "image") {
+      if (typeof rawEl.alt === "string" && rawEl.alt !== initEl.alt) {
+        throw new SlidesEditError(`Restyle invariant violated: stored image alt would be truncated on slide ${initialSlide.id} element ${initEl.id}.`);
+      }
+      if (typeof rawEl.src === "string" && rawEl.src && rawEl.src !== initEl.src) {
+        throw new SlidesEditError(`Restyle invariant violated: stored image source would be altered on slide ${initialSlide.id} element ${initEl.id}.`);
+      }
+      if (isObject(rawEl.generated) && typeof rawEl.generated.prompt === "string" && rawEl.generated.prompt !== (initEl.generated?.prompt ?? "")) {
+        throw new SlidesEditError(`Restyle invariant violated: stored image prompt would be truncated on slide ${initialSlide.id} element ${initEl.id}.`);
+      }
+      if (!initEl.src && typeof rawEl.pendingImagePrompt === "string") {
+        const cleaned = rawEl.pendingImagePrompt.replace(/\u0000/g, "").replace(/\s+/g, " ").trim();
+        if (cleaned && cleaned !== (initEl.pendingImagePrompt ?? "")) {
+          throw new SlidesEditError(`Restyle invariant violated: stored pending image prompt would be truncated on slide ${initialSlide.id} element ${initEl.id}.`);
+        }
+      }
+    } else if (initEl.type === "whiteboard") {
+      if (typeof rawEl.src === "string" && rawEl.src && rawEl.src !== initEl.src) {
+        throw new SlidesEditError(`Restyle invariant violated: stored whiteboard source would be altered on slide ${initialSlide.id} element ${initEl.id}.`);
+      }
+      if (
+        (typeof rawEl.pageId === "string" && rawEl.pageId !== initEl.pageId)
+        || (typeof rawEl.frameId === "string" && rawEl.frameId !== initEl.frameId)
+        || (typeof rawEl.frameName === "string" && rawEl.frameName !== initEl.frameName)
+      ) {
+        throw new SlidesEditError(`Restyle invariant violated: stored whiteboard metadata would be truncated on slide ${initialSlide.id} element ${initEl.id}.`);
+      }
+    }
+  }
+}
+
+// normalizeDeck が保存済みデッキの section / notes / RichDoc / 表 / 画像メタ等を暗黙に切り詰めてしまわないか、生データと初期正規化結果を突き合わせて確かめる。
+function assertRawStoredDeckNotLossyForRestyle(
+  rawData: unknown,
+  initialDeck: Deck,
+  skipSlideIds?: ReadonlySet<string>,
+): void {
   if (!isObject(rawData) || !Array.isArray(rawData.slides)) return;
   const rawSlides = rawData.slides;
-  if (rawSlides.length !== finalDeck.slides.length) {
+  if (rawSlides.length !== initialDeck.slides.length) {
     throw new SlidesEditError("Restyle invariant violated: stored slide count does not match normalized deck.");
   }
   for (let i = 0; i < rawSlides.length; i++) {
     const rawSlide = rawSlides[i];
-    const finalSlide = finalDeck.slides[i];
-    if (!isObject(rawSlide)) continue;
-    if (typeof rawSlide.id === "string" && rawSlide.id !== finalSlide.id) {
-      throw new SlidesEditError(`Restyle invariant violated: stored slide ID changed on slide ${i + 1}.`);
-    }
-    if (typeof rawSlide.section === "string" && rawSlide.section !== (finalSlide.section ?? "")) {
-      throw new SlidesEditError(`Restyle invariant violated: stored section would be truncated on slide ${finalSlide.id}.`);
-    }
-    if (typeof rawSlide.notes === "string" && rawSlide.notes !== (finalSlide.notes ?? "")) {
-      throw new SlidesEditError(`Restyle invariant violated: stored speaker notes would be altered on slide ${finalSlide.id}.`);
-    }
+    const initialSlide = initialDeck.slides[i];
+    if (skipSlideIds?.has(initialSlide.id)) continue;
+    assertRawSlideNotLossy(rawSlide, initialSlide, i);
   }
 }
 
@@ -1006,33 +1371,49 @@ function registerRef(refs: Map<string, string>, knownSlideIds: Set<string>, rawR
   refs.set(rawRef, realId);
 }
 
-// 複数枚を統合するとき、AI が title / body を省略した場合に、text と table を書式・リンク・コード・数式付きで結合する。
+// 複数枚を統合するとき、AI が title / body を省略した場合に、text と table を Markdown 再パース無しで直接ブロック配列へ結合する。
 // 図形（shape）・線（line）・画像・白板枠はそのまま要素として引き継ぐため、本文側へ重複展開しない。
-function combineSlidesMarkdown(slides: Slide[]): { title: string; body: string } {
-  const firstTitle = slideTitleOf(slides[0]);
-  const bodyChunks: string[] = [];
+function combineSlidesToBlocks(
+  slides: Slide[],
+  targetLayout: LayoutId | null,
+): { title: string; titleInline: NoteRawInline[]; bodyBlocks: NoteRawBlock[] } {
+  const first = slides[0];
+  const explicitTitleEl = first.elements.find((el): el is TextElement => el.type === "text" && el.role === "title");
+  const quoteAttrEl = targetLayout === "quote"
+    ? first.elements.find((el): el is TextElement => el.type === "text" && el.role === "attribution")
+    : undefined;
+  const firstHeadingEl = explicitTitleEl ?? quoteAttrEl;
+  const firstTitle = firstHeadingEl ? oneLine(richDocText(firstHeadingEl.doc)) : "";
+  const titleInline = firstHeadingEl ? richDocToHeadingInline(firstHeadingEl.doc) : [];
+
+  const bodyBlocks: NoteRawBlock[] = [];
   for (let i = 0; i < slides.length; i++) {
     const slide = slides[i];
-    const titleEl = slide.elements.find((el) => el.type === "text" && el.role === "title");
-    if (i > 0 && titleEl?.type === "text") {
-      const heading = oneLine(richDocText(titleEl.doc));
-      if (heading && heading !== firstTitle) bodyChunks.push(`### ${heading}`);
+    const titleEl = slide.elements.find((el): el is TextElement => el.type === "text" && el.role === "title");
+    if (i > 0 && titleEl) {
+      const headingText = oneLine(richDocText(titleEl.doc));
+      const headingInline = richDocToHeadingInline(titleEl.doc);
+      if (headingText && headingText !== firstTitle && headingInline.length) {
+        bodyBlocks.push({
+          id: newId(),
+          type: "heading",
+          props: { level: 3 },
+          content: headingInline,
+          children: [],
+        });
+      }
     }
     for (const el of slide.elements) {
-      if (el === titleEl) continue;
+      if (el === titleEl || (i === 0 && el === firstHeadingEl)) continue;
       if (el.type === "text") {
-        const md = richDocToMarkdown(el.doc).trim();
-        if (md) bodyChunks.push(md);
+        if (isRichDocEmpty(el.doc)) continue;
+        bodyBlocks.push(...richBlocksToNoteBlocks(el.doc.content));
       } else if (el.type === "table") {
-        const rows = el.rows.map((row) => `| ${row.cells.map((c) => c.text.replace(/\|/g, "\\|").replace(/\r?\n/g, " ")).join(" | ")} |`);
-        if (rows.length) {
-          const sep = `| ${el.rows[0].cells.map(() => "---").join(" | ")} |`;
-          bodyChunks.push([rows[0], sep, ...rows.slice(1)].join("\n"));
-        }
+        bodyBlocks.push(tableElementToNoteBlock(el));
       }
     }
   }
-  return { title: firstTitle, body: bodyChunks.join("\n\n") };
+  return { title: firstTitle, titleInline, bodyBlocks };
 }
 
 function attachPreservedDecorations(
@@ -1093,13 +1474,16 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
   const refs = new Map<string, string>();
   const knownSlideIds = new Set<string>(initialDeck.slides.map((slide) => slide.id));
   let allOpsAreRestyle = rawOperations.length > 0;
+  let hasRestyleOp = false;
+  const mutatedSlideIds = new Set<string>();
 
   for (let opIndex = 0; opIndex < rawOperations.length; opIndex++) {
     const rawOp = rawOperations[opIndex];
     if (!isObject(rawOp) || typeof rawOp.op !== "string") {
       throw new SlidesEditError(`operations[${opIndex}] must be an object with an op string.`);
     }
-    if (rawOp.op !== "restyle_deck") allOpsAreRestyle = false;
+    if (rawOp.op === "restyle_deck") hasRestyleOp = true;
+    else allOpsAreRestyle = false;
 
     switch (rawOp.op) {
       case "update_slide": {
@@ -1113,6 +1497,10 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
         const hidden = asOptionalBoolean(rawOp.hidden, "hidden");
         const transition = asOptionalTransition(rawOp.transition);
         const section = validateSectionText(asOptionalString(rawOp.section, "section"));
+
+        if (title !== null || body !== null || notes !== null || section !== null) {
+          mutatedSlideIds.add(slideId);
+        }
 
         if (title === null && body === null && notes === null && layout === null && hidden === null && transition === null && section === null) {
           throw new SlidesEditError("update_slide requires at least one field to update (title, body, notes, layout, hidden, transition, or section).");
@@ -1187,17 +1575,39 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
         if (targetEl.type !== "text" && targetEl.type !== "shape") {
           throw new SlidesEditError(`Element "${elementId}" is a ${targetEl.type} element and cannot be rewritten with update_element.`);
         }
+        mutatedSlideIds.add(slideId);
 
         const nextDoc = singleBodyRichDoc(body, deck.theme);
         if (!nextDoc) {
           throw new SlidesEditError("update_element body must fit in a single text box without tables or multi-slide overflow. Shorten the text or use update_slide.");
         }
 
+        let updatedEl: SlideElement = { ...targetEl, doc: nextDoc };
+        if (targetEl.type === "shape") {
+          if (!fitsInTextBox(nextDoc, targetEl)) {
+            throw new SlidesEditError(`update_element body overflows shape element "${elementId}". Shorten the text or use update_slide.`);
+          }
+        } else {
+          const { requiredHeight, innerHeight } = measureRichDocHeight(nextDoc, targetEl);
+          if (requiredHeight > innerHeight * 1.05) {
+            if (targetEl.autoHeight) {
+              const neededBoxHeight = Math.ceil(requiredHeight + 24);
+              const maxAllowedHeight = Math.max(0, SLIDE_HEIGHT - Math.max(0, targetEl.y) - 24);
+              if (neededBoxHeight > maxAllowedHeight) {
+                throw new SlidesEditError(`update_element body overflows slide bounds for text element "${elementId}". Shorten the text or use update_slide.`);
+              }
+              updatedEl = { ...updatedEl, h: Math.max(targetEl.h, neededBoxHeight) };
+            } else {
+              throw new SlidesEditError(`update_element body overflows text box "${elementId}". Shorten the text or use update_slide.`);
+            }
+          }
+        }
+
         const beforeText = richDocText(targetEl.doc).trim() || `(${targetEl.type})`;
         const afterText = richDocText(nextDoc).trim() || "(empty)";
         const updatedSlide: Slide = {
           ...beforeSlide,
-          elements: beforeSlide.elements.map((el) => (el.id === elementId ? { ...targetEl, doc: nextDoc } : el)),
+          elements: beforeSlide.elements.map((el) => (el.id === elementId ? updatedEl : el)),
         };
         deck = { ...deck, slides: deck.slides.map((s, i) => (i === idx ? updatedSlide : s)) };
         addFocus(updatedSlide.id);
@@ -1232,6 +1642,7 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
 
       case "split_slide": {
         const slideId = resolveSlideId(asOptionalString(rawOp.slideId, "slideId"), deck, refs, "slideId");
+        mutatedSlideIds.add(slideId);
         const idx = findSlideIndexOrThrow(deck, slideId);
         const beforeSlide = deck.slides[idx];
 
@@ -1327,6 +1738,7 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
 
       case "merge_slides": {
         const targetIds = parseSlideIdList(rawOp.slideIds, deck, refs, "slideIds", 2);
+        for (const id of targetIds) mutatedSlideIds.add(id);
         const indices = targetIds.map((id) => findSlideIndexOrThrow(deck, id));
         const orderedTargets = targetIds
           .map((id, i) => ({ id, idx: indices[i], slide: deck.slides[indices[i]] }))
@@ -1338,10 +1750,13 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
         const requestedBody = validateBodyText(asOptionalString(rawOp.body, "body"));
         const requestedNotes = validateNotes(asOptionalString(rawOp.notes, "notes"));
         const requestedLayout = asOptionalLayout(rawOp.layout);
+        const effectiveLayout = requestedLayout ?? (primaryTarget.slide.layout === "blank" ? null : primaryTarget.slide.layout);
 
-        const combined = combineSlidesMarkdown(orderedTargets.map((entry) => entry.slide));
+        const combined = combineSlidesToBlocks(
+          orderedTargets.map((entry) => entry.slide),
+          effectiveLayout,
+        );
         const mergedTitle = requestedTitle ?? combined.title;
-        const mergedBody = requestedBody ?? combined.body;
         let mergedNotes: string | null = requestedNotes;
         if (mergedNotes === null) {
           const allNotes = orderedTargets.map((entry) => entry.slide.notes?.trim()).filter((n): n is string => Boolean(n));
@@ -1354,18 +1769,33 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
           }
         }
 
-        const rebuilt = buildSlidesFromContent(
-          {
-            title: mergedTitle,
-            body: mergedBody,
-            notes: mergedNotes,
-            layout: requestedLayout ?? (primaryTarget.slide.layout === "blank" ? null : primaryTarget.slide.layout),
-            section: primaryTarget.slide.section ?? null,
-            hidden: primaryTarget.slide.hidden ?? null,
-            transition: primaryTarget.slide.transition ?? null,
-          },
-          deck.theme,
-        );
+        const rebuilt = requestedBody !== null
+          ? buildSlidesFromContent(
+            {
+              title: mergedTitle,
+              ...(requestedTitle === null && combined.titleInline.length ? { titleInline: combined.titleInline } : {}),
+              body: requestedBody,
+              notes: mergedNotes,
+              layout: effectiveLayout,
+              section: primaryTarget.slide.section ?? null,
+              hidden: primaryTarget.slide.hidden ?? null,
+              transition: primaryTarget.slide.transition ?? null,
+            },
+            deck.theme,
+          )
+          : buildSlidesFromParsedBlocks(
+            {
+              title: mergedTitle,
+              ...(requestedTitle === null && combined.titleInline.length ? { titleInline: combined.titleInline } : {}),
+              bodyBlocks: combined.bodyBlocks,
+              notes: mergedNotes,
+              layout: effectiveLayout,
+              section: primaryTarget.slide.section ?? null,
+              hidden: primaryTarget.slide.hidden ?? null,
+              transition: primaryTarget.slide.transition ?? null,
+            },
+            deck.theme,
+          );
 
         // 統合対象の全スライドから画像・ホワイトボード枠・図形・線を回収して失わないようにする。
         const preservedDecorations = orderedTargets.flatMap((entry) => entry.slide.elements.filter(isNonBodyDecoration));
@@ -1463,6 +1893,7 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
 
       case "delete_slides": {
         const targetIds = parseSlideIdList(rawOp.slideIds, deck, refs, "slideIds", 1);
+        for (const id of targetIds) mutatedSlideIds.add(id);
         const targets = targetIds.map((id) => {
           const idx = findSlideIndexOrThrow(deck, id);
           return { id, idx, slide: deck.slides[idx] };
@@ -1490,7 +1921,7 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
         for (const id of targetIds) findSlideIndexOrThrow(deck, id);
         const beforeOrder = deck.slides.map((s, i) => `${i + 1}. ${slideTitleOf(s) || s.id}`).join("\n");
 
-        const isFullPermutation = targetIds.length === deck.slides.length && afterRaw === null && !atStart;
+        const isFullPermutation = targetIds.length === deck.slides.length && afterRaw === null;
         if (isFullPermutation) {
           // 全体並び替え：元の行（章）所属を記憶し、並び替え後の連続区間の先頭だけに章見出しを付け直す。
           const originalRows = slideRows(deck.slides);
@@ -1644,8 +2075,11 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
   const { deck: normalizedDeck, data } = finalizeDeck(deck);
   if (allOpsAreRestyle) {
     // 全体の最終検証結果についても、生データからの切り詰めや変質が無いことを再確認する。
-    assertRawStoredDeckNotLossyForRestyle(rawData, normalizedDeck);
+    assertRawStoredDeckNotLossyForRestyle(rawData, initialDeck);
     assertDeckTextPreserved(initialDeck, normalizedDeck);
+  } else if (hasRestyleOp) {
+    // 複合操作でも、書き換えていない既存スライドが生データ正規化で黙って切り詰められていないか確かめる。
+    assertRawStoredDeckNotLossyForRestyle(rawData, initialDeck, mutatedSlideIds);
   }
   const unchanged = JSON.stringify(initialDeck) === JSON.stringify(normalizedDeck);
 

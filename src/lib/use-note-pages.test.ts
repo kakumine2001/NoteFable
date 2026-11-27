@@ -152,7 +152,10 @@ vi.mock("@/lib/preload-editor", () => ({
 
 import { registerCanvasFlusher } from "@/lib/canvas-flush";
 import { PAGES_TRASHED_EVENT } from "@/lib/proposal-sync";
-import { useNotePages } from "./use-note-pages";
+import { createSlide } from "@/lib/slides/layouts";
+import { DECK_FORMAT, normalizeDeck } from "@/lib/slides/model";
+import { NoteSaveQueue } from "./note-save-queue";
+import { applyCanvasEditorChange, useNotePages } from "./use-note-pages";
 
 type Deferred<T> = { promise: Promise<T>; resolve: (value: T) => void; reject: (error: unknown) => void };
 function deferred<T>(): Deferred<T> {
@@ -1151,5 +1154,93 @@ describe("useNotePages instant switching & prefetch", () => {
     await flushMicrotasks();
     expect(window.location.href).toBe("https://app.notefable.com/app?view=pages");
     expect(sheetHistory.restoreSheetMarker).toHaveBeenCalledTimes(1);
+  });
+
+  it("syncs locked metadata onto both pages and active queue.page from updateSettings and notefable:page-meta", async () => {
+    createFakeBrowser("https://app.notefable.com/app?view=pages&page=a");
+    const pageA = makePage("a", "Alpha", 1);
+    const updatedSummaryLocked = { ...makeSummary(pageA), locked: true };
+    const externalUnlocked = { ...makeSummary(pageA), locked: false };
+    vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+      if (url === "/api/pages") return Promise.resolve(jsonResponse({ pages: [makeSummary(pageA)], groups: [] }));
+      if (url === "/api/pages/a") return Promise.resolve(jsonResponse({ page: pageA }));
+      if (url === "/api/pages/a/settings" && init?.method === "PUT") {
+        return Promise.resolve(jsonResponse({ page: updatedSummaryLocked }));
+      }
+      return Promise.reject(new Error(`unexpected ${url}`));
+    }));
+
+    const hook = hookRuntime.mount(() => useNotePages(true));
+    await flushMicrotasks();
+    expect(hook.current.active?.page.locked).toBe(false);
+
+    expect(await hook.current.updateSettings("a", { locked: true })).toBe(true);
+    await flushMicrotasks();
+    expect(hook.current.pages.find((p) => p.id === "a")?.locked).toBe(true);
+    expect(hook.current.active?.page.locked).toBe(true);
+
+    // Cross-view metadata update from embed/panel must also sync active queue.page.locked immediately.
+    window.dispatchEvent(new CustomEvent("notefable:page-meta", { detail: externalUnlocked }));
+    await flushMicrotasks();
+    expect(hook.current.pages.find((p) => p.id === "a")?.locked).toBe(false);
+    expect(hook.current.active?.page.locked).toBe(false);
+  });
+
+  it("merges detached functional updates onto latest queue data while guarding generation, locked, gone, conflict, and deleted targets", () => {
+    const initialDeck = normalizeDeck({
+      format: DECK_FORMAT,
+      theme: { id: "simple", mode: "light" },
+      slides: [
+        { ...createSlide("bullets", { title: "Slide 1" }), id: "s1" },
+        { ...createSlide("bullets", { title: "Slide 2" }), id: "s2" },
+      ],
+    });
+    const newerDeck = normalizeDeck({
+      ...initialDeck,
+      slides: [
+        { ...createSlide("bullets", { title: "Edited After Reopen" }), id: "s1" },
+        initialDeck.slides[1],
+      ],
+    });
+
+    const page: NotePage = {
+      ...makePage("sl1", "Deck", 1),
+      kind: "slides",
+      data: initialDeck as unknown as NotePage["data"],
+    };
+    const save = vi.fn(async (content) => ({ ...page, ...content, version: 2 }));
+    const changed = vi.fn();
+    const queue = new NoteSaveQueue(page, save, changed);
+    // Simulate newer edit made after reopening the deck on the same queue generation.
+    queue.edit({ ...queue.content, data: newerDeck as unknown as NotePage["data"] });
+
+    // Functional updater merges an image element onto s2 using latest queue.content.data, preserving s1's newer title.
+    const merged = applyCanvasEditorChange(queue, 0, false, (latest) => {
+      const d = normalizeDeck(latest);
+      if (!d.slides.some((s) => s.id === "s2")) return null;
+      return {
+        ...d,
+        slides: d.slides.map((s) => (s.id === "s2" ? { ...s, notes: "Attached later" } : s)),
+      } as unknown as typeof latest;
+    });
+    expect(merged).toBe(true);
+    const savedDeck = normalizeDeck(queue.content.data);
+    expect(savedDeck.slides[0].elements.find((e) => e.type === "text" && e.role === "title")?.type === "text").toBe(true);
+    expect(savedDeck.slides[1].notes).toBe("Attached later");
+    expect((savedDeck.slides[0].elements[0] as { doc: { content: Array<{ content?: Array<{ text?: string }> }> } }).doc.content[0]?.content?.[0]?.text).toBe("Edited After Reopen");
+
+    // Returns false when updater returns null (e.g. target slide was deleted).
+    const beforeNullEdit = queue.content.data;
+    expect(applyCanvasEditorChange(queue, 0, false, () => null)).toBe(false);
+    expect(queue.content.data).toBe(beforeNullEdit);
+
+    // Guards against locked page, gone queue, conflict status, and generation mismatch.
+    expect(applyCanvasEditorChange(queue, 0, true, (latest) => latest)).toBe(false);
+    expect(applyCanvasEditorChange(queue, 1, false, (latest) => latest)).toBe(false);
+    queue.gone = true;
+    expect(applyCanvasEditorChange(queue, 0, false, (latest) => latest)).toBe(false);
+    queue.gone = false;
+    queue.status = "conflict";
+    expect(applyCanvasEditorChange(queue, 0, false, (latest) => latest)).toBe(false);
   });
 });

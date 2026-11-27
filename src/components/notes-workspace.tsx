@@ -16,7 +16,7 @@ import { NoteFloatingToc } from "@/components/note-floating-toc";
 import { NotePageHeader } from "@/components/note-page-header";
 import { NewPageButtons, NotesHome } from "@/components/notes-home";
 import { WorkspaceSwitch, type WorkspaceView } from "@/components/workspace-nav";
-import type { useNotePages } from "@/lib/use-note-pages";
+import { applyCanvasEditorChange, type useNotePages } from "@/lib/use-note-pages";
 import { useI18n, useT } from "@/components/i18n-provider";
 import { localizeSystemText } from "@/lib/i18n/translate";
 import { StorageLimitPrompt } from "@/components/guest-limit-prompt";
@@ -188,7 +188,14 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   const emptyPage = active?.content.title === "Untitled" && !active.content.blocks.length;
   // ページの表示設定（全幅・小さな文字・字体）とロック。一覧の 1 件が持つ（/note-embed では開いたページの 1 件だけ）。
   const activeSummary = activeId ? notes.pages.find((page) => page.id === activeId) : undefined;
+  const pagesRef = useRef(notes.pages);
+  useLayoutEffect(() => { pagesRef.current = notes.pages; }, [notes.pages]);
+  const isPageLocked = (id: string, fallback?: boolean) => {
+    const summary = pagesRef.current.find((page) => page.id === id);
+    return summary ? Boolean(summary.locked) : Boolean(fallback);
+  };
   const settings = pageSettingsOf(activeSummary);
+  const pageLocked = activeSummary ? settings.locked : Boolean(active?.page.locked);
   // ページの種類。一覧の 1 件（/note-embed では開いたページの 1 件だけ）か、読み込んだページの行が持つ。
   const activeKind = pageKindOf(activeSummary?.kind ? activeSummary : active?.page);
   // ホワイトボード・スライドのエディター（種類の表でエディターがあり、画面に登録があるときだけ）。
@@ -253,7 +260,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
           data={canvasData!} version={active.version} generation={canvasGeneration} editable={editable} embedded={embedded} split={split} saveStatus={active.status}
           // 同じ内容の通知（作成・削除の途中で editable が替わったときなど）では、要らない保存を走らせない。
           // 中身をサーバーの版で置き換えた後（最新の版を読む・版の復元）は、置き換える前のエディターが閉じる時に渡す古い変更を捨てる。
-          onChange={(data) => { if (active.generation === canvasGeneration && data !== active.content.data) active.edit({ ...active.content, data }); }}
+          onChange={(change) => { applyCanvasEditorChange(active, canvasGeneration, isPageLocked(activeId, active.page.locked), change); }}
           onTitleChange={(title) => { if (title !== active.content.title) active.edit({ ...active.content, title }); }}
           onIconChange={(icon) => { if (icon !== active.content.icon) active.edit({ ...active.content, icon }); }}
           // 埋め込み（/note-embed）は一覧を持たない。リンク先を選ぶ時にエディターが自分で読む。
@@ -282,7 +289,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
       </>}
       {/* AI パネル（AI 操控底座）。エディターが選んだ要素・スライドを selection で渡す。AI が操作できない種類は読むだけ。
           送る前の flush は、ホワイトボードなどがまだ保存キューへ渡していない変更（描き終わり・文字の確定の直後）も先に渡してもらう（版の履歴と同じ）。 */}
-      <PageAssistant key={activeId} pageId={activeId} pageKind={activeKind} pageTitle={active.content.title} pageLocked={Boolean(active.page.locked)} model={model} reasoning={reasoning}
+      <PageAssistant key={activeId} pageId={activeId} pageKind={activeKind} pageTitle={active.content.title} pageLocked={pageLocked} model={model} reasoning={reasoning}
         onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={async () => { if (!(await flushCanvasEditors())) return false; return active.flush(); }} embedded={embedded}
         selection={aiSelection} onClearSelection={(sent) => setAiAsk((current) => clearActiveSelection(current, activeId, sent))}
         openSignal={aiOpenSignal} hidden={split} anchor={CanvasEditor && !split ? aiAnchor : null}
@@ -331,7 +338,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
             : nativeCanOpenChat() ? (id, messageId) => { postToNative(messageId ? { type: "openChat", id, messageId } : { type: "openChat", id }); } : undefined} />
       </div>
       {!embedded && !split && <NoteFloatingToc blocks={active.content.blocks} scrollRootRef={rootRef} activeId={activeId} />}
-      <PageAssistant key={activeId} pageId={activeId} pageTitle={active.content.title} pageLocked={Boolean(active.page.locked)} model={model} reasoning={reasoning}
+      <PageAssistant key={activeId} pageId={activeId} pageTitle={active.content.title} pageLocked={pageLocked} model={model} reasoning={reasoning}
         onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={() => active.flush()} embedded={embedded}
         selection={aiSelection} onClearSelection={(sent) => setAiAsk((current) => clearActiveSelection(current, activeId, sent))} openSignal={aiOpenSignal} hidden={split}
         onGenerateImage={editable ? requestPageImageGeneration : undefined} />
