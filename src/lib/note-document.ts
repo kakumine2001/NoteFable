@@ -3,7 +3,7 @@ import { isEmojiIcon } from "@/lib/emoji-icon";
 import { parseNoteFileUrl } from "@/lib/note-file-keys";
 import { validMention } from "@/lib/note-mention";
 import { COLUMN, COLUMN_LIST, MAX_STORED_COLUMNS, validColumnWidth } from "@/lib/note-columns";
-import { validWhiteboardEmbedFrameId, validWhiteboardEmbedPageId } from "@/lib/whiteboard/frames";
+import { validWhiteboardEmbedFrameId, validWhiteboardEmbedPageId } from "@/lib/whiteboard/embed-id";
 import type { NoteContent } from "@/types/notes";
 import { MAX_STORED_FILE_BYTES } from "@/lib/usage-plans";
 import { msg, fmt } from "@/lib/i18n/translate";

@@ -1,6 +1,12 @@
 import { noteFileKeyParts } from "@/lib/note-file-keys";
 import { MENTION_PAGE_ID } from "@/lib/note-mention";
 import { walkBlocks } from "@/lib/note-text";
+import {
+  MAX_WHITEBOARD_EMBED_FRAME_ID,
+  MAX_WHITEBOARD_EMBED_PAGE_ID,
+  validWhiteboardEmbedFrameId,
+  validWhiteboardEmbedPageId,
+} from "@/lib/whiteboard/embed-id";
 import { frameOrder } from "@/lib/whiteboard/export-utils";
 import {
   isStoredFileUrl,
@@ -14,10 +20,13 @@ import {
 // ホワイトボードの枠一覧・ノート埋め込みブロックの検証と抽出・オフスクリーン描画用の scene 整形。
 // Excalidraw 本体や DOM を読み込まないため、サーバー・クライアント・テストのすべてから安全に使える。
 
-export const MAX_WHITEBOARD_EMBED_PAGE_ID = 64;
-export const MAX_WHITEBOARD_EMBED_FRAME_ID = 120;
+export {
+  MAX_WHITEBOARD_EMBED_FRAME_ID,
+  MAX_WHITEBOARD_EMBED_PAGE_ID,
+  validWhiteboardEmbedFrameId,
+  validWhiteboardEmbedPageId,
+};
 
-const FRAME_ID_RE = /^[^\s)#\u0000-\u001f\u007f]+$/;
 const PUBLIC_SHARE_FILE_PATH = /^\/s\/([A-Za-z0-9_-]{8,64})\/file$/;
 
 export type WhiteboardFrameInfo = {
@@ -45,14 +54,6 @@ export type WhiteboardMetaMap = ReadonlyMap<string, WhiteboardEmbedMeta>;
 
 const object = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
-
-export function validWhiteboardEmbedPageId(value: unknown): value is string {
-  return typeof value === "string" && (value === "" || (value.length <= MAX_WHITEBOARD_EMBED_PAGE_ID && MENTION_PAGE_ID.test(value)));
-}
-
-export function validWhiteboardEmbedFrameId(value: unknown): value is string {
-  return typeof value === "string" && (value === "" || (value.length <= MAX_WHITEBOARD_EMBED_FRAME_ID && FRAME_ID_RE.test(value)));
-}
 
 // 公開ページ（/s/:token/file?page=...&key=...）の相対 URL だけを通す。
 // 外部 URL・data: URL・持ち主専用の /api/pages/files URL は通さない。

@@ -3,7 +3,8 @@ import { MAX_MATH_LATEX } from "@/lib/note-document";
 import { isNoteImageUrl, noteFileUrlName } from "@/lib/note-file-keys";
 import { mentionFromHref, mentionHref, mentionText, type MentionProps } from "@/lib/note-mention";
 import { unwrapColumns } from "@/lib/note-columns";
-import { validWhiteboardEmbedFrameId, validWhiteboardEmbedPageId, type WhiteboardMetaMap } from "@/lib/whiteboard/frames";
+import { validWhiteboardEmbedFrameId, validWhiteboardEmbedPageId } from "@/lib/whiteboard/embed-id";
+import type { WhiteboardMetaMap } from "@/lib/whiteboard/frames";
 // BlockNote のブロック JSON と Markdown の相互変換。チャットのツールがページを読む（JSON → Markdown）、
 // 編集案を作る（Markdown → JSON）ために使う。対応するのは note-document.ts が検証する範囲のブロックだけ。
 
