@@ -17,6 +17,7 @@ extension SettingsPage {
         case .personalization: return Lucide.penLine
         case .plan: return Lucide.creditCard
         case .account: return Lucide.circleUser
+        case .help: return Lucide.circleHelp
         }
     }
 }
@@ -158,12 +159,14 @@ struct SettingsRowButton: View {
     private let icon: [String]
     private let label: String
     private let danger: Bool
+    private let trailingIcon: [String]?
     private let action: () -> Void
 
-    init(_ label: String, icon: [String], danger: Bool = false, action: @escaping () -> Void) {
+    init(_ label: String, icon: [String], danger: Bool = false, trailingIcon: [String]? = nil, action: @escaping () -> Void) {
         self.label = label
         self.icon = icon
         self.danger = danger
+        self.trailingIcon = trailingIcon
         self.action = action
     }
 
@@ -175,6 +178,9 @@ struct SettingsRowButton: View {
                     .font(.nf(16, weight: 500))
                     .foregroundStyle(danger ? Sm.danger : Sm.text)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                if let trailingIcon {
+                    LucideIcon(trailingIcon, size: 15, color: Sm.faint)
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)

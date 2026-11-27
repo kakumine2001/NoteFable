@@ -313,8 +313,10 @@ final class AccountModelsTests: XCTestCase {
         let vm = await account(stub)
         let log = Log()
         let model = await settings(stub, vm, log)
-        XCTAssertEqual(SettingsPage.allCases, [.general, .personalization, .plan, .account])
-        XCTAssertEqual(SettingsPage.allCases.map(\.titleKey), ["settings_general", "settings_personalization", "plan_title", "account"])
+        XCTAssertEqual(SettingsPage.allCases, [.general, .personalization, .plan, .account, .help])
+        XCTAssertEqual(SettingsPage.allCases.map(\.titleKey), ["settings_general", "settings_personalization", "plan_title", "account", "help"])
+        XCTAssertEqual(SettingsPage.homePages(signedIn: true), [.general, .personalization, .plan, .help])
+        XCTAssertEqual(SettingsPage.homePages(signedIn: false), [.general, .help])
         XCTAssertNil(model.state.page)
         XCTAssertFalse(model.state.navigated, "the home list first appears without the page transition")
 
@@ -332,6 +334,29 @@ final class AccountModelsTests: XCTestCase {
         XCTAssertEqual(log.list, [])
         model.closeAll()
         XCTAssertEqual(log.list, ["close"])
+    }
+
+    @MainActor
+    func testGuestSettingsOnlyShowGeneralAndHelpWithoutLoadingAccountData() async {
+        let stub = StubAccount()
+        stub.user = nil
+        stub.instructions = "Should not load"
+        stub.failInstructions = ApiException(status: 401, message: "Sign in")
+        let vm = await account(stub)
+        let log = Log()
+        stub.calls.removeAll()
+        let model = await settings(stub, vm, log)
+        XCTAssertNil(model.state.initial)
+        XCTAssertNil(model.state.loadError)
+        XCTAssertEqual(stub.calls, [])
+        XCTAssertNil(model.state.page)
+        model.show(.account)
+        XCTAssertEqual(model.state.page, .general)
+        model.show(.help)
+        XCTAssertEqual(model.state.page, .help)
+        model.closeAll()
+        XCTAssertEqual(log.list, ["close"])
+        XCTAssertEqual(stub.calls, [])
     }
 
     /// 和网页 src/lib/settings-navigation.test.ts 是同一批例子。
