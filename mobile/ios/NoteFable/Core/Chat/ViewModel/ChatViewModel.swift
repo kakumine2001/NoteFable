@@ -172,7 +172,14 @@ final class ChatViewModel {
     /// 写入某个聊天的消息；是当前聊天就同时更新界面。
     private func setCached(_ key: String, _ messages: [UiMessage]) {
         cache[key] = messages
-        if keyOf(state) == key { update { $0.messages = messages } }
+        if keyOf(state) == key {
+            update {
+                #if DEBUG
+                $0.debugNoteReplacedRows(messages)
+                #endif
+                $0.messages = messages
+            }
+        }
     }
 
     private func updateCached(_ key: String, _ transform: ([UiMessage]) -> [UiMessage]) {

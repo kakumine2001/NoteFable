@@ -283,9 +283,14 @@ final class FixtureTransportTests: XCTestCase {
         chat.send(FixtureCatalog.Prompts.streamed)
         try await waitUntil { chat.state.activeSessionId == FixtureCatalog.IDs.liveSession && !chat.state.sending }
         XCTAssertEqual(chat.state.debugConversationId, fresh)
+        // 追加、新聊天拿到会话 ID、回答结束后的对账（换 ID 沿用 key）都不算换行。
+        try await waitUntil { chat.state.messages.last.map { !$0.id.hasPrefix("local-") } == true }
+        XCTAssertEqual(chat.state.debugBranchId, 0)
 
         chat.openSession(FixtureCatalog.IDs.longSession)
         try await waitUntil { !chat.state.messagesLoading && chat.state.messages.count == 4 }
+        // 换对话不算换行。
+        XCTAssertEqual(chat.state.debugBranchId, 0)
         let answer = try XCTUnwrap(chat.state.messages.last)
         XCTAssertGreaterThan(answer.content.split(separator: "\n").count, 40)
         chat.regenerate(answer.id)
@@ -293,6 +298,9 @@ final class FixtureTransportTests: XCTestCase {
         XCTAssertEqual(chat.state.messages.count, 4)
         try await Task.sleep(for: .milliseconds(200))
         XCTAssertTrue(chat.state.sending)
+        // 重新生成换掉了最后一行：只记一次（之后的流式文字不算），指着换上来的行。
+        XCTAssertEqual(chat.state.debugBranchId, 1)
+        XCTAssertEqual(chat.state.debugBranchRowKey, chat.state.messages.last?.key)
 
         chat.onIdentityChanged()
         XCTAssertNil(chat.state.activeSessionId)

@@ -31,6 +31,9 @@ NORMAL_SCENES = ('chat', 'chat-scrolled', 'chat-streamed', 'chat-streaming')
 MODE_LEGEND = (
     '`off` = current code; `a` = candidate A, new list identity per conversation (`-NFChatListIdentity YES`); '
     '`b` = candidate B, signed distance + pin past the end (`-NFChatPinPastEnd YES`); '
+    '`c` = candidate C, new list when rows of the open chat are replaced (`-NFChatBranchIdentity YES`); '
+    '`d` = candidate D, ScrollViewReader scrolls to the row after that (`-NFChatScrollToRow YES`); '
+    '`e` = candidate E, new LazyVStack in the same scroll view after that (`-NFChatStackIdentity YES`); '
     '`nopin` = scroll controller never pins (`-NFChatNoPin YES`).'
 )
 FAILING = ('blank', 'no-list', 'no-geometry', 'missing', 'error')
@@ -315,7 +318,8 @@ def report(family, controls, normals):
         lines += ['No control captures.', '']
     geometry_header = ['offsetY', 'bottomY', 'pastEnd', 'contentH', 'boundsH', 'rows on/ever', 'messages', 'following']
     if normals:
-        lines += ['**Normal screenshots**', '']
+        mode = os.environ.get('NF_CHAT_NORMAL_MODE') or 'off'
+        lines += [f'**Normal screenshots (mode `{mode}`)**', '']
         rows = [
             [c['runtime'], c['variant'], f'`{c["scene"]}`', c['verdict'], percent(c['ink'])] + geometry_columns(c['geometry'])
             for c in normals

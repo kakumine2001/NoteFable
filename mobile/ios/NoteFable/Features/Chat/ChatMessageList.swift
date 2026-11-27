@@ -53,6 +53,9 @@ struct ChatMessageList: View {
                         )
                     }
                 }
+                #if DEBUG
+                .chatDebugStackIdentity(state.debugBranchId)
+                #endif
                 .padding(.horizontal, ChatMetrics.pageGutter)
                 .padding(.top, 4)
                 .padding(.bottom, ChatMetrics.listBottomPadding)
@@ -76,6 +79,12 @@ struct ChatMessageList: View {
                 if let last = messages.last, !revealPending { proxy.scrollTo(last.key, anchor: .bottom) }
             }
             .task(id: ChatRevealTrigger(state)) { await reveal(proxy) }
+            #if DEBUG
+            .onChange(of: state.debugBranchId) { _, _ in
+                let now = app.chat.state
+                scroll.debugRepairAfterReplace(proxy, replaced: now.debugBranchRowKey, last: now.messages.last?.key)
+            }
+            #endif
         }
         .overlay(alignment: .bottom) {
             ChatScrollToBottomButton(visible: !atBottom) {

@@ -27,8 +27,11 @@ final class ChatScrollController: NSObject {
     private var atBottom = true
     #if DEBUG
     /// 排查消息区空白（ChatDebug）：懒加载列表里出现着的行、出现过的行。
-    var debugRowsOn: Set<String> = []
+    var debugRowsOn: [String: Int] = [:]
     var debugRowsEver: Set<String> = []
+    /// 候选修复 D：SwiftUI 自己滚的这一小段时间控制器不贴底。
+    private var debugHoldPin = false
+    private var debugRepairTask: Task<Void, Never>?
     #endif
 
     /// 离底部不超过它算"在底部"（网页 2px）。
@@ -171,8 +174,8 @@ final class ChatScrollController: NSObject {
 
     private func pin(_ scrollView: UIScrollView) {
         #if DEBUG
-        // 排查用（-NFChatNoPin）：从不贴底。
-        if ChatDebug.noPin { return }
+        // 排查用（-NFChatNoPin）：从不贴底。候选修复 D 滚动期间也不贴。
+        if ChatDebug.noPin || debugHoldPin { return }
         #endif
         let target = bottomOffset(scrollView)
         guard abs(scrollView.contentOffset.y - target) > 0.5 else { return }
@@ -252,6 +255,31 @@ extension ChatScrollController {
         evaluate()
     }
 
+    /// 候选修复 D（-NFChatScrollToRow）和 E（-NFChatStackIdentity）：对话里有行换掉之后修列表（ChatDebug）。
+    /// 等新行进到列表里后做两遍。D 期间不贴底：旧的内容高度还在时，一贴底就又回到空白处。
+    func debugRepairAfterReplace(_ proxy: ScrollViewProxy, replaced: String?, last: String?) {
+        guard ChatDebug.scrollToRow || ChatDebug.stackIdentity, !revealPending else { return }
+        debugRepairTask?.cancel()
+        let wasFollowing = following
+        debugHoldPin = ChatDebug.scrollToRow
+        debugRepairTask = Task { [weak self] in
+            for wait in [60, 100] {
+                try? await Task.sleep(for: .milliseconds(wait))
+                guard !Task.isCancelled, let self else { return }
+                if ChatDebug.scrollToRow, let target = wasFollowing ? last : replaced {
+                    proxy.scrollTo(target, anchor: wasFollowing ? UnitPoint.bottom : nil)
+                }
+                if ChatDebug.stackIdentity, wasFollowing, let scrollView = self.scrollView {
+                    self.pin(scrollView)
+                }
+            }
+            try? await Task.sleep(for: .milliseconds(200))
+            guard !Task.isCancelled, let self else { return }
+            self.debugHoldPin = false
+            self.evaluate()
+        }
+    }
+
     /// 列表的 UIScrollView 现在在窗口里。
     var debugInWindow: Bool { scrollView?.window != nil }
 
@@ -277,7 +305,8 @@ extension ChatScrollController {
             line += " area=\(number(area.minX)),\(number(area.minY)),\(number(area.width)),\(number(area.height))"
             line += " screen=\(number(screen.width))x\(number(screen.height))"
         }
-        line += " rowsOn=\(debugRowsOn.count) rowsEver=\(debugRowsEver.count) rows=\(debugRowsOn.sorted().joined(separator: ","))"
+        let on = debugRowsOn.filter { $0.value > 0 }.keys.sorted()
+        line += " rowsOn=\(on.count) rowsEver=\(debugRowsEver.count) rows=\(on.joined(separator: ","))"
         return line
     }
 }

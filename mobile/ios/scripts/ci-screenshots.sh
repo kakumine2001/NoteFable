@@ -3,6 +3,7 @@
 # Usage: ci-screenshots.sh <NoteFable.app> <out-dir>
 #        ci-screenshots.sh --boot-only   (CI: boot the simulators ahead of time, leave them running, capture nothing)
 # Env: NF_IOS_MAJORS, NF_VARIANTS, NF_SCENES, NF_ALL_SCENES, NF_DEVICE_FAMILY
+#      NF_CHAT_CONTROL, NF_CHAT_NORMAL_MODE (temporary, blank chat investigation: see ci-chat-control.sh)
 # Every READY line must report the chrome path the app took (glass=native on iOS 26+, material below, solid for rt).
 # Written for macOS /bin/bash (bash 3.2): no mapfile, no associative arrays, no ${var,,}, no sort -V.
 set -euo pipefail
@@ -237,6 +238,9 @@ run_batch() {
       args+=(-AppleLanguages "(en)" -AppleLocale en_US)
       ;;
   esac
+  if [[ -n "$CHAT_NORMAL_FLAG" ]]; then
+    args+=("$CHAT_NORMAL_FLAG" YES)
+  fi
 
   xcrun simctl terminate "$udid" "$BUNDLE_ID" >/dev/null 2>&1 || true
   xcrun simctl launch --terminate-running-process --stderr="$log" "$udid" "$BUNDLE_ID" "${args[@]}" >/dev/null
@@ -312,6 +316,12 @@ run_batch() {
 # Env NF_CHAT_CONTROL: control captures for the blank chat message area, after the variants (see ci-chat-control.sh).
 SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 source "$SCRIPT_DIR/ci-chat-control.sh"
+# Env NF_CHAT_NORMAL_MODE: the normal screenshots run with that mode's launch argument (see ci-chat-control.sh).
+CHAT_NORMAL_FLAG=""
+if [[ -n "${NF_CHAT_NORMAL_MODE:-}" ]] && ! CHAT_NORMAL_FLAG=$(chat_mode_flag "$NF_CHAT_NORMAL_MODE"); then
+  echo "::error::Unknown chat mode for the normal screenshots: ${NF_CHAT_NORMAL_MODE}"
+  exit 1
+fi
 
 # Partition SCENES into signed-in and guest batches.
 declare -a SIGNED_IN_BATCH=()
@@ -593,7 +603,7 @@ if summary_path:
 PY
 
 # Blank-screen check of the message area in the chat captures, appended to the step summary.
-if [[ -n "${NF_CHAT_CONTROL:-}" ]]; then
+if [[ -n "${NF_CHAT_CONTROL:-}${NF_CHAT_NORMAL_MODE:-}" ]]; then
   if ! python3 "$SCRIPT_DIR/chat-blank-check.py" "$OUT" "${GITHUB_STEP_SUMMARY:-}"; then
     echo "::error::The chat blank-screen check did not run."
     failed=1

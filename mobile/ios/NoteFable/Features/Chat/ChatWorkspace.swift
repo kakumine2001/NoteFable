@@ -173,7 +173,7 @@ struct ChatWorkspace: View {
                 maxEditorHeight: maxEditorHeight
             )
             #if DEBUG
-            .chatDebugListIdentity(state.debugConversationId)
+            .chatDebugListIdentity(conversation: state.debugConversationId, branch: state.debugBranchId)
             #endif
         }
     }

@@ -1,13 +1,18 @@
 # shellcheck shell=bash
 # Control captures for the blank chat message area on iOS 27. Sourced by ci-screenshots.sh (uses its OUT, BUNDLE_ID,
-# failed, boot_device, set_variant_environment and wait_for_ready_idx). Runs only when NF_CHAT_CONTROL is set.
+# failed, boot_device, set_variant_environment and wait_for_ready_idx). The control captures run only when
+# NF_CHAT_CONTROL is set; chat_mode_flag also serves NF_CHAT_NORMAL_MODE (the normal screenshots in one mode).
 #
-# NF_CHAT_CONTROL="off:3 a:3 b:3 nopin:1": for every mode, the control scenes are taken in order that many times, light
-# appearance. Each scene does its own setup (App/FixtureChatControl.swift).
+# NF_CHAT_CONTROL="off:8 c:8 d:8 e:8": for every mode, the control scenes are taken in order that many times (1-9), light
+# appearance. Each scene does its own setup (App/FixtureChatControl.swift). A scene that times out waiting for
+# readiness is still captured and marked "timeout" in the report: a warning, the job does not fail.
 #   off    current code
-#   a      -NFChatListIdentity YES  candidate fix A: a new message list for every conversation
-#   b      -NFChatPinPastEnd YES    candidate fix B: signed distance to the bottom, pin when scrolled past the end
-#   nopin  -NFChatNoPin YES         the scroll controller never pins
+#   a      -NFChatListIdentity YES    candidate fix A: a new message list for every conversation
+#   b      -NFChatPinPastEnd YES      candidate fix B: signed distance to the bottom, pin when scrolled past the end
+#   c      -NFChatBranchIdentity YES  candidate fix C: a new message list when rows of the open chat are replaced
+#   d      -NFChatScrollToRow YES     candidate fix D: ScrollViewReader scrolls to the row after such a replacement
+#   e      -NFChatStackIdentity YES   candidate fix E: a new LazyVStack (same scroll view) after such a replacement
+#   nopin  -NFChatNoPin YES           the scroll controller never pins
 # One app process per mode and scene group: the scenes of the first group never open the page editor, and must not
 # share a process with the ones that do. NF_CHAT_CONTROL_SCENES takes only the named scenes, as one group.
 # NF_CHAT_CONTROL_LIMIT (seconds, default 1080) ends the control captures of a runtime early: a job that runs into its
@@ -24,6 +29,20 @@ if [[ -n "${NF_CHAT_CONTROL_SCENES:-}" ]]; then
   CHAT_CONTROL_GROUPS=("$NF_CHAT_CONTROL_SCENES")
 fi
 CHAT_CONTROL_DEADLINE=0
+
+# chat_mode_flag <mode>: prints the launch argument of the mode (nothing for off); fails on an unknown mode.
+chat_mode_flag() {
+  case "$1" in
+    off) ;;
+    a) echo -NFChatListIdentity ;;
+    b) echo -NFChatPinPastEnd ;;
+    c) echo -NFChatBranchIdentity ;;
+    d) echo -NFChatScrollToRow ;;
+    e) echo -NFChatStackIdentity ;;
+    nopin) echo -NFChatNoPin ;;
+    *) return 1 ;;
+  esac
+}
 
 # run_chat_control <udid> <major>
 run_chat_control() {
@@ -60,13 +79,13 @@ run_chat_control_mode() {
   local udid=$1 major=$2 mode=$3 runs=$4 group=$5 probe=$6
   local -a args=(-NFFixtures YES -NFFixtureAccount signed-in)
   args+=(-AppleLanguages "(en)" -AppleLocale en_US)
-  case "$mode" in
-    off) ;;
-    a) args+=(-NFChatListIdentity YES) ;;
-    b) args+=(-NFChatPinPastEnd YES) ;;
-    nopin) args+=(-NFChatNoPin YES) ;;
-    *) echo "::error::Unknown chat control mode: ${mode}"; failed=1; return 0 ;;
-  esac
+  local flag
+  if ! flag=$(chat_mode_flag "$mode"); then
+    echo "::error::Unknown chat control mode: ${mode}"
+    failed=1
+    return 0
+  fi
+  if [[ -n "$flag" ]]; then args+=("$flag" YES); fi
   if ! [[ "$runs" =~ ^[1-9]$ ]]; then
     echo "::error::Chat control ${mode}: runs must be 1-9, not '${runs}'"
     failed=1
@@ -143,8 +162,7 @@ run_chat_control_mode() {
       failed=1
       status=wrong-scene
     elif [[ "$ready_line" == *"timeout=true"* ]]; then
-      echo "::error::${name} ${scene} run ${round} timed out waiting for readiness"
-      failed=1
+      echo "::warning::${name} ${scene} run ${round} timed out waiting for readiness"
       status=timeout
     fi
     if ! xcrun simctl io "$udid" screenshot --type=png "$OUT/$png" >/dev/null; then

@@ -184,12 +184,11 @@ jobs:
           - label: iOS 27
             runner: xcode-27
             majors: "27"
-            chat-control: "off:3 a:3 b:3 nopin:1"
+            chat-normal-mode: a
             artifact: ios-screenshots-ios27
           - label: iOS 26
             runner: macos-15
             majors: "26"
-            chat-control: "off:1 a:1 b:1 nopin:1"
             artifact: ios-screenshots-ios26
           - label: iOS 18
             runner: macos-15
@@ -201,15 +200,19 @@ jobs:
             device-family: iPad
             variants: light dark ar rt
             scenes: chat chat-scrolled chat-composer emoji-picker sidebar-collapsed search workspace workspace-scrolled editor page-menu settings settings-plan sign-in
-            chat-control: "off:3 a:1 b:1 nopin:1"
+            chat-control: "off:8 c:8 d:8 e:8"
+            chat-scenes: chat-regenerate
             artifact: ios-screenshots-ipad
     env:
       NF_IOS_MAJORS: ${{ matrix.majors }}
       NF_DEVICE_FAMILY: ${{ matrix.device-family }}
       NF_VARIANTS: ${{ matrix.variants }}
       NF_SCENES: ${{ matrix.scenes }}
-      # Blank chat message area investigation (mobile/ios/scripts/ci-chat-control.sh); empty: no control captures.
+      # Blank chat message area investigation (mobile/ios/scripts/ci-chat-control.sh). Empty means: no control
+      # captures / every control scene / normal screenshots without a candidate switch.
       NF_CHAT_CONTROL: ${{ matrix.chat-control }}
+      NF_CHAT_CONTROL_SCENES: ${{ matrix.chat-scenes }}
+      NF_CHAT_NORMAL_MODE: ${{ matrix.chat-normal-mode }}
     steps:
       - uses: actions/checkout@v7
         with:
