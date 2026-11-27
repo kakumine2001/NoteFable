@@ -85,27 +85,27 @@ Please try asking questions, attaching photos or PDFs, saving answers as notes, 
 
 ## 订阅
 
-已经建好的订阅组 NoteFable Pro 和月付商品 `com.kakumine.notefable.pro.monthly`（[billing.md](../architecture/billing.md#ios)）。工具只写这两项的显示名和描述，不创建订阅组或商品，不改价格和销售范围。显示名 2–30 字，描述最多 45 字。描述只说 Pro 提高了 AI 消息和图片的上限，不写条数和张数：图片除了每个账期 60 张还有每天 10 张的上限，45 字里写不全，只写大的数字会误导；完整数字在商店描述和 App 里。唯一的数字是存储 10 GB（`src/lib/usage-plans.ts`），改存储上限时一起改。没有草稿版本、而已批准或被拒的版本要改文字时，工具建一个新的草稿元数据版本，之后由所有者送审。不写价格和试用（App Store 自己显示）。语言名与 [listing.md](listing.md) 的节标题相同。
+已经建好的订阅组 NoteFable Pro 和月付商品 `com.kakumine.notefable.pro.monthly`（[billing.md](../architecture/billing.md#ios)）。工具只写这两项的显示名和描述，不创建订阅组或商品，不改价格和销售范围。显示名 2–30 字，描述最多 55 字。Apple 的帮助文档只给 App 内购买项目写了上限（[In-App Purchase information](https://developer.apple.com/help/app-store-connect/reference/in-app-purchases-and-subscriptions/in-app-purchase-information)：显示名 2–30、描述 45），订阅的参考页没有写字数。订阅描述不适用 45（App Store Connect 已经收下 51 字的英文描述）；55 是订阅本地化表单的计数器上限，来自[第三方的实测记录](https://github.com/AhmedOsman00/terraform-provider-apple/issues/22)，不是 Apple 的文档。同一记录说订阅显示名可到 35，这里仍按 30。英语、简体中文、繁体中文、日语的订阅显示名和描述是 App Store Connect 上已经填好的原文，不要改写；其他语言照它们的写法。描述写 Pro 每月的消息数、图片数和存储容量（`src/lib/usage-plans.ts`），改上限时一起改；图片的每日上限写不下，完整数字在商店描述和 App 里。没有草稿版本、而已批准或被拒的版本要改文字时，工具建一个新的草稿元数据版本，之后由所有者送审。不写价格和试用（App Store 自己显示）。语言名与 [listing.md](listing.md) 的节标题相同。
 
 | 语言 | 订阅组显示名 | 订阅显示名 | 订阅描述 |
 | --- | --- | --- | --- |
-| English (U.S.) | NoteFable Pro | NoteFable Pro | More AI messages and images, 10 GB storage |
-| Chinese (Simplified) | NoteFable Pro | NoteFable Pro | 更高的 AI 消息和图片上限，10 GB 存储 |
-| Chinese (Traditional) | NoteFable Pro | NoteFable Pro | 更高的 AI 訊息和圖片上限，10 GB 儲存空間 |
-| Japanese | NoteFable Pro | NoteFable Pro | AI メッセージと画像の上限アップ、保存容量 10 GB |
-| Korean | NoteFable Pro | NoteFable Pro | AI 메시지·이미지 한도 확대, 저장 공간 10 GB |
-| Spanish (Mexico) / Spanish (Spain) | NoteFable Pro | NoteFable Pro | Más mensajes e imágenes de IA y 10 GB |
-| French | NoteFable Pro | NoteFable Pro | Plus de messages et d'images IA, 10 GB |
-| German | NoteFable Pro | NoteFable Pro | Mehr KI-Nachrichten und -Bilder, 10 GB |
-| Portuguese (Brazil) | NoteFable Pro | NoteFable Pro | Mais mensagens e imagens de IA, 10 GB |
-| Italian | NoteFable Pro | NoteFable Pro | Più messaggi e immagini IA, 10 GB |
-| Indonesian | NoteFable Pro | NoteFable Pro | Lebih banyak pesan & gambar AI, 10 GB |
-| Vietnamese | NoteFable Pro | NoteFable Pro | Thêm tin nhắn và hình ảnh AI, 10 GB |
-| Thai | NoteFable Pro | NoteFable Pro | ข้อความและรูปภาพ AI มากขึ้น พื้นที่ 10 GB |
-| Hindi | NoteFable Pro | NoteFable Pro | ज़्यादा AI संदेश और इमेज, 10 GB स्टोरेज |
-| Arabic | NoteFable Pro | NoteFable Pro | رسائل وصور ذكاء اصطناعي أكثر، و10 GB |
-| Turkish | NoteFable Pro | NoteFable Pro | Daha yüksek yapay zekâ sınırları, 10 GB |
-| Russian | NoteFable Pro | NoteFable Pro | Больше сообщений и изображений ИИ, 10 GB |
+| English (U.S.) | NoteFable Pro | NoteFable Pro Monthly | 2,000 messages, 60 images/month, and 10 GB storage. |
+| Chinese (Simplified) | NoteFable Pro | NoteFable Pro 月度订阅 | 每月 2,000 条消息、60 张图片与 10 GB 存储空间。 |
+| Chinese (Traditional) | NoteFable Pro | NoteFable Pro 月度訂閱 | 每月 2,000 則訊息、60 張圖片與 10 GB 儲存空間。 |
+| Japanese | NoteFable Pro | NoteFable Pro 月額プラン | 月2,000件のメッセージ、60枚の画像、10 GBの保存容量。 |
+| Korean | NoteFable Pro | NoteFable Pro 월간 구독 | 월 메시지 2,000개, 이미지 60개, 저장 공간 10 GB. |
+| Spanish (Mexico) / Spanish (Spain) | NoteFable Pro | NoteFable Pro mensual | 2000 mensajes y 60 imágenes al mes, 10 GB de espacio. |
+| French | NoteFable Pro | NoteFable Pro mensuel | 2 000 messages, 60 images/mois et 10 GB de stockage. |
+| German | NoteFable Pro | NoteFable Pro Monatsabo | 2.000 Nachrichten, 60 Bilder/Monat, 10 GB Speicher. |
+| Portuguese (Brazil) | NoteFable Pro | NoteFable Pro mensal | 2.000 mensagens, 60 imagens/mês e 10 GB de espaço. |
+| Italian | NoteFable Pro | NoteFable Pro mensile | 2.000 messaggi, 60 immagini al mese e 10 GB di spazio. |
+| Indonesian | NoteFable Pro | NoteFable Pro Bulanan | 2.000 pesan, 60 gambar per bulan, penyimpanan 10 GB. |
+| Vietnamese | NoteFable Pro | NoteFable Pro hằng tháng | 2.000 tin nhắn, 60 hình ảnh/tháng và 10 GB lưu trữ. |
+| Thai | NoteFable Pro | NoteFable Pro รายเดือน | 2,000 ข้อความ 60 รูปต่อเดือน และพื้นที่ 10 GB |
+| Hindi | NoteFable Pro | NoteFable Pro मासिक प्लान | हर महीने 2,000 संदेश, 60 इमेज और 10 GB स्टोरेज। |
+| Arabic | NoteFable Pro | NoteFable Pro الشهري | 2,000 رسالة و60 صورة شهريًا، وتخزين 10 GB. |
+| Turkish | NoteFable Pro | NoteFable Pro Aylık | Ayda 2.000 mesaj, 60 görsel ve 10 GB depolama. |
+| Russian | NoteFable Pro | NoteFable Pro на месяц | 2000 сообщений, 60 изображений в месяц, 10 GB места. |
 
 ## 需要所有者确认
 

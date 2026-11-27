@@ -78,7 +78,9 @@ _OLD_FREQUENCIES = {"INFREQUENT_OR_MILD": "INFREQUENT", "FREQUENT_OR_INTENSE": "
 REVIEW_NOTES_MAX_BYTES = 4000
 BETA_DESCRIPTION_MAX = 4000
 DISPLAY_NAME_MIN, DISPLAY_NAME_MAX = 2, 30
-SUBSCRIPTION_DESCRIPTION_MAX = 45
+# Apple publishes no limit for subscription descriptions (45 is its in-app purchase limit); 55 is
+# the counter of the App Store Connect form. Sources in docs/app-store/review-info.md.
+SUBSCRIPTION_DESCRIPTION_MAX = 55
 EDITABLE_SUBSCRIPTION_VERSION = "PREPARE_FOR_SUBMISSION"
 REPLACED_SUBSCRIPTION_VERSION = "REPLACED_WITH_NEW_VERSION"
 # Review is over for these, so changed texts go into a new draft. In any other state Apple still
@@ -294,9 +296,9 @@ def parse_review_info(text: str, languages: tuple) -> ReviewInfo:
     for heading, texts in by_heading.items():
         for label, value in (("group display name", texts.group_name), ("display name", texts.name)):
             if not DISPLAY_NAME_MIN <= len(value) <= DISPLAY_NAME_MAX:
-                problems.append(f"{heading}: subscription {label} is {len(value)} characters (allowed 2-30)")
+                problems.append(f"{heading}: subscription {label} is {len(value)} characters (allowed {DISPLAY_NAME_MIN}-{DISPLAY_NAME_MAX})")
         if len(texts.description) > SUBSCRIPTION_DESCRIPTION_MAX:
-            problems.append(f"{heading}: subscription description is {len(texts.description)} characters (limit 45)")
+            problems.append(f"{heading}: subscription description is {len(texts.description)} characters (limit {SUBSCRIPTION_DESCRIPTION_MAX})")
     if problems:
         raise ListingError("\n".join(f"{REVIEW_DOC}: {problem}" for problem in problems))
     return ReviewInfo(
