@@ -96,7 +96,7 @@ Google Play 的 AI 生成内容政策要求能在应用内举报冒犯性的 AI 
 
 已完成（2026-11-17）：开发者账号、创建应用（NoteFable，`com.kakumine.notefable`）、订阅商品 `notefable_pro` 的创建、RTDN 和服务端环境变量（见 [billing.md](../architecture/billing.md#配置google-play)）、商店文字和图片、隐私政策 / 服务条款 / 特商法页面里的订阅说明。
 
-已完成（2026-11-20–22）：1.0.12（versionCode 22）起在内部测试和封闭测试（Alpha 轨道）完全发布，仓库当前版本为 1.0.20（versionCode 30），Play 上的实际版本以 Console 为准；订阅 `notefable_pro` 的基础方案 `monthly` 与 30 天免费试用 `free-trial-30d` 已启用；Play Console 的应用内容声明和商店介绍已填写；封闭测试已于 2026-11-22 通过 Testers Community 启动（15 名测试人员，16 天，见 `AGENTS.md`）。之后提高 versionCode 的 PR 合入 main 时，GitHub Actions 自动同时发布到内部测试和 Alpha（见 [android.md](../architecture/android.md#正式签名与-google-play)），不用再手动上传 AAB。
+已完成（2026-11-20–22）：1.0.12（versionCode 22）起在内部测试和封闭测试（Alpha 轨道）完全发布，仓库当前版本为 1.0.21（versionCode 31），Play 上的实际版本以 Console 为准；订阅 `notefable_pro` 的基础方案 `monthly` 与 30 天免费试用 `free-trial-30d` 已启用；Play Console 的应用内容声明和商店介绍已填写；封闭测试已于 2026-11-22 通过 Testers Community 启动（15 名测试人员，16 天，见 `AGENTS.md`）。之后提高 versionCode 的 PR 合入 main 时，GitHub Actions 自动同时发布到内部测试和 Alpha（见 [android.md](../architecture/android.md#正式签名与-google-play)），不用再手动上传 AAB。
 
 剩下的（都要在 Play Console 上由所有者操作）：
 
