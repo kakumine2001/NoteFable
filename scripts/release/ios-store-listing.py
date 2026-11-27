@@ -60,6 +60,7 @@ _REVIEW_SPEC.loader.exec_module(review_mod)
 dist = review_mod.dist
 AscError = review_mod.AscError
 ListingError = review_mod.ListingError
+WriteRefused = review_mod.WriteRefused
 _read_text = review_mod.read_text
 _sections = review_mod.sections
 _get_all = review_mod.get_all
@@ -536,12 +537,12 @@ class GuardedClient:
                         and set(data.get("relationships") or {}) <= related
                     )
             if not self.allow_writes or not allowed:
-                raise AscError(f"Refusing to send {method} {path_or_url}.")
+                raise WriteRefused(f"Refusing to send {method} {path_or_url}.")
             if path_or_url.startswith("/appInfos/"):
                 data = (payload or {}).get("data") or {}
                 other = set(data.get("relationships") or {}) - {"primaryCategory", "secondaryCategory"}
                 if data.get("attributes") or other:
-                    raise AscError("Refusing to change anything on the app info except its categories.")
+                    raise WriteRefused("Refusing to change anything on the app info except its categories.")
         return self._client.request(method, path_or_url, payload=payload, allow_404=allow_404)
 
 

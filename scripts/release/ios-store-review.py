@@ -17,6 +17,7 @@ Also home to the few helpers both files share, so that there is one AscError and
 
 from __future__ import annotations
 
+import http.client
 import importlib.util
 import re
 import urllib.parse
@@ -86,9 +87,23 @@ FINISHED_SUBSCRIPTION_VERSIONS = frozenset(
     {"APPROVED", "REJECTED", "DEVELOPER_REJECTED", REPLACED_SUBSCRIPTION_VERSION}
 )
 
+# The subscription states that need nothing more before or during review. Anything else, removed from
+# sale included, is reported as missing.
+SUBMITTABLE_SUBSCRIPTION_STATES = frozenset(
+    {"READY_TO_SUBMIT", "WAITING_FOR_REVIEW", "IN_REVIEW", "PENDING_BINARY_APPROVAL", "APPROVED"}
+)
+
 CONTACT_FIELDS = ("contactFirstName", "contactLastName", "contactPhone", "contactEmail")
 DEMO_FIELDS = ("demoAccountName", "demoAccountPassword")
-_PERSONAL_DATA = (re.compile(r"[\w.+-]+@[\w-]+\.\w+"), re.compile(r"\+\d[\d\s()-]{7,}"))
+# What may stand between the digit groups of a phone number (not a line break).
+_PHONE_GAP = r"[ \t\u00a0\u3000().\-\u2010-\u2015\u2212\uff08\uff09\uff0d]"
+_PERSONAL_DATA = (
+    re.compile(r"[\w.+-]+@[\w-]+\.\w+"),
+    re.compile(r"\+\d[\d\s().-]{7,}"),
+    # Domestic formats (090-1234-5678, (555) 123-4567) and bare runs: 9 digits or more, so that a
+    # date such as 2026-11-27 passes.
+    re.compile(rf"\d(?:{_PHONE_GAP}{{0,3}}\d){{8,}}"),
+)
 
 
 # --- Shared helpers ----------------------------------------------------------------------------
@@ -96,6 +111,10 @@ _PERSONAL_DATA = (re.compile(r"[\w.+-]+@[\w-]+\.\w+"), re.compile(r"\+\d[\d\s()-
 
 class ListingError(ValueError):
     """The documents or screenshots can't be turned into a listing."""
+
+
+class WriteRefused(AscError):
+    """The listing script's own guard refused a request: nothing was sent."""
 
 
 def read_text(path: Path) -> str:
@@ -164,11 +183,16 @@ def _body(resource_type: str, values: dict | None = None, resource_id: str | Non
 def _without_details(action):
     """Run a request on a record that holds personal data: Apple's error text may repeat a value.
 
-    Only the status, the error codes and the field pointers are kept.
+    Only the status, the error codes and the field pointers are kept. A request that App Store
+    Connect never answered keeps its kind of cause, which repeats nothing of the record.
     """
     try:
         return action()
     except AscError as exc:
+        if isinstance(exc, WriteRefused):
+            raise WriteRefused("refused by the write guard") from None
+        if exc.status is None and isinstance(exc.__cause__, (OSError, http.client.HTTPException)):
+            raise AscError("network error") from None
         errors = exc.body.get("errors") if isinstance(exc.body, dict) else None
         kept = []
         for error in errors or []:
@@ -460,8 +484,23 @@ def _plan_subscriptions(client: Any, info: ReviewInfo, plan: ReviewPlan) -> None
     product_texts = {
         locale: {"name": t.name, "description": t.description} for locale, t in info.subscription.items()
     }
-    _plan_subscription(client, "subscriptionGroups", group["id"], group_texts, plan)
-    _plan_subscription(client, "subscriptions", product["id"], product_texts, plan)
+    # Read and written independently: the log must say which of the two is left out.
+    for kind, resource, desired in (
+        ("subscriptionGroups", group, group_texts),
+        ("subscriptions", product, product_texts),
+    ):
+        label = f"{_SUBSCRIPTION_KINDS[kind][0]} texts"
+        _read_section(plan, label, lambda: _plan_subscription(client, kind, resource["id"], desired, plan))
+
+
+def _read_section(plan: ReviewPlan, label: str, action) -> None:
+    """Plan one section; one that can't be read is reported and not written."""
+    try:
+        action()
+    except AscError as exc:
+        if exc.status == 401:
+            raise
+        plan.errors.append(f"{label}: could not be read, not written: {exc}")
 
 
 def _beta_localizations(client: Any, app_id: str) -> dict[str, dict]:
@@ -482,15 +521,10 @@ def plan_review(
     for label, action in (
         ("age rating", lambda: _plan_age_rating(client, info, plan, app_info_id)),
         ("review notes", lambda: _plan_notes(client, info, plan)),
-        ("subscription texts", lambda: _plan_subscriptions(client, info, plan)),
+        ("subscription group and subscription texts", lambda: _plan_subscriptions(client, info, plan)),
         ("beta app description", lambda: _plan_beta(client, info, plan)),
     ):
-        try:
-            action()
-        except AscError as exc:
-            if exc.status == 401:
-                raise
-            plan.errors.append(f"{label}: could not be read, not written: {exc}")
+        _read_section(plan, label, action)
     return plan
 
 
@@ -595,11 +629,9 @@ def _write_notes(client: Any, plan: ReviewPlan, out) -> None:
 
 
 def _write_copyright(client: Any, plan: ReviewPlan, out) -> None:
-    client.request(
-        "PATCH",
-        f"/appStoreVersions/{plan.version_id}",
-        payload=_body("appStoreVersions", {"copyright": plan.copyright[1]}, plan.version_id),
-    )
+    payload = _body("appStoreVersions", {"copyright": plan.copyright[1]}, plan.version_id)
+    path = f"/appStoreVersions/{plan.version_id}"
+    _without_details(lambda: client.request("PATCH", path, payload=payload))
     out("Wrote the copyright.")
 
 
@@ -687,6 +719,11 @@ def audit(
     app_info_id and version_id are None when there is no single one to check.
     """
     missing: list[str] = []
+    unknown: list[str] = []
+
+    def not_checked(text: str) -> None:
+        out(f"  [unknown] {text}")
+        unknown.append(text)
 
     def line(ok: bool, text: str) -> None:
         out(f"  [{'ok' if ok else 'MISSING'}] {text}")
@@ -695,13 +732,13 @@ def audit(
 
     def check(label: str, action, needs: tuple = ()) -> None:
         if None in needs:
-            out(f"  [unknown] {label}: there is no single app info or iOS version to check")
+            not_checked(f"{label}: there is no single app info or iOS version to check")
             return
         try:
             action()
         except AscError as exc:
             # The status only: an error text could repeat a value of the record.
-            out(f"  [unknown] {label}: could not be read ({f'HTTP {exc.status}' if exc.status else 'request failed'})")
+            not_checked(f"{label}: could not be read ({f'HTTP {exc.status}' if exc.status else 'request failed'})")
 
     version: dict = {}
 
@@ -736,7 +773,7 @@ def audit(
         line(bool(version.get("copyright")), f"copyright: {_set(version.get('copyright'))}")
         number = version.get("versionString")
         if marketing_version is None:
-            out(f"  [unknown] version string {number}: MARKETING_VERSION could not be read from {PROJECT_FILE}")
+            not_checked(f"version string {number}: MARKETING_VERSION could not be read from {PROJECT_FILE}")
         else:
             line(
                 number == marketing_version,
@@ -767,7 +804,7 @@ def audit(
         if not group or not product:
             return
         state = attributes(product).get("state")
-        line(state not in (None, "MISSING_METADATA", "REJECTED", "DEVELOPER_ACTION_NEEDED"), f"subscription state: {state}")
+        line(state in SUBMITTABLE_SUBSCRIPTION_STATES, f"subscription state: {state}")
         for kind, resource in (("subscriptionGroups", group), ("subscriptions", product)):
             # Only the version that would be submitted counts, not what an older one had.
             current = _current_version(_versions(client, kind, resource["id"]))
@@ -825,7 +862,7 @@ def audit(
         ("TestFlight information", beta, ()),
     ):
         check(label, action, needs)
-    out(f"Audit summary: {len(missing)} item(s) missing.")
+    out(f"Audit summary: {len(missing)} item(s) missing, {len(unknown)} check(s) unknown (not verified).")
     out(
         "Not visible to this script, check in App Store Connect: App Privacy answers, DSA trader status, "
         "agreements, banking and tax, and adding the first subscription to the version before submitting."

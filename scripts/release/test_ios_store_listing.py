@@ -16,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import urllib.error
 import urllib.parse
 import zlib
 from pathlib import Path
@@ -1166,7 +1167,7 @@ class SubmissionTests(unittest.TestCase):
         self.assertTrue(self.sync(fake, apply=True), self.text())
         self.assert_no_personal_data()
         self.assertEqual(fake.age, REVIEW.age_rating)
-        self.assertEqual(fake.copyright, "2026 NoteFable")
+        self.assertEqual(fake.copyright, REVIEW.copyright)
         self.assertEqual(fake.review_detail["notes"], REVIEW.review_notes)
         self.assertEqual(fake.review_detail["contactPhone"], "+81 90 1234 5678")
         self.assertEqual(fake.beta_texts["beta-en"]["description"], REVIEW.beta_description)
@@ -1252,7 +1253,7 @@ class SubmissionTests(unittest.TestCase):
         self.assert_no_personal_data()
         self.assertIn("review notes: HTTP 409 X.INVALID (details hidden", self.text())
         self.assertIn("beta app description: HTTP 409 X.INVALID (details hidden", self.text())
-        self.assertEqual(fake.copyright, "2026 NoteFable")  # the other writes went on
+        self.assertEqual(fake.copyright, REVIEW.copyright)  # the other writes went on
 
     def test_an_unreadable_section_is_skipped_and_fails_apply(self) -> None:
         fake = FakeAppStoreConnect()
@@ -1261,8 +1262,84 @@ class SubmissionTests(unittest.TestCase):
         self.assertIn("::error::age rating: could not be read", self.text())
         self.assertIn("[unknown] age rating: could not be read (HTTP 500)", self.text())
         self.assertFalse(self.sync(fake, apply=True))
-        self.assertEqual(fake.copyright, "2026 NoteFable")
+        self.assertEqual(fake.copyright, REVIEW.copyright)
         self.assertEqual(set(fake.age.values()), {None})
+
+    def test_a_refused_copyright_write_hides_apples_text(self) -> None:
+        fake = FakeAppStoreConnect()
+        fill_personal_data(fake)
+        leak = "2025 Taro Yamada owner@example.com"
+        body = {"errors": [{"code": "X.INVALID", "detail": leak}]}
+        fake.fail[("PATCH", "/appStoreVersions/")] = AscError(f"HTTP 409: {leak}", status=409, body=body)
+        self.assertFalse(self.sync(fake, apply=True))
+        self.assert_no_personal_data()
+        self.assertIn("::error::copyright: HTTP 409 X.INVALID (details hidden", self.text())
+
+    def test_unanswered_requests_keep_a_safe_cause(self) -> None:
+        client = review_mod.dist.AscClient("key", "issuer", "unused", max_retries=1)
+        client._get_token = lambda: "token"
+        for failure in (TimeoutError("timed out"), urllib.error.URLError("unreachable"), http.client.BadStatusLine("x")):
+            with self.subTest(type(failure).__name__), mock.patch("urllib.request.urlopen", side_effect=failure):
+                with self.assertRaises(AscError) as ctx:
+                    review_mod._without_details(lambda: client.request("PATCH", "/betaAppLocalizations/1"))
+                self.assertEqual(str(ctx.exception), "network error")
+        guard = listing_mod.GuardedClient(mock.Mock(), allow_writes=False)
+        for method, path in (("PATCH", "/appStoreVersions/1"), ("POST", "/betaAppLocalizations")):
+            with self.subTest(path), self.assertRaises(AscError) as ctx:
+                review_mod._without_details(lambda: guard.request(method, path))
+            self.assertEqual(str(ctx.exception), "refused by the write guard")
+
+    def test_an_unreadable_subscription_leaves_out_only_its_own_texts(self) -> None:
+        for broken, left, written in (
+            ("/subscriptions/sub-1/versions", "subscription", "gver-1"),
+            ("/subscriptionGroups/group-1/versions", "subscription group", "sver-1"),
+        ):
+            with self.subTest(left):
+                fake = FakeAppStoreConnect()
+                fake.fail[("GET", broken)] = AscError("HTTP 500", status=500)
+                self.assertFalse(self.sync(fake, apply=True))
+                self.assertIn(f"::error::{left} texts: could not be read, not written: HTTP 500", self.output)
+                self.assertEqual(list(fake.sub_texts), [written])
+        fake = FakeAppStoreConnect()
+        fake.fail[("GET", "/apps/app-1/subscriptionGroups")] = AscError("HTTP 500", status=500)
+        self.assertFalse(self.sync(fake, apply=True))
+        self.assertIn(
+            "::error::subscription group and subscription texts: could not be read, not written: HTTP 500", self.output
+        )
+        self.assertEqual(fake.sub_texts, {})
+
+    def test_audit_summary_counts_the_checks_that_never_ran(self) -> None:
+        fake = FakeAppStoreConnect()
+        fake.fail[("GET", "/apps/app-1/appPriceSchedule")] = AscError("HTTP 500", status=500)
+        fake.fail[("GET", "/subscriptions/sub-1/planAvailabilities")] = AscError("HTTP 500", status=500)
+        self.assertTrue(self.sync(fake, marketing_version=None))
+        self.assertIn("[unknown] app price: could not be read (HTTP 500)", self.text())
+        # The version string, the price and the subscription availability.
+        self.assertRegex(self.text(), r"Audit summary: \d+ item\(s\) missing, 3 check\(s\) unknown")
+
+        self.output = []
+        review_mod.audit(fake, "app-1", None, None, "1.0", ["en-US"], self.output.append)
+        # Also the age rating, App Review details, copyright and version string, and build.
+        self.assertRegex(self.text(), r"Audit summary: \d+ item\(s\) missing, 6 check\(s\) unknown")
+
+    def test_audit_accepts_only_submittable_subscription_states(self) -> None:
+        submittable = ("READY_TO_SUBMIT", "WAITING_FOR_REVIEW", "IN_REVIEW", "PENDING_BINARY_APPROVAL", "APPROVED")
+        other = (
+            "MISSING_METADATA",
+            "REJECTED",
+            "DEVELOPER_ACTION_NEEDED",
+            "REMOVED_FROM_SALE",
+            "DEVELOPER_REMOVED_FROM_SALE",
+            "SOMETHING_NEW",
+            None,
+        )
+        for states, mark in ((submittable, "ok"), (other, "MISSING")):
+            for state in states:
+                with self.subTest(state=state):
+                    fake = FakeAppStoreConnect()
+                    fake.product_state = state
+                    self.assertTrue(self.sync(fake))
+                    self.assertIn(f"[{mark}] subscription state: {state}", self.text())
 
     def test_never_creates_a_product(self) -> None:
         fake = FakeAppStoreConnect()
@@ -1401,11 +1478,12 @@ class ReviewDocumentTests(unittest.TestCase):
     def test_repository_document_is_valid(self) -> None:
         info = self.parse()
         self.assertEqual(set(info.age_rating), set(review_mod.AGE_RATING_ATTRIBUTES))
-        self.assertEqual(info.copyright, "2026 NoteFable")
+        self.assertRegex(info.copyright, r"^\d{4} \S")
         self.assertEqual(len(info.subscription), 18)
         self.assertEqual(info.subscription["es-MX"], info.subscription["es-ES"])
         self.assertFalse(info.age_rating["advertising"])
-        self.assertEqual(review_mod.read_marketing_version(REPO_ROOT).count("."), 2)
+        # The two or three numbers that ios-version.sh accepts.
+        self.assertRegex(review_mod.read_marketing_version(REPO_ROOT), r"^\d+(\.\d+){1,2}$")
 
     def test_subscription_descriptions_state_only_the_pro_storage(self) -> None:
         plans = (REPO_ROOT / "src/lib/usage-plans.ts").read_text(encoding="utf-8")
@@ -1415,13 +1493,37 @@ class ReviewDocumentTests(unittest.TestCase):
                 # A message or image count would have to carry the daily limit too, which doesn't fit.
                 self.assertEqual(re.findall(r"\d+", texts.description), [gigabytes], texts.description)
 
+    def test_rejects_phone_numbers_with_or_without_a_country_code(self) -> None:
+        for number in (
+            "+81 90 1234 5678",
+            "+81.90.1234.5678",
+            "090-1234-5678",
+            "090 - 1234 - 5678",
+            "09012345678",
+            "電話09012345678まで",
+            "０９０－１２３４－５６７８",
+            "03-1234-5678",
+            "(03) 1234-5678",
+            "(555) 123-4567",
+            "555.123.4567",
+            "138 0013 8000",
+            "123456789",
+        ):
+            for old in ("NO ACCOUNT NEEDED", "You can try it without an account."):
+                with self.subTest(number=number, old=old), self.assertRaises(ListingError) as ctx:
+                    self.parse(old, f"Call {number}")
+                self.assertIn("email address or phone number", str(ctx.exception))
+        for harmless in ("Updated 2026-11-27.", "Up to 4000 bytes, 10 GB, iOS 27.", "Version 1.2.3 (build 10)"):
+            with self.subTest(harmless):
+                self.parse("NO ACCOUNT NEEDED", harmless)
+
     def test_rejects_bad_documents(self) -> None:
         cases = {
             "no answer for advertising": ("| `advertising` | false |", "| `other` | false |"),
             "contests = SOMETIMES": ("| `contests` | NONE |", "| `contests` | SOMETIMES |"),
             "email address or phone number": ("NO ACCOUNT NEEDED", "Contact a@example.com"),
-            "needs exactly one ```text block": ("```text\n2026 NoteFable\n```", "2026 NoteFable"),
-            "copyright must be one line": ("2026 NoteFable\n```", "NoteFable\n```"),
+            "needs exactly one ```text block": (f"```text\n{REVIEW.copyright}\n```", REVIEW.copyright),
+            "copyright must be one line": (f"{REVIEW.copyright}\n```", "NoteFable\n```"),
             "description is 46 characters": ("More AI messages and images, 10 GB storage", "x" * 46),
             "display name is 31 characters": ("| NoteFable Pro | NoteFable Pro |", f"| NoteFable Pro | {'N' * 31} |"),
             "exactly one row for each": ("| Japanese |", "| Japan |"),
