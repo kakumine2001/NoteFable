@@ -1387,7 +1387,54 @@ describe("applySlidesEdits (propose_slides_edit)", () => {
     expect(() => applySlidesEdits(
       normalizeDeck({ format: DECK_FORMAT, theme: { id: "simple", mode: "light" }, slides: [tallBlockSlide] }),
       [op({ op: "update_slide", slideId: tallBlockSlide.id, body: "```ts\n" + Array.from({ length: 12 }, (_, i) => `const line${i} = ${i};`).join("\n") + "\n```" })],
-    )).toThrow(/delete_element/);
+    )).toThrow(/overflows the space left/);
+
+    // imageText and twoColumn layouts with a kept table at (120, 640, 800x260) and 10 bullets:
+    // every slide fits strictly inside its box, imageText continuations add no empty image placeholder,
+    // and reading order stays strictly 1..10 across primary + continuation slides.
+    const tenBullets = Array.from({ length: 10 }, (_, i) => `- Bullet #${String(i + 1).padStart(2, "0")}`).join("\n");
+    for (const layoutId of ["imageText", "twoColumn"] as const) {
+      const layoutSlide: Slide = { ...createSlide(layoutId, { title: `Layout ${layoutId}`, body: "Initial" }), id: `lay_${layoutId}` };
+      layoutSlide.elements.push({
+        id: `tbl_${layoutId}`,
+        type: "table",
+        x: 120,
+        y: 640,
+        w: 800,
+        h: 260,
+        rotation: 0,
+        rows: [{ cells: [{ text: "K" }, { text: "V" }] }, { cells: [{ text: "A" }, { text: "1" }] }],
+        cols: [1, 1],
+        header: true,
+        style: { size: 24, color: "text", border: "line", headerFill: "surface", font: "body" },
+      });
+      const res = applySlidesEdits(
+        normalizeDeck({ format: DECK_FORMAT, theme: { id: "simple", mode: "light" }, slides: [layoutSlide] }),
+        [op({ op: "update_slide", slideId: layoutSlide.id, body: tenBullets })],
+      );
+      expect(res.deck.slides.length).toBeGreaterThanOrEqual(2);
+      const orderedMarkers: string[] = [];
+      for (const [sIdx, s] of res.deck.slides.entries()) {
+        if (sIdx > 0 && layoutId === "imageText") {
+          expect(s.elements.some((el) => el.type === "image" && !el.src && !el.pendingImagePrompt)).toBe(false);
+        }
+        const tblOnSlide = s.elements.find((el) => el.type === "table");
+        for (const el of s.elements) {
+          if (el.type !== "text" || el.role === "title") continue;
+          const text = richDocText(el.doc).trim();
+          if (!text) continue;
+          const m = measureRichDocHeight(el.doc, el);
+          expect(m.requiredHeight).toBeLessThanOrEqual(m.innerHeight);
+          if (tblOnSlide) {
+            const overlaps = el.x < tblOnSlide.x + tblOnSlide.w && el.x + el.w > tblOnSlide.x && el.y < tblOnSlide.y + tblOnSlide.h && el.y + el.h > tblOnSlide.y;
+            expect(overlaps).toBe(false);
+          }
+          const matches = text.match(/Bullet #\d{2}/g);
+          if (matches) orderedMarkers.push(...matches);
+        }
+      }
+      expect(orderedMarkers).toEqual(Array.from({ length: 10 }, (_, i) => `Bullet #${String(i + 1).padStart(2, "0")}`));
+    }
 
     // When a kept table fills the entire content area leaving no room above or below, reject clearly.
     const fullTableSlide = JSON.parse(JSON.stringify(slide)) as Slide;

@@ -1182,11 +1182,20 @@ function applyContentUpdateToSlide(
   }
 
   // 縮小・移動した本文枠から溢れるテキストを測り、入り切る分だけを残して残りは続ページへ送る。
+  // 先行する本文枠が溢れた場合は、同じスライド内の後続本文枠（2 段組みの body2 等）も読み順を保つためまとめて続ページへ移す。
   // 1 項目も入らない狭い余白しか残らない場合は、はみ出しを許さず明示的にエラーを返す。
   const overflowBlocks: RichBlock[] = [];
   if (adjustedElementIds.size > 0) {
     nextElements = nextElements.map((el) => {
-      if (el.type !== "text" || el.role === headingRole || !adjustedElementIds.has(el.id)) return el;
+      if (el.type !== "text" || el.role === headingRole) return el;
+      if (overflowBlocks.length > 0) {
+        if (!isRichDocEmpty(el.doc)) {
+          overflowBlocks.push(...el.doc.content);
+          return { ...el, doc: richDocFromText("") };
+        }
+        return el;
+      }
+      if (!adjustedElementIds.has(el.id)) return el;
       const { fitted, overflow } = splitDocToFitBox(el.doc, el);
       if (!fitted) {
         throw new SlidesEditError(
@@ -1228,12 +1237,13 @@ function applyContentUpdateToSlide(
           }
         }
       }
+      // 続ページは全幅の標準本文レイアウト（layout: null）でページ分割し、imageText 等への無理な押し込みや空画像枠の増殖を防ぐ。
       continuationSlides = buildSlidesFromParsedBlocks(
         {
           title: effectiveTitle,
           bodyBlocks: tailBlocks,
           notes: null,
-          layout: effectiveLayout === "blank" ? null : effectiveLayout,
+          layout: null,
         },
         theme,
       );
@@ -1243,7 +1253,7 @@ function applyContentUpdateToSlide(
           title: effectiveTitle,
           bodyBlocks: richBlocksToNoteBlocks(overflowBlocks),
           notes: null,
-          layout: effectiveLayout === "blank" ? null : effectiveLayout,
+          layout: null,
         },
         theme,
       );
@@ -1944,7 +1954,7 @@ export function applySlidesEdits(rawData: unknown, rawOperations: unknown): Slid
         let updated = applyMetadata(primary, { notes, hidden, transition, section });
         if (layout && updated.layout !== layout) {
           updated = layout === "twoColumn" ? splitBodyIntoTwoColumns(updated) : applyLayout(updated, layout);
-        } else if (updated.layout === "twoColumn" && body !== null) {
+        } else if (updated.layout === "twoColumn" && body !== null && continuations.length === 0) {
           updated = splitBodyIntoTwoColumns(updated);
         }
 
