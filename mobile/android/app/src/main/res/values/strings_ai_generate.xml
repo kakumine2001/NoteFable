@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ai_gen_placeholder">Ask AI to create a note, whiteboard, or slide deck…</string>
+    <string name="ai_gen_options">Options</string>
+    <string name="ai_gen_generate">Generate</string>
+</resources>

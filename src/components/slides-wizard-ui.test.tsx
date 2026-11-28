@@ -472,23 +472,25 @@ describe("Generate slides entries", () => {
     expect(labels(menu(PAGE, vi.fn()))).toContain("Generating slides…");
   });
 
-  it("adds Generate with AI to the new page menu where slides can be created", () => {
+  it("adds Generate with AI to all new page menus when onGenerate is provided", () => {
     const onCreate = vi.fn();
     const onGenerate = vi.fn();
     const render = (kinds: ("note" | "slides" | "whiteboard")[], generate?: () => void) => {
       hooks.states = [{ anchor: {}, trigger: {}, focusLast: false }];
       return NewPageButton({ kinds, busy: false, onCreate, onGenerate: generate, className: "c", menuLabel: "New page", children: "+" });
     };
-    const all = render(["note", "slides", "whiteboard"], onGenerate);
-    expect(labels(all)).toEqual(["+", "Note", "Slides", "Whiteboard", "Generate with AI"]);
+    const all = render(["note", "whiteboard", "slides"], onGenerate);
+    expect(labels(all)).toEqual(["+", "Note", "Whiteboard", "Slides", "Generate with AI"]);
     click(byLabel(all, "Generate with AI"));
     expect(onGenerate).toHaveBeenCalledTimes(1);
     expect(onCreate).not.toHaveBeenCalled();
-    // スライドの分区の「+」：1 種類でもメニューを開き、作る操作の名前で出す。
+    // 各分区の「+」：1 種類でも onGenerate があればメニューを開き、作る操作の名前と Generate with AI を出す。
+    expect(labels(render(["note"], onGenerate))).toEqual(["+", "New note", "Generate with AI"]);
+    expect(labels(render(["whiteboard"], onGenerate))).toEqual(["+", "New whiteboard", "Generate with AI"]);
     expect(labels(render(["slides"], onGenerate))).toEqual(["+", "New slide deck", "Generate with AI"]);
     expect(labels(render(["note", "slides"]))).not.toContain("Generate with AI");
-    // スライドを作れない分区は、押すとすぐ作る。
-    const note = render(["note"], onGenerate);
-    expect(byLabel(note, "+")?.props["aria-haspopup"]).toBeUndefined();
+    // onGenerate が無い 1 種類のボタンは、押すとすぐ作る。
+    const directNote = render(["note"]);
+    expect(byLabel(directNote, "+")?.props["aria-haspopup"]).toBeUndefined();
   });
 });

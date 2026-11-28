@@ -348,6 +348,17 @@ final class AppRouter {
         }
     }
 
+    /// 打开工作区统一「用 AI 生成」面板（#254）。工作区里已经打开着编辑器时切回工作区并盖在编辑器上，否则开全屏画面。
+    func openAiGenerate(_ target: AiGenerateTarget = AiGenerateTarget()) {
+        drawerOpen = false
+        if let editor = app.notes.state.visibleEditor {
+            selectedTab = .workspace
+            app.notes.openAiGenerate(target, editor: editor)
+        } else {
+            app.notes.openAiGenerate(target, editor: nil)
+        }
+    }
+
     /// 打开 PowerPoint（.pptx）导入窗口（#154）。工作区里已经打开着编辑器时切回工作区并盖在编辑器上，否则开全屏导入画面。
     func openPptxImport(_ target: PptxImportTarget = PptxImportTarget()) {
         drawerOpen = false
@@ -384,6 +395,7 @@ final class AppRouter {
         drawerOpen = false
         previewProposal = nil
         app.notes.dismissFullScreenSlidesWizard()
+        app.notes.dismissFullScreenAiGenerate()
         app.notes.dismissFullScreenPptxImport()
     }
 }

@@ -12,7 +12,8 @@ import { useI18n } from "@/components/i18n-provider";
 import { greetingFor, recentPages, relativeTime } from "@/lib/notes-home-text";
 import { NoteIcon } from "@/components/note-icon";
 import { PageKindIcon } from "@/components/page-kind-icon";
-import { AppIcon } from "@/components/app-icon";
+import { WorkspaceAiEntry } from "@/components/ai-generate-panel";
+import type { AiGenerateKind } from "@/lib/ai-generate";
 import { NOTE_COVERS, coverImageUrl, isPresetCover } from "@/lib/note-document";
 import { creatablePageKinds, PAGE_KIND_LABELS, PAGE_KIND_NEW_LABELS, PAGE_KIND_SECTION_LABELS, pageKindOf, type PageKind } from "@/lib/page-kinds";
 import { sectionKindOf, workspaceSections, type NewPageRequest } from "@/lib/workspace-sections";
@@ -20,7 +21,7 @@ import { sectionKindOf, workspaceSections, type NewPageRequest } from "@/lib/wor
 // Notes のホーム: 作成済みのページをプロジェクトごと（種類は混ぜる）と、プロジェクトなしは種類ごとの分区（サイドバーと同じ、#168）に並べて、
 // 押したものを開く。ページが 0 件のときは呼び出し側が空状態を出す。
 // パソコン幅（640px 以上）では、上にあいさつ・クイック作成デッキ・「最近編集したページ」のカード（すべての種類、種類のアイコン付き）を出す。
-export function NotesHome({ pages, groups, groupError, busy, onOpen, onPrefetch, onCancelPrefetch, onCreate, onGenerateSlides, onImportPptx, onImport, onWorkspaceChange, onMoveNote, onCreateGroup, onReorder, onMoveToPage }: {
+export function NotesHome({ pages, groups, groupError, busy, onOpen, onPrefetch, onCancelPrefetch, onCreate, onGenerate, onImportPptx, onImport, onWorkspaceChange, onMoveNote, onCreateGroup, onReorder, onMoveToPage }: {
   onMoveToPage: (pageId: string, parentId: string) => Promise<unknown>;
   pages: NotePageSummary[];
   onReorder:(move:ReorderRequest)=>Promise<unknown>;
@@ -32,8 +33,9 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onPrefetch,
   onCancelPrefetch?: (id?: string) => void;
   // 種類を指定して作る（省略はノート）。作成カードは作れる種類ごとに 1 つ。
   onCreate: (request?: NewPageRequest) => void;
-  // AI のスライド生成・PowerPoint 取り込みの窓を開く（作成カードの下）。
-  onGenerateSlides?: () => void;
+  // 統合「AI で生成」パネルを開く（ホームのスタジオ入力欄から。現在の種別フィルターを引き継ぐ）。
+  onGenerate?: (opts: { kind: AiGenerateKind; prompt?: string; autoStart?: boolean }) => void;
+  // スライド専用の PowerPoint 取り込み。
   onImportPptx?: () => void;
   onImport?: (files: File[]) => void;
   onWorkspaceChange: (view: WorkspaceView) => void;
@@ -185,11 +187,20 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onPrefetch,
               <Upload size={14} aria-hidden="true" /><span>{t("Import Markdown")}</span>
             </button>
           )}
+          {onImportPptx && kinds.includes("slides") && (activeFilter === null || activeFilter === "slides") && (
+            <button type="button" className="ws-util-pill" disabled={busy} aria-haspopup="dialog" onClick={onImportPptx}>
+              <Upload size={14} aria-hidden="true" /><span>{t("Import PowerPoint")}</span>
+            </button>
+          )}
         </div>
       </header>
 
+      {onGenerate && (
+        <WorkspaceAiEntry kinds={kinds} activeFilter={activeFilter} busy={busy} onOpen={onGenerate} />
+      )}
+
       <div className="ws-home-create">
-        <NewPageButtons kinds={kinds} busy={busy} onCreate={(kind) => onCreate({ kind })} onGenerate={onGenerateSlides} onImportPptx={onImportPptx} />
+        <NewPageButtons kinds={kinds} busy={busy} onCreate={(kind) => onCreate({ kind })} />
       </div>
 
       <div className="notes-home-hero">
@@ -326,8 +337,8 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onPrefetch,
 }
 
 // ホームと空状態の作成ボタン（#168）。作れる種類がノートだけなら「New note」1 つ。
-// 2 つ以上ならノート・スライド・ホワイトボードの 3 枚のスタジオ作成カード（.ws-create-deck）を並べる。
-export function NewPageButtons({ kinds, busy, onCreate, onGenerate, onImportPptx, className = "" }: { kinds: readonly PageKind[]; busy: boolean; onCreate: (kind: PageKind) => void; onGenerate?: () => void; onImportPptx?: () => void; className?: string }) {
+// 2 つ以上なら作成カード（.ws-create-deck）を並べる。AI 生成は上の統合エントリー（WorkspaceAiEntry）に集約済み。
+export function NewPageButtons({ kinds, busy, onCreate, className = "" }: { kinds: readonly PageKind[]; busy: boolean; onCreate: (kind: PageKind) => void; className?: string }) {
   const { t } = useI18n();
   if (kinds.length < 2) {
     return (
@@ -336,7 +347,7 @@ export function NewPageButtons({ kinds, busy, onCreate, onGenerate, onImportPptx
       </button>
     );
   }
-  const deck = (
+  return (
     <div className={`ws-create-deck ${className}`}>
       {kinds.map((kind) => (
         <button key={kind} type="button" className={`ws-create-card is-${kind}`} disabled={busy} onClick={() => onCreate(kind)}>
@@ -348,25 +359,6 @@ export function NewPageButtons({ kinds, busy, onCreate, onGenerate, onImportPptx
           <span className="ws-create-motif" aria-hidden="true" />
         </button>
       ))}
-    </div>
-  );
-  if ((!onGenerate && !onImportPptx) || !kinds.includes("slides")) return deck;
-  // スライドを作れるときは、カードの下に AI 生成と PowerPoint 取り込みを添える。
-  return (
-    <div className="ws-create-with-ai">
-      {deck}
-      <div className="ws-create-actions">
-        {onGenerate && (
-          <button type="button" className="ws-util-pill" disabled={busy} aria-haspopup="dialog" onClick={onGenerate}>
-            <AppIcon size={16} /><span>{t("Generate with AI")}</span>
-          </button>
-        )}
-        {onImportPptx && (
-          <button type="button" className="ws-util-pill" disabled={busy} aria-haspopup="dialog" onClick={onImportPptx}>
-            <Upload size={14} aria-hidden="true" /><span>{t("Import PowerPoint")}</span>
-          </button>
-        )}
-      </div>
     </div>
   );
 }

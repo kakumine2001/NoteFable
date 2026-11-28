@@ -97,14 +97,14 @@ struct NotesCountPill: View {
 }
 
 /// 行右侧的小按钮（网页 .chat-row-action）：25.6 见方、圆角 4、灰色图标，右距 3.2。触屏上常显。
-/// 新建按钮外面的一层（网页 NewPageButton，Android `NewPageMenuAnchor`，#168）：能新建的类型（[kinds]）只有一种时
-/// 点击直接建它，两种以上时使用系统原生 Liquid Glass 菜单（笔记 / 幻灯片 / 白板 / 用 AI 生成）。
+/// 新建按钮外面的一层（网页 NewPageButton，Android `NewPageMenuAnchor`，#168）：能新建的类型（[kinds]）只有一种且无附加项时
+/// 点击直接建它，否则使用系统原生 Liquid Glass 菜单（笔记 / 白板 / 幻灯片 / 用 AI 生成 / 导入 PowerPoint）。
 @MainActor
 struct NewPageMenuAnchor<LabelContent: View>: View {
     private let kinds: [PageKind]
     private let label: String
     private let onCreate: (PageKind) -> Void
-    private let onGenerateSlides: (() -> Void)?
+    private let onGenerate: (() -> Void)?
     private let onImportPptx: (() -> Void)?
     private let labelContent: () -> LabelContent
     @Environment(AppEnvironment.self) private var app
@@ -113,35 +113,35 @@ struct NewPageMenuAnchor<LabelContent: View>: View {
         kinds: [PageKind],
         label: String,
         onCreate: @escaping (PageKind) -> Void,
-        onGenerateSlides: (() -> Void)? = nil,
+        onGenerate: (() -> Void)? = nil,
         onImportPptx: (() -> Void)? = nil,
         @ViewBuilder labelContent: @escaping () -> LabelContent
     ) {
         self.kinds = kinds
         self.label = label
         self.onCreate = onCreate
-        self.onGenerateSlides = onGenerateSlides
+        self.onGenerate = onGenerate
         self.onImportPptx = onImportPptx
         self.labelContent = labelContent
     }
 
     var body: some View {
-        let showGenerateSlides = onGenerateSlides != nil && kinds.contains(.slides)
+        let showGenerate = onGenerate != nil
         let showImportPptx = onImportPptx != nil && kinds.contains(.slides)
-        if kinds.count > 1 || showGenerateSlides || showImportPptx {
+        if kinds.count > 1 || showGenerate || showImportPptx {
             Menu {
                 ForEach(kinds, id: \.self) { kind in
                     Button {
                         onCreate(kind)
                     } label: {
-                        NFMenuLabel(title: L(pageKindLabel(kind)), icon: pageKindIcon(kind))
+                        NFMenuLabel(title: L(kinds.count > 1 ? pageKindLabel(kind) : pageKindNewLabel(kind)), icon: pageKindIcon(kind))
                     }
                 }
-                if showGenerateSlides || showImportPptx {
+                if showGenerate || showImportPptx {
                     Divider()
                 }
-                if showGenerateSlides, let onGenerateSlides {
-                    Button(action: onGenerateSlides) {
+                if let onGenerate {
+                    Button(action: onGenerate) {
                         NFMascotMenuLabel(title: L("slides_generate_with_ai"), icon: app.appIcon.icon)
                     }
                 }
@@ -175,12 +175,13 @@ struct NotesSectionHeading: View {
     let busy: Bool
     let onToggle: () -> Void
     let onCreate: () -> Void
-    var onGenerateSlides: (() -> Void)? = nil
+    var onGenerate: (() -> Void)? = nil
     var onImportPptx: (() -> Void)? = nil
     @Environment(AppEnvironment.self) private var app
 
     var body: some View {
         let name = L(pageKindSectionLabel(kind))
+        let showImportPptx = kind == .slides && onImportPptx != nil
         HStack(spacing: 0) {
             Button(action: onToggle) {
                 HStack(spacing: 6) {
@@ -202,19 +203,19 @@ struct NotesSectionHeading: View {
             }
             .buttonStyle(.pressable(cornerRadius: 7))
             .accessibilityLabel(isOpen ? L("pg_collapse_title", name) : L("pg_expand_title", name))
-            if kind == .slides, onGenerateSlides != nil || onImportPptx != nil {
+            if onGenerate != nil || showImportPptx {
                 let label = L(pageKindNewLabel(kind))
                 Menu {
                     Button(action: onCreate) {
-                        NFMenuLabel(title: L("ws_new_slides"), icon: Lucide.presentation)
+                        NFMenuLabel(title: label, icon: pageKindIcon(kind))
                     }
                     Divider()
-                    if let onGenerateSlides {
-                        Button(action: onGenerateSlides) {
+                    if let onGenerate {
+                        Button(action: onGenerate) {
                             NFMascotMenuLabel(title: L("slides_generate_with_ai"), icon: app.appIcon.icon)
                         }
                     }
-                    if let onImportPptx {
+                    if showImportPptx, let onImportPptx {
                         Button(action: onImportPptx) {
                             NFMenuLabel(title: L("slides_import_pptx"), icon: Lucide.upload)
                         }

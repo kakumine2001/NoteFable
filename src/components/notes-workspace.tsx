@@ -15,6 +15,8 @@ import { PageAssistant } from "@/components/page-assistant";
 import { NoteFloatingToc } from "@/components/note-floating-toc";
 import { NotePageHeader } from "@/components/note-page-header";
 import { NewPageButtons, NotesHome } from "@/components/notes-home";
+import { WorkspaceAiEntry } from "@/components/ai-generate-panel";
+import type { AiGenerateKind } from "@/lib/ai-generate";
 import { WorkspaceSwitch, type WorkspaceView } from "@/components/workspace-nav";
 import { applyCanvasEditorChange, type useNotePages } from "@/lib/use-note-pages";
 import { useI18n, useT } from "@/components/i18n-provider";
@@ -134,7 +136,7 @@ function NoteSaveWarnings({ notes }: { notes: ReturnType<typeof useNotePages> })
   </>;
 }
 
-export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChange, onReasoningChange, onOpen, onOpenChat, onCreate, onGenerateSlides, onImportPptx, onImport, onWorkspaceChange, embedded = false, split = false, onAskSelectionInChat, onNativeOpenReveal }: {
+export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChange, onReasoningChange, onOpen, onOpenChat, onCreate, onGenerate, onImportPptx, onImport, onWorkspaceChange, embedded = false, split = false, onAskSelectionInChat, onNativeOpenReveal }: {
   notes: ReturnType<typeof useNotePages>;
   listMode: boolean;
   // ノートの AI アシスタントが使うモデルと推論強度（チャットで選んでいるものと同じ）。
@@ -148,8 +150,8 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   onOpenChat?: (id: string, messageId?: string) => void;
   // 新しいページを作る（ホームと空状態の作成ボタン）。省略はプロジェクトなしのノート。
   onCreate: (request?: NewPageRequest) => void;
-  // ホームと空状態の「Generate with AI」「Import PowerPoint」。
-  onGenerateSlides?: () => void;
+  // ホームと空状態の統合「AI で生成」・スライド専用の「Import PowerPoint」。
+  onGenerate?: (opts: { kind: AiGenerateKind; prompt?: string; autoStart?: boolean }) => void;
   onImportPptx?: () => void;
   onImport?: (files: File[]) => void;
   onWorkspaceChange: (view: WorkspaceView) => void;
@@ -251,7 +253,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
     {actionError && <div className="notes-action-error notes-column pt-6"><div className="notion-error" role="alert">{localizeSystemText(actionError, t)}<button type="button" className="notion-button ml-3" onClick={notes.dismissActionError}>{t("Close")}</button></div></div>}
     {listMode && (notes.pages.length > 0 || notes.groups.length > 0) ? (
       <NotesHome pages={notes.pages} groups={notes.groups} groupError={notes.groupError} busy={busy} onOpen={onOpen}
-        onPrefetch={notes.prefetch} onCancelPrefetch={notes.cancelPrefetch} onCreate={onCreate} onGenerateSlides={onGenerateSlides} onImportPptx={onImportPptx} onImport={onImport}
+        onPrefetch={notes.prefetch} onCancelPrefetch={notes.cancelPrefetch} onCreate={onCreate} onGenerate={onGenerate} onImportPptx={onImportPptx} onImport={onImport}
         onWorkspaceChange={onWorkspaceChange} onReorder={notes.reorder} onMoveNote={notes.moveNote} onCreateGroup={notes.createGroup} onMoveToPage={notes.moveToPage} />
     ) : loading && (!listMode || !(notes.pages.length || notes.groups.length)) ? <div className="notes-column pt-24"><p className="notes-loading">{listMode ? t("Loading pages…") : t("Loading page…")}</p></div>
     // ホワイトボード・スライドは種類ごとのエディター（canvas-editors.tsx）。エディターがまだ無い種類は読み取り専用の仮の画面
@@ -371,16 +373,26 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
       <h1 className="notes-empty-title">{t("Workspace")}</h1>
       <p className="notes-empty-subtitle">{t("Write notes, build slide decks and sketch on whiteboards. In a note, type {key} for headings, lists, to-dos and code.").split("{key}").flatMap((part, index) => index ? [<kbd key={index} className="notes-kbd">/</kbd>, part] : [part])}</p>
       <div className="notes-empty-actions">
-        <NewPageButtons kinds={creatablePageKinds()} busy={busy} className="!mt-0" onCreate={(kind) => onCreate({ kind })} onGenerate={onGenerateSlides} onImportPptx={onImportPptx} />
-        {onImport && <>
-          <input ref={emptyImportRef} type="file" multiple accept=".md,.markdown,.txt,text/markdown,text/plain" className="sr-only"
-            onChange={(event) => {
-              const picked = Array.from(event.target.files ?? []);
-              event.target.value = "";
-              if (picked.length) onImport(picked);
-            }} />
-          <button type="button" disabled={busy} className="ws-util-pill notes-empty-import" onClick={() => emptyImportRef.current?.click()}><Upload size={14} aria-hidden="true" /><span>{t("Import Markdown")}</span></button>
-        </>}
+        {onGenerate && (
+          <WorkspaceAiEntry kinds={creatablePageKinds()} busy={busy} onOpen={onGenerate} />
+        )}
+        <NewPageButtons kinds={creatablePageKinds()} busy={busy} className="!mt-0" onCreate={(kind) => onCreate({ kind })} />
+        {(onImport || (onImportPptx && creatablePageKinds().includes("slides"))) && (
+          <div className="ws-create-actions">
+            {onImport && <>
+              <input ref={emptyImportRef} type="file" multiple accept=".md,.markdown,.txt,text/markdown,text/plain" className="sr-only"
+                onChange={(event) => {
+                  const picked = Array.from(event.target.files ?? []);
+                  event.target.value = "";
+                  if (picked.length) onImport(picked);
+                }} />
+              <button type="button" disabled={busy} className="ws-util-pill notes-empty-import" onClick={() => emptyImportRef.current?.click()}><Upload size={14} aria-hidden="true" /><span>{t("Import Markdown")}</span></button>
+            </>}
+            {onImportPptx && creatablePageKinds().includes("slides") && (
+              <button type="button" disabled={busy} className="ws-util-pill" aria-haspopup="dialog" onClick={onImportPptx}><Upload size={14} aria-hidden="true" /><span>{t("Import PowerPoint")}</span></button>
+            )}
+          </div>
+        )}
       </div>
       <p className="notes-empty-footnote">{t("Your Workspace is saved on the server and linked to this device. Sign in to open it on other devices. If you clear app or site data before signing in, you lose access to it.")}</p>
     </div></>}

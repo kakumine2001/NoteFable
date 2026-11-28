@@ -39,10 +39,12 @@ import { CreatePageDialog } from "@/components/create-page-dialog";
 import { DrawDiagramHost } from "@/components/draw-diagram-dialog";
 import { ReviewQuizHost } from "@/components/review-quiz-dialog";
 import { SlidesWizardHost } from "@/components/slides-wizard";
+import { AiGenerateHost } from "@/components/ai-generate-panel";
 import { PptxImportHost } from "@/components/pptx-import-dialog";
 import { drawAnswerDiagram, drawNoteDiagram } from "@/lib/draw-diagram-jobs";
 import { openReviewQuiz } from "@/lib/quiz-session";
 import { openSlidesWizard } from "@/lib/slides-wizard-jobs";
+import { openAiGenerate } from "@/lib/ai-generate-jobs";
 import { openPptxImport } from "@/lib/pptx-import-jobs";
 import { EmptyConversation, StarterPrompts } from "@/components/empty-conversation";
 import { BillingReturnNotice, GuestLimitPrompt, StorageLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
@@ -98,7 +100,7 @@ import { localizeSystemText, msg, type Translate, type TranslateVars } from "@/l
 import { failureText } from "@/lib/failure-text";
 import { NoteIcon } from "@/components/note-icon";
 import { PageKindIcon } from "@/components/page-kind-icon";
-import { isPageKind, pageKindFeatures, pageKindOf } from "@/lib/page-kinds";
+import { creatablePageKinds, isPageKind, pageKindFeatures, pageKindOf, type PageKind } from "@/lib/page-kinds";
 import { dispatchSlidesCommand } from "@/lib/native-bridge";
 import type { NewPageRequest } from "@/lib/workspace-sections";
 
@@ -2458,8 +2460,9 @@ export default function Home() {
       ? 0
       : Math.max(1, Math.round((now - activeStreamStartedAt) / 1000));
 
-  // 「新しいスライド」の AI 生成。作り先はプロジェクト・親ページの「+」から開いたときだけ渡る。
-  const generateSlides = (placement?: { groupId?: string; parentId?: string }) => openSlidesWizard({ entry: { type: "new", ...placement }, model });
+  // ワークスペースの統合「AI で生成」（ノート・ホワイトボード・スライド）。作り先・種別・入力済みプロンプトを引き継ぐ。
+  const generatePage = (opts?: { kind?: PageKind; groupId?: string; parentId?: string; prompt?: string; autoStart?: boolean }) =>
+    openAiGenerate({ ...opts, model });
   const importPptx = (placement?: { groupId?: string; parentId?: string }) => openPptxImport(placement);
   // サーバーは保存済みのノートを読むので、材料に開いているページがあれば、要求の前に入力中の内容を保存する。
   const flushSlidesSource = async (pageIds: string[]) => {
@@ -2485,7 +2488,7 @@ export default function Home() {
     <NotesSidebar pages={notes.pages} activeId={notes.openingId ?? (notesList ? null : notes.activeId)} busy={notes.busy}
       home={notesList && !notes.openingId} onHome={() => { setSidebarOpen(false); openNotesList(); }}
       onCreate={(request) => { setSidebarOpen(false); createNote(request); }}
-      onGenerateSlides={(placement) => { setSidebarOpen(false); generateSlides(placement); }}
+      onGenerate={(opts) => { setSidebarOpen(false); generatePage(opts); }}
       onImportPptx={(placement) => { setSidebarOpen(false); importPptx(placement); }} onImport={(files) => void importMarkdownFiles(files)} onSearch={() => setSearchOpen(true)} onSelect={(id) => { setSidebarOpen(false); openNote(id); }}
       onPrefetch={notes.prefetch} onCancelPrefetch={notes.cancelPrefetch}
       onDelete={deleteNote} deleteError={notes.trashError} onClose={closeSidebar} onWorkspaceChange={changeWorkspace}
@@ -2714,7 +2717,7 @@ export default function Home() {
         <div className={workspaceView === "pages" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
           {/* 分割表示の間は右側のペインが同じノートを開く。隠れたこちらにも編集画面を作ると、同じブロックが 2 つでき、検索結果の強調が見えない方に当たる。 */}
           {!splitActive && <NotesWorkspace notes={notes} listMode={notesList} model={model} reasoning={reasoning} onModelChange={changeModel} onReasoningChange={changeReasoning} onOpen={openNote}
-            onOpenChat={(id, messageId) => void openChatFromLink(id, messageId)} onCreate={(request) => createNote(request)} onGenerateSlides={() => generateSlides()} onImportPptx={() => importPptx()} onImport={(files) => void importMarkdownFiles(files)} onWorkspaceChange={changeWorkspace} />}
+            onOpenChat={(id, messageId) => void openChatFromLink(id, messageId)} onCreate={(request) => createNote(request)} onGenerate={(opts) => generatePage(opts)} onImportPptx={() => importPptx()} onImport={(files) => void importMarkdownFiles(files)} onWorkspaceChange={changeWorkspace} />}
         </div>
 
         <div className={workspaceView === "chat" ? `notion-chat-workspace${emptyState ? " is-empty" : ""}` : "hidden"}
@@ -3115,8 +3118,10 @@ export default function Home() {
       )}
       {/* 「画成図」の窓（回答・ノートの「…」・ノートの AI パネルのどこから始めても、ここに出す）。 */}
       <DrawDiagramHost />
-      {/* AI のスライド生成の窓（チャットの「＋」・ノートの「…」と AI パネル・新規作成のどこから始めても、ここに出す）。 */}
+      {/* AI のスライド生成の窓（チャットの「＋」・ノートの「…」と AI パネルから開く）。 */}
       <SlidesWizardHost flush={flushSlidesSource} />
+      {/* ワークスペースの統合「AI で生成」スタジオ（ノート・ホワイトボード・スライド）。 */}
+      <AiGenerateHost flush={flushSlidesSource} kinds={creatablePageKinds()} />
       {/* PowerPoint（.pptx）取り込みの窓（新規作成・サイドバー・ホーム・スライドのメニューから開く）。 */}
       <PptxImportHost groups={notes.groups} />
       {/* 復習・クイズモードの窓（ノート・スライドの「…」メニューから開く）。 */}

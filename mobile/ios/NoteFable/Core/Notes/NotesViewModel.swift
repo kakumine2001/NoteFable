@@ -110,6 +110,16 @@ final class NotesViewModel {
             next.wizardUsageLimit = nil
             next.wizardStorageLimit = nil
         }
+        // 画面上的编辑器换了：盖在别的编辑器上的统一 AI 生成面板、有了编辑器时的全屏画面都不再算数。
+        if let aiGen = next.aiGenerate, aiGen.editor != nil, aiGen.editor != next.visibleEditor {
+            next.aiGenerate = nil
+            next.aiGenerateUsageLimit = nil
+            next.aiGenerateStorageLimit = nil
+        } else if let aiGen = next.aiGenerate, aiGen.editor == nil, next.visibleEditor != nil, next.visibleEditor != state.visibleEditor {
+            next.aiGenerate = nil
+            next.aiGenerateUsageLimit = nil
+            next.aiGenerateStorageLimit = nil
+        }
         // 画面上的编辑器换了：盖在别的编辑器上的 PPTX 导入窗口、有了编辑器时的全屏导入画面都不再算数。
         if let pptx = next.pptxImport, pptx.editor != nil, pptx.editor != next.visibleEditor {
             next.pptxImport = nil
@@ -421,6 +431,9 @@ final class NotesViewModel {
         // slidesWizard 在 NoteEditorController 层处理（停靠期和全屏向导画面也要收），这里兜底保持穷举。
         case .slidesWizard(let open, _):
             if open { onSlidesWizardOpened(editor: editor) } else { onSlidesWizardClosed() }
+        // aiGenerate 同样在 NoteEditorController 层处理，这里兜底保持穷举。
+        case .aiGenerate(let open, _):
+            if open { onAiGenerateOpened(editor: editor) } else { onAiGenerateClosed() }
         // pptxImport 也在 NoteEditorController 层处理，同样兜底。
         case .pptxImport(let open):
             if open { onPptxImportOpened(editor: editor) } else { onPptxImportClosed() }
@@ -511,8 +524,12 @@ final class NotesViewModel {
             $0.slidesWizard = SlidesWizardUi(source: source, request: request, editor: editor)
             $0.wizardUsageLimit = nil
             $0.wizardStorageLimit = nil
+            $0.aiGenerate = nil
+            $0.aiGenerateUsageLimit = nil
+            $0.aiGenerateStorageLimit = nil
             $0.pptxImport = nil
             $0.pptxImportStorageLimit = nil
+            $0.reviewQuiz = nil
         }
     }
 
@@ -599,6 +616,90 @@ final class NotesViewModel {
         update { $0.wizardStorageLimit = nil }
     }
 
+    // ---- 统一「用 AI 生成」（笔记 / 白板 / 幻灯片，#254，Android NotesViewModel 同名方法） ----
+
+    @ObservationIgnored private var aiGenerateRequests = 0
+
+    func openAiGenerate(_ target: AiGenerateTarget = AiGenerateTarget(), editor: String? = nil) {
+        aiGenerateRequests += 1
+        let request = aiGenerateRequests
+        update {
+            $0.aiGenerate = AiGenerateUi(target: target, request: request, editor: editor)
+            $0.aiGenerateUsageLimit = nil
+            $0.aiGenerateStorageLimit = nil
+            $0.slidesWizard = nil
+            $0.wizardUsageLimit = nil
+            $0.wizardStorageLimit = nil
+            $0.pptxImport = nil
+            $0.pptxImportStorageLimit = nil
+            $0.reviewQuiz = nil
+        }
+    }
+
+    func onAiGenerateShown(_ request: Int) {
+        update { state in
+            guard var current = state.aiGenerate, current.request == request else { return }
+            current.shown = true
+            state.aiGenerate = current
+        }
+    }
+
+    func onAiGenerateOpened(editor: String?) {
+        guard let current = state.aiGenerate else { return }
+        if current.editor == editor { onAiGenerateShown(current.request) }
+    }
+
+    func onAiGenerateClosed() {
+        update { state in
+            guard state.aiGenerate?.shown == true else { return }
+            state.aiGenerate = nil
+            state.aiGenerateUsageLimit = nil
+            state.aiGenerateStorageLimit = nil
+        }
+    }
+
+    func dismissAiGenerate(_ request: Int? = nil) {
+        update { state in
+            guard request == nil || state.aiGenerate?.request == request else { return }
+            state.aiGenerate = nil
+            state.aiGenerateUsageLimit = nil
+            state.aiGenerateStorageLimit = nil
+        }
+    }
+
+    func dismissFullScreenAiGenerate() {
+        update { state in
+            guard let current = state.aiGenerate, current.editor == nil else { return }
+            state.aiGenerate = nil
+            state.aiGenerateUsageLimit = nil
+            state.aiGenerateStorageLimit = nil
+        }
+    }
+
+    func onAiGenerateUsageLimit(tier: String, kind: String) {
+        guard state.aiGenerate?.editor == nil else { return }
+        update {
+            $0.aiGenerateStorageLimit = nil
+            $0.aiGenerateUsageLimit = UsageLimitInfo(tier: tier, kind: kind)
+        }
+    }
+
+    func dismissAiGenerateUsageLimit() {
+        update { $0.aiGenerateUsageLimit = nil }
+    }
+
+    func onAiGenerateStorageLimit(tier: String, used: Int, limit: Int) {
+        guard state.aiGenerate?.editor == nil else { return }
+        update {
+            $0.aiGenerateUsageLimit = nil
+            $0.aiGenerateStorageLimit = StorageLimitInfo(tier: tier, used: used, limit: limit)
+        }
+    }
+
+    func dismissAiGenerateStorageLimit() {
+        update { $0.aiGenerateStorageLimit = nil }
+    }
+
     // ---- PowerPoint（.pptx）导入（#154 PR 12，Android NotesViewModel 同名方法） ----
 
     @ObservationIgnored private var pptxImportRequests = 0
@@ -613,6 +714,9 @@ final class NotesViewModel {
             $0.slidesWizard = nil
             $0.wizardUsageLimit = nil
             $0.wizardStorageLimit = nil
+            $0.aiGenerate = nil
+            $0.aiGenerateUsageLimit = nil
+            $0.aiGenerateStorageLimit = nil
             $0.reviewQuiz = nil
         }
     }
@@ -695,6 +799,9 @@ final class NotesViewModel {
             $0.slidesWizard = nil
             $0.wizardUsageLimit = nil
             $0.wizardStorageLimit = nil
+            $0.aiGenerate = nil
+            $0.aiGenerateUsageLimit = nil
+            $0.aiGenerateStorageLimit = nil
             $0.pptxImport = nil
             $0.pptxImportStorageLimit = nil
         }

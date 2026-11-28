@@ -41,11 +41,13 @@ struct NoteEditorScreen: View {
         let kind = page?.kind ?? open.kind
         let editorWizard = state.slidesWizard?.editor == open.editor ? state.slidesWizard : nil
         let wizardShown = editorWizard?.shown == true
+        let editorAiGenerate = state.aiGenerate?.editor == open.editor ? state.aiGenerate : nil
+        let aiGenerateShown = editorAiGenerate?.shown == true
         let editorPptxImport = state.pptxImport?.editor == open.editor ? state.pptxImport : nil
         let pptxImportShown = editorPptxImport?.shown == true
         let editorQuiz = state.reviewQuiz?.editor == open.editor ? state.reviewQuiz : nil
         let quizShown = editorQuiz?.shown == true
-        let modalOverlayShown = wizardShown || pptxImportShown || quizShown
+        let modalOverlayShown = wizardShown || aiGenerateShown || pptxImportShown || quizShown
         VStack(spacing: 0) {
             if !state.presenting && !modalOverlayShown { topBar(state, page: page) }
             if !state.presenting && !modalOverlayShown, let notice = state.notice ?? state.error {
@@ -88,6 +90,16 @@ struct NoteEditorScreen: View {
                         reasoning: app.chat.state.selectedReasoning,
                         onShown: { notes.onSlidesWizardShown($0) },
                         onFailed: { notes.dismissSlidesWizard($0) }
+                    )
+                }
+                if let editorAiGenerate {
+                    AiGenerateOverlayLauncher(
+                        aiGenerate: editorAiGenerate,
+                        pool: editorPool,
+                        model: app.chat.state.selectedModel?.id,
+                        reasoning: app.chat.state.selectedReasoning,
+                        onShown: { notes.onAiGenerateShown($0) },
+                        onFailed: { notes.dismissAiGenerate($0) }
                     )
                 }
                 if let editorPptxImport {

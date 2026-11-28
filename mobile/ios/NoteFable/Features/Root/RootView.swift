@@ -18,12 +18,14 @@ struct RootView: View {
         @Bindable var router = router
         let fullScreenWizard = app.notes.state.slidesWizard?.editor == nil ? app.notes.state.slidesWizard : nil
         let editorWizardShown = app.notes.state.slidesWizard?.editor != nil && app.notes.state.slidesWizard?.shown == true
+        let fullScreenAiGenerate = app.notes.state.aiGenerate?.editor == nil ? app.notes.state.aiGenerate : nil
+        let editorAiGenerateShown = app.notes.state.aiGenerate?.editor != nil && app.notes.state.aiGenerate?.shown == true
         let fullScreenPptxImport = app.notes.state.pptxImport?.editor == nil ? app.notes.state.pptxImport : nil
         let editorPptxImportShown = app.notes.state.pptxImport?.editor != nil && app.notes.state.pptxImport?.shown == true
         let editorQuizShown = app.notes.state.reviewQuiz?.shown == true
-        let hasFullScreenOverlay = fullScreenWizard != nil || fullScreenPptxImport != nil
+        let hasFullScreenOverlay = fullScreenWizard != nil || fullScreenAiGenerate != nil || fullScreenPptxImport != nil
         let hideTabBar = hasFullScreenOverlay || (router.selectedTab == .workspace && (app.notes.state.open != nil || app.notes.state.presenting))
-        let allowEdgeDrawer = !hasFullScreenOverlay && !editorWizardShown && !editorPptxImportShown && !editorQuizShown && !(router.selectedTab == .workspace && (app.notes.state.editorCapturesEdgeSwipes || app.notes.state.presenting))
+        let allowEdgeDrawer = !hasFullScreenOverlay && !editorWizardShown && !editorAiGenerateShown && !editorPptxImportShown && !editorQuizShown && !(router.selectedTab == .workspace && (app.notes.state.editorCapturesEdgeSwipes || app.notes.state.presenting))
 
         ZStack {
             AdaptiveSidebarShell(
@@ -40,6 +42,9 @@ struct RootView: View {
             }
             if let wizard = fullScreenWizard {
                 SlidesWizardScreen(wizard: wizard)
+                    .transition(.opacity)
+            } else if let aiGenerate = fullScreenAiGenerate {
+                AiGenerateScreen(aiGenerate: aiGenerate)
                     .transition(.opacity)
             } else if let pptxImport = fullScreenPptxImport {
                 PptxImportScreen(pptxImport: pptxImport)
@@ -309,14 +314,14 @@ private struct DrawerFooter: View {
                 }
                 .disabled(notesBusy)
             }
+            Divider()
+            Button {
+                router.openAiGenerate()
+            } label: {
+                NFMascotMenuLabel(title: L("slides_generate_with_ai"), icon: app.appIcon.icon)
+            }
+            .disabled(notesBusy)
             if kinds.contains(.slides) {
-                Divider()
-                Button {
-                    router.openSlidesWizard(.new())
-                } label: {
-                    NFMascotMenuLabel(title: L("slides_generate_with_ai"), icon: app.appIcon.icon)
-                }
-                .disabled(notesBusy)
                 Button {
                     router.openPptxImport()
                 } label: {

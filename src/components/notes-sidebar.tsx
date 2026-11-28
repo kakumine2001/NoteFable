@@ -48,14 +48,14 @@ type GroupActions = {
   onFavorite: (pageId: string, favorite: boolean) => Promise<unknown>;
 };
 
-export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, onGenerateSlides, onImportPptx, onImport, onSearch, onSelect, onPrefetch, onCancelPrefetch, onDelete, deleteError, onClose, onWorkspaceChange, groups, groupError, onMoveNote, onChangeIcon, onRenamePage, onCreateGroup, onRenameGroup, onDeleteGroup, onReorder, onMoveToPage, onFavorite }: {
+export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, onGenerate, onImportPptx, onImport, onSearch, onSelect, onPrefetch, onCancelPrefetch, onDelete, deleteError, onClose, onWorkspaceChange, groups, groupError, onMoveNote, onChangeIcon, onRenamePage, onCreateGroup, onRenameGroup, onDeleteGroup, onReorder, onMoveToPage, onFavorite }: {
   pages: NotePageSummary[]; activeId: string | null; busy: boolean;
   // Notes のホーム（最近のノートと一覧）を出しているか、とホームへ戻る操作。
   home: boolean; onHome: () => void;
   // 作り先（種類・親ページ・プロジェクト）を渡して新しいページを作る。省略はプロジェクトなしのノート。
   onWorkspaceChange: (view: WorkspaceView) => void; onCreate: (request?: NewPageRequest) => void;
-  // AI のスライド生成・PowerPoint 取り込みの窓を開く。作り先（プロジェクト・親ページ）はそのまま渡す。
-  onGenerateSlides?: (placement?: { groupId?: string; parentId?: string }) => void;
+  // 統合「AI で生成」とスライド専用の PowerPoint 取り込みを開く。作り先（種類・プロジェクト・親ページ）はそのまま渡す。
+  onGenerate?: (opts?: { kind?: PageKind; groupId?: string; parentId?: string }) => void;
   onImportPptx?: (placement?: { groupId?: string; parentId?: string }) => void; onImport: (files: File[]) => void; onSearch: () => void; onSelect: (id: string) => void; onPrefetch?: (id: string, immediate?: boolean) => void; onCancelPrefetch?: (id?: string) => void; onDelete: (id: string) => Promise<boolean>; onClose: () => void;
   // ゴミ箱へ移せなかった理由（確認の小窓の中に出す）。
   deleteError: string;
@@ -128,7 +128,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
     if (!request.parentId && !request.groupId) setSectionOpen(request.kind ?? "note", true);
     onCreate(request);
   };
-  const generate = (placement?: { groupId?: string; parentId?: string }) => (onGenerateSlides ? () => onGenerateSlides(placement) : undefined);
+  const generate = (opts?: { kind?: PageKind; groupId?: string; parentId?: string }) => (onGenerate ? () => onGenerate(opts) : undefined);
   const importPptx = (placement?: { groupId?: string; parentId?: string }) => (onImportPptx ? () => onImportPptx(placement) : undefined);
   const tree = (page: NotePageSummary): ReactNode => {
     const kids = children.get(page.id) ?? [];
@@ -289,8 +289,8 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
                 {section.count > 0 && <span className="sidebar-section-count">{section.count}</span>}
                 <ChevronRight size={12.5} className={`sidebar-chevron rtl-mirror${open ? " is-open" : ""}`} aria-hidden="true" />
               </button>
-              {/* スライドの分区の「+」は「New slide deck」「Generate with AI」「Import PowerPoint」のメニュー。他の分区は押すとすぐ作る。 */}
-              <NewPageButton kinds={[section.kind]} busy={busy} onCreate={(kind) => create({ kind })} onGenerate={generate()} onImportPptx={importPptx()} className="notion-icon-button sidebar-heading-add"
+              {/* 各分区（ノート・ホワイトボード・スライド）の「+」は、新規作成とその種類を初期選択した「Generate with AI」を出す（スライドは PowerPoint 取り込みも）。 */}
+              <NewPageButton kinds={[section.kind]} busy={busy} onCreate={(kind) => create({ kind })} onGenerate={generate({ kind: section.kind })} onImportPptx={importPptx()} className="notion-icon-button sidebar-heading-add"
                 label={t(PAGE_KIND_NEW_LABELS[section.kind])} menuLabel={t(PAGE_KIND_NEW_LABELS[section.kind])}><Plus size={14} /></NewPageButton>
             </div>
             {open && section.roots.map(tree)}

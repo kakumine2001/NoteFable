@@ -66,7 +66,7 @@ export async function POST(request: Request) {
     const reply = await generateSlidesText({
       model,
       instructions: outlineInstructions(source.type),
-      input: outlineInput(material.text, options, source.type),
+      input: outlineInput(material.text, options, source.type, source.type === "notes" ? source.instructions : undefined),
       userId: user.id,
       request,
       maxOutputTokens: MAX_OUTLINE_OUTPUT_TOKENS,

@@ -130,7 +130,7 @@ private struct NotesDrawerList: View {
             busy: busy,
             onToggle: { notes.toggleSection(section.kind) },
             onCreate: { router.createNote(kind: section.kind) },
-            onGenerateSlides: section.kind == .slides ? { router.openSlidesWizard(.new()) } : nil,
+            onGenerate: { router.openAiGenerate(AiGenerateTarget(kind: section.kind)) },
             onImportPptx: section.kind == .slides ? { router.openPptxImport() } : nil
         )
         .reorderDropZone(noteSectionZone(section.kind), in: reorder)
@@ -206,8 +206,8 @@ private struct NotesDrawerList: View {
                 onCreate: { kind in
                     router.createNote(kind: kind, groupId: group.id)
                 },
-                onGenerateSlides: {
-                    router.openSlidesWizard(.new(groupId: group.id))
+                onGenerate: {
+                    router.openAiGenerate(AiGenerateTarget(groupId: group.id))
                 },
                 onImportPptx: {
                     router.openPptxImport(PptxImportTarget(groupId: group.id))
@@ -308,8 +308,8 @@ private struct NotesDrawerRow: View {
                 onCreate: { kind in
                     router.createNote(parentId: page.id, kind: kind)
                 },
-                onGenerateSlides: {
-                    router.openSlidesWizard(.new(parentId: page.id))
+                onGenerate: {
+                    router.openAiGenerate(AiGenerateTarget(parentId: page.id))
                 },
                 onImportPptx: {
                     router.openPptxImport(PptxImportTarget(parentId: page.id))
