@@ -12,15 +12,16 @@ import { useI18n } from "@/components/i18n-provider";
 import { greetingFor, recentPages, relativeTime } from "@/lib/notes-home-text";
 import { NoteIcon } from "@/components/note-icon";
 import { PageKindIcon } from "@/components/page-kind-icon";
-import { AppIcon } from "@/components/app-icon";
+import { WorkspaceAiEntry } from "@/components/ai-generate-panel";
+import type { AiGenerateKind } from "@/lib/ai-generate";
 import { NOTE_COVERS, coverImageUrl, isPresetCover } from "@/lib/note-document";
 import { creatablePageKinds, PAGE_KIND_LABELS, PAGE_KIND_NEW_LABELS, PAGE_KIND_SECTION_LABELS, pageKindOf, type PageKind } from "@/lib/page-kinds";
-import { sectionKindOf, workspaceSections, type NewPageRequest } from "@/lib/workspace-sections";
+import { sectionKindOf, showsImportMarkdownForFilter, workspaceCreateKinds, workspaceSections, type NewPageRequest } from "@/lib/workspace-sections";
 
 // Notes のホーム: 作成済みのページをプロジェクトごと（種類は混ぜる）と、プロジェクトなしは種類ごとの分区（サイドバーと同じ、#168）に並べて、
 // 押したものを開く。ページが 0 件のときは呼び出し側が空状態を出す。
 // パソコン幅（640px 以上）では、上にあいさつ・クイック作成デッキ・「最近編集したページ」のカード（すべての種類、種類のアイコン付き）を出す。
-export function NotesHome({ pages, groups, groupError, busy, onOpen, onPrefetch, onCancelPrefetch, onCreate, onGenerateSlides, onImport, onWorkspaceChange, onMoveNote, onCreateGroup, onReorder, onMoveToPage }: {
+export function NotesHome({ pages, groups, groupError, busy, onOpen, onPrefetch, onCancelPrefetch, onCreate, onGenerate, onImportPptx, onImport, onWorkspaceChange, onMoveNote, onCreateGroup, onReorder, onMoveToPage }: {
   onMoveToPage: (pageId: string, parentId: string) => Promise<unknown>;
   pages: NotePageSummary[];
   onReorder:(move:ReorderRequest)=>Promise<unknown>;
@@ -32,8 +33,10 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onPrefetch,
   onCancelPrefetch?: (id?: string) => void;
   // 種類を指定して作る（省略はノート）。作成カードは作れる種類ごとに 1 つ。
   onCreate: (request?: NewPageRequest) => void;
-  // AI のスライド生成の窓を開く（作成カードの下の「Generate with AI」）。
-  onGenerateSlides?: () => void;
+  // 統合「AI で生成」パネルを開く（ホームのスタジオ入力欄から。現在の種別フィルターを引き継ぐ）。
+  onGenerate?: (opts: { kind: AiGenerateKind; prompt?: string; autoStart?: boolean }) => void;
+  // スライド専用の PowerPoint 取り込み。
+  onImportPptx?: () => void;
   onImport?: (files: File[]) => void;
   onWorkspaceChange: (view: WorkspaceView) => void;
   onMoveNote: (pageId: string, groupId: string | null) => Promise<unknown>;
@@ -48,7 +51,14 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onPrefetch,
   const [kindFilter, setKindFilter] = useState<PageKind | null>(null);
   // ホームを開いた時刻。あいさつと相対時刻の基準にする。
   const [openedAt] = useState(() => Date.now());
-  const recent = recentPages(pages);
+  // サブページの木。最上位のページをプロジェクトごとと種類ごとの分区に並べ、子は開いた親の下に字下げして出す（開閉はサイドバーと共有）。
+  const kinds = creatablePageKinds();
+  const multiKind = kinds.length > 1;
+  const activeFilter = multiKind && kindFilter && kinds.includes(kindFilter) ? kindFilter : null;
+  const matchesFilter = (page: NotePageSummary) => !activeFilter || sectionKindOf(page, kinds) === activeFilter;
+  const recent = recentPages(activeFilter ? pages.filter(matchesFilter) : pages);
+  const createKinds = workspaceCreateKinds(kinds, activeFilter);
+  const showImportMarkdown = Boolean(onImport) && showsImportMarkdownForFilter(activeFilter);
   const updateRecentScroll = useCallback(() => {
     const el = recentListRef.current;
     if (!el) { setRecentScroll({ prev: false, next: false }); return; }
@@ -61,11 +71,12 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onPrefetch,
   useEffect(() => {
     const el = recentListRef.current;
     if (!el) return;
+    el.scrollLeft = 0;
     const raf = requestAnimationFrame(updateRecentScroll);
     const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateRecentScroll) : null;
     observer?.observe(el);
     return () => { cancelAnimationFrame(raf); observer?.disconnect(); };
-  }, [recent.length, updateRecentScroll]);
+  }, [recent.length, activeFilter, updateRecentScroll]);
   function scrollRecent(direction: -1 | 1) {
     const el = recentListRef.current;
     if (!el) return;
@@ -74,10 +85,6 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onPrefetch,
     el.scrollBy({ left: (rtl ? -1 : 1) * direction * 420, behavior: reduced ? "auto" : "smooth" });
   }
   const relative = new Intl.RelativeTimeFormat(tag, { numeric: "auto" });
-  // サブページの木。最上位のページをプロジェクトごとと種類ごとの分区に並べ、子は開いた親の下に字下げして出す（開閉はサイドバーと共有）。
-  const kinds = creatablePageKinds();
-  const multiKind = kinds.length > 1;
-  const activeFilter = multiKind ? kindFilter : null;
   const children = childrenByParent(pages);
   const roots = rootPages(pages);
   const sections = workspaceSections(pages, groups, kinds);
@@ -86,7 +93,6 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onPrefetch,
   const favorites = pages.filter((page) => page.favoritedAt).sort((a, b) => (a.favoritedAt ?? "").localeCompare(b.favoritedAt ?? ""));
   const [expanded, toggleExpanded] = useExpandedPages();
   const ids = new Set(pages.map((page) => page.id));
-  const matchesFilter = (page: NotePageSummary) => !activeFilter || sectionKindOf(page, kinds) === activeFilter;
   const visibleFavorites = favorites.filter(matchesFilter);
   // プロジェクトなしの最上位は、同じ分区の中だけで動かす。
   const siblingIds = (page: NotePageSummary) => sectionOf.get(page.id)?.roots.map((item) => item.id) ?? (children.get(page.parentId && ids.has(page.parentId) ? page.parentId : null) ?? [])
@@ -179,20 +185,49 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onPrefetch,
           <button type="button" className="ws-util-pill" disabled={busy} onClick={() => setCreatingGroup(true)}>
             <FolderPlus size={14} aria-hidden="true" /><span>{t("New project")}</span>
           </button>
-          {onImport && (
+          {showImportMarkdown && (
             <button type="button" className="ws-util-pill" disabled={busy} onClick={() => importInputRef.current?.click()}>
               <Upload size={14} aria-hidden="true" /><span>{t("Import Markdown")}</span>
+            </button>
+          )}
+          {onImportPptx && kinds.includes("slides") && (activeFilter === null || activeFilter === "slides") && (
+            <button type="button" className="ws-util-pill" disabled={busy} aria-haspopup="dialog" onClick={onImportPptx}>
+              <Upload size={14} aria-hidden="true" /><span>{t("Import PowerPoint")}</span>
             </button>
           )}
         </div>
       </header>
 
+      {multiKind && (
+        <div className="ws-home-filter">
+          <div className="ws-filter-bar" role="group" aria-label={t("Page type")}>
+            <button type="button" aria-pressed={activeFilter === null}
+              className={`ws-filter-pill${activeFilter === null ? " is-active" : ""}`}
+              onClick={() => setKindFilter(null)}>
+              {t("All")}
+            </button>
+            {kinds.map((kind) => (
+              <button key={kind} type="button" aria-pressed={activeFilter === kind}
+                className={`ws-filter-pill is-${kind}${activeFilter === kind ? " is-active" : ""}`}
+                onClick={() => setKindFilter(kind)}>
+                <PageKindIcon kind={kind} size={13} aria-hidden="true" />
+                <span>{t(PAGE_KIND_SECTION_LABELS[kind])}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {onGenerate && (
+        <WorkspaceAiEntry kinds={kinds} activeFilter={activeFilter} busy={busy} onOpen={onGenerate} />
+      )}
+
       <div className="ws-home-create">
-        <NewPageButtons kinds={kinds} busy={busy} onCreate={(kind) => onCreate({ kind })} onGenerate={onGenerateSlides} />
+        <NewPageButtons kinds={createKinds} deck={multiKind} busy={busy} onCreate={(kind) => onCreate({ kind })} />
       </div>
 
-      <div className="notes-home-hero">
-        {recent.length > 0 && (
+      {recent.length > 0 && (
+        <div className="notes-home-hero">
           <section aria-labelledby="notes-home-recent">
             <div className="ws-recent-head">
               <h2 id="notes-home-recent" className="notes-home-section"><Clock3 size={14} aria-hidden="true" /><span>{t("Recently edited")}</span></h2>
@@ -235,33 +270,18 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onPrefetch,
               })}
             </ul>
           </section>
-        )}
-      </div>
+        </div>
+      )}
 
-      <div className="ws-library-bar">
-        {/* プロジェクトから外すドロップ先（スマホ幅では上の見出しが同じ役目）。外したページは自分の種類の分区に戻る。 */}
-        <h2 className="notes-home-section ws-library-heading" data-note-group-drop="">
-          <LayoutGrid size={14} aria-hidden="true" />
-          <span>{multiKind ? t("All pages") : t("All notes")}</span>
-        </h2>
-        {multiKind && (
-          <div className="ws-filter-bar" role="group" aria-label={t("Page type")}>
-            <button type="button" aria-pressed={activeFilter === null}
-              className={`ws-filter-pill${activeFilter === null ? " is-active" : ""}`}
-              onClick={() => setKindFilter(null)}>
-              {t("All")}
-            </button>
-            {kinds.map((kind) => (
-              <button key={kind} type="button" aria-pressed={activeFilter === kind}
-                className={`ws-filter-pill is-${kind}${activeFilter === kind ? " is-active" : ""}`}
-                onClick={() => setKindFilter(kind)}>
-                <PageKindIcon kind={kind} size={13} aria-hidden="true" />
-                <span>{t(PAGE_KIND_SECTION_LABELS[kind])}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      {!activeFilter && (
+        <div className="ws-library-bar">
+          {/* プロジェクトから外すドロップ先（スマホ幅では上の見出しが同じ役目）。外したページは自分の種類の分区に戻る。 */}
+          <h2 className="notes-home-section ws-library-heading" data-note-group-drop="">
+            <LayoutGrid size={14} aria-hidden="true" />
+            <span>{multiKind ? t("All pages") : t("All notes")}</span>
+          </h2>
+        </div>
+      )}
 
       {visibleFavorites.length > 0 && <section className="ws-home-section-block">
         <h2 className="notes-home-group"><Star size={13.5} className="sidebar-fav-star" aria-hidden="true" /><span>{t("Favorites")}</span><span className="ws-count-pill">{visibleFavorites.length}</span></h2>
@@ -290,7 +310,7 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onPrefetch,
             </h2>
             {entry.members.length
               ? <ul className="notes-home-list">{entry.members.map((page) => item(page, { showKindTag: true, flat: activeFilter !== null }))}</ul>
-              : <p className="notes-home-empty ws-home-empty-card">{t("No notes in this project.")}</p>}
+              : <p className="notes-home-empty ws-home-empty-card">{t("No pages in this project.")}</p>}
           </section>
         ))}
 
@@ -313,7 +333,7 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onPrefetch,
       ))}
 
       {filterEmpty && (
-        <p className="notes-home-empty ws-home-empty-card">{t("No notes match.")}</p>
+        <p className="notes-home-empty ws-home-empty-card">{t("No matching pages.")}</p>
       )}
 
       {moving && <MoveNoteDialog page={pages.find((page) => page.id === moving.id) ?? moving} groups={groups} error={groupError}
@@ -325,17 +345,20 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onPrefetch,
 }
 
 // ホームと空状態の作成ボタン（#168）。作れる種類がノートだけなら「New note」1 つ。
-// 2 つ以上ならノート・スライド・ホワイトボードの 3 枚のスタジオ作成カード（.ws-create-deck）を並べる。
-export function NewPageButtons({ kinds, busy, onCreate, onGenerate, className = "" }: { kinds: readonly PageKind[]; busy: boolean; onCreate: (kind: PageKind) => void; onGenerate?: () => void; className?: string }) {
+// 2 つ以上（deck = true）ならノート・ホワイトボード・スライドの作成カード（.ws-create-deck）を並べる（絞り込み時は選択中の 1 枚）。
+// AI 生成は上の統合エントリー（WorkspaceAiEntry）に集約済み。
+export function NewPageButtons({ kinds, deck, busy, onCreate, className = "" }: { kinds: readonly PageKind[]; deck?: boolean; busy: boolean; onCreate: (kind: PageKind) => void; className?: string }) {
   const { t } = useI18n();
-  if (kinds.length < 2) {
+  const useDeck = deck ?? kinds.length >= 2;
+  if (!useDeck) {
+    const only = kinds[0] ?? "note";
     return (
-      <button type="button" className={`notes-empty-new ${className}`} disabled={busy} onClick={() => onCreate("note")}>
-        <Plus size={16} />{t("New note")}
+      <button type="button" className={`notes-empty-new ${className}`} disabled={busy} onClick={() => onCreate(only)}>
+        <Plus size={16} />{t(PAGE_KIND_NEW_LABELS[only])}
       </button>
     );
   }
-  const deck = (
+  return (
     <div className={`ws-create-deck ${className}`}>
       {kinds.map((kind) => (
         <button key={kind} type="button" className={`ws-create-card is-${kind}`} disabled={busy} onClick={() => onCreate(kind)}>
@@ -347,16 +370,6 @@ export function NewPageButtons({ kinds, busy, onCreate, onGenerate, className = 
           <span className="ws-create-motif" aria-hidden="true" />
         </button>
       ))}
-    </div>
-  );
-  if (!onGenerate || !kinds.includes("slides")) return deck;
-  // スライドを作れるときは、カードの下に AI で作る操作を添える。
-  return (
-    <div className="ws-create-with-ai">
-      {deck}
-      <button type="button" className="ws-util-pill" disabled={busy} aria-haspopup="dialog" onClick={onGenerate}>
-        <AppIcon size={16} /><span>{t("Generate with AI")}</span>
-      </button>
     </div>
   );
 }

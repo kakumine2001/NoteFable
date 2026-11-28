@@ -7,6 +7,8 @@ import "@/components/answer-actions.css";
 import { answerConversationUrl, answerFileName, answerToNoteContent, conversationToMarkdownFile, type AnswerSource, type ConversationMessage } from "@/lib/answer-export";
 import { writeClipboardText } from "@/lib/clipboard";
 import { useBackToClose } from "@/lib/use-back-to-close";
+import { watchMenuDismiss } from "@/lib/menu-dismiss";
+import { menuPosition } from "@/lib/menu-position";
 import { useT } from "@/components/i18n-provider";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
 import { TurnBusyContext, VersionNav, type TurnActions } from "@/components/turn-actions";
@@ -14,6 +16,7 @@ import type { MessageVersions } from "@/lib/chat-branches";
 import { isSavedMessageId } from "@/lib/chat-message-sync";
 import { useDiagramJob } from "@/components/draw-diagram-dialog";
 import { diagramKey } from "@/lib/draw-diagram-jobs";
+import type { ReviewQuiz } from "@/lib/quiz/model";
 export { isSavedMessageId };
 type Props = {
   messageId: string;
@@ -108,25 +111,35 @@ export function AnswerMenu({ id, anchor, trigger, focusLast, onClose, children, 
     const dialog = ref.current;
     if (!dialog) return;
     dialog.showModal();
+    // キーボードが下がるなどで画面の高さが変わると、押したボタンの位置もずれる。そのずれの分だけ出す位置を動かす
+    // （右クリックの位置から開くメニューもあるので、ボタンの位置そのものではなく、開いたときからの移動量を使う）。
+    const triggerStart = trigger.getBoundingClientRect();
+    const currentAnchor = () => {
+      if (!trigger.isConnected || (!triggerStart.width && !triggerStart.height)) return anchor;
+      const now = trigger.getBoundingClientRect();
+      if (!now.width && !now.height) return anchor;
+      return new DOMRect(anchor.x + now.left - triggerStart.left, anchor.y + now.top - triggerStart.top, anchor.width, anchor.height);
+    };
     const position = () => {
       const bounds = dialog.getBoundingClientRect();
-      const below = anchor.bottom + 4;
-      const rtl = document.documentElement.dir === "rtl";
-      dialog.style.left = `${Math.max(8, Math.min(rtl ? anchor.right - bounds.width : anchor.left, window.innerWidth - bounds.width - 8))}px`;
-      dialog.style.top = `${Math.max(8, below + bounds.height <= window.innerHeight - 8 ? below : anchor.top - bounds.height - 4)}px`;
+      const { left, top } = menuPosition(currentAnchor(), bounds, { width: window.innerWidth, height: window.innerHeight }, document.documentElement.dir === "rtl");
+      dialog.style.left = `${left}px`;
+      dialog.style.top = `${top}px`;
     };
     position();
     const observer = new ResizeObserver(position);
     observer.observe(dialog);
     const items = dialog.querySelectorAll<HTMLElement>('[role^="menuitem"]:not([aria-disabled="true"])');
     items[focusLast ? items.length - 1 : 0]?.focus({ preventScroll: true });
-    const dismissOnScroll = (event: Event) => { if (!(event.target instanceof Node) || !dialog.contains(event.target)) onClose(); };
-    window.addEventListener("resize", onClose);
-    window.addEventListener("scroll", dismissOnScroll, true);
+    // 外側のスクロールと幅の変化で閉じる。高さだけの変化（キーボードが下がったときなど）では閉じずに位置を合わせ直す。
+    const stopWatching = watchMenuDismiss({
+      isInside: (target) => target instanceof Node && dialog.contains(target),
+      onClose,
+      reposition: position,
+    });
     return () => {
       observer.disconnect();
-      window.removeEventListener("resize", onClose);
-      window.removeEventListener("scroll", dismissOnScroll, true);
+      stopWatching();
       dialog.close();
       if (trigger.isConnected) trigger.focus({ preventScroll: true });
     };
@@ -157,8 +170,12 @@ export function AnswerMenu({ id, anchor, trigger, focusLast, onClose, children, 
   return typeof document !== "undefined" ? createPortal(dialog, document.body) : dialog;
 }
 
-// 通報する AI の内容：チャットの回答、AI の提案カード（ページの編集・新規の案）、AI が書いたページ。
-export type ReportTarget = { messageId: string } | { proposalId: string } | { pageId: string };
+// 通報する AI の内容：チャットの回答、AI の提案カード（ページの編集・新規の案）、AI が書いたページ、復習・クイズの AI 問題。
+export type ReportTarget =
+  | { messageId: string }
+  | { proposalId: string }
+  | { pageId: string }
+  | { pageId: string; quizReportToken: string; quiz: ReviewQuiz };
 
 // AI の回答・AI が作った内容を開発者に通報する（Google Play の AI 生成コンテンツのポリシー）。理由は任意。送った内容は運営者のメールに届く。
 export function ReportDialog({ target, onClose }: { target: ReportTarget; onClose: () => void }) {

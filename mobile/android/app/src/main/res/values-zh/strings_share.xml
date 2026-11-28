@@ -5,7 +5,7 @@
     <string name="share_publish">公开</string>
     <string name="share_republish">重新公开</string>
     <string name="share_unpublish">取消公开</string>
-    <string name="share_desc">公开这篇笔记后，拥有链接的人即可在线查看。</string>
+    <string name="share_desc">公开这个页面后，拥有链接的人即可在线查看。</string>
     <string name="share_expired">此分享链接已过期。</string>
     <string name="share_public_link">公开链接</string>
     <string name="share_copy_link">复制链接</string>

@@ -13,6 +13,8 @@ const table = (name: string) => Prisma.raw(`"${databaseSchema}"."${name}"`);
 
 // targetId のページへの「@」メンションがあるか（search.ts の MENTION_PAGE_ID_PATH と同じたどり方）。
 export const MENTION_TO_PAGE_PATH = 'strict $.** ? (@.type() == "object" && @.type == "mention" && exists(@.props)).props ? (@.kind == "page" && @.pageId == $id)';
+// targetId のホワイトボードをノートに埋め込んでいるか。
+export const WHITEBOARD_EMBED_TO_PAGE_PATH = 'strict $.** ? (@.type() == "object" && @.type == "whiteboard" && exists(@.props)).props ? (@.pageId == $id)';
 // 本文のリンク（BlockNote の link の href）。
 export const LINK_HREF_PATH = 'strict $.** ? (@.type() == "object" && @.type == "link" && exists(@.href)).href';
 
@@ -31,6 +33,7 @@ async function linkingPages(userId: string, pageId: string, origin: string): Pro
       SELECT
         CASE WHEN p."kind" = 'note'
           THEN jsonb_path_exists(p."blocks", ${MENTION_TO_PAGE_PATH}::jsonpath, jsonb_build_object('id', ${pageId}::text), true)
+            OR jsonb_path_exists(p."blocks", ${WHITEBOARD_EMBED_TO_PAGE_PATH}::jsonpath, jsonb_build_object('id', ${pageId}::text), true)
           ELSE false END AS "mentioned",
         ARRAY(SELECT h FROM jsonb_array_elements_text(CASE WHEN p."kind" = 'note'
             THEN jsonb_path_query_array(p."blocks", ${LINK_HREF_PATH}::jsonpath, '{}'::jsonb, true)

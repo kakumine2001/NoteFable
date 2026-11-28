@@ -21,11 +21,13 @@ vi.mock("@/components/i18n-provider", () => ({
   useT: () => (key: string, vars?: Record<string, unknown>) => key.replace(/\{(\w+)\}/g, (match, name: string) => String(vars?.[name] ?? match)),
 }));
 vi.mock("@/lib/use-back-to-close", () => ({ useBackToClose: vi.fn() }));
-const bridge = vi.hoisted(() => ({ canOpen: false, canShowWizard: false, canShowLimit: false, posted: [] as unknown[] }));
+const bridge = vi.hoisted(() => ({ canOpen: false, canShowWizard: false, canShowLimit: false, canShowStorageLimit: false, posted: [] as unknown[] }));
 vi.mock("@/lib/native-bridge", () => ({
+  dispatchPageUpdated: vi.fn(),
   nativeCanOpenPage: () => bridge.canOpen,
   nativeCanShowSlidesWizard: () => bridge.canShowWizard,
   nativeCanShowUsageLimit: () => bridge.canShowLimit,
+  nativeCanShowStorageLimit: () => bridge.canShowStorageLimit,
   postToNative: (message: unknown) => { bridge.posted.push(message); return true; },
 }));
 const accountState = vi.hoisted(() => ({ account: null as null | { configured: boolean; user: unknown; billing?: boolean } }));
@@ -100,6 +102,7 @@ beforeEach(() => {
   bridge.canOpen = false;
   bridge.canShowWizard = false;
   bridge.canShowLimit = false;
+  bridge.canShowStorageLimit = false;
   bridge.posted = [];
   accountState.account = null;
   pending = [];
@@ -316,6 +319,130 @@ describe("Generate slides window: usage limit and the app", () => {
     hooks.effects[0]();
     expect(bridge.posted).toEqual([]);
   });
+
+  it("tells the app which notes it is generating slides from, for the note menu's busy state", async () => {
+    await open({ type: "note", pageId: NOTE_ID, title: "Vaccines" });
+    const start = () => {
+      hooks.effects = [];
+      SlidesWizardHost({ embedded: true });
+      return hooks.effects.find((effect) => String(effect).includes("slidesJobs"))!() as (() => void) | undefined;
+    };
+    // 受け取れない古いアプリには送らない。
+    expect(start()).toBeUndefined();
+    expect(bridge.posted).toEqual([]);
+
+    bridge.canShowWizard = true;
+    const stop = start();
+    expect(bridge.posted).toEqual([{ type: "slidesJobs", pageIds: [] }]);
+    void requestSlides("outline");
+    expect(bridge.posted.at(-1)).toEqual({ type: "slidesJobs", pageIds: [NOTE_ID] });
+    await respond(200, { outline: OUTLINE });
+    expect(bridge.posted).toEqual([{ type: "slidesJobs", pageIds: [] }, { type: "slidesJobs", pageIds: [NOTE_ID] }, { type: "slidesJobs", pageIds: [] }]);
+    stop!();
+    void requestSlides("outline", { fresh: true });
+    expect(bridge.posted).toHaveLength(3);
+  });
+
+  it("keeps Generate images OFF by default, previews max image credits before generating, and uses zero Sparkles icons", async () => {
+    await open();
+    let tree = dialog();
+    // Toggle is OFF by default and credit warning only shows when toggled ON.
+    const sourceToggle = elements(tree).find((el) => el.type === "input" && el.props.type === "checkbox");
+    expect(sourceToggle?.props.checked).toBe(false);
+    expect(textOf(tree)).toContain("Generate images for slides");
+    expect(textOf(tree)).not.toContain("image credits");
+    expect(names(tree)).not.toContain("Sparkles");
+
+    // Enabling on options step previews the credit cost based on slide count.
+    updateSlidesDraft((draft) => ({ ...draft, options: { ...draft.options, pageCount: 8, generateImages: true } }));
+    tree = dialog();
+    expect(textOf(tree)).toContain("up to 7 image credits");
+    expect(names(tree)).not.toContain("Sparkles");
+
+    // On the outline step, previews exact max image credits matching the outline slide count right before Generate slides.
+    outline();
+    tree = dialog();
+    expect(textOf(tree)).toContain("up to 2 image credits");
+    expect(textOf(tree)).toContain("This counts as 1 chat message, plus up to 2 image credits.");
+    expect(names(tree)).not.toContain("Sparkles");
+  });
+
+  it("shows live image progress, Stop/Resume controls, and native image usageLimit / storageLimit prompts on the done screen", async () => {
+    let serverVersion = 1;
+    let liveDeck: Record<string, unknown> = {
+      format: 1,
+      theme: { id: "simple", mode: "light" },
+      slides: [
+        {
+          id: "s1",
+          layout: "imageText",
+          elements: [{ id: "img1", type: "image", role: "image", x: 0, y: 0, w: 400, h: 400, rotation: 0, src: "", fit: "cover", radius: 16, pendingImagePrompt: "Antibody diagram" }],
+        },
+        {
+          id: "s2",
+          layout: "imageText",
+          elements: [{ id: "img2", type: "image", role: "image", x: 0, y: 0, w: 400, h: 400, rotation: 0, src: "", fit: "cover", radius: 16, pendingImagePrompt: "Memory cells" }],
+        },
+      ],
+    };
+    fetchMock.mockImplementation((url, init) => {
+      if (init?.method === "POST") return new Promise<Response>((resolve) => { pending.push({ resolve }); });
+      if (url === `/api/pages/${SLIDES.id}` && init?.method === "PATCH") {
+        serverVersion += 1;
+        liveDeck = (JSON.parse(String(init.body)) as { data: Record<string, unknown> }).data;
+        return Promise.resolve(json(200, { version: serverVersion }));
+      }
+      if (url === `/api/pages/${SLIDES.id}`) return Promise.resolve(json(200, { page: { ...SLIDES, version: serverVersion, data: liveDeck } }));
+      return Promise.resolve(json(200, { scope: "scope-a" }));
+    });
+
+    await open();
+    outline();
+    updateSlidesDraft((draft) => ({ ...draft, options: { ...draft.options, generateImages: true } }));
+    void requestSlides("deck");
+    await respond(201, {
+      page: SLIDES,
+      imageTasks: [
+        { slideId: "s1", elementId: "img1", slideTitle: "How they work", prompt: "Antibody diagram" },
+        { slideId: "s2", elementId: "img2", slideTitle: "Immune memory", prompt: "Memory cells" },
+      ],
+    });
+    // Working state shows live progress + Stop + Open slides.
+    let tree = dialog();
+    expect(textOf(tree)).toContain("Generating slide images… (0/2)");
+    expect(textOf(tree)).toContain("Current slide: How they work");
+    expect(labels(tree)).toEqual(expect.arrayContaining(["Stop", "Close", "Open slides"]));
+
+    // Stopping waits for the in-flight image to finish and persist, then stops before slide 2.
+    click(byLabel(tree, "Stop"));
+    tree = dialog();
+    expect(labels(tree)).toEqual(expect.arrayContaining(["Stopping after this slide…", "Close", "Open slides"]));
+    await respond(200, { url: "/api/pages/files?key=note-files%2Fu1%2F00000000-0000-4000-8000-000000000001.png&name=ai-image.png", name: "ai-image.png", prompt: "Antibody diagram" });
+    tree = dialog();
+    expect(textOf(tree)).toContain("Generated 1 of 2 slide images. 1 remaining.");
+    expect(labels(tree)).toEqual(expect.arrayContaining(["Resume", "Close", "Open slides"]));
+
+    // Resuming and hitting 429 usage_limit shows GuestLimitPrompt on web and sends kind:"image" to native.
+    click(byLabel(tree, "Resume"));
+    await respond(429, { error: "Image limit reached.", code: "usage_limit", tier: "guest", kind: "image" });
+    accountState.account = { configured: true, user: null };
+    expect(names(dialog())).toContain("GuestLimitPrompt");
+    bridge.canShowLimit = true;
+    bridge.posted = [];
+    dialog(true);
+    hooks.effects.forEach((effect) => { if (String(effect).includes("usageLimit")) effect(); });
+    expect(bridge.posted).toEqual([{ type: "usageLimit", tier: "guest", kind: "image" }]);
+
+    // Resuming and hitting 413 storage_limit shows StorageLimitPrompt on web and sends storageLimit to native.
+    click(byLabel(dialog(), "Resume"));
+    await respond(413, { error: "Storage full.", code: "storage_limit", tier: "member", used: 50, limit: 100 });
+    expect(names(dialog())).toContain("StorageLimitPrompt");
+    bridge.canShowStorageLimit = true;
+    bridge.posted = [];
+    dialog(true);
+    hooks.effects.forEach((effect) => { if (String(effect).includes("storageLimit")) effect(); });
+    expect(bridge.posted).toEqual([{ type: "storageLimit", tier: "member", used: 50, limit: 100 }]);
+  });
 });
 
 describe("Generate slides entries", () => {
@@ -345,23 +472,25 @@ describe("Generate slides entries", () => {
     expect(labels(menu(PAGE, vi.fn()))).toContain("Generating slides…");
   });
 
-  it("adds Generate with AI to the new page menu where slides can be created", () => {
+  it("adds Generate with AI to all new page menus when onGenerate is provided", () => {
     const onCreate = vi.fn();
     const onGenerate = vi.fn();
     const render = (kinds: ("note" | "slides" | "whiteboard")[], generate?: () => void) => {
       hooks.states = [{ anchor: {}, trigger: {}, focusLast: false }];
       return NewPageButton({ kinds, busy: false, onCreate, onGenerate: generate, className: "c", menuLabel: "New page", children: "+" });
     };
-    const all = render(["note", "slides", "whiteboard"], onGenerate);
-    expect(labels(all)).toEqual(["+", "Note", "Slides", "Whiteboard", "Generate with AI"]);
+    const all = render(["note", "whiteboard", "slides"], onGenerate);
+    expect(labels(all)).toEqual(["+", "Note", "Whiteboard", "Slides", "Generate with AI"]);
     click(byLabel(all, "Generate with AI"));
     expect(onGenerate).toHaveBeenCalledTimes(1);
     expect(onCreate).not.toHaveBeenCalled();
-    // スライドの分区の「+」：1 種類でもメニューを開き、作る操作の名前で出す。
+    // 各分区の「+」：1 種類でも onGenerate があればメニューを開き、作る操作の名前と Generate with AI を出す。
+    expect(labels(render(["note"], onGenerate))).toEqual(["+", "New note", "Generate with AI"]);
+    expect(labels(render(["whiteboard"], onGenerate))).toEqual(["+", "New whiteboard", "Generate with AI"]);
     expect(labels(render(["slides"], onGenerate))).toEqual(["+", "New slide deck", "Generate with AI"]);
     expect(labels(render(["note", "slides"]))).not.toContain("Generate with AI");
-    // スライドを作れない分区は、押すとすぐ作る。
-    const note = render(["note"], onGenerate);
-    expect(byLabel(note, "+")?.props["aria-haspopup"]).toBeUndefined();
+    // onGenerate が無い 1 種類のボタンは、押すとすぐ作る。
+    const directNote = render(["note"]);
+    expect(byLabel(directNote, "+")?.props["aria-haspopup"]).toBeUndefined();
   });
 });

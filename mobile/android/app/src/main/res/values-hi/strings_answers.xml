@@ -7,21 +7,21 @@
     <string name="activity_searching_query">“%1$s” खोजा जा रहा है</string>
     <string name="activity_reading_host">%1$s पढ़ा जा रहा है</string>
     <string name="activity_scanning_host">%1$s देखा जा रहा है</string>
-    <string name="activity_searching_notes">आपके नोट्स में खोज जारी है</string>
-    <string name="activity_reading_note">आपका नोट पढ़ा जा रहा है</string>
+    <string name="activity_searching_notes">आपके पेजों में खोज जारी है</string>
+    <string name="activity_reading_note">आपका पेज पढ़ा जा रहा है</string>
     <string name="activity_one_search">1 खोज</string>
     <string name="activity_searches">%1$s खोजें</string>
     <string name="activity_one_source">1 स्रोत</string>
     <string name="activity_sources">%1$s स्रोत</string>
-    <string name="activity_one_note_lookup">1 बार नोट देखा गया</string>
-    <string name="activity_note_lookups">%1$s बार नोट देखा गया</string>
-    <string name="activity_one_project_note">1 प्रोजेक्ट नोट</string>
-    <string name="activity_project_notes">%1$s प्रोजेक्ट नोट्स</string>
+    <string name="activity_one_note_lookup">1 बार पेज देखा गया</string>
+    <string name="activity_note_lookups">%1$s बार पेज देखा गया</string>
+    <string name="activity_one_project_note">1 प्रोजेक्ट पेज</string>
+    <string name="activity_project_notes">%1$s प्रोजेक्ट पेज</string>
     <string name="activity_project_instructions">प्रोजेक्ट निर्देश</string>
     <string name="activity_more">+%1$s और</string>
     <string name="activity_instructions">निर्देश</string>
-    <string name="activity_one_reference_note">1 संदर्भ नोट</string>
-    <string name="activity_reference_notes">%1$s संदर्भ नोट्स</string>
+    <string name="activity_one_reference_note">1 संदर्भ पेज</string>
+    <string name="activity_reference_notes">%1$s संदर्भ पेज</string>
     <string name="activity_used_project">प्रोजेक्ट “%1$s” का उपयोग किया गया: %2$s</string>
     <string name="activity_partial">आंशिक</string>
     <string name="activity_searching_web_running">वेब पर खोज जारी है…</string>
@@ -89,4 +89,5 @@
     <string name="proposal_op_elements">%1$s · %2$s तत्व</string>
     <string name="proposal_before">पहले</string>
     <string name="proposal_after">बाद में</string>
+    <string name="proposal_view_preview">पूर्वावलोकन देखें</string>
 </resources>

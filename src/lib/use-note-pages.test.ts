@@ -125,11 +125,25 @@ vi.mock("@/lib/view-transition", () => ({
 }));
 
 const sheetCleanupMock = vi.hoisted(() => ({ isCleanup: false }));
-vi.mock("@/lib/use-back-to-close", () => ({
-  restoreSheetMarker: vi.fn(),
-  afterSheetHistory: (cb: () => void) => cb(),
-  isSheetCleanupPopState: () => sheetCleanupMock.isCleanup,
-}));
+const sheetHistory = vi.hoisted(() => ({ restoreSheetMarker: (() => {}) as () => void }));
+vi.mock("@/lib/use-back-to-close", async () => {
+  const { vi: mocks } = await import("vitest");
+  const restoreSheetMarker = mocks.fn();
+  sheetHistory.restoreSheetMarker = restoreSheetMarker;
+  return {
+    restoreSheetMarker,
+    afterSheetHistory: (cb: () => void) => cb(),
+    isSheetCleanupPopState: () => sheetCleanupMock.isCleanup,
+    // 本物と同じく null で置き換えてから目印を積み直してもらう（積み直し自体は use-back-to-close.test.ts で確かめる）。
+    replaceSheetUrl: (update: (url: URL) => boolean, after?: () => void) => {
+      const url = new URL(window.location.href);
+      if (!update(url)) return;
+      window.history.replaceState(null, "", url);
+      restoreSheetMarker();
+      after?.();
+    },
+  };
+});
 
 const preloadPageEditor = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/preload-editor", () => ({
@@ -137,8 +151,12 @@ vi.mock("@/lib/preload-editor", () => ({
 }));
 
 import { registerCanvasFlusher } from "@/lib/canvas-flush";
-import { PAGES_TRASHED_EVENT } from "@/lib/proposal-sync";
-import { useNotePages } from "./use-note-pages";
+import { PAGES_TRASHED_EVENT, saveBeforePageChange } from "@/lib/proposal-sync";
+import { createSlide } from "@/lib/slides/layouts";
+import { DECK_FORMAT, normalizeDeck } from "@/lib/slides/model";
+import { trackSlideUpload } from "@/lib/slides/upload-tracker";
+import { NoteSaveQueue } from "./note-save-queue";
+import { applyCanvasEditorChange, useNotePages } from "./use-note-pages";
 
 type Deferred<T> = { promise: Promise<T>; resolve: (value: T) => void; reject: (error: unknown) => void };
 function deferred<T>(): Deferred<T> {
@@ -1034,6 +1052,339 @@ describe("useNotePages instant switching & prefetch", () => {
     await flushMicrotasks();
 
     expect(hook.current.pages[0]?.locked).toBe(true);
+  });
+
+  it("keeps a failed trash out of the list-load error and does not close anything", async () => {
+    createFakeBrowser();
+    const pageA = makePage("a", "Alpha", 1);
+    vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+      if (url === "/api/pages") return Promise.resolve(jsonResponse({ pages: [makeSummary(pageA)], groups: [] }));
+      if (url === "/api/pages/a" && init?.method === "DELETE") return Promise.resolve(jsonResponse({ error: "Trash is unavailable." }, 503));
+      if (url === "/api/pages/a") return Promise.resolve(jsonResponse({ page: pageA }));
+      return Promise.reject(new Error(`unexpected ${url}`));
+    }));
+    const hook = hookRuntime.mount(() => useNotePages(true));
+    await flushMicrotasks();
+    await hook.current.select("a", "push");
+    await flushMicrotasks();
+
+    expect(await hook.current.remove("a")).toBe(false);
+    await flushMicrotasks();
+    expect(hook.current.trashError).toBe("Trash is unavailable.");
+    // 一覧の読み込み失敗（「再試行」で一覧を読み直す帯）には出さない。
+    expect(hook.current.error).toBe("");
+    expect(hook.current.activeId).toBe("a");
+    expect(hook.current.pages.map((page) => page.id)).toEqual(["a"]);
+    hook.current.clearTrashError();
+    await flushMicrotasks();
+    expect(hook.current.trashError).toBe("");
+  });
+
+  it("keeps pages created or renamed while a trash request is in flight", async () => {
+    createFakeBrowser();
+    const pageA = makePage("a", "Alpha", 1);
+    const pageB = makePage("b", "Beta", 1);
+    const pageChild = { ...makePage("c", "Child", 1), parentId: "a" };
+    const deleteA = deferred<Response>();
+    vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+      if (url === "/api/pages") return Promise.resolve(jsonResponse({ pages: [makeSummary(pageA), makeSummary(pageB), makeSummary(pageChild)], groups: [] }));
+      if (url === "/api/pages/a" && init?.method === "DELETE") return deleteA.promise;
+      return Promise.reject(new Error(`unexpected ${url}`));
+    }));
+    const hook = hookRuntime.mount(() => useNotePages(true));
+    await flushMicrotasks();
+
+    const removing = hook.current.remove("a");
+    await flushMicrotasks();
+    // 待っている間に、チャットから新しいページが作られ、別のページの名前が変わった。
+    window.dispatchEvent(new CustomEvent("notefable:page-created", { detail: makePage("n", "New", 1) }));
+    window.dispatchEvent(new CustomEvent("notefable:page-updated", { detail: makePage("b", "Beta renamed", 2) }));
+    await flushMicrotasks();
+    deleteA.resolve(jsonResponse({ ids: ["c"] }));
+    expect(await removing).toBe(true);
+    await flushMicrotasks();
+    const byId = new Map(hook.current.pages.map((page) => [page.id, page]));
+    expect([...byId.keys()].sort()).toEqual(["b", "n"]);
+    expect(byId.get("b")?.title).toBe("Beta renamed");
+  });
+
+  it("removes the trashed note from the URL without dropping the drawer's Back marker", async () => {
+    const { history } = createFakeBrowser("https://app.notefable.com/app?view=pages&page=a");
+    const pageA = makePage("a", "Alpha", 1);
+    vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+      if (url === "/api/pages") return Promise.resolve(jsonResponse({ pages: [makeSummary(pageA)], groups: [] }));
+      if (url === "/api/pages/a" && init?.method === "DELETE") return Promise.resolve(jsonResponse({ ids: [] }));
+      if (url === "/api/pages/a") return Promise.resolve(jsonResponse({ page: pageA }));
+      return Promise.reject(new Error(`unexpected ${url}`));
+    }));
+    const hook = hookRuntime.mount(() => useNotePages(true));
+    await flushMicrotasks();
+    expect(hook.current.activeId).toBe("a");
+    // モバイルのドロワーが開いている（目印の履歴にいる）。
+    history.pushState({ notefableSheet: true }, "");
+    vi.mocked(sheetHistory.restoreSheetMarker).mockClear();
+
+    expect(await hook.current.remove("a")).toBe(true);
+    await flushMicrotasks();
+    expect(hook.current.activeId).toBeNull();
+    expect(window.location.href).toBe("https://app.notefable.com/app?view=pages");
+    expect(sheetHistory.restoreSheetMarker).toHaveBeenCalledTimes(1);
+  });
+
+  it("restores the sheet marker when AI-undo trashing or a missing note cleans the URL", async () => {
+    const { history } = createFakeBrowser("https://app.notefable.com/app?view=pages&page=gone");
+    const pageA = makePage("a", "Alpha", 1);
+    vi.stubGlobal("fetch", vi.fn((url: string) => {
+      if (url === "/api/pages") return Promise.resolve(jsonResponse({ pages: [makeSummary(pageA)], groups: [] }));
+      if (url === "/api/pages/a") return Promise.resolve(jsonResponse({ page: pageA }));
+      return Promise.reject(new Error(`unexpected ${url}`));
+    }));
+    history.pushState({ notefableSheet: true }, "");
+    vi.mocked(sheetHistory.restoreSheetMarker).mockClear();
+    const hook = hookRuntime.mount(() => useNotePages(true));
+    await flushMicrotasks();
+    // 一覧に無いノートを指す URL：page= を外し、目印は積み直してもらう。
+    expect(window.location.href).toBe("https://app.notefable.com/app?view=pages");
+    expect(sheetHistory.restoreSheetMarker).toHaveBeenCalledTimes(1);
+
+    await hook.current.select("a", "push");
+    await flushMicrotasks();
+    history.pushState({ notefableSheet: true }, "");
+    vi.mocked(sheetHistory.restoreSheetMarker).mockClear();
+    window.dispatchEvent(new CustomEvent(PAGES_TRASHED_EVENT, { detail: { ids: ["a"] } }));
+    await flushMicrotasks();
+    expect(window.location.href).toBe("https://app.notefable.com/app?view=pages");
+    expect(sheetHistory.restoreSheetMarker).toHaveBeenCalledTimes(1);
+  });
+
+  it("syncs locked metadata onto both pages and active queue.page from updateSettings and notefable:page-meta", async () => {
+    createFakeBrowser("https://app.notefable.com/app?view=pages&page=a");
+    const pageA = makePage("a", "Alpha", 1);
+    const updatedSummaryLocked = { ...makeSummary(pageA), locked: true };
+    const externalUnlocked = { ...makeSummary(pageA), locked: false };
+    vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+      if (url === "/api/pages") return Promise.resolve(jsonResponse({ pages: [makeSummary(pageA)], groups: [] }));
+      if (url === "/api/pages/a") return Promise.resolve(jsonResponse({ page: pageA }));
+      if (url === "/api/pages/a/settings" && init?.method === "PUT") {
+        return Promise.resolve(jsonResponse({ page: updatedSummaryLocked }));
+      }
+      return Promise.reject(new Error(`unexpected ${url}`));
+    }));
+
+    const hook = hookRuntime.mount(() => useNotePages(true));
+    await flushMicrotasks();
+    expect(hook.current.active?.page.locked).toBe(false);
+
+    expect(await hook.current.updateSettings("a", { locked: true })).toBe(true);
+    await flushMicrotasks();
+    expect(hook.current.pages.find((p) => p.id === "a")?.locked).toBe(true);
+    expect(hook.current.active?.page.locked).toBe(true);
+
+    // Cross-view metadata update from embed/panel must also sync active queue.page.locked immediately.
+    window.dispatchEvent(new CustomEvent("notefable:page-meta", { detail: externalUnlocked }));
+    await flushMicrotasks();
+    expect(hook.current.pages.find((p) => p.id === "a")?.locked).toBe(false);
+    expect(hook.current.active?.page.locked).toBe(false);
+  });
+
+  it("merges detached functional updates onto latest queue data while guarding generation, locked, gone, conflict, and deleted targets", () => {
+    const initialDeck = normalizeDeck({
+      format: DECK_FORMAT,
+      theme: { id: "simple", mode: "light" },
+      slides: [
+        { ...createSlide("bullets", { title: "Slide 1" }), id: "s1" },
+        { ...createSlide("bullets", { title: "Slide 2" }), id: "s2" },
+      ],
+    });
+    const newerDeck = normalizeDeck({
+      ...initialDeck,
+      slides: [
+        { ...createSlide("bullets", { title: "Edited After Reopen" }), id: "s1" },
+        initialDeck.slides[1],
+      ],
+    });
+
+    const page: NotePage = {
+      ...makePage("sl1", "Deck", 1),
+      kind: "slides",
+      data: initialDeck as unknown as NotePage["data"],
+    };
+    const save = vi.fn(async (content) => ({ ...page, ...content, version: 2 }));
+    const changed = vi.fn();
+    const queue = new NoteSaveQueue(page, save, changed);
+    // Simulate newer edit made after reopening the deck on the same queue generation.
+    queue.edit({ ...queue.content, data: newerDeck as unknown as NotePage["data"] });
+
+    // Functional updater merges an image element onto s2 using latest queue.content.data, preserving s1's newer title.
+    const merged = applyCanvasEditorChange(queue, 0, false, (latest) => {
+      const d = normalizeDeck(latest);
+      if (!d.slides.some((s) => s.id === "s2")) return null;
+      return {
+        ...d,
+        slides: d.slides.map((s) => (s.id === "s2" ? { ...s, notes: "Attached later" } : s)),
+      } as unknown as typeof latest;
+    });
+    expect(merged).toBe(true);
+    const savedDeck = normalizeDeck(queue.content.data);
+    expect(savedDeck.slides[0].elements.find((e) => e.type === "text" && e.role === "title")?.type === "text").toBe(true);
+    expect(savedDeck.slides[1].notes).toBe("Attached later");
+    expect((savedDeck.slides[0].elements[0] as { doc: { content: Array<{ content?: Array<{ text?: string }> }> } }).doc.content[0]?.content?.[0]?.text).toBe("Edited After Reopen");
+
+    // Returns false when updater returns null (e.g. target slide was deleted).
+    const beforeNullEdit = queue.content.data;
+    expect(applyCanvasEditorChange(queue, 0, false, () => null)).toBe(false);
+    expect(queue.content.data).toBe(beforeNullEdit);
+
+    // Guards against locked page, gone queue, and generation mismatch; allows merging into a conflict draft without scheduling overwrite saves.
+    expect(applyCanvasEditorChange(queue, 0, true, (latest) => latest)).toBe(false);
+    expect(applyCanvasEditorChange(queue, 1, false, (latest) => latest)).toBe(false);
+    queue.gone = true;
+    expect(applyCanvasEditorChange(queue, 0, false, (latest) => latest)).toBe(false);
+    queue.gone = false;
+    queue.status = "conflict";
+    const mergedDuringConflict = applyCanvasEditorChange(queue, 0, false, (latest) => {
+      const d = normalizeDeck(latest);
+      return {
+        ...d,
+        slides: d.slides.map((s) => (s.id === "s2" ? { ...s, notes: "Uploaded during conflict" } : s)),
+      } as unknown as typeof latest;
+    });
+    expect(mergedDuringConflict).toBe(true);
+    expect(queue.status).toBe("conflict");
+    expect(normalizeDeck(queue.content.data).slides[1].notes).toBe("Uploaded during conflict");
+  });
+
+  it("flushes pending canvas edits before locking, syncs locked state from 423 PAGE_LOCKED without false conflict, and marks queues gone on manual Trash", async () => {
+    createFakeBrowser("https://app.notefable.com/app?view=pages&page=sl1");
+    const initialDeck = normalizeDeck({
+      format: DECK_FORMAT,
+      theme: { id: "simple", mode: "light" },
+      slides: [{ ...createSlide("bullets", { title: "Deck" }), id: "s1" }],
+    });
+    const page: NotePage = {
+      ...makePage("sl1", "Deck", 1),
+      kind: "slides",
+      data: initialDeck as unknown as NotePage["data"],
+    };
+    const lockedSummary = { ...makeSummary(page), locked: true };
+    const callOrder: string[] = [];
+    let rejectPatchAsLocked = false;
+    vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+      if (url === "/api/pages") return Promise.resolve(jsonResponse({ pages: [makeSummary(page)], groups: [] }));
+      if (url === "/api/pages/sl1" && (!init?.method || init.method === "GET")) return Promise.resolve(jsonResponse({ page }));
+      if (url === "/api/pages/sl1" && init?.method === "PATCH") {
+        callOrder.push("PATCH");
+        if (rejectPatchAsLocked) {
+          return Promise.resolve(jsonResponse({ error: "This page is locked.", code: "PAGE_LOCKED", page: lockedSummary }, 423));
+        }
+        return Promise.resolve(jsonResponse({ version: 2, page: { ...makeSummary(page), title: "Saved before lock", version: 2 } }));
+      }
+      if (url === "/api/pages/sl1/settings" && init?.method === "PUT") {
+        callOrder.push("PUT /settings");
+        return Promise.resolve(jsonResponse({ page: { ...lockedSummary, version: 2 } }));
+      }
+      if (url === "/api/pages/sl1" && init?.method === "DELETE") {
+        return Promise.resolve(jsonResponse({ ids: [] }));
+      }
+      return Promise.reject(new Error(`unexpected ${url}`));
+    }));
+
+    const hook = hookRuntime.mount(() => useNotePages(true));
+    await flushMicrotasks();
+    const queue = hook.current.active!;
+    expect(queue).toBeDefined();
+
+    // Locking flushes pending edits first so PATCH lands before PUT /settings.
+    queue.edit({ ...queue.content, title: "Saved before lock" });
+    expect(await hook.current.updateSettings("sl1", { locked: true })).toBe(true);
+    await flushMicrotasks();
+    expect(callOrder).toEqual(["PATCH", "PUT /settings"]);
+    expect(queue.status).toBe("saved");
+    expect(queue.page.locked).toBe(true);
+
+    // A 423 PAGE_LOCKED rejection keeps the draft in "error" (not false "conflict") and syncs locked: true.
+    rejectPatchAsLocked = true;
+    queue.page = { ...queue.page, locked: false };
+    queue.edit({ ...queue.content, title: "Edited while locked remotely" });
+    expect(await queue.flush()).toBe(false);
+    await flushMicrotasks();
+    expect(hook.current.pages.find((p) => p.id === "sl1")?.locked).toBe(true);
+    expect(queue.page.locked).toBe(true);
+    expect(queue.status).toBe("error");
+    expect(queue.error).toBe("This page is locked.");
+
+    // Load latest resolved version, then verify manual Trash marks queue gone
+    // and prevents late detached callbacks from writing or reinserting the page.
+    queue.loadLatest(page);
+    expect(await hook.current.remove("sl1")).toBe(true);
+    await flushMicrotasks();
+    expect(queue.gone).toBe(true);
+    expect(hook.current.pages).toEqual([]);
+    expect(applyCanvasEditorChange(queue, queue.generation, false, (latest) => latest)).toBe(false);
+    expect(localStorage.getItem("notefable:canvas-draft:v1:sl1")).toBeNull();
+  });
+
+  it("waits for detached slide uploads on PAGES_WILL_CHANGE and avoids loadLatest overwrite on background page updates", async () => {
+    const { fakeWindow } = createFakeBrowser("https://app.notefable.com/app?view=pages&page=sl1");
+    const initialDeck = normalizeDeck({
+      format: DECK_FORMAT,
+      theme: { id: "simple", mode: "light" },
+      slides: [{ ...createSlide("bullets", { title: "Deck" }), id: "s1" }],
+    });
+    const sl1: NotePage = {
+      ...makePage("sl1", "Deck", 1),
+      kind: "slides",
+      data: initialDeck as unknown as NotePage["data"],
+    };
+    const sl1v2: NotePage = {
+      ...sl1,
+      title: "Deck v2",
+      version: 2,
+    };
+    const otherNote = makePage("n2", "Other Note", 1);
+
+    vi.stubGlobal("fetch", vi.fn((url: string) => {
+      if (url === "/api/pages") return Promise.resolve(jsonResponse({ pages: [makeSummary(sl1), makeSummary(otherNote)], groups: [] }));
+      if (url === "/api/pages/sl1") return Promise.resolve(jsonResponse({ page: sl1 }));
+      if (url === "/api/pages/n2") return Promise.resolve(jsonResponse({ page: otherNote }));
+      return Promise.reject(new Error(`unexpected ${url}`));
+    }));
+
+    const hook = hookRuntime.mount(() => useNotePages(true));
+    await flushMicrotasks();
+    const slQueue = hook.current.active!;
+    expect(slQueue.page.id).toBe("sl1");
+
+    const upload1 = deferred<void>();
+    trackSlideUpload("sl1", upload1.promise, 5000);
+    await hook.current.select("n2", "push");
+    await flushMicrotasks();
+    expect(hook.current.activeId).toBe("n2");
+
+    // 1. PAGES_WILL_CHANGE waits for the detached upload on sl1 even while n2 is displayed.
+    let changeReady = false;
+    const waiting = saveBeforePageChange(["sl1"]).then((ok) => {
+      changeReady = true;
+      return ok;
+    });
+    await flushMicrotasks();
+    expect(changeReady).toBe(false);
+    upload1.resolve();
+    expect(await waiting).toBe(true);
+
+    // 2. Background page-updated while another detached upload is still running flags conflict instead of loadLatest().
+    const upload2 = deferred<void>();
+    trackSlideUpload("sl1", upload2.promise, 5000);
+    try {
+      fakeWindow.dispatchEvent(new CustomEvent("notefable:page-updated", { detail: sl1v2 }));
+      await flushMicrotasks();
+      expect(slQueue.status).toBe("conflict");
+      expect(slQueue.generation).toBe(0);
+      expect(slQueue.latest?.version).toBe(2);
+    } finally {
+      upload2.resolve();
+      await flushMicrotasks();
+    }
   });
 
   it("keeps a page created while the initial list load is still in flight", async () => {

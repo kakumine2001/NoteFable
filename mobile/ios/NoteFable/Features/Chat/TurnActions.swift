@@ -55,6 +55,7 @@ struct UserTurnActions: View {
                     size: 36, iconSize: 16, strokeWidth: copied ? 2 : 1.9
                 ) {
                     UIPasteboard.general.string = message.content
+                    Haptics.light()
                     copiedTick += 1
                 }
             }

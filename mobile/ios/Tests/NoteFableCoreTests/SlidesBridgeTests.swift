@@ -65,6 +65,32 @@ final class SlidesBridgeTests: XCTestCase {
         XCTAssertNil(EmbedMessage.parse(#"{"type":"slidesWizard","state":"unknown"}"#))
     }
 
+    func testParsesTheNotesWhoseSlidesAreBeingGenerated() {
+        XCTAssertEqual(EmbedMessage.parse(#"{"type":"slidesJobs","pageIds":["p1","p2"]}"#), .slidesJobs(pageIds: ["p1", "p2"]))
+        XCTAssertEqual(EmbedMessage.parse(#"{"type":"slidesJobs","pageIds":[]}"#), .slidesJobs(pageIds: []))
+        // 不是字符串、空白的丢掉；pageIds 不是数组或缺了的整条丢掉。
+        XCTAssertEqual(EmbedMessage.parse(#"{"type":"slidesJobs","pageIds":["p1",""," ",3,null]}"#), .slidesJobs(pageIds: ["p1"]))
+        XCTAssertNil(EmbedMessage.parse(#"{"type":"slidesJobs","pageIds":"p1"}"#))
+        XCTAssertNil(EmbedMessage.parse(#"{"type":"slidesJobs"}"#))
+    }
+
+    @MainActor
+    func testTheViewModelTracksTheNotesWhoseSlidesAreBeingGenerated() async {
+        let backend = NotesTestBackend()
+        let vm = NotesViewModel(backend: backend)
+        vm.setWorkspace(.notes)
+        await notesSettle()
+        let bridge = NoteEmbedBridge { vm.onEditorMessage("a", $0) }
+        bridge.postMessage(#"{"type":"slidesJobs","pageIds":["a"]}"#)
+        XCTAssertEqual(vm.state.generatingSlides, ["a"])
+        // 打开别的笔记不清掉：生成在网页里接着跑。
+        vm.openNote("b")
+        await notesSettle()
+        XCTAssertEqual(vm.state.generatingSlides, ["a"])
+        bridge.postMessage(#"{"type":"slidesJobs","pageIds":[]}"#)
+        XCTAssertEqual(vm.state.generatingSlides, [])
+    }
+
     func testSlidesWizardUrlAndBootstrapCapability() {
         let api = makeApi(FakeTransport(), baseUrl: "https://example.test")
         XCTAssertEqual(
@@ -129,9 +155,13 @@ final class SlidesBridgeTests: XCTestCase {
         XCTAssertEqual(vm.state.slidesWizard?.shown, true)
         vm.onWizardUsageLimit(tier: "guest", kind: "chat")
         XCTAssertEqual(vm.state.wizardUsageLimit, UsageLimitInfo(tier: "guest", kind: "chat"))
+        vm.onWizardStorageLimit(tier: "member", used: 100, limit: 200)
+        XCTAssertNil(vm.state.wizardUsageLimit)
+        XCTAssertEqual(vm.state.wizardStorageLimit, StorageLimitInfo(tier: "member", used: 100, limit: 200))
         vm.onSlidesWizardClosed()
         XCTAssertNil(vm.state.slidesWizard)
         XCTAssertNil(vm.state.wizardUsageLimit)
+        XCTAssertNil(vm.state.wizardStorageLimit)
 
         // 编辑器打开时，AI 面板自己发 slidesWizard open。
         vm.openNote("a")
@@ -161,5 +191,182 @@ final class SlidesBridgeTests: XCTestCase {
         router.openSlidesWizard(.new())
         XCTAssertEqual(router.selectedTab, .workspace)
         XCTAssertEqual(env.notes.state.slidesWizard?.editor, "n1")
+    }
+
+    // ---- PowerPoint（.pptx）导入（#154 PR 12） ----
+
+    func testParsesPptxImportMessagesAndBuildsScripts() {
+        XCTAssertEqual(EmbedMessage.parse(#"{"type":"pptxImport","state":"open"}"#), .pptxImport(open: true))
+        XCTAssertEqual(EmbedMessage.parse(#"{"type":"pptxImport","state":"closed"}"#), .pptxImport(open: false))
+        XCTAssertNil(EmbedMessage.parse(#"{"type":"pptxImport","state":"other"}"#))
+
+        let bootstrap = NoteEmbedScripts.bootstrap(handler: "h", appIcon: nil, language: "en")
+        XCTAssertTrue(bootstrap.contains("canShowPptxImport:function(){return true}"))
+
+        let openRoot = NoteEmbedScripts.pptxImportOpen()
+        XCTAssertTrue(openRoot?.contains(#""action":"open""#) == true)
+        let openGroup = NoteEmbedScripts.pptxImportOpen(target: PptxImportTarget(groupId: "g_1"))
+        XCTAssertTrue(openGroup?.contains(#""groupId":"g_1""#) == true)
+        let openParent = NoteEmbedScripts.pptxImportOpen(target: PptxImportTarget(parentId: "p-2"))
+        XCTAssertTrue(openParent?.contains(#""parentId":"p-2""#) == true)
+        XCTAssertNil(NoteEmbedScripts.pptxImportOpen(target: PptxImportTarget(groupId: "bad/id")))
+        XCTAssertNil(NoteEmbedScripts.pptxImportOpen(target: PptxImportTarget(parentId: "x'y")))
+        XCTAssertTrue(NoteEmbedScripts.pptxImportBack.contains(#""action":"back""#))
+    }
+
+    @MainActor
+    func testViewModelAndRouterPptxImportLifecycle() async {
+        let env = AppEnvironment(config: AppConfig(baseURL: "https://example.test", siteURL: "https://example.test"))
+        let router = AppRouter(app: env)
+        let vm = env.notes
+        vm.setWorkspace(.notes)
+        await notesSettle()
+
+        // 没有打开页面时打开全屏导入画面。
+        router.openPptxImport(PptxImportTarget(groupId: "g1"))
+        XCTAssertEqual(vm.state.pptxImport?.target, PptxImportTarget(groupId: "g1"))
+        XCTAssertNil(vm.state.pptxImport?.editor)
+        XCTAssertEqual(vm.state.pptxImport?.shown, false)
+
+        // 还没 shown 之前，旧的 closed 不关掉新的导入窗口。
+        vm.onPptxImportClosed()
+        XCTAssertNotNil(vm.state.pptxImport)
+
+        vm.onPptxImportOpened(editor: nil)
+        XCTAssertEqual(vm.state.pptxImport?.shown, true)
+        vm.onPptxImportStorageLimit(tier: "member", used: 50, limit: 100)
+        XCTAssertEqual(vm.state.pptxImportStorageLimit, StorageLimitInfo(tier: "member", used: 50, limit: 100))
+        vm.onPptxImportClosed()
+        XCTAssertNil(vm.state.pptxImport)
+        XCTAssertNil(vm.state.pptxImportStorageLimit)
+
+        // 编辑器打开时从搜索页打开导入：切回工作区并复用当前编辑器。
+        vm.openNote("s1", title: "Deck", icon: nil, kind: .slides)
+        await notesSettle()
+        router.selectTab(.search)
+        router.openPptxImport()
+        XCTAssertEqual(router.selectedTab, .workspace)
+        XCTAssertEqual(vm.state.pptxImport?.editor, "s1")
+
+        // 关掉编辑器时，盖在编辑器上的导入窗口自动清掉。
+        vm.closeNote()
+        await notesSettle()
+        XCTAssertNil(vm.state.pptxImport)
+    }
+
+    // ---- 复习和测验模式（PR 13） ----
+
+    @MainActor
+    func testReviewQuizBridgeScriptsMenuAndLifecycle() async {
+        XCTAssertEqual(EmbedMessage.parse(#"{"type":"quiz","state":"open"}"#), .quiz(open: true))
+        XCTAssertEqual(EmbedMessage.parse(#"{"type":"quiz","state":"closed"}"#), .quiz(open: false))
+        XCTAssertNil(EmbedMessage.parse(#"{"type":"quiz","state":"other"}"#))
+
+        XCTAssertTrue(notePageSupportsQuiz(.note))
+        XCTAssertTrue(notePageSupportsQuiz(.slides))
+        XCTAssertFalse(notePageSupportsQuiz(.whiteboard))
+
+        let bootstrap = NoteEmbedScripts.bootstrap(handler: "h", appIcon: nil, language: "en")
+        XCTAssertTrue(bootstrap.contains("canShowQuiz:function(){return true}"))
+
+        let openNote = NoteEmbedScripts.quizOpen(pageId: "n_1", model: "gpt-6-luna", reasoning: "medium")
+        XCTAssertNotNil(openNote)
+        XCTAssertTrue(openNote?.contains(#""action":"open""#) == true)
+        XCTAssertTrue(openNote?.contains(#""pageId":"n_1""#) == true)
+        XCTAssertTrue(openNote?.contains(#""model":"gpt-6-luna""#) == true)
+        XCTAssertTrue(openNote?.contains(#""reasoning":"medium""#) == true)
+        XCTAssertNil(NoteEmbedScripts.quizOpen(pageId: ""))
+        XCTAssertNil(NoteEmbedScripts.quizOpen(pageId: "bad id"))
+        XCTAssertEqual(NoteEmbedScripts.quizAnswer("open"), true)
+        XCTAssertEqual(NoteEmbedScripts.quizAnswer("unsupported"), false)
+        XCTAssertNil(NoteEmbedScripts.quizAnswer("loading"))
+        XCTAssertTrue(NoteEmbedScripts.quizBack.contains(#""action":"back""#))
+
+        let backend = NotesTestBackend()
+        let vm = NotesViewModel(backend: backend)
+        vm.setWorkspace(.notes)
+        await notesSettle()
+        vm.openNote("a", title: "Bio", icon: nil, kind: .note)
+        await notesSettle()
+        vm.openReviewQuiz("a", editor: "a")
+        XCTAssertEqual(vm.state.reviewQuiz?.pageId, "a")
+        XCTAssertEqual(vm.state.reviewQuiz?.shown, false)
+        // 还没 shown 之前，旧的 closed 不会关掉新请求。
+        vm.onReviewQuizClosed()
+        XCTAssertNotNil(vm.state.reviewQuiz)
+        vm.onEditorMessage("a", .quiz(open: true))
+        XCTAssertEqual(vm.state.reviewQuiz?.shown, true)
+        vm.onEditorMessage("a", .quiz(open: false))
+        XCTAssertNil(vm.state.reviewQuiz)
+    }
+
+    // ---- 工作区统一「用 AI 生成」（#254） ----
+
+    @MainActor
+    func testAiGenerateBridgeScriptsAndLifecycle() async {
+        XCTAssertEqual(EmbedMessage.parse(#"{"type":"aiGenerate","state":"open"}"#), .aiGenerate(open: true, busy: false))
+        XCTAssertEqual(EmbedMessage.parse(#"{"type":"aiGenerate","state":"closed","busy":true}"#), .aiGenerate(open: false, busy: true))
+        XCTAssertEqual(EmbedMessage.parse(#"{"type":"aiGenerate","state":"closed"}"#), .aiGenerate(open: false, busy: false))
+        XCTAssertNil(EmbedMessage.parse(#"{"type":"aiGenerate","state":"other"}"#))
+
+        let bootstrap = NoteEmbedScripts.bootstrap(handler: "h", appIcon: nil, language: "en")
+        XCTAssertTrue(bootstrap.contains("canShowAiGenerate:function(){return true}"))
+
+        let open = NoteEmbedScripts.aiGenerateOpen(
+            target: AiGenerateTarget(kind: .whiteboard, groupId: "g_1", prompt: "System map", autoStart: true),
+            model: "gpt-6-luna",
+            reasoning: "high"
+        )
+        XCTAssertNotNil(open)
+        XCTAssertTrue(open?.contains(#""action":"open""#) == true)
+        XCTAssertTrue(open?.contains(#""kind":"whiteboard""#) == true)
+        XCTAssertTrue(open?.contains(#""groupId":"g_1""#) == true)
+        XCTAssertTrue(open?.contains(#""prompt":"System map""#) == true)
+        XCTAssertTrue(open?.contains(#""autoStart":true"#) == true)
+        XCTAssertTrue(open?.contains(#""model":"gpt-6-luna""#) == true)
+        XCTAssertTrue(open?.contains(#""reasoning":"high""#) == true)
+        XCTAssertNil(NoteEmbedScripts.aiGenerateOpen(target: AiGenerateTarget(groupId: "bad/id")))
+        XCTAssertNil(NoteEmbedScripts.aiGenerateOpen(target: AiGenerateTarget(parentId: "bad id")))
+        XCTAssertTrue(NoteEmbedScripts.aiGenerateBack.contains(#""action":"back""#))
+
+        let env = AppEnvironment(config: AppConfig(baseURL: "https://example.test", siteURL: "https://example.test"))
+        let router = AppRouter(app: env)
+        let vm = env.notes
+        vm.setWorkspace(.notes)
+        await notesSettle()
+
+        router.openAiGenerate(AiGenerateTarget(kind: .note, prompt: "Study guide"))
+        XCTAssertEqual(vm.state.aiGenerate?.target, AiGenerateTarget(kind: .note, prompt: "Study guide"))
+        XCTAssertNil(vm.state.aiGenerate?.editor)
+        XCTAssertEqual(vm.state.aiGenerate?.shown, false)
+
+        // 还没 shown 之前，旧的 closed 不关掉新的面板。
+        vm.onAiGenerateClosed()
+        XCTAssertNotNil(vm.state.aiGenerate)
+
+        vm.onAiGenerateOpened(editor: nil)
+        XCTAssertEqual(vm.state.aiGenerate?.shown, true)
+        vm.onAiGenerateUsageLimit(tier: "guest", kind: "chat")
+        XCTAssertEqual(vm.state.aiGenerateUsageLimit, UsageLimitInfo(tier: "guest", kind: "chat"))
+        vm.onAiGenerateStorageLimit(tier: "member", used: 50, limit: 100)
+        XCTAssertNil(vm.state.aiGenerateUsageLimit)
+        XCTAssertEqual(vm.state.aiGenerateStorageLimit, StorageLimitInfo(tier: "member", used: 50, limit: 100))
+        vm.onAiGenerateClosed()
+        XCTAssertNil(vm.state.aiGenerate)
+        XCTAssertNil(vm.state.aiGenerateUsageLimit)
+        XCTAssertNil(vm.state.aiGenerateStorageLimit)
+
+        // 编辑器打开时从搜索页打开：切回工作区并复用当前编辑器。
+        vm.openNote("n1", title: "Note 1", icon: nil, kind: .note)
+        await notesSettle()
+        router.selectTab(.search)
+        router.openAiGenerate(AiGenerateTarget(kind: .slides))
+        XCTAssertEqual(router.selectedTab, .workspace)
+        XCTAssertEqual(vm.state.aiGenerate?.editor, "n1")
+
+        // 关掉编辑器时，盖在编辑器上的面板自动清掉。
+        vm.closeNote()
+        await notesSettle()
+        XCTAssertNil(vm.state.aiGenerate)
     }
 }

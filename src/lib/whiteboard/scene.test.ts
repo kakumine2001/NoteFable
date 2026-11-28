@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { validateCanvasData } from "@/lib/canvas-document";
-import { fitStoredWhiteboard, pickWhiteboardAppState, sceneToStored, simplifyFreedraw, simplifyIndexes, storedSize, storedToScene, type WhiteboardElement } from "@/lib/whiteboard/scene";
+import { fitStoredWhiteboard, generatedImageDataOf, MAX_GENERATED_IMAGE_PROMPT, pickWhiteboardAppState, sceneToStored, simplifyFreedraw, simplifyIndexes, storedSize, storedToScene, type WhiteboardElement } from "@/lib/whiteboard/scene";
 
 const fileUrl = "/api/pages/files?key=note-files%2Fuser1%2F11111111-1111-1111-1111-111111111111.png&name=a.png";
 const element = (id: string, extra: Record<string, unknown> = {}): WhiteboardElement => ({ id, type: "rectangle", x: 10.123456, y: -0.001, width: 100, height: 50, ...extra });
@@ -49,6 +49,48 @@ describe("sceneToStored", () => {
   it("never stores an embedded data: URL, even for files no element uses", () => {
     const { data } = sceneToStored({ elements: [element("a")], files: { f: { id: "f", mimeType: "image/png", dataURL: "data:image/png;base64,AAAA" } }, appState: {} });
     expect(JSON.stringify(data)).not.toContain("data:");
+  });
+
+  it("preserves sanitized customData.generated on image elements and strips invalid or non-image generated data", () => {
+    const longPrompt = `  ${"a".repeat(MAX_GENERATED_IMAGE_PROMPT + 200)}\u0000  `;
+    const { data } = sceneToStored({
+      elements: [
+        element("img1", { type: "image", fileId: "f1", customData: { generated: { prompt: longPrompt, extra: "drop" } } }),
+        element("img2", { type: "image", fileId: "f1", customData: { generated: { prompt: "   " } } }),
+        element("rect1", { type: "rectangle", customData: { generated: { prompt: "should strip" }, notefablePage: { id: "p1", kind: "note" } } }),
+      ],
+      files: { f1: { id: "f1", mimeType: "image/png", dataURL: fileUrl } },
+      appState: {},
+    });
+    expect(data.elements[0].customData).toEqual({ generated: { prompt: "a".repeat(MAX_GENERATED_IMAGE_PROMPT) } });
+    expect(data.elements[1].customData).toBeUndefined();
+    expect(data.elements[2].customData).toEqual({ notefablePage: { id: "p1", kind: "note" } });
+    expect(generatedImageDataOf(data.elements[0].customData)).toEqual({ prompt: "a".repeat(MAX_GENERATED_IMAGE_PROMPT) });
+    expect(generatedImageDataOf({ generated: { prompt: "" } })).toBeNull();
+
+    // Prompt starting with data: URL prefix is neutralized so canvas-document validation never rejects saving.
+    const { data: withDataPrefix } = sceneToStored({
+      elements: [element("img3", { type: "image", fileId: "f1", customData: { generated: { prompt: "data:image/png;base64,AAAA" } } })],
+      files: { f1: { id: "f1", mimeType: "image/png", dataURL: fileUrl } },
+      appState: {},
+    });
+    expect(() => validateCanvasData("whiteboard", withDataPrefix)).not.toThrow();
+  });
+
+  it("preserves sanitized customData.notefableFormula on image elements and strips invalid or non-image formula data", () => {
+    const { data } = sceneToStored({
+      elements: [
+        element("eq1", { type: "image", fileId: "f1", customData: { notefableFormula: { v: 1, latex: "  E = mc^2\u0000  ", extra: "drop" } } }),
+        element("eq2", { type: "image", fileId: "f1", customData: { notefableFormula: { v: 1, latex: "   " } } }),
+        element("rect1", { type: "rectangle", customData: { notefableFormula: { v: 1, latex: "x^2" }, notefablePage: { id: "p1", kind: "note" } } }),
+      ],
+      files: { f1: { id: "f1", mimeType: "image/png", dataURL: fileUrl } },
+      appState: {},
+    });
+    expect(data.elements[0].customData).toEqual({ notefableFormula: { v: 1, latex: "E = mc^2" } });
+    expect(data.elements[1].customData).toBeUndefined();
+    expect(data.elements[2].customData).toEqual({ notefablePage: { id: "p1", kind: "note" } });
+    expect(() => validateCanvasData("whiteboard", data)).not.toThrow();
   });
 });
 

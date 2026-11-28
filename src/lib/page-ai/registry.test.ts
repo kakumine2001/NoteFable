@@ -18,8 +18,14 @@ describe("page adapters", () => {
   it("keeps the tool names that are stored in conversation history", () => {
     expect(PAGE_ADAPTERS.note.edit?.tool.name).toBe("propose_note_edit");
     expect(PAGE_ADAPTERS.note.create?.tool.name).toBe("propose_note_create");
-    // ノートの新規作成は、確認してから作る（「自動適用」のときだけすぐ作る）。
+    expect(PAGE_ADAPTERS.whiteboard.edit?.tool.name).toBe("propose_whiteboard_edit");
+    expect(PAGE_ADAPTERS.whiteboard.create?.tool.name).toBe("propose_whiteboard_create");
+    expect(PAGE_ADAPTERS.slides.edit?.tool.name).toBe("propose_slides_edit");
+    expect(PAGE_ADAPTERS.slides.create?.tool.name).toBe("propose_slides_create");
+    // ノート・ホワイトボード・スライドの新規作成は、確認してから作る（「自動適用」のときだけすぐ作る）。
     expect(PAGE_ADAPTERS.note.create?.direct).toBeFalsy();
+    expect(PAGE_ADAPTERS.whiteboard.create?.direct).toBeFalsy();
+    expect(PAGE_ADAPTERS.slides.create?.direct).toBeFalsy();
   });
 
   it("gives every tool a unique name (a duplicate would be rejected by the providers and send calls to the wrong adapter)", () => {

@@ -1,7 +1,8 @@
 import SwiftUI
+import UIKit
 
 // 笔记顶栏的“…”（网页 note-page-menu.tsx 的 .notes-page-menu = .chat-actions-menu 宽 248；Android ui/NotePageMenu.kt）：
-// “Style”小标题（12 / 500 灰）；三个字体按钮（三等分、间距 4、外边距 4 / 8 / 5.6；每个上下 6.4、圆角 6.4；“Ag”22、标签 12 灰，选中的蓝色）；
+// “Style”小标题（12 / 500 灰）；三个字体按钮（三等分、长单词放不下时换行、间距 4、外边距 4 / 8 / 5.6；每个上下 6.4、圆角 6.4；“Ag”22、标签 12 灰，选中的蓝色）；
 // 分隔线；Small text / Full width / Lock page 三个开关；分隔线；收藏、复制、添加子页面、画成图（Workflow，只给笔记）、移动到、
 // 导出 Markdown、报告 AI 内容；分隔线；移到回收站（红字）。
 // 项目按页面类型出（`PageKindFeatures`，网页 PAGE_KIND_FEATURES）：白板、幻灯片没有 Style 到 Full width 这一段和导出 Markdown，
@@ -16,6 +17,8 @@ struct NotePageMenuButton: View {
     private let actions: NotePageMenuActions
     private let buttonWidth: CGFloat
     @State private var open = false
+    /// 菜单收起动画结束后再执行的动作（避免导出文件的 `.fileExporter` 或后续弹窗与 `.popover` 收起冲突）。
+    @State private var pendingAction: (() -> Void)? = nil
     /// "报告 AI 内容"的窗口（网页 NotePageMenu 的 reporting）。
     @State private var reporting = false
 
@@ -32,11 +35,32 @@ struct NotePageMenuButton: View {
         NFGlassBarButton(Lucide.ellipsis, label: label, width: buttonWidth) {
             if !actions.busy { open = true }
         }
-        .actionsMenu(isPresented: $open, width: 248, label: label) {
-            NotePageMenuContent(pageId: pageId, actions: actions, close: { open = false }, report: { reporting = true })
+        .nfPopover(
+            isPresented: $open,
+            width: 268,
+            adaptCompactToSheet: false,
+            onDismiss: {
+                guard let action = pendingAction else { return }
+                pendingAction = nil
+                action()
+            }
+        ) {
+            NotePageMenuContent(
+                pageId: pageId,
+                actions: actions,
+                scheduleAfterDismiss: { action in
+                    pendingAction = action
+                    open = false
+                },
+                report: { reporting = true }
+            )
         }
         .reportDialog(.page(pageId: pageId), isPresented: $reporting)
+        .onDisappear {
+            pendingAction = nil
+        }
         .onChange(of: ScreenshotHooks.dismissTick) { _, _ in
+            pendingAction = nil
             open = false
         }
         .task(id: ScreenshotHooks.sceneTick) {
@@ -44,6 +68,8 @@ struct NotePageMenuButton: View {
             try? await Task.sleep(for: .milliseconds(150))
             if !actions.busy, ScreenshotHooks.consume(.pageMenu) {
                 open = true
+                // 等系统原生 .popover 进场与动态高度测量落稳。
+                try? await Task.sleep(for: .milliseconds(400))
                 ScreenshotHooks.markReady(.pageMenu)
             }
         }
@@ -55,53 +81,60 @@ struct NotePageMenuButton: View {
 private struct NotePageMenuContent: View {
     let pageId: String
     let actions: NotePageMenuActions
-    let close: () -> Void
+    let scheduleAfterDismiss: (@escaping () -> Void) -> Void
     /// 打开"报告 AI 内容"的窗口。
     let report: () -> Void
     @Environment(AppEnvironment.self) private var app
+    @Environment(\.nfChromePath) private var chromePath
 
     var body: some View {
         if let page = app.notes.state.pages.first(where: { $0.id == pageId }) {
-            if page.kind.features.typography {
-                ActionsMenuLabel(L("pg_style"))
-                fonts(page)
-                ActionsMenuDivider()
-            }
-            ForEach(NotePageToggle.visible(for: page.kind), id: \.self) { toggle in
-                ActionsMenuToggle(L(toggle.label), icon: toggle == .locked ? Lucide.lock : nil, isOn: toggle.isOn(page)) {
-                    actions.onSettings(toggle.toggled(page))
-                }
-            }
-            ActionsMenuDivider()
-            if notePageSupportsPresentation(page.kind), let onSlides = actions.onSlides {
-                ActionsMenuItem(L("slides_present"), icon: Lucide.presentation, action: run { onSlides(#"{"action":"present"}"#) })
-                if page.kind == .slides {
-                    slideExportCommands(onSlides)
+            VStack(alignment: .leading, spacing: 0) {
+                if page.kind.features.typography {
+                    ActionsMenuLabel(L("pg_style"))
+                    fonts(page)
                     ActionsMenuDivider()
                 }
-            }
-            commands(page)
-            if let error = app.notes.state.groupError {
-                ActionsMenuError(notesErrorText(error, app.systemText), tone: .answer)
+                ForEach(NotePageToggle.visible(for: page.kind), id: \.self) { toggle in
+                    ActionsMenuToggle(L(toggle.label), icon: toggle == .locked ? Lucide.lock : nil, isOn: toggle.isOn(page)) {
+                        actions.onSettings(toggle.toggled(page))
+                    }
+                }
+                ActionsMenuDivider()
+                if notePageSupportsPresentation(page.kind), let onSlides = actions.onSlides {
+                    ActionsMenuItem(L("slides_present"), icon: Lucide.presentation, action: run { onSlides(#"{"action":"present"}"#) })
+                    if page.kind == .slides {
+                        slideExportCommands(onSlides)
+                        ActionsMenuDivider()
+                    }
+                }
+                commands(page)
+                if let error = app.notes.state.groupError {
+                    ActionsMenuError(notesErrorText(error, app.systemText), tone: .answer)
+                }
             }
         }
     }
 
-    /// 关掉菜单再执行。
+    /// 先收起 `.popover`，等 UIKit 收起完成后再执行动作（避免和 `.fileExporter` 等系统弹窗抢呈现）。
     private func run(_ action: @escaping () -> Void) -> () -> Void {
-        let close = self.close
+        let schedule = self.scheduleAfterDismiss
         return {
-            close()
-            action()
+            schedule(action)
         }
     }
 
     private func fonts(_ page: NotePageSummary) -> some View {
-        HStack(spacing: 4) {
+        let trackShape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        let trackFill = chromePath == .native ? Color.primary.opacity(0.06) : Sm.hover
+        return FontChoiceLayout(spacing: 4) {
             ForEach(NotePageFontOption.all, id: \.key) { option in
                 fontButton(option, checked: page.font == option.key)
+                    .layoutValue(key: FontChoiceMinWidth.self, value: fontChoiceMinWidth(L(option.label)))
             }
         }
+        .padding(4)
+        .background(trackFill, in: trackShape)
         .padding(.horizontal, 8)
         .padding(.top, 4)
         .padding(.bottom, 5.6)
@@ -109,6 +142,7 @@ private struct NotePageMenuContent: View {
 
     private func fontButton(_ option: NotePageFontOption, checked: Bool) -> some View {
         Button {
+            Haptics.selection()
             actions.onSettings(NotePageSettings(font: option.key))
         } label: {
             VStack(spacing: 0) {
@@ -117,17 +151,30 @@ private struct NotePageMenuContent: View {
                     .nfLineHeight(26.4, fontSize: 22)
                     .foregroundStyle(checked ? Sm.blue : Sm.text)
                 Text(L(option.label))
-                    .font(.nf(12))
+                    .font(.nf(12, weight: checked ? 600 : 400))
                     .nfLineHeight(16, fontSize: 12)
                     .foregroundStyle(checked ? Sm.blue : Sm.muted)
-                    .lineLimit(1)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, 4)
             .padding(.vertical, 6.4)
-            .frame(maxWidth: .infinity)
+            // 同一行的按钮一样高，“Ag”对齐在上面。
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
-        .buttonStyle(.pressable(cornerRadius: 6.4))
+        .buttonStyle(.pressable(background: checked ? Sm.accentSoft : .clear, cornerRadius: 9, scale: 0.97))
         .accessibilityAddTraits(checked ? .isSelected : [])
+    }
+
+    /// 字体按钮最窄能到多少：名字里最长的单词（12 点，按选中时的半粗量）和左右各 4。
+    private func fontChoiceMinWidth(_ name: String) -> CGFloat {
+        let font = UIFont.systemFont(ofSize: 12, weight: .semibold)
+        var widest: CGFloat = 28
+        name.enumerateSubstrings(in: name.startIndex..., options: .byWords) { word, _, _, _ in
+            guard let word else { return }
+            widest = max(widest, (word as NSString).size(withAttributes: [.font: font]).width)
+        }
+        return widest.rounded(.up) + 8
     }
 
     /// “Ag”用各自的字体画：默认、衬线、等宽。
@@ -173,7 +220,16 @@ private struct NotePageMenuContent: View {
             )
         }
         if notePageDrawable(page), let onGenerateSlides = actions.onGenerateSlides {
-            ActionsMenuItem(L("slides_generate"), icon: Lucide.presentation, action: run(onGenerateSlides))
+            ActionsMenuItem(
+                L(actions.generatingSlides ? "slides_generating" : "slides_generate"), icon: Lucide.presentation,
+                isBusy: actions.generatingSlides, action: run(onGenerateSlides)
+            )
+        }
+        if page.kind == .slides, let onImportPptx = actions.onImportPptx {
+            ActionsMenuItem(L("slides_import_pptx"), icon: Lucide.upload, action: run(onImportPptx))
+        }
+        if notePageSupportsQuiz(page.kind), let onReviewQuiz = actions.onReviewQuiz {
+            ActionsMenuItem(L("pg_review_quiz"), icon: Lucide.bookOpenCheck, action: run(onReviewQuiz))
         }
         ActionsMenuItem(L("pg_move_to"), icon: Lucide.folderInput, action: run(actions.onMove))
         if page.kind.features.markdownExport {
@@ -184,5 +240,50 @@ private struct NotePageMenuContent: View {
         }
         ActionsMenuDivider()
         ActionsMenuItem(L("move_to_trash"), icon: Lucide.trash2, role: .danger, action: run(actions.onTrash))
+    }
+}
+
+private struct FontChoiceMinWidth: LayoutValueKey {
+    static let defaultValue: CGFloat = 0
+}
+
+/// 三个字体按钮的排法：按 `fontChoiceRows` 分行（网页 .notes-menu-fonts 的 flex-wrap）。
+private struct FontChoiceLayout: Layout {
+    var spacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let ideal = subviews.reduce(0) { $0 + $1[FontChoiceMinWidth.self] } + spacing * CGFloat(max(0, subviews.count - 1))
+        let width = proposal.width.flatMap { $0.isFinite ? $0 : nil } ?? ideal
+        let heights = rows(width: width, subviews: subviews).map(\.height)
+        return CGSize(width: width, height: heights.reduce(0, +) + spacing * CGFloat(max(0, heights.count - 1)))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var index = 0
+        var y = bounds.minY
+        for row in rows(width: bounds.width, subviews: subviews) {
+            var x = bounds.minX
+            for width in row.widths {
+                subviews[index].place(at: CGPoint(x: x, y: y), anchor: .topLeading,
+                                      proposal: ProposedViewSize(width: width, height: row.height))
+                x += width + spacing
+                index += 1
+            }
+            y += row.height + spacing
+        }
+    }
+
+    private func rows(width: CGFloat, subviews: Subviews) -> [(widths: [CGFloat], height: CGFloat)] {
+        let mins = subviews.map { Double($0[FontChoiceMinWidth.self]) }
+        var index = 0
+        return fontChoiceRows(available: Double(width), gap: Double(spacing), mins: mins).map { row in
+            let widths = row.map { CGFloat($0) }
+            var height: CGFloat = 0
+            for itemWidth in widths {
+                height = max(height, subviews[index].sizeThatFits(ProposedViewSize(width: itemWidth, height: nil)).height)
+                index += 1
+            }
+            return (widths, height)
+        }
     }
 }

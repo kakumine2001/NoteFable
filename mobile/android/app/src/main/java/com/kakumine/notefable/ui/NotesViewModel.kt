@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.kakumine.notefable.NoteFableApp
+import com.kakumine.notefable.data.AiGenerateTarget
 import com.kakumine.notefable.data.ApiException
 import com.kakumine.notefable.data.ExportedNote
 import com.kakumine.notefable.data.ImportCandidate
@@ -19,6 +20,7 @@ import com.kakumine.notefable.data.NotesBackend
 import com.kakumine.notefable.data.NotesList
 import com.kakumine.notefable.data.PageKind
 import com.kakumine.notefable.data.PageKindTable
+import com.kakumine.notefable.data.PptxImportTarget
 import com.kakumine.notefable.data.SlidesWizardSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -89,6 +91,37 @@ data class SlidesWizardUi(
     val shown: Boolean = false,
 )
 
+/**
+ * 开着的工作区统一「用 AI 生成」面板（笔记 / 白板 / 幻灯片，#254）。运行在常驻 /note-embed WebView 里的 `notefableEmbed.aiGenerate`。
+ */
+data class AiGenerateUi(
+    val target: AiGenerateTarget,
+    val request: Int,
+    val editor: String? = null,
+    val shown: Boolean = false,
+)
+
+/**
+ * 开着的 PowerPoint（.pptx）导入窗口（#154）。窗口本身是网页（常驻 /note-embed WebView 里的 `notefableEmbed.pptxImport`）。
+ */
+data class PptxImportUi(
+    val target: PptxImportTarget,
+    val request: Int,
+    val editor: String? = null,
+    val shown: Boolean = false,
+)
+
+/**
+ * 开着的复习和测验窗口（#154 PR 13）。测验界面本身是网页（常驻 /note-embed WebView 里的 `notefableEmbed.quiz`），
+ * 始终盖在打开着的笔记或幻灯片编辑器上。
+ */
+data class ReviewQuizUi(
+    val pageId: String,
+    val request: Int,
+    val editor: String,
+    val shown: Boolean = false,
+)
+
 data class NotesUiState(
     val workspace: Workspace = Workspace.Chat,
     val pages: List<NotePageSummary> = emptyList(),
@@ -103,7 +136,7 @@ data class NotesUiState(
     val collapsed: Set<String> = emptySet(),
     /** 展开了哪些页面（子页面的树）。侧栏和首页共用，重开 App 后保留（网页 notefable:note-pages-expanded:v1）。 */
     val expanded: Set<String> = emptySet(),
-    /** 折叠了哪些分区（笔记 / 幻灯片 / 白板），重开 App 后保留（网页 notefable:workspace-sections-collapsed:v1）。 */
+    /** 折叠了哪些分区（笔记 / 白板 / 幻灯片），重开 App 后保留（网页 notefable:workspace-sections-collapsed:v1）。 */
     val collapsedSections: Set<PageKind> = emptySet(),
     val open: OpenNote? = null,
     /** 网页编辑器报来的保存状态：saved / saving / unsaved / error / conflict。 */
@@ -124,6 +157,12 @@ data class NotesUiState(
     val importTarget: Boolean = false,
     /** AI 生成幻灯片的向导；null 是没开。 */
     val slidesWizard: SlidesWizardUi? = null,
+    /** 工作区统一「用 AI 生成」面板；null 是没开。 */
+    val aiGenerate: AiGenerateUi? = null,
+    /** PowerPoint（.pptx）导入窗口；null 是没开。 */
+    val pptxImport: PptxImportUi? = null,
+    /** 复习和测验窗口；null 是没开。 */
+    val reviewQuiz: ReviewQuizUi? = null,
 ) {
     /** 画面上的编辑器（[OpenNote.editor]）；停在聊天或笔记列表时是 null。 */
     val visibleEditor: String? get() = open?.editor?.takeIf { workspace == Workspace.Notes }
@@ -139,7 +178,7 @@ data class NotesUiState(
     fun sectionKindOf(page: NotePageSummary): PageKind = if (page.kind in kinds) page.kind else PageKind.Note
 
     /**
-     * 工作区的分区（网页 workspaceSections，#168）：不在项目里的最上层页面按类型分成笔记、幻灯片、白板（[kinds] 的顺序），
+     * 工作区的分区（网页 workspaceSections，#168）：不在项目里的最上层页面按类型分成笔记、白板、幻灯片（[kinds] 的顺序），
      * 子页面跟着父页面。[WorkspaceSection.count] 含子页面（首页小标题后的数字）。
      */
     val sections: List<WorkspaceSection>
@@ -152,6 +191,18 @@ data class NotesUiState(
                 WorkspaceSection(kind, members, members.sumOf { size(it) })
             }
         }
+
+    /** 首页按筛选标签显示的新建卡片类型（网页 workspaceCreateKinds）：All 显示全部可建类型，选中单类型时只显示该类型。 */
+    fun createKindsFor(activeFilter: PageKind?): List<PageKind> = activeFilter?.let { listOf(it) } ?: kinds
+
+    /** 首页「导入 Markdown」只对 All 和 Notes 显示（Markdown 仅建笔记，网页 showsImportMarkdownForFilter）。 */
+    fun showsImportMarkdownFor(activeFilter: PageKind?): Boolean = activeFilter == null || activeFilter == PageKind.Note
+
+    /** 首页「最近编辑」按筛选标签过滤后的列表，按更新时间倒序取前 [limit] 篇。 */
+    fun recentPages(activeFilter: PageKind? = null, limit: Int = 8): List<NotePageSummary> =
+        pages.filter { activeFilter == null || sectionKindOf(it) == activeFilter }
+            .sortedByDescending { it.updatedAt }
+            .take(limit)
 
     /** 项目里最上层的页面（列表用）。 */
     fun members(groupId: String) = roots.filter { it.groupId == groupId }
@@ -776,6 +827,15 @@ class NotesViewModel(
     }
 
     suspend fun updateSettings(pageId: String, settings: NotePageSettings): Boolean = serialMeta(pageId) {
+        val owner = identity
+        if (settings.locked == true && _state.value.open?.id == pageId) {
+            if (!flushOpen().ok) {
+                if (owner == identity) _state.update { it.copy(notice = NotesError(NotesError.Kind.UnsavedDraft)) }
+                return@serialMeta false
+            }
+            if (owner != identity) return@serialMeta false
+            _state.update { if (it.notice?.kind == NotesError.Kind.UnsavedDraft) it.copy(notice = null) else it }
+        }
         groupAction {
             val page = backend.updateSettings(pageId, settings)
             Pair({ applyMeta(page) }, true)
@@ -878,7 +938,7 @@ class NotesViewModel(
     /** 从一个入口打开向导：画面上有编辑器时盖在它上面，否则开全屏向导画面。要读的笔记正开着时网页自己先保存。 */
     fun openSlidesWizard(source: SlidesWizardSource) {
         val request = ++slidesWizardRequests
-        _state.update { it.copy(slidesWizard = SlidesWizardUi(source, request, editor = it.visibleEditor)) }
+        _state.update { it.copy(slidesWizard = SlidesWizardUi(source, request, editor = it.visibleEditor), aiGenerate = null, pptxImport = null, reviewQuiz = null) }
     }
 
     /** 打开的脚本说网页里出来了。 */
@@ -922,6 +982,129 @@ class NotesViewModel(
     /** 画面上的编辑器换了：盖在别的编辑器上的向导、有了编辑器时的全屏向导画面都不再算数。 */
     fun dropStaleSlidesWizard() = _state.update {
         if (it.slidesWizard != null && it.slidesWizard.editor != it.visibleEditor) it.copy(slidesWizard = null) else it
+    }
+
+    // ---- 统一「用 AI 生成」（笔记 / 白板 / 幻灯片，#254） ----
+
+    private var aiGenerateRequests = 0
+
+    /** 从工作区或侧栏打开统一 AI 生成面板：画面上有编辑器时盖在它上面，否则开全屏画面。 */
+    fun openAiGenerate(target: AiGenerateTarget = AiGenerateTarget()) {
+        val request = ++aiGenerateRequests
+        _state.update { it.copy(aiGenerate = AiGenerateUi(target, request, editor = it.visibleEditor), slidesWizard = null, pptxImport = null, reviewQuiz = null) }
+    }
+
+    fun onAiGenerateShown(request: Int) = _state.update { state ->
+        val current = state.aiGenerate?.takeIf { it.request == request } ?: return@update state
+        state.copy(aiGenerate = current.copy(shown = true))
+    }
+
+    fun onAiGenerateOpened(editor: String?) {
+        val current = _state.value.aiGenerate ?: return
+        if (current.editor == editor) onAiGenerateShown(current.request)
+    }
+
+    fun onAiGenerateClosed() = _state.update { if (it.aiGenerate?.shown == true) it.copy(aiGenerate = null) else it }
+
+    fun dismissAiGenerate(request: Int? = null) = _state.update {
+        if (request == null || it.aiGenerate?.request == request) it.copy(aiGenerate = null) else it
+    }
+
+    fun dismissFullScreenAiGenerate() = _state.update {
+        if (it.aiGenerate != null && it.aiGenerate.editor == null) it.copy(aiGenerate = null) else it
+    }
+
+    fun dropStaleAiGenerate() = _state.update {
+        if (it.aiGenerate != null && it.aiGenerate.editor != it.visibleEditor) it.copy(aiGenerate = null) else it
+    }
+
+    // ---- PowerPoint（.pptx）导入（#154 PR 12） ----
+
+    private var pptxImportRequests = 0
+
+    /** 从一个入口打开 PPTX 导入窗口：画面上有编辑器时盖在它上面，否则开全屏导入画面。 */
+    fun openPptxImport(target: PptxImportTarget = PptxImportTarget()) {
+        val request = ++pptxImportRequests
+        _state.update { it.copy(pptxImport = PptxImportUi(target, request, editor = it.visibleEditor), slidesWizard = null, aiGenerate = null, reviewQuiz = null) }
+    }
+
+    /** 打开的脚本说网页里出来了。 */
+    fun onPptxImportShown(request: Int) = _state.update { state ->
+        val current = state.pptxImport?.takeIf { it.request == request } ?: return@update state
+        state.copy(pptxImport = current.copy(shown = true))
+    }
+
+    /**
+     * 网页的 `pptxImport` open 消息。[editor] 是发消息时画面上的编辑器（全屏导入画面是 null）。
+     * App 没打开过时是幻灯片工具栏里的「导入 PowerPoint」：记成盖在这个编辑器上。
+     */
+    fun onPptxImportOpened(editor: String?) {
+        val state = _state.value
+        val current = state.pptxImport
+        if (current != null) {
+            if (current.editor == editor) onPptxImportShown(current.request)
+            return
+        }
+        val open = state.open?.takeIf { editor != null && state.visibleEditor == editor } ?: return
+        val groupId = state.pages.firstOrNull { it.id == open.id }?.groupId
+        val request = ++pptxImportRequests
+        _state.update { it.copy(pptxImport = PptxImportUi(PptxImportTarget(groupId = groupId), request, editor = editor, shown = true)) }
+    }
+
+    /** 网页的 closed 消息。还没出来的那一次不动：这是上一次被藏起来时晚到的。 */
+    fun onPptxImportClosed() = _state.update { if (it.pptxImport?.shown == true) it.copy(pptxImport = null) else it }
+
+    /** App 这边关掉导入窗口（返回键、打开了幻灯片、打不开）；[request] 指定时只关那一次。 */
+    fun dismissPptxImport(request: Int? = null) = _state.update {
+        if (request == null || it.pptxImport?.request == request) it.copy(pptxImport = null) else it
+    }
+
+    /** 外部链接、系统分享要换画面：关掉全屏 PPTX 导入画面。 */
+    fun dismissFullScreenPptxImport() = _state.update {
+        if (it.pptxImport != null && it.pptxImport.editor == null) it.copy(pptxImport = null) else it
+    }
+
+    /** 画面上的编辑器换了：盖在别的编辑器上的导入窗口、有了编辑器时的全屏导入画面都不再算数。 */
+    fun dropStalePptxImport() = _state.update {
+        if (it.pptxImport != null && it.pptxImport.editor != it.visibleEditor) it.copy(pptxImport = null) else it
+    }
+
+    // ---- 复习和测验（#154 PR 13） ----
+
+    private var reviewQuizRequests = 0
+
+    /** 从笔记或幻灯片的"…"菜单打开复习和测验，盖在当前编辑器上。 */
+    fun openReviewQuiz(pageId: String) {
+        val editor = _state.value.visibleEditor ?: return
+        val request = ++reviewQuizRequests
+        _state.update { it.copy(reviewQuiz = ReviewQuizUi(pageId, request, editor), slidesWizard = null, aiGenerate = null, pptxImport = null) }
+    }
+
+    fun onReviewQuizShown(request: Int) = _state.update { state ->
+        val quiz = state.reviewQuiz?.takeIf { it.request == request } ?: return@update state
+        state.copy(reviewQuiz = quiz.copy(shown = true))
+    }
+
+    fun onReviewQuizOpened(editor: String) {
+        val state = _state.value
+        val quiz = state.reviewQuiz
+        if (quiz != null) {
+            if (quiz.editor == editor) onReviewQuizShown(quiz.request)
+            return
+        }
+        val open = state.open?.takeIf { state.visibleEditor == editor } ?: return
+        val request = ++reviewQuizRequests
+        _state.update { it.copy(reviewQuiz = ReviewQuizUi(open.id, request, editor, shown = true)) }
+    }
+
+    fun onReviewQuizClosed() = _state.update { if (it.reviewQuiz?.shown == true) it.copy(reviewQuiz = null) else it }
+
+    fun dismissReviewQuiz(request: Int? = null) = _state.update {
+        if (request == null || it.reviewQuiz?.request == request) it.copy(reviewQuiz = null) else it
+    }
+
+    fun dropStaleReviewQuiz() = _state.update {
+        if (it.reviewQuiz != null && it.reviewQuiz.editor != it.visibleEditor) it.copy(reviewQuiz = null) else it
     }
 
     // ---- Markdown 导出 / 导入（网页 use-note-pages.ts 的 exportPage / importMarkdown） ----

@@ -90,6 +90,12 @@ object Lucide {
         "M7 11v4a2 2 0 0 0 2 2h4",
         "M15 13h4a2 2 0 0 1 2 2v4a2 2 0 0 1 -2 2h-4a2 2 0 0 1 -2 -2v-4a2 2 0 0 1 2 -2Z",
     )
+    // 「复习和测验」（网页笔记 / 幻灯片菜单的 BookOpenCheck，lucide-react 1.16.0）。
+    val BookOpenCheck = listOf(
+        "M12 21V7",
+        "m16 12 2 2 4-4",
+        "M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3",
+    )
     private const val FolderOutline =
         "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"
     val Folder = listOf(FolderOutline)
@@ -311,6 +317,10 @@ object Lucide {
         "M13 21h8",
         "M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z",
     )
+    val Eye = listOf(
+        "M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0",
+        "M9 12a3 3 0 1 0 6 0a3 3 0 1 0 -6 0",
+    )
     val CircleUser = listOf(
         "M2 12a10 10 0 1 0 20 0a10 10 0 1 0 -20 0",
         "M9 10a3 3 0 1 0 6 0a3 3 0 1 0 -6 0",
@@ -343,6 +353,7 @@ object Lucide {
         ArrowLeft,
         ChevronLeft,
         ChevronRight,
+        ExternalLink,
         PanelLeftClose,
         LogOut,
         FolderInput,

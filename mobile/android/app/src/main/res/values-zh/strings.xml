@@ -10,7 +10,7 @@
     <string name="retry">重试</string>
     <string name="messages_load_failed">加载聊天失败。</string>
 
-    <string name="empty_hint">提出问题、整理笔记，或带入一份文件。</string>
+    <string name="empty_hint">提出问题、整理工作区里的内容，或带入一份文件。</string>
     <string name="message_hint">尽管提问…</string>
     <string name="send">发送消息</string>
     <string name="stop">停止生成</string>
@@ -86,10 +86,10 @@
     <string name="new_note">新笔记</string>
     <string name="projects">项目</string>
     <string name="new_project">新项目</string>
-    <string name="no_notes_in_project">此项目中还没有笔记。</string>
+    <string name="no_notes_in_project">此项目中还没有页面。</string>
     <string name="notes_list_empty">你的笔记会显示在这里。</string>
     <string name="trash">回收站</string>
-    <string name="trash_note_title">将笔记移到回收站？</string>
+    <string name="trash_note_title">将页面移到回收站？</string>
     <string name="trash_note_body">将把“%1$s”移到回收站，可在 %2$d 天内恢复。</string>
     <string name="cancel">取消</string>
     <string name="move_to_trash">移到回收站</string>
@@ -101,12 +101,11 @@
     <string name="save">保存</string>
     <string name="delete_project_title">删除项目？</string>
     <string name="delete_project">删除项目</string>
-    <string name="delete_project_body">将删除“%1$s”。其中的笔记会保留，并移出此项目。</string>
+    <string name="delete_project_body">将删除“%1$s”。其中的页面会保留，并移出此项目。</string>
     <string name="rename_name">重命名 %1$s</string>
     <string name="delete_project_name">删除项目 %1$s</string>
     <string name="project_name">项目名称</string>
     <string name="no_project">未分组</string>
-    <string name="move_note">移动笔记</string>
     <string name="move_note_to">将“%1$s”移到</string>
     <string name="project">项目</string>
     <string name="new_project_name">新项目名称</string>
@@ -115,9 +114,9 @@
     <string name="close">关闭</string>
     <string name="empty_trash">清空回收站</string>
     <string name="close_trash">关闭回收站</string>
-    <string name="trash_hint">回收站中的笔记可在 %1$d 天内恢复，之后将永久删除。</string>
-    <string name="empty_trash_one">永久删除回收站中的这篇笔记？此操作无法撤销。</string>
-    <string name="empty_trash_all">永久删除回收站中的全部 %1$d 篇笔记？此操作无法撤销。</string>
+    <string name="trash_hint">回收站中的页面可在 %1$d 天内恢复，之后将永久删除。</string>
+    <string name="empty_trash_one">永久删除回收站中的这个页面？此操作无法撤销。</string>
+    <string name="empty_trash_all">永久删除回收站中的全部 %1$d 个页面？此操作无法撤销。</string>
     <string name="loading_trash">正在加载回收站…</string>
     <string name="try_again">重试</string>
     <string name="trash_is_empty">回收站是空的。</string>
@@ -132,19 +131,19 @@
     <string name="removing_soon">即将删除</string>
     <string name="one_day_left">剩余 1 天</string>
     <string name="days_left">剩余 %1$d 天</string>
-    <string name="loading_notes">正在加载笔记…</string>
-    <string name="notes_intro">用块组织笔记，输入 %1$s 即可添加标题、列表、待办和代码。</string>
-    <string name="notes_storage_hint">笔记保存在服务器上，并与此设备关联。登录后，可在其他设备打开。如果在登录前清除应用或网站数据，将无法再打开这些笔记。</string>
-    <string name="all_notes">全部笔记</string>
+    <string name="loading_notes">正在加载页面…</string>
+    <string name="notes_intro">写笔记、做幻灯片、在白板上自由画。在笔记中输入 %1$s 即可添加标题、列表、待办和代码。</string>
+    <string name="notes_storage_hint">工作区保存在服务器上，并与此设备关联。登录后，可在其他设备打开。如果在登录前清除应用或网站数据，将无法再打开其中的内容。</string>
+    <string name="all_notes">全部页面</string>
     <string name="version_history">版本历史</string>
     <string name="save_saved">已保存</string>
     <string name="save_saving">正在保存…</string>
     <string name="save_not_saved">未保存</string>
     <string name="save_conflict">保存冲突</string>
-    <string name="err_trash_unsaved">请先处理未保存的草稿，再将此笔记移到回收站。</string>
-    <string name="err_load_notes">加载笔记失败。</string>
-    <string name="err_create_note">创建笔记失败。</string>
-    <string name="err_trash_note">将笔记移到回收站失败。</string>
+    <string name="err_trash_unsaved">请先处理未保存的草稿，再将此页面移到回收站。</string>
+    <string name="err_load_notes">加载页面失败。</string>
+    <string name="err_create_note">创建页面失败。</string>
+    <string name="err_trash_note">将页面移到回收站失败。</string>
     <string name="err_group">无法修改项目。</string>
     <string name="err_trash_request">回收站请求失败，请重试。</string>
     <string name="err_trash_load">无法加载回收站。</string>
@@ -152,7 +151,7 @@
     <!-- 登录窗口（网页 sign-in-dialog.tsx）。 -->
     <string name="sign_in">登录</string>
     <string name="signin_title">登录 NoteFable</string>
-    <string name="signin_subtitle">保存你的聊天和笔记，换设备也能打开。</string>
+    <string name="signin_subtitle">保存你的聊天和工作区，换设备也能打开。</string>
     <string name="continue_google">使用 Google 继续</string>
     <string name="signin_or">或</string>
     <string name="signin_email">邮箱地址</string>

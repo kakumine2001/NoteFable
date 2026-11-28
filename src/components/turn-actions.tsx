@@ -6,6 +6,7 @@ import "@/components/answer-actions.css";
 import { useT } from "@/components/i18n-provider";
 import type { MessageVersions } from "@/lib/chat-branches";
 import { writeClipboardText } from "@/lib/clipboard";
+import { isImeKeyEvent } from "@/lib/ime";
 
 // この会話が返答中、または送信の途中か。その間は編集・再生成・版の切り替えを押せない。
 // メッセージ（memo 化している）の props にせず、操作の部品だけがここから読む：返答の開始・終了で会話全体を描き直さないため。
@@ -108,7 +109,8 @@ export function UserMessageEditor({ initial, onCancel, onSubmit }: { initial: st
     <form className="user-message-editor" onSubmit={(event) => { event.preventDefault(); if (trimmed && !busy) onSubmit(trimmed); }}>
       <textarea ref={ref} value={text} rows={1} aria-label={t("Edit message")} onChange={(event) => setText(event.target.value)}
         onKeyDown={(event) => {
-          if (event.key === "Escape") { event.preventDefault(); onCancel(); return; }
+          // 変換中の Esc は変換の取り消しなので、編集はやめない。
+          if (event.key === "Escape") { if (isImeKeyEvent(event.nativeEvent)) return; event.preventDefault(); onCancel(); return; }
           // 入力欄と同じ：IME の確定は送らず、画面キーボードの端末では Enter を改行にして Ctrl/Cmd+Enter かボタンで送る。
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229
             && (event.ctrlKey || event.metaKey || !window.matchMedia("(hover: none) and (pointer: coarse)").matches)) {

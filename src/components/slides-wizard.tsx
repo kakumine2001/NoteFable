@@ -1,18 +1,18 @@
 "use client";
 
 import {
-  ArrowUpRight, ChevronDown, ChevronUp, FileText, LoaderCircle, MessageSquare, Plus, Presentation, Search, Trash2, X,
+  ArrowUpRight, ChevronDown, ChevronUp, FileText, Image as ImageIcon, LoaderCircle, MessageSquare, Plus, Presentation, Search, Trash2, X,
 } from "lucide-react";
 import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import "@/components/chat-project-settings.css";
-import { GuestLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
+import { GuestLimitPrompt, StorageLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
 import { useT } from "@/components/i18n-provider";
 import { NoteIcon } from "@/components/note-icon";
 import { PageKindIcon } from "@/components/page-kind-icon";
 import { useAccount } from "@/lib/account-store";
 import { LOCALE_NAMES, LOCALES } from "@/lib/i18n/locale";
 import { localizeSystemText, msg, type Translate } from "@/lib/i18n/translate";
-import { nativeCanOpenPage, nativeCanShowSlidesWizard, nativeCanShowUsageLimit, postToNative } from "@/lib/native-bridge";
+import { nativeCanOpenPage, nativeCanShowSlidesWizard, nativeCanShowStorageLimit, nativeCanShowUsageLimit, postToNative } from "@/lib/native-bridge";
 import { pageKindOf } from "@/lib/page-kinds";
 import {
   MAX_AUDIENCE_CHARS, MAX_OUTLINE_SLIDES, MAX_OUTLINE_TITLE_CHARS, MAX_PAGE_COUNT, MAX_POINT_CHARS, MAX_SLIDE_POINTS,
@@ -22,9 +22,12 @@ import {
 import { SLIDE_THEMES } from "@/lib/slides/themes";
 import { newSlidesDraft, type SlidesDraft, type SlidesEntry, type WizardNote } from "@/lib/slides-wizard-draft";
 import {
+  getSlideImageJob, resumeSlideImageJob, stopSlideImageJob, subscribeSlideImageJobs, type SlideImageJob,
+} from "@/lib/slides-image-jobs";
+import {
   closeSlidesWizard, dismissSlidesError, getSlidesJobState, getSlidesWizard, isSlidesWizardBusy, requestSlides, retrySlidesWizardLoad,
   setSlidesPicker, SLIDES_FAILED, slidesRequestInput, slidesWizardBack, startOverSlides, subscribeSlidesWizard, syncSlidesNotes,
-  updateSlidesDraft, type SlidesFlush, type SlidesJob, type SlidesWizardView,
+  updateSlidesDraft, workingSlidesNoteIds, type SlidesFlush, type SlidesJob, type SlidesWizardView,
 } from "@/lib/slides-wizard-jobs";
 import { useBackToClose } from "@/lib/use-back-to-close";
 
@@ -70,6 +73,20 @@ export function SlidesWizardHost({ embedded = false, flush }: { embedded?: boole
     reportedClosedBusy.current = false;
     postToNative({ type: "slidesWizard", state: "closed", busy: false });
   }, [embedded, visible, busy]);
+  // アプリのノートの「…」メニューが「Generating slides…」を出せるように、作っている最中のノートを知らせる（読み込み直しでは空を送る）。
+  useEffect(() => {
+    if (!embedded || !nativeCanShowSlidesWizard()) return;
+    let reported = "";
+    const report = () => {
+      const pageIds = workingSlidesNoteIds();
+      const next = JSON.stringify(pageIds);
+      if (next === reported) return;
+      reported = next;
+      postToNative({ type: "slidesJobs", pageIds });
+    };
+    report();
+    return subscribeSlidesWizard(report);
+  }, [embedded]);
   if (!view) return null;
   return <SlidesWizardDialog key={view.key} view={view} embedded={embedded} flush={flush} />;
 }
@@ -123,21 +140,43 @@ function SlidesWizardDialog({ view, embedded, flush }: { view: SlidesWizardView;
     return () => controller.abort();
   }, [wantsNotes, attempt]);
 
-  // 使用回数の上限（429）：ウェブではログイン（未ログイン）・アップグレード（無料会員）の案内を窓の中に出す。
+  // 使用回数の上限（429）・容量の上限（413）：ウェブではログイン（未ログイン）・アップグレード（無料会員）・容量の案内を窓の中に出す。
   // アプリの WebView では、案内を出せるアプリに任せる（ウェブのログイン画面や Stripe を WebView で開かない）。理由の文はどちらでも出す。
   const { account } = useAccount();
-  const [closedLimit, setClosedLimit] = useState<SlidesJob | null>(null);
+  const [closedLimit, setClosedLimit] = useState<SlidesJob | SlideImageJob | null>(null);
+  const donePageId = ready?.job.state === "done" ? ready.job.page.id : null;
+  const imageJob = useSyncExternalStore(subscribeSlideImageJobs, () => getSlideImageJob(donePageId), () => null);
   const failed = ready?.job.state === "error" ? ready.job : null;
   const limit = failed?.limit ?? null;
+  const imageUsageLimit = imageJob?.usageLimit ?? null;
+  const imageStorageLimit = imageJob?.storageLimit ?? null;
   const showGuestPrompt = !embedded && failed !== closedLimit && limit?.tier === "guest" && Boolean(account?.configured && !account.user);
   const showUpgradePrompt = !embedded && failed !== closedLimit && limit?.tier === "member" && Boolean(account?.billing && account.user);
+  const showImageGuestPrompt = !embedded && imageJob !== closedLimit && imageUsageLimit?.tier === "guest" && Boolean(account?.configured && !account.user);
+  const showImageUpgradePrompt = !embedded && imageJob !== closedLimit && imageUsageLimit?.tier === "member" && Boolean(account?.billing && account.user);
+  const showImageStoragePrompt = imageJob !== closedLimit && Boolean(imageStorageLimit) && (!embedded || !nativeCanShowStorageLimit());
   useEffect(() => {
     if (!embedded || !limit || !nativeCanShowUsageLimit()) return;
     postToNative({ type: "usageLimit", tier: limit.tier, kind: "chat" });
   }, [embedded, limit]);
+  useEffect(() => {
+    if (!embedded || !imageUsageLimit || !nativeCanShowUsageLimit()) return;
+    postToNative({ type: "usageLimit", tier: imageUsageLimit.tier, kind: "image" });
+  }, [embedded, imageUsageLimit]);
+  useEffect(() => {
+    if (!embedded || !imageStorageLimit || !nativeCanShowStorageLimit()) return;
+    postToNative({ type: "storageLimit", tier: imageStorageLimit.tier, used: imageStorageLimit.used, limit: imageStorageLimit.limit });
+  }, [embedded, imageStorageLimit]);
   const prompts = <>
     {showGuestPrompt && <div className="mt-3"><GuestLimitPrompt kind="chat" onClose={() => setClosedLimit(failed)} /></div>}
     {showUpgradePrompt && <div className="mt-3"><UpgradePrompt kind="chat" onClose={() => setClosedLimit(failed)} /></div>}
+  </>;
+  const imagePrompts = <>
+    {showImageGuestPrompt && <div className="mt-3"><GuestLimitPrompt kind="image" onClose={() => setClosedLimit(imageJob)} /></div>}
+    {showImageUpgradePrompt && <div className="mt-3"><UpgradePrompt kind="image" onClose={() => setClosedLimit(imageJob)} /></div>}
+    {showImageStoragePrompt && imageStorageLimit && (
+      <div className="mt-3"><StorageLimitPrompt limit={imageStorageLimit} actions={!embedded} className="" onClose={() => setClosedLimit(imageJob)} /></div>
+    )}
   </>;
 
   // アプリの中では、ページを開けるアプリにだけ「開く」を出す（開けない古いアプリでは、出来たことだけを知らせる）。
@@ -167,8 +206,42 @@ function SlidesWizardDialog({ view, embedded, flush }: { view: SlidesWizardView;
           {t("Created “{title}” in Workspace.", { title: ready.job.page.title })}
           {ready.job.partial && <> {t("Part of the content was too long and was left out.")}</>}
         </p>
+        {imageJob && imageJob.status === "working" && (
+          <div className="slides-wizard-image-progress">
+            <Progress text={t("Generating slide images… ({done}/{total})", { done: imageJob.completed, total: imageJob.total })} />
+            {imageJob.currentSlideTitle && (
+              <p className="mt-1 text-xs text-[var(--notion-muted)]">{t("Current slide: {title}", { title: imageJob.currentSlideTitle })}</p>
+            )}
+            <div className="slides-wizard-progress-track" aria-hidden="true">
+              <div className="slides-wizard-progress-fill" style={{ width: `${imageJob.total ? Math.round((imageJob.completed / imageJob.total) * 100) : 0}%` }} />
+            </div>
+          </div>
+        )}
+        {imageJob && imageJob.status === "done" && imageJob.total > 0 && (
+          <p role="status" className="mt-3 flex items-center gap-2 text-sm text-[var(--notion-muted)]">
+            <ImageIcon size={15} aria-hidden="true" />
+            <span>{t("Generated {total} slide images.", { total: imageJob.completed })}</span>
+          </p>
+        )}
+        {imageJob && (imageJob.status === "stopped" || imageJob.status === "error") && (
+          <div className="slides-wizard-image-progress">
+            <p role="status" className="text-sm text-[var(--notion-muted)]">
+              {t("Generated {done} of {total} slide images. {remaining} remaining.", { done: imageJob.completed, total: imageJob.total, remaining: imageJob.remaining })}
+            </p>
+            {imageJob.error && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{localizeSystemText(imageJob.error, t)}</p>}
+            {imagePrompts}
+          </div>
+        )}
       </div>
       <div className="slides-wizard-footer">
+        {imageJob?.status === "working" && donePageId && (
+          <button type="button" className="notion-button slides-wizard-reset" disabled={Boolean(imageJob.stopping)} onClick={() => stopSlideImageJob(donePageId)}>
+            {imageJob.stopping ? t("Stopping after this slide…") : t("Stop")}
+          </button>
+        )}
+        {imageJob && (imageJob.status === "stopped" || imageJob.status === "error") && imageJob.remaining > 0 && donePageId && (
+          <button type="button" className="notion-button slides-wizard-reset" onClick={() => void resumeSlideImageJob(donePageId)}>{t("Resume")}</button>
+        )}
         <button type="button" data-autofocus={canOpen ? undefined : true} className="notion-button" onClick={() => closeSlidesWizard()}>{t("Close")}</button>
         {canOpen && <OpenButton id={ready.job.page.id} label={t("Open slides")} onOpen={openPage} />}
       </div>
@@ -332,6 +405,23 @@ function SourceStep({ draft, entry, job, flush, prompts }: StepProps) {
             onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); submit(); } }} />
         </label>
 
+        <div className="slides-wizard-toggle-card">
+          <label className="slides-wizard-toggle">
+            <input type="checkbox" checked={options.generateImages === true}
+              onChange={(event) => setOptions({ generateImages: event.target.checked })} />
+            <span className="slides-wizard-toggle-text">
+              <span className="slides-wizard-toggle-title">{t("Generate images for slides")}</span>
+              {options.generateImages === true && (
+                <span className="slides-wizard-toggle-hint">
+                  {t("Adds AI illustrations to key slides. Uses 1 image credit per illustrated slide (up to {count} image credits).", {
+                    count: options.pageCount === "auto" ? MAX_OUTLINE_SLIDES : options.pageCount - 1,
+                  })}
+                </span>
+              )}
+            </span>
+          </label>
+        </div>
+
         <details className="slides-wizard-advanced">
           <summary>{t("Advanced")}</summary>
           <div className="slides-wizard-grid">
@@ -449,10 +539,32 @@ function OutlineStep({ draft, outline, entry, job, flush, prompts }: StepProps &
           onClick={() => setOutline((current) => ({ ...current, slides: [...current.slides, { title: "", points: [] }] }))}>
           <Presentation size={14} aria-hidden="true" /><span>{t("Add slide")}</span>
         </button>
+        <div className="slides-wizard-toggle-card">
+          <label className="slides-wizard-toggle">
+            <input type="checkbox" checked={draft.options.generateImages === true}
+              onChange={(event) => setOptions({ generateImages: event.target.checked })} />
+            <span className="slides-wizard-toggle-text">
+              <span className="slides-wizard-toggle-title">{t("Generate images for slides")}</span>
+              {draft.options.generateImages === true && (
+                <span className="slides-wizard-toggle-hint">
+                  {t("Adds AI illustrations to key slides. Uses 1 image credit per illustrated slide (up to {count} image credits).", {
+                    count: outline.slides.length,
+                  })}
+                </span>
+              )}
+            </span>
+          </label>
+        </div>
       </fieldset>
     </div>
     <div className="slides-wizard-footer">
-      <p className="slides-wizard-note">{ready ? t("This counts as 1 chat message.") : t("Give the title slide and every slide a title.")}</p>
+      <p className="slides-wizard-note">
+        {!ready
+          ? t("Give the title slide and every slide a title.")
+          : draft.options.generateImages === true
+            ? t("This counts as 1 chat message, plus up to {count} image credits.", { count: outline.slides.length })
+            : t("This counts as 1 chat message.")}
+      </p>
       <button type="button" className="notion-button slides-wizard-reset" disabled={working} onClick={startOverSlides}>{t("Start over")}</button>
       <button type="button" className="notion-button" disabled={working}
         onClick={() => updateSlidesDraft((current) => ({ ...current, step: "source" }))}>{t("Back")}</button>

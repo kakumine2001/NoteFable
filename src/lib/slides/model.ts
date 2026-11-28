@@ -81,14 +81,31 @@ export type ShapeElement = ElementBase & { type: "shape"; shape: ShapeKind; fill
 export type LineElement = ElementBase & { type: "line"; stroke: ColorRef; strokeWidth: number; dash: Dash; start: LineCap; end: LineCap; flipH: boolean; flipV: boolean };
 // src は自分の note-files の URL（/api/pages/files?key=…）。空文字は「画像を置く場所」（版式の置き場所）。
 // generated は AI で作った画像（報告のためにプロンプトを残す。公開ページには出さない）。
-export type ImageElement = ElementBase & { type: "image"; src: string; alt: string; fit: "cover" | "contain"; radius: number; generated?: { prompt: string } };
+// pendingImagePrompt は AI スライド生成でまだ作っていない配図の説明（空の置き場所だけ。公開ページ・書き出しには出さない）。
+export type ImageElement = ElementBase & {
+  type: "image";
+  src: string;
+  alt: string;
+  fit: "cover" | "contain";
+  radius: number;
+  generated?: { prompt: string };
+  pendingImagePrompt?: string;
+};
 export type TableCell = { text: string };
 export type TableElement = ElementBase & {
   type: "table"; rows: { cells: TableCell[] }[]; cols: number[]; header: boolean;
   style: { size: number; color: ColorRef; border: ColorRef; headerFill: ColorRef; font: FontRole };
 };
 // ホワイトボードの枠の静止画（#152 のホワイトボードから取り込む）。src はその時点の画像（note-files）。
-export type WhiteboardElement = ElementBase & { type: "whiteboard"; src: string; pageId: string; frameId: string; frameName: string };
+// sourceVersion は取り込んだ時点のホワイトボードの版番号（白板の更新を検知して「可刷新」を出すため。公開ページには出さない）。
+export type WhiteboardElement = ElementBase & {
+  type: "whiteboard";
+  src: string;
+  pageId: string;
+  frameId: string;
+  frameName: string;
+  sourceVersion?: number;
+};
 export type SlideElement = TextElement | ShapeElement | LineElement | ImageElement | TableElement | WhiteboardElement;
 export type ElementType = SlideElement["type"];
 
@@ -187,6 +204,11 @@ export function normalizeElement(value: unknown, id: string): SlideElement | nul
         ...base, type: "image", src: safeImageSrc(value.src), alt: shortText(value.alt, 500), fit: pick(value.fit, ["cover", "contain"] as const, "cover"), radius: num(value.radius, 0, 0, 540),
       };
       if (object(value.generated) && typeof value.generated.prompt === "string") image.generated = { prompt: value.generated.prompt.slice(0, 4000) };
+      // すでに画像が入っている要素には pendingImagePrompt を残さない（再開時の二重課金を防ぐ）。
+      if (!image.src && typeof value.pendingImagePrompt === "string") {
+        const prompt = value.pendingImagePrompt.replace(/\u0000/g, "").replace(/\s+/g, " ").trim().slice(0, 1000);
+        if (prompt) image.pendingImagePrompt = prompt;
+      }
       return image;
     }
     case "table": {
@@ -207,10 +229,15 @@ export function normalizeElement(value: unknown, id: string): SlideElement | nul
         },
       };
     }
-    case "whiteboard":
-      return {
+    case "whiteboard": {
+      const whiteboard: WhiteboardElement = {
         ...base, type: "whiteboard", src: safeImageSrc(value.src), pageId: shortText(value.pageId, 64), frameId: shortText(value.frameId, 120), frameName: shortText(value.frameName, 200),
       };
+      if (typeof value.sourceVersion === "number" && Number.isSafeInteger(value.sourceVersion) && value.sourceVersion >= 0) {
+        whiteboard.sourceVersion = value.sourceVersion;
+      }
+      return whiteboard;
+    }
     default:
       return null;
   }

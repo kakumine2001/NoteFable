@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getOrCreateUser } from "@/lib/auth";
 import { noteApiError } from "@/lib/note-api";
 import { noteToMarkdownFile } from "@/lib/note-io";
+import { loadEmbeddedWhiteboardMeta } from "@/lib/note-whiteboards";
 import { NOTE_ONLY_ACTION_ERRORS, pageKindRejection } from "@/lib/page-kind-errors";
 import { pageKindFeatures, pageKindOf } from "@/lib/page-kinds";
 import { prisma } from "@/lib/prisma";
@@ -21,11 +22,12 @@ export async function GET(request: Request, context: RouteContext) {
       select: { kind: true, title: true, blocks: true },
     });
     if (!page) {
-      return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+      return NextResponse.json({ error: msg("Page not found.") }, { status: 404 });
     }
     const kind = pageKindOf(page);
     if (!pageKindFeatures(kind).markdownExport) return pageKindRejection(request, NOTE_ONLY_ACTION_ERRORS.export, kind);
-    return NextResponse.json(noteToMarkdownFile(page), {
+    const whiteboards = await loadEmbeddedWhiteboardMeta(user.id, page.blocks);
+    return NextResponse.json(noteToMarkdownFile(page, { whiteboards }), {
       headers: { "Cache-Control": "no-store" },
     });
   } catch (error) {

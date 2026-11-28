@@ -41,9 +41,16 @@ struct NoteEditorScreen: View {
         let kind = page?.kind ?? open.kind
         let editorWizard = state.slidesWizard?.editor == open.editor ? state.slidesWizard : nil
         let wizardShown = editorWizard?.shown == true
+        let editorAiGenerate = state.aiGenerate?.editor == open.editor ? state.aiGenerate : nil
+        let aiGenerateShown = editorAiGenerate?.shown == true
+        let editorPptxImport = state.pptxImport?.editor == open.editor ? state.pptxImport : nil
+        let pptxImportShown = editorPptxImport?.shown == true
+        let editorQuiz = state.reviewQuiz?.editor == open.editor ? state.reviewQuiz : nil
+        let quizShown = editorQuiz?.shown == true
+        let modalOverlayShown = wizardShown || aiGenerateShown || pptxImportShown || quizShown
         VStack(spacing: 0) {
-            if !state.presenting && !wizardShown { topBar(state, page: page) }
-            if !state.presenting && !wizardShown, let notice = state.notice ?? state.error {
+            if !state.presenting && !modalOverlayShown { topBar(state, page: page) }
+            if !state.presenting && !modalOverlayShown, let notice = state.notice ?? state.error {
                 // 离开时没能保存等提示：点一下收起。
                 Button {
                     notes.dismissNotice()
@@ -71,7 +78,7 @@ struct NoteEditorScreen: View {
                 open: open, pool: editorPool, app: app, router: router,
                 appIcon: app.appIcon.icon, language: app.language.uiLocale,
                 theme: (colorScheme == .dark ? ResolvedTheme.dark : ResolvedTheme.light).rawValue,
-                edgeBack: !kind.capturesEdgeSwipes || wizardShown
+                edgeBack: !kind.capturesEdgeSwipes || modalOverlayShown
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background {
@@ -83,6 +90,34 @@ struct NoteEditorScreen: View {
                         reasoning: app.chat.state.selectedReasoning,
                         onShown: { notes.onSlidesWizardShown($0) },
                         onFailed: { notes.dismissSlidesWizard($0) }
+                    )
+                }
+                if let editorAiGenerate {
+                    AiGenerateOverlayLauncher(
+                        aiGenerate: editorAiGenerate,
+                        pool: editorPool,
+                        model: app.chat.state.selectedModel?.id,
+                        reasoning: app.chat.state.selectedReasoning,
+                        onShown: { notes.onAiGenerateShown($0) },
+                        onFailed: { notes.dismissAiGenerate($0) }
+                    )
+                }
+                if let editorPptxImport {
+                    PptxImportOverlayLauncher(
+                        pptxImport: editorPptxImport,
+                        pool: editorPool,
+                        onShown: { notes.onPptxImportShown($0) },
+                        onFailed: { notes.dismissPptxImport($0) }
+                    )
+                }
+                if let editorQuiz {
+                    ReviewQuizOverlayLauncher(
+                        quiz: editorQuiz,
+                        pool: editorPool,
+                        model: app.chat.state.selectedModel?.id,
+                        reasoning: app.chat.state.selectedReasoning,
+                        onShown: { notes.onReviewQuizShown($0) },
+                        onFailed: { notes.dismissReviewQuiz($0) }
                     )
                 }
             }
@@ -237,13 +272,13 @@ struct NoteEditorScreen: View {
 
     private func titleBlock(kind: PageKind, saveState: String?) -> some View {
         let statusText = noteSaveStateText(saveState)
-        return VStack(alignment: .leading, spacing: 0) {
+        return VStack(alignment: .leading, spacing: 1) {
             HStack(spacing: 6) {
                 NFIconTile(emoji: open.icon, fallback: pageKindIcon(kind), box: 16, glyph: 13)
                 Text(open.title.isEmpty ? L("workspace") : open.title)
-                    .font(.nf(14))
-                    .nfLineHeight(20, fontSize: 14)
-                    .foregroundStyle(Sm.muted)
+                    .font(.nf(14.5, weight: 560))
+                    .nfLineHeight(20, fontSize: 14.5)
+                    .foregroundStyle(Sm.text)
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
@@ -268,8 +303,10 @@ struct NoteEditorScreen: View {
                 .padding(.horizontal, 6)
                 .frame(height: 18)
                 .background(pillBg, in: Capsule())
+                .transition(.opacity)
             }
         }
+        .animation(.easeInOut(duration: 0.16), value: statusText)
     }
 
     /// “…”菜单各项的动作（Android NoteFableRoot.kt 里传给 NoteEditorScreen 的 NotePageMenuActions）。
@@ -302,8 +339,56 @@ struct NoteEditorScreen: View {
             onDrawDiagram: { _ = router.drawDiagramFromNote(id) },
             drawingDiagram: app.diagrams.job(.note(pageId: id)) == .working,
             // 「生成幻灯片」：盖在当前编辑器上打开向导，读这篇之前由网页自己保存。
-            onGenerateSlides: { router.openSlidesWizard(.note(pageId: id)) }
+            onGenerateSlides: { router.openSlidesWizard(.note(pageId: id)) },
+            generatingSlides: notes.state.generatingSlides.contains(id),
+            // 「导入 PowerPoint」：盖在当前编辑器上打开导入窗口，默认放到当前幻灯片所在项目。
+            onImportPptx: {
+                let groupId = notes.state.pages.first(where: { $0.id == id })?.groupId
+                router.openPptxImport(PptxImportTarget(groupId: groupId))
+            },
+            // 「复习和测验」：盖在当前编辑器上打开测验，读这篇之前由网页自己保存。
+            onReviewQuiz: { notes.openReviewQuiz(id, editor: open.editor) }
         )
+    }
+}
+
+/// 网页 msg("Could not generate a quiz. Try again.")：英文原句，经系统文词典翻译。
+private let reviewQuizFailedText = "Could not generate a quiz. Try again."
+
+/// 让常驻 WKWebView 里的网页打开复习和测验窗口（对应 Android NoteEditor.kt 的 LaunchReviewQuiz）。
+@MainActor
+private struct ReviewQuizOverlayLauncher: View {
+    let quiz: ReviewQuizUi
+    let pool: NoteEditorPool
+    let model: String?
+    let reasoning: String?
+    let onShown: (Int) -> Void
+    let onFailed: (Int) -> Void
+
+    @Environment(AppEnvironment.self) private var app
+
+    var body: some View {
+        let taskKey = "\(quiz.request)-\(pool.generation)"
+        Color.clear
+            .frame(width: 0, height: 0)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .task(id: taskKey) {
+                if quiz.shown && pool.controller?.quizVisible == true { return }
+                guard let script = NoteEmbedScripts.quizOpen(pageId: quiz.pageId, model: model, reasoning: reasoning) else {
+                    Toast.show(app.systemText.localize(reviewQuizFailedText), long: true)
+                    onFailed(quiz.request)
+                    return
+                }
+                let opened = await pool.openQuiz(script: script)
+                if Task.isCancelled { return }
+                if opened {
+                    onShown(quiz.request)
+                } else {
+                    Toast.show(app.systemText.localize(reviewQuizFailedText), long: true)
+                    onFailed(quiz.request)
+                }
+            }
     }
 }
 

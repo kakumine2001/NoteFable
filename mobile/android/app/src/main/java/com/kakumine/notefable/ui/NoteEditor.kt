@@ -25,8 +25,10 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.view.ViewGroup
+import android.widget.Toast
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
+import android.webkit.MimeTypeMap
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -85,7 +87,9 @@ import com.kakumine.notefable.data.ExportFile
 import com.kakumine.notefable.data.ExportFileAssembler
 import com.kakumine.notefable.data.NoteFileLinks
 import com.kakumine.notefable.data.NotePageSummary
+import com.kakumine.notefable.data.AiGenerateTarget
 import com.kakumine.notefable.data.PageKind
+import com.kakumine.notefable.data.PptxImportTarget
 import com.kakumine.notefable.data.SlidesWizardSource
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -206,6 +210,21 @@ class NoteEmbedBridge(
     @JavascriptInterface
     fun canShowSlidesWizard(): Boolean = true
 
+    /**
+     * 网页据此发 `pptxImport` 的 open / closed（PowerPoint 导入窗口，#154），幻灯片编辑器工具栏里的「导入 PowerPoint」也只对这样的 App 显示；
+     * 旧版 App 没有这个方法。
+     */
+    @JavascriptInterface
+    fun canShowPptxImport(): Boolean = true
+
+    /** 网页据此发 `quiz` 的 open / closed（复习和测验，#154 PR 13）。旧版 App 没有这个方法。 */
+    @JavascriptInterface
+    fun canShowQuiz(): Boolean = true
+
+    /** 网页据此发 `aiGenerate` 的 open / closed（统一 AI 生成面板：笔记 / 白板 / 幻灯片）。旧版 App 没有这个方法。 */
+    @JavascriptInterface
+    fun canShowAiGenerate(): Boolean = true
+
     /** 幻灯片的操作（"…"菜单的放映 / 导出、放映中的返回键）：交给网页（`window.notefableEmbed.slides`）。 */
     fun slides(command: String, onResult: ((Boolean) -> Unit)? = null) {
         val view = webView ?: return run { onResult?.invoke(false) }
@@ -218,6 +237,24 @@ class NoteEmbedBridge(
     fun slidesWizardBack(onResult: (Boolean) -> Unit) {
         val view = webView ?: return onResult(false)
         view.evaluateJavascript(SLIDES_WIZARD_BACK_SCRIPT) { result -> onResult(result == "true") }
+    }
+
+    /** PPTX 导入窗口开着时的「返回」：关闭窗口（导入中时取消并清理）。没有可关的回 false。 */
+    fun pptxImportBack(onResult: (Boolean) -> Unit) {
+        val view = webView ?: return onResult(false)
+        view.evaluateJavascript(PPTX_IMPORT_BACK_SCRIPT) { result -> onResult(result == "true") }
+    }
+
+    /** 复习和测验开着时的「返回」：先关举报弹窗，再关测验窗口；没有可关的回 false。 */
+    fun quizBack(onResult: (Boolean) -> Unit) {
+        val view = webView ?: return onResult(false)
+        view.evaluateJavascript(QUIZ_BACK_SCRIPT) { result -> onResult(result == "true") }
+    }
+
+    /** 统一 AI 生成面板开着时的「返回」：关闭最上面一层（选笔记、大纲或面板）；没有可关的回 false。 */
+    fun aiGenerateBack(onResult: (Boolean) -> Unit) {
+        val view = webView ?: return onResult(false)
+        view.evaluateJavascript(AI_GENERATE_BACK_SCRIPT) { result -> onResult(result == "true") }
     }
 
     /** Swap the dictionary without reloading the note, its draft or AI stream. */
@@ -284,9 +321,9 @@ class NoteEmbedBridge(
                     return@post
                 }
             }
-            if (message is EmbedMessage.PagesChanged || message is EmbedMessage.SlidesWizard) {
-                // 笔记 AI 面板的后台画成图、生成幻灯片可能在用户离开编辑页（常驻 WebView 停靠中）后完成；离开页面时网页收起向导的
-                // closed（带 busy）也在停靠中才到。只要 WebView 还在就转发，不要求 activeEditor。
+            if (message is EmbedMessage.PagesChanged || message is EmbedMessage.SlidesWizard || message is EmbedMessage.PptxImport || message is EmbedMessage.SlidesJobs || message is EmbedMessage.AiGenerate) {
+                // 笔记 AI 面板的后台画成图、生成幻灯片可能在用户离开编辑页（常驻 WebView 停靠中）后完成；离开页面时网页收起向导或导入窗口的
+                // closed 也在停靠中才到。只要 WebView 还在就转发，不要求 activeEditor。
                 if (webView != null) onMessage(message)
                 return@post
             }
@@ -470,6 +507,73 @@ class NoteEmbedBridge(
         const val SLIDES_WIZARD_BACK_SCRIPT =
             "(function(){var e=window.notefableEmbed;if(e&&typeof e.slidesWizard==='function')return e.slidesWizard({\"action\":\"back\"})===true;return false})()"
 
+        /**
+         * 打开 PowerPoint（.pptx）导入窗口的脚本（`window.notefableEmbed.pptxImport`）。结果同 [slidesWizardOpenScript]：
+         * 'open' / 'loading' / 'unsupported' / 'rejected'。[target] 里有网页不认的 id 时返回 null。
+         */
+        fun pptxImportOpenScript(target: PptxImportTarget = PptxImportTarget()): String? {
+            val request = linkedMapOf<String, kotlinx.serialization.json.JsonElement>("action" to JsonPrimitive("open"))
+            target.groupId?.let { id ->
+                if (!REVEAL_TARGET.matches(id)) return null
+                request["groupId"] = JsonPrimitive(id)
+            }
+            target.parentId?.let { id ->
+                if (!REVEAL_TARGET.matches(id)) return null
+                request["parentId"] = JsonPrimitive(id)
+            }
+            return "(function(){var e=window.notefableEmbed;if(!e)return 'loading';if(typeof e.pptxImport!=='function')return 'unsupported';" +
+                "return e.pptxImport(${JsonObject(request)})===true?'open':'rejected'})()"
+        }
+
+        const val PPTX_IMPORT_BACK_SCRIPT =
+            "(function(){var e=window.notefableEmbed;if(e&&typeof e.pptxImport==='function')return e.pptxImport({\"action\":\"back\"})===true;return false})()"
+
+        /** 打开复习和测验窗口的脚本（`window.notefableEmbed.quiz`）。id 不合法时返回 null。 */
+        fun quizOpenScript(pageId: String, model: String? = null, reasoning: String? = null): String? {
+            if (!REVEAL_TARGET.matches(pageId)) return null
+            val request = linkedMapOf<String, kotlinx.serialization.json.JsonElement>(
+                "action" to JsonPrimitive("open"),
+                "pageId" to JsonPrimitive(pageId),
+            )
+            model?.trim()?.takeIf { it.isNotEmpty() }?.let { request["model"] = JsonPrimitive(it) }
+            reasoning?.trim()?.takeIf { it.isNotEmpty() }?.let { request["reasoning"] = JsonPrimitive(it) }
+            return "(function(){var e=window.notefableEmbed;if(!e)return 'loading';if(typeof e.quiz!=='function')return 'unsupported';" +
+                "return e.quiz(${JsonObject(request)})===true?'open':'rejected'})()"
+        }
+
+        /** [quizOpenScript] 的结果：true 打开了，false 打不开，null 还要再问。 */
+        fun quizAnswer(result: String?): Boolean? = slidesWizardAnswer(result)
+
+        const val QUIZ_BACK_SCRIPT =
+            "(function(){var e=window.notefableEmbed;if(e&&typeof e.quiz==='function')return e.quiz({\"action\":\"back\"})===true;return false})()"
+
+        /** 打开统一「用 AI 生成」面板的脚本（`window.notefableEmbed.aiGenerate`）。id 不合法时返回 null。 */
+        fun aiGenerateOpenScript(
+            target: AiGenerateTarget = AiGenerateTarget(),
+            model: String? = null,
+            reasoning: String? = null,
+        ): String? {
+            val request = linkedMapOf<String, kotlinx.serialization.json.JsonElement>("action" to JsonPrimitive("open"))
+            target.kind?.let { request["kind"] = JsonPrimitive(it.wire) }
+            target.groupId?.let { id ->
+                if (!REVEAL_TARGET.matches(id)) return null
+                request["groupId"] = JsonPrimitive(id)
+            }
+            target.parentId?.let { id ->
+                if (!REVEAL_TARGET.matches(id)) return null
+                request["parentId"] = JsonPrimitive(id)
+            }
+            target.prompt?.trim()?.takeIf { it.isNotEmpty() }?.let { request["prompt"] = JsonPrimitive(it.take(2000)) }
+            if (target.autoStart) request["autoStart"] = JsonPrimitive(true)
+            model?.trim()?.takeIf { it.isNotEmpty() }?.let { request["model"] = JsonPrimitive(it) }
+            reasoning?.trim()?.takeIf { it.isNotEmpty() }?.let { request["reasoning"] = JsonPrimitive(it) }
+            return "(function(){var e=window.notefableEmbed;if(!e)return 'loading';if(typeof e.aiGenerate!=='function')return 'unsupported';" +
+                "return e.aiGenerate(${JsonObject(request)})===true?'open':'rejected'})()"
+        }
+
+        const val AI_GENERATE_BACK_SCRIPT =
+            "(function(){var e=window.notefableEmbed;if(e&&typeof e.aiGenerate==='function')return e.aiGenerate({\"action\":\"back\"})===true;return false})()"
+
         /** 旧版网页没有这个函数时什么都不做。 */
         const val REFRESH_BACKLINKS_SCRIPT =
             "(function(){var e=window.notefableEmbed;if(e&&typeof e.refreshBacklinks==='function')e.refreshBacklinks()})()"
@@ -506,20 +610,33 @@ class NoteEmbedBridge(
 /** 全屏的向导画面（[SlidesWizardScreen]）挂着常驻 WebView 时的 [NoteEmbedBridge.activeEditor]：不是任何页面的 id。 */
 internal const val SLIDES_WIZARD_EDITOR = "#slides-wizard"
 
+/** 全屏的 PowerPoint 导入画面（[PptxImportScreen]）挂着常驻 WebView 时的 [NoteEmbedBridge.activeEditor]。 */
+internal const val PPTX_IMPORT_EDITOR = "#pptx-import"
+
+/** 全屏的统一「用 AI 生成」画面（[AiGenerateScreen]）挂着常驻 WebView 时的 [NoteEmbedBridge.activeEditor]。 */
+internal const val AI_GENERATE_EDITOR = "#ai-generate"
+
 /** 常驻 WebView 发来的消息交给谁。 */
-internal enum class EmbedRoute { PagesChanged, Wizard, Editor, Drop }
+internal enum class EmbedRoute { PagesChanged, Wizard, PptxImport, AiGenerate, SlidesJobs, Editor, Drop }
 
 /**
- * [activeEditor] 是 [NoteEmbedBridge.activeEditor]。向导的出现 / 消失和 pagesChanged 在编辑器停靠时也要收（生成中关了向导、离开了页面）；
- * 全屏向导画面只收「打开幻灯片」和使用上限，别的是上一个页面晚到的消息。盖在编辑器上的向导的这两种消息和编辑器的一样处理。
+ * [activeEditor] 是 [NoteEmbedBridge.activeEditor]。向导 / 导入 / AI 生成的出现 / 消失和 pagesChanged 在编辑器停靠时也要收；
+ * 全屏向导 / 导入 / AI 生成画面只收「打开页面」和上限提示，别的是上一个页面晚到的消息。盖在编辑器上时和编辑器的一样处理。
  */
 internal fun embedRoute(message: EmbedMessage, activeEditor: String?): EmbedRoute = when {
     message is EmbedMessage.PagesChanged -> EmbedRoute.PagesChanged
     message is EmbedMessage.SlidesWizard -> EmbedRoute.Wizard
+    message is EmbedMessage.PptxImport -> EmbedRoute.PptxImport
+    message is EmbedMessage.AiGenerate -> EmbedRoute.AiGenerate
+    message is EmbedMessage.SlidesJobs -> EmbedRoute.SlidesJobs
     activeEditor == null -> EmbedRoute.Drop
-    activeEditor != SLIDES_WIZARD_EDITOR -> EmbedRoute.Editor
-    message is EmbedMessage.OpenPage || message is EmbedMessage.UsageLimit -> EmbedRoute.Wizard
-    else -> EmbedRoute.Drop
+    activeEditor == SLIDES_WIZARD_EDITOR ->
+        if (message is EmbedMessage.OpenPage || message is EmbedMessage.UsageLimit || message is EmbedMessage.StorageLimit) EmbedRoute.Wizard else EmbedRoute.Drop
+    activeEditor == AI_GENERATE_EDITOR ->
+        if (message is EmbedMessage.OpenPage || message is EmbedMessage.UsageLimit || message is EmbedMessage.StorageLimit) EmbedRoute.AiGenerate else EmbedRoute.Drop
+    activeEditor == PPTX_IMPORT_EDITOR ->
+        if (message is EmbedMessage.OpenPage || message is EmbedMessage.StorageLimit) EmbedRoute.PptxImport else EmbedRoute.Drop
+    else -> EmbedRoute.Editor
 }
 
 private suspend fun WebView.evaluate(script: String): String? = suspendCancellableCoroutine { cont ->
@@ -577,12 +694,41 @@ class NoteEmbedHost(
      */
     var onSlidesWizard: (editor: String?, EmbedMessage) -> Unit = { _, _ -> }
 
+    /** PowerPoint 导入窗口的消息：`pptxImport`（出现 / 消失），以及全屏导入画面的 `openPage` 和 `storageLimit`。 */
+    var onPptxImport: (editor: String?, EmbedMessage) -> Unit = { _, _ -> }
+
+    /** 统一「用 AI 生成」面板的消息：`aiGenerate`（出现 / 消失），以及全屏画面的 `openPage`、`usageLimit` 和 `storageLimit`。 */
+    var onAiGenerate: (editor: String?, EmbedMessage) -> Unit = { _, _ -> }
+
     /** 网页现在显示着向导（按它的 slidesWizard 消息和打开的结果）；WebView 换掉后是 false。 */
     var slidesWizardVisible = false
         private set
 
+    /** 网页现在显示着统一「用 AI 生成」面板；WebView 换掉后是 false。 */
+    var aiGenerateVisible = false
+        private set
+
+    /** 网页现在显示着 PPTX 导入窗口；WebView 换掉后是 false。 */
+    var pptxImportVisible = false
+        private set
+
+    /** 网页现在显示着复习和测验窗口；WebView 换掉后是 false。 */
+    var quizVisible = false
+        private set
+
     /** 向导关掉时还有生成没完成。 */
     var slidesWizardBusy = false
+        private set
+
+    /** 统一「用 AI 生成」关掉时还有生成没完成。 */
+    var aiGenerateBusy = false
+        private set
+
+    /** 任意 AI 生成任务仍在后台进行中（延迟释放常驻 WebView）。 */
+    val anyAiBusy: Boolean get() = slidesWizardBusy || aiGenerateBusy
+
+    /** 网页正在做幻灯片的笔记（slidesJobs 消息）：笔记"…"的「生成幻灯片」显示生成中。WebView 换掉后清空。 */
+    var generatingSlides by mutableStateOf(emptySet<String>())
         private set
 
     /** 幻灯片放映中（网页发 presentation start / end）：横屏、全屏、屏幕常亮，原生顶栏收起。 */
@@ -622,6 +768,18 @@ class NoteEmbedHost(
                 if (webView != null) receiveWizard(message)
                 return@NoteEmbedBridge
             }
+            EmbedRoute.PptxImport -> {
+                if (webView != null) receivePptxImport(message)
+                return@NoteEmbedBridge
+            }
+            EmbedRoute.AiGenerate -> {
+                if (webView != null) receiveAiGenerate(message)
+                return@NoteEmbedBridge
+            }
+            EmbedRoute.SlidesJobs -> {
+                if (webView != null) generatingSlides = (message as EmbedMessage.SlidesJobs).pageIds
+                return@NoteEmbedBridge
+            }
             EmbedRoute.Drop -> return@NoteEmbedBridge
             EmbedRoute.Editor -> Unit
         }
@@ -659,8 +817,15 @@ class NoteEmbedHost(
             bridge.acceptingFiles = true
         }
         if (message is EmbedMessage.Presentation) presenting = message.state != "end"
-        // 网页（重新）载入后不在放映：渲染进程崩溃后重载时收不到 end，这里清掉（否则一直横屏、没有顶栏，返回键也离不开）。
-        if (message is EmbedMessage.Ready) presenting = false
+        if (message is EmbedMessage.Quiz) {
+            if (message.open) hasEverResponded = true
+            quizVisible = message.open
+        }
+        // 网页（重新）载入后不在放映也不在测验：渲染进程崩溃后重载时收不到 end / closed，这里清掉。
+        if (message is EmbedMessage.Ready) {
+            presenting = false
+            quizVisible = false
+        }
         onMessage(editor, message)
     }
 
@@ -676,7 +841,29 @@ class NoteEmbedHost(
                 if (isParked && loadedForIdentity) scheduleIdle()
             }
         }
-        onSlidesWizard(bridge.activeEditor?.takeIf { it != SLIDES_WIZARD_EDITOR }, message)
+        onSlidesWizard(bridge.activeEditor?.takeIf { it != SLIDES_WIZARD_EDITOR && it != PPTX_IMPORT_EDITOR && it != AI_GENERATE_EDITOR }, message)
+    }
+
+    private fun receivePptxImport(message: EmbedMessage) {
+        if (message is EmbedMessage.PptxImport) {
+            hasEverResponded = true
+            pptxImportVisible = message.open
+        }
+        onPptxImport(bridge.activeEditor?.takeIf { it != PPTX_IMPORT_EDITOR && it != SLIDES_WIZARD_EDITOR && it != AI_GENERATE_EDITOR }, message)
+    }
+
+    private fun receiveAiGenerate(message: EmbedMessage) {
+        if (message is EmbedMessage.AiGenerate) {
+            hasEverResponded = true
+            aiGenerateVisible = message.open
+            if (message.open) {
+                aiGenerateBusy = false
+            } else {
+                aiGenerateBusy = message.busy
+                if (isParked && loadedForIdentity) scheduleIdle()
+            }
+        }
+        onAiGenerate(bridge.activeEditor?.takeIf { it != AI_GENERATE_EDITOR && it != SLIDES_WIZARD_EDITOR && it != PPTX_IMPORT_EDITOR }, message)
     }
 
     /** 这次加载的网页是否真的回应过（ready / slidesWizard / openSlidesWizard 成功）：离线或加载失败停在错误页时为 false。 */
@@ -752,8 +939,8 @@ class NoteEmbedHost(
                     destroy()
                     if (wasEditor != null) {
                         crashedEditor = wasEditor
-                        if (wasEditor != SLIDES_WIZARD_EDITOR) onMessage(wasEditor, EmbedMessage.Drawing(false))
-                        // 编辑页和全屏向导画面都按它重新挂上、重新加载（向导重新打开，草稿在网页里）。
+                        if (wasEditor != SLIDES_WIZARD_EDITOR && wasEditor != PPTX_IMPORT_EDITOR && wasEditor != AI_GENERATE_EDITOR) onMessage(wasEditor, EmbedMessage.Drawing(false))
+                        // 编辑页和全屏向导 / 导入画面都按它重新挂上、重新加载。
                         generation++
                     }
                     return true
@@ -812,6 +999,7 @@ class NoteEmbedHost(
         crashedEditor = null
         val useReveal = if (crashed) null else open.reveal
         presenting = false
+        quizVisible = false
         bridge.discardExports()
         currentPageId = open.id
         awaitingPageId = open.id
@@ -931,6 +1119,24 @@ class NoteEmbedHost(
         return opened
     }
 
+    /** 用 [script]（[NoteEmbedBridge.quizOpenScript]）在开着的编辑器上打开复习和测验窗口。 */
+    suspend fun openQuiz(script: String): Boolean {
+        val opened = withTimeoutOrNull(WIZARD_OPEN_TIMEOUT_MS) {
+            var answer: Boolean? = null
+            while (answer == null) {
+                val result = webView?.let { view -> withTimeoutOrNull(WIZARD_ASK_TIMEOUT_MS) { view.evaluate(script) } }
+                answer = NoteEmbedBridge.quizAnswer(result)
+                if (answer == null) delay(WIZARD_POLL_MS)
+            }
+            answer
+        } ?: false
+        if (opened) {
+            hasEverResponded = true
+            quizVisible = true
+        }
+        return opened
+    }
+
     /** 全屏向导画面离开（[mount] 是它挂上时的 [mountCount]）。之后编辑页又挂上过的话，WebView 归编辑页，什么都不做。 */
     fun parkWizard(mount: Int) {
         if (mount == mountCount) park()
@@ -946,6 +1152,158 @@ class NoteEmbedHost(
         if (bridge.activeEditor == SLIDES_WIZARD_EDITOR && !hasEverResponded) destroy()
     }
 
+    /**
+     * 全屏 PowerPoint 导入画面挂上常驻 WebView 之后：没加载过时带上 Cookie 加载空白编辑器（[embedUrl]），
+     * 加载过的直接用。打开导入窗口另由 [openPptxImport] 做。
+     */
+    fun showPptxImport(
+        context: Context,
+        theme: String,
+        lang: String,
+        webBackground: Int,
+        appIcon: String?,
+        embedUrl: String,
+        baseUrl: String,
+        cookieJar: CookieJar,
+    ) {
+        idleJob?.cancel()
+        idleJob = null
+        loadJob?.cancel()
+        loadJob = null
+        if (webView == null && mounted) {
+            generation++
+            return
+        }
+        val epoch = ++showEpoch
+        crashedEditor = null
+        presenting = false
+        bridge.discardExports()
+        currentPageId = null
+        awaitingPageId = null
+        bridge.activeEditor = PPTX_IMPORT_EDITOR
+        bridge.currentTheme = theme
+        val view = ensureWebView(context, baseUrl, webBackground)
+        view.setBackgroundColor(webBackground)
+        if (loadedForIdentity) {
+            bridge.pushTheme(theme)
+            bridge.pushLanguage(lang)
+            bridge.pushAppIcon(appIcon)
+            return
+        }
+        loadJob = hostScope.launch {
+            syncCookies(baseUrl, cookieJar)
+            if (epoch != showEpoch || bridge.activeEditor != PPTX_IMPORT_EDITOR) return@launch
+            val target = webView ?: return@launch
+            loadedForIdentity = true
+            target.loadUrl(embedUrl)
+        }
+    }
+
+    /** 用 [script]（[NoteEmbedBridge.pptxImportOpenScript]）打开 PowerPoint 导入窗口。 */
+    suspend fun openPptxImport(script: String): Boolean {
+        val opened = withTimeoutOrNull(WIZARD_OPEN_TIMEOUT_MS) {
+            var answer: Boolean? = null
+            while (answer == null) {
+                val result = webView?.let { view -> withTimeoutOrNull(WIZARD_ASK_TIMEOUT_MS) { view.evaluate(script) } }
+                answer = NoteEmbedBridge.slidesWizardAnswer(result)
+                if (answer == null) delay(WIZARD_POLL_MS)
+            }
+            answer
+        } ?: false
+        if (opened) {
+            hasEverResponded = true
+            pptxImportVisible = true
+        }
+        return opened
+    }
+
+    /** 全屏导入画面离开：之后编辑页又挂上过的话，WebView 归编辑页，什么都不做。 */
+    fun parkPptxImport(mount: Int) {
+        if (mount == mountCount) park()
+    }
+
+    /** 全屏导入画面打不开（页面没加载成、旧服务端）：丢掉这个 WebView，下次重新加载。 */
+    fun discardPptxImport() {
+        if (bridge.activeEditor == PPTX_IMPORT_EDITOR) destroy()
+    }
+
+    /** 网页还没出现导入窗口就被用户关闭：从未成功响应过时直接丢掉避免停靠坏页面。 */
+    fun discardPptxImportIfUnready() {
+        if (bridge.activeEditor == PPTX_IMPORT_EDITOR && !hasEverResponded) destroy()
+    }
+
+    fun showAiGenerate(
+        context: Context,
+        theme: String,
+        lang: String,
+        webBackground: Int,
+        appIcon: String?,
+        embedUrl: String,
+        baseUrl: String,
+        cookieJar: CookieJar,
+    ) {
+        idleJob?.cancel()
+        idleJob = null
+        loadJob?.cancel()
+        loadJob = null
+        if (webView == null && mounted) {
+            generation++
+            return
+        }
+        val epoch = ++showEpoch
+        crashedEditor = null
+        presenting = false
+        bridge.discardExports()
+        currentPageId = null
+        awaitingPageId = null
+        bridge.activeEditor = AI_GENERATE_EDITOR
+        bridge.currentTheme = theme
+        val view = ensureWebView(context, baseUrl, webBackground)
+        view.setBackgroundColor(webBackground)
+        if (loadedForIdentity) {
+            bridge.pushTheme(theme)
+            bridge.pushLanguage(lang)
+            bridge.pushAppIcon(appIcon)
+            return
+        }
+        loadJob = hostScope.launch {
+            syncCookies(baseUrl, cookieJar)
+            if (epoch != showEpoch || bridge.activeEditor != AI_GENERATE_EDITOR) return@launch
+            val target = webView ?: return@launch
+            loadedForIdentity = true
+            target.loadUrl(embedUrl)
+        }
+    }
+
+    suspend fun openAiGenerate(script: String): Boolean {
+        val opened = withTimeoutOrNull(WIZARD_OPEN_TIMEOUT_MS) {
+            var answer: Boolean? = null
+            while (answer == null) {
+                val result = webView?.let { view -> withTimeoutOrNull(WIZARD_ASK_TIMEOUT_MS) { view.evaluate(script) } }
+                answer = NoteEmbedBridge.slidesWizardAnswer(result)
+                if (answer == null) delay(WIZARD_POLL_MS)
+            }
+            answer
+        } ?: false
+        if (opened) {
+            hasEverResponded = true
+            aiGenerateVisible = true
+        }
+        return opened
+    }
+
+    fun parkAiGenerate(mount: Int) {
+        if (mount == mountCount) park()
+    }
+
+    fun discardAiGenerate() {
+        if (bridge.activeEditor == AI_GENERATE_EDITOR) destroy()
+    }
+
+    fun discardAiGenerateIfUnready() {
+        if (bridge.activeEditor == AI_GENERATE_EDITOR && !hasEverResponded) destroy()
+    }
+
     /** 离开编辑页但保留热缓存：卸载网页编辑器 DOM，开始 120 秒（向导还在生成时 360 秒）空闲倒计时，到期未重开则销毁。 */
     fun park() {
         loadJob?.cancel()
@@ -956,6 +1314,7 @@ class NoteEmbedHost(
         mounted = false
         crashedEditor = null
         presenting = false
+        quizVisible = false
         currentPageId = null
         awaitingPageId = null
         bridge.activeEditor = null
@@ -972,10 +1331,16 @@ class NoteEmbedHost(
 
     private fun scheduleIdle() {
         idleJob?.cancel()
-        val timeout = if (slidesWizardBusy) BUSY_IDLE_TIMEOUT_MS else IDLE_TIMEOUT_MS
+        val timeout = if (anyAiBusy) BUSY_IDLE_TIMEOUT_MS else IDLE_TIMEOUT_MS
         idleJob = hostScope.launch {
             delay(timeout)
-            if (isParked) destroy()
+            if (!isParked) return@launch
+            // 逐页配图等长时间后台任务仍在进行时续期，避免中途销毁 WebView 导致已扣费的图片丢失。
+            if (anyAiBusy) {
+                scheduleIdle()
+            } else {
+                destroy()
+            }
         }
     }
 
@@ -995,6 +1360,11 @@ class NoteEmbedHost(
         excludeEdges = false
         slidesWizardVisible = false
         slidesWizardBusy = false
+        aiGenerateVisible = false
+        aiGenerateBusy = false
+        pptxImportVisible = false
+        quizVisible = false
+        generatingSlides = emptySet()
         bridge.activeEditor = null
         val view = webView
         webView = null
@@ -1082,6 +1452,18 @@ fun NoteEditorScreen(
     slidesWizard: SlidesWizardUi? = null,
     onSlidesWizardShown: (Int) -> Unit = {},
     onSlidesWizardDismiss: (Int) -> Unit = {},
+    /** 统一「用 AI 生成」（笔记 / 白板 / 幻灯片）盖在这个编辑器上（null 是没有）。网页里出来之后原生顶栏收起，返回键交给它。 */
+    aiGenerate: AiGenerateUi? = null,
+    onAiGenerateShown: (Int) -> Unit = {},
+    onAiGenerateDismiss: (Int) -> Unit = {},
+    /** PowerPoint（.pptx）导入窗口盖在这个编辑器上（null 是没有）。网页里出来之后原生顶栏收起，返回键交给它。 */
+    pptxImport: PptxImportUi? = null,
+    onPptxImportShown: (Int) -> Unit = {},
+    onPptxImportDismiss: (Int) -> Unit = {},
+    /** 复习和测验窗口盖在这个编辑器上（null 是没有）。网页里出来之后原生顶栏收起，返回键交给它。 */
+    reviewQuiz: ReviewQuizUi? = null,
+    onReviewQuizShown: (Int) -> Unit = {},
+    onReviewQuizDismiss: (Int) -> Unit = {},
 ) {
     val context = LocalContext.current
     val bridge = host.bridge
@@ -1113,43 +1495,32 @@ fun NoteEditorScreen(
         bridge.pushTheme(theme)
     }
 
-    val fileCallback = remember { arrayOfNulls<ValueCallback<Array<Uri>>>(1) }
-    val chooser = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        fileCallback[0]?.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(result.resultCode, result.data))
-        fileCallback[0] = null
-    }
-    host.onShowFileChooser = { callback, params ->
-        fileCallback[0]?.onReceiveValue(null)
-        fileCallback[0] = callback
-        try {
-            chooser.launch(params.createIntent())
-            true
-        } catch (_: ActivityNotFoundException) {
-            fileCallback[0] = null
-            false
-        }
-    }
-    DisposableEffect(open.editor) {
-        onDispose {
-            fileCallback[0]?.onReceiveValue(null)
-            fileCallback[0] = null
-        }
-    }
+    RememberWebFileChooser(host, resetKey = open.editor)
 
     DisposableEffect(host) {
         registerFlush(bridge)
         onDispose {
-            host.onShowFileChooser = null
             registerFlush(null)
-            fileCallback[0]?.onReceiveValue(null)
-            fileCallback[0] = null
             host.park()
         }
     }
 
     val wizardShown = slidesWizard?.shown == true
+    val aiGenerateShown = aiGenerate?.shown == true
+    val pptxImportShown = pptxImport?.shown == true
+    val quizShown = reviewQuiz?.shown == true
+    val modalOverlayShown = wizardShown || aiGenerateShown || pptxImportShown || quizShown
     if (slidesWizard != null) {
         LaunchSlidesWizard(host, slidesWizard, model, reasoning, onSlidesWizardShown, onSlidesWizardDismiss)
+    }
+    if (aiGenerate != null) {
+        LaunchAiGenerate(host, aiGenerate, model, reasoning, onAiGenerateShown, onAiGenerateDismiss)
+    }
+    if (pptxImport != null) {
+        LaunchPptxImport(host, pptxImport, onPptxImportShown, onPptxImportDismiss)
+    }
+    if (reviewQuiz != null) {
+        LaunchReviewQuiz(host, reviewQuiz, model, reasoning, onReviewQuizShown, onReviewQuizDismiss)
     }
 
     // 网页里打开的面板（版本历史、图标选择器）会往历史里推一条记录，返回键先交给网页关面板；没有了才离开笔记。
@@ -1163,6 +1534,12 @@ fun NoteEditorScreen(
             presenting -> bridge.slides("""{"action":"end"}""") { handled -> if (!handled) host.endPresentationLocally() }
             // 向导开着：关它最上面一层（草稿保留），不离开笔记、也不走 WebView 的后退。网页没有可关的就当它已经关了。
             slidesWizard != null && slidesWizard.shown -> bridge.slidesWizardBack { handled -> if (!handled) onSlidesWizardDismiss(slidesWizard.request) }
+            // 统一「用 AI 生成」开着：关它最上面一层（草稿保留），不离开笔记。
+            aiGenerate != null && aiGenerate.shown -> bridge.aiGenerateBack { handled -> if (!handled) onAiGenerateDismiss(aiGenerate.request) }
+            // PPTX 导入窗口开着：关掉窗口（导入中时中止并清理），不离开笔记。
+            pptxImport != null && pptxImport.shown -> bridge.pptxImportBack { handled -> if (!handled) onPptxImportDismiss(pptxImport.request) }
+            // 复习和测验开着：先关举报弹窗再关测验窗口，不离开笔记。
+            reviewQuiz != null && reviewQuiz.shown -> bridge.quizBack { handled -> if (!handled) onReviewQuizDismiss(reviewQuiz.request) }
             view == null -> onBack()
             view.canGoBack() -> view.goBack()
             else -> view.evaluateJavascript(CLOSE_TOP_DIALOG) { closed -> if (closed != "true") onBack() }
@@ -1175,12 +1552,12 @@ fun NoteEditorScreen(
     // 用手掌平移时、不是白板时都照常能返回。WebView 尺寸变了（键盘、旋转）就重算，关掉编辑器时清掉。
     val excludeEdges = drawing && kind == PageKind.Whiteboard
     host.excludeEdges = excludeEdges
-    // 向导开着时没有原生顶栏：状态栏的留白改由外层让出。
+    // 向导、PPTX 导入或测验开着时没有原生顶栏：状态栏的留白改由外层让出。
     Column(
         Modifier.fillMaxSize().background(if (presenting) Color.Black else Sm.Background)
-            .then(if (wizardShown && !presenting) Modifier.statusBarsPadding() else Modifier),
+            .then(if (modalOverlayShown && !presenting) Modifier.statusBarsPadding() else Modifier),
     ) {
-        if (!presenting && !wizardShown) Row(
+        if (!presenting && !modalOverlayShown) Row(
             Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(horizontal = 10.4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -1319,3 +1696,139 @@ private fun PresentationMode(active: Boolean) {
 
 /** 网页侧的 `window.NoteFableNative`。单独一个有具体类型的函数：lint 在 apply 块里看不出 [bridge] 的类型（只看到泛型 T）。 */
 private fun WebView.attachBridge(bridge: NoteEmbedBridge) = addJavascriptInterface(bridge, "NoteFableNative")
+
+internal const val PPTX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+
+/**
+ * 把 `<input type="file" accept="…">` 的 acceptTypes 转成 `EXTRA_MIME_TYPES` 列表（空列表表示不限类型）。
+ * `.pptx` 在 Android 文件管理器和云盘里常标成 `application/octet-stream` 或 `application/zip`，一并放行避免灰掉不可选。
+ */
+internal fun webFileChooserMimeTypes(acceptTypes: Array<out String>?): List<String> {
+    if (acceptTypes == null) return emptyList()
+    val raw = acceptTypes.flatMap { it.split(',') }.map { it.trim().lowercase() }.filter { it.isNotEmpty() }
+    if (raw.isEmpty() || raw.any { it == "*/*" || it == "*" }) return emptyList()
+    val out = LinkedHashSet<String>()
+    for (entry in raw) {
+        when {
+            entry == ".pptx" || entry == PPTX_MIME_TYPE -> {
+                out += PPTX_MIME_TYPE
+                out += "application/octet-stream"
+                out += "application/zip"
+            }
+            entry == ".pdf" || entry == "application/pdf" -> out += "application/pdf"
+            entry == ".md" || entry == ".markdown" -> {
+                out += "text/markdown"
+                out += "text/plain"
+                out += "application/octet-stream"
+            }
+            entry == ".png" -> out += "image/png"
+            entry == ".jpg" || entry == ".jpeg" -> out += "image/jpeg"
+            entry == ".gif" -> out += "image/gif"
+            entry == ".webp" -> out += "image/webp"
+            entry == ".svg" -> out += "image/svg+xml"
+            entry.startsWith(".") -> {
+                val ext = entry.removePrefix(".")
+                val mapped = runCatching { MimeTypeMap.getSingleton()?.getMimeTypeFromExtension(ext) }.getOrNull()
+                if (mapped != null) out += mapped else return emptyList()
+            }
+            '/' in entry -> out += entry
+            else -> return emptyList()
+        }
+    }
+    return out.toList()
+}
+
+internal fun buildWebFileChooserIntent(params: WebChromeClient.FileChooserParams): Intent {
+    val mimeTypes = webFileChooserMimeTypes(params.acceptTypes)
+    return Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+        addCategory(Intent.CATEGORY_OPENABLE)
+        type = if (mimeTypes.size == 1) mimeTypes[0] else "*/*"
+        if (mimeTypes.size > 1) putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes.toTypedArray())
+        if (params.mode == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE) {
+            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+        }
+    }
+}
+
+internal fun parseWebFileChooserResult(resultCode: Int, data: Intent?): Array<Uri>? {
+    if (resultCode != Activity.RESULT_OK || data == null) return null
+    val clip = data.clipData
+    if (clip != null && clip.itemCount > 0) {
+        val uris = ArrayList<Uri>(clip.itemCount)
+        for (i in 0 until clip.itemCount) {
+            clip.getItemAt(i)?.uri?.let { uris += it }
+        }
+        if (uris.isNotEmpty()) return uris.toTypedArray()
+    }
+    return data.data?.let { arrayOf(it) } ?: WebChromeClient.FileChooserParams.parseResult(resultCode, data)
+}
+
+/**
+ * 给挂着常驻 /note-embed WebView 的画面（编辑器、全屏向导、全屏 PPTX 导入）接上 `<input type="file">` 的系统文件选择器。
+ * 优先用 `ACTION_OPEN_DOCUMENT`（支持 `.pptx`、多选和云盘文档），设备没有文档选择器时回退到 `params.createIntent()`。
+ */
+@Composable
+internal fun RememberWebFileChooser(host: NoteEmbedHost, resetKey: Any = Unit) {
+    val fileCallback = remember { arrayOfNulls<ValueCallback<Array<Uri>>>(1) }
+    val chooser = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        fileCallback[0]?.onReceiveValue(parseWebFileChooserResult(result.resultCode, result.data))
+        fileCallback[0] = null
+    }
+    val handler: (ValueCallback<Array<Uri>>, WebChromeClient.FileChooserParams) -> Boolean = remember(chooser) {
+        { callback, params ->
+            fileCallback[0]?.onReceiveValue(null)
+            fileCallback[0] = callback
+            try {
+                chooser.launch(buildWebFileChooserIntent(params))
+                true
+            } catch (_: ActivityNotFoundException) {
+                try {
+                    chooser.launch(params.createIntent())
+                    true
+                } catch (_: ActivityNotFoundException) {
+                    fileCallback[0] = null
+                    false
+                }
+            }
+        }
+    }
+    DisposableEffect(host, handler) {
+        host.onShowFileChooser = handler
+        onDispose {
+            if (host.onShowFileChooser === handler) host.onShowFileChooser = null
+            fileCallback[0]?.onReceiveValue(null)
+            fileCallback[0] = null
+        }
+    }
+    DisposableEffect(resetKey) {
+        onDispose {
+            fileCallback[0]?.onReceiveValue(null)
+            fileCallback[0] = null
+        }
+    }
+}
+
+private const val QUIZ_FAILED = "Could not generate a quiz. Try again."
+
+@Composable
+private fun LaunchReviewQuiz(
+    host: NoteEmbedHost,
+    quiz: ReviewQuizUi,
+    model: String?,
+    reasoning: String?,
+    onShown: (Int) -> Unit,
+    onFailed: (Int) -> Unit,
+) {
+    val context = LocalContext.current
+    val systemText = rememberSystemText()
+    LaunchedEffect(host, quiz.request, host.generation) {
+        if (quiz.shown && host.quizVisible) return@LaunchedEffect
+        val script = NoteEmbedBridge.quizOpenScript(quiz.pageId, model, reasoning)
+        if (script != null && host.openQuiz(script)) {
+            onShown(quiz.request)
+        } else {
+            Toast.makeText(context, systemText.localize(QUIZ_FAILED), Toast.LENGTH_LONG).show()
+            onFailed(quiz.request)
+        }
+    }
+}

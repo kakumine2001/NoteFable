@@ -6,7 +6,7 @@
     <string name="share_publish">Veröffentlichen</string>
     <string name="share_republish">Erneut veröffentlichen</string>
     <string name="share_unpublish">Veröffentlichung aufheben</string>
-    <string name="share_desc">Veröffentliche diese Notiz, damit jeder mit dem Link sie ansehen kann.</string>
+    <string name="share_desc">Veröffentliche diese Seite, damit jeder mit dem Link sie ansehen kann.</string>
     <string name="share_expired">Dieser Freigabelink ist abgelaufen.</string>
     <string name="share_public_link">Öffentlicher Link</string>
     <string name="share_copy_link">Link kopieren</string>

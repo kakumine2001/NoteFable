@@ -29,7 +29,7 @@ export default function LegalNoticePage() {
           <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a>
           <br />お問い合わせはメールでお願いします。
         </Row>
-        <Row term="サービス名">NoteFable Pro（AI チャットとノートのアプリ NoteFable の有料プラン）</Row>
+        <Row term="サービス名">NoteFable Pro（AI チャットとノート・スライド・ホワイトボードのアプリ NoteFable の有料プラン）</Row>
         <Row term="販売価格">
           {PRICE}。
           <br />Android アプリから Google Play で購入する場合は、購入画面に表示される価格（日本では{PRICE}）となります。
@@ -56,8 +56,8 @@ export default function LegalNoticePage() {
         <Row term="契約期間・自動更新">1 か月ごとの自動更新です。解約しない限り、毎月同じ条件で更新されます。</Row>
         <Row term="解約方法">
           いつでも解約できます。
-          <br />ウェブ版で購入した場合：設定 →「サブスクリプションを管理」から解約してください。
-          <br />Android アプリで購入した場合：設定 →「Google Play でサブスクリプションを管理」、または Google Play ストアの「定期購入」から解約してください。
+          <br />ウェブ版で購入した場合：設定 →「プラン」→「サブスクリプションを管理」から解約してください。
+          <br />Android アプリで購入した場合：設定 →「プラン」→「Google Play でサブスクリプションを管理」、または Google Play ストアの「定期購入」から解約してください。
           <br />iOS アプリで購入した場合：設定の「プラン」から App Store のサブスクリプション管理を開くか、iPhone の設定からサブスクリプションを解約してください。
           <br />解約後も、支払い済みの期間の終わりまで Pro をご利用いただけます。次回以降の請求は発生しません。
         </Row>

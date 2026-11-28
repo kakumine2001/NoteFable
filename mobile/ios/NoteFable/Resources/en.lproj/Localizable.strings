@@ -9,7 +9,7 @@
 "chats_empty" = "Your recent conversations will appear here.";
 "retry" = "Retry";
 "messages_load_failed" = "Failed to load conversation.";
-"empty_hint" = "Ask a question, work through your notes, or bring in a file.";
+"empty_hint" = "Ask a question, work through your Workspace, or bring in a file.";
 "message_hint" = "Ask anything...";
 "send" = "Send message";
 "stop" = "Stop generating";
@@ -80,10 +80,10 @@
 "new_note" = "New note";
 "projects" = "Projects";
 "new_project" = "New project";
-"no_notes_in_project" = "No notes in this project.";
+"no_notes_in_project" = "No pages in this project.";
 "notes_list_empty" = "Your notes will appear here.";
 "trash" = "Trash";
-"trash_note_title" = "Move note to Trash?";
+"trash_note_title" = "Move page to Trash?";
 "trash_note_body" = "“%1$s” will be moved to Trash. You can restore it for %2$d days.";
 "cancel" = "Cancel";
 "move_to_trash" = "Move to Trash";
@@ -95,12 +95,11 @@
 "save" = "Save";
 "delete_project_title" = "Delete project?";
 "delete_project" = "Delete project";
-"delete_project_body" = "“%1$s” will be deleted. Its notes are kept and move out of the project.";
+"delete_project_body" = "“%1$s” will be deleted. Its pages are kept and move out of the project.";
 "rename_name" = "Rename %1$s";
 "delete_project_name" = "Delete project %1$s";
 "project_name" = "Project name";
 "no_project" = "No project";
-"move_note" = "Move note";
 "move_note_to" = "Move “%1$s” to";
 "project" = "Project";
 "new_project_name" = "New project name";
@@ -109,9 +108,9 @@
 "close" = "Close";
 "empty_trash" = "Empty trash";
 "close_trash" = "Close trash";
-"trash_hint" = "Notes in the trash can be restored for %1$d days. After that they are deleted for good.";
-"empty_trash_one" = "Permanently delete this note in the trash? This cannot be undone.";
-"empty_trash_all" = "Permanently delete all %1$d notes in the trash? This cannot be undone.";
+"trash_hint" = "Pages in the trash can be restored for %1$d days. After that they are deleted for good.";
+"empty_trash_one" = "Permanently delete this page in the trash? This cannot be undone.";
+"empty_trash_all" = "Permanently delete all %1$d pages in the trash? This cannot be undone.";
 "loading_trash" = "Loading trash…";
 "try_again" = "Try again";
 "trash_is_empty" = "The trash is empty.";
@@ -126,26 +125,26 @@
 "removing_soon" = "removing soon";
 "one_day_left" = "1 day left";
 "days_left" = "%1$d days left";
-"loading_notes" = "Loading notes…";
-"notes_intro" = "Write notes with blocks — type %1$s for headings, lists, to-dos and code.";
-"notes_storage_hint" = "Notes are saved on the server and linked to this device. Sign in to open them on other devices. If you clear app or site data before signing in, you lose access to them.";
-"all_notes" = "All notes";
+"loading_notes" = "Loading pages…";
+"notes_intro" = "Write notes, build slide decks and sketch on whiteboards. In a note, type %1$s for headings, lists, to-dos and code.";
+"notes_storage_hint" = "Your Workspace is saved on the server and linked to this device. Sign in to open it on other devices. If you clear app or site data before signing in, you lose access to it.";
+"all_notes" = "All pages";
 "version_history" = "Version history";
 "save_saved" = "Saved";
 "save_saving" = "Saving…";
 "save_not_saved" = "Not saved";
 "save_conflict" = "Conflict";
-"err_trash_unsaved" = "Resolve the unsaved draft before moving this note to Trash.";
-"err_load_notes" = "Failed to load notes.";
-"err_create_note" = "Failed to create note.";
-"err_trash_note" = "Failed to move the note to Trash.";
+"err_trash_unsaved" = "Resolve the unsaved draft before moving this page to Trash.";
+"err_load_notes" = "Failed to load pages.";
+"err_create_note" = "Failed to create page.";
+"err_trash_note" = "Failed to move the page to Trash.";
 "err_group" = "Could not change the group.";
 "err_trash_request" = "Trash request failed. Please try again.";
 "err_trash_load" = "Could not load the trash.";
 "err_save_draft" = "Failed to save. Your draft has been kept.";
 "sign_in" = "Sign in";
 "signin_title" = "Sign in to NoteFable";
-"signin_subtitle" = "Keep your chats and notes, and open them on any device.";
+"signin_subtitle" = "Keep your chats and Workspace, and open them on any device.";
 "continue_google" = "Continue with Google";
 "signin_or" = "or";
 "signin_email" = "Email address";
@@ -197,10 +196,15 @@
 
 /* strings_account_delete.xml */
 "acct_delete_account" = "Delete account";
-"acct_delete_account_warning" = "Permanently delete your account and everything in it: chats, notes, files and settings. This can’t be undone.";
+"acct_delete_account_warning" = "Permanently delete your account and everything in it: chats, notes, slide decks, whiteboards, files and settings. This can’t be undone.";
 "acct_delete_permanently" = "Delete permanently";
 "acct_deleting" = "Deleting…";
 "acct_err_delete_account" = "Could not delete your account. Please try again.";
+
+/* strings_ai_generate.xml */
+"ai_gen_placeholder" = "Ask AI to create a note, whiteboard, or slide deck…";
+"ai_gen_options" = "Options";
+"ai_gen_generate" = "Generate";
 
 /* strings_answers.xml */
 "activity_thinking" = "Thinking";
@@ -209,21 +213,21 @@
 "activity_searching_query" = "Searching “%1$s”";
 "activity_reading_host" = "Reading %1$s";
 "activity_scanning_host" = "Scanning %1$s";
-"activity_searching_notes" = "Searching your notes";
-"activity_reading_note" = "Reading your note";
+"activity_searching_notes" = "Searching your pages";
+"activity_reading_note" = "Reading your page";
 "activity_one_search" = "1 search";
 "activity_searches" = "%1$s searches";
 "activity_one_source" = "1 source";
 "activity_sources" = "%1$s sources";
-"activity_one_note_lookup" = "1 note lookup";
-"activity_note_lookups" = "%1$s note lookups";
-"activity_one_project_note" = "1 project note";
-"activity_project_notes" = "%1$s project notes";
+"activity_one_note_lookup" = "1 page lookup";
+"activity_note_lookups" = "%1$s page lookups";
+"activity_one_project_note" = "1 project page";
+"activity_project_notes" = "%1$s project pages";
 "activity_project_instructions" = "project instructions";
 "activity_more" = "+%1$s more";
 "activity_instructions" = "instructions";
-"activity_one_reference_note" = "1 reference note";
-"activity_reference_notes" = "%1$s reference notes";
+"activity_one_reference_note" = "1 reference page";
+"activity_reference_notes" = "%1$s reference pages";
 "activity_used_project" = "Used project “%1$s”: %2$s";
 "activity_partial" = "partial";
 "activity_searching_web_running" = "Searching the web…";
@@ -291,10 +295,11 @@
 "proposal_op_elements" = "%1$s · %2$s elements";
 "proposal_before" = "Before";
 "proposal_after" = "After";
+"proposal_view_preview" = "View preview";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "Attach pages";
-"attach_pages_desc" = "Let the AI read your notes";
+"attach_pages_desc" = "Let the AI read your pages";
 "attached_pages" = "Attached pages";
 "ask_notefable" = "Ask NoteFable";
 "quote" = "Quote";
@@ -428,6 +433,7 @@
 "pg_subpages_to_trash" = "Its sub-pages move to Trash with it.";
 "pg_rename_page" = "Rename page";
 "pg_page_title" = "Page title";
+"pg_review_quiz" = "Review & quiz";
 
 /* strings_personal.xml */
 "appearance" = "Appearance";
@@ -496,14 +502,14 @@
 
 /* strings_search.xml */
 "search" = "Search";
-"search_chats_and_notes" = "Search chats and notes";
+"search_chats_and_notes" = "Search chats and pages";
 "search_close" = "Close search";
 "search_tab_all" = "All";
 "search_tab_chats" = "Chats";
 "search_project" = "Project";
 "search_all_projects" = "All projects";
-"search_idle_title" = "Search your chats and notes";
-"search_idle_body" = "Every word you type has to appear somewhere in the same chat or note: its title, a message or an attached file.";
+"search_idle_title" = "Search your chats and pages";
+"search_idle_body" = "Every word you type has to appear somewhere in the same chat or page: its title, its text or an attached file.";
 "search_unavailable_title" = "Search is unavailable";
 "search_unavailable_body" = "Check your connection and try again.";
 "search_try_again" = "Try again";
@@ -521,7 +527,7 @@
 "share_publish" = "Publish";
 "share_republish" = "Republish";
 "share_unpublish" = "Unpublish";
-"share_desc" = "Publish this note so anyone with the link can view it.";
+"share_desc" = "Publish this page so anyone with the link can view it.";
 "share_expired" = "This share link has expired.";
 "share_public_link" = "Public link";
 "share_copy_link" = "Copy link";
@@ -557,8 +563,8 @@
 "sb_all_chats_pinned" = "All chats pinned";
 "sb_no_chats" = "No chats";
 "sb_hint_instructions" = "instructions";
-"sb_one_reference_note" = "1 reference note";
-"sb_n_reference_notes" = "%1$d reference notes";
+"sb_one_reference_note" = "1 reference page";
+"sb_n_reference_notes" = "%1$d reference pages";
 "sb_project_settings" = "Project settings";
 "sb_new_project_plus" = "＋ New project";
 "sb_delete_chat" = "Delete chat";
@@ -576,19 +582,19 @@
 "sb_loading" = "Loading…";
 "sb_instructions" = "Instructions";
 "sb_instructions_placeholder" = "Example: Help me write Japanese business emails. Keep a polite tone and answer with a short draft first.";
-"sb_reference_notes" = "Reference notes";
-"sb_selected_notes" = "Selected notes";
+"sb_reference_notes" = "Reference pages";
+"sb_selected_notes" = "Selected pages";
 "sb_remove_title" = "Remove %1$s";
-"sb_filter_notes" = "Filter your notes";
-"sb_your_notes" = "Your notes";
+"sb_filter_notes" = "Filter your pages";
+"sb_your_notes" = "Your pages";
 "sb_untitled" = "Untitled";
-"sb_no_notes_match" = "No notes match.";
-"sb_no_notes_yet" = "You don’t have any notes yet.";
-"sb_showing_first_notes" = "Showing the first %1$d notes. Type in the filter to find others.";
-"sb_notes_limit" = "You can choose up to %1$d notes. Remove one to pick another.";
+"sb_no_notes_match" = "No matching pages.";
+"sb_no_notes_yet" = "You don’t have any pages yet.";
+"sb_showing_first_notes" = "Showing the first %1$d pages. Type in the filter to find others.";
+"sb_notes_limit" = "You can choose up to %1$d pages. Remove one to pick another.";
 "sb_saving" = "Saving…";
 "sb_err_load_project_settings" = "Could not load the project settings.";
-"sb_err_load_your_notes" = "Could not load your notes.";
+"sb_err_load_your_notes" = "Could not load your pages.";
 "sb_err_save_project_settings" = "Could not save the project settings. Please try again.";
 "sb_err_move_item" = "Could not move the item. Try again.";
 "sb_err_wait_move" = "Wait for the previous move to finish.";
@@ -602,9 +608,11 @@
 "slides_export_png" = "Export PNG images";
 "slides_export_pptx" = "Export PowerPoint (PPTX)";
 "slides_export_pptx_transition_note" = "Slide transitions aren’t included in PPTX export.";
+"slides_import_pptx" = "Import PowerPoint";
 
 /* strings_slides_wizard.xml */
 "slides_generate" = "Generate slides";
+"slides_generating" = "Generating slides…";
 "slides_generate_from_chat" = "Make a slide deck from this chat";
 "slides_generate_with_ai" = "Generate with AI";
 

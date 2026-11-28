@@ -18,10 +18,10 @@ export async function PUT(request: Request, context: Context) {
   try {
     const { title, version } = await readSmallJson(request);
     if (typeof title !== "string" || title.length > MAX_NOTE_TITLE) {
-      throw new NoteValidationError(fmt("Note title must be at most {max} characters.", { max: MAX_NOTE_TITLE }));
+      throw new NoteValidationError(fmt("Page title must be at most {max} characters.", { max: MAX_NOTE_TITLE }));
     }
     if (!Number.isSafeInteger(version) || Number(version) < 0) {
-      throw new NoteValidationError(msg("A valid note version is required."));
+      throw new NoteValidationError(msg("A valid page version is required."));
     }
     const normalized = title.replace(/\r?\n/g, " ").trim() || "Untitled";
     const user = await getOrCreateUser();
@@ -31,14 +31,14 @@ export async function PUT(request: Request, context: Context) {
       data: { title: normalized, version: { increment: 1 } },
     });
     const page = await prisma.notePage.findFirst({ where: { id: pageId, userId: user.id, deletedAt: null } });
-    if (!page) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+    if (!page) return NextResponse.json({ error: msg("Page not found.") }, { status: 404 });
     // ホワイトボード・スライドは本体も返す（版だけ新しく本体が古いページを、画面に持たせない）。版を先に、本体を後に読む。
     const kind = pageKindOf(page);
     const responsePage = isCanvasKind(kind)
       ? { ...page, data: (await readCanvasData(user.id, pageId)) ?? emptyCanvasData(kind) }
       : page;
     if (!updated.count) {
-      return NextResponse.json({ error: msg("This note was changed in another tab."), page: responsePage }, { status: 409 });
+      return NextResponse.json({ error: msg("This page was changed in another tab."), page: responsePage }, { status: 409 });
     }
     scheduleNoteEmbeddingSync(user.id, [pageId]);
     return NextResponse.json({ page: responsePage });

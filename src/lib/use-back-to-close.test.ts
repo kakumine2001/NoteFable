@@ -1,207 +1,311 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const hookHarness = vi.hoisted(() => {
-  type Effect = { cleanup?: (() => void) | void };
-  let effects: Effect[] = [];
-  let refs: { current: unknown }[] = [];
-
-  return {
-    reset() {
-      for (const effect of effects) {
-        if (typeof effect.cleanup === "function") effect.cleanup();
-      }
-      effects = [];
-      refs = [];
-    },
-    useRef<T>(initial: T) {
-      const ref = { current: initial };
-      refs.push(ref);
-      return ref;
-    },
-    useEffect(fn: () => (() => void) | void) {
-      const rec: Effect = {};
-      rec.cleanup = fn();
-      effects.push(rec);
-    },
-    unmountLast() {
-      const last = effects.pop();
-      if (typeof last?.cleanup === "function") last.cleanup();
-    },
-  };
-});
-
+// useBackToClose を React なしで呼べるよう、effect をその場で走らせる。
+const cleanups = vi.hoisted(() => [] as (() => void)[]);
 vi.mock("react", async (original) => ({
   ...await original<typeof import("react")>(),
-  useRef: hookHarness.useRef,
-  useEffect: hookHarness.useEffect,
+  useRef: <T,>(value: T) => ({ current: value }),
+  useEffect: (effect: () => (() => void) | void) => {
+    const cleanup = effect();
+    if (cleanup) cleanups.push(cleanup);
+  },
 }));
 
-function setupFakeWindow() {
-  const listeners = new Map<string, Set<EventListener>>();
-  const stack: { state: unknown; url: string }[] = [{ state: null, url: "https://app.notefable.com/app?view=pages" }];
-  let index = 0;
-
-  const win = {
-    history: {
-      get state() { return stack[index]?.state ?? null; },
-      pushState(state: unknown, _title: string, url?: string | URL | null) {
-        stack.splice(index + 1);
-        stack.push({ state, url: url ? new URL(String(url), stack[index].url).href : stack[index].url });
-        index = stack.length - 1;
-      },
-      replaceState(state: unknown, _title: string, url?: string | URL | null) {
-        stack[index] = { state, url: url ? new URL(String(url), stack[index].url).href : stack[index].url };
-      },
-      back() {
-        if (index > 0) index -= 1;
-      },
-    },
-    addEventListener(type: string, fn: EventListener) {
-      let set = listeners.get(type);
-      if (!set) { set = new Set(); listeners.set(type, set); }
-      set.add(fn);
-    },
-    removeEventListener(type: string, fn: EventListener) {
-      listeners.get(type)?.delete(fn);
-    },
-    dispatchPopState(isTrusted = true) {
-      const event = { type: "popstate", isTrusted } as unknown as PopStateEvent;
-      for (const fn of [...(listeners.get("popstate") ?? [])]) fn(event);
-      return event;
-    },
-  };
-
-  vi.stubGlobal("window", win);
-  return win;
+function keydown(init: { key: string; isComposing?: boolean; keyCode?: number }) {
+  const event = new Event("keydown", { cancelable: true });
+  Object.defineProperties(event, {
+    key: { value: init.key },
+    isComposing: { value: init.isComposing ?? false },
+    keyCode: { value: init.keyCode ?? 0 },
+  });
+  return event;
 }
 
-describe("useBackToClose and afterSheetHistory", () => {
+describe("useBackToClose Esc handling", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    cleanups.length = 0;
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("does not close the sheet for an Esc that cancels an IME composition", async () => {
+    const onClose = vi.fn();
+    const history = { state: null as unknown, pushState(state: unknown) { history.state = state; }, back: vi.fn() };
+    const fakeWindow = Object.assign(new EventTarget(), { history });
+    vi.stubGlobal("window", fakeWindow);
+    const { useBackToClose } = await import("./use-back-to-close");
+    useBackToClose(true, onClose);
+
+    fakeWindow.dispatchEvent(keydown({ key: "Escape", isComposing: true }));
+    // Safari: isComposing is already false, but keyCode is still 229.
+    fakeWindow.dispatchEvent(keydown({ key: "Escape", keyCode: 229 }));
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("closes the top sheet for a plain Esc", async () => {
+    const onClose = vi.fn();
+    const history = { state: null as unknown, pushState(state: unknown) { history.state = state; }, back: vi.fn() };
+    const fakeWindow = Object.assign(new EventTarget(), { history });
+    vi.stubGlobal("window", fakeWindow);
+    const { useBackToClose } = await import("./use-back-to-close");
+    useBackToClose(true, onClose);
+
+    const event = keydown({ key: "Escape", keyCode: 27 });
+    fakeWindow.dispatchEvent(event);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(event.defaultPrevented).toBe(true);
+  });
+});
+
+type Entry = { state: unknown; href: string };
+
+// manualPop: history.back() の popstate を自動では届けず、deliverPop() で届ける（届くまでの間を試す）。
+function fakeBrowser(entries: Entry[], { manualPop = false } = {}) {
+  const stack = entries.map((entry) => ({ ...entry }));
+  let index = stack.length - 1;
+  const listeners = new Map<string, Set<(event: Event) => void>>();
+  const dispatch = (event: Event) => { for (const listener of listeners.get(event.type) ?? []) listener(event); };
+  let queuedPops = 0;
+  const pop = () => dispatch({ type: "popstate", isTrusted: true } as unknown as Event);
+  const history = {
+    get state() { return stack[index].state; },
+    pushState: vi.fn((state: unknown, _title: string, url?: string | URL | null) => {
+      const href = url ? new URL(String(url), stack[index].href).href : stack[index].href;
+      stack.splice(index + 1);
+      stack.push({ state, href });
+      index = stack.length - 1;
+    }),
+    replaceState: vi.fn((state: unknown, _title: string, url?: string | URL | null) => {
+      const href = url ? new URL(String(url), stack[index].href).href : stack[index].href;
+      stack[index] = { state, href };
+    }),
+    back: vi.fn(() => {
+      if (index === 0) return;
+      index -= 1;
+      // 実際の popstate と同じく、少し後に（信頼できるイベントとして）届く。
+      if (manualPop) queuedPops += 1;
+      else setTimeout(pop);
+    }),
+  };
+  vi.stubGlobal("window", {
+    history,
+    location: { get href() { return stack[index].href; } },
+    addEventListener: (type: string, listener: (event: Event) => void) => {
+      if (!listeners.has(type)) listeners.set(type, new Set());
+      listeners.get(type)!.add(listener);
+    },
+    removeEventListener: (type: string, listener: (event: Event) => void) => { listeners.get(type)?.delete(listener); },
+  });
+  return {
+    history, stack, current: () => stack[index],
+    userBack: () => { index -= 1; pop(); },
+    deliverPop: () => { if (queuedPops > 0) { queuedPops -= 1; pop(); } },
+    listenerCount: (type: string) => listeners.get(type)?.size ?? 0,
+  };
+}
+
+const NOTE = "https://app.notefable.com/app?view=pages&page=x";
+const HOME = "https://app.notefable.com/app?view=pages";
+const MARKER = { notefableSheet: true };
+const dropPage = (url: URL) => {
+  if (url.searchParams.get("page") !== "x") return false;
+  url.searchParams.delete("page");
+  return true;
+};
+// Notes のホームからノート x を開いたところ（[ホーム, x]）。
+const opened = () => fakeBrowser([{ state: null, href: HOME }, { state: null, href: NOTE }]);
+
+describe("replaceSheetUrl", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.resetModules();
-    hookHarness.reset();
+    cleanups.length = 0;
   });
-
   afterEach(() => {
-    hookHarness.reset();
     vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
-  it("keeps afterSheetHistory FIFO across the popstate -> pendingFlush window and marks cleanup popstate", async () => {
-    const win = setupFakeWindow();
-    const mod = await import("./use-back-to-close");
-    const order: string[] = [];
-    const seenCleanup: boolean[] = [];
+  it("rewrites the note entry under a confirm dialog's marker, so Back after closing never reaches the trashed note", async () => {
+    const browser = opened();
+    const { replaceSheetUrl, useBackToClose } = await import("./use-back-to-close");
+    useBackToClose(true, vi.fn());
+    expect(browser.stack).toEqual([{ state: null, href: HOME }, { state: null, href: NOTE }, { state: MARKER, href: NOTE }]);
 
-    // Register a listener AFTER useBackToClose will register its own, and another BEFORE.
-    win.addEventListener("popstate", (event) => { seenCleanup.push(mod.isSheetCleanupPopState(event)); });
-
-    mod.useBackToClose(true, vi.fn());
-    win.addEventListener("popstate", (event) => { seenCleanup.push(mod.isSheetCleanupPopState(event)); });
-    expect((win.history.state as { notefableSheet?: boolean } | null)?.notefableSheet).toBe(true);
-
-    // Close the sheet: schedules pendingBack, then fires history.back() (ownBack = true).
-    hookHarness.unmountLast();
-    vi.advanceTimersByTime(1);
-
-    // First callback queued while ownBack is true (e.g. syncPageUrl writing ?page=id).
-    mod.afterSheetHistory(() => order.push("write-url"));
-
-    // Synthetic (untrusted) popstate events dispatched by app code must not be mistaken for sheet cleanup.
-    win.dispatchPopState(false);
-    expect(seenCleanup).toEqual([false, false]);
-    seenCleanup.length = 0;
-
-    // Browser delivers popstate for history.back(): ownBack flips to false, flush is scheduled via setTimeout.
-    win.dispatchPopState(true);
-    expect(seenCleanup).toEqual([true, true]);
-
-    // Second callback arrives between popstate and setTimeout(flushAfterBack) (e.g. syncNotesList).
-    // It MUST NOT jump ahead of "write-url".
-    mod.afterSheetHistory(() => order.push("sync-list"));
-    expect(order).toEqual([]);
-
-    vi.advanceTimersByTime(1);
-    expect(order).toEqual(["write-url", "sync-list"]);
+    const after = vi.fn();
+    replaceSheetUrl(dropPage, after);
+    // ゴミ箱へ移せたので確認の小窓が閉じる（目印を退ける history.back は replaceSheetUrl がもう始めている）。
+    cleanups.pop()!();
+    vi.runAllTimers();
+    expect(browser.history.back).toHaveBeenCalledTimes(1);
+    expect(after).toHaveBeenCalledTimes(1);
+    // 退けた目印（「進む」の先）も書き換え済み。どこにもゴミ箱のノートの URL は残らない。
+    expect(browser.stack).toEqual([{ state: null, href: HOME }, { state: null, href: HOME }, { state: MARKER, href: HOME }]);
+    expect(browser.current()).toEqual({ state: null, href: HOME });
   });
 
-  it("keeps afterSheetHistory queued while a replacement sheet holds the marker and flushes once Back closes it", async () => {
-    const win = setupFakeWindow();
-    const mod = await import("./use-back-to-close");
-    const order: string[] = [];
+  it("keeps an open drawer's marker on top of the rewritten entry", async () => {
+    const browser = opened();
+    const { replaceSheetUrl, useBackToClose } = await import("./use-back-to-close");
+    const closeDrawer = vi.fn();
+    useBackToClose(true, closeDrawer);
 
-    mod.useBackToClose(true, vi.fn());
-    hookHarness.unmountLast();
+    replaceSheetUrl(dropPage);
+    vi.runAllTimers();
+    expect(browser.stack).toEqual([{ state: null, href: HOME }, { state: null, href: HOME }, { state: MARKER, href: HOME }]);
+    expect(browser.current()).toEqual({ state: MARKER, href: HOME });
+    expect(closeDrawer).not.toHaveBeenCalled();
+    // 「戻る」はドロワーを閉じるだけ。
+    browser.userBack();
+    expect(closeDrawer).toHaveBeenCalledTimes(1);
+    expect(browser.current()).toEqual({ state: null, href: HOME });
+  });
 
-    mod.afterSheetHistory(() => order.push("queued-during-pending-back"));
-    expect(order).toEqual([]);
+  it("takes over a closed drawer's scheduled cleanup and rewrites the entry underneath", async () => {
+    const browser = opened();
+    const { replaceSheetUrl, useBackToClose } = await import("./use-back-to-close");
+    useBackToClose(true, vi.fn());
+    // ドロワーを閉じた（目印を外す history.back が予約された）直後に URL を片付ける。
+    cleanups.pop()!();
+    const after = vi.fn();
+    replaceSheetUrl(dropPage, after);
+    vi.runAllTimers();
+    expect(browser.history.back).toHaveBeenCalledTimes(1);
+    expect(after).toHaveBeenCalledTimes(1);
+    expect(browser.stack).toEqual([{ state: null, href: HOME }, { state: null, href: HOME }, { state: MARKER, href: HOME }]);
+    expect(browser.current()).toEqual({ state: null, href: HOME });
+  });
 
-    // Another sheet opens before pendingBack fires, cancelling pendingBack while keeping the marker on top.
-    mod.useBackToClose(true, vi.fn());
+  it("waits for an in-flight cleanup back and rewrites the entry it lands on", async () => {
+    const browser = opened();
+    const { replaceSheetUrl, useBackToClose } = await import("./use-back-to-close");
+    useBackToClose(true, vi.fn());
+    cleanups.pop()!();
+    // 後始末の history.back が走った（popstate はまだ）。
+    vi.runOnlyPendingTimers();
+    expect(browser.history.back).toHaveBeenCalledTimes(1);
+    const after = vi.fn();
+    replaceSheetUrl(dropPage, after);
+    expect(browser.history.replaceState).not.toHaveBeenCalled();
+    vi.runAllTimers();
+    expect(browser.history.back).toHaveBeenCalledTimes(1);
+    expect(after).toHaveBeenCalledTimes(1);
+    // 進行中の history.back がもう目印を離れたので、「進む」の先の目印だけは書き換えられない。
+    expect(browser.stack).toEqual([{ state: null, href: HOME }, { state: null, href: HOME }, { state: MARKER, href: NOTE }]);
+    expect(browser.current()).toEqual({ state: null, href: HOME });
+  });
+
+  it("does not move history when the URL does not need rewriting", async () => {
+    const browser = fakeBrowser([{ state: null, href: HOME }]);
+    const { replaceSheetUrl, useBackToClose } = await import("./use-back-to-close");
+    useBackToClose(true, vi.fn());
+    const after = vi.fn();
+    replaceSheetUrl(dropPage, after);
+    vi.runAllTimers();
+    expect(browser.history.back).not.toHaveBeenCalled();
+    expect(browser.history.replaceState).not.toHaveBeenCalled();
+    expect(after).not.toHaveBeenCalled();
+    expect(browser.stack).toEqual([{ state: null, href: HOME }, { state: MARKER, href: HOME }]);
+  });
+
+  it("replaces the URL in place when no sheet is open", async () => {
+    const browser = opened();
+    const { replaceSheetUrl } = await import("./use-back-to-close");
+    const after = vi.fn();
+    replaceSheetUrl(dropPage, after);
+    expect(after).toHaveBeenCalledTimes(1);
+    vi.runAllTimers();
+    expect(browser.history.back).not.toHaveBeenCalled();
+    expect(browser.stack).toEqual([{ state: null, href: HOME }, { state: null, href: HOME }]);
+  });
+});
+
+describe("sheet history cleanup hardening", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    cleanups.length = 0;
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const addFlag = (url: URL) => {
+    if (url.searchParams.has("flag")) return false;
+    url.searchParams.set("flag", "1");
+    return true;
+  };
+
+  it("does not let an earlier back's fallback timer end a later in-flight back", async () => {
+    const browser = fakeBrowser([{ state: null, href: HOME }, { state: null, href: NOTE }], { manualPop: true });
+    const { isSheetCleanupPopState, replaceSheetUrl, useBackToClose } = await import("./use-back-to-close");
+    useBackToClose(true, vi.fn());
+    replaceSheetUrl(dropPage);
+    browser.deliverPop();
     vi.advanceTimersByTime(10);
-    // Must stay queued while the replacement sheet's marker is still on top of history.
+    expect(browser.stack).toEqual([{ state: null, href: HOME }, { state: null, href: HOME }, { state: MARKER, href: HOME }]);
+
+    vi.advanceTimersByTime(890);
+    const after = vi.fn();
+    replaceSheetUrl(addFlag, after);
+    expect(browser.history.back).toHaveBeenCalledTimes(2);
+    // 1 回目の予備のタイマー（1000ms）が来ても、2 回目の history.back はまだ自分のもの。
+    vi.advanceTimersByTime(600);
+    expect(isSheetCleanupPopState()).toBe(true);
+    expect(after).not.toHaveBeenCalled();
+    browser.deliverPop();
+    vi.advanceTimersByTime(10);
+    expect(after).toHaveBeenCalledTimes(1);
+    expect(browser.current()).toEqual({ state: MARKER, href: `${HOME}&flag=1` });
+  });
+
+  it("queues rewrites and holds the marker between the cleanup popstate and its flush", async () => {
+    const browser = fakeBrowser([{ state: null, href: HOME }, { state: null, href: NOTE }], { manualPop: true });
+    const { afterSheetHistory, replaceSheetUrl, useBackToClose } = await import("./use-back-to-close");
+    useBackToClose(true, vi.fn());
+    const order: string[] = [];
+    replaceSheetUrl(dropPage, () => order.push("trash"));
+    browser.deliverPop();
+    // popstate は届いたが、待っている書き換えはまだ流れていない。
+    afterSheetHistory(() => order.push("sync"));
+    replaceSheetUrl(addFlag, () => order.push("flag"));
+    useBackToClose(true, vi.fn());
     expect(order).toEqual([]);
-
-    // User presses Back: the marker is popped and the replacement sheet closes -> queued callback flushes.
-    win.history.back();
-    win.dispatchPopState(true);
-    vi.advanceTimersByTime(1);
-    expect(order).toEqual(["queued-during-pending-back"]);
+    expect(browser.current()).toEqual({ state: null, href: NOTE });
+    vi.runAllTimers();
+    expect(order).toEqual(["trash", "sync", "flag"]);
+    expect(browser.history.back).toHaveBeenCalledTimes(1);
+    expect(browser.stack).toEqual([{ state: null, href: HOME }, { state: null, href: `${HOME}&flag=1` }, { state: MARKER, href: `${HOME}&flag=1` }]);
   });
 
-  it("stops flushing afterSheetHistory if a callback triggers a new pendingBack", async () => {
-    const win = setupFakeWindow();
-    const mod = await import("./use-back-to-close");
-    const order: string[] = [];
-
-    mod.useBackToClose(true, vi.fn());
-    hookHarness.unmountLast();
-    vi.advanceTimersByTime(1);
-
-    mod.afterSheetHistory(() => {
-      order.push("first");
-      // Synchronously open and close a new sheet so pendingBack becomes active again.
-      mod.useBackToClose(true, vi.fn());
-      hookHarness.unmountLast();
-    });
-    mod.afterSheetHistory(() => order.push("second"));
-
-    win.dispatchPopState(true);
-    vi.advanceTimersByTime(1);
-    // "first" ran and scheduled a new pendingBack, so "second" must wait for that back to finish.
-    expect(order).toEqual(["first"]);
-
-    // Second history.back() fires and browser delivers its popstate.
-    vi.advanceTimersByTime(1);
-    win.dispatchPopState(true);
-    vi.advanceTimersByTime(1);
-    expect(order).toEqual(["first", "second"]);
+  it("listens for its own back even when the marker survived a reload", async () => {
+    const browser = fakeBrowser([{ state: null, href: HOME }, { state: null, href: NOTE }, { state: MARKER, href: NOTE }]);
+    const { replaceSheetUrl } = await import("./use-back-to-close");
+    const after = vi.fn();
+    replaceSheetUrl(dropPage, after);
+    expect(browser.listenerCount("popstate")).toBe(1);
+    vi.advanceTimersByTime(10);
+    expect(after).toHaveBeenCalledTimes(1);
+    expect(browser.stack.slice(0, 2)).toEqual([{ state: null, href: HOME }, { state: null, href: HOME }]);
   });
 
-  it("reschedules remaining afterSheetHistory callbacks if an earlier callback throws", async () => {
-    const win = setupFakeWindow();
-    const mod = await import("./use-back-to-close");
-    const order: string[] = [];
-
-    mod.useBackToClose(true, vi.fn());
-    hookHarness.unmountLast();
-    vi.advanceTimersByTime(1);
-
-    mod.afterSheetHistory(() => {
-      order.push("boom");
-      throw new Error("history quota");
-    });
-    mod.afterSheetHistory(() => order.push("survivor"));
-
-    win.dispatchPopState(true);
-    expect(() => vi.advanceTimersToNextTimer()).toThrow("history quota");
-    // Remaining queued callback flushes on the next tick instead of wedging the queue.
-    vi.advanceTimersToNextTimer();
-    expect(order).toEqual(["boom", "survivor"]);
-
-    // Subsequent calls run immediately again.
-    mod.afterSheetHistory(() => order.push("immediate"));
-    expect(order).toEqual(["boom", "survivor", "immediate"]);
+  it("keeps flushing and restores the marker when one waiting callback throws", async () => {
+    const browser = fakeBrowser([{ state: null, href: HOME }, { state: null, href: NOTE }]);
+    const { afterSheetHistory, replaceSheetUrl, useBackToClose } = await import("./use-back-to-close");
+    const reported = vi.spyOn(console, "error").mockImplementation(() => {});
+    useBackToClose(true, vi.fn());
+    replaceSheetUrl(dropPage);
+    const failure = new Error("boom");
+    afterSheetHistory(() => { throw failure; });
+    const next = vi.fn();
+    afterSheetHistory(next);
+    vi.runAllTimers();
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(reported).toHaveBeenCalledWith(failure);
+    expect(browser.stack).toEqual([{ state: null, href: HOME }, { state: null, href: HOME }, { state: MARKER, href: HOME }]);
   });
 });

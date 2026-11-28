@@ -52,8 +52,8 @@ export function WhiteboardLinkDialog({ mode, pages: given, currentPageId, initia
     {mode === "card" && <p className="mt-1 text-sm text-[var(--notion-muted)]">{t("Place a card that opens the page.")}</p>}
     <input autoFocus value={filter} onChange={(event) => setFilter(event.target.value)} placeholder={t("Search pages")} aria-label={t("Search pages")} className="notes-dialog-input" />
     <div className="whiteboard-link-pages" role="listbox" aria-label={t("Pages")}>
-      {loading && <p className="px-3 py-2 text-sm text-[var(--notion-muted)]">{t("Loading notes…")}</p>}
-      {failed && <p className="px-3 py-2 text-sm text-[var(--notion-muted)]">{t("Failed to load notes.")}</p>}
+      {loading && <p className="px-3 py-2 text-sm text-[var(--notion-muted)]">{t("Loading pages…")}</p>}
+      {failed && <p className="px-3 py-2 text-sm text-[var(--notion-muted)]">{t("Failed to load pages.")}</p>}
       {!loading && !failed && shown.map((page) => <button key={page.id} type="button" role="option" aria-selected={false} className="notes-dialog-option" onClick={() => onPickPage(page)}>
         <span className="flex min-w-0 items-center gap-2">
           <span className="notes-move-icon" aria-hidden="true"><NoteIcon icon={page.icon} fallback={<PageKindIcon kind={page.kind} size={15} />} /></span>

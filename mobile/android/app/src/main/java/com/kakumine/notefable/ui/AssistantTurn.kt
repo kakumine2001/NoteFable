@@ -201,6 +201,7 @@ internal fun AssistantTurn(
 @Composable
 private fun ProposalCards(proposals: List<com.kakumine.notefable.data.Proposal>, store: ProposalStore, openNote: (String) -> Unit) {
     val local by store.states.collectAsState()
+    val previewProposal = LocalPreviewProposal.current
     proposals.forEach { proposal ->
         androidx.compose.runtime.key(proposal.id) {
             ProposalCard(
@@ -210,6 +211,7 @@ private fun ProposalCards(proposals: List<com.kakumine.notefable.data.Proposal>,
                 onDiscard = { store.discard(proposal) },
                 onUndo = { store.undo(proposal) },
                 onOpen = openNote,
+                onPreview = previewProposal?.let { open -> { open(proposal) } },
             )
         }
     }

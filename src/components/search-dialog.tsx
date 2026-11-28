@@ -20,7 +20,7 @@ type Loaded = { key: string; data: SearchResponse | null };
 export type SearchProject = { id: string; name: string };
 
 const DEBOUNCE_MS = 250;
-const TABS: { scope: SearchScope; label: string }[] = [{ scope: "all", label: msg("All") }, { scope: "chats", label: msg("Chats") }, { scope: "notes", label: msg("Notes") }];
+const TABS: { scope: SearchScope; label: string }[] = [{ scope: "all", label: msg("All") }, { scope: "chats", label: msg("Chats") }, { scope: "notes", label: msg("Pages") }];
 
 export function nextSearchTabScope(index: number, key: "ArrowLeft" | "ArrowRight", dir: TextDirection = "ltr"): SearchScope {
   const step = (dir === "rtl" ? key === "ArrowLeft" : key === "ArrowRight") ? 1 : TABS.length - 1;
@@ -197,8 +197,8 @@ function SearchPanel({ view, projects, currentProjectId, onClose, onOpenChat, on
   const chats = scope === "notes" ? [] : data?.chats ?? [];
   const notes = scope === "chats" ? [] : data?.notes ?? [];
   const groups: { label: string; results: Result[] }[] = (view === "chat"
-    ? [{ label: t("Chats"), results: chats }, { label: t("Notes"), results: notes }]
-    : [{ label: t("Notes"), results: notes }, { label: t("Chats"), results: chats }]
+    ? [{ label: t("Chats"), results: chats }, { label: t("Pages"), results: notes }]
+    : [{ label: t("Pages"), results: notes }, { label: t("Chats"), results: chats }]
   ).filter((group) => group.results.length > 0);
   const rows = groups.flatMap((group) => group.results);
   const activeIndex = Math.min(active, rows.length - 1);
@@ -275,8 +275,8 @@ function SearchPanel({ view, projects, currentProjectId, onClose, onOpenChat, on
   if (idle) {
     body = (
       <div className="search-empty">
-        <p className="search-empty-title">{t("Search your chats and notes")}</p>
-        <p>{t("Every word you type has to appear somewhere in the same chat or note: its title, a message or an attached file.")}</p>
+        <p className="search-empty-title">{t("Search your chats and pages")}</p>
+        <p>{t("Every word you type has to appear somewhere in the same chat or page: its title, its text or an attached file.")}</p>
         <p className="search-keys">{t("Use ↑ ↓ to move, Enter to open, Esc to close.")}</p>
       </div>
     );
@@ -322,11 +322,11 @@ function SearchPanel({ view, projects, currentProjectId, onClose, onOpenChat, on
   return (
     <div className="search-root">
       <div className="search-backdrop" aria-hidden="true" onMouseDown={onClose} />
-      <div className="search-panel" role="dialog" aria-modal="true" aria-label={t("Search chats and notes")} onKeyDown={onPanelKeyDown}>
+      <div className="search-panel" role="dialog" aria-modal="true" aria-label={t("Search chats and pages")} onKeyDown={onPanelKeyDown}>
         <div className="search-field">
           <Search size={18} aria-hidden="true" className="search-field-icon" />
           <input ref={inputRef} value={input} maxLength={MAX_SEARCH_QUERY_CHARS} type="text" inputMode="search" enterKeyHint="search"
-            autoComplete="off" autoCorrect="off" spellCheck={false} placeholder={t("Search chats and notes")} aria-label={t("Search chats and notes")} className="search-input"
+            autoComplete="off" autoCorrect="off" spellCheck={false} placeholder={t("Search chats and pages")} aria-label={t("Search chats and pages")} className="search-input"
             role="combobox" aria-expanded={listboxShown} aria-controls={listboxShown ? listId : undefined} aria-autocomplete="list" aria-busy={loading}
             aria-activedescendant={listboxShown && !loading ? optionId(activeIndex) : undefined}
             onChange={(event) => { setInput(event.target.value); setActive(0); }} onKeyDown={onInputKeyDown} />

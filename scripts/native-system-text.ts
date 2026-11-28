@@ -3,7 +3,8 @@
 // 所以把服务端可能发出的句子和它们的中 / 日译文打包进安装包。收录范围：
 //   - src/app/api 下的路由文件，以及它们（经 import）用到的 .ts 模块里 msg() / fmt() 的第一个参数；
 //   - 服务端字典 zh-server.ts 的全部键；
-//   - SYSTEM_TEXT_TEMPLATES（带 {占位符} 的系统文句型，原生端按同样的规则拆开再翻译）。
+//   - SYSTEM_TEXT_TEMPLATES（带 {占位符} 的系统文句型，原生端按同样的规则拆开再翻译）；
+//   - 白板 AI 提案说明的译文（WHITEBOARD_PROPOSAL_KEYS，原生端按 WhiteboardProposalText 在显示时翻译）。
 // 生成：npx tsx scripts/gen-native-system-text.ts；src/lib/native-system-text-asset.test.ts 检查资源是否过期。
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
@@ -12,6 +13,7 @@ import { LOCALES as ALL_LOCALES, type Locale } from "../src/lib/i18n/locale";
 import { messagesFor } from "../src/lib/i18n/messages";
 import { zhServer } from "../src/lib/i18n/messages/zh-server";
 import { SYSTEM_TEXT_TEMPLATES } from "../src/lib/i18n/translate";
+import { WHITEBOARD_PROPOSAL_KEYS } from "../src/lib/whiteboard/proposal-text";
 
 export const NATIVE_SYSTEM_TEXT_ASSET = "mobile/android/app/src/main/assets/system-text.json";
 
@@ -84,7 +86,7 @@ export function crawlServerModules(
 }
 
 export function nativeSystemText(): NativeSystemText {
-  const keys = new Set([...crawlServerModules().keys, ...Object.keys(zhServer), ...SYSTEM_TEXT_TEMPLATES]);
+  const keys = new Set([...crawlServerModules().keys, ...Object.keys(zhServer), ...SYSTEM_TEXT_TEMPLATES, ...WHITEBOARD_PROPOSAL_KEYS]);
   const sorted = [...keys].sort();
   const messages = Object.fromEntries(LOCALES.map((locale) => {
     const dictionary = messagesFor(locale);

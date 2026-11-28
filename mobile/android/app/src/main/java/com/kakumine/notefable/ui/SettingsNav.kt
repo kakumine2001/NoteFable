@@ -4,8 +4,13 @@ package com.kakumine.notefable.ui
 // 按"关闭 / 返回"以后做什么，和网页 src/lib/settings-navigation.ts 是同一套规则（settingsDismissStep / settingsButtonStep），
 // 网页那边改了这里跟着改。这里只有规则，不碰界面；界面在 SettingsDialog.kt 里照着结果做。
 
-/** 入口一览里的四栏，顺序就是网页 TABS 的顺序（通用、个性化、方案、账号）。 */
-internal enum class SettingsPage { General, Personalization, Plan, Account }
+/** 网页 TABS：各栏（通用、个性化、方案、账号、帮助）。入口一览里不含「账号」，改由顶部的账号卡进入。 */
+internal enum class SettingsPage { General, Personalization, Plan, Account, Help }
+
+/** 入口一览里显示的各栏（登录用户含方案与个性化，访客只有通用与帮助）。 */
+internal fun settingsHomePages(signedIn: Boolean): List<SettingsPage> =
+    if (signedIn) listOf(SettingsPage.General, SettingsPage.Personalization, SettingsPage.Plan, SettingsPage.Help)
+    else listOf(SettingsPage.General, SettingsPage.Help)
 
 /**
  * 现在显示的画面：[page] 为 null 是入口的一览（网页 home = true），否则是那一栏的页面（网页 home = false + tab）。

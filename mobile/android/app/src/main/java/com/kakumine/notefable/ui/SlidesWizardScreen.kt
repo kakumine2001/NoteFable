@@ -109,6 +109,7 @@ internal fun SlidesWizardScreen(
     // 下面画面的输入框收起键盘。
     val focus = LocalFocusManager.current
     LaunchedEffect(Unit) { focus.clearFocus() }
+    RememberWebFileChooser(host)
 
     // 这个画面最后一次挂上 WebView 的序号：离开时只停靠自己挂着的。
     val mount = remember { intArrayOf(host.mountCount) }

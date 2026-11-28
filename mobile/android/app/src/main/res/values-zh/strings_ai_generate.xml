@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 统一 AI 生成入口（#254）：译文与网页字典 src/lib/i18n/messages/zh.ts 一致。 -->
+<resources>
+    <string name="ai_gen_placeholder">让 AI 生成笔记、白板或幻灯片…</string>
+    <string name="ai_gen_options">选项</string>
+    <string name="ai_gen_generate">生成</string>
+</resources>

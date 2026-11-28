@@ -278,6 +278,7 @@ private struct MoveNoteDialog: View {
     @State private var tried = false
     @Environment(AppEnvironment.self) private var app
     @Environment(\.nfWindowFrame) private var windowFrame
+    @Environment(\.nfChromePath) private var chromePath
 
     /// 发一个移动请求，成功就关窗口。忙的时候点了不算（Android 的 enabled = !busy，行不变灰）。
     private func run(_ work: @escaping @MainActor (NotesViewModel) async -> Bool) {
@@ -383,9 +384,10 @@ private struct MoveNoteDialog: View {
         }
     }
 
-    /// 一个目标页面：最小高 40、圆角 6、左距 12 + 每层 16、右距 9.6；图标 15（格宽 20）+ 间距 8 + 15 的标题；现在的父页面灰底、600、✓ 16。
+    /// 一个目标页面：最小高 42、圆角 12、左距 12 + 每层 16、右距 10；图标 15（格宽 20）+ 间距 8 + 15 的标题；现在的父页面柔底、600、蓝色 ✓ 16。
     private func pageRow(_ target: NoteMoveTarget) -> some View {
         let checked = page.parentId == target.page.id
+        let selectedFill = chromePath == .native ? Color.primary.opacity(0.08) : Sm.hover
         return Button {
             moveToPage(target.page.id)
         } label: {
@@ -397,14 +399,14 @@ private struct MoveNoteDialog: View {
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if checked {
-                    LucideIcon(Lucide.check, size: 16, color: Sm.text)
+                    LucideIcon(Lucide.check, size: 16, color: Sm.blue)
                 }
             }
             .padding(.leading, 12 + CGFloat(target.depth) * 16)
-            .padding(.trailing, 9.6)
-            .frame(minHeight: 40)
+            .padding(.trailing, 10)
+            .frame(minHeight: 42)
         }
-        .buttonStyle(.pressable(background: checked ? Sm.hover : .clear, cornerRadius: 6))
+        .buttonStyle(.pressable(background: checked ? selectedFill : .clear, cornerRadius: 12))
         .accessibilityAddTraits(checked ? .isSelected : [])
     }
 }

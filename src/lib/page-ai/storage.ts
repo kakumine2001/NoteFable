@@ -5,6 +5,7 @@ import { assertCoverOwner, claimCover } from "@/lib/note-covers";
 import { isEmojiIcon } from "@/lib/emoji-icon";
 import { MAX_NOTE_TITLE, NoteValidationError, uploadedCoverPath, validateNoteContent } from "@/lib/note-document";
 import { assertNoteFilesOwner } from "@/lib/note-files";
+import { assertNoteWhiteboardsOwner } from "@/lib/note-whiteboards";
 import { lockNoteOrder, resolveParent } from "@/lib/note-tree-server";
 import { isCanvasKind, pageKindOf, type CanvasKind } from "@/lib/page-kinds";
 import { prisma } from "@/lib/prisma";
@@ -27,7 +28,7 @@ async function parentGroup(tx: Tx, userId: string, parentId: string | null) {
 // アイコンは絵文字 1 つか、自分のアップロード画像（保存・作成と同じ規則）。undefined は「変えない」。
 function checkIcon(icon: unknown, userId: string) {
   if (icon === undefined || icon === null) return;
-  if (typeof icon !== "string" || (!isEmojiIcon(icon) && !uploadedCoverPath(icon))) throw new NoteValidationError(msg("Note icon must be a single emoji or an uploaded image."));
+  if (typeof icon !== "string" || (!isEmojiIcon(icon) && !uploadedCoverPath(icon))) throw new NoteValidationError(msg("Page icon must be a single emoji or an uploaded image."));
   assertCoverOwner(icon, userId, "icon");
 }
 
@@ -39,14 +40,22 @@ export const noteStorage: Storage = {
     checkIcon(content.icon, userId);
     return { title: checked.title, ...(content.icon === undefined ? {} : { icon: checked.icon }), blocks: checked.blocks };
   },
-  async claim(tx, userId, content) {
+  async claim(tx, userId, content, options) {
     // ファイルの行を、履歴・ページの行より先に取る（保存と同じ順序）。後片付けが削除を始めていたら書かない。
     if (content.icon !== undefined) await claimCover(tx, content.icon, userId, "icon");
     await claimNoteFiles(tx, content.blocks as never, userId);
+    await assertNoteWhiteboardsOwner(tx, content.blocks, userId, { allowExistingIds: options?.allowExistingWhiteboards });
   },
-  async write(tx, target, content, { ai }) {
+  async write(tx, target, content, { ai, requireUnlocked }) {
     const changed = await tx.notePage.updateMany({
-      where: { id: target.id, userId: target.userId, version: target.version, deletedAt: null, kind: "note" },
+      where: {
+        id: target.id,
+        userId: target.userId,
+        version: target.version,
+        deletedAt: null,
+        kind: "note",
+        ...(requireUnlocked ? { locked: false } : {}),
+      },
       data: {
         title: content.title, ...(content.icon === undefined ? {} : { icon: content.icon }),
         blocks: content.blocks as Prisma.InputJsonValue, version: { increment: 1 }, ...(ai ? { aiUpdatedAt: new Date() } : {}),
@@ -58,6 +67,7 @@ export const noteStorage: Storage = {
     const parent = await parentGroup(tx, userId, parentId);
     if (content.icon) await claimCover(tx, content.icon, userId, "icon");
     await claimNoteFiles(tx, content.blocks as never, userId);
+    await assertNoteWhiteboardsOwner(tx, content.blocks, userId);
     const page = await tx.notePage.create({
       data: {
         userId, ...parent, title: content.title, icon: content.icon ?? null, cover: null, coverPosition: null,
@@ -79,7 +89,7 @@ export function canvasStorage(kind: CanvasKind): Storage {
   return {
     validate(userId, content) {
       if (typeof content.title !== "string" || content.title.length > MAX_NOTE_TITLE) {
-        throw new NoteValidationError(fmt("Note title must be at most {max} characters.", { max: MAX_NOTE_TITLE }));
+        throw new NoteValidationError(fmt("Page title must be at most {max} characters.", { max: MAX_NOTE_TITLE }));
       }
       const canvas = validateCanvasData(kind, content.data ?? emptyCanvasData(kind));
       assertCanvasFilesOwner(canvas, userId);
@@ -93,9 +103,16 @@ export function canvasStorage(kind: CanvasKind): Storage {
       if (content.icon !== undefined) await claimCover(tx, content.icon, userId, "icon");
       await claimStoredFiles(tx, content.filePaths ?? [], userId);
     },
-    async write(tx, target, content, { ai }) {
+    async write(tx, target, content, { ai, requireUnlocked }) {
       const changed = await tx.notePage.updateMany({
-        where: { id: target.id, userId: target.userId, version: target.version, deletedAt: null, kind },
+        where: {
+          id: target.id,
+          userId: target.userId,
+          version: target.version,
+          deletedAt: null,
+          kind,
+          ...(requireUnlocked ? { locked: false } : {}),
+        },
         data: { title: content.title, ...(content.icon === undefined ? {} : { icon: content.icon }), version: { increment: 1 }, ...(ai ? { aiUpdatedAt: new Date() } : {}) },
       });
       if (!changed.count) return false;

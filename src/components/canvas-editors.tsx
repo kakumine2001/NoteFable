@@ -31,7 +31,7 @@ export type CanvasEditorProps = {
   // デスクトップの分割表示（チャットと並べた狭い枠）。
   split: boolean;
   saveStatus: NoteSaveStatus;
-  onChange: (data: CanvasData) => void;
+  onChange: (data: CanvasData | ((latest: CanvasData) => CanvasData | null)) => void;
   onTitleChange: (title: string) => void;
   // 選んだ要素・スライドについて AI に聞く（エディターの「Ask NoteFable / Ask AI」）。AI パネルが開き、text は引用、ids は要素・スライドの ID として送られる。
   onAskAi?: (selection: PageSelection) => void;
@@ -47,8 +47,8 @@ export type CanvasEditorProps = {
   onConsumeGenerateImage?: () => void;
   // アイコンを変える（ノートと同じく自動保存に乗る）。
   onIconChange?: (icon: string | null) => void;
-  // 中のリンクがアプリ内のページを指すとき、その場で開く（/app は画面を切り替え、/note-embed はアプリに openPage を送る）。開けたら true。
-  onOpenPage?: (id: string) => boolean;
+  // 中のリンク・埋め込みがアプリ内のページを指すとき、その場で開く（/app は画面を切り替え、/note-embed はアプリに openPage を送る）。開けたら true。
+  onOpenPage?: (id: string, reveal?: string) => boolean;
   // リンク先を選ぶためのページの一覧。/note-embed では渡さない（エディターが必要な時に GET /api/pages で読む）。
   pages?: MentionPage[];
 };

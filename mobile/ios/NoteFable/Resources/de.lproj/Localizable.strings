@@ -9,7 +9,7 @@
 "chats_empty" = "Deine letzten Unterhaltungen erscheinen hier.";
 "retry" = "Erneut versuchen";
 "messages_load_failed" = "Unterhaltung konnte nicht geladen werden.";
-"empty_hint" = "Stell eine Frage, arbeite mit deinen Notizen oder füge eine Datei hinzu.";
+"empty_hint" = "Stell eine Frage, arbeite mit deinem Arbeitsbereich oder füge eine Datei hinzu.";
 "message_hint" = "Frag was du möchtest…";
 "send" = "Nachricht senden";
 "stop" = "Generierung stoppen";
@@ -80,11 +80,11 @@
 "new_note" = "Neue Notiz";
 "projects" = "Projekte";
 "new_project" = "Neues Projekt";
-"no_notes_in_project" = "Keine Notizen in diesem Projekt.";
+"no_notes_in_project" = "Keine Seiten in diesem Projekt.";
 "notes_list_empty" = "Deine Notizen erscheinen hier.";
 "trash" = "Papierkorb";
-"trash_note_title" = "Notiz in den Papierkorb verschieben?";
-"trash_note_body" = "„%1$s“ wird in den Papierkorb verschoben. Du kannst die Notiz %2$d Tage lang wiederherstellen.";
+"trash_note_title" = "Seite in den Papierkorb verschieben?";
+"trash_note_body" = "„%1$s“ wird in den Papierkorb verschoben. Du kannst die Seite %2$d Tage lang wiederherstellen.";
 "cancel" = "Abbrechen";
 "move_to_trash" = "In den Papierkorb verschieben";
 "move_to_project" = "In Projekt verschieben";
@@ -95,12 +95,11 @@
 "save" = "Speichern";
 "delete_project_title" = "Projekt löschen?";
 "delete_project" = "Projekt löschen";
-"delete_project_body" = "„%1$s“ wird gelöscht. Die zugehörigen Notizen bleiben erhalten und werden aus dem Projekt verschoben.";
+"delete_project_body" = "„%1$s“ wird gelöscht. Die zugehörigen Seiten bleiben erhalten und werden aus dem Projekt verschoben.";
 "rename_name" = "„%1$s“ umbenennen";
 "delete_project_name" = "Projekt „%1$s“ löschen";
 "project_name" = "Projektname";
 "no_project" = "Kein Projekt";
-"move_note" = "Notiz verschieben";
 "move_note_to" = "„%1$s“ verschieben nach";
 "project" = "Projekt";
 "new_project_name" = "Neuer Projektname";
@@ -109,9 +108,9 @@
 "close" = "Schließen";
 "empty_trash" = "Papierkorb leeren";
 "close_trash" = "Papierkorb schließen";
-"trash_hint" = "Notizen im Papierkorb können %1$d Tage lang wiederhergestellt werden. Danach werden sie endgültig gelöscht.";
-"empty_trash_one" = "Diese Notiz im Papierkorb endgültig löschen? Dies kann nicht rückgängig gemacht werden.";
-"empty_trash_all" = "Alle %1$d Notizen im Papierkorb endgültig löschen? Dies kann nicht rückgängig gemacht werden.";
+"trash_hint" = "Seiten im Papierkorb können %1$d Tage lang wiederhergestellt werden. Danach werden sie endgültig gelöscht.";
+"empty_trash_one" = "Diese Seite im Papierkorb endgültig löschen? Dies kann nicht rückgängig gemacht werden.";
+"empty_trash_all" = "Alle %1$d Seiten im Papierkorb endgültig löschen? Dies kann nicht rückgängig gemacht werden.";
 "loading_trash" = "Papierkorb wird geladen…";
 "try_again" = "Erneut versuchen";
 "trash_is_empty" = "Der Papierkorb ist leer.";
@@ -126,26 +125,26 @@
 "removing_soon" = "wird bald gelöscht";
 "one_day_left" = "Noch 1 Tag";
 "days_left" = "Noch %1$d Tage";
-"loading_notes" = "Notizen werden geladen…";
-"notes_intro" = "Schreibe Notizen mit Blöcken – tippe %1$s für Überschriften, Listen, Aufgaben und Code.";
-"notes_storage_hint" = "Notizen werden auf dem Server gespeichert und mit diesem Gerät verknüpft. Melde dich an, um sie auf anderen Geräten zu öffnen. Wenn du App- oder Website-Daten löschst, bevor du dich angemeldet hast, kannst du sie nicht mehr öffnen.";
-"all_notes" = "Alle Notizen";
+"loading_notes" = "Seiten werden geladen…";
+"notes_intro" = "Schreibe Notizen, erstelle Präsentationen und skizziere auf Whiteboards. Tippe in einer Notiz %1$s für Überschriften, Listen, Aufgaben und Code.";
+"notes_storage_hint" = "Dein Arbeitsbereich wird auf dem Server gespeichert und mit diesem Gerät verknüpft. Melde dich an, um ihn auf anderen Geräten zu öffnen. Wenn du App- oder Website-Daten löschst, bevor du dich angemeldet hast, kannst du ihn nicht mehr öffnen.";
+"all_notes" = "Alle Seiten";
 "version_history" = "Versionsverlauf";
 "save_saved" = "Gespeichert";
 "save_saving" = "Wird gespeichert…";
 "save_not_saved" = "Nicht gespeichert";
 "save_conflict" = "Konflikt";
-"err_trash_unsaved" = "Kläre den ungespeicherten Entwurf, bevor du diese Notiz in den Papierkorb verschiebst.";
-"err_load_notes" = "Notizen konnten nicht geladen werden.";
-"err_create_note" = "Notiz konnte nicht erstellt werden.";
-"err_trash_note" = "Die Notiz konnte nicht in den Papierkorb verschoben werden.";
+"err_trash_unsaved" = "Kläre den ungespeicherten Entwurf, bevor du diese Seite in den Papierkorb verschiebst.";
+"err_load_notes" = "Seiten konnten nicht geladen werden.";
+"err_create_note" = "Seite konnte nicht erstellt werden.";
+"err_trash_note" = "Die Seite konnte nicht in den Papierkorb verschoben werden.";
 "err_group" = "Die Gruppe konnte nicht geändert werden.";
 "err_trash_request" = "Papierkorb-Aktion fehlgeschlagen. Bitte versuche es erneut.";
 "err_trash_load" = "Der Papierkorb konnte nicht geladen werden.";
 "err_save_draft" = "Speichern fehlgeschlagen. Dein Entwurf wurde behalten.";
 "sign_in" = "Anmelden";
 "signin_title" = "Bei NoteFable anmelden";
-"signin_subtitle" = "Behalte deine Chats und Notizen und öffne sie auf jedem Gerät.";
+"signin_subtitle" = "Behalte deine Chats und deinen Arbeitsbereich und öffne sie auf jedem Gerät.";
 "continue_google" = "Weiter mit Google";
 "signin_or" = "oder";
 "signin_email" = "E-Mail-Adresse";
@@ -197,10 +196,15 @@
 
 /* strings_account_delete.xml */
 "acct_delete_account" = "Konto löschen";
-"acct_delete_account_warning" = "Dein Konto und alle darin enthaltenen Daten – Chats, Notizen, Dateien und Einstellungen – werden endgültig gelöscht. Dies kann nicht rückgängig gemacht werden.";
+"acct_delete_account_warning" = "Dein Konto und alle darin enthaltenen Daten – Chats, Notizen, Präsentationen, Whiteboards, Dateien und Einstellungen – werden endgültig gelöscht. Dies kann nicht rückgängig gemacht werden.";
 "acct_delete_permanently" = "Dauerhaft löschen";
 "acct_deleting" = "Wird gelöscht…";
 "acct_err_delete_account" = "Dein Konto konnte nicht gelöscht werden. Bitte versuche es erneut.";
+
+/* strings_ai_generate.xml */
+"ai_gen_placeholder" = "Bitte die KI, eine Notiz, ein Whiteboard oder Folien zu erstellen…";
+"ai_gen_options" = "Optionen";
+"ai_gen_generate" = "Generieren";
 
 /* strings_answers.xml */
 "activity_thinking" = "Denkt nach";
@@ -209,21 +213,21 @@
 "activity_searching_query" = "Sucht nach „%1$s“";
 "activity_reading_host" = "Liest %1$s";
 "activity_scanning_host" = "Durchsucht %1$s";
-"activity_searching_notes" = "Durchsucht deine Notizen";
-"activity_reading_note" = "Liest deine Notiz";
+"activity_searching_notes" = "Durchsucht deine Seiten";
+"activity_reading_note" = "Liest deine Seite";
 "activity_one_search" = "1 Suche";
 "activity_searches" = "%1$s Suchen";
 "activity_one_source" = "1 Quelle";
 "activity_sources" = "%1$s Quellen";
-"activity_one_note_lookup" = "1 Notizabruf";
-"activity_note_lookups" = "%1$s Notizabrufe";
-"activity_one_project_note" = "1 Projektnotiz";
-"activity_project_notes" = "%1$s Projektnotizen";
+"activity_one_note_lookup" = "1 Seitenabruf";
+"activity_note_lookups" = "%1$s Seitenabrufe";
+"activity_one_project_note" = "1 Projektseite";
+"activity_project_notes" = "%1$s Projektseiten";
 "activity_project_instructions" = "Projektanweisungen";
 "activity_more" = "+%1$s weitere";
 "activity_instructions" = "Anweisungen";
-"activity_one_reference_note" = "1 Referenznotiz";
-"activity_reference_notes" = "%1$s Referenznotizen";
+"activity_one_reference_note" = "1 Referenzseite";
+"activity_reference_notes" = "%1$s Referenzseiten";
 "activity_used_project" = "Projekt „%1$s“ verwendet: %2$s";
 "activity_partial" = "teilweise";
 "activity_searching_web_running" = "Sucht im Web…";
@@ -235,7 +239,7 @@
 "activity_thought_process" = "Gedankengang";
 "proposal_discarded" = "Verworfen";
 "proposal_minimize" = "Minimieren";
-"proposal_expand" = "Ausführlicher formulieren";
+"proposal_expand" = "Ausklappen";
 "proposal_open" = "Öffnen";
 "proposal_discard" = "Verwerfen";
 "proposal_open_note" = "Notiz öffnen";
@@ -291,10 +295,11 @@
 "proposal_op_elements" = "%1$s · %2$s Elemente";
 "proposal_before" = "Vorher";
 "proposal_after" = "Nachher";
+"proposal_view_preview" = "Vorschau anzeigen";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "Seiten anhängen";
-"attach_pages_desc" = "Lass die KI deine Notizen lesen";
+"attach_pages_desc" = "Lass die KI deine Seiten lesen";
 "attached_pages" = "Angehängte Seiten";
 "ask_notefable" = "NoteFable fragen";
 "quote" = "Zitat";
@@ -428,6 +433,7 @@
 "pg_subpages_to_trash" = "Unterseiten werden zusammen mit dieser Seite in den Papierkorb verschoben.";
 "pg_rename_page" = "Seite umbenennen";
 "pg_page_title" = "Seitentitel";
+"pg_review_quiz" = "Wiederholen & Quiz";
 
 /* strings_personal.xml */
 "appearance" = "Darstellung";
@@ -496,14 +502,14 @@
 
 /* strings_search.xml */
 "search" = "Suchen";
-"search_chats_and_notes" = "Chats und Notizen durchsuchen";
+"search_chats_and_notes" = "Chats und Seiten durchsuchen";
 "search_close" = "Suche schließen";
 "search_tab_all" = "Alle";
 "search_tab_chats" = "Chats";
 "search_project" = "Projekt";
 "search_all_projects" = "Alle Projekte";
-"search_idle_title" = "Deine Chats und Notizen durchsuchen";
-"search_idle_body" = "Jedes eingegebene Wort muss im selben Chat oder derselben Notiz vorkommen – im Titel, in einer Nachricht oder in einer angehängten Datei.";
+"search_idle_title" = "Deine Chats und Seiten durchsuchen";
+"search_idle_body" = "Jedes eingegebene Wort muss im selben Chat oder auf derselben Seite vorkommen – im Titel, im Text oder in einer angehängten Datei.";
 "search_unavailable_title" = "Suche nicht verfügbar";
 "search_unavailable_body" = "Prüfe deine Verbindung und versuche es erneut.";
 "search_try_again" = "Erneut versuchen";
@@ -521,7 +527,7 @@
 "share_publish" = "Veröffentlichen";
 "share_republish" = "Erneut veröffentlichen";
 "share_unpublish" = "Veröffentlichung aufheben";
-"share_desc" = "Veröffentliche diese Notiz, damit jeder mit dem Link sie ansehen kann.";
+"share_desc" = "Veröffentliche diese Seite, damit jeder mit dem Link sie ansehen kann.";
 "share_expired" = "Dieser Freigabelink ist abgelaufen.";
 "share_public_link" = "Öffentlicher Link";
 "share_copy_link" = "Link kopieren";
@@ -557,8 +563,8 @@
 "sb_all_chats_pinned" = "Alle Chats angepinnt";
 "sb_no_chats" = "Keine Chats";
 "sb_hint_instructions" = "Anweisungen";
-"sb_one_reference_note" = "1 Referenznotiz";
-"sb_n_reference_notes" = "%1$d Referenznotizen";
+"sb_one_reference_note" = "1 Referenzseite";
+"sb_n_reference_notes" = "%1$d Referenzseiten";
 "sb_project_settings" = "Projekteinstellungen";
 "sb_new_project_plus" = "＋ Neues Projekt";
 "sb_delete_chat" = "Chat löschen";
@@ -576,19 +582,19 @@
 "sb_loading" = "Wird geladen…";
 "sb_instructions" = "Anweisungen";
 "sb_instructions_placeholder" = "Beispiel: Hilf mir beim Schreiben japanischer Geschäfts-E-Mails. Achte auf einen höflichen Ton und gib mir zuerst einen kurzen Entwurf.";
-"sb_reference_notes" = "Referenznotizen";
-"sb_selected_notes" = "Ausgewählte Notizen";
+"sb_reference_notes" = "Referenzseiten";
+"sb_selected_notes" = "Ausgewählte Seiten";
 "sb_remove_title" = "„%1$s“ entfernen";
-"sb_filter_notes" = "Notizen filtern";
-"sb_your_notes" = "Deine Notizen";
+"sb_filter_notes" = "Seiten filtern";
+"sb_your_notes" = "Deine Seiten";
 "sb_untitled" = "Unbenannt";
-"sb_no_notes_match" = "Keine passenden Notizen.";
-"sb_no_notes_yet" = "Du hast noch keine Notizen.";
-"sb_showing_first_notes" = "Die ersten %1$d Notizen werden angezeigt. Tippe in das Filterfeld, um weitere zu finden.";
-"sb_notes_limit" = "Du kannst bis zu %1$d Notizen auswählen. Entferne eine, um eine andere auszuwählen.";
+"sb_no_notes_match" = "Keine passenden Seiten gefunden.";
+"sb_no_notes_yet" = "Du hast noch keine Seiten.";
+"sb_showing_first_notes" = "Die ersten %1$d Seiten werden angezeigt. Tippe in das Filterfeld, um weitere zu finden.";
+"sb_notes_limit" = "Du kannst bis zu %1$d Seiten auswählen. Entferne eine, um eine andere auszuwählen.";
 "sb_saving" = "Wird gespeichert…";
 "sb_err_load_project_settings" = "Die Projekteinstellungen konnten nicht geladen werden.";
-"sb_err_load_your_notes" = "Deine Notizen konnten nicht geladen werden.";
+"sb_err_load_your_notes" = "Deine Seiten konnten nicht geladen werden.";
 "sb_err_save_project_settings" = "Die Projekteinstellungen konnten nicht gespeichert werden. Bitte versuche es erneut.";
 "sb_err_move_item" = "Das Element konnte nicht verschoben werden. Versuche es erneut.";
 "sb_err_wait_move" = "Warte, bis der vorherige Verschiebevorgang abgeschlossen ist.";
@@ -602,9 +608,11 @@
 "slides_export_png" = "Als PNG-Bilder exportieren";
 "slides_export_pptx" = "Als PowerPoint (PPTX) exportieren";
 "slides_export_pptx_transition_note" = "Folienübergänge sind im PPTX-Export nicht enthalten.";
+"slides_import_pptx" = "PowerPoint importieren";
 
 /* strings_slides_wizard.xml */
 "slides_generate" = "Folien generieren";
+"slides_generating" = "Folien werden generiert …";
 "slides_generate_from_chat" = "Aus diesem Chat eine Präsentation erstellen";
 "slides_generate_with_ai" = "Mit KI generieren";
 

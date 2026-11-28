@@ -13,7 +13,7 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-import { findNoteBacklinks } from "@/lib/note-backlinks-server";
+import { findNoteBacklinks, WHITEBOARD_EMBED_TO_PAGE_PATH } from "@/lib/note-backlinks-server";
 
 const origin = "https://app.notefable.com";
 const row = (overrides: Record<string, unknown>) => ({ kind: "note", title: "Page", icon: null, mentioned: false, hrefs: [], ...overrides });
@@ -53,6 +53,8 @@ describe("findNoteBacklinks", () => {
     // Links that cannot be page links (such as public share URLs holding the id) never take a candidate slot.
     expect(sql.sql).toContain("strpos(h, 'view=pages') > 0");
     expect(sql.sql).not.toContain('c."data"');
+    // Notes embedding this whiteboard via a whiteboard block count as backlinks too.
+    expect(sql.values).toContain(WHITEBOARD_EMBED_TO_PAGE_PATH);
     expect(sql.values).toContain("me");
     expect(sql.values).toContain("target");
   });

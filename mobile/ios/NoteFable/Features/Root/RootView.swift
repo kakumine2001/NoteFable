@@ -18,8 +18,14 @@ struct RootView: View {
         @Bindable var router = router
         let fullScreenWizard = app.notes.state.slidesWizard?.editor == nil ? app.notes.state.slidesWizard : nil
         let editorWizardShown = app.notes.state.slidesWizard?.editor != nil && app.notes.state.slidesWizard?.shown == true
-        let hideTabBar = fullScreenWizard != nil || (router.selectedTab == .workspace && (app.notes.state.open != nil || app.notes.state.presenting))
-        let allowEdgeDrawer = fullScreenWizard == nil && !editorWizardShown && !(router.selectedTab == .workspace && (app.notes.state.editorCapturesEdgeSwipes || app.notes.state.presenting))
+        let fullScreenAiGenerate = app.notes.state.aiGenerate?.editor == nil ? app.notes.state.aiGenerate : nil
+        let editorAiGenerateShown = app.notes.state.aiGenerate?.editor != nil && app.notes.state.aiGenerate?.shown == true
+        let fullScreenPptxImport = app.notes.state.pptxImport?.editor == nil ? app.notes.state.pptxImport : nil
+        let editorPptxImportShown = app.notes.state.pptxImport?.editor != nil && app.notes.state.pptxImport?.shown == true
+        let editorQuizShown = app.notes.state.reviewQuiz?.shown == true
+        let hasFullScreenOverlay = fullScreenWizard != nil || fullScreenAiGenerate != nil || fullScreenPptxImport != nil
+        let hideTabBar = hasFullScreenOverlay || (router.selectedTab == .workspace && (app.notes.state.open != nil || app.notes.state.presenting))
+        let allowEdgeDrawer = !hasFullScreenOverlay && !editorWizardShown && !editorAiGenerateShown && !editorPptxImportShown && !editorQuizShown && !(router.selectedTab == .workspace && (app.notes.state.editorCapturesEdgeSwipes || app.notes.state.presenting))
 
         ZStack {
             AdaptiveSidebarShell(
@@ -36,6 +42,12 @@ struct RootView: View {
             }
             if let wizard = fullScreenWizard {
                 SlidesWizardScreen(wizard: wizard)
+                    .transition(.opacity)
+            } else if let aiGenerate = fullScreenAiGenerate {
+                AiGenerateScreen(aiGenerate: aiGenerate)
+                    .transition(.opacity)
+            } else if let pptxImport = fullScreenPptxImport {
+                PptxImportScreen(pptxImport: pptxImport)
                     .transition(.opacity)
             }
         }
@@ -85,12 +97,16 @@ struct RootView: View {
         // 「画成图」的进度窗口：回答的菜单（聊天）和笔记的菜单（编辑页）都从这里开。
         .drawDiagramDialog()
         .noteTrashSheet()
+        // 画布提案（白板 / 幻灯片）改前・改后可视化预览弹层。
+        .sheet(item: $router.previewProposal) { proposal in
+            ProposalPreviewSheet(proposal: proposal)
+        }
         .nfOverlayHost()
         // 提示条按当前标签页量到的底部遮挡（标签栏 + 悬浮底栏）摆放，宽屏常驻侧栏展开时在详情栏中水平居中；全屏向导盖住整窗时不偏移。
         .toastHost(
             tabBarVisible: !hideTabBar,
             tab: router.selectedTab,
-            leadingInset: (fullScreenWizard == nil && router.isSidebarDockedVisible) ? CGFloat(router.dockedSidebarWidth) : 0
+            leadingInset: (!hasFullScreenOverlay && router.isSidebarDockedVisible) ? CGFloat(router.dockedSidebarWidth) : 0
         )
     }
 
@@ -158,13 +174,12 @@ struct RootView: View {
 
 // MARK: - 合并抽屉面板
 
-/// 合并侧边栏抽屉：顶部品牌栏、共享滚动区（聊天 + 工作区）、底部悬浮玻璃操作栏（账号 / 帮助 / 新建）。
-/// 面板本身是内容（推入式抽屉，后面没有东西可折射），保持实色 `Sm.sidebar`；顶栏和底栏是浮在列表上的两条栏
-/// （`nfFloatingHeader`）：iOS 26 起列表从它们下面滚过（系统滚动边缘效果），iOS 17–18 铺一条系统毛玻璃底，
-/// “减少透明度”时铺一条 `Sm.sidebar` 实色底（底栏上边再加 1px 细线）。
+/// 合并侧边栏抽屉：外层为 `AdaptiveSidebarShell` 的圆角 Liquid Glass 浮层（窄屏悬浮折射主画面、宽屏常驻浮岛），
+/// 内层是顶部品牌栏、共享滚动区（聊天 + 工作区）和底部操作栏（账号［未登录时含设置齿轮］ / 新建），顶底栏通过 `nfFloatingHeader` 浮在列表上。
 private struct DrawerPanel: View {
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router
+    @Environment(\.nfChromePath) private var chromePath
 
     var body: some View {
         ScrollView(.vertical) {
@@ -178,7 +193,7 @@ private struct DrawerPanel: View {
             }
             .padding(.bottom, 12)
         }
-        .nfFloatingHeader(edge: .top, solidFill: Sm.sidebar, divider: false) {
+        .nfFloatingHeader(edge: .top, solidFill: Sm.sidebar, divider: false, topFade: false) {
             header
         }
         .nfFloatingHeader(edge: .bottom, solidFill: Sm.sidebar, divider: true) {
@@ -187,27 +202,31 @@ private struct DrawerPanel: View {
     }
 
     private var header: some View {
-        HStack(spacing: 0) {
+        let closeBg = chromePath == .native ? Color.primary.opacity(0.075) : Sm.surface
+        let closeInk = chromePath == .native ? chromePath.secondaryInk : Sm.muted
+        return HStack(spacing: 0) {
             AppIconView(icon: app.appIcon.icon, size: 20)
             Text(L("app_title"))
                 .font(.nf(15, weight: 680))
                 .tracking(-0.35)
-                .foregroundStyle(Sm.ink)
+                .foregroundStyle(chromePath == .native ? chromePath.primaryInk : Sm.ink)
                 .lineLimit(1)
                 .padding(.leading, 8)
             Spacer(minLength: 0)
-            // 每条栏的玻璃各包在一个容器里（#195 规则 1.4）。
-            NFGlassContainer(spacing: NFChromeMetrics.containerSpacing) {
-                NFGlassIconButton(
-                    Lucide.panelLeftClose,
-                    label: L("sb_close_sidebar"),
-                    size: 34,
-                    iconSize: 16,
-                    color: Sm.muted
-                ) {
-                    router.closeSidebar()
-                }
+            // 侧栏本身是 Liquid Glass 浮层，内部关闭按钮不再套第二层 .glassEffect（避免 glass-on-glass）。
+            Button {
+                router.closeSidebar()
+            } label: {
+                LucideIcon(Lucide.panelLeftClose, size: 16, strokeWidth: 2, color: closeInk)
+                    .frame(width: 34, height: 34)
+                    .overlay {
+                        if chromePath == .solid {
+                            Circle().strokeBorder(Sm.border, lineWidth: 1)
+                        }
+                    }
             }
+            .buttonStyle(.pressable(background: closeBg, pressedBackground: Sm.active, cornerRadius: 17, scale: 0.96))
+            .accessibilityLabel(L("sb_close_sidebar"))
         }
         .padding(.leading, 14)
         .padding(.trailing, 10)
@@ -231,32 +250,22 @@ private struct DrawerPanel: View {
     }
 }
 
-/// 抽屉底部悬浮玻璃操作栏：左边账号胶囊（登录或设置），右边“？”帮助菜单与“＋”新建菜单。
+/// 抽屉底部操作栏：左边账号胶囊（登录或设置），未登录时加小号设置齿轮，右边“＋”按钮（点一下新建聊天，长按或右键打开系统原生新建菜单）。
 private struct DrawerFooter: View {
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router
-    @State private var newMenuOpen = false
+    @Environment(\.nfChromePath) private var chromePath
 
     var body: some View {
         let account = app.account.state
-        let guest = account.loaded && (!account.configured || account.user == nil)
-        VStack(alignment: .leading, spacing: 6) {
-            if guest, app.language.changeFailed {
-                Text(L("language_change_failed"))
-                    .font(.nf(12))
-                    .foregroundStyle(Sm.danger)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 12)
-                    .onAppear { UIAccessibility.post(notification: .announcement, argument: L("language_change_failed")) }
+        let showGuestSettings = !account.configured || account.user == nil
+        HStack(spacing: NFChromeMetrics.gap) {
+            AccountRow(glassStyle: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if showGuestSettings {
+                guestSettingsButton
             }
-            NFGlassContainer(spacing: NFChromeMetrics.containerSpacing) {
-                HStack(spacing: NFChromeMetrics.gap) {
-                    AccountRow(glassStyle: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    HelpMenuButton(glassStyle: true)
-                    newActionButton
-                }
-            }
+            newActionButton
         }
         .padding(.horizontal, 12)
         .padding(.top, 6)
@@ -264,46 +273,105 @@ private struct DrawerFooter: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private var guestSettingsButton: some View {
+        let fill = chromePath == .native ? Color.primary.opacity(0.075) : Sm.surface
+        let ink = chromePath == .native ? chromePath.secondaryInk : Sm.muted
+        return Button {
+            router.openSettings()
+        } label: {
+            LucideIcon(Lucide.settings, size: 17, color: ink)
+                .frame(width: 40, height: 40)
+                .overlay {
+                    if chromePath == .solid {
+                        Circle().strokeBorder(Sm.borderStrong, lineWidth: 1)
+                    }
+                }
+        }
+        .buttonStyle(.pressable(
+            background: fill,
+            pressedBackground: Sm.hover,
+            cornerRadius: 20,
+            scale: 0.96
+        ))
+        .accessibilityLabel(L("acct_settings"))
+    }
+
     private var newActionButton: some View {
         let kinds = app.notes.state.kinds
         let notesBusy = app.notes.state.busy || app.notes.state.loading
-        return NFGlassIconButton(Lucide.plus, label: L("ws_new"), size: 40, iconSize: 18, color: Sm.ink) {
-            newMenuOpen.toggle()
-        }
-        .actionsMenu(isPresented: $newMenuOpen, alignment: .trailing, placement: .above, label: L("ws_new")) {
-            ActionsMenuItem(L("new_chat"), icon: Lucide.messageSquareText) {
-                newMenuOpen = false
+        return Menu {
+            Button {
                 router.openNewChat()
+            } label: {
+                NFMenuLabel(title: L("new_chat"), icon: Lucide.messageSquareText)
             }
-            ActionsMenuDivider()
+            Divider()
             ForEach(kinds, id: \.self) { kind in
-                ActionsMenuItem(L(pageKindNewLabel(kind)), icon: pageKindIcon(kind), iconColor: pageKindColor(kind)) {
-                    newMenuOpen = false
+                Button {
                     router.createNote(kind: kind)
+                } label: {
+                    NFMenuLabel(title: L(pageKindNewLabel(kind)), icon: pageKindIcon(kind))
                 }
                 .disabled(notesBusy)
             }
+            Divider()
+            Button {
+                router.openAiGenerate()
+            } label: {
+                NFMascotMenuLabel(title: L("slides_generate_with_ai"), icon: app.appIcon.icon)
+            }
+            .disabled(notesBusy)
             if kinds.contains(.slides) {
-                ActionsMenuDivider()
-                ActionsMenuItem(L("slides_generate_with_ai"), leading: {
-                    AppIconView(icon: app.appIcon.icon, size: 16)
-                }) {
-                    newMenuOpen = false
-                    router.openSlidesWizard(.new())
+                Button {
+                    router.openPptxImport()
+                } label: {
+                    NFMenuLabel(title: L("slides_import_pptx"), icon: Lucide.upload)
                 }
                 .disabled(notesBusy)
+            }
+        } label: {
+            LucideIcon(Lucide.plus, size: 18, strokeWidth: 2.1, color: Sm.onInk)
+                .frame(width: 40, height: 40)
+                .background(Sm.ink, in: Circle())
+                .contentShape(Circle())
+                .contentShape(.contextMenuPreview, Circle())
+        } primaryAction: {
+            router.openNewChat()
+        }
+        .accessibilityLabel(L("new_chat"))
+        .accessibilityActions {
+            if !notesBusy {
+                ForEach(kinds, id: \.self) { kind in
+                    Button {
+                        router.createNote(kind: kind)
+                    } label: {
+                        Text(L(pageKindNewLabel(kind)))
+                    }
+                }
+                Button {
+                    router.openAiGenerate()
+                } label: {
+                    Text(L("slides_generate_with_ai"))
+                }
+                if kinds.contains(.slides) {
+                    Button {
+                        router.openPptxImport()
+                    } label: {
+                        Text(L("slides_import_pptx"))
+                    }
+                }
             }
         }
     }
 }
 
-// MARK: - 自适应侧栏壳层（宽屏常驻双栏 / 窄屏推入式圆角抽屉）
+// MARK: - 自适应侧栏壳层（悬浮 Liquid Glass 常驻双栏 / 窄屏悬浮 Liquid Glass 覆盖抽屉）
 
 /// 单一结构身份的自适应侧栏容器（RTL 自动镜像）：
 /// - 宽且足够高的窗口（`AdaptiveLayout.supportsDockedSidebar`：可用宽 >= 640pt、窗口总高 >= 560pt 且未在幻灯片放映）：
-///   260–280pt 常驻侧栏与详情栏并排，支持顶部按钮收起/展开，收起时详情区平滑占满窗口；
-/// - 窄或低矮窗口（手机竖/横屏、折叠态 iPhone Duo、较窄分屏）：交互式推入式圆角抽屉（停留在主视图下方带轻微视差，主视图推开并收出连续圆角与柔和阴影；
-///   `shown == 0` 时外部遮罩外扩 120pt，避免裁切底部 TabView 液态玻璃边缘效果；白板与放映中禁用边缘拉出）；
+///   260–280pt 悬浮圆角 Liquid Glass 侧栏常驻在详情栏行首、支持顶部按钮收起/展开，收起时详情区平滑占满窗口；
+/// - 窄或低矮窗口（手机竖/横屏、折叠态 iPhone Duo、较窄分屏）：交互式行首滑出的悬浮圆角 Liquid Glass 抽屉，
+///   浮在主视图与半透明遮罩之上，真实折射背后的聊天与工作区内容；白板与放映中禁用边缘拉出；
 /// - 两种布局共享同一组 `panel` 与 `content` 视图节点，横竖屏旋转、分屏缩放、iPhone Duo 折展时保持选中项、WebView 与未保存草稿。
 private struct AdaptiveSidebarShell<Panel: View, Content: View>: View {
     @Binding var isOpen: Bool
@@ -317,6 +385,7 @@ private struct AdaptiveSidebarShell<Panel: View, Content: View>: View {
 
     @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.nfChromePath) private var chromePath
     /// 窄屏抽屉露出来的比例：0 = 收起，1 = 全开。
     @State private var shown: CGFloat = 0
     /// 宽屏常驻侧栏展开比例：0 = 收起，1 = 展开。
@@ -338,10 +407,11 @@ private struct AdaptiveSidebarShell<Panel: View, Content: View>: View {
         let width: Double
     }
 
-    private static var maxWidth: CGFloat { 296 }
+    private static var maxWidth: CGFloat { 312 }
     /// 从屏幕边缘多宽以内开始的拖动算“拉出抽屉”。
     private static var edgeWidth: CGFloat { 24 }
-    private static var scrim: Color { Color.black.opacity(0.18) }
+    private static var scrim: Color { Color(light: 0x1F0F172A, dark: 0x52000000) }
+    private static var floatingShadow: Color { Color(light: 0x240F172A, dark: 0x73000000) }
 
     init(
         isOpen: Binding<Bool>,
@@ -378,27 +448,61 @@ private struct AdaptiveSidebarShell<Panel: View, Content: View>: View {
             let dockedWidth = CGFloat(resolvedDockedWidth)
             let dockState = DockLayoutState(docked: layoutDocked, width: resolvedDockedWidth)
             let drawerWidth = min(Self.maxWidth, proxy.size.width * 0.84)
-            let panelWidth = layoutDocked ? dockedWidth : drawerWidth
             let dockFactor: CGFloat = layoutDocked ? dockedShown : 0
             let drawerFactor: CGFloat = layoutDocked ? 0 : shown
             let rtl = layoutDirection == .rightToLeft
-            let maskInset = layoutDocked ? -120 : -max(0, 1 - drawerFactor * 20) * 120
             let panelVisible = layoutDocked ? dockFactor > 0.01 : drawerFactor > 0.01
             let panelInteractive = layoutDocked ? dockFactor > 0.5 : drawerFactor > 0.5
-            let panelOffsetX = layoutDocked ? -(1 - dockFactor) * dockedWidth : -(1 - drawerFactor) * 28
+            let leadingPad: CGFloat = layoutDocked ? 10 : 8
+            let verticalPad: CGFloat = layoutDocked ? 8 : 6
+            let cornerRadius: CGFloat = layoutDocked ? 26 : 30
+            let panelShape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            let innerPanelWidth = max(0, (layoutDocked ? dockedWidth : drawerWidth) - leadingPad)
+            // SwiftUI 在 RTL 下自动镜像 offset(x:)，不要再乘方向系数。
+            let panelOffsetX = layoutDocked
+                ? -(1 - dockFactor) * (dockedWidth + 24)
+                : -(1 - drawerFactor) * (drawerWidth + 24)
             let contentWidth = layoutDocked ? max(0, proxy.size.width - dockFactor * dockedWidth) : proxy.size.width
-            let contentOffsetX = layoutDocked ? dockFactor * dockedWidth : drawerFactor * drawerWidth
+            let contentOffsetX = layoutDocked ? dockFactor * dockedWidth : 0
 
             ZStack(alignment: .leading) {
-                panel
-                    .frame(width: panelWidth)
-                    .frame(maxHeight: .infinity)
-                    .background {
-                        Sm.sidebar
-                            .contentShape(Rectangle())
-                            .ignoresSafeArea()
+                content
+                    .frame(width: contentWidth, height: proxy.size.height)
+                    .mask {
+                        // 上下与行尾外扩 120pt 保留底部 TabView 与悬浮栏玻璃边缘效果；常驻分栏时行首裁齐 0，不跨到侧栏列上。
+                        Rectangle()
+                            .padding(EdgeInsets(
+                                top: -120,
+                                leading: (layoutDocked && dockFactor > 0.01) ? 0 : -120,
+                                bottom: -120,
+                                trailing: -120
+                            ))
                     }
-                    // SwiftUI 在 RTL 下自动镜像 offset(x:)，不要再乘方向系数。
+                    .offset(x: contentOffsetX)
+                    .simultaneousGesture(
+                        openGesture(width: drawerWidth, containerWidth: proxy.size.width, rtl: rtl),
+                        including: (!layoutDocked && edgeOpens && !isOpen) ? .all : .subviews
+                    )
+                    .accessibilityHidden(!layoutDocked && shown > 0)
+
+                // 始终保持挂载，以免拖动接近 0 时卸载手势宿主触发系统取消并重新打开抽屉。
+                Self.scrim
+                    .opacity(layoutDocked ? 0 : drawerFactor)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture { isOpen = false }
+                    .gesture(closeGesture(width: drawerWidth, rtl: rtl))
+                    .allowsHitTesting(!layoutDocked && (isOpen || shown > 0 || closeDrag == .active))
+                    .accessibilityHidden(true)
+
+                panel
+                    .frame(width: innerPanelWidth)
+                    .frame(maxHeight: .infinity)
+                    .clipShape(panelShape)
+                    .nfGlassBackground(.regular, in: panelShape, solidFill: Sm.sidebar, stroke: Sm.border)
+                    .nfChromeShadow(Self.floatingShadow, radius: 22, y: 8)
+                    .padding(.leading, leadingPad)
+                    .padding(.vertical, verticalPad)
                     .offset(x: panelOffsetX)
                     .opacity(panelVisible ? 1 : 0)
                     .simultaneousGesture(
@@ -415,50 +519,9 @@ private struct AdaptiveSidebarShell<Panel: View, Content: View>: View {
                             isOpen = false
                         }
                     }
-
-                content
-                    .frame(width: contentWidth, height: proxy.size.height)
-                    .overlay {
-                        // 始终保持挂载，以免拖动接近 0 时卸载手势宿主触发系统取消并重新打开抽屉。
-                        Self.scrim
-                            .opacity(drawerFactor)
-                            .ignoresSafeArea()
-                            .contentShape(Rectangle())
-                            .onTapGesture { isOpen = false }
-                            .gesture(closeGesture(width: drawerWidth, rtl: rtl))
-                            .allowsHitTesting(!layoutDocked && (isOpen || shown > 0 || closeDrag == .active))
-                            .accessibilityHidden(true)
-                    }
-                    .mask {
-                        // 宽屏常驻侧栏模式下行首裁齐 0，避免详情区横向滚动画布或安全区延展盖到侧栏上；上下与行尾仍外扩 120pt 保留玻璃边缘效果。
-                        RoundedRectangle(cornerRadius: drawerFactor * 32, style: .continuous)
-                            .padding(EdgeInsets(
-                                top: maskInset,
-                                leading: layoutDocked ? 0 : maskInset,
-                                bottom: maskInset,
-                                trailing: maskInset
-                            ))
-                    }
-                    .shadow(color: Color.black.opacity(0.16 * drawerFactor), radius: 18 * drawerFactor, x: 0, y: 0)
-                    .overlay(alignment: .leading) {
-                        // 常驻侧栏与详情栏之间的 1pt 分隔线，延伸进上下安全区；RTL 下 `.leading` 自动落在右侧接缝。
-                        Rectangle()
-                            .fill(Sm.border)
-                            .frame(width: 1)
-                            .ignoresSafeArea(.container, edges: [.top, .bottom])
-                            .opacity(layoutDocked ? dockFactor : 0)
-                            .allowsHitTesting(false)
-                            .accessibilityHidden(true)
-                    }
-                    .offset(x: contentOffsetX)
-                    .simultaneousGesture(
-                        openGesture(width: drawerWidth, containerWidth: proxy.size.width, rtl: rtl),
-                        including: (!layoutDocked && edgeOpens && !isOpen) ? .all : .subviews
-                    )
-                    .accessibilityHidden(!layoutDocked && shown > 0)
             }
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .leading)
-            .background { Sm.sidebar.ignoresSafeArea() }
+            .background { (chromePath == .solid ? Sm.sidebar : Sm.background).ignoresSafeArea() }
             .onChange(of: dockState, initial: true) { old, next in
                 let modeChanged = old.docked != next.docked || lastDocked != next.docked
                 lastDocked = next.docked
@@ -478,7 +541,7 @@ private struct AdaptiveSidebarShell<Panel: View, Content: View>: View {
                 dockedShown = target
                 return
             }
-            withAnimation(NFMotion.unlessReduced(NFMotion.spring(0.32), reduceMotion)) {
+            withAnimation(NFMotion.unlessReduced(NFMotion.iosSmooth, reduceMotion)) {
                 dockedShown = target
             }
         }
@@ -495,7 +558,7 @@ private struct AdaptiveSidebarShell<Panel: View, Content: View>: View {
             } else {
                 closeDrag = nil
             }
-            settle(open: open, animation: open ? NFMotion.easeOut(NFMotion.base) : NFMotion.easeOut(0.2))
+            settle(open: open, animation: open ? NFMotion.iosSpring : NFMotion.easeOut(0.2))
         }
         .onChange(of: touching) { _, active in
             guard !active else { return }
@@ -503,7 +566,7 @@ private struct AdaptiveSidebarShell<Panel: View, Content: View>: View {
                 guard !touching, openDrag != nil || closeDrag != nil else { return }
                 openDrag = nil
                 closeDrag = nil
-                settle(open: isOpen, animation: NFMotion.spring(0.34))
+                settle(open: isOpen, animation: NFMotion.iosSpring)
             }
         }
     }
@@ -584,7 +647,7 @@ private struct AdaptiveSidebarShell<Panel: View, Content: View>: View {
 
     private func finish(open: Bool) {
         if open == isOpen {
-            settle(open: open, animation: NFMotion.spring(0.34))
+            settle(open: open, animation: NFMotion.iosSpring)
         } else {
             isOpen = open
         }

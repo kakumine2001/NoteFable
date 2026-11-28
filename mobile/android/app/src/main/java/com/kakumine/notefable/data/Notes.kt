@@ -10,6 +10,7 @@ import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -51,8 +52,8 @@ object PageKindTable {
     private val NoteFeatures = PageKindFeatures(editor = true, markdownExport = true, typography = true, publicShare = true, aiEdit = true)
     private val Fallback: Map<PageKind, PageKindFeatures> = mapOf(PageKind.Note to NoteFeatures)
 
-    /** 画面上的顺序（网页 PAGE_KIND_ORDER）：笔记、幻灯片、白板。分区、新建菜单、检索的类型筛选都按它排。 */
-    val DisplayOrder: List<PageKind> = listOf(PageKind.Note, PageKind.Slides, PageKind.Whiteboard)
+    /** 画面上的顺序（网页 PAGE_KIND_ORDER）：笔记、白板、幻灯片。分区、筛选栏、新建卡片和菜单、检索的类型筛选都按它排。 */
+    val DisplayOrder: List<PageKind> = listOf(PageKind.Note, PageKind.Whiteboard, PageKind.Slides)
 
     private var table by mutableStateOf(Fallback)
 
@@ -422,6 +423,17 @@ sealed interface EmbedMessage {
      * 只有声明了 `canShowSlidesWizard()` 的 App 才会收到。
      */
     data class SlidesWizard(val open: Boolean, val busy: Boolean = false) : EmbedMessage
+    /**
+     * PowerPoint（.pptx）导入窗口（#154，网页 PptxImportHost）出现（[open]）或消失。
+     * 只有声明了 `canShowPptxImport()` 的 App 才会收到。
+     */
+    data class PptxImport(val open: Boolean) : EmbedMessage
+    /** 网页现在正在做幻灯片的笔记（页面加载时和每次变化时发）：这些笔记的"…"里「生成幻灯片」显示生成中（网页菜单同）。 */
+    data class SlidesJobs(val pageIds: Set<String>) : EmbedMessage
+    /** 复习和测验窗口（#154 PR 13，网页 ReviewQuizHost）出现（[open]）或消失。只有声明了 `canShowQuiz()` 的 App 才会收到。 */
+    data class Quiz(val open: Boolean) : EmbedMessage
+    /** 统一「用 AI 生成」面板（笔记 / 白板 / 幻灯片，网页 AiGenerateHost）出现（[open]）或消失。[busy]：关闭时后台仍在生成。 */
+    data class AiGenerate(val open: Boolean, val busy: Boolean = false) : EmbedMessage
 
     // 网页导出的文件（白板的 PNG / SVG / PDF，幻灯片的 PDF / PNG / PPTX）分块交给 App 保存（src/lib/export-file.ts）：
     // fileStart → fileChunk（[FileChunk.data] 是 base64，原始字节最多 512 KiB，[FileChunk.index] 从 0 起按顺序）×n → fileEnd；
@@ -485,6 +497,26 @@ sealed interface EmbedMessage {
                     "closed" -> SlidesWizard(open = false, busy = obj.flag("busy") == true)
                     else -> null
                 }
+                "pptxImport" -> when (obj.text("state")) {
+                    "open" -> PptxImport(open = true)
+                    "closed" -> PptxImport(open = false)
+                    else -> null
+                }
+                "slidesJobs" -> SlidesJobs(
+                    (obj["pageIds"] as? JsonArray ?: return@runCatching null)
+                        .mapNotNull { item -> (item as? JsonPrimitive)?.takeIf { it.isString }?.content?.takeIf { it.isNotBlank() } }
+                        .toSet(),
+                )
+                "quiz" -> when (obj.text("state")) {
+                    "open" -> Quiz(open = true)
+                    "closed" -> Quiz(open = false)
+                    else -> null
+                }
+                "aiGenerate" -> when (obj.text("state")) {
+                    "open" -> AiGenerate(open = true)
+                    "closed" -> AiGenerate(open = false, busy = obj.flag("busy") == true)
+                    else -> null
+                }
                 "fileStart" -> FileStart(
                     obj.fileId() ?: return@runCatching null,
                     obj.text("name") ?: return@runCatching null,
@@ -515,6 +547,24 @@ sealed interface SlidesWizardSource {
     data class Note(val pageId: String) : SlidesWizardSource
     data class Chat(val sessionId: String) : SlidesWizardSource
 }
+
+/**
+ * PowerPoint（.pptx）导入的目标位置，即 `window.notefableEmbed.pptxImport({ action: "open", groupId?, parentId? })`
+ * （src/lib/native-bridge.ts 的 parsePptxImportRequest）。[groupId] 是项目，[parentId] 是父页面（均为 null 时建在幻灯片分区）。
+ */
+data class PptxImportTarget(val groupId: String? = null, val parentId: String? = null)
+
+/**
+ * 统一「用 AI 生成」面板的参数，即 `window.notefableEmbed.aiGenerate({ action: "open", kind?, groupId?, parentId?, prompt?, autoStart? })`
+ * （src/lib/native-bridge.ts 的 parseAiGenerateRequest）。[kind] 预选页面类型，[prompt] 带入已输入的提示词，[autoStart] 为真时打开后立即开始生成。
+ */
+data class AiGenerateTarget(
+    val kind: PageKind? = null,
+    val groupId: String? = null,
+    val parentId: String? = null,
+    val prompt: String? = null,
+    val autoStart: Boolean = false,
+)
 
 /** 只需要知道成功与否的接口（`{ ok: true }` 之类），内容不用。 */
 @Serializable

@@ -61,6 +61,14 @@
 .slides-present-more.slides-tool:hover:not(:disabled) { background: var(--nf-ink-hover); }
 .slides-present-button:disabled, .slides-present-more:disabled { opacity: 0.45; }
 .slides-notice { display: flex; align-items: center; gap: 12px; margin: 8px 12px 0; padding: 8px 12px; border-radius: 8px; background: var(--nf-error-bg); color: var(--nf-error-text); font-size: 14px; }
+.slides-image-banner { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--notion-border); background: var(--notion-surface); color: var(--notion-text); font-size: 13px; }
+.slides-image-banner-text { display: flex; min-width: 0; flex: 1 1 200px; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.slides-image-banner-sub { color: var(--notion-muted); font-size: 12px; }
+.slides-image-banner-error { color: var(--nf-error-text); font-size: 12px; }
+.slides-image-banner-actions { display: flex; flex: none; align-items: center; gap: 6px; margin-inline-start: auto; }
+.slides-image-banner-actions .notion-button { min-height: 28px; padding: 4px 10px; font-size: 12.5px; }
+.slides-image-limit { padding: 8px 12px 0; background: var(--notion-bg); }
+.slides-image-limit .guest-limit-prompt { width: 100%; max-width: none; margin-bottom: 0; }
 
 .slides-body { position: relative; display: flex; min-height: 0; flex: 1; }
 .slides-center { display: flex; min-width: 0; flex: 1; flex-direction: column; background: var(--notion-sidebar); }
@@ -399,3 +407,75 @@
 }
 
 .slides-inspector-fields { min-width: 0; margin: 0; padding: 0; border: 0; }
+
+/* ホワイトボード枠の手動刷新バッジ（編集画面のステージ上・設定欄）。 */
+.slide-wb-refresh-anchor {
+  position: absolute;
+  z-index: 9;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+.slide-wb-refresh-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--nf-accent-line);
+  border-radius: 999px;
+  background: var(--notion-surface);
+  color: var(--nf-accent);
+  font: 600 12px/1 var(--font-ui, system-ui, sans-serif);
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.16);
+  cursor: pointer;
+  pointer-events: auto;
+}
+.slide-wb-refresh-badge:hover:not(:disabled) {
+  background: var(--nf-accent);
+  color: var(--nf-on-ink);
+  border-color: var(--nf-accent);
+}
+.slide-wb-refresh-badge:disabled { opacity: 0.7; cursor: wait; }
+.slides-wb-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.slides-wb-source {
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--notion-text);
+}
+.slides-wb-badge {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--nf-accent-soft);
+  color: var(--nf-accent);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.slides-wb-missing {
+  font-size: 12px;
+  color: var(--notion-muted);
+}
+.slides-wide-button.is-accent {
+  border-color: var(--nf-accent-line);
+  background: var(--nf-accent-soft);
+  color: var(--nf-accent);
+  font-weight: 600;
+}
+.slides-wide-button.is-accent:hover:not(:disabled) {
+  background: var(--nf-accent);
+  border-color: var(--nf-accent);
+  color: var(--nf-on-ink);
+}

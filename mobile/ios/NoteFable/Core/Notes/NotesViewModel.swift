@@ -104,9 +104,32 @@ final class NotesViewModel {
         if let wizard = next.slidesWizard, wizard.editor != nil, wizard.editor != next.visibleEditor {
             next.slidesWizard = nil
             next.wizardUsageLimit = nil
+            next.wizardStorageLimit = nil
         } else if let wizard = next.slidesWizard, wizard.editor == nil, next.visibleEditor != nil, next.visibleEditor != state.visibleEditor {
             next.slidesWizard = nil
             next.wizardUsageLimit = nil
+            next.wizardStorageLimit = nil
+        }
+        // 画面上的编辑器换了：盖在别的编辑器上的统一 AI 生成面板、有了编辑器时的全屏画面都不再算数。
+        if let aiGen = next.aiGenerate, aiGen.editor != nil, aiGen.editor != next.visibleEditor {
+            next.aiGenerate = nil
+            next.aiGenerateUsageLimit = nil
+            next.aiGenerateStorageLimit = nil
+        } else if let aiGen = next.aiGenerate, aiGen.editor == nil, next.visibleEditor != nil, next.visibleEditor != state.visibleEditor {
+            next.aiGenerate = nil
+            next.aiGenerateUsageLimit = nil
+            next.aiGenerateStorageLimit = nil
+        }
+        // 画面上的编辑器换了：盖在别的编辑器上的 PPTX 导入窗口、有了编辑器时的全屏导入画面都不再算数。
+        if let pptx = next.pptxImport, pptx.editor != nil, pptx.editor != next.visibleEditor {
+            next.pptxImport = nil
+            next.pptxImportStorageLimit = nil
+        } else if let pptx = next.pptxImport, pptx.editor == nil, next.visibleEditor != nil, next.visibleEditor != state.visibleEditor {
+            next.pptxImport = nil
+            next.pptxImportStorageLimit = nil
+        }
+        if let quiz = next.reviewQuiz, quiz.editor != next.visibleEditor {
+            next.reviewQuiz = nil
         }
         state = next
     }
@@ -408,6 +431,16 @@ final class NotesViewModel {
         // slidesWizard 在 NoteEditorController 层处理（停靠期和全屏向导画面也要收），这里兜底保持穷举。
         case .slidesWizard(let open, _):
             if open { onSlidesWizardOpened(editor: editor) } else { onSlidesWizardClosed() }
+        // aiGenerate 同样在 NoteEditorController 层处理，这里兜底保持穷举。
+        case .aiGenerate(let open, _):
+            if open { onAiGenerateOpened(editor: editor) } else { onAiGenerateClosed() }
+        // pptxImport 也在 NoteEditorController 层处理，同样兜底。
+        case .pptxImport(let open):
+            if open { onPptxImportOpened(editor: editor) } else { onPptxImportClosed() }
+        // slidesJobs 也在 NoteEditorController 层处理（停靠期也要收），同样兜底。
+        case .slidesJobs(let pageIds): onSlidesJobs(pageIds)
+        case .quiz(let open):
+            if open { onReviewQuizOpened(editor: editor) } else { onReviewQuizClosed() }
         case .storageLimit(let tier, let used, let limit):
             // 已经关掉或换走的编辑器晚到的消息不收。
             guard state.open?.editor == editor else { break }
@@ -474,6 +507,11 @@ final class NotesViewModel {
         update { $0.usageLimit = nil }
     }
 
+    /// 网页正在做幻灯片的笔记换了。
+    func onSlidesJobs(_ pageIds: Set<String>) {
+        if state.generatingSlides != pageIds { update { $0.generatingSlides = pageIds } }
+    }
+
     // ---- AI 生成幻灯片的向导（#150，Android NotesViewModel 同名方法） ----
 
     @ObservationIgnored private var slidesWizardRequests = 0
@@ -485,6 +523,13 @@ final class NotesViewModel {
         update {
             $0.slidesWizard = SlidesWizardUi(source: source, request: request, editor: editor)
             $0.wizardUsageLimit = nil
+            $0.wizardStorageLimit = nil
+            $0.aiGenerate = nil
+            $0.aiGenerateUsageLimit = nil
+            $0.aiGenerateStorageLimit = nil
+            $0.pptxImport = nil
+            $0.pptxImportStorageLimit = nil
+            $0.reviewQuiz = nil
         }
     }
 
@@ -510,6 +555,7 @@ final class NotesViewModel {
         update {
             $0.slidesWizard = SlidesWizardUi(source: .note(pageId: open.id), request: request, editor: editor, shown: true)
             $0.wizardUsageLimit = nil
+            $0.wizardStorageLimit = nil
         }
     }
 
@@ -519,6 +565,7 @@ final class NotesViewModel {
             guard state.slidesWizard?.shown == true else { return }
             state.slidesWizard = nil
             state.wizardUsageLimit = nil
+            state.wizardStorageLimit = nil
         }
     }
 
@@ -528,6 +575,7 @@ final class NotesViewModel {
             guard request == nil || state.slidesWizard?.request == request else { return }
             state.slidesWizard = nil
             state.wizardUsageLimit = nil
+            state.wizardStorageLimit = nil
         }
     }
 
@@ -538,19 +586,259 @@ final class NotesViewModel {
             guard let wizard = state.slidesWizard, wizard.editor == nil else { return }
             state.slidesWizard = nil
             state.wizardUsageLimit = nil
+            state.wizardStorageLimit = nil
         }
     }
 
     /// 全屏向导里撞到使用次数上限（429 usage_limit）。
     func onWizardUsageLimit(tier: String, kind: String) {
         guard state.slidesWizard?.editor == nil else { return }
-        update { $0.wizardUsageLimit = UsageLimitInfo(tier: tier, kind: kind) }
+        update {
+            $0.wizardStorageLimit = nil
+            $0.wizardUsageLimit = UsageLimitInfo(tier: tier, kind: kind)
+        }
     }
 
     func dismissWizardUsageLimit() {
         update { $0.wizardUsageLimit = nil }
     }
 
+    /// 全屏向导里逐页配图撞到文件存储空间上限（413 storage_limit）。
+    func onWizardStorageLimit(tier: String, used: Int, limit: Int) {
+        guard state.slidesWizard?.editor == nil else { return }
+        update {
+            $0.wizardUsageLimit = nil
+            $0.wizardStorageLimit = StorageLimitInfo(tier: tier, used: used, limit: limit)
+        }
+    }
+
+    func dismissWizardStorageLimit() {
+        update { $0.wizardStorageLimit = nil }
+    }
+
+    // ---- 统一「用 AI 生成」（笔记 / 白板 / 幻灯片，#254，Android NotesViewModel 同名方法） ----
+
+    @ObservationIgnored private var aiGenerateRequests = 0
+
+    func openAiGenerate(_ target: AiGenerateTarget = AiGenerateTarget(), editor: String? = nil) {
+        aiGenerateRequests += 1
+        let request = aiGenerateRequests
+        update {
+            $0.aiGenerate = AiGenerateUi(target: target, request: request, editor: editor)
+            $0.aiGenerateUsageLimit = nil
+            $0.aiGenerateStorageLimit = nil
+            $0.slidesWizard = nil
+            $0.wizardUsageLimit = nil
+            $0.wizardStorageLimit = nil
+            $0.pptxImport = nil
+            $0.pptxImportStorageLimit = nil
+            $0.reviewQuiz = nil
+        }
+    }
+
+    func onAiGenerateShown(_ request: Int) {
+        update { state in
+            guard var current = state.aiGenerate, current.request == request else { return }
+            current.shown = true
+            state.aiGenerate = current
+        }
+    }
+
+    func onAiGenerateOpened(editor: String?) {
+        guard let current = state.aiGenerate else { return }
+        if current.editor == editor { onAiGenerateShown(current.request) }
+    }
+
+    func onAiGenerateClosed() {
+        update { state in
+            guard state.aiGenerate?.shown == true else { return }
+            state.aiGenerate = nil
+            state.aiGenerateUsageLimit = nil
+            state.aiGenerateStorageLimit = nil
+        }
+    }
+
+    func dismissAiGenerate(_ request: Int? = nil) {
+        update { state in
+            guard request == nil || state.aiGenerate?.request == request else { return }
+            state.aiGenerate = nil
+            state.aiGenerateUsageLimit = nil
+            state.aiGenerateStorageLimit = nil
+        }
+    }
+
+    func dismissFullScreenAiGenerate() {
+        update { state in
+            guard let current = state.aiGenerate, current.editor == nil else { return }
+            state.aiGenerate = nil
+            state.aiGenerateUsageLimit = nil
+            state.aiGenerateStorageLimit = nil
+        }
+    }
+
+    func onAiGenerateUsageLimit(tier: String, kind: String) {
+        guard state.aiGenerate?.editor == nil else { return }
+        update {
+            $0.aiGenerateStorageLimit = nil
+            $0.aiGenerateUsageLimit = UsageLimitInfo(tier: tier, kind: kind)
+        }
+    }
+
+    func dismissAiGenerateUsageLimit() {
+        update { $0.aiGenerateUsageLimit = nil }
+    }
+
+    func onAiGenerateStorageLimit(tier: String, used: Int, limit: Int) {
+        guard state.aiGenerate?.editor == nil else { return }
+        update {
+            $0.aiGenerateUsageLimit = nil
+            $0.aiGenerateStorageLimit = StorageLimitInfo(tier: tier, used: used, limit: limit)
+        }
+    }
+
+    func dismissAiGenerateStorageLimit() {
+        update { $0.aiGenerateStorageLimit = nil }
+    }
+
+    // ---- PowerPoint（.pptx）导入（#154 PR 12，Android NotesViewModel 同名方法） ----
+
+    @ObservationIgnored private var pptxImportRequests = 0
+
+    /// 从一个入口打开 PowerPoint 导入窗口：[editor] 非 nil 时盖在那个编辑器上，nil 时开全屏导入画面。
+    func openPptxImport(_ target: PptxImportTarget = PptxImportTarget(), editor: String? = nil) {
+        pptxImportRequests += 1
+        let request = pptxImportRequests
+        update {
+            $0.pptxImport = PptxImportUi(target: target, request: request, editor: editor)
+            $0.pptxImportStorageLimit = nil
+            $0.slidesWizard = nil
+            $0.wizardUsageLimit = nil
+            $0.wizardStorageLimit = nil
+            $0.aiGenerate = nil
+            $0.aiGenerateUsageLimit = nil
+            $0.aiGenerateStorageLimit = nil
+            $0.reviewQuiz = nil
+        }
+    }
+
+    /// 打开的脚本说网页里出来了。
+    func onPptxImportShown(_ request: Int) {
+        update { state in
+            guard var current = state.pptxImport, current.request == request else { return }
+            current.shown = true
+            state.pptxImport = current
+        }
+    }
+
+    /// 网页的 `pptxImport` open 消息。[editor] 是发消息时画面上的编辑器（全屏导入画面是 nil）。
+    /// App 没打开过时是幻灯片工具栏里的「导入 PowerPoint」：记成盖在这个编辑器上。
+    func onPptxImportOpened(editor: String?) {
+        if let current = state.pptxImport {
+            if current.editor == editor { onPptxImportShown(current.request) }
+            return
+        }
+        guard let editor, state.visibleEditor == editor, let open = state.open else { return }
+        let groupId = state.pages.first(where: { $0.id == open.id })?.groupId
+        pptxImportRequests += 1
+        let request = pptxImportRequests
+        update {
+            $0.pptxImport = PptxImportUi(target: PptxImportTarget(groupId: groupId), request: request, editor: editor, shown: true)
+            $0.pptxImportStorageLimit = nil
+        }
+    }
+
+    /// 网页的 closed 消息。还没出来的那一次不动：这是上一次被藏起来时晚到的。
+    func onPptxImportClosed() {
+        update { state in
+            guard state.pptxImport?.shown == true else { return }
+            state.pptxImport = nil
+            state.pptxImportStorageLimit = nil
+        }
+    }
+
+    /// App 这边关掉导入窗口（关闭键、打开了幻灯片、打不开）；[request] 指定时只关那一次。
+    func dismissPptxImport(_ request: Int? = nil) {
+        update { state in
+            guard request == nil || state.pptxImport?.request == request else { return }
+            state.pptxImport = nil
+            state.pptxImportStorageLimit = nil
+        }
+    }
+
+    /// 外部链接、系统分享、切标签页要换画面：关掉全屏 PPTX 导入画面。
+    func dismissFullScreenPptxImport() {
+        update { state in
+            guard let current = state.pptxImport, current.editor == nil else { return }
+            state.pptxImport = nil
+            state.pptxImportStorageLimit = nil
+        }
+    }
+
+    /// 全屏 PPTX 导入里撞到文件存储空间上限（413 storage_limit）。
+    func onPptxImportStorageLimit(tier: String, used: Int, limit: Int) {
+        guard state.pptxImport?.editor == nil else { return }
+        update {
+            $0.pptxImportStorageLimit = StorageLimitInfo(tier: tier, used: used, limit: limit)
+        }
+    }
+
+    func dismissPptxImportStorageLimit() {
+        update { $0.pptxImportStorageLimit = nil }
+    }
+
+    // ---- 复习和测验（#154 PR 13，Android NotesViewModel 同名方法） ----
+
+    @ObservationIgnored private var reviewQuizRequests = 0
+
+    func openReviewQuiz(_ pageId: String, editor: String? = nil) {
+        guard let activeEditor = editor ?? state.visibleEditor else { return }
+        reviewQuizRequests += 1
+        let request = reviewQuizRequests
+        update {
+            $0.reviewQuiz = ReviewQuizUi(pageId: pageId, request: request, editor: activeEditor)
+            $0.slidesWizard = nil
+            $0.wizardUsageLimit = nil
+            $0.wizardStorageLimit = nil
+            $0.aiGenerate = nil
+            $0.aiGenerateUsageLimit = nil
+            $0.aiGenerateStorageLimit = nil
+            $0.pptxImport = nil
+            $0.pptxImportStorageLimit = nil
+        }
+    }
+
+    func onReviewQuizShown(_ request: Int) {
+        update { state in
+            guard var quiz = state.reviewQuiz, quiz.request == request else { return }
+            quiz.shown = true
+            state.reviewQuiz = quiz
+        }
+    }
+
+    func onReviewQuizOpened(editor: String) {
+        if let quiz = state.reviewQuiz {
+            if quiz.editor == editor { onReviewQuizShown(quiz.request) }
+            return
+        }
+        guard state.visibleEditor == editor, let open = state.open else { return }
+        reviewQuizRequests += 1
+        let request = reviewQuizRequests
+        update { $0.reviewQuiz = ReviewQuizUi(pageId: open.id, request: request, editor: editor, shown: true) }
+    }
+
+    func onReviewQuizClosed() {
+        update { state in
+            guard state.reviewQuiz?.shown == true else { return }
+            state.reviewQuiz = nil
+        }
+    }
+
+    func dismissReviewQuiz(_ request: Int? = nil) {
+        update { state in
+            guard request == nil || state.reviewQuiz?.request == request else { return }
+            state.reviewQuiz = nil
+        }
+    }
     // ---- 编辑器导出的文件（网页 src/lib/export-file.ts） ----
 
     /// 收一步；出了错（[ExportFileAssembler] 已经删掉写了一半的文件）提示保存失败。
@@ -889,7 +1177,16 @@ final class NotesViewModel {
 
     func updateSettings(_ pageId: String, _ settings: NotePageSettings) async -> Bool {
         await serialMeta(pageId) { [self] in
-            await groupAction { [self] in
+            let owner = identity
+            if settings.locked == true, state.open?.id == pageId {
+                if !(await flushOpen()).ok {
+                    if owner == identity { update { $0.notice = NotesError(.unsavedDraft) } }
+                    return false
+                }
+                guard owner == identity else { return false }
+                update { if $0.notice?.kind == .unsavedDraft { $0.notice = nil } }
+            }
+            return await groupAction { [self] in
                 let page = try await backend.updateSettings(id: pageId, settings: settings)
                 return Applied(apply: { self.applyMeta(page) }, value: true)
             } ?? false

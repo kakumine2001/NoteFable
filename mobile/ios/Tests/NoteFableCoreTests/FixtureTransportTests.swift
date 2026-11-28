@@ -107,6 +107,7 @@ final class FixtureTransportTests: XCTestCase {
             FixtureCatalog.IDs.ramenSession,
             FixtureCatalog.IDs.meetingSession,
             FixtureCatalog.IDs.liveSession,
+            FixtureCatalog.IDs.longSession,
             FixtureCatalog.IDs.tripPage,
             FixtureCatalog.IDs.packingPage,
             FixtureCatalog.IDs.glassPage,
@@ -170,6 +171,75 @@ final class FixtureTransportTests: XCTestCase {
         XCTAssertTrue(locked.shareEnabled)
         let share = try await api.getShare(id: locked.id)
         XCTAssertTrue(share.enabled)
+    }
+
+    func testStoreStoryDecodesWithZeroMissesAndNoPlaceholderContent() async throws {
+        let misses = MissRecorder()
+        let catalog = FixtureCatalog(account: .signedIn, now: Self.fixedNow, image: Self.samplePNG, story: .store)
+        let transport = FixtureTransport(catalog: catalog) { misses.add($0) }
+        let api = makeApi(transport, baseUrl: FixtureMode.baseURL)
+        let projectsApi = ProjectsApi(http: api.http)
+
+        let account = try await api.account()
+        XCTAssertEqual(account.user?.name, "Alex")
+        let sessions = try await api.sessions()
+        XCTAssertEqual(Set(sessions.map(\.id)).count, sessions.count)
+        for session in sessions {
+            XCTAssertTrue(ChatLink.isLinkId(session.id), session.id)
+            let messages = try await api.messages(sessionId: session.id)
+            XCTAssertEqual(messages.map(\.role), ["USER", "ASSISTANT"], session.id)
+            XCTAssertFalse(Activity.parseStored(messages[1].activity).isEmpty, session.id)
+        }
+        for id in [FixtureStoreData.IDs.photosynthesisSession, FixtureStoreData.IDs.mitosisSession, FixtureStoreData.IDs.jlptSession] {
+            XCTAssertTrue(sessions.contains { $0.id == id }, id)
+        }
+
+        let projects = try await projectsApi.projects()
+        XCTAssertEqual(projects.map(\.name), ["Biology", "Japanese"])
+        for project in projects {
+            let detail = try await projectsApi.projectDetail(id: project.id)
+            XCTAssertEqual(detail.name, project.name)
+        }
+        XCTAssertTrue(sessions.compactMap(\.projectId).allSatisfy { id in projects.contains { $0.id == id } })
+
+        // 编辑页能打开的页面和工作区列表一致；CI 把种子页面建成这两个 ID。
+        let notes = try await api.notes()
+        XCTAssertEqual(Set(FixtureStoreData.editorPages.keys), Set(notes.pages.map(\.id)))
+        for page in notes.pages {
+            XCTAssertTrue(ChatLink.isLinkId(page.id), page.id)
+            let editorPage = try XCTUnwrap(FixtureCatalog.editorPage(page.id))
+            XCTAssertEqual(editorPage.title, page.title, page.id)
+            XCTAssertEqual(editorPage.icon, page.icon, page.id)
+            XCTAssertEqual(editorPage.kind, page.kind, page.id)
+        }
+        XCTAssertEqual(FixtureCatalog.editorPage(FixtureStoreData.IDs.board)?.kind, .whiteboard)
+        XCTAssertEqual(FixtureCatalog.editorPage(FixtureStoreData.IDs.deck)?.kind, .slides)
+        let recent = try await api.recentNotes()
+        XCTAssertEqual(recent.prefix(2).map(\.id), [FixtureStoreData.IDs.board, FixtureStoreData.IDs.deck])
+        _ = try await api.getShare(id: FixtureStoreData.IDs.board)
+
+        // 截图里看得到的内容没有测试用的占位字样。
+        var paths = ["/api/account", "/api/sessions", "/api/chat-projects", "/api/pages", "/api/pages?recent=1"]
+        paths += sessions.map { "/api/sessions/\($0.id)/messages" }
+        paths += projects.map { "/api/chat-projects/\($0.id)" }
+        for path in paths {
+            let url = try XCTUnwrap(URL(string: FixtureMode.baseURL + path))
+            let (data, response) = try await transport.send(HTTPRequest(url: url))
+            XCTAssertEqual(response.statusCode, 200, path)
+            let body = String(decoding: data, as: UTF8.self).lowercased()
+            for word in ["fixture", "liquid glass", "kyoto"] {
+                XCTAssertFalse(body.contains(word), "\(path) contains \(word)")
+            }
+        }
+        XCTAssertTrue(misses.items.isEmpty, "unexpected fixture misses: \(misses.items)")
+    }
+
+    func testStandardStoryIsUnchangedByDefault() async throws {
+        let catalog = FixtureCatalog(now: Self.fixedNow, image: Self.samplePNG)
+        XCTAssertEqual(catalog.story, .standard)
+        let api = makeApi(FixtureTransport(catalog: catalog), baseUrl: FixtureMode.baseURL)
+        let sessions = try await api.sessions()
+        XCTAssertEqual(sessions.first?.id, FixtureCatalog.IDs.kyotoSession)
     }
 
     func testChatStreamYieldsEventsAndHoldsOpenUntilCancelled() async throws {
@@ -241,6 +311,79 @@ final class FixtureTransportTests: XCTestCase {
         let history = try await api.messages(sessionId: FixtureCatalog.IDs.liveSession)
         XCTAssertEqual(history.first?.content, FixtureCatalog.Prompts.streamed)
         XCTAssertEqual(history.last?.content, streamedText)
+    }
+
+    /// 截图场景 chat-regenerate、消息列表视图身份（`ChatUiState.conversationId`）和分段（`ChatTailSplit`）依赖的行为。
+    func testChatListIdentityAndRegenerateFixture() async throws {
+        let misses = MissRecorder()
+        let catalog = FixtureCatalog(account: .signedIn, now: Self.fixedNow, image: Self.samplePNG)
+        let transport = FixtureTransport(catalog: catalog) { misses.add($0) }
+        let resourcesDir = directory.appendingPathComponent("res", isDirectory: true)
+        try FileManager.default.createDirectory(at: resourcesDir, withIntermediateDirectories: true)
+        let env = AppEnvironment(
+            config: AppConfig(baseURL: FixtureMode.baseURL, siteURL: FixtureMode.siteURL, googleIOSClientId: "fixture"),
+            resources: try XCTUnwrap(Bundle(path: resourcesDir.path)),
+            defaults: defaults,
+            dataDirectory: directory.appendingPathComponent("data", isDirectory: true),
+            transport: transport,
+            systemLanguages: { ["en"] },
+            l10n: L10n()
+        )
+        env.start()
+        defer { env.stop() }
+        let chat = env.chat
+        try await waitUntil { !chat.state.sessionsLoading }
+
+        // 换对话换一个值（缓存里有、直接换进来的也算）；再点开着的聊天不算。
+        chat.openSession(FixtureCatalog.IDs.glassSession)
+        try await waitUntil { !chat.state.messagesLoading && !chat.state.messages.isEmpty }
+        chat.openSession(FixtureCatalog.IDs.kyotoSession)
+        try await waitUntil { !chat.state.messagesLoading && chat.state.messages.count == 6 }
+        let kyoto = chat.state.conversationId
+        chat.openSession(FixtureCatalog.IDs.kyotoSession)
+        XCTAssertEqual(chat.state.conversationId, kyoto)
+        chat.openSession(FixtureCatalog.IDs.glassSession)
+        XCTAssertFalse(chat.state.messagesLoading)
+        XCTAssertNotEqual(chat.state.conversationId, kyoto)
+
+        // 追加、新聊天拿到会话 ID、回答结束后的对账（换 ID 沿用 key）都不换值。
+        chat.newChat()
+        let fresh = chat.state.conversationId
+        chat.send(FixtureCatalog.Prompts.streamed)
+        try await waitUntil { chat.state.activeSessionId == FixtureCatalog.IDs.liveSession && !chat.state.sending }
+        try await waitUntil { chat.state.messages.last.map { !$0.id.hasPrefix("local-") } == true }
+        XCTAssertEqual(chat.state.conversationId, fresh)
+
+        chat.openSession(FixtureCatalog.IDs.longSession)
+        try await waitUntil { !chat.state.messagesLoading && chat.state.messages.count == 4 }
+        let long = chat.state.conversationId
+        let split = ChatTailSplit()
+        XCTAssertEqual(split.historyCount(chat.state.messages), 2)
+
+        // 重新生成长回答：条数不变、保持生成中；换上来的回答不进懒加载栈。
+        let answer = try XCTUnwrap(chat.state.messages.last)
+        XCTAssertGreaterThan(answer.content.split(separator: "\n").count, 40)
+        chat.regenerate(answer.id)
+        try await waitUntil { chat.state.messages.last.map { $0.id != answer.id && $0.content.contains("Liquid Glass") } == true }
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertTrue(chat.state.sending)
+        XCTAssertEqual(chat.state.messages.count, 4)
+        XCTAssertEqual(split.historyCount(chat.state.messages), 2)
+        XCTAssertEqual(chat.state.conversationId, long)
+        XCTAssertTrue(misses.items.isEmpty, "unexpected fixture misses: \(misses.items)")
+
+        // 收尾：这个回答的流一直开着。换身份当场取消所有的流（停止键要等满服务端的时限）。
+        chat.onIdentityChanged()
+        XCTAssertTrue(chat.state.generatingSessionIds.isEmpty)
+        try await waitUntil { !chat.state.sessionsLoading }
+    }
+
+    private func waitUntil(_ condition: () -> Bool, file: StaticString = #filePath, line: UInt = #line) async throws {
+        for _ in 0..<400 {
+            if condition() { return }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTFail("condition was not met in time", file: file, line: line)
     }
 
     func testUnknownHostTriggersOnMissAndReturns404() async throws {

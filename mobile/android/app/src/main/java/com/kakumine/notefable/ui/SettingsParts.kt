@@ -148,7 +148,14 @@ internal fun SettingsRowDivider() = Box(Modifier.fillMaxWidth().height(1.dp).bac
  * danger 时图标和字都是红色；不可用时 0.55。
  */
 @Composable
-internal fun SettingsRowButton(icon: List<String>, label: String, enabled: Boolean, danger: Boolean = false, onClick: () -> Unit) {
+internal fun SettingsRowButton(
+    icon: List<String>,
+    label: String,
+    enabled: Boolean = true,
+    danger: Boolean = false,
+    trailingIcon: List<String>? = null,
+    onClick: () -> Unit,
+) {
     Row(
         Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .alpha(if (enabled) 1f else 0.55f).padding(horizontal = 16.dp, vertical = 10.dp),
@@ -156,7 +163,8 @@ internal fun SettingsRowButton(icon: List<String>, label: String, enabled: Boole
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         LucideIcon(icon, 16.dp, if (danger) SettingsDanger else Sm.Muted)
-        Text(label, color = if (danger) SettingsDanger else Sm.Text, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+        Text(label, Modifier.weight(1f), color = if (danger) SettingsDanger else Sm.Text, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+        trailingIcon?.let { LucideIcon(it, 15.dp, Sm.Faint) }
     }
 }
 

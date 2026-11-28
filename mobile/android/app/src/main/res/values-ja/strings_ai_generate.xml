@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 統一 AI 生成入口（#254）：訳文は Web 辞書 src/lib/i18n/messages/ja.ts と一致。 -->
+<resources>
+    <string name="ai_gen_placeholder">AI にノート・ホワイトボード・スライドを作成してもらう…</string>
+    <string name="ai_gen_options">オプション</string>
+    <string name="ai_gen_generate">生成</string>
+</resources>

@@ -3,7 +3,8 @@ import type { CanvasKind } from "@/lib/page-kinds";
 import { MAX_READ_CHARS, type AdapterPage, type PageAdapter } from "@/lib/page-ai/adapter";
 import { canvasStorage } from "@/lib/page-ai/storage";
 import { normalizeDeck, slideRows, type SlideElement } from "@/lib/slides/model";
-import type { RichBlock, RichDoc, RichInline } from "@/lib/slides/rich-text";
+import { isRichDocEmpty, richDocText, type RichBlock, type RichDoc, type RichInline } from "@/lib/slides/rich-text";
+import { formulaDataOf } from "@/lib/whiteboard/formula";
 import { pageCardOf } from "@/lib/whiteboard/links";
 import { mindmapIndent, mindmapStashOutline } from "@/lib/whiteboard/mindmap/model";
 
@@ -87,7 +88,12 @@ function formatWhiteboardElement(element: RawElement, boundTexts: string[]): str
   }
 
   if (element.type === "image") {
-    line += ": [Image]";
+    const formula = formulaDataOf(element.customData);
+    if (formula) {
+      line += `: [Formula] $${inlineLine(formula.latex)}$`;
+    } else {
+      line += ": [Image]";
+    }
     if (combinedText) line += ` "${combinedText}"`;
     return line;
   }
@@ -243,7 +249,7 @@ function renderWhiteboardSections(sections: WhiteboardSection[], budget: number)
   return { text: output.join("\n"), truncated: false };
 }
 
-function readWhiteboard(page: AdapterPage, budget: number): string {
+export function readWhiteboard(page: AdapterPage, budget: number): string {
   if (!isRecord(page.data) || !Array.isArray(page.data.elements)) {
     return readWhiteboardSegments(page.segments ?? [], budget, page.focusIds);
   }
@@ -516,7 +522,7 @@ function readSlidesSegments(segments: CanvasSegment[], budget: number, focusIds?
   return out.join("\n");
 }
 
-function readSlides(page: AdapterPage, budget: number): string {
+export function readSlides(page: AdapterPage, budget: number): string {
   if (!isRecord(page.data) || !Array.isArray(page.data.slides)) {
     return readSlidesSegments(page.segments ?? [], budget, page.focusIds);
   }
@@ -543,10 +549,20 @@ function readSlides(page: AdapterPage, budget: number): string {
   const metaHeader = clipToBudget(metaLines.join("\n"), Math.max(0, budget - noticeReserve));
   const focus = focusIdSet(page.focusIds);
 
-  const formatSlideBlock = (slide: (typeof deck.slides)[number], index: number, prioritizeElements: boolean) => {
-    const section = sectionOf.get(slide.id);
-    const meta = [`id: ${slide.id}`, `layout: ${slide.layout}`, ...(section ? [`section: ${section}`] : [])].join(", ");
-    const lines = [`## Slide ${index + 1} (${meta})${slide.hidden ? " [hidden]" : ""}`];
+  const formatSlideBlock = (slide: (typeof deck.slides)[number], index: number, prioritizeElements: boolean, maxBlockBudget?: number) => {
+    const rawSection = sectionOf.get(slide.id);
+    const compactSection = rawSection
+      ? (prioritizeElements && rawSection.length > 24 ? `${rawSection.slice(0, 23)}…` : rawSection)
+      : undefined;
+    const buildHeader = (sectionLabel?: string) => {
+      const meta = [`id: ${slide.id}`, `layout: ${slide.layout}`, ...(sectionLabel ? [`section: ${sectionLabel}`] : [])].join(", ");
+      return `## Slide ${index + 1} (${meta})${slide.hidden ? " [hidden]" : ""}`;
+    };
+    let headerLine = buildHeader(compactSection);
+    if (prioritizeElements && maxBlockBudget !== undefined && compactSection && headerLine.length + 48 > maxBlockBudget) {
+      headerLine = buildHeader(undefined);
+    }
+    const lines = [headerLine];
 
     if (slide.elements.length) {
       const elements = prioritizeElements && focus.size > 0
@@ -567,59 +583,164 @@ function readSlides(page: AdapterPage, budget: number): string {
     return lines.join("\n");
   };
 
-  const slideEntries = deck.slides.map((slide, index) => ({
-    slide,
-    index,
-    focused: focus.size > 0 && (focus.has(slide.id) || slide.elements.some((element) => focus.has(element.id))),
-    block: formatSlideBlock(slide, index, false),
-  }));
+  const slideEntries = deck.slides.map((slide, index) => {
+    const titleEl = slide.elements.find((element) => element.type === "text" && element.role === "title")
+      ?? slide.elements.find((element) => element.type === "text" && element.role === "quote")
+      ?? slide.elements.find((element) => element.type === "text" && !isRichDocEmpty(element.doc));
+    const shortTitle = titleEl?.type === "text" ? inlineLine(richDocText(titleEl.doc)).slice(0, 48) : "";
+    const section = sectionOf.get(slide.id);
+    const indexLine = `Slide ${index + 1} (id: ${slide.id}, layout: ${slide.layout}${section ? `, section: ${section.slice(0, 24)}` : ""}${slide.hidden ? ", hidden" : ""})${shortTitle ? `: ${shortTitle}` : ""}`;
+    return {
+      slide,
+      index,
+      indexLine,
+      focused: focus.size > 0 && (focus.has(slide.id) || slide.elements.some((element) => focus.has(element.id))),
+      block: formatSlideBlock(slide, index, false),
+    };
+  });
 
   const fullLength = metaHeader.length + slideEntries.reduce((sum, entry) => sum + 2 + entry.block.length, 0);
+  // 20,000 文字を超える大きなデッキでは、省略されたスライドの安定 ID 一覧を残すための枠を先に確保する。
+  // 先に確保してから選択スライドに配分することで、索引枠によって選択済みスライドが追い出されるのを防ぐ。
+  const indexReserve = fullLength > budget ? Math.min(2400, Math.max(noticeReserve, Math.floor(budget * 0.14))) : noticeReserve;
   const focusedEntries = slideEntries.filter((entry) => entry.focused);
   const unfocusedEntries = slideEntries.filter((entry) => !entry.focused);
-  // 複数枚が選ばれているときは、先頭の 1 枚（長い発表者ノートなど）が枠を使い切らないよう各選択スライドに均等枠を確保してから残りを未選択に回す。
-  const orderedBlocks: string[] = (() => {
+  const focusedReserve = unfocusedEntries.length > 0 ? indexReserve : noticeReserve;
+  let clippedAnyFocused = false;
+  let usedFocusedFairShare = false;
+
+  // 複数枚が選ばれているときは、先頭の 1 枚（長い発表者ノートなど）が枠を使い切らないよう短い選択スライドをそのまま残し、
+  // 余った枠を長い選択スライドへ均等に配分してから残りを未選択スライドに回す。
+  const orderedEntries: { block: string; indexLine: string }[] = (() => {
     if (fullLength <= budget || !focusedEntries.length) {
-      return slideEntries.map((entry) => entry.block);
+      return slideEntries.map((entry) => ({ block: entry.block, indexLine: entry.indexLine }));
     }
-    const availableForFocused = Math.max(0, budget - metaHeader.length - noticeReserve);
-    const perFocusedBudget = Math.max(0, Math.floor(availableForFocused / focusedEntries.length) - 2);
-    const preparedFocused = focusedEntries.map((entry) => {
-      if (entry.block.length <= perFocusedBudget) return entry.block;
-      const compact = formatSlideBlock(entry.slide, entry.index, true);
-      if (compact.length <= perFocusedBudget) return compact;
-      return clipToBudget(compact, perFocusedBudget) || compact.slice(0, perFocusedBudget);
-    });
-    return [...preparedFocused, ...unfocusedEntries.map((entry) => entry.block)];
+    const availableForFocused = Math.max(0, budget - metaHeader.length - focusedReserve);
+    const minEqualShare = Math.floor(availableForFocused / focusedEntries.length) - 2;
+    if (minEqualShare < 140) {
+      return [...focusedEntries, ...unfocusedEntries].map((entry) => ({ block: entry.block, indexLine: entry.indexLine }));
+    }
+    usedFocusedFairShare = true;
+
+    const prepared = new Array<{ block: string; indexLine: string }>(focusedEntries.length);
+    let remainingBudget = availableForFocused;
+    let unresolved = focusedEntries.map((entry, idx) => ({ idx, entry }));
+
+    while (unresolved.length > 0) {
+      const share = Math.max(0, Math.floor(remainingBudget / unresolved.length) - 2);
+      const nextUnresolved: typeof unresolved = [];
+      let consumed = false;
+      for (const item of unresolved) {
+        if (item.entry.block.length <= share) {
+          prepared[item.idx] = { block: item.entry.block, indexLine: item.entry.indexLine };
+          remainingBudget -= item.entry.block.length + 2;
+          consumed = true;
+        } else {
+          nextUnresolved.push(item);
+        }
+      }
+      if (!consumed || !nextUnresolved.length) {
+        unresolved = nextUnresolved;
+        break;
+      }
+      unresolved = nextUnresolved;
+    }
+
+    for (let k = 0; k < unresolved.length; k++) {
+      const item = unresolved[k];
+      const leftCount = unresolved.length - k;
+      const share = Math.max(0, Math.floor(remainingBudget / leftCount) - 2);
+      const compact = formatSlideBlock(item.entry.slide, item.entry.index, true, share);
+      let block: string;
+      if (compact.length <= share) {
+        block = compact;
+      } else {
+        block = clipToBudget(compact, share) || compact.slice(0, share);
+        clippedAnyFocused = true;
+      }
+      prepared[item.idx] = { block, indexLine: item.entry.indexLine };
+      remainingBudget = Math.max(0, remainingBudget - (block.length + 2));
+    }
+
+    return [
+      ...prepared,
+      ...(clippedAnyFocused ? [] : unfocusedEntries.map((entry) => ({ block: entry.block, indexLine: entry.indexLine }))),
+    ];
   })();
+
+  const buildTruncationSuffix = (omittedEntries: readonly { indexLine: string }[], maxSuffixBudget: number): string => {
+    const omittedCount = omittedEntries.length;
+    if (omittedCount <= 0) return `[Truncated: content exceeds ${MAX_READ_CHARS} characters.]`;
+    const baseNotice = `[Truncated: ${omittedCount} more slide${omittedCount === 1 ? "" : "s"} omitted (limit: ${MAX_READ_CHARS} characters).]`;
+    const header = "\nOmitted slides (stable IDs):";
+    if (maxSuffixBudget < baseNotice.length + header.length + 24) return baseNotice;
+    const lines: string[] = [baseNotice + header];
+    let len = lines[0].length;
+    let listed = 0;
+    for (const entry of omittedEntries) {
+      const line = `\n- ${entry.indexLine}`;
+      const tailReserve = listed + 1 < omittedCount ? 28 : 0;
+      if (len + line.length + tailReserve > maxSuffixBudget) break;
+      lines.push(line);
+      len += line.length;
+      listed++;
+    }
+    if (listed < omittedCount) {
+      const remaining = omittedCount - listed;
+      const more = `\n- … (+${remaining} more)`;
+      if (len + more.length <= maxSuffixBudget) lines.push(more);
+    }
+    return listed > 0 ? lines.join("") : baseNotice;
+  };
 
   const out: string[] = metaHeader ? [metaHeader] : [];
   let used = metaHeader.length;
 
-  for (let i = 0; i < orderedBlocks.length; i++) {
-    const block = orderedBlocks[i];
-    const sep = 2; // "\n\n"
-    const isLast = i === orderedBlocks.length - 1;
-    const limit = isLast ? budget : Math.max(0, budget - noticeReserve);
+  for (let i = 0; i < orderedEntries.length; i++) {
+    const block = orderedEntries[i].block;
+    const sep = out.length ? 2 : 0; // "\n\n"
+    const isLast = i === orderedEntries.length - 1;
+    const reserve = isLast
+      ? (clippedAnyFocused ? noticeReserve : 0)
+      : (i < focusedEntries.length && usedFocusedFairShare ? focusedReserve : indexReserve);
+    const limit = Math.max(0, budget - reserve);
     if (used + sep + block.length <= limit) {
       out.push(block);
       used += sep + block.length;
     } else {
       if (i === 0) {
-        const remaining = Math.max(0, budget - used - sep - noticeReserve);
+        const omittedEntries = orderedEntries.slice(1);
+        const remaining = Math.max(0, budget - used - sep - (omittedEntries.length ? indexReserve : noticeReserve));
         const clipped = clipToBudget(block, remaining);
-        if (clipped) out.push(clipped);
-        const omitted = orderedBlocks.length - 1;
-        return omitted > 0
-          ? `${out.join("\n\n")}\n\n[Truncated: ${omitted} more slide${omitted === 1 ? "" : "s"} omitted (limit: ${MAX_READ_CHARS} characters).]`
-          : `${out.join("\n\n")}\n\n[Truncated: content exceeds ${MAX_READ_CHARS} characters.]`;
+        if (clipped) {
+          out.push(clipped);
+          used += sep + clipped.length;
+        }
+        const suffix = buildTruncationSuffix(omittedEntries, Math.max(noticeReserve, budget - used - sep));
+        return `${out.join("\n\n")}\n\n${suffix}`;
       }
-      const omitted = orderedBlocks.length - i;
-      return `${out.join("\n\n")}\n\n[Truncated: ${omitted} more slide${omitted === 1 ? "" : "s"} omitted (limit: ${MAX_READ_CHARS} characters).]`;
+      const omittedEntries = orderedEntries.slice(i);
+      const suffix = buildTruncationSuffix(omittedEntries, Math.max(noticeReserve, budget - used - sep));
+      return `${out.join("\n\n")}\n\n${suffix}`;
     }
   }
 
-  return out.join("\n\n");
+  const joined = out.join("\n\n");
+  if (clippedAnyFocused) {
+    if (unfocusedEntries.length > 0) {
+      const suffix = buildTruncationSuffix(
+        unfocusedEntries.map((entry) => ({ indexLine: entry.indexLine })),
+        Math.max(noticeReserve, budget - used - (out.length ? 2 : 0)),
+      );
+      return out.length ? `${joined}\n\n${suffix}` : suffix;
+    }
+    const notice = `\n\n[Truncated: content exceeds ${MAX_READ_CHARS} characters.]`;
+    if (joined.length + notice.length <= budget) return `${joined}${notice}`;
+    const maxBody = Math.max(0, budget - notice.length);
+    const clippedBody = clipToBudget(joined, maxBody) || joined.slice(0, maxBody);
+    return clippedBody ? `${clippedBody}${notice}` : notice.trimStart().slice(0, budget);
+  }
+  return joined;
 }
 
 export function canvasTextAdapter(kind: CanvasKind): PageAdapter {

@@ -25,10 +25,10 @@ describe("page kinds", () => {
 
   it("keeps note-only features for notes and turns on each canvas kind as its editor ships", () => {
     expect(PAGE_KIND_FEATURES.note).toEqual({ editor: true, markdownExport: true, typography: true, publicShare: true, aiEdit: true });
-    // ホワイトボードのエディターと読み取り専用の公開ビュー（#152）。AI の操作は #153。
-    expect(PAGE_KIND_FEATURES.whiteboard).toEqual({ editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false });
-    // スライドのエディターと公開の放映ページ（#149）。AI の編集は #150。
-    expect(PAGE_KIND_FEATURES.slides).toEqual({ editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false });
+    // ホワイトボードのエディターと読み取り専用の公開ビュー（#152）＋ AI 編集（#153）。
+    expect(PAGE_KIND_FEATURES.whiteboard).toEqual({ editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: true });
+    // スライドのエディターと公開の放映ページ（#149）＋ AI 編集（#150）。
+    expect(PAGE_KIND_FEATURES.slides).toEqual({ editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: true });
   });
 });
 
@@ -126,6 +126,22 @@ describe("text for search, semantic search and chat", () => {
       ],
     };
     expect(extractCanvasSegments("whiteboard", data)).toEqual([{ id: "r1", text: "wrapped text" }, { id: "t2", text: "Free note" }, { id: "f1", text: "Ideas" }]);
+  });
+
+  it("extracts whiteboard formula TeX for search and allows literal TeX inside notefableFormula", () => {
+    const data = {
+      elements: [
+        { id: "eq1", type: "image", fileId: "f1", customData: { notefableFormula: { v: 1, latex: "E = mc^2" } } },
+        { id: "eq2", type: "image", fileId: "f1", customData: { notefableFormula: { v: 1, latex: "\\text{data:text/plain,ok}" } } },
+        { id: "eq-del", type: "image", fileId: "f1", isDeleted: true, customData: { notefableFormula: { v: 1, latex: "x^2" } } },
+      ],
+      files: { f1: { id: "f1", mimeType: "image/png", dataURL: fileUrl() } },
+    };
+    expect(() => validateCanvasData("whiteboard", data)).not.toThrow();
+    expect(extractCanvasSegments("whiteboard", data)).toEqual([
+      { id: "eq1", text: "E = mc^2" },
+      { id: "eq2", text: "\\text{data:text/plain,ok}" },
+    ]);
   });
 
   it("collects slide text and speaker notes by slide, including rich text", () => {

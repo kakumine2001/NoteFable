@@ -12,10 +12,22 @@ export const PAGES_TRASHED_EVENT = "notefable:pages-trashed";
 export const PAGES_WILL_TRASH_EVENT = "notefable:pages-will-trash";
 export type PagesWillTrashDetail = { ids: string[]; waits: Promise<boolean>[] };
 
+// AI の編集提案を適用・元に戻す前に、開いているページ（ホワイトボード等の未提出変更を含む）を保存するイベント。
+// 未保存の編集がある場合は先に保存して版を進め、サーバーの版チェック（409 競合）に正しく掛かるようにする。
+export const PAGES_WILL_CHANGE_EVENT = "notefable:pages-will-change";
+
 // ゴミ箱へ移す前に、開いている編集を保存する。どれかを保存できなければ false（未保存の内容を捨てないよう、移すのをやめる）。
 export async function saveBeforeTrash(ids: string[]): Promise<boolean> {
   const detail: PagesWillTrashDetail = { ids, waits: [] };
   window.dispatchEvent(new CustomEvent(PAGES_WILL_TRASH_EVENT, { detail }));
+  const results = await Promise.all(detail.waits.map((wait) => wait.catch(() => false)));
+  return results.every(Boolean);
+}
+
+// 編集提案の適用・元に戻す前に、対象ページの開いているキャンバスと保存キューを送り切る。
+export async function saveBeforePageChange(ids: string[]): Promise<boolean> {
+  const detail: PagesWillTrashDetail = { ids, waits: [] };
+  window.dispatchEvent(new CustomEvent(PAGES_WILL_CHANGE_EVENT, { detail }));
   const results = await Promise.all(detail.waits.map((wait) => wait.catch(() => false)));
   return results.every(Boolean);
 }

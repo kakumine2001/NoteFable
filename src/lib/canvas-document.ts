@@ -4,6 +4,7 @@ import { parseNoteFileUrl } from "@/lib/note-file-keys";
 import { fmt, msg } from "@/lib/i18n/translate";
 import { isCanvasKind, type CanvasKind, type PageKind } from "@/lib/page-kinds";
 import { WHITEBOARD_ELEMENT_TYPES } from "@/lib/whiteboard/scene";
+import { formulaDataOf } from "@/lib/whiteboard/formula";
 import { mindmapDataOf, type StashedElement } from "@/lib/whiteboard/mindmap/model";
 
 // ホワイトボードとスライドの本体（NoteCanvas.data）の形、検証、検索用の文字の取り出し（docs/architecture/notes-flow.md の「白板和幻灯片的数据」）。
@@ -68,6 +69,11 @@ function isSlideLiteralTextField(parent: Record<string, unknown>, key: string): 
   return false;
 }
 
+function isWhiteboardLiteralTextField(parent: Record<string, unknown>, key: string): boolean {
+  // 数式ラベルの TeX ソース（customData.notefableFormula = { v: 1, latex }）。
+  return key === "latex" && parent.v === 1 && Object.keys(parent).length === 2;
+}
+
 function scan(kind: CanvasKind, value: unknown, files: Map<string, string>) {
   const stack: { value: unknown; depth: number; literalText: boolean }[] = [{ value, depth: 0, literalText: false }];
   while (stack.length) {
@@ -94,7 +100,10 @@ function scan(kind: CanvasKind, value: unknown, files: Map<string, string>) {
     if (!object(current)) throw invalid();
     for (const [key, item] of Object.entries(current)) {
       if (key.includes("\u0000") || LONE_SURROGATE.test(key)) throw invalid();
-      stack.push({ value: item, depth: depth + 1, literalText: kind === "slides" && isSlideLiteralTextField(current, key) });
+      const literal = kind === "slides"
+        ? isSlideLiteralTextField(current, key)
+        : isWhiteboardLiteralTextField(current, key);
+      stack.push({ value: item, depth: depth + 1, literalText: literal });
     }
   }
 }
@@ -217,6 +226,10 @@ export function extractCanvasSegments(kind: CanvasKind, data: unknown): CanvasSe
       const target = validId(element.containerId) && ids.has(element.containerId) ? element.containerId : element.id as string;
       add(target, typeof element.originalText === "string" ? element.originalText : element.text);
       add(element.id as string, element.name);
+      if (element.type === "image") {
+        const formula = formulaDataOf(element.customData);
+        if (formula) add(element.id as string, formula.latex);
+      }
       const mark = mindmapDataOf(element.customData);
       if (mark?.role === "node" && mark.stash) hidden.push({ id: element.id as string, stash: mark.stash });
     }
@@ -294,10 +307,10 @@ export type CanvasPageInput = { title: string; icon: string | null; data?: Canva
 export function validateCanvasPage(kind: CanvasKind, value: unknown): CanvasPageInput {
   if (!object(value)) throw new NoteValidationError(msg("Invalid JSON request."));
   if (typeof value.title !== "string" || value.title.length > MAX_NOTE_TITLE) {
-    throw new NoteValidationError(fmt("Note title must be at most {max} characters.", { max: MAX_NOTE_TITLE }));
+    throw new NoteValidationError(fmt("Page title must be at most {max} characters.", { max: MAX_NOTE_TITLE }));
   }
   const icon = value.icon ?? null;
-  if (icon !== null && !isEmojiIcon(icon) && !uploadedCoverPath(icon)) throw new NoteValidationError(msg("Note icon must be a single emoji or an uploaded image."));
+  if (icon !== null && !isEmojiIcon(icon) && !uploadedCoverPath(icon)) throw new NoteValidationError(msg("Page icon must be a single emoji or an uploaded image."));
   if ((value.cover ?? null) !== null || (value.coverPosition ?? null) !== null || value.blocks !== undefined) throw invalid();
   const canvas = value.data === undefined ? null : validateCanvasData(kind, value.data);
   return {

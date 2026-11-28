@@ -7,21 +7,21 @@
     <string name="activity_searching_query">“%1$s” aranıyor</string>
     <string name="activity_reading_host">%1$s okunuyor</string>
     <string name="activity_scanning_host">%1$s taranıyor</string>
-    <string name="activity_searching_notes">Notlarınızda aranıyor</string>
-    <string name="activity_reading_note">Notunuz okunuyor</string>
+    <string name="activity_searching_notes">Sayfalarınızda aranıyor</string>
+    <string name="activity_reading_note">Sayfanız okunuyor</string>
     <string name="activity_one_search">1 arama</string>
     <string name="activity_searches">%1$s arama</string>
     <string name="activity_one_source">1 kaynak</string>
     <string name="activity_sources">%1$s kaynak</string>
-    <string name="activity_one_note_lookup">1 not başvurusu</string>
-    <string name="activity_note_lookups">%1$s not başvurusu</string>
-    <string name="activity_one_project_note">1 proje notu</string>
-    <string name="activity_project_notes">%1$s proje notu</string>
+    <string name="activity_one_note_lookup">1 sayfa başvurusu</string>
+    <string name="activity_note_lookups">%1$s sayfa başvurusu</string>
+    <string name="activity_one_project_note">1 proje sayfası</string>
+    <string name="activity_project_notes">%1$s proje sayfası</string>
     <string name="activity_project_instructions">proje talimatları</string>
     <string name="activity_more">+%1$s tane daha</string>
     <string name="activity_instructions">talimatlar</string>
-    <string name="activity_one_reference_note">1 referans notu</string>
-    <string name="activity_reference_notes">%1$s referans notu</string>
+    <string name="activity_one_reference_note">1 referans sayfası</string>
+    <string name="activity_reference_notes">%1$s referans sayfası</string>
     <string name="activity_used_project">“%1$s” projesi kullanıldı: %2$s</string>
     <string name="activity_partial">kısmi</string>
     <string name="activity_searching_web_running">Web\'de aranıyor…</string>
@@ -89,4 +89,5 @@
     <string name="proposal_op_elements">%1$s · %2$s öğe</string>
     <string name="proposal_before">Önce</string>
     <string name="proposal_after">Sonra</string>
+    <string name="proposal_view_preview">Önizlemeyi görüntüle</string>
 </resources>

@@ -30,6 +30,8 @@ struct FixtureCatalog: Sendable {
         static let ramenSession = "fx-session-ramen"
         static let meetingSession = "fx-session-meeting"
         static let liveSession = "fx-session-live"
+        /// 只给截图场景 chat-regenerate：最后一条回答很长。不在聊天列表里，别的截图不受影响。
+        static let longSession = "fx-session-long"
 
         static let tripPage = "fx-page-trip"
         static let packingPage = "fx-page-packing"
@@ -74,6 +76,8 @@ struct FixtureCatalog: Sendable {
     var streamHoldsOpen: Bool
     /// 传入应用内强制语言（例如 `ar-app` 截图变体）时同步回账号上的 `locale`，避免登录后 `syncWithAccount` 把偏好覆盖回 Auto。
     var appLanguage: String?
+    /// 默认数据，或应用商店截图的学习场景（FixtureStoreData.swift）。
+    var story: Story
 
     init(
         account: Account = .signedIn,
@@ -82,7 +86,8 @@ struct FixtureCatalog: Sendable {
         kinds: Data? = nil,
         image: Data,
         streamHoldsOpen: Bool = false,
-        appLanguage: String? = nil
+        appLanguage: String? = nil,
+        story: Story = .standard
     ) {
         self.account = account
         self.now = now
@@ -91,6 +96,7 @@ struct FixtureCatalog: Sendable {
         self.image = image
         self.streamHoldsOpen = streamHoldsOpen
         self.appLanguage = appLanguage
+        self.story = story
     }
 
     func reply(to request: HTTPRequest) -> FixtureTransport.Reply? {
@@ -102,6 +108,14 @@ struct FixtureCatalog: Sendable {
         let path = components.percentEncodedPath
         let segments = path.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
         let query = components.queryItems ?? []
+
+        // 商店故事先换掉自己有内容的接口，其余照下面的默认应答。
+        if story == .store,
+           let value = FixtureStoreData(now: now, signedIn: account == .signedIn, appLanguage: appLanguage, kinds: kinds)
+               .payload(method: method, path: path, query: query)
+        {
+            return jsonReply(value)
+        }
 
         // 1. 固定路径优先，再匹配带 :id 的路径。
         switch (method, path) {
@@ -435,6 +449,8 @@ struct FixtureCatalog: Sendable {
                     ],
                 ],
             ])
+        case IDs.longSession:
+            return jsonReply(longMessagesPayload())
         case IDs.glassSession, IDs.ramenSession, IDs.meetingSession:
             return jsonReply([
                 "messages": [
@@ -608,6 +624,32 @@ struct FixtureCatalog: Sendable {
         ]
     }
 
+    /// 两个回合，最后的回答有好几屏长：重新生成它时内容一下子变短、消息条数不变。
+    private func longMessagesPayload() -> JSONValue {
+        let stops = (1...40)
+            .map { "\($0). **Stop \($0):** walk to the next sight, then check the opening hours before you go in." }
+            .joined(separator: "\n")
+        let turns: [(role: String, content: String)] = [
+            ("USER", "Share a quick summary."),
+            ("ASSISTANT", "Here is a concise outline ready to review."),
+            ("USER", "List forty walking stops for a long weekend."),
+            ("ASSISTANT", "## Walking stops\n\n" + stops),
+        ]
+        let messages: [JSONValue] = turns.enumerated().map { index, turn in
+            [
+                "id": .string("fx-msg-long-\(index + 1)"),
+                "role": .string(turn.role),
+                "content": .string(turn.content),
+                "createdAt": .string(iso(Double(index - 8) * 60)),
+                "attachments": [],
+                "generatedImages": [],
+                "proposals": [],
+                "pages": [],
+            ]
+        }
+        return ["messages": .array(messages)]
+    }
+
     private func signedInUserPayload() -> JSONValue {
         [
             "name": "Fixture User",
@@ -669,8 +711,8 @@ struct FixtureCatalog: Sendable {
     private func pagesPayload() -> JSONValue {
         let kindsValue = kinds.flatMap { JSONValue.parse($0) } ?? [
             "note": ["editor": true, "markdownExport": true, "typography": true, "publicShare": true, "aiEdit": true],
-            "whiteboard": ["editor": true, "markdownExport": false, "typography": false, "publicShare": true, "aiEdit": false],
-            "slides": ["editor": true, "markdownExport": false, "typography": false, "publicShare": true, "aiEdit": false],
+            "whiteboard": ["editor": true, "markdownExport": false, "typography": false, "publicShare": true, "aiEdit": true],
+            "slides": ["editor": true, "markdownExport": false, "typography": false, "publicShare": true, "aiEdit": true],
         ]
         return [
             "pages": [
@@ -896,7 +938,8 @@ struct FixtureCatalog: Sendable {
     private func chatStreamReply(for request: HTTPRequest) -> FixtureTransport.Reply {
         let sessionId = extractMultipartField("sessionId", from: request.body) ?? IDs.liveSession
         let message = extractMultipartField("message", from: request.body)
-        let hold = streamHoldsOpen && message != Prompts.streamed
+        // 长聊天的回答（chat-regenerate）保持生成中：结束的话对账会换回原来的长回答。
+        let hold = (streamHoldsOpen && message != Prompts.streamed) || sessionId == IDs.longSession
         var chunks: [Data] = [
             Data("data: {\"activity\":{\"type\":\"thought\",\"id\":\"fx-thought-live\",\"delta\":\"**Comparing materials**\\n\\nGlass refracts the content behind it while blur only frosts.\"}}\n\n".utf8),
             Data("data: \(JSONValue.string(Self.answerLead).encodedString())\n\n".utf8),

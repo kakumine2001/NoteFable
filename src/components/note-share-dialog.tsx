@@ -229,7 +229,7 @@ export function NoteShareDialog({
               {share.expired ? (
                 <p className="notes-share-expired">{t("This share link has expired.")}</p>
               ) : (
-                <p className="notes-share-desc">{t("Publish this note so anyone with the link can view it.")}</p>
+                <p className="notes-share-desc">{t("Publish this page so anyone with the link can view it.")}</p>
               )}
               {kind !== "slides" && <button
                 type="button"

@@ -54,4 +54,40 @@ describe("canvas flush", () => {
     offA();
     offB();
   });
+
+  it("ignores ownerless flushers when exactOnly is true", () => {
+    const calls: string[] = [];
+    const offOwnerless = registerCanvasFlusher(() => true, () => { calls.push("ownerless"); return true; });
+    const offA = registerCanvasFlusher(() => true, () => { calls.push("a"); return false; }, "page-a");
+    expect(flushCanvasEditorsSync("page-a", true)).toBe(false);
+    expect(calls).toEqual(["a"]);
+    expect(flushCanvasEditorsSync("page-a")).toBe(true);
+    expect(calls).toEqual(["a", "ownerless", "a"]);
+    offOwnerless();
+    offA();
+  });
+
+  it("scopes async flushCanvasEditors to matching pageIds so slow uploads on another page do not block", async () => {
+    let releaseA!: () => void;
+    const pendingA = new Promise<boolean>((resolve) => { releaseA = () => resolve(true); });
+    const calls: string[] = [];
+    const offA = registerCanvasFlusher(async () => { calls.push("a"); return pendingA; }, () => true, "page-a");
+    const offB = registerCanvasFlusher(() => { calls.push("b"); return true; }, () => false, "page-b");
+    try {
+      expect(await flushCanvasEditors("page-b")).toBe(true);
+      expect(calls).toEqual(["b"]);
+
+      let aDone = false;
+      const waitA = flushCanvasEditors(["page-a"]).then((ok) => { aDone = true; return ok; });
+      await Promise.resolve();
+      expect(aDone).toBe(false);
+      releaseA();
+      expect(await waitA).toBe(true);
+      expect(calls).toEqual(["b", "a"]);
+    } finally {
+      releaseA();
+      offA();
+      offB();
+    }
+  });
 });

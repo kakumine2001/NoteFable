@@ -7,21 +7,21 @@
     <string name="activity_searching_query">「%1$s」を検索中</string>
     <string name="activity_reading_host">%1$sを読み取り中</string>
     <string name="activity_scanning_host">%1$sを確認中</string>
-    <string name="activity_searching_notes">ノートを検索中</string>
-    <string name="activity_reading_note">ノートを読み取り中</string>
+    <string name="activity_searching_notes">ページを検索中</string>
+    <string name="activity_reading_note">ページを読み取り中</string>
     <string name="activity_one_search">検索1回</string>
     <string name="activity_searches">検索%1$s回</string>
     <string name="activity_one_source">参照元1件</string>
     <string name="activity_sources">参照元%1$s件</string>
-    <string name="activity_one_note_lookup">ノート参照1回</string>
-    <string name="activity_note_lookups">ノート参照%1$s回</string>
-    <string name="activity_one_project_note">プロジェクトノート1件</string>
-    <string name="activity_project_notes">プロジェクトノート%1$s件</string>
+    <string name="activity_one_note_lookup">ページ参照1回</string>
+    <string name="activity_note_lookups">ページ参照%1$s回</string>
+    <string name="activity_one_project_note">プロジェクトページ1件</string>
+    <string name="activity_project_notes">プロジェクトページ%1$s件</string>
     <string name="activity_project_instructions">プロジェクトの指示</string>
     <string name="activity_more">ほか%1$s件</string>
     <string name="activity_instructions">指示</string>
-    <string name="activity_one_reference_note">参考ノート1件</string>
-    <string name="activity_reference_notes">参考ノート%1$s件</string>
+    <string name="activity_one_reference_note">参考ページ1件</string>
+    <string name="activity_reference_notes">参考ページ%1$s件</string>
     <string name="activity_used_project">プロジェクト「%1$s」を使用：%2$s</string>
     <string name="activity_partial">一部のみ</string>
     <string name="activity_searching_web_running">Webを検索中…</string>
@@ -89,4 +89,5 @@
     <string name="proposal_op_elements">%1$s・要素 %2$s 個</string>
     <string name="proposal_before">変更前</string>
     <string name="proposal_after">変更後</string>
+    <string name="proposal_view_preview">プレビューを表示</string>
 </resources>

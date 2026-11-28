@@ -19,9 +19,10 @@ vi.mock("@/lib/prisma", () => ({ databaseSchema: "notefable", prisma: mocks.pris
 vi.mock("@/lib/storage", () => ({ deleteStoredImage: mocks.remove, writeStoredImageAt: mocks.write, listStoredFiles: mocks.list, sharesForeignStorage: mocks.foreign }));
 vi.mock("next/server", () => ({ after: mocks.after }));
 import {
-  FILE_GRACE_MS, NOTE_FILE_OWNERS_PER_BATCH, NOTE_FILE_REFERENCE, assertStorageRoom, claimCanvasFiles, collectUnusedFiles, inventoryStoredFiles, limitNoteFileOwners,
+  FILE_GRACE_MS, NOTE_FILE_OWNERS_PER_BATCH, NOTE_FILE_REFERENCE, assertStorageRoom, claimCanvasFiles, claimStoredFiles, collectUnusedFiles, discardUnreferencedNoteFiles, inventoryStoredFiles, limitNoteFileOwners,
   referencedPaths, reserveStoredFile, runStorageMaintenance, storeFile, storageLimitResponse,
 } from "./stored-files";
+import { NoteValidationError } from "./note-document";
 import { STORAGE_LIMITS, StorageLimitError } from "./usage-plans";
 
 const member = { id: "m1", googleSub: "g1", verifiedEmail: null, plan: "FREE" };
@@ -161,6 +162,57 @@ describe("claiming the files of whiteboards and slide decks", () => {
     expect(query.sql).toContain('f."releasedAt" IS NOT NULL');
     expect(query.sql).toContain('JOIN "notefable"."NotePage" p ON p."id" = c."noteId" AND p."userId" = ');
     expect(query.values).toEqual(expect.arrayContaining(["m1", "w1", "w2", NOTE_FILE_REFERENCE]));
+  });
+
+  it("serializes claimStoredFiles and discardUnreferencedNoteFiles with the same user lock and rejects deleting rows", async () => {
+    const keepPath = `note-files/m1/${uuid(1)}.png`;
+    const freePath = `note-files/m1/${uuid(2)}.png`;
+    mocks.prisma.storedFile.findMany.mockResolvedValueOnce([
+      { path: keepPath, userId: "m1", kind: "NOTE_FILE" },
+      { path: freePath, userId: "m1", kind: "NOTE_FILE" },
+    ]);
+    mocks.prisma.$queryRaw.mockResolvedValueOnce([{ id: uuid(1) }]);
+    mocks.prisma.storedFile.updateMany.mockResolvedValueOnce({ count: 1 });
+    mocks.prisma.storedFile.deleteMany.mockResolvedValueOnce({ count: 1 });
+    mocks.remove.mockResolvedValueOnce(undefined);
+
+    const deleted = await discardUnreferencedNoteFiles("m1", [keepPath, freePath, `note-files/other/${uuid(3)}.png`]);
+    expect(deleted).toBe(1);
+    expect(mocks.prisma.$transaction).toHaveBeenCalledTimes(1);
+    const discardLock = mocks.prisma.$executeRaw.mock.calls[0][0] as { sql: string; values: unknown[] };
+    expect(discardLock.sql).toContain("pg_advisory_xact_lock");
+    expect(discardLock.values).toEqual(["notefable-note-files:m1"]);
+    expect(mocks.prisma.storedFile.updateMany).toHaveBeenCalledWith({
+      where: { path: { in: [freePath] }, userId: "m1", kind: "NOTE_FILE", releasedAt: { not: null }, deletingAt: null },
+      data: { deletingAt: expect.any(Date) },
+    });
+    expect(mocks.remove).toHaveBeenCalledWith(freePath);
+    expect(mocks.remove).not.toHaveBeenCalledWith(keepPath);
+
+    // すでに deletingAt が立っているファイルを claimStoredFiles で参照しようとしたら保存を拒否する。
+    mocks.prisma.$executeRaw.mockClear();
+    mocks.prisma.storedFile.updateMany.mockClear();
+    mocks.prisma.storedFile.findMany.mockResolvedValueOnce([{ path: freePath }]);
+    await expect(claimStoredFiles(mocks.prisma as never, [freePath], "m1"))
+      .rejects.toMatchObject({ status: 400, message: "Stored image not found." });
+    await expect(
+      (async () => {
+        mocks.prisma.storedFile.findMany.mockResolvedValueOnce([{ path: freePath }]);
+        return claimStoredFiles(mocks.prisma as never, [freePath], "m1");
+      })(),
+    ).rejects.toBeInstanceOf(NoteValidationError);
+    const claimLock = mocks.prisma.$executeRaw.mock.calls[0][0] as { sql: string; values: unknown[] };
+    expect(claimLock.sql).toContain("pg_advisory_xact_lock");
+    expect(claimLock.values).toEqual(["notefable-note-files:m1"]);
+    expect(mocks.prisma.storedFile.updateMany).not.toHaveBeenCalled();
+
+    // deletingAt のない通常の行はロックを取った上で使用中へ戻す。
+    mocks.prisma.storedFile.findMany.mockResolvedValueOnce([]);
+    await claimStoredFiles(mocks.prisma as never, [keepPath], "m1");
+    expect(mocks.prisma.storedFile.updateMany).toHaveBeenCalledWith({
+      where: { path: { in: [keepPath] }, userId: "m1", deletingAt: null, releasedAt: { not: null } },
+      data: { releasedAt: null },
+    });
   });
 });
 

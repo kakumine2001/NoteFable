@@ -45,8 +45,8 @@ struct PageKindFeatures: Equatable, Sendable {
 final class PageKindTable: @unchecked Sendable {
     static let shared = PageKindTable()
 
-    /// 画面上的顺序（网页 PAGE_KIND_ORDER）：笔记、幻灯片、白板。
-    static let displayOrder: [PageKind] = [.note, .slides, .whiteboard]
+    /// 画面上的顺序（网页 PAGE_KIND_ORDER）：笔记、白板、幻灯片。
+    static let displayOrder: [PageKind] = [.note, .whiteboard, .slides]
     static let fallback: [PageKind: PageKindFeatures] = [.note: .note]
 
     private let lock = NSLock()
@@ -149,8 +149,8 @@ func pageKindLabel(_ kind: PageKind) -> String {
 func pageKindSectionLabel(_ kind: PageKind) -> String {
     switch kind {
     case .note: return "notes"
-    case .slides: return "page_kind_slides"
     case .whiteboard: return "ws_section_whiteboards"
+    case .slides: return "page_kind_slides"
     }
 }
 
@@ -158,8 +158,8 @@ func pageKindSectionLabel(_ kind: PageKind) -> String {
 func pageKindNewLabel(_ kind: PageKind) -> String {
     switch kind {
     case .note: return "new_note"
-    case .slides: return "ws_new_slides"
     case .whiteboard: return "ws_new_whiteboard"
+    case .slides: return "ws_new_slides"
     }
 }
 
@@ -629,6 +629,16 @@ enum EmbedMessage: Equatable, Sendable {
     /// AI 生成幻灯片的向导（#150，网页 SlidesWizardHost）出现（[open]）或消失。[busy]：消失时还有生成没完成（WebView 多留一会儿）。
     /// 只有 bootstrap 里声明了 `canShowSlidesWizard()` 的 App 才会收到。
     case slidesWizard(open: Bool, busy: Bool = false)
+    /// 工作区统一「用 AI 生成」面板（#254，网页 AiGenerateHost）出现（[open]）或消失。[busy]：消失时还有生成没完成。
+    /// 只有 bootstrap 里声明了 `canShowAiGenerate()` 的 App 才会收到。
+    case aiGenerate(open: Bool, busy: Bool = false)
+    /// PowerPoint（.pptx）导入窗口（#154，网页 PptxImportHost）出现（[open]）或消失。
+    /// 只有 bootstrap 里声明了 `canShowPptxImport()` 的 App 才会收到。
+    case pptxImport(open: Bool)
+    /// 网页现在正在做幻灯片的笔记（页面加载时和每次变化时发）：这些笔记的"…"里「生成幻灯片」显示生成中（网页菜单同）。
+    case slidesJobs(pageIds: Set<String>)
+    /// 复习和测验窗口（#154 PR 13，网页 ReviewQuizHost）出现（[open]）或消失。只有 bootstrap 里声明了 `canShowQuiz()` 的 App 才会收到。
+    case quiz(open: Bool)
     /// [kept]：没保存成功，但草稿已存在 WebView 里、之后会重试（不是冲突）。这时可以先离开。
     case flushed(requestId: String, ok: Bool, kept: Bool = false)
     /// 笔记里的图片、文件、封面或图标因为文件存储空间不够上传失败（used / limit 是字节）。App 在编辑器上方显示提示。
@@ -689,6 +699,38 @@ enum EmbedMessage: Equatable, Sendable {
                     return .slidesWizard(open: true, busy: false)
                 case "closed":
                     return .slidesWizard(open: false, busy: try flag(fields["busy"]))
+                default:
+                    return nil
+                }
+            case "aiGenerate":
+                switch try text(fields["state"]) {
+                case "open":
+                    return .aiGenerate(open: true, busy: false)
+                case "closed":
+                    return .aiGenerate(open: false, busy: try flag(fields["busy"]))
+                default:
+                    return nil
+                }
+            case "pptxImport":
+                switch try text(fields["state"]) {
+                case "open":
+                    return .pptxImport(open: true)
+                case "closed":
+                    return .pptxImport(open: false)
+                default:
+                    return nil
+                }
+            case "slidesJobs":
+                guard let items = fields["pageIds"]?.arrayValue else { return nil }
+                // 只收非空白的字符串（和 Android 一样）。
+                let ids = items.compactMap { $0.stringValue }.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                return .slidesJobs(pageIds: Set(ids))
+            case "quiz":
+                switch try text(fields["state"]) {
+                case "open":
+                    return .quiz(open: true)
+                case "closed":
+                    return .quiz(open: false)
                 default:
                     return nil
                 }
@@ -770,4 +812,20 @@ enum SlidesWizardSource: Equatable, Sendable {
     case new(groupId: String? = nil, parentId: String? = nil)
     case note(pageId: String)
     case chat(sessionId: String)
+}
+
+/// PowerPoint（.pptx）导入的目标位置，即 `window.notefableEmbed.pptxImport({ action: "open", groupId?, parentId? })`
+/// （src/lib/native-bridge.ts 的 parsePptxImportRequest；Android `PptxImportTarget`）。
+struct PptxImportTarget: Equatable, Sendable {
+    var groupId: String? = nil
+    var parentId: String? = nil
+}
+
+/// 工作区统一「用 AI 生成」的目标和预填内容（`window.notefableEmbed.aiGenerate({ action: "open", ... })`；Android `AiGenerateTarget`）。
+struct AiGenerateTarget: Equatable, Sendable {
+    var kind: PageKind? = nil
+    var groupId: String? = nil
+    var parentId: String? = nil
+    var prompt: String? = nil
+    var autoStart: Bool = false
 }

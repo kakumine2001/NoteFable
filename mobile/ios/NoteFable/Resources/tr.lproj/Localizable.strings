@@ -9,7 +9,7 @@
 "chats_empty" = "Son konuşmalarınız burada görünecek.";
 "retry" = "Tekrar dene";
 "messages_load_failed" = "Konuşma yüklenemedi.";
-"empty_hint" = "Bir soru sorun, notlarınız üzerinde çalışın veya bir dosya ekleyin.";
+"empty_hint" = "Bir soru sorun, Çalışma alanınız üzerinde çalışın veya bir dosya ekleyin.";
 "message_hint" = "İstediğinizi sorun...";
 "send" = "Mesaj gönder";
 "stop" = "Oluşturmayı durdur";
@@ -80,27 +80,26 @@
 "new_note" = "Yeni not";
 "projects" = "Projeler";
 "new_project" = "Yeni proje";
-"no_notes_in_project" = "Bu projede not yok.";
+"no_notes_in_project" = "Bu projede sayfa yok.";
 "notes_list_empty" = "Notlarınız burada görünecek.";
 "trash" = "Çöp Kutusu";
-"trash_note_title" = "Not Çöp Kutusu'na taşınsın mı?";
+"trash_note_title" = "Sayfa Çöp Kutusu'na taşınsın mı?";
 "trash_note_body" = "“%1$s” Çöp Kutusu'na taşınacak. %2$d gün boyunca geri yükleyebilirsiniz.";
 "cancel" = "İptal";
 "move_to_trash" = "Çöp Kutusu'na taşı";
 "move_to_project" = "Projeye taşı";
 "move_title_to_project" = "%1$s öğesini bir projeye taşı";
-"move_title_to_trash" = "%1$s notunu Çöp Kutusu'na taşı";
+"move_title_to_trash" = "%1$s sayfasını Çöp Kutusu'na taşı";
 "rename_project" = "Projeyi yeniden adlandır";
 "create" = "Oluştur";
 "save" = "Kaydet";
 "delete_project_title" = "Proje silinsin mi?";
 "delete_project" = "Projeyi sil";
-"delete_project_body" = "“%1$s” silinecek. İçindeki notlar korunur ve projeden çıkarılır.";
+"delete_project_body" = "“%1$s” silinecek. İçindeki sayfalar korunur ve projeden çıkarılır.";
 "rename_name" = "%1$s öğesini yeniden adlandır";
 "delete_project_name" = "%1$s projesini sil";
 "project_name" = "Proje adı";
 "no_project" = "Projesiz";
-"move_note" = "Notu taşı";
 "move_note_to" = "“%1$s” için hedef seçin";
 "project" = "Proje";
 "new_project_name" = "Yeni proje adı";
@@ -109,43 +108,43 @@
 "close" = "Kapat";
 "empty_trash" = "Çöp Kutusu'nu boşalt";
 "close_trash" = "Çöp Kutusu'nu kapat";
-"trash_hint" = "Çöp Kutusu'ndaki notlar %1$d gün boyunca geri yüklenebilir. Bu sürenin sonunda kalıcı olarak silinir.";
-"empty_trash_one" = "Çöp Kutusu'ndaki bu not kalıcı olarak silinsin mi? Bu işlem geri alınamaz.";
-"empty_trash_all" = "Çöp Kutusu'ndaki %1$d notun tümü kalıcı olarak silinsin mi? Bu işlem geri alınamaz.";
+"trash_hint" = "Çöp Kutusu'ndaki sayfalar %1$d gün boyunca geri yüklenebilir. Bu sürenin sonunda kalıcı olarak silinir.";
+"empty_trash_one" = "Çöp Kutusu'ndaki bu sayfa kalıcı olarak silinsin mi? Bu işlem geri alınamaz.";
+"empty_trash_all" = "Çöp Kutusu'ndaki %1$d sayfanın tümü kalıcı olarak silinsin mi? Bu işlem geri alınamaz.";
 "loading_trash" = "Çöp Kutusu yükleniyor…";
 "try_again" = "Tekrar dene";
 "trash_is_empty" = "Çöp Kutusu boş.";
 "delete_forever_q" = "Kalıcı olarak silinsin mi?";
 "delete_forever" = "Kalıcı olarak sil";
 "restore" = "Geri yükle";
-"restore_title" = "“%1$s” notunu geri yükle";
-"delete_title_forever" = "“%1$s” notunu kalıcı olarak sil";
+"restore_title" = "“%1$s” sayfasını geri yükle";
+"delete_title_forever" = "“%1$s” sayfasını kalıcı olarak sil";
 "deleted_today" = "Bugün silindi";
 "deleted_one_day" = "1 gün önce silindi";
 "deleted_days" = "%1$d gün önce silindi";
 "removing_soon" = "yakında kaldırılacak";
 "one_day_left" = "1 gün kaldı";
 "days_left" = "%1$d gün kaldı";
-"loading_notes" = "Notlar yükleniyor…";
-"notes_intro" = "Bloklarla not yazın — başlık, liste, yapılacaklar ve kod eklemek için %1$s yazın.";
-"notes_storage_hint" = "Notlar sunucuya kaydedilir ve bu cihazla ilişkilendirilir. Başka cihazlarda açmak için giriş yapın. Giriş yapmadan önce uygulama veya site verilerini temizlerseniz notlarınıza bir daha erişemezsiniz.";
-"all_notes" = "Tüm notlar";
+"loading_notes" = "Sayfalar yükleniyor…";
+"notes_intro" = "Not yazın, slayt desteleri hazırlayın ve beyaz tahtalarda çizin. Bir notta başlık, liste, yapılacaklar ve kod eklemek için %1$s yazın.";
+"notes_storage_hint" = "Çalışma alanınız sunucuya kaydedilir ve bu cihazla ilişkilendirilir. Başka cihazlarda açmak için giriş yapın. Giriş yapmadan önce uygulama veya site verilerini temizlerseniz Çalışma alanınıza bir daha erişemezsiniz.";
+"all_notes" = "Tüm sayfalar";
 "version_history" = "Sürüm geçmişi";
 "save_saved" = "Kaydedildi";
 "save_saving" = "Kaydediliyor…";
 "save_not_saved" = "Kaydedilmedi";
 "save_conflict" = "Çakışma";
-"err_trash_unsaved" = "Bu notu Çöp Kutusu'na taşımadan önce kaydedilmemiş taslağı çözümleyin.";
-"err_load_notes" = "Notlar yüklenemedi.";
-"err_create_note" = "Not oluşturulamadı.";
-"err_trash_note" = "Not Çöp Kutusu'na taşınamadı.";
+"err_trash_unsaved" = "Bu sayfayı Çöp Kutusu'na taşımadan önce kaydedilmemiş taslağı çözümleyin.";
+"err_load_notes" = "Sayfalar yüklenemedi.";
+"err_create_note" = "Sayfa oluşturulamadı.";
+"err_trash_note" = "Sayfa Çöp Kutusu'na taşınamadı.";
 "err_group" = "Proje değiştirilemedi.";
 "err_trash_request" = "Çöp Kutusu işlemi başarısız oldu. Lütfen tekrar deneyin.";
 "err_trash_load" = "Çöp Kutusu yüklenemedi.";
 "err_save_draft" = "Kaydedilemedi. Taslağınız korundu.";
 "sign_in" = "Giriş yap";
 "signin_title" = "NoteFable'a giriş yap";
-"signin_subtitle" = "Sohbetlerinizi ve notlarınızı saklayın, istediğiniz cihazdan açın.";
+"signin_subtitle" = "Sohbetlerinizi ve Çalışma alanınızı saklayın, istediğiniz cihazdan açın.";
 "continue_google" = "Google ile devam et";
 "signin_or" = "veya";
 "signin_email" = "E-posta adresi";
@@ -197,10 +196,15 @@
 
 /* strings_account_delete.xml */
 "acct_delete_account" = "Hesabı sil";
-"acct_delete_account_warning" = "Hesabınızı ve içindeki her şeyi — sohbetleri, notları, dosyaları ve ayarları — kalıcı olarak siler. Bu işlem geri alınamaz.";
+"acct_delete_account_warning" = "Hesabınızı ve içindeki her şeyi — sohbetleri, notları, slayt destelerini, beyaz tahtaları, dosyaları ve ayarları — kalıcı olarak siler. Bu işlem geri alınamaz.";
 "acct_delete_permanently" = "Kalıcı olarak sil";
 "acct_deleting" = "Siliniyor…";
 "acct_err_delete_account" = "Hesabınız silinemedi. Lütfen tekrar deneyin.";
+
+/* strings_ai_generate.xml */
+"ai_gen_placeholder" = "Yapay zekâdan bir not, beyaz tahta veya slayt destesi oluşturmasını isteyin…";
+"ai_gen_options" = "Seçenekler";
+"ai_gen_generate" = "Oluştur";
 
 /* strings_answers.xml */
 "activity_thinking" = "Düşünüyor";
@@ -209,21 +213,21 @@
 "activity_searching_query" = "“%1$s” aranıyor";
 "activity_reading_host" = "%1$s okunuyor";
 "activity_scanning_host" = "%1$s taranıyor";
-"activity_searching_notes" = "Notlarınızda aranıyor";
-"activity_reading_note" = "Notunuz okunuyor";
+"activity_searching_notes" = "Sayfalarınızda aranıyor";
+"activity_reading_note" = "Sayfanız okunuyor";
 "activity_one_search" = "1 arama";
 "activity_searches" = "%1$s arama";
 "activity_one_source" = "1 kaynak";
 "activity_sources" = "%1$s kaynak";
-"activity_one_note_lookup" = "1 not başvurusu";
-"activity_note_lookups" = "%1$s not başvurusu";
-"activity_one_project_note" = "1 proje notu";
-"activity_project_notes" = "%1$s proje notu";
+"activity_one_note_lookup" = "1 sayfa başvurusu";
+"activity_note_lookups" = "%1$s sayfa başvurusu";
+"activity_one_project_note" = "1 proje sayfası";
+"activity_project_notes" = "%1$s proje sayfası";
 "activity_project_instructions" = "proje talimatları";
 "activity_more" = "+%1$s tane daha";
 "activity_instructions" = "talimatlar";
-"activity_one_reference_note" = "1 referans notu";
-"activity_reference_notes" = "%1$s referans notu";
+"activity_one_reference_note" = "1 referans sayfası";
+"activity_reference_notes" = "%1$s referans sayfası";
 "activity_used_project" = "“%1$s” projesi kullanıldı: %2$s";
 "activity_partial" = "kısmi";
 "activity_searching_web_running" = "Web'de aranıyor…";
@@ -291,10 +295,11 @@
 "proposal_op_elements" = "%1$s · %2$s öğe";
 "proposal_before" = "Önce";
 "proposal_after" = "Sonra";
+"proposal_view_preview" = "Önizlemeyi görüntüle";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "Sayfa ekle";
-"attach_pages_desc" = "Yapay zekânın notlarınızı okumasına izin verin";
+"attach_pages_desc" = "Yapay zekânın sayfalarınızı okumasına izin verin";
 "attached_pages" = "Eklenen sayfalar";
 "ask_notefable" = "NoteFable'a sor";
 "quote" = "Alıntı";
@@ -324,7 +329,7 @@
 /* strings_diagram.xml */
 "diagram_draw" = "Diyagram olarak çiz";
 "diagram_working" = "Diyagram çiziliyor…";
-"diagram_description" = "Yapay zeka bunu yeni bir beyaz tahtada düzenlenebilir bir diyagrama dönüştürür. 1 sohbet mesajı olarak sayılır.";
+"diagram_description" = "Yapay zekâ bunu yeni bir beyaz tahtada düzenlenebilir bir diyagrama dönüştürür. 1 sohbet mesajı olarak sayılır.";
 "diagram_done" = "Diyagram hazır.";
 "diagram_open" = "Beyaz tahtayı aç";
 "diagram_partial" = "İçerik çok uzun olduğu için yalnızca ilk bölüm çizildi.";
@@ -408,7 +413,7 @@
 "pg_add_page_inside_title" = "%1$s içine sayfa ekle";
 "pg_collapse_title" = "%1$s öğesini daralt";
 "pg_expand_title" = "%1$s öğesini genişlet";
-"pg_remove_title_from_favorites" = "%1$s notunu Favorilerden kaldır";
+"pg_remove_title_from_favorites" = "%1$s sayfasını Favorilerden kaldır";
 "pg_page_options" = "Sayfa seçenekleri";
 "pg_style" = "Stil";
 "pg_font_default" = "Varsayılan";
@@ -428,6 +433,7 @@
 "pg_subpages_to_trash" = "Alt sayfaları da onunla birlikte Çöp Kutusu'na taşınır.";
 "pg_rename_page" = "Sayfayı yeniden adlandır";
 "pg_page_title" = "Sayfa başlığı";
+"pg_review_quiz" = "Tekrar ve test";
 
 /* strings_personal.xml */
 "appearance" = "Görünüm";
@@ -496,14 +502,14 @@
 
 /* strings_search.xml */
 "search" = "Ara";
-"search_chats_and_notes" = "Sohbetlerde ve notlarda ara";
+"search_chats_and_notes" = "Sohbetlerde ve sayfalarda ara";
 "search_close" = "Aramayı kapat";
 "search_tab_all" = "Tümü";
 "search_tab_chats" = "Sohbetler";
 "search_project" = "Proje";
 "search_all_projects" = "Tüm projeler";
-"search_idle_title" = "Sohbetlerinizde ve notlarınızda ara";
-"search_idle_body" = "Yazdığınız her kelimenin aynı sohbet veya not içinde — başlıkta, bir mesajda ya da ekli bir dosyada — geçmesi gerekir.";
+"search_idle_title" = "Sohbetlerinizde ve sayfalarınızda ara";
+"search_idle_body" = "Yazdığınız her kelimenin aynı sohbet veya sayfa içinde — başlıkta, metinde ya da ekli bir dosyada — geçmesi gerekir.";
 "search_unavailable_title" = "Arama kullanılamıyor";
 "search_unavailable_body" = "Bağlantınızı kontrol edip tekrar deneyin.";
 "search_try_again" = "Tekrar dene";
@@ -521,7 +527,7 @@
 "share_publish" = "Yayınla";
 "share_republish" = "Yeniden yayınla";
 "share_unpublish" = "Yayından kaldır";
-"share_desc" = "Bağlantıya sahip herkesin görebilmesi için bu notu yayınlayın.";
+"share_desc" = "Bağlantıya sahip herkesin görebilmesi için bu sayfayı yayınlayın.";
 "share_expired" = "Bu paylaşım bağlantısının süresi doldu.";
 "share_public_link" = "Genel bağlantı";
 "share_copy_link" = "Bağlantıyı kopyala";
@@ -557,8 +563,8 @@
 "sb_all_chats_pinned" = "Tüm sohbetler sabitlendi";
 "sb_no_chats" = "Sohbet yok";
 "sb_hint_instructions" = "talimatlar";
-"sb_one_reference_note" = "1 referans notu";
-"sb_n_reference_notes" = "%1$d referans notu";
+"sb_one_reference_note" = "1 referans sayfası";
+"sb_n_reference_notes" = "%1$d referans sayfası";
 "sb_project_settings" = "Proje ayarları";
 "sb_new_project_plus" = "＋ Yeni proje";
 "sb_delete_chat" = "Sohbeti sil";
@@ -576,19 +582,19 @@
 "sb_loading" = "Yükleniyor…";
 "sb_instructions" = "Talimatlar";
 "sb_instructions_placeholder" = "Örnek: Japonca iş e-postaları yazmama yardımcı ol. Nazik bir üslup kullan ve önce kısa bir taslakla yanıt ver.";
-"sb_reference_notes" = "Referans notları";
-"sb_selected_notes" = "Seçilen notlar";
+"sb_reference_notes" = "Referans sayfaları";
+"sb_selected_notes" = "Seçilen sayfalar";
 "sb_remove_title" = "%1$s öğesini kaldır";
-"sb_filter_notes" = "Notlarınızı filtreleyin";
-"sb_your_notes" = "Notlarınız";
+"sb_filter_notes" = "Sayfalarınızı filtreleyin";
+"sb_your_notes" = "Sayfalarınız";
 "sb_untitled" = "Başlıksız";
-"sb_no_notes_match" = "Eşleşen not yok.";
-"sb_no_notes_yet" = "Henüz hiç notunuz yok.";
-"sb_showing_first_notes" = "İlk %1$d not gösteriliyor. Diğerlerini bulmak için filtre alanına yazın.";
-"sb_notes_limit" = "En fazla %1$d not seçebilirsiniz. Başka bir not seçmek için birini kaldırın.";
+"sb_no_notes_match" = "Eşleşen sayfa yok.";
+"sb_no_notes_yet" = "Henüz hiç sayfanız yok.";
+"sb_showing_first_notes" = "İlk %1$d sayfa gösteriliyor. Diğerlerini bulmak için filtre alanına yazın.";
+"sb_notes_limit" = "En fazla %1$d sayfa seçebilirsiniz. Başka bir sayfa seçmek için birini kaldırın.";
 "sb_saving" = "Kaydediliyor…";
 "sb_err_load_project_settings" = "Proje ayarları yüklenemedi.";
-"sb_err_load_your_notes" = "Notlarınız yüklenemedi.";
+"sb_err_load_your_notes" = "Sayfalarınız yüklenemedi.";
 "sb_err_save_project_settings" = "Proje ayarları kaydedilemedi. Lütfen tekrar deneyin.";
 "sb_err_move_item" = "Öğe taşınamadı. Tekrar deneyin.";
 "sb_err_wait_move" = "Önceki taşıma işleminin tamamlanmasını bekleyin.";
@@ -602,9 +608,11 @@
 "slides_export_png" = "PNG görseller olarak dışa aktar";
 "slides_export_pptx" = "PowerPoint (PPTX) olarak dışa aktar";
 "slides_export_pptx_transition_note" = "Slayt geçişleri PPTX dışa aktarımına dahil edilmez.";
+"slides_import_pptx" = "PowerPoint içe aktar";
 
 /* strings_slides_wizard.xml */
 "slides_generate" = "Slayt oluştur";
+"slides_generating" = "Slaytlar oluşturuluyor…";
 "slides_generate_from_chat" = "Bu sohbetten bir slayt destesi oluştur";
 "slides_generate_with_ai" = "Yapay zekâyla oluştur";
 

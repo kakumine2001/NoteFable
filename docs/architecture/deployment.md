@@ -25,7 +25,7 @@ Production aliases：
 
 ```text
 notefable.com                 # 正式域名（2026-11-15 购入，Vercel 管理 DNS）：介绍页、法律页面
-app.notefable.com             # 工作区（聊天与 Notes）
+app.notefable.com             # 工作区（聊天与 Workspace）
 www.notefable.com             # 308 跳转到 notefable.com
 notefable-kaku10.vercel.app
 ```
@@ -51,7 +51,7 @@ NEXT_PUBLIC_APP_ORIGIN=https://app.notefable.com
 | `notefable.com/{locale}/app` | 转到 `app.notefable.com/`，保留查询参数 |
 | `app.notefable.com/app` | 转到 `app.notefable.com/`（Stripe 付款后的返回地址 `/app?billing=…` 走这里） |
 | `app.notefable.com/api/*` | 接口只在工作区主机提供。Android App 的 `BASE_URL`、iOS App 的 `NOTEFABLE_BASE_URL`、Stripe Webhook、Google Play RTDN（Pub/Sub push 和 `GOOGLE_PLAY_PUSH_AUDIENCE`）都登记这个主机（[billing.md](billing.md)） |
-| `notefable.com/api/*` | 421（JSON，`code: "wrong_host"`；不跳转：Webhook 和 App 不跟随跳转，登记错了要马上看得出来；不用 404，因为界面把 404 当成“笔记或会话已删除”）。例外只有 `/api/i18n`（介绍页的语言菜单取词典）；介绍页的语言菜单在这个主机上不向账号保存（没有登录，选择靠共用的语言 Cookie 带到工作区）。规则是 `next.config.ts` 的 rewrite（`siteApiBlockRewrites`，`src/lib/hosts.ts`），按主机名匹配，转到 `/api/unavailable`；没分域的环境、两个主机名相同只差端口的配置和 `*.vercel.app` 别名不受影响 |
+| `notefable.com/api/*` | 421（JSON，`code: "wrong_host"`；不跳转：Webhook 和 App 不跟随跳转，登记错了要马上看得出来；不用 404，因为界面把 404 当成“页面或会话已删除”）。例外只有 `/api/i18n`（介绍页的语言菜单取词典）；介绍页的语言菜单在这个主机上不向账号保存（没有登录，选择靠共用的语言 Cookie 带到工作区）。规则是 `next.config.ts` 的 rewrite（`siteApiBlockRewrites`，`src/lib/hosts.ts`），按主机名匹配，转到 `/api/unavailable`；没分域的环境、两个主机名相同只差端口的配置和 `*.vercel.app` 别名不受影响 |
 
 Cookie 和浏览器存储按主机分开：匿名设备 Cookie、登录会话 Cookie 和 `localStorage`（草稿、模型选择等）不会从 `notefable.com` 带到 `app.notefable.com`。分域时的决定（2026-11-19）是不迁移：旧的匿名数据留在数据库里，在新主机上从新的匿名身份开始；登录用户在新主机重新登录后数据照常可见。界面语言 Cookie（`notefable-locale`）在分域后写到 `Domain=notefable.com`，两个主机共用。
 
@@ -105,7 +105,7 @@ flowchart LR
     Vercel --> OpenAI["OpenAI"]
     Vercel --> DeepSeek["DeepSeek"]
     Vercel --> Anthropic["Anthropic API"]
-    Vercel --> External["Google / Stripe / Resend"]
+    Vercel --> External["Google / Apple / Stripe / Resend"]
 ```
 
 ## Build
@@ -242,7 +242,7 @@ AUTH_GOOGLE_SECRET
 
 三项都配置才启用；在 Google Cloud 的 OAuth 客户端中登记重定向 URI `https://<域名>/api/auth/callback/google`（分域后登录在 `app.notefable.com` 进行，登记这个主机的回调；`notefable.com` 的回调不登记；回退到单主机时要重新登记）（本地为 `http://localhost:3000/api/auth/callback/google`）。
 
-**Google 同意屏幕（品牌塑造页）**：公开页面是 `/privacy`（隐私权政策）和 `/terms`（服务条款），页面内容在 `src/app/privacy/page.tsx`、`src/app/terms/page.tsx`，联系邮箱和更新日期（`LEGAL_UPDATED_ISO`）在 `src/components/legal-page.tsx`；这两个链接和特商法标示 `/legal-notice` 也放在聊天 / 笔记侧栏底部的帮助菜单（网页、Android 与 iOS）和介绍页页脚。Google Cloud → Google Auth Platform → 品牌塑造里填：应用主页 `https://notefable.com`，隐私权政策 `https://notefable.com/privacy`，服务条款 `https://notefable.com/terms`；已授权网域登记 `notefable.com`，OAuth 客户端的重定向 URI 登记 `https://app.notefable.com/api/auth/callback/google`（分域后的工作区主机；主域 `notefable.com/api/*` 返回 421）和本地 `http://localhost:3000/api/auth/callback/google`（其他域名会报 `redirect_uri_mismatch`）。应用名是 NoteFable。当前只用 `openid` / `email` / `profile` 基础权限，不需要 Google 的敏感权限审核；OAuth 同意屏幕已于 2026-10-14 发布为“正式版”（Google Auth Platform → 对象 页可随时“改回测试”）；网站所有权已在 Search Console 用 `public/googlebbfeef8de1d165ef.html` 验证（**这个文件不能删**）；“品牌验证”（让同意屏幕显示应用名和链接）是可选步骤，尚未提交；改了数据处理方式（比如新增第三方服务）时要同步更新这两个页面，并改 `LEGAL_UPDATED_ISO`。
+**Google 同意屏幕（品牌塑造页）**：公开页面是 `/privacy`（隐私权政策）和 `/terms`（服务条款），页面内容在 `src/app/privacy/page.tsx`、`src/app/terms/page.tsx`，联系邮箱和更新日期（`LEGAL_UPDATED_ISO`）在 `src/components/legal-page.tsx`；这两个链接和特商法标示 `/legal-notice` 也放在设置 → 帮助页（网页、Android 与 iOS；未登录访客从侧栏底部设置齿轮进入）和介绍页页脚。Google Cloud → Google Auth Platform → 品牌塑造里填：应用主页 `https://notefable.com`，隐私权政策 `https://notefable.com/privacy`，服务条款 `https://notefable.com/terms`；已授权网域登记 `notefable.com`，OAuth 客户端的重定向 URI 登记 `https://app.notefable.com/api/auth/callback/google`（分域后的工作区主机；主域 `notefable.com/api/*` 返回 421）和本地 `http://localhost:3000/api/auth/callback/google`（其他域名会报 `redirect_uri_mismatch`）。应用名是 NoteFable。当前只用 `openid` / `email` / `profile` 基础权限，不需要 Google 的敏感权限审核；OAuth 同意屏幕已于 2026-10-14 发布为“正式版”（Google Auth Platform → 对象 页可随时“改回测试”）；网站所有权已在 Search Console 用 `public/googlebbfeef8de1d165ef.html` 验证（**这个文件不能删**）；“品牌验证”（让同意屏幕显示应用名和链接）是可选步骤，尚未提交；改了数据处理方式（比如新增第三方服务）时要同步更新这两个页面，并改 `LEGAL_UPDATED_ISO`。
 
 ### 邮箱验证码登录（可选）
 
@@ -267,7 +267,7 @@ OPENAI_EMBEDDING_MODEL
 NOTEFABLE_SEMANTIC_SEARCH
 ```
 
-代码默认聊天模型为 `gpt-6-luna`，图片生成与编辑为 `gpt-image-2.6-sunburst`，笔记语义搜索嵌入模型为 `text-embedding-3-small`（可选 `text-embedding-3-small` / `text-embedding-3-large`，512 维，非法值会记录警告并回退默认；共用 `OPENAI_API_KEY` 与 `OPENAI_BASE_URL`）。`NOTEFABLE_SEMANTIC_SEARCH` 设为 `0` 或 `false` 时关闭语义搜索（退回纯关键词搜索）。Production 使用官方接入点 `https://api.openai.com/v1`。本地代码不代表已发布的线上版本；更换密钥或模型环境变量后，需要重新部署才能应用到运行中的函数。
+代码默认聊天模型为 `gpt-6-luna`，图片生成与编辑为 `gpt-image-2.6-sunburst`，页面语义搜索嵌入模型为 `text-embedding-3-small`（可选 `text-embedding-3-small` / `text-embedding-3-large`，512 维，非法值会记录警告并回退默认；共用 `OPENAI_API_KEY` 与 `OPENAI_BASE_URL`）。`NOTEFABLE_SEMANTIC_SEARCH` 设为 `0` 或 `false` 时关闭语义搜索（退回纯关键词搜索）。Production 使用官方接入点 `https://api.openai.com/v1`。本地代码不代表已发布的线上版本；更换密钥或模型环境变量后，需要重新部署才能应用到运行中的函数。
 
 ### DeepSeek
 
@@ -306,7 +306,7 @@ NOTEFABLE_MODELS=[{"id":"gpt-6-luna"},{"id":"claude-haiku-5-5","label":"Claude",
 
 ### File & Image Storage
 
-生产环境使用私有 Vercel Blob（`notefable-images`），存放聊天图片（`images/YYYY/MM/DD/...`）、临时上传（`chat-uploads/<userId>/`）、笔记封面和图片图标（`page-covers/<userId>/`）、笔记附件（`note-files/<userId>/`）、用户头像（`avatars/<userId>/`）、设置里的图标（`app-icons/<userId>/`）和 AI 提案卡片的缩略图（`proposal-images/<userId>/`）：
+生产环境使用私有 Vercel Blob（`notefable-images`），存放聊天图片（`images/YYYY/MM/DD/...`）、临时上传（`chat-uploads/<userId>/`）、页面封面和页面图片图标（`page-covers/<userId>/`）、页面里的图片和文件（`note-files/<userId>/`）、用户头像（`avatars/<userId>/`）、设置里的图标（`app-icons/<userId>/`）和 AI 提案卡片的缩略图（`proposal-images/<userId>/`）：
 
 ```text
 Client -> POST /api/uploads -> @vercel/blob/client 直传临时附件（chat-uploads/）

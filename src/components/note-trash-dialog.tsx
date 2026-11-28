@@ -103,9 +103,9 @@ export function NoteTrashDialog({ onClose }: { onClose: () => void }) {
       <button type="button" className="notion-button notes-delete" disabled={busy || !items?.length} onClick={() => setConfirm({ kind: "all" })}>{t("Empty trash")}</button>
       <button type="button" className="notion-icon-button" aria-label={t("Close trash")} title={t("Close")} onClick={onClose}><X size={16} /></button>
     </div>
-    <p className="note-th-hint">{t("Notes in the trash can be restored for {count} days. After that they are deleted for good.", { count: TRASH_RETENTION_DAYS })}</p>
+    <p className="note-th-hint">{t("Pages in the trash can be restored for {count} days. After that they are deleted for good.", { count: TRASH_RETENTION_DAYS })}</p>
     {confirm?.kind === "all" && <div className="note-th-confirm" role="group" aria-label={t("Empty trash confirmation")}>
-      <span className="note-th-confirm-text">{items?.length === 1 ? t("Permanently delete this note in the trash? This cannot be undone.") : t("Permanently delete all {count} notes in the trash? This cannot be undone.", { count: items?.length ?? 0 })}</span>
+      <span className="note-th-confirm-text">{items?.length === 1 ? t("Permanently delete this page in the trash? This cannot be undone.") : t("Permanently delete all {count} pages in the trash? This cannot be undone.", { count: items?.length ?? 0 })}</span>
       <span className="note-th-confirm-actions">
         <button autoFocus type="button" className="notion-button" disabled={busy} onClick={() => setConfirm(null)}>{t("Cancel")}</button>
         <button type="button" className="notion-button notes-delete" disabled={busy} onClick={() => void emptyTrash()}>{t("Empty trash")}</button>
@@ -116,7 +116,7 @@ export function NoteTrashDialog({ onClose }: { onClose: () => void }) {
       {loading && <p role="status" className="note-th-status">{t("Loading trash…")}</p>}
       {loadError && <p role="alert" className="note-th-status">{t(loadError)}<br /><button type="button" className="notion-button" onClick={() => { setLoadError(""); setAttempt((value) => value + 1); }}>{t("Try again")}</button></p>}
       {items && !items.length && <p role="status" className="note-th-status">{t("The trash is empty.")}</p>}
-      {!!items?.length && <ul className="note-trash-list" aria-label={t("Notes in the trash")}>
+      {!!items?.length && <ul className="note-trash-list" aria-label={t("Pages in the trash")}>
         {items.map((item) => <li key={item.id} className="note-trash-row">
           <span className="note-th-icon" aria-hidden="true"><NoteIcon icon={item.icon} fallback={<PageKindIcon kind={item.kind} size={16} />} /></span>
           <span className="note-trash-text">

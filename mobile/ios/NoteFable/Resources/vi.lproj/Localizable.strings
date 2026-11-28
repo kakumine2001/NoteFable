@@ -9,7 +9,7 @@
 "chats_empty" = "Các cuộc trò chuyện gần đây của bạn sẽ xuất hiện ở đây.";
 "retry" = "Thử lại";
 "messages_load_failed" = "Không thể tải cuộc trò chuyện.";
-"empty_hint" = "Đặt câu hỏi, làm việc với ghi chú, hoặc đưa tệp tài liệu vào.";
+"empty_hint" = "Đặt câu hỏi, làm việc với Không gian của bạn, hoặc đưa tệp tài liệu vào.";
 "message_hint" = "Hỏi bất cứ điều gì...";
 "send" = "Gửi tin nhắn";
 "stop" = "Dừng tạo";
@@ -80,10 +80,10 @@
 "new_note" = "Ghi chú mới";
 "projects" = "Dự án";
 "new_project" = "Dự án mới";
-"no_notes_in_project" = "Chưa có ghi chú nào trong dự án này.";
+"no_notes_in_project" = "Chưa có trang nào trong dự án này.";
 "notes_list_empty" = "Ghi chú của bạn sẽ xuất hiện ở đây.";
 "trash" = "Thùng rác";
-"trash_note_title" = "Chuyển ghi chú vào Thùng rác?";
+"trash_note_title" = "Chuyển trang vào Thùng rác?";
 "trash_note_body" = "“%1$s” sẽ được chuyển vào Thùng rác. Bạn có thể khôi phục trong vòng %2$d ngày.";
 "cancel" = "Hủy";
 "move_to_trash" = "Chuyển vào Thùng rác";
@@ -95,12 +95,11 @@
 "save" = "Lưu";
 "delete_project_title" = "Xóa dự án?";
 "delete_project" = "Xóa dự án";
-"delete_project_body" = "“%1$s” sẽ bị xóa. Các ghi chú bên trong vẫn được giữ lại và đưa ra ngoài dự án.";
+"delete_project_body" = "“%1$s” sẽ bị xóa. Các trang bên trong vẫn được giữ lại và đưa ra ngoài dự án.";
 "rename_name" = "Đổi tên %1$s";
 "delete_project_name" = "Xóa dự án %1$s";
 "project_name" = "Tên dự án";
 "no_project" = "Không thuộc dự án";
-"move_note" = "Di chuyển ghi chú";
 "move_note_to" = "Di chuyển “%1$s” đến";
 "project" = "Dự án";
 "new_project_name" = "Tên dự án mới";
@@ -109,9 +108,9 @@
 "close" = "Đóng";
 "empty_trash" = "Dọn sạch thùng rác";
 "close_trash" = "Đóng thùng rác";
-"trash_hint" = "Ghi chú trong thùng rác có thể được khôi phục trong vòng %1$d ngày. Sau đó chúng sẽ bị xóa vĩnh viễn.";
-"empty_trash_one" = "Xóa vĩnh viễn ghi chú này trong thùng rác? Thao tác này không thể hoàn tác.";
-"empty_trash_all" = "Xóa vĩnh viễn tất cả %1$d ghi chú trong thùng rác? Thao tác này không thể hoàn tác.";
+"trash_hint" = "Các trang trong thùng rác có thể được khôi phục trong vòng %1$d ngày. Sau đó chúng sẽ bị xóa vĩnh viễn.";
+"empty_trash_one" = "Xóa vĩnh viễn trang này trong thùng rác? Thao tác này không thể hoàn tác.";
+"empty_trash_all" = "Xóa vĩnh viễn tất cả %1$d trang trong thùng rác? Thao tác này không thể hoàn tác.";
 "loading_trash" = "Đang tải thùng rác…";
 "try_again" = "Thử lại";
 "trash_is_empty" = "Thùng rác trống.";
@@ -126,26 +125,26 @@
 "removing_soon" = "sắp xóa";
 "one_day_left" = "Còn 1 ngày";
 "days_left" = "Còn %1$d ngày";
-"loading_notes" = "Đang tải ghi chú…";
-"notes_intro" = "Viết ghi chú theo từng khối — gõ %1$s để thêm tiêu đề, danh sách, việc cần làm và mã nguồn.";
-"notes_storage_hint" = "Ghi chú được lưu trên máy chủ và liên kết với thiết bị này. Hãy đăng nhập để mở trên các thiết bị khác. Nếu xóa dữ liệu ứng dụng hoặc trang web trước khi đăng nhập, bạn sẽ không mở được các ghi chú này nữa.";
-"all_notes" = "Tất cả ghi chú";
+"loading_notes" = "Đang tải các trang…";
+"notes_intro" = "Viết ghi chú, tạo bản trình chiếu và vẽ trên bảng trắng. Trong ghi chú, gõ %1$s để thêm tiêu đề, danh sách, việc cần làm và mã nguồn.";
+"notes_storage_hint" = "Không gian của bạn được lưu trên máy chủ và liên kết với thiết bị này. Hãy đăng nhập để mở trên các thiết bị khác. Nếu xóa dữ liệu ứng dụng hoặc trang web trước khi đăng nhập, bạn sẽ không mở được Không gian này nữa.";
+"all_notes" = "Tất cả trang";
 "version_history" = "Lịch sử phiên bản";
 "save_saved" = "Đã lưu";
 "save_saving" = "Đang lưu…";
 "save_not_saved" = "Chưa lưu";
 "save_conflict" = "Xung đột lưu";
-"err_trash_unsaved" = "Hãy xử lý bản nháp chưa lưu trước khi chuyển ghi chú này vào Thùng rác.";
-"err_load_notes" = "Không thể tải ghi chú.";
-"err_create_note" = "Không thể tạo ghi chú.";
-"err_trash_note" = "Không thể chuyển ghi chú vào Thùng rác.";
+"err_trash_unsaved" = "Hãy xử lý bản nháp chưa lưu trước khi chuyển trang này vào Thùng rác.";
+"err_load_notes" = "Không thể tải các trang.";
+"err_create_note" = "Không thể tạo trang.";
+"err_trash_note" = "Không thể chuyển trang vào Thùng rác.";
 "err_group" = "Không thể đổi dự án.";
 "err_trash_request" = "Thao tác với thùng rác thất bại. Vui lòng thử lại.";
 "err_trash_load" = "Không thể tải thùng rác.";
 "err_save_draft" = "Lưu thất bại. Bản nháp của bạn vẫn được giữ lại.";
 "sign_in" = "Đăng nhập";
 "signin_title" = "Đăng nhập vào NoteFable";
-"signin_subtitle" = "Lưu giữ các đoạn chat và ghi chú của bạn để mở trên mọi thiết bị.";
+"signin_subtitle" = "Lưu giữ các đoạn chat và Không gian của bạn để mở trên mọi thiết bị.";
 "continue_google" = "Tiếp tục với Google";
 "signin_or" = "hoặc";
 "signin_email" = "Địa chỉ email";
@@ -197,10 +196,15 @@
 
 /* strings_account_delete.xml */
 "acct_delete_account" = "Xóa tài khoản";
-"acct_delete_account_warning" = "Xóa vĩnh viễn tài khoản của bạn cùng toàn bộ dữ liệu bên trong: đoạn chat, ghi chú, tệp và cài đặt. Thao tác này không thể hoàn tác.";
+"acct_delete_account_warning" = "Xóa vĩnh viễn tài khoản của bạn cùng toàn bộ dữ liệu bên trong: đoạn chat, ghi chú, bản trình chiếu, bảng trắng, tệp và cài đặt. Thao tác này không thể hoàn tác.";
 "acct_delete_permanently" = "Xóa vĩnh viễn";
 "acct_deleting" = "Đang xóa…";
 "acct_err_delete_account" = "Không thể xóa tài khoản của bạn. Vui lòng thử lại.";
+
+/* strings_ai_generate.xml */
+"ai_gen_placeholder" = "Nhờ AI tạo ghi chú, bảng trắng hoặc bản trình chiếu…";
+"ai_gen_options" = "Tùy chọn";
+"ai_gen_generate" = "Tạo";
 
 /* strings_answers.xml */
 "activity_thinking" = "Đang suy nghĩ";
@@ -209,21 +213,21 @@
 "activity_searching_query" = "Đang tìm “%1$s”";
 "activity_reading_host" = "Đang đọc %1$s";
 "activity_scanning_host" = "Đang quét %1$s";
-"activity_searching_notes" = "Đang tìm trong ghi chú";
-"activity_reading_note" = "Đang đọc ghi chú của bạn";
+"activity_searching_notes" = "Đang tìm trong các trang";
+"activity_reading_note" = "Đang đọc trang của bạn";
 "activity_one_search" = "1 lần tìm kiếm";
 "activity_searches" = "%1$s lần tìm kiếm";
 "activity_one_source" = "1 nguồn";
 "activity_sources" = "%1$s nguồn";
-"activity_one_note_lookup" = "1 lần tra cứu ghi chú";
-"activity_note_lookups" = "%1$s lần tra cứu ghi chú";
-"activity_one_project_note" = "1 ghi chú dự án";
-"activity_project_notes" = "%1$s ghi chú dự án";
+"activity_one_note_lookup" = "1 lần tra cứu trang";
+"activity_note_lookups" = "%1$s lần tra cứu trang";
+"activity_one_project_note" = "1 trang dự án";
+"activity_project_notes" = "%1$s trang dự án";
 "activity_project_instructions" = "hướng dẫn dự án";
 "activity_more" = "+%1$s mục khác";
 "activity_instructions" = "hướng dẫn";
-"activity_one_reference_note" = "1 ghi chú tham khảo";
-"activity_reference_notes" = "%1$s ghi chú tham khảo";
+"activity_one_reference_note" = "1 trang tham khảo";
+"activity_reference_notes" = "%1$s trang tham khảo";
 "activity_used_project" = "Đã dùng dự án “%1$s”: %2$s";
 "activity_partial" = "một phần";
 "activity_searching_web_running" = "Đang tìm trên web…";
@@ -235,7 +239,7 @@
 "activity_thought_process" = "Quá trình suy nghĩ";
 "proposal_discarded" = "Đã loại bỏ";
 "proposal_minimize" = "Thu nhỏ";
-"proposal_expand" = "Viết dài hơn";
+"proposal_expand" = "Mở rộng";
 "proposal_open" = "Mở";
 "proposal_discard" = "Loại bỏ";
 "proposal_open_note" = "Mở ghi chú";
@@ -291,10 +295,11 @@
 "proposal_op_elements" = "%1$s · %2$s phần tử";
 "proposal_before" = "Trước";
 "proposal_after" = "Sau";
+"proposal_view_preview" = "Xem bản xem trước";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "Đính kèm trang";
-"attach_pages_desc" = "Cho phép AI đọc ghi chú của bạn";
+"attach_pages_desc" = "Cho phép AI đọc các trang của bạn";
 "attached_pages" = "Trang đã đính kèm";
 "ask_notefable" = "Hỏi NoteFable";
 "quote" = "Trích dẫn";
@@ -428,6 +433,7 @@
 "pg_subpages_to_trash" = "Các trang con bên trong cũng sẽ được chuyển vào Thùng rác.";
 "pg_rename_page" = "Đổi tên trang";
 "pg_page_title" = "Tiêu đề trang";
+"pg_review_quiz" = "Ôn tập & kiểm tra";
 
 /* strings_personal.xml */
 "appearance" = "Giao diện";
@@ -496,14 +502,14 @@
 
 /* strings_search.xml */
 "search" = "Tìm kiếm";
-"search_chats_and_notes" = "Tìm kiếm đoạn chat và ghi chú";
+"search_chats_and_notes" = "Tìm kiếm đoạn chat và trang";
 "search_close" = "Đóng tìm kiếm";
 "search_tab_all" = "Tất cả";
 "search_tab_chats" = "Đoạn chat";
 "search_project" = "Dự án";
 "search_all_projects" = "Tất cả dự án";
-"search_idle_title" = "Tìm trong đoạn chat và ghi chú của bạn";
-"search_idle_body" = "Mọi từ bạn nhập đều phải xuất hiện ở đâu đó trong cùng một đoạn chat hoặc ghi chú: tiêu đề, tin nhắn hoặc tệp đính kèm.";
+"search_idle_title" = "Tìm trong đoạn chat và trang của bạn";
+"search_idle_body" = "Mọi từ bạn nhập đều phải xuất hiện ở đâu đó trong cùng một đoạn chat hoặc trang: tiêu đề, nội dung hoặc tệp đính kèm.";
 "search_unavailable_title" = "Không thể sử dụng tìm kiếm";
 "search_unavailable_body" = "Hãy kiểm tra kết nối mạng và thử lại.";
 "search_try_again" = "Thử lại";
@@ -521,7 +527,7 @@
 "share_publish" = "Xuất bản";
 "share_republish" = "Xuất bản lại";
 "share_unpublish" = "Hủy xuất bản";
-"share_desc" = "Xuất bản ghi chú này để bất kỳ ai có liên kết đều có thể xem.";
+"share_desc" = "Xuất bản trang này để bất kỳ ai có liên kết đều có thể xem.";
 "share_expired" = "Liên kết chia sẻ này đã hết hạn.";
 "share_public_link" = "Liên kết công khai";
 "share_copy_link" = "Sao chép liên kết";
@@ -557,8 +563,8 @@
 "sb_all_chats_pinned" = "Đã ghim tất cả đoạn chat";
 "sb_no_chats" = "Chưa có đoạn chat nào";
 "sb_hint_instructions" = "hướng dẫn";
-"sb_one_reference_note" = "1 ghi chú tham khảo";
-"sb_n_reference_notes" = "%1$d ghi chú tham khảo";
+"sb_one_reference_note" = "1 trang tham khảo";
+"sb_n_reference_notes" = "%1$d trang tham khảo";
 "sb_project_settings" = "Cài đặt dự án";
 "sb_new_project_plus" = "＋ Dự án mới";
 "sb_delete_chat" = "Xóa đoạn chat";
@@ -576,19 +582,19 @@
 "sb_loading" = "Đang tải…";
 "sb_instructions" = "Hướng dẫn";
 "sb_instructions_placeholder" = "Ví dụ: Giúp tôi viết email công việc bằng tiếng Nhật. Giữ giọng văn lịch sự và đưa ra một bản nháp ngắn trước.";
-"sb_reference_notes" = "Ghi chú tham khảo";
-"sb_selected_notes" = "Ghi chú đã chọn";
+"sb_reference_notes" = "Trang tham khảo";
+"sb_selected_notes" = "Trang đã chọn";
 "sb_remove_title" = "Gỡ “%1$s”";
-"sb_filter_notes" = "Lọc ghi chú";
-"sb_your_notes" = "Ghi chú của bạn";
+"sb_filter_notes" = "Lọc trang";
+"sb_your_notes" = "Trang của bạn";
 "sb_untitled" = "Không có tiêu đề";
-"sb_no_notes_match" = "Không có ghi chú nào khớp.";
-"sb_no_notes_yet" = "Bạn chưa có ghi chú nào.";
-"sb_showing_first_notes" = "Đang hiển thị %1$d ghi chú đầu tiên. Nhập vào ô lọc để tìm các ghi chú khác.";
-"sb_notes_limit" = "Bạn có thể chọn tối đa %1$d ghi chú. Hãy gỡ bớt một ghi chú để chọn ghi chú khác.";
+"sb_no_notes_match" = "Không có trang nào khớp.";
+"sb_no_notes_yet" = "Bạn chưa có trang nào.";
+"sb_showing_first_notes" = "Đang hiển thị %1$d trang đầu tiên. Nhập vào ô lọc để tìm các trang khác.";
+"sb_notes_limit" = "Bạn có thể chọn tối đa %1$d trang. Hãy gỡ bớt một trang để chọn trang khác.";
 "sb_saving" = "Đang lưu…";
 "sb_err_load_project_settings" = "Không thể tải cài đặt dự án.";
-"sb_err_load_your_notes" = "Không thể tải ghi chú của bạn.";
+"sb_err_load_your_notes" = "Không thể tải các trang của bạn.";
 "sb_err_save_project_settings" = "Không thể lưu cài đặt dự án. Vui lòng thử lại.";
 "sb_err_move_item" = "Không thể di chuyển mục này. Hãy thử lại.";
 "sb_err_wait_move" = "Hãy đợi thao tác di chuyển trước đó hoàn tất.";
@@ -602,9 +608,11 @@
 "slides_export_png" = "Xuất ảnh PNG";
 "slides_export_pptx" = "Xuất PowerPoint (PPTX)";
 "slides_export_pptx_transition_note" = "Hiệu ứng chuyển tiếp trang chiếu không được bao gồm khi xuất PPTX.";
+"slides_import_pptx" = "Nhập PowerPoint";
 
 /* strings_slides_wizard.xml */
 "slides_generate" = "Tạo bản trình chiếu";
+"slides_generating" = "Đang tạo bản trình chiếu…";
 "slides_generate_from_chat" = "Tạo bản trình chiếu từ đoạn chat này";
 "slides_generate_with_ai" = "Tạo bằng AI";
 

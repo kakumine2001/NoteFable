@@ -5,6 +5,7 @@ import { useI18n } from "@/components/i18n-provider";
 import { DrawDiagramHost } from "@/components/draw-diagram-dialog";
 import { NoteHistoryDialog } from "@/components/note-history-dialog";
 import { NotesWorkspace } from "@/components/notes-workspace";
+import { ProposalEmbedPreview } from "@/components/proposal-embed-preview";
 import { useModels } from "@/components/models-provider";
 import { readEmbedModelPreference, readModelPreference, resolveModelPreference } from "@/lib/model-preference";
 import { saveAppIcon } from "@/lib/app-icon";
@@ -19,6 +20,12 @@ import { cancelNativeExports } from "@/lib/export-file";
 import { closeDiagramDialog } from "@/lib/draw-diagram-jobs";
 import { SlidesWizardHost } from "@/components/slides-wizard";
 import { hideSlidesWizard, openSlidesWizard, slidesWizardBack } from "@/lib/slides-wizard-jobs";
+import { AiGenerateHost } from "@/components/ai-generate-panel";
+import { hideAiGenerate, openAiGenerate, aiGenerateBack } from "@/lib/ai-generate-jobs";
+import { PptxImportHost } from "@/components/pptx-import-dialog";
+import { hidePptxImport, openPptxImport, pptxImportBack } from "@/lib/pptx-import-jobs";
+import { ReviewQuizHost } from "@/components/review-quiz-dialog";
+import { closeReviewQuiz, openReviewQuiz, reviewQuizBack, syncQuizTarget } from "@/lib/quiz-session";
 import { afterSheetHistory } from "@/lib/use-back-to-close";
 
 const noop = () => {};
@@ -56,6 +63,8 @@ export function NoteEmbed() {
   });
   const { active, activeId, loading, select, deactivate } = notes;
   const [pageId, setPageId] = useState<string | null>(null);
+  // /note-embed?proposal=<id>：アプリの提案カードから開くキャンバス提案の改前・改後プレビュー専用モード。
+  const [proposalPreviewId, setProposalPreviewId] = useState<string | null>(null);
   // アプリが一時的に一覧・チャットへ戻っている間（close() 後）は、編集画面の DOM を外してキャッシュだけ保つ。
   const [idle, setIdle] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -69,6 +78,8 @@ export function NoteEmbed() {
   const activeRef = useRef(active);
   // 開いたページの読み込みが終わってから動かす（ページの種類で動かし方が違う）。
   const revealRef = useRef<{ pageId: string; target: string } | null>(null);
+  // アプリへ openPage を送った直後の移動先（枠など）。古いアプリが openPage に reveal を載せて返さなくても引き継ぐ。
+  const pendingOutgoingRevealRef = useRef<{ pageId: string; target: string; expires: number } | null>(null);
   const initialLoadedRef = useRef(false);
   const backupErrorRef = useRef(notes.backupError);
   // 最後の flush で、ホワイトボードなどのエディターが変更を渡し切れたか（アップロードが終わらない画像が残ると false）。
@@ -109,16 +120,21 @@ export function NoteEmbed() {
   const flushSlidesSource = useCallback(async (pageIds: string[]) => {
     const queue = activeRef.current;
     if (!queue || !pageIds.includes(queue.page.id)) return true;
-    const handed = await flushCanvasEditors();
+    const handed = await flushCanvasEditors(pageIds);
     const saved = await queue.flush();
     return handed && saved;
   }, []);
 
-  // ページは静的に配るので、初回に開くノートは表示後に URL から読む（2 ページ目以降は openPage で切り替える）。
+  // ページは静的に配るので、初回に開くノート（または提案プレビュー）は表示後に URL から読む（2 ページ目以降は openPage で切り替える）。
   useEffect(() => {
     if (initialLoadedRef.current) return;
     initialLoadedRef.current = true;
     const params = new URL(window.location.href).searchParams;
+    const proposal = params.get("proposal");
+    if (proposal && REVEAL_TARGET.test(proposal)) {
+      queueMicrotask(() => setProposalPreviewId(proposal));
+      return;
+    }
     const id = params.get("page");
     const restored = resolveModelPreference(readEmbedModelPreference(params), options)
       ?? resolveModelPreference(readModelPreference(), options);
@@ -160,7 +176,7 @@ export function NoteEmbed() {
     // ホワイトボードなどのエディターがまだ渡していない変更（描き終わり待ち・画像のアップロード中）を先に渡してもらってから送る。
     // 待っても終わらないアップロードが残ったら false（アプリは編集画面を閉じずに知らせる）。
     flush: async () => {
-      const handed = await flushCanvasEditors();
+      const handed = await flushCanvasEditors(activeRef.current?.page.id);
       canvasHanded.current = handed;
       const saved = await (activeRef.current?.flush() ?? true);
       const current = activeRef.current;
@@ -194,12 +210,18 @@ export function NoteEmbed() {
       // 「画成図」とスライド生成の窓は隠すだけ（要求と結果は残り、同じ入口でもう一度選ぶと開き直す）。
       closeDiagramDialog();
       hideSlidesWizard();
+      hideAiGenerate();
+      hidePptxImport();
+      closeReviewQuiz();
       sent.current = { readyId: "", meta: "", state: "", goneId: "" };
       expectedPageRef.current = id;
       urlPageRef.current = id;
       openTokenRef.current += 1;
       setOpenToken(openTokenRef.current);
-      revealRef.current = reveal ? { pageId: id, target: reveal } : null;
+      const outgoing = pendingOutgoingRevealRef.current;
+      pendingOutgoingRevealRef.current = null;
+      const effectiveReveal = reveal ?? (outgoing && outgoing.pageId === id && outgoing.expires >= Date.now() ? outgoing.target : null);
+      revealRef.current = effectiveReveal ? { pageId: id, target: effectiveReveal } : null;
       applyModel(nextModel, nextReasoning);
       setIdle(false);
       setPageId(id);
@@ -214,7 +236,11 @@ export function NoteEmbed() {
       setHistoryOpen(false);
       closeDiagramDialog();
       hideSlidesWizard();
+      hideAiGenerate();
+      hidePptxImport();
+      closeReviewQuiz();
       revealRef.current = null;
+      pendingOutgoingRevealRef.current = null;
       expectedPageRef.current = null;
       urlPageRef.current = null;
       sent.current = { readyId: "", meta: "", state: "", goneId: "" };
@@ -227,6 +253,41 @@ export function NoteEmbed() {
       if (command.action === "back") return slidesWizardBack();
       applyModel(command.model, command.reasoning);
       openSlidesWizard({ entry: command.source, model: modelRef.current });
+      return true;
+    },
+    pptxImport: (command) => {
+      if (command.action === "back") return pptxImportBack();
+      openPptxImport({ groupId: command.groupId, parentId: command.parentId });
+      return true;
+    },
+    aiGenerate: (command) => {
+      if (command.action === "back") return aiGenerateBack();
+      applyModel(command.model, command.reasoning);
+      openAiGenerate({
+        kind: command.kind,
+        groupId: command.groupId,
+        parentId: command.parentId,
+        prompt: command.prompt,
+        autoStart: command.autoStart,
+        model: modelRef.current,
+      });
+      return true;
+    },
+    // 復習・クイズの窓（開いているノート・スライドの「…」メニューから）。
+    quiz: (command) => {
+      if (command.action === "back") return reviewQuizBack();
+      applyModel(command.model, command.reasoning);
+      const current = activeRef.current;
+      const matched = current && current.page.id === command.pageId ? current : null;
+      const pageKind = matched ? pageKindOf(matched.page) : "note";
+      if (pageKind === "whiteboard") return false;
+      openReviewQuiz({
+        pageId: command.pageId,
+        title: matched?.content.title.trim() || "",
+        icon: matched?.content.icon ?? null,
+        kind: pageKind === "slides" ? "slides" : "note",
+        model: modelRef.current,
+      });
       return true;
     },
     post: (message) => { postToNative(message); },
@@ -251,6 +312,9 @@ export function NoteEmbed() {
     } else if (sent.current.meta !== metaKey) {
       sent.current.meta = metaKey;
       postToNative({ type: "meta", ...meta, version });
+    }
+    if (kind === "note" || kind === "slides") {
+      syncQuizTarget(activeId, { title: title.trim(), icon: icon ?? null, kind });
     }
     const state = status ? toEmbedSaveState(status) : "saved";
     if (sent.current.state !== state) {
@@ -297,6 +361,10 @@ export function NoteEmbed() {
     if (!opened && expectedPageRef.current === pageId) postToNative({ type: "missing", id: pageId });
   };
 
+  if (proposalPreviewId) {
+    return <ProposalEmbedPreview proposalId={proposalPreviewId} />;
+  }
+
   const page = idle ? <main className="notion-workspace flex h-dvh" /> : (
     <main className="notion-workspace flex h-dvh">
       <section className="notion-page">
@@ -305,11 +373,12 @@ export function NoteEmbed() {
             {t(changeError)} <button type="button" className="notion-button" onClick={() => void setPreference(readNativeLanguage() ?? locale)}>{t("Try again")}</button>
           </div>}
           <NotesWorkspace notes={{ ...notes, load: retry }} listMode={false} embedded model={model} reasoning={reasoning}
-            onOpen={noop} onCreate={noop} onWorkspaceChange={noop} />
+            onOpen={noop} onCreate={noop} onWorkspaceChange={noop}
+            onNativeOpenReveal={(id, target) => { pendingOutgoingRevealRef.current = { pageId: id, target, expires: Date.now() + 15_000 }; }} />
         </div>
       </section>
       {historyOpen && active && activeId && (
-        <NoteHistoryDialog key={activeId} noteId={activeId} getVersion={() => active.version} flush={async () => { await flushCanvasEditors(); return active.flush(); }}
+        <NoteHistoryDialog key={activeId} noteId={activeId} getVersion={() => active.version} flush={async () => { if (!(await flushCanvasEditors(activeId))) return false; return active.flush(); }}
           onRestored={() => setHistoryOpen(false)} onClose={() => setHistoryOpen(false)} />
       )}
       {/* AI パネルの「画成図」の窓。「Open whiteboard」はアプリにページを開いてもらう（WebView の中では移動しない）。 */}
@@ -321,5 +390,8 @@ export function NoteEmbed() {
     {page}
     {/* ページの有無で作り直されないよう、いつも同じ位置に置く（窓の open / closed の知らせと入力中の内容を保つ）。 */}
     <SlidesWizardHost embedded flush={flushSlidesSource} />
+    <AiGenerateHost embedded flush={flushSlidesSource} />
+    <PptxImportHost embedded />
+    <ReviewQuizHost embedded flush={(id) => flushSlidesSource([id])} />
   </>;
 }

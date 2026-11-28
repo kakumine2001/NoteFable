@@ -1,14 +1,15 @@
 import { PAGE_KINDS, type PageKind } from "@/lib/page-kinds";
 import type { PageAdapter } from "@/lib/page-ai/adapter";
-import { canvasTextAdapter } from "@/lib/page-ai/canvas-adapter";
 import { noteAdapter } from "@/lib/page-ai/note-adapter";
+import { slidesAdapter } from "@/lib/page-ai/slides-adapter";
+import { whiteboardAdapter } from "@/lib/page-ai/whiteboard-adapter";
 
-// ページの種類ごとのアダプター。#153（ホワイトボード）・#150（スライド）は、ここで読むだけのアダプターを操作できるものに替える。
-// 替えたら page-kinds.ts の PAGE_KIND_FEATURES の aiEdit も true にする（テストが両方をそろえて見る）。
+// ページの種類ごとのアダプター（ノート・ホワイトボード・スライドすべて操作可能）。
+// page-kinds.ts の PAGE_KIND_FEATURES の aiEdit と必ずそろえる（registry.test.ts が検証する）。
 export const PAGE_ADAPTERS: Record<PageKind, PageAdapter> = {
   note: noteAdapter,
-  whiteboard: canvasTextAdapter("whiteboard"),
-  slides: canvasTextAdapter("slides"),
+  whiteboard: whiteboardAdapter,
+  slides: slidesAdapter,
 };
 
 export function adapterFor(kind: PageKind): PageAdapter {

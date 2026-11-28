@@ -10,7 +10,7 @@ import { msg } from "@/lib/i18n/translate";
 
 type Context = { params: Promise<{ pageId: string }> };
 
-const notFound = () => NextResponse.json({ error: msg("Note not found in the trash.") }, { status: 404 });
+const notFound = () => NextResponse.json({ error: msg("Page not found in the trash.") }, { status: 404 });
 
 // ゴミ箱から戻す。保持期間内のものだけ。位置・グループ・本文は捨てる前のまま（グループが消えていれば「グループなし」）。
 // 一緒にゴミ箱へ入ったサブページ（同じ時刻のもの）もまとめて戻す。親がまだゴミ箱にある・消えていれば最上位に戻す。
@@ -25,7 +25,7 @@ export async function POST(_request: Request, context: Context) {
         where: { id: pageId, userId: user.id, deletedAt: { gte: trashCutoff() } },
         select: { deletedAt: true, parentId: true, groupId: true, parent: { select: { deletedAt: true, groupId: true } } },
       });
-      if (!page) throw new NoteValidationError(msg("Note not found in the trash."), 404);
+      if (!page) throw new NoteValidationError(msg("Page not found in the trash."), 404);
       const batch = await descendantIds(tx, user.id, pageId, { live: false });
       const together = batch.length
         ? (await tx.notePage.findMany({ where: { id: { in: batch }, userId: user.id, deletedAt: page.deletedAt }, select: { id: true } })).map((row) => row.id)

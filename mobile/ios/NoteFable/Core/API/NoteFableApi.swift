@@ -414,6 +414,15 @@ final class NoteFableApi: ChatBackend, AccountBackend, NotesBackend, @unchecked 
         )
     }
 
+    /// 画布提案（白板 / 幻灯片）改前・改后可视化预览页（`/note-embed?proposal=<id>&lang=…&theme=…`）。
+    func proposalPreviewUrl(proposalId: String, lang: String? = nil, theme: String? = nil) -> String {
+        absoluteUrl(
+            "/note-embed?proposal=" + segment(proposalId)
+                + (lang.map { "&lang=" + $0 } ?? "")
+                + (theme.map { "&theme=" + segment($0) } ?? "")
+        )
+    }
+
     /// 下载笔记里的文件（`/api/pages/files?key=…`）。文件是私有的，要带 App 的 Cookie，所以不能交给系统浏览器。
     /// 拿到响应头后用文件名和类型调用 [target] 要一个保存位置，再把内容边收边写进去；中途失败时删掉写了一半的文件。
     /// 服务端出错时抛 [ApiException]。

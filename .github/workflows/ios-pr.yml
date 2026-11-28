@@ -3,6 +3,7 @@ name: iOS PR checks
 # 没有 Mac 时，这是唯一能真正编译 iOS App 的地方：版本校验 + Core 单元测试 + 模拟器构建（不签名）。
 # 版本校验先在 Linux 上快速运行，通过后 Core 单元测试与模拟器构建在两台 macOS 上并行。
 # 模拟器截图默认不跑：给 PR 加上 ios-screenshots 标签后才跑（标签在每次运行时现查，后加标签的话推一次或重跑本检查）。
+# App Store 商店截图同样按标签 ios-store-screenshots 跑（docs/architecture/ios.md）。
 on:
   pull_request:
     # No "edited": a title or body edit would cancel a running check. After retargeting a PR to main, push or reopen it.
@@ -10,11 +11,16 @@ on:
     branches: [main]
     paths:
       - "mobile/ios/**"
+      # App Store 截图不参与构建，由 store-listing-pr.yml 检查。
+      - "!mobile/ios/app-store/screenshots/**"
       - "mobile/android/app/src/main/assets/**"
       - ".github/workflows/ios-*.yml"
       - "scripts/release/ios-version*.sh"
       - "scripts/release/ios-testflight-*.py"
       - "scripts/release/test_ios_testflight_*.py"
+      - "scripts/release/ios-store-listing.py"
+      - "scripts/release/ios-store-review.py"
+      - "scripts/release/test_ios_store_listing.py"
       - "scripts/release/verify-merged-pr*.sh"
 
 permissions:
@@ -33,6 +39,7 @@ jobs:
     outputs:
       has_project: ${{ steps.detect.outputs.has_project }}
       screenshots: ${{ steps.detect.outputs.screenshots }}
+      store_screenshots: ${{ steps.detect.outputs.store_screenshots }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -42,8 +49,8 @@ jobs:
         run: bash scripts/release/verify-merged-pr.test.sh
       - name: Test iOS version script
         run: bash scripts/release/ios-version.test.sh
-      - name: Test iOS TestFlight distribution scripts
-        run: python3 -m unittest discover -s scripts/release -p 'test_ios_testflight_*.py' -v
+      - name: Test iOS TestFlight distribution and App Store listing scripts
+        run: python3 -m unittest discover -s scripts/release -p 'test_ios_*.py' -v
       - name: Validate iOS version
         run: bash scripts/release/ios-version.sh
       - name: Check iOS project presence and screenshot label
@@ -65,6 +72,11 @@ jobs:
           else
             echo 'screenshots=false' >> "$GITHUB_OUTPUT"
             echo 'Simulator screenshots skipped: add the `ios-screenshots` label to the PR, then push or rerun this check.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if grep -qxF 'ios-store-screenshots' <<<"$labels"; then
+            echo 'store_screenshots=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'store_screenshots=false' >> "$GITHUB_OUTPUT"
           fi
 
   core-tests:
@@ -126,7 +138,7 @@ jobs:
           (( xcode_rc == 0 ))
           grep -Eq '^\*\* BUILD SUCCEEDED \*\*$' build.log
       - name: Package the simulator app for screenshots
-        if: needs.version.outputs.screenshots == 'true'
+        if: needs.version.outputs.screenshots == 'true' || needs.version.outputs.store_screenshots == 'true'
         working-directory: mobile/ios
         run: |
           set -euo pipefail
@@ -140,7 +152,7 @@ jobs:
           codesign --force --deep --sign - --timestamp=none "$app"
           tar -C "$(dirname "$app")" -czf "$RUNNER_TEMP/NoteFable-sim.tgz" NoteFable.app
       - name: Upload the simulator app
-        if: needs.version.outputs.screenshots == 'true'
+        if: needs.version.outputs.screenshots == 'true' || needs.version.outputs.store_screenshots == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: NoteFable-sim.tgz
@@ -194,7 +206,7 @@ jobs:
             majors: "27"
             device-family: iPad
             variants: light dark ar rt
-            scenes: chat chat-scrolled chat-composer sidebar-collapsed search workspace workspace-scrolled editor settings settings-plan sign-in
+            scenes: chat chat-scrolled chat-composer emoji-picker sidebar-collapsed search workspace workspace-scrolled editor page-menu settings settings-plan chat-regenerate sign-in
             artifact: ios-screenshots-ipad
     env:
       NF_IOS_MAJORS: ${{ matrix.majors }}
@@ -257,5 +269,123 @@ jobs:
         with:
           name: ${{ matrix.artifact }}
           path: ${{ runner.temp }}/shots
+          retention-days: 14
+          if-no-files-found: ignore
+
+  # App Store screenshots (docs/architecture/ios.md): the store story on the offline fixtures, plus this checkout's web
+  # editor on a throwaway local database for the whiteboard and slides. Uploads framed JPEGs ready to commit to
+  # mobile/ios/app-store/screenshots/. No secrets, no production access.
+  ios-store-screenshots:
+    name: App Store screenshots (${{ matrix.label }})
+    # After the build instead of waiting for it on a runner: with both screenshot labels, waiting jobs could fill every
+    # macOS slot before the build gets one.
+    needs: [version, ios]
+    if: needs.version.outputs.has_project == 'true' && needs.version.outputs.store_screenshots == 'true'
+    # iOS 26 on macos-15: iOS 27 simulator captures lose the Dynamic Island and add a black block at the top left.
+    runs-on: macos-15
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: iPhone
+            device: iphone
+            device-family: iPhone
+            device-name: iPhone 17 Pro
+          - label: iPad
+            device: ipad
+            device-family: iPad
+            device-name: iPad Pro 13-inch (M5)
+    env:
+      NF_IOS_MAJORS: "26"
+      NF_DEVICE_FAMILY: ${{ matrix.device-family }}
+      NF_DEVICE_NAMES: ${{ matrix.device-name }}
+      NF_VARIANTS: light
+      NF_SCENES: store-answer store-table store-workspace store-mindmap store-slides store-models store-plan
+      # The first web view of a freshly booted simulator can stay blank: render the mind map once before capturing.
+      NF_WARMUP_SCENES: store-mindmap
+      NF_BATTERY_STATE: discharging
+      NF_READY_TIMEOUT: "150"
+    steps:
+      # Full checkout: the web editor is built from this PR.
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Keep production unreachable (simulator apps use the host resolver)
+        run: |
+          printf '0.0.0.0 %s\n' app.notefable.com notefable.com www.notefable.com | sudo tee -a /etc/hosts >/dev/null
+          sudo dscacheutil -flushcache
+          sudo killall -HUP mDNSResponder || true
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - name: Start booting the simulator and the local web editor in the background
+        run: |
+          nohup bash mobile/ios/scripts/ci-screenshots.sh --boot-only >"$RUNNER_TEMP/boot.log" 2>&1 &
+          echo $! >"$RUNNER_TEMP/boot.pid"
+          nohup bash mobile/ios/scripts/ci-store-server.sh "$RUNNER_TEMP/store-server" >"$RUNNER_TEMP/store-server.log" 2>&1 &
+          echo $! >"$RUNNER_TEMP/server.pid"
+      - uses: actions/download-artifact@v8
+        with:
+          name: NoteFable-sim.tgz
+          path: ${{ runner.temp }}/app
+      - name: Unpack simulator app and let this copy load the local web editor
+        run: |
+          set -euo pipefail
+          tar -xzf "$RUNNER_TEMP/app/NoteFable-sim.tgz" -C "$RUNNER_TEMP/app"
+          app="$RUNNER_TEMP/app/NoteFable.app"
+          test -x "$app/NoteFable"
+          # Only the simulator copy: App Transport Security local-networking exception for http://localhost.
+          /usr/libexec/PlistBuddy -c 'Add :NSAppTransportSecurity dict' \
+            -c 'Add :NSAppTransportSecurity:NSAllowsLocalNetworking bool true' "$app/Info.plist"
+          codesign --force --deep --sign - --timestamp=none "$app"
+      - name: Wait for the local web editor
+        run: |
+          pid=$(cat "$RUNNER_TEMP/server.pid")
+          while kill -0 "$pid" 2>/dev/null; do sleep 5; done
+          cat "$RUNNER_TEMP/store-server.log"
+          test -s "$RUNNER_TEMP/store-server/editor-cookie"
+          curl -fsS -o /dev/null http://localhost:3000/note-embed
+      - name: Capture and frame the store screenshots
+        run: |
+          set -euo pipefail
+          pid=$(cat "$RUNNER_TEMP/boot.pid")
+          while kill -0 "$pid" 2>/dev/null; do sleep 1; done
+          cat "$RUNNER_TEMP/boot.log" || true
+          cookie=$(cat "$RUNNER_TEMP/store-server/editor-cookie")
+          echo "::add-mask::$cookie"
+          export NF_APP_ARGS="-NFFixtureStory store -NFEditorServer http://localhost:3000 -NFEditorCookie $cookie"
+          # A blank web view (compose fails on it) or a slow simulator gets one more full capture.
+          for attempt in 1 2; do
+            raw="$RUNNER_TEMP/raw/attempt-$attempt"
+            if bash mobile/ios/scripts/ci-screenshots.sh "$RUNNER_TEMP/app/NoteFable.app" "$raw" &&
+              bash mobile/ios/scripts/ci-store-compose.sh "$raw/ios26/light" \
+                "$RUNNER_TEMP/store/screenshots/${{ matrix.device }}" ${{ matrix.device }}; then
+              exit 0
+            fi
+            echo "::warning::Store screenshot attempt $attempt failed."
+          done
+          exit 1
+      # screenshots/<device>/NN-name.jpg: unzip into mobile/ios/app-store/.
+      - name: Upload the framed store screenshots
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-store-screenshots-${{ matrix.device }}
+          path: ${{ runner.temp }}/store
+          retention-days: 14
+          if-no-files-found: ignore
+      - name: Upload raw captures and server logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-store-captures-${{ matrix.device }}
+          path: |
+            ${{ runner.temp }}/raw
+            ${{ runner.temp }}/store-server.log
+            ${{ runner.temp }}/store-server/web.log
           retention-days: 14
           if-no-files-found: ignore

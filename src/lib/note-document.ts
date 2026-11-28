@@ -3,11 +3,12 @@ import { isEmojiIcon } from "@/lib/emoji-icon";
 import { parseNoteFileUrl } from "@/lib/note-file-keys";
 import { validMention } from "@/lib/note-mention";
 import { COLUMN, COLUMN_LIST, MAX_STORED_COLUMNS, validColumnWidth } from "@/lib/note-columns";
+import { validWhiteboardEmbedFrameId, validWhiteboardEmbedPageId } from "@/lib/whiteboard/embed-id";
 import type { NoteContent } from "@/types/notes";
 import { MAX_STORED_FILE_BYTES } from "@/lib/usage-plans";
 import { msg, fmt } from "@/lib/i18n/translate";
 
-export const NOTE_BLOCK_TYPES = ["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "toggleListItem", "quote", "callout", "codeBlock", "divider", "tableOfContents", "table", "image", "file", "mathBlock", "columnList", "column"] as const;
+export const NOTE_BLOCK_TYPES = ["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "toggleListItem", "quote", "callout", "codeBlock", "divider", "tableOfContents", "table", "image", "file", "mathBlock", "whiteboard", "columnList", "column"] as const;
 export const MAX_NOTE_BYTES = 1024 * 1024;
 // 数式（TeX）1 つのソースの長さの上限。ブロックの数式も行内の数式も同じ。
 export const MAX_MATH_LATEX = 10_000;
@@ -124,7 +125,7 @@ function validTable(content: unknown) {
 
 export function validateNoteContent(value: unknown): NoteContent {
   if (!object(value) || typeof value.title !== "string" || value.title.length > MAX_NOTE_TITLE) {
-    throw new NoteValidationError(fmt("Note title must be at most {max} characters.", { max: MAX_NOTE_TITLE }));
+    throw new NoteValidationError(fmt("Page title must be at most {max} characters.", { max: MAX_NOTE_TITLE }));
   }
   const ids = new Set<string>();
   let count = 0;
@@ -161,6 +162,8 @@ export function validateNoteContent(value: unknown): NoteContent {
         if (key === "name" || key === "caption") return media && typeof entry === "string" && entry.length <= (key === "name" ? 200 : 500) && !/[\u0000-\u001f\u007f]/.test(entry);
         if (key === "showPreview") return block.type === "image" && typeof entry === "boolean";
         if (key === "latex") return block.type === "mathBlock" && validLatex(entry);
+        if (key === "pageId") return block.type === "whiteboard" && validWhiteboardEmbedPageId(entry);
+        if (key === "frameId") return block.type === "whiteboard" && validWhiteboardEmbedFrameId(entry);
         if (key === "previewWidth") return block.type === "image" && typeof entry === "number" && Number.isFinite(entry) && entry >= 16 && entry <= 4000;
         return false;
       });
@@ -169,6 +172,12 @@ export function validateNoteContent(value: unknown): NoteContent {
         if (block.content !== undefined || Object.keys(props).length) return false;
       } else if (block.type === "tableOfContents") {
         if (block.content !== undefined || Object.keys(props).some((key) => key !== "backgroundColor" && key !== "textColor")) return false;
+      } else if (block.type === "whiteboard") {
+        // ホワイトボード埋め込みブロック。props は pageId と任意の frameId のみ（frameId だけの指定は不可）。本文は持たない。
+        if (block.content !== undefined || Object.keys(props).some((key) => key !== "pageId" && key !== "frameId")) return false;
+        const pageId = typeof props.pageId === "string" ? props.pageId : "";
+        const frameId = typeof props.frameId === "string" ? props.frameId : "";
+        if (frameId && !pageId) return false;
       } else if (block.type === "table") {
         // 表は子ブロックを持たない。
         if (!validTable(block.content) || (block.children !== undefined && !(Array.isArray(block.children) && !block.children.length))) return false;
@@ -185,7 +194,7 @@ export function validateNoteContent(value: unknown): NoteContent {
   const icon = value.icon ?? null;
   const cover = value.cover ?? null;
   // アイコンは絵文字 1 つか、カバーと同じ形でアップロードした画像（upload:page-covers/<所有者>/<UUID>.<拡張子>）。
-  if (icon !== null && !isEmojiIcon(icon) && !uploadedCoverPath(icon)) throw new NoteValidationError(msg("Note icon must be a single emoji or an uploaded image."));
+  if (icon !== null && !isEmojiIcon(icon) && !uploadedCoverPath(icon)) throw new NoteValidationError(msg("Page icon must be a single emoji or an uploaded image."));
   if (cover !== null && !isPresetCover(cover) && !uploadedCoverPath(cover)) throw new NoteValidationError(msg("Unsupported note cover."));
   const coverPosition = value.coverPosition ?? null;
   if (coverPosition !== null && !(Number.isInteger(coverPosition) && Number(coverPosition) >= 0 && Number(coverPosition) <= 100)) {
@@ -287,7 +296,7 @@ export function topLevelJsonFields(text: string): { keys: Set<string>; strings: 
 
 export function validateNoteUpdate(value: unknown) {
   const content = validateNoteContent(value);
-  if (!object(value) || !Number.isSafeInteger(value.version) || Number(value.version) < 0) throw new NoteValidationError(msg("A valid note version is required."));
+  if (!object(value) || !Number.isSafeInteger(value.version) || Number(value.version) < 0) throw new NoteValidationError(msg("A valid page version is required."));
   // 旧クライアントや旧下書きは icon/cover/coverPosition を送らない。送られた項目だけを更新し、
   // 省略された項目は保存済みの値を残す（null で上書きしない）。
   const present = NOTE_META_FIELDS.filter((key) => key in value);

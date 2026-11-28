@@ -39,13 +39,16 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -185,7 +188,14 @@ fun SearchScreen(
                 }),
                 decorationBox = { inner ->
                     Box(Modifier.fillMaxSize(), Alignment.CenterStart) {
-                        if (state.input.isEmpty()) Text(label, color = Sm.Faint, fontSize = 16.sp, lineHeight = 24.sp, maxLines = 1)
+                        // 长译文（法语等）缩小字号放进一行（最小 12sp），还放不下才省略。
+                        if (state.input.isEmpty()) BasicText(
+                            label,
+                            style = LocalTextStyle.current.merge(TextStyle(color = Sm.Faint, lineHeight = 24.sp)),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            autoSize = TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = 16.sp, stepSize = 0.5.sp),
+                        )
                         inner()
                     }
                 },
@@ -208,7 +218,7 @@ fun SearchScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     SearchTab(stringResource(R.string.search_tab_all), state.scope == SearchScope.All) { vm.setScope(SearchScope.All) }
                     SearchTab(stringResource(R.string.search_tab_chats), state.scope == SearchScope.Chats) { vm.setScope(SearchScope.Chats) }
-                    SearchTab(stringResource(R.string.notes), state.scope == SearchScope.Notes) { vm.setScope(SearchScope.Notes) }
+                    SearchTab(stringResource(R.string.pg_pages), state.scope == SearchScope.Notes) { vm.setScope(SearchScope.Notes) }
                 }
                 if (state.scope == SearchScope.Chats && view.projectOptions.isNotEmpty()) {
                     Spacer(Modifier.weight(1f).widthIn(min = 8.dp))
@@ -364,7 +374,7 @@ private fun ResultList(view: SearchView, active: Int, onSelect: (Int, SearchHit)
             val offset = base
             item(key = "group:${group.isChats}") {
                 Text(
-                    stringResource(if (group.isChats) R.string.search_tab_chats else R.string.notes),
+                    stringResource(if (group.isChats) R.string.search_tab_chats else R.string.pg_pages),
                     Modifier.fillMaxWidth().padding(start = 9.6.dp, end = 9.6.dp, top = 8.dp, bottom = 4.dp),
                     color = Sm.Muted, fontSize = 12.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold,
                 )

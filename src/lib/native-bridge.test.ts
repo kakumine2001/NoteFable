@@ -382,3 +382,70 @@ describe("slides wizard bridge", () => {
     expect(JSON.parse(postMessage.mock.calls[0][0])).toEqual({ type: "slidesWizard", state: "closed", busy: true });
   });
 });
+
+describe("pptx import bridge", () => {
+  it("parses valid open/back commands and rejects malformed ids", async () => {
+    const { parsePptxImportRequest } = await import("./native-bridge");
+    expect(parsePptxImportRequest({ action: "back" })).toEqual({ action: "back" });
+    expect(parsePptxImportRequest(JSON.stringify({ action: "open" }))).toEqual({ action: "open", groupId: null, parentId: null });
+    expect(parsePptxImportRequest({ action: "open", groupId: "grp_1", parentId: null })).toEqual({ action: "open", groupId: "grp_1", parentId: null });
+    expect(parsePptxImportRequest({ action: "open", parentId: "pg-1" })).toEqual({ action: "open", groupId: null, parentId: "pg-1" });
+    for (const bad of [null, "back", "{broken", { action: "close" }, { action: "open", groupId: "bad id" }, { action: "open", parentId: 123 }]) {
+      expect(parsePptxImportRequest(bad)).toBeNull();
+    }
+  });
+
+  it("forwards commands through embed api and gates native capability", async () => {
+    const { nativeCanShowPptxImport } = await import("./native-bridge");
+    const pptxImport = vi.fn((command: { action: string }) => command.action === "open");
+    const api = createEmbedApi({ flush: async () => true, openHistory: () => {}, pptxImport, post: () => {} });
+    expect(api.pptxImport({ action: "open", groupId: "g1" })).toBe(true);
+    expect(api.pptxImport({ action: "back" })).toBe(false);
+    expect(api.pptxImport({ action: "nope" })).toBe(false);
+    expect(pptxImport).toHaveBeenCalledTimes(2);
+
+    const postMessage = vi.fn();
+    expect(nativeCanShowPptxImport({ NoteFableNative: { postMessage, canShowPptxImport: () => true } })).toBe(true);
+    expect(nativeCanShowPptxImport({ NoteFableNative: { postMessage } })).toBe(false);
+    expect(postToNative({ type: "pptxImport", state: "open" }, { NoteFableNative: { postMessage } })).toBe(true);
+    expect(JSON.parse(postMessage.mock.calls[0][0])).toEqual({ type: "pptxImport", state: "open" });
+  });
+});
+
+describe("review quiz bridge", () => {
+  it("parses open and back quiz commands and rejects malformed payloads", async () => {
+    const { parseQuizRequest } = await import("./native-bridge");
+    expect(parseQuizRequest({ action: "back" })).toEqual({ action: "back" });
+    expect(parseQuizRequest(JSON.stringify({ action: "open", pageId: "p_1", model: " luna ", reasoning: "high" })))
+      .toEqual({ action: "open", pageId: "p_1", model: "luna", reasoning: "high" });
+    expect(parseQuizRequest({ action: "open", pageId: "n1" }))
+      .toEqual({ action: "open", pageId: "n1", model: null, reasoning: null });
+    for (const bad of [
+      null,
+      "{broken",
+      { action: "close" },
+      { action: "open", pageId: "bad id" },
+      { action: "open" },
+    ]) {
+      expect(parseQuizRequest(bad)).toBeNull();
+    }
+  });
+
+  it("forwards quiz commands and checks canShowQuiz capability", async () => {
+    const { nativeCanShowQuiz } = await import("./native-bridge");
+    const quiz = vi.fn((cmd: { action: string }) => cmd.action === "open");
+    const api = createEmbedApi({ flush: async () => true, openHistory: () => {}, quiz, post: () => {} });
+    expect(api.quiz({ action: "open", pageId: "n1" })).toBe(true);
+    expect(api.quiz({ action: "back" })).toBe(false);
+    expect(api.quiz({ action: "open", pageId: "bad id" })).toBe(false);
+    expect(quiz).toHaveBeenCalledTimes(2);
+    expect(createEmbedApi({ flush: async () => true, openHistory: () => {}, post: () => {} }).quiz({ action: "back" })).toBe(false);
+
+    const postMessage = vi.fn();
+    expect(nativeCanShowQuiz({ NoteFableNative: { postMessage, canShowQuiz: () => true } })).toBe(true);
+    expect(nativeCanShowQuiz({ NoteFableNative: { postMessage } })).toBe(false);
+    expect(nativeCanShowQuiz({ NoteFableNative: { postMessage, canShowQuiz: () => { throw new Error("gone"); } } })).toBe(false);
+    expect(postToNative({ type: "quiz", state: "open" }, { NoteFableNative: { postMessage } })).toBe(true);
+    expect(JSON.parse(postMessage.mock.calls[0][0])).toEqual({ type: "quiz", state: "open" });
+  });
+});

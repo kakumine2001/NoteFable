@@ -96,10 +96,10 @@ enum NFTabBarMinimize: Sendable {
 extension View {
     /// Backdrop for a floating bar's own region (put it on the bar content).
     /// - solid: `solidFill` strip extended into the safe area of `edge`, plus an `NFDivider` on the inner edge if `divider`.
-    /// - native: `Color.clear` (the system scroll edge effect of `safeAreaBar` does the work).
+    /// - native: `Color.clear` (or top fade gradient if `topFade` for status-bar contrast).
     /// - material: `Material.bar` strip extended the same way, plus the hairline if `divider`.
-    func nfBarBackdrop(_ edge: VerticalEdge, solidFill: Color = Sm.background, divider: Bool = true) -> some View {
-        modifier(NFBarBackdropModifier(edge: edge, solidFill: solidFill, divider: divider))
+    func nfBarBackdrop(_ edge: VerticalEdge, solidFill: Color = Sm.background, divider: Bool = true, topFade: Bool = true) -> some View {
+        modifier(NFBarBackdropModifier(edge: edge, solidFill: solidFill, divider: divider, topFade: topFade))
     }
 
     /// `nfFloatingBar` + `nfBarBackdrop` + `.contentShape(Rectangle())` on the bar content, spanning the full width.
@@ -108,6 +108,7 @@ extension View {
         edge: VerticalEdge = .top,
         solidFill: Color = Sm.background,
         divider: Bool = true,
+        topFade: Bool = true,
         spacing: CGFloat? = 0,
         systemBar: Bool = true,
         @ViewBuilder content: @escaping () -> Bar
@@ -116,7 +117,7 @@ extension View {
             content()
                 .frame(maxWidth: .infinity)
                 .contentShape(Rectangle())
-                .nfBarBackdrop(edge, solidFill: solidFill, divider: divider)
+                .nfBarBackdrop(edge, solidFill: solidFill, divider: divider, topFade: topFade)
         }
     }
 
@@ -279,6 +280,7 @@ private struct NFBarBackdropModifier: ViewModifier {
     let edge: VerticalEdge
     let solidFill: Color
     let divider: Bool
+    let topFade: Bool
 
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.nfForceSolidChrome) private var forceSolidChrome
@@ -306,7 +308,7 @@ private struct NFBarBackdropModifier: ViewModifier {
     private func fill(_ path: NFChromePath) -> some View {
         switch path {
         case .native:
-            if edge == .top {
+            if edge == .top && topFade {
                 NFNativeTopFade(color: solidFill)
             } else {
                 Color.clear

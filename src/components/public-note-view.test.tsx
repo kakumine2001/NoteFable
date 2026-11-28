@@ -289,3 +289,49 @@ describe("public share scrolling", () => {
     expect(declarations(slidesCss, /\.public-slides-topbar/).flex).toBe("none");
   });
 });
+
+describe("public note toggles and the table of contents", () => {
+  it("tells each toggle which headings it hides, including nested toggles and columns", async () => {
+    const { headingTargetsIn } = await import("./public-note-view");
+    const heading = (id: string, children: Block[] = []): Block => ({ id, type: "heading", props: { level: 2 }, content: [text(id)], children });
+    const children: Block[] = [
+      paragraph([text("intro")]),
+      { id: "inner", type: "toggleListItem", props: {}, content: [text("inner")], children: [heading("deep")] },
+      heading("toggle-heading", [heading("under-toggle-heading")]),
+      { id: "cols", type: "columnList", props: {}, children: [{ id: "col", type: "column", props: {}, children: [heading("in-column")] }] },
+    ];
+    expect(headingTargetsIn(children as never)).toEqual(["heading-deep", "heading-toggle-heading", "heading-under-toggle-heading", "heading-in-column"]);
+    expect(headingTargetsIn(undefined)).toEqual([]);
+  });
+});
+
+describe("public note embedded whiteboards", { timeout: 30_000 }, () => {
+  it("renders a same-tree embedded whiteboard with public share links and renders a zero-leak placeholder for out-of-tree embeds", async () => {
+    const { PublicNoteView } = await import("./public-note-view");
+    const data: ResolvedPublicShare = {
+      ...share([
+        { id: "wb-ok", type: "whiteboard", props: { pageId: "wb-in-tree", frameId: "frame-1" }, children: [] },
+        { id: "wb-denied", type: "whiteboard", props: { pageId: "secret-private-board-id", frameId: "secret-frame-id" }, children: [] },
+      ]),
+      embeddedWhiteboards: {
+        "wb-in-tree": {
+          id: "wb-in-tree",
+          title: "Shared Diagram",
+          icon: "upload:page-covers/user/00000000-0000-4000-8000-000000000001.png",
+          href: "/s/token/p/wb-in-tree",
+        },
+      },
+    };
+    const html = renderToStaticMarkup(await PublicNoteView({ data, locale: "en" }));
+    expect(html).toContain('href="/s/token/p/wb-in-tree"');
+    expect(html).toContain("Shared Diagram");
+    expect(html).toContain("/s/token/cover?page=wb-in-tree&amp;kind=icon");
+    // Out-of-tree whiteboard renders unavailable placeholder and leaks ZERO private IDs or owner API URLs.
+    expect(html).toContain("Whiteboard unavailable");
+    expect(html).toContain("is-unavailable");
+    expect(html).not.toContain("secret-private-board-id");
+    expect(html).not.toContain("secret-frame-id");
+    expect(html).not.toContain("/api/pages/files");
+    expect(html).not.toContain("/api/pages/covers");
+  });
+});

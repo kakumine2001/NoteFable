@@ -76,7 +76,7 @@ private struct ReportDialogContent: View {
     /// 多行的理由框：聚焦时 2px 蓝框（盖住描边），出现后自动聚焦。
     @MainActor
     private var reasonField: some View {
-        let shape = RoundedRectangle(cornerRadius: 6)
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
         let reason = Binding<String>(
             get: { model.state.reason },
             set: { model.setReason($0) }
@@ -93,9 +93,9 @@ private struct ReportDialogContent: View {
             .padding(.horizontal, 12.2)
             .padding(.vertical, 9.8)
             .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
-            .background(Sm.surface, in: shape)
-            .overlay { shape.strokeBorder(Sm.borderStrong, lineWidth: 1) }
-            .overlay { shape.stroke(focused ? Sm.blue : .clear, lineWidth: 2) }
+            .background(Color.primary.opacity(0.05), in: shape)
+            .overlay { shape.strokeBorder(Sm.borderStrong.opacity(0.45), lineWidth: 1) }
+            .overlay { shape.stroke(focused ? Sm.blue.opacity(0.75) : .clear, lineWidth: 1.5) }
             .contentShape(shape)
             .onTapGesture { focused = true }
             .padding(.top, 12)

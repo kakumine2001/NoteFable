@@ -36,6 +36,8 @@ struct SidebarUiState: Equatable, Sendable {
     var reorderBusy = false
     /// 正在移动的聊天：这些行不能拖（网页每个 ReorderRowButton 自己的 busy）。
     var moveBusy: Set<String> = []
+    /// 正在保存置顶 / 取消置顶的聊天：防止同一聊天从侧栏和顶栏菜单并发提交覆盖写。
+    var pinBusy: Set<String> = []
     /// 拖动失败的行和原因（网页 ReorderRowButton 的 list-reorder-error）。
     var reorderError: SidebarReorderError? = nil
     /// 在项目里新建聊天失败（网页把它显示在输入栏上方；原生显示在侧栏 Projects 下面）。
@@ -96,6 +98,20 @@ func projectSettingsChanges(_ initial: ChatProjectDetail, _ instructions: String
     let newIds = ids != initial.notes.map(\.id) ? ids : nil
     if newInstructions == nil, newIds == nil { return nil }
     return ProjectSettingsChanges(instructions: newInstructions, noteIds: newIds)
+}
+
+/// 想关项目设置时（取消、点遮罩）要做的事（网页 projectSettingsDismissStep）。
+enum ProjectSettingsDismiss: Equatable, Sendable { case stay, confirm, close }
+
+/// 保存中不关（结果没处显示）；有没保存的改动时不悄悄丢掉，先把底栏换成“未保存的更改”确认；否则关闭。
+func projectSettingsDismissStep(busy: Bool, dirty: Bool) -> ProjectSettingsDismiss {
+    if busy { return .stay }
+    return dirty ? .confirm : .close
+}
+
+/// 想关的次数（底栏确认的晃动）。改动全撤回后归零，免得再改一个字时没想关也出确认（网页 projectSettingsAttention）。
+func projectSettingsAttention(_ attention: Int, dirty: Bool) -> Int {
+    dirty ? attention : 0
 }
 
 /// 侧栏要用到的聊天状态（Android 里直接读 ChatViewModel.state.value 的那几个字段）。
@@ -224,8 +240,15 @@ final class SidebarViewModel {
     // ---- 聊天 ----
 
     /// 置顶 / 取消置顶（"…"菜单里的那一项，网页 onUpdate({pinned})）：服务端存好了才改本地列表。
+    /// 同一聊天的请求进行中时忽略重复触发，避免后发先至覆盖结果。
     func setPinned(_ id: String, _ pinned: Bool) async -> SidebarError? {
-        await guarded("sb_err_save_change") {
+        if state.pinBusy.contains(id) { return nil }
+        let gen = generation
+        state.pinBusy.insert(id)
+        defer {
+            if gen == generation { state.pinBusy.remove(id) }
+        }
+        return await guarded("sb_err_save_change") {
             try await self.sessions.updateSession(id: id, title: nil, pinned: pinned, project: nil)
             self.chat.patchSessions { list in
                 list.map { session in
@@ -436,7 +459,7 @@ final class SidebarViewModel {
         }
     }
 
-    /// 设置窗口打开时读项目详情和全部笔记（两个都要成功）。失败时和网页一样：笔记读不到是 "Could not load your notes."，
+    /// 设置窗口打开时读项目详情和全部页面（两个都要成功）。失败时和网页一样：页面读不到是 "Could not load your pages."，
     /// 否则 "Could not load the project settings."；服务端给了原因就用原因（见 [projectSettingsLoadError]）。
     func loadProjectSettings(_ id: String) async -> Result<ProjectSettingsLoaded, Error> {
         let api = projectsApi

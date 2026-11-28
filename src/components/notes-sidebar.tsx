@@ -24,7 +24,7 @@ import { NoteIcon } from "@/components/note-icon";
 import { PageKindIcon } from "@/components/page-kind-icon";
 
 const COLLAPSED_KEY = "notefable:note-groups-collapsed:v1";
-// 分区（ノート・スライド・ホワイトボード）の折りたたみ。種類 → true。プロジェクトと同じく端末に覚えておく。
+// 分区（ノート・ホワイトボード・スライド）の折りたたみ。種類 → true。プロジェクトと同じく端末に覚えておく。
 const SECTIONS_COLLAPSED_KEY = "notefable:workspace-sections-collapsed:v1";
 
 function readCollapsed(key: string): Record<string, boolean> {
@@ -48,14 +48,17 @@ type GroupActions = {
   onFavorite: (pageId: string, favorite: boolean) => Promise<unknown>;
 };
 
-export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, onGenerateSlides, onImport, onSearch, onSelect, onPrefetch, onCancelPrefetch, onDelete, onClose, onWorkspaceChange, groups, groupError, onMoveNote, onChangeIcon, onRenamePage, onCreateGroup, onRenameGroup, onDeleteGroup, onReorder, onMoveToPage, onFavorite }: {
+export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, onGenerate, onImportPptx, onImport, onSearch, onSelect, onPrefetch, onCancelPrefetch, onDelete, deleteError, onClose, onWorkspaceChange, groups, groupError, onMoveNote, onChangeIcon, onRenamePage, onCreateGroup, onRenameGroup, onDeleteGroup, onReorder, onMoveToPage, onFavorite }: {
   pages: NotePageSummary[]; activeId: string | null; busy: boolean;
   // Notes のホーム（最近のノートと一覧）を出しているか、とホームへ戻る操作。
   home: boolean; onHome: () => void;
   // 作り先（種類・親ページ・プロジェクト）を渡して新しいページを作る。省略はプロジェクトなしのノート。
   onWorkspaceChange: (view: WorkspaceView) => void; onCreate: (request?: NewPageRequest) => void;
-  // AI のスライド生成の窓を開く。作り先（プロジェクト・親ページ）はそのまま渡す。
-  onGenerateSlides?: (placement?: { groupId?: string; parentId?: string }) => void; onImport: (files: File[]) => void; onSearch: () => void; onSelect: (id: string) => void; onPrefetch?: (id: string, immediate?: boolean) => void; onCancelPrefetch?: (id?: string) => void; onDelete: (id: string) => Promise<unknown>; onClose: () => void;
+  // 統合「AI で生成」とスライド専用の PowerPoint 取り込みを開く。作り先（種類・プロジェクト・親ページ）はそのまま渡す。
+  onGenerate?: (opts?: { kind?: PageKind; groupId?: string; parentId?: string }) => void;
+  onImportPptx?: (placement?: { groupId?: string; parentId?: string }) => void; onImport: (files: File[]) => void; onSearch: () => void; onSelect: (id: string) => void; onPrefetch?: (id: string, immediate?: boolean) => void; onCancelPrefetch?: (id?: string) => void; onDelete: (id: string) => Promise<boolean>; onClose: () => void;
+  // ゴミ箱へ移せなかった理由（確認の小窓の中に出す）。
+  deleteError: string;
 } & GroupActions) {
   const t = useT();
   const rowMenuId = useId();
@@ -81,10 +84,6 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
   const closePicker = () => setPicker(null);
   usePickerBackToClose(picker !== null, closePicker);
   const pickerPage = picker ? pages.find((page) => page.id === picker.id) : undefined;
-  const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    if (deleting) dialog.current?.showModal();
-  }, [deleting]);
   function toggle(id: string) {
     setCollapsed((current) => {
       const next = { ...current, [id]: !current[id] };
@@ -135,7 +134,8 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
     if (!request.parentId && !request.groupId) setSectionOpen(request.kind ?? "note", true);
     onCreate(request);
   };
-  const generate = (placement?: { groupId?: string; parentId?: string }) => (onGenerateSlides ? () => onGenerateSlides(placement) : undefined);
+  const generate = (opts?: { kind?: PageKind; groupId?: string; parentId?: string }) => (onGenerate ? () => onGenerate(opts) : undefined);
+  const importPptx = (placement?: { groupId?: string; parentId?: string }) => (onImportPptx ? () => onImportPptx(placement) : undefined);
   const tree = (page: NotePageSummary): ReactNode => {
     const kids = children.get(page.id) ?? [];
     // Notion と同じく、どのページにも開閉の矢印を出す（サブページがなければ「No pages inside」）。
@@ -189,7 +189,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
           }}>
           <Ellipsis size={14} />
         </button>
-        <NewPageButton kinds={kinds} busy={busy} onCreate={(kind) => create({ kind, parentId: page.id })} onGenerate={generate({ parentId: page.id })} onOpenChange={setAddMenuOpen(`page:${page.id}`)} className="notion-row-action"
+        <NewPageButton kinds={kinds} busy={busy} onCreate={(kind) => create({ kind, parentId: page.id })} onGenerate={generate({ parentId: page.id })} onImportPptx={importPptx({ parentId: page.id })} onOpenChange={setAddMenuOpen(`page:${page.id}`)} className="notion-row-action"
           label={t("Add a page inside {title}", { title: page.title })} title={t("Add a page inside")} menuLabel={t("Add a page inside {title}", { title: page.title })}><Plus size={14} /></NewPageButton>
       </span>
     </div>
@@ -205,7 +205,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
       <WorkspaceNav view="pages" onChange={onWorkspaceChange} />
       <div className="sidebar-top-actions mt-2.5 flex flex-col gap-1.5 px-2.5">
         {/* 作れる種類がノートだけなら「New note」（押すとすぐノート）、2 つ以上なら「New」で種類を選ぶ。 */}
-        <NewPageButton kinds={kinds} busy={busy} onCreate={(kind) => create({ kind })} onGenerate={generate()} className="sidebar-primary-action" menuLabel={t("New page")}>
+        <NewPageButton kinds={kinds} busy={busy} onCreate={(kind) => create({ kind })} onGenerate={generate()} onImportPptx={importPptx()} className="sidebar-primary-action" menuLabel={t("New page")}>
           <Plus size={15} strokeWidth={2.2} /><span>{kinds.length > 1 ? t("New") : t("New note")}</span>
           {kinds.length > 1 && <ChevronDown size={14} className="sidebar-primary-chevron" aria-hidden="true" />}
         </NewPageButton>
@@ -265,21 +265,21 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
                     <span className="sidebar-count-pill">{total}</span>
                   </button>
                   <span className="sidebar-row-actions">
-                    <NewPageButton kinds={kinds} busy={busy} onCreate={(kind) => create({ kind, groupId: group.id })} onGenerate={generate({ groupId: group.id })} onOpenChange={setAddMenuOpen(`group:${group.id}`)} className="notion-row-action"
+                    <NewPageButton kinds={kinds} busy={busy} onCreate={(kind) => create({ kind, groupId: group.id })} onGenerate={generate({ groupId: group.id })} onImportPptx={importPptx({ groupId: group.id })} onOpenChange={setAddMenuOpen(`group:${group.id}`)} className="notion-row-action"
                       label={t("New page in {name}", { name: group.name })} menuLabel={t("New page in {name}", { name: group.name })}><Plus size={14} /></NewPageButton>
                     <button type="button" onClick={() => setNaming({ mode: "rename", group })} className="notion-row-action" aria-label={t("Rename {name}", { name: group.name })}><Pencil size={13} /></button>
                     <button type="button" onClick={() => setDeletingGroup(group)} className="notion-row-action is-danger" aria-label={t("Delete project {name}", { name: group.name })}><Trash2 size={13.5} /></button>
                   </span>
                 </div>
                 {open && <div className="notes-group-members">
-                  {members.length ? members.map(tree) : <p className="px-2 py-1.5 text-xs text-[var(--notion-faint)]">{t("No notes in this project.")}</p>}
+                  {members.length ? members.map(tree) : <p className="px-2 py-1.5 text-xs text-[var(--notion-faint)]">{t("No pages in this project.")}</p>}
                 </div>}
               </div>
             );
           })}
         </div>
         {iconError && <p role="alert" className="px-2 text-xs text-[#b91c1c]">{t(iconError)}</p>}
-        {/* 分区（ノート・スライド・ホワイトボード）：プロジェクトに入っていない最上位のページを種類ごとに。見出しは押すと折りたたみ、
+        {/* 分区（ノート・ホワイトボード・スライド）：プロジェクトに入っていない最上位のページを種類ごとに。見出しは押すと折りたたみ、
             「+」はその種類を作る。見出しはプロジェクトから外す放し先で、同じ分区に並ぶページだけを受ける。 */}
         {sections.map((section) => {
           const label = t(PAGE_KIND_SECTION_LABELS[section.kind]);
@@ -295,8 +295,8 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
                 {section.count > 0 && <span className="sidebar-section-count">{section.count}</span>}
                 <ChevronRight size={12.5} className={`sidebar-chevron rtl-mirror${open ? " is-open" : ""}`} aria-hidden="true" />
               </button>
-              {/* スライドの分区の「+」は「New slide deck」と「Generate with AI」のメニュー。他の分区は押すとすぐ作る。 */}
-              <NewPageButton kinds={[section.kind]} busy={busy} onCreate={(kind) => create({ kind })} onGenerate={generate()} className="notion-icon-button sidebar-heading-add"
+              {/* 各分区（ノート・ホワイトボード・スライド）の「+」は、新規作成とその種類を初期選択した「Generate with AI」を出す（スライドは PowerPoint 取り込みも）。 */}
+              <NewPageButton kinds={[section.kind]} busy={busy} onCreate={(kind) => create({ kind })} onGenerate={generate({ kind: section.kind })} onImportPptx={importPptx()} className="notion-icon-button sidebar-heading-add"
                 label={t(PAGE_KIND_NEW_LABELS[section.kind])} menuLabel={t(PAGE_KIND_NEW_LABELS[section.kind])}><Plus size={14} /></NewPageButton>
             </div>
             {open && section.roots.map(tree)}
@@ -316,14 +316,10 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
         </button>
         <button type="button" className="notion-sidebar-action is-subtle" aria-haspopup="dialog" onClick={() => setTrashOpen(true)}><Trash2 size={15} /><span>{t("Trash")}</span></button>
       </div>
-      {deleting && <dialog ref={dialog} onCancel={() => setDeleting(null)} aria-labelledby="delete-page-title" aria-describedby="delete-page-description" className="notes-dialog">
-          <h2 id="delete-page-title" className="text-base font-semibold">{t("Move note to Trash?")}</h2>
-          <p id="delete-page-description" className="mt-2 text-sm text-[var(--notion-muted)]">{t("“{title}” will be moved to Trash. You can restore it for {count} days.", { title: deleting.title, count: TRASH_RETENTION_DAYS })}{children.has(deleting.id) ? ` ${t("Its sub-pages move to Trash with it.")}` : ""}</p>
-          <div className="mt-5 flex justify-end gap-2">
-            <button autoFocus type="button" disabled={busy} className="notion-button" onClick={() => setDeleting(null)}>{t("Cancel")}</button>
-            <button type="button" disabled={busy} className="notion-button notes-delete" onClick={async () => { await onDelete(deleting.id); setDeleting(null); }}>{t("Move to Trash")}</button>
-          </div>
-      </dialog>}
+      {/* 上部バーの「ゴミ箱へ」と同じ確認の小窓。移せなかったら閉じずに理由を出す。送っている間は Esc・「戻る」でも閉じない。 */}
+      {deleting && <ConfirmDialog title={t("Move page to Trash?")} confirmLabel={t("Move to Trash")} error={deleteError} onClose={() => setDeleting(null)}
+        body={`${t("“{title}” will be moved to Trash. You can restore it for {count} days.", { title: deleting.title, count: TRASH_RETENTION_DAYS })}${children.has(deleting.id) ? ` ${t("Its sub-pages move to Trash with it.")}` : ""}`}
+        onConfirm={async () => (await onDelete(deleting.id)) === true} />}
       {trashOpen && <NoteTrashDialog onClose={() => setTrashOpen(false)} />}
       {moving && <MoveNoteDialog page={pages.find((page) => page.id === moving.id) ?? moving} groups={groups} error={groupError}
         onMove={onMoveNote} onCreateGroup={onCreateGroup} onClose={() => setMoving(null)} pages={pages}
@@ -360,7 +356,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
         submitLabel={naming.mode === "create" ? t("Create") : t("Save")} error={groupError} onClose={() => setNaming(null)}
         onSubmit={async (name) => naming.mode === "create" ? Boolean(await onCreateGroup(name)) : Boolean(await onRenameGroup(naming.group.id, name))} />}
       {deletingGroup && <ConfirmDialog title={t("Delete project?")} confirmLabel={t("Delete project")} error={groupError} onClose={() => setDeletingGroup(null)}
-        body={t("“{name}” will be deleted. Its notes are kept and move out of the project.", { name: deletingGroup.name })}
+        body={t("“{name}” will be deleted. Its pages are kept and move out of the project.", { name: deletingGroup.name })}
         onConfirm={async () => Boolean(await onDeleteGroup(deletingGroup.id))} />}
       <SidebarFooter />
       {picker && pickerPage && (

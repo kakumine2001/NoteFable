@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+import ts from "typescript";
 import { describe, expect, it, vi } from "vitest";
 import { MAX_MATH_LATEX, MAX_NOTE_BYTES, readNoteRequest, topLevelJsonFields, validateNoteContent, validateNoteUpdate } from "./note-document";
 
@@ -47,6 +50,23 @@ describe("page document boundary", () => {
     // mathInline に未知の props や content は不可。
     expect(() => validateNoteContent({ title: "Math", blocks: [{ id: "bad6", type: "paragraph", props: {}, content: [{ type: "mathInline", props: { latex: "x", extra: true } }], children: [] }] })).toThrow("unsupported");
     expect(() => validateNoteContent({ title: "Math", blocks: [{ id: "bad7", type: "paragraph", props: {}, content: [{ type: "mathInline", props: { latex: "x" }, content: [] }], children: [] }] })).toThrow("unsupported");
+  });
+
+  it("validates whiteboard embed blocks", () => {
+    const blocks = [
+      { id: "w1", type: "whiteboard", props: { pageId: "wb_123", frameId: "" }, children: [] },
+      { id: "w2", type: "whiteboard", props: { pageId: "wb_123", frameId: "frame-1" }, children: [] },
+      { id: "w3", type: "whiteboard", props: { pageId: "", frameId: "" }, children: [] },
+    ];
+    expect(() => validateNoteContent({ title: "Board note", blocks })).not.toThrow();
+    // frameId without pageId is rejected.
+    expect(() => validateNoteContent({ title: "Bad", blocks: [{ id: "wb1", type: "whiteboard", props: { pageId: "", frameId: "frame-1" }, children: [] }] })).toThrow("unsupported");
+    // whiteboard blocks cannot carry inline content or unknown props.
+    expect(() => validateNoteContent({ title: "Bad", blocks: [{ id: "wb2", type: "whiteboard", props: { pageId: "wb_123" }, content: [], children: [] }] })).toThrow("unsupported");
+    expect(() => validateNoteContent({ title: "Bad", blocks: [{ id: "wb3", type: "whiteboard", props: { pageId: "wb_123", extra: "x" }, children: [] }] })).toThrow("unsupported");
+    // invalid pageId or frameId characters are rejected.
+    expect(() => validateNoteContent({ title: "Bad", blocks: [{ id: "wb4", type: "whiteboard", props: { pageId: "bad id" }, children: [] }] })).toThrow("unsupported");
+    expect(() => validateNoteContent({ title: "Bad", blocks: [{ id: "wb5", type: "whiteboard", props: { pageId: "wb_123", frameId: "bad\u0000id" }, children: [] }] })).toThrow("unsupported");
   });
 
   it("validates table content", () => {
@@ -169,4 +189,154 @@ describe("uploaded page covers", () => {
     expect(() => validateNoteContent({ title: "A", cover: key, coverPosition: 101, blocks: [] })).toThrow("position");
     expect(() => validateNoteContent({ title: "A", cover: key, coverPosition: 1.5, blocks: [] })).toThrow("position");
   });
+});
+
+describe("note-document runtime module dependency graph", () => {
+  const srcRoot = path.resolve(process.cwd(), "src");
+
+  function resolveLocalImport(fromFile: string, specifier: string): string | null {
+    let base: string | null = null;
+    if (specifier.startsWith("@/")) base = path.join(srcRoot, specifier.slice(2));
+    else if (specifier.startsWith(".")) base = path.resolve(path.dirname(fromFile), specifier);
+    else return null;
+
+    const candidates = [
+      base,
+      `${base}.ts`,
+      `${base}.tsx`,
+      path.join(base, "index.ts"),
+      path.join(base, "index.tsx"),
+    ];
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return path.normalize(candidate);
+    }
+    return null;
+  }
+
+  function runtimeImportsOf(filePath: string, cache: Map<string, string[]>): string[] {
+    const cached = cache.get(filePath);
+    if (cached) return cached;
+    const source = fs.readFileSync(filePath, "utf8");
+    const kind = filePath.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+    const ast = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, false, kind);
+    const deps = new Set<string>();
+
+    const add = (specifier: string) => {
+      const resolved = resolveLocalImport(filePath, specifier);
+      if (resolved) deps.add(resolved);
+    };
+
+    for (const stmt of ast.statements) {
+      if (ts.isImportDeclaration(stmt) && ts.isStringLiteral(stmt.moduleSpecifier)) {
+        const clause = stmt.importClause;
+        // import "side-effect"
+        if (!clause) {
+          add(stmt.moduleSpecifier.text);
+          continue;
+        }
+        if (clause.isTypeOnly) continue;
+        // import Foo, { type Bar } from "..." has a default value binding -> runtime import.
+        const hasDefault = Boolean(clause.name);
+        const bindings = clause.namedBindings;
+        const hasRuntimeNamed = bindings
+          ? ts.isNamespaceImport(bindings) || bindings.elements.some((el) => !el.isTypeOnly)
+          : false;
+        if (hasDefault || hasRuntimeNamed) add(stmt.moduleSpecifier.text);
+      } else if (ts.isExportDeclaration(stmt) && stmt.moduleSpecifier && ts.isStringLiteral(stmt.moduleSpecifier)) {
+        if (stmt.isTypeOnly) continue;
+        const clause = stmt.exportClause;
+        // export * from "..." or export * as ns from "..."
+        if (!clause || ts.isNamespaceExport(clause)) {
+          add(stmt.moduleSpecifier.text);
+          continue;
+        }
+        if (clause.elements.some((el) => !el.isTypeOnly)) add(stmt.moduleSpecifier.text);
+      }
+    }
+
+    const list = [...deps];
+    cache.set(filePath, list);
+    return list;
+  }
+
+  function findRuntimeCycleFrom(
+    entryFile: string,
+    cache: Map<string, string[]>,
+    visited = new Set<string>(),
+  ): string[] | null {
+    const stack: string[] = [];
+    const onStack = new Map<string, number>();
+
+    const dfs = (current: string): string[] | null => {
+      const idx = onStack.get(current);
+      if (idx !== undefined) return [...stack.slice(idx), current];
+      if (visited.has(current)) return null;
+      visited.add(current);
+      onStack.set(current, stack.length);
+      stack.push(current);
+      for (const next of runtimeImportsOf(current, cache)) {
+        const cycle = dfs(next);
+        if (cycle) return cycle;
+      }
+      stack.pop();
+      onStack.delete(current);
+      return null;
+    };
+
+    return dfs(path.normalize(entryFile));
+  }
+
+  const sharedImportCache = new Map<string, string[]>();
+
+  it("keeps note-document.ts free of runtime circular imports and decoupled from whiteboard/scene.ts", () => {
+    const noteDocument = path.normalize(path.join(srcRoot, "lib/note-document.ts"));
+    const whiteboardScene = path.normalize(path.join(srcRoot, "lib/whiteboard/scene.ts"));
+
+    const cycle = findRuntimeCycleFrom(noteDocument, sharedImportCache);
+    expect(cycle?.map((p) => path.relative(srcRoot, p))).toBeUndefined();
+
+    // Collect full runtime closure of note-document.ts and verify whiteboard/scene.ts is never pulled in.
+    const closure = new Set<string>();
+    const queue = [noteDocument];
+    while (queue.length) {
+      const cur = queue.pop()!;
+      for (const dep of runtimeImportsOf(cur, sharedImportCache)) {
+        if (!closure.has(dep)) {
+          closure.add(dep);
+          queue.push(dep);
+        }
+      }
+    }
+    expect(closure.has(noteDocument)).toBe(false);
+    expect(closure.has(whiteboardScene)).toBe(false);
+  }, 15_000);
+
+  it("introduces no runtime circular dependencies across whiteboard-embed and slides-embed modules", () => {
+    const visited = new Set<string>();
+    const entries = [
+      "lib/note-document.ts",
+      "lib/note-markdown.ts",
+      "lib/note-text.ts",
+      "lib/note-whiteboards.ts",
+      "lib/note-share-server.ts",
+      "lib/whiteboard/embed-id.ts",
+      "lib/whiteboard/frames.ts",
+      "lib/whiteboard/render-frame.ts",
+      "lib/whiteboard/scene.ts",
+      "lib/slides/whiteboard-embed.tsx",
+      "components/note-whiteboard.tsx",
+      "components/whiteboard/whiteboard-frame-picker.tsx",
+      "components/whiteboard/whiteboard-thumbnail.tsx",
+      "components/whiteboard/register-slides-embed.tsx",
+      "components/whiteboard/public-whiteboard-embed.tsx",
+      "components/whiteboard/public-whiteboard-embed-canvas.tsx",
+      "components/public-note-view.tsx",
+      "components/slides/slides-editor.tsx",
+      "components/note-editor.tsx",
+    ];
+    for (const rel of entries) {
+      const cycle = findRuntimeCycleFrom(path.join(srcRoot, rel), sharedImportCache, visited);
+      expect(cycle?.map((p) => path.relative(srcRoot, p)), `runtime cycle from ${rel}`).toBeUndefined();
+    }
+  }, 15_000);
 });

@@ -2,7 +2,7 @@
 <!-- 这个文件由 scripts/gen-native-zh-hant.ts 从 values-zh 的同名文件生成，不要直接修改。 -->
 <resources>
     <string name="attach_pages">新增頁面</string>
-    <string name="attach_pages_desc">讓 AI 參考你的筆記</string>
+    <string name="attach_pages_desc">讓 AI 參考你的頁面</string>
     <string name="attached_pages">已新增的頁面</string>
     <string name="ask_notefable">問 NoteFable</string>
     <string name="quote">引用</string>

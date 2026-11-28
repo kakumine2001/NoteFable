@@ -3,6 +3,7 @@ import type { CanvasData, CanvasSegment } from "@/lib/canvas-document";
 import type { ToolDefinition, ToolImage } from "@/lib/chat-tools";
 import type { PageKind } from "@/lib/page-kinds";
 import type { ProposalChange } from "@/lib/page-ai/types";
+import type { WhiteboardMetaMap } from "@/lib/whiteboard/frames";
 
 // AI 操控底座（docs/architecture/chat-flow.md の「AI 操控底座」）の、ページの種類ごとのアダプター。
 // 枠組み（tools.ts・proposals.ts）は種類を知らず、読む・操作を提案にする・新しいページを提案する・適用する・画像にするを
@@ -30,6 +31,8 @@ export type AdapterPage = {
   locked?: boolean;
   // 今回のターンで利用者が選んだ要素・スライドの ID。大きなボード・スライドで出力上限に達するとき、選んだ対象を優先して載せる。
   focusIds?: readonly string[];
+  // ノートに埋め込まれたホワイトボード（生きている自分のホワイトボードのみ）の題名と枠名。read_note で人間が読める名前を出す。
+  embeddedWhiteboards?: WhiteboardMetaMap;
 };
 
 // ツールを実行するときの文脈。userId はサーバーのセッションのもので、モデルの入力からは決して取らない。
@@ -53,6 +56,8 @@ export type EditDraft = {
   changes: ProposalChange[];
   proposed: ProposedContent;
   images?: ProposalImage[];
+  // 変更した要素・スライドの ID（改前/改後プレビューで対象箇所を示すため。画面の提案一覧には載せず content API だけで返す）。
+  focusIds?: string[];
   // この提案のために保存したファイル（チャットの画像の写しなど）。提案を保存できなかったときに消す。
   copiedFiles?: string[];
   // 内容の変わらない編集案。モデルに作り直させる。
@@ -68,6 +73,7 @@ export type CreateDraft = {
   changes?: ProposalChange[];
   proposed: ProposedContent;
   images?: ProposalImage[];
+  focusIds?: string[];
   copiedFiles?: string[];
 };
 
@@ -100,10 +106,11 @@ export interface PageAdapter {
   // 適用：保存と同じ検証（題名・本文・アイコン・ファイルの持ち主）をして、書ける内容にする。失敗は NoteValidationError。
   validate(userId: string, content: ProposedContent): ValidatedContent;
   // 適用：参照するファイル（アイコン・画像など）を使用中にする。履歴を書く前に呼ぶ（手動の保存と同じロックの順序：ファイルの行 → ページの行）。
-  claim(tx: Tx, userId: string, content: ValidatedContent): Promise<void>;
+  claim(tx: Tx, userId: string, content: ValidatedContent, options?: { allowExistingWhiteboards?: Iterable<string> }): Promise<void>;
   // 適用：トランザクションの中で、版が target.version のときだけ書いて版を 1 進める。書けなければ false。先に claim を呼ぶ。
   // ai は AI の書き込み（ページの aiUpdatedAt を進める）。元に戻す（履歴の内容を書く）ときは false。
-  write(tx: Tx, target: { id: string; userId: string; version: number }, content: ValidatedContent, options: { ai: boolean }): Promise<boolean>;
+  // requireUnlocked が true のときは locked: false も原子的に条件へ含める（自動適用とロック操作の競合を防ぐ）。
+  write(tx: Tx, target: { id: string; userId: string; version: number }, content: ValidatedContent, options: { ai: boolean; requireUnlocked?: boolean }): Promise<boolean>;
   // 適用（新規）：トランザクションの中でページを作る。parentId はサブページの親。
   createPage(tx: Tx, userId: string, content: ValidatedContent, parentId: string | null): Promise<{ id: string; version: number }>;
   // 履歴に残す、いまの内容（トランザクションの中で読む）。

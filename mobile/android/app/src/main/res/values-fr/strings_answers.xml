@@ -7,21 +7,21 @@
     <string name="activity_searching_query">Recherche de « %1$s »</string>
     <string name="activity_reading_host">Lecture de %1$s</string>
     <string name="activity_scanning_host">Analyse de %1$s</string>
-    <string name="activity_searching_notes">Recherche dans vos notes</string>
-    <string name="activity_reading_note">Lecture de votre note</string>
+    <string name="activity_searching_notes">Recherche dans vos pages</string>
+    <string name="activity_reading_note">Lecture de votre page</string>
     <string name="activity_one_search">1 recherche</string>
     <string name="activity_searches">%1$s recherches</string>
     <string name="activity_one_source">1 source</string>
     <string name="activity_sources">%1$s sources</string>
-    <string name="activity_one_note_lookup">1 consultation de note</string>
-    <string name="activity_note_lookups">%1$s consultations de notes</string>
-    <string name="activity_one_project_note">1 note de projet</string>
-    <string name="activity_project_notes">%1$s notes de projet</string>
+    <string name="activity_one_note_lookup">1 consultation de page</string>
+    <string name="activity_note_lookups">%1$s consultations de pages</string>
+    <string name="activity_one_project_note">1 page de projet</string>
+    <string name="activity_project_notes">%1$s pages de projet</string>
     <string name="activity_project_instructions">instructions du projet</string>
     <string name="activity_more">+%1$s autres</string>
     <string name="activity_instructions">instructions</string>
-    <string name="activity_one_reference_note">1 note de référence</string>
-    <string name="activity_reference_notes">%1$s notes de référence</string>
+    <string name="activity_one_reference_note">1 page de référence</string>
+    <string name="activity_reference_notes">%1$s pages de référence</string>
     <string name="activity_used_project">Projet « %1$s » utilisé : %2$s</string>
     <string name="activity_partial">partiel</string>
     <string name="activity_searching_web_running">Recherche sur le Web…</string>
@@ -89,4 +89,5 @@
     <string name="proposal_op_elements">%1$s · %2$s éléments</string>
     <string name="proposal_before">Avant</string>
     <string name="proposal_after">Après</string>
+    <string name="proposal_view_preview">Voir l’aperçu</string>
 </resources>

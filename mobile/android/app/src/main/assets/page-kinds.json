@@ -11,13 +11,13 @@
     "markdownExport": false,
     "typography": false,
     "publicShare": true,
-    "aiEdit": false
+    "aiEdit": true
   },
   "slides": {
     "editor": true,
     "markdownExport": false,
     "typography": false,
     "publicShare": true,
-    "aiEdit": false
+    "aiEdit": true
   }
 }

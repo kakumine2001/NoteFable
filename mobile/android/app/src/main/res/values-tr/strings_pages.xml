@@ -7,7 +7,7 @@
     <string name="pg_add_page_inside_title">%1$s içine sayfa ekle</string>
     <string name="pg_collapse_title">%1$s öğesini daralt</string>
     <string name="pg_expand_title">%1$s öğesini genişlet</string>
-    <string name="pg_remove_title_from_favorites">%1$s notunu Favorilerden kaldır</string>
+    <string name="pg_remove_title_from_favorites">%1$s sayfasını Favorilerden kaldır</string>
     <string name="pg_page_options">Sayfa seçenekleri</string>
     <string name="pg_style">Stil</string>
     <string name="pg_font_default">Varsayılan</string>
@@ -27,4 +27,5 @@
     <string name="pg_subpages_to_trash">Alt sayfaları da onunla birlikte Çöp Kutusu\'na taşınır.</string>
     <string name="pg_rename_page">Sayfayı yeniden adlandır</string>
     <string name="pg_page_title">Sayfa başlığı</string>
+    <string name="pg_review_quiz">Tekrar ve test</string>
 </resources>

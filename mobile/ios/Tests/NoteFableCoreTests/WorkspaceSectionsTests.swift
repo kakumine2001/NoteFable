@@ -18,7 +18,7 @@ final class WorkspaceSectionsTests: XCTestCase {
     func testTheServerKindsTableSwitchesKindsOnInSectionOrderAndBadTablesAreIgnored() throws {
         XCTAssertEqual(PageKindTable.creatable(in: PageKindTable.shared.snapshot), [.note])
         let table = try XCTUnwrap(PageKindTable.parse(try XCTUnwrap(JSONValue.parse(allOn))))
-        XCTAssertEqual(PageKindTable.creatable(in: table), [.note, .slides, .whiteboard])
+        XCTAssertEqual(PageKindTable.creatable(in: table), [.note, .whiteboard, .slides])
         XCTAssertTrue(PageKindTable.features(.whiteboard, in: table).publicShare)
         XCTAssertFalse(PageKindTable.features(.slides, in: table).markdownExport)
         // 不是对象的表不动；表里缺了笔记也照样能用笔记。
@@ -35,7 +35,7 @@ final class WorkspaceSectionsTests: XCTestCase {
         let decoder = JSONDecoder()
         let list = try decoder.decode(NotesList.self, from: Data(#"{"pages":[{"id":"a","title":"A"}],"groups":[],"kinds":\#(allOn)}"#.utf8))
         XCTAssertEqual(list.pages.map(\.id), ["a"])
-        XCTAssertEqual(list.kinds.map { PageKindTable.creatable(in: $0) }, [.note, .slides, .whiteboard])
+        XCTAssertEqual(list.kinds.map { PageKindTable.creatable(in: $0) }, [.note, .whiteboard, .slides])
         XCTAssertNil(try decoder.decode(NotesList.self, from: Data(#"{"pages":[],"groups":[]}"#.utf8)).kinds)
         let broken = try decoder.decode(NotesList.self, from: Data(#"{"pages":[{"id":"a","title":"A"}],"groups":[],"kinds":"x"}"#.utf8))
         XCTAssertEqual(broken.pages.map(\.id), ["a"])
@@ -69,11 +69,38 @@ final class WorkspaceSectionsTests: XCTestCase {
         XCTAssertEqual(state.sections.map(\.kind), [.note])
         XCTAssertEqual(state.sections.first?.roots.map(\.id), ["b", "w", "s"])
         state.kindFeatures = try XCTUnwrap(PageKindTable.parse(try XCTUnwrap(JSONValue.parse(allOn))))
-        XCTAssertEqual(state.sections.map(\.kind), [.note, .slides, .whiteboard])
+        XCTAssertEqual(state.sections.map(\.kind), [.note, .whiteboard, .slides])
         // 子页面跟着父页面，数量含子页面；项目里的页面不在分区里。
-        XCTAssertEqual(state.sections.map { $0.roots.map(\.id) }, [["b"], ["s"], ["w"]])
+        XCTAssertEqual(state.sections.map { $0.roots.map(\.id) }, [["b"], ["w"], ["s"]])
         XCTAssertEqual(state.sections.map(\.count), [2, 1, 1])
         XCTAssertEqual(state.sectionKind(of: child), .whiteboard)
+    }
+
+    func testHomeTypeFilterNarrowsCreateCardsImportMarkdownAndRecentPages() throws {
+        var state = NotesUiState()
+        state.kindFeatures = try XCTUnwrap(PageKindTable.parse(try XCTUnwrap(JSONValue.parse(allOn))))
+        var n1 = NotePageSummary(id: "n1", title: "Note 1", icon: nil, updatedAt: "2026-11-28T01:00:00Z")
+        n1.kind = .note
+        var w1 = NotePageSummary(id: "w1", title: "Board 1", icon: nil, updatedAt: "2026-11-28T03:00:00Z")
+        w1.kind = .whiteboard
+        var n2 = NotePageSummary(id: "n2", title: "Note 2", icon: nil, updatedAt: "2026-11-28T02:00:00Z")
+        n2.kind = .note
+        state.pages = [n1, w1, n2]
+
+        XCTAssertEqual(state.createKinds(for: nil), [.note, .whiteboard, .slides])
+        XCTAssertEqual(state.createKinds(for: .note), [.note])
+        XCTAssertEqual(state.createKinds(for: .whiteboard), [.whiteboard])
+        XCTAssertEqual(state.createKinds(for: .slides), [.slides])
+
+        XCTAssertTrue(state.showsImportMarkdown(for: nil))
+        XCTAssertTrue(state.showsImportMarkdown(for: .note))
+        XCTAssertFalse(state.showsImportMarkdown(for: .whiteboard))
+        XCTAssertFalse(state.showsImportMarkdown(for: .slides))
+
+        XCTAssertEqual(state.recentPages(for: nil).map(\.id), ["w1", "n2", "n1"])
+        XCTAssertEqual(state.recentPages(for: .note).map(\.id), ["n2", "n1"])
+        XCTAssertEqual(state.recentPages(for: .whiteboard).map(\.id), ["w1"])
+        XCTAssertEqual(state.recentPages(for: .slides).map(\.id), [])
     }
 
     @MainActor

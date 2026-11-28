@@ -17,6 +17,7 @@ extension SettingsPage {
         case .personalization: return Lucide.penLine
         case .plan: return Lucide.creditCard
         case .account: return Lucide.circleUser
+        case .help: return Lucide.circleHelp
         }
     }
 }
@@ -27,6 +28,8 @@ extension SettingsPage {
 struct SettingsIdentityCard: View {
     private let user: AccountUser
     private let action: () -> Void
+    @Environment(\.nfChromePath) private var chromePath
+    @Environment(\.colorScheme) private var colorScheme
 
     init(user: AccountUser, action: @escaping () -> Void) {
         self.user = user
@@ -34,7 +37,8 @@ struct SettingsIdentityCard: View {
     }
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 20)
+        let shape = RoundedRectangle(cornerRadius: 24, style: .continuous)
+        let showBorder = !(chromePath == .native && colorScheme == .light)
         Button(action: action) {
             HStack(alignment: .center, spacing: 14) {
                 UserAvatar(user: user, size: 44)
@@ -59,10 +63,14 @@ struct SettingsIdentityCard: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
-            .overlay { shape.strokeBorder(Sm.border, lineWidth: 1) }
+            .overlay {
+                if showBorder {
+                    shape.strokeBorder(Sm.border, lineWidth: 1)
+                }
+            }
         }
         // 白底由样式画（按下的灰底叠在它上面，网页是悬停的 --notion-hover）。
-        .buttonStyle(.pressable(background: Sm.surface, cornerRadius: 20))
+        .buttonStyle(.pressable(background: Sm.surface, cornerRadius: 24))
     }
 }
 
@@ -107,11 +115,13 @@ struct SettingsHomeRow: View {
     }
 }
 
-/// .settings-card（手机）：白底、1px 细线、圆角 20；`padded` 时内边距 16（.settings-card-padded）。
+/// .settings-card（手机）：白底、连续 24 圆角（原生浅色省去生硬外框线，深色与降透明保持 1px 细线）；`padded` 时内边距 16。
 /// 行与行之间用 `SettingsRowDivider` 隔开。
 struct SettingsCard<Content: View>: View {
     private let padded: Bool
     private let content: Content
+    @Environment(\.nfChromePath) private var chromePath
+    @Environment(\.colorScheme) private var colorScheme
 
     init(padded: Bool = false, @ViewBuilder content: () -> Content) {
         self.padded = padded
@@ -119,7 +129,8 @@ struct SettingsCard<Content: View>: View {
     }
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 20)
+        let shape = RoundedRectangle(cornerRadius: 24, style: .continuous)
+        let showBorder = !(chromePath == .native && colorScheme == .light)
         VStack(alignment: .leading, spacing: 0) {
             content
         }
@@ -127,7 +138,11 @@ struct SettingsCard<Content: View>: View {
         .padding(padded ? 16 : 0)
         .background(Sm.surface, in: shape)
         .clipShape(shape)
-        .overlay { shape.strokeBorder(Sm.border, lineWidth: 1) }
+        .overlay {
+            if showBorder {
+                shape.strokeBorder(Sm.border, lineWidth: 1)
+            }
+        }
     }
 }
 
@@ -144,12 +159,14 @@ struct SettingsRowButton: View {
     private let icon: [String]
     private let label: String
     private let danger: Bool
+    private let trailingIcon: [String]?
     private let action: () -> Void
 
-    init(_ label: String, icon: [String], danger: Bool = false, action: @escaping () -> Void) {
+    init(_ label: String, icon: [String], danger: Bool = false, trailingIcon: [String]? = nil, action: @escaping () -> Void) {
         self.label = label
         self.icon = icon
         self.danger = danger
+        self.trailingIcon = trailingIcon
         self.action = action
     }
 
@@ -161,6 +178,9 @@ struct SettingsRowButton: View {
                     .font(.nf(16, weight: 500))
                     .foregroundStyle(danger ? Sm.danger : Sm.text)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                if let trailingIcon {
+                    LucideIcon(trailingIcon, size: 15, color: Sm.faint)
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
@@ -220,10 +240,8 @@ struct SettingsLoadingLine: View {
     }
 }
 
-/// .settings-unsaved（手机）："未保存的更改"条，改了自定义指令还没保存时浮在画面下方：最小高 52、内边距 8/8/8/16、圆角 14、
-/// 墨色底、阴影 0 8 28 rgba(12,23,48,.28)；文字 14/500 白；"放弃"（白 .82）和"保存"（白底墨色字）最小高 40、左右 14、圆角 10、
-/// 14/550，间距 8。出现时从下方 16 滑入（200ms，由放它的地方加过渡）；`attention` 每变一次（没保存就想关）左右晃一下（360ms），
-/// 并让读屏念出来。
+/// .settings-unsaved（手机）："未保存的更改"悬浮 Liquid Glass 条，改了自定义指令还没保存时浮在画面下方：
+/// 圆角 28 玻璃胶囊条；`attention` 每变一次左右晃一下（360ms）并通知读屏。
 struct SettingsUnsavedBar: View {
     let attention: Int
     let busy: Bool
@@ -231,6 +249,7 @@ struct SettingsUnsavedBar: View {
     let onSave: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.nfChromePath) private var chromePath
 
     init(attention: Int, busy: Bool, onDiscard: @escaping () -> Void, onSave: @escaping () -> Void) {
         self.attention = attention
@@ -240,24 +259,32 @@ struct SettingsUnsavedBar: View {
     }
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 14)
+        let shape = RoundedRectangle(cornerRadius: 28, style: .continuous)
+        let labelColor = chromePath == .solid ? Sm.onInk : chromePath.primaryInk
         HStack(spacing: 8) {
             Text(L("settings_unsaved"))
-                .font(.nf(14, weight: 500))
-                .foregroundStyle(Sm.onInk)
+                .font(.nf(14, weight: 550))
+                .foregroundStyle(labelColor)
                 .frame(maxWidth: .infinity, alignment: .leading)
             SettingsUnsavedButton(label: L("proposal_discard"), filled: false, action: onDiscard)
                 .disabled(busy)
             SettingsUnsavedButton(label: L(busy ? "sb_saving" : "save"), filled: true, action: onSave)
                 .disabled(busy)
         }
-        .padding(.leading, 16)
+        .padding(.leading, 18)
         .padding(.trailing, 8)
         .padding(.vertical, 8)
-        .frame(minHeight: 52)
-        // 点在条上（文字、空白处）不要落到下面的行上（退出登录等）。
-        .background { shape.fill(Sm.ink).onTapGesture {} }
-        .shadow(color: Color(argb: 0x470C1730), radius: 14, x: 0, y: 8)
+        .frame(minHeight: 54)
+        // 吸收条上空白处的点击，防止透传到下方的卡片按钮。
+        .background {
+            Color.clear
+                .contentShape(shape)
+                .onTapGesture {}
+                .accessibilityHidden(true)
+        }
+        .clipShape(shape)
+        .nfGlassBackground(.regular, in: shape, solidFill: Sm.ink, stroke: Sm.borderStrong)
+        .nfChromeShadow(Color(argb: 0x470C1730), radius: 14, y: 8)
         .modifier(SettingsShakeEffect(progress: CGFloat(attention)))
         .animation(reduceMotion || attention == 0 ? nil : .linear(duration: 0.36), value: attention)
         .onChange(of: attention) { _, value in
@@ -271,27 +298,40 @@ private struct SettingsUnsavedButton: View {
     let filled: Bool
     let action: () -> Void
 
+    @Environment(\.nfChromePath) private var chromePath
+
     var body: some View {
+        let solid = chromePath == .solid
+        let ink: Color = filled
+            ? (solid ? Sm.ink : Sm.onInk)
+            : (solid ? Sm.onInk.opacity(0.85) : chromePath.secondaryInk)
+        let bg: Color = filled
+            ? (solid ? Sm.onInk : Sm.ink)
+            : (solid ? .clear : (chromePath == .native ? Color.primary.opacity(0.08) : Sm.hover))
+        let pressedBg: Color = filled
+            ? (solid ? Sm.hover : Sm.inkHover)
+            : (solid ? Color(argb: 0x2E7F7F7F) : Sm.active)
         Button(action: action) {
             Text(label)
-                .font(.nf(14, weight: 550))
-                .foregroundStyle(filled ? Sm.ink : Sm.onInk.opacity(0.82))
+                .font(.nf(14, weight: 600))
+                .foregroundStyle(ink)
                 .lineLimit(1)
-                .padding(.horizontal, 14)
+                .padding(.horizontal, 16)
                 .frame(minHeight: 40)
         }
         .buttonStyle(.pressable(
-            background: filled ? Sm.onInk : .clear,
-            // .settings-unsaved-discard:hover 的 rgba(127,127,127,.18) 放在按下的时候。
-            pressedBackground: filled ? Sm.hover : Color(argb: 0x2E7F7F7F),
-            cornerRadius: 10, scale: 0.97, disabledOpacity: 0.6
+            background: bg,
+            pressedBackground: pressedBg,
+            cornerRadius: 20,
+            scale: 0.97,
+            disabledOpacity: 0.6
         ))
     }
 }
 
 /// 左右晃一下（网页 settings-unsaved-shake）：360ms 里 0 → −6 → 6 → −6 → 6 → 0。
 /// `progress` 每加 1 晃一次：小数部分是这一次晃到哪里了。
-private struct SettingsShakeEffect: GeometryEffect {
+struct SettingsShakeEffect: GeometryEffect {
     var progress: CGFloat
 
     var animatableData: CGFloat {

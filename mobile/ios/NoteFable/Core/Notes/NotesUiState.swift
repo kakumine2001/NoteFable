@@ -106,6 +106,30 @@ struct SlidesWizardUi: Equatable, Sendable {
     var shown: Bool = false
 }
 
+/// 开着的工作区统一「用 AI 生成」面板（#254；Android `AiGenerateUi`）。运行在常驻 `/note-embed` WKWebView 里的 `notefableEmbed.aiGenerate`。
+struct AiGenerateUi: Equatable, Sendable {
+    var target: AiGenerateTarget
+    var request: Int
+    var editor: String? = nil
+    var shown: Bool = false
+}
+
+/// 开着的 PowerPoint（.pptx）导入窗口（#154）。窗口本身是网页（常驻 `/note-embed` WKWebView 里的 `notefableEmbed.pptxImport`）。
+struct PptxImportUi: Equatable, Sendable {
+    var target: PptxImportTarget
+    var request: Int
+    var editor: String? = nil
+    var shown: Bool = false
+}
+
+/// 开着的复习和测验窗口（#154 PR 13；Android `ReviewQuizUi`）。始终盖在打开着的笔记或幻灯片编辑器上。
+struct ReviewQuizUi: Equatable, Sendable {
+    var pageId: String
+    var request: Int
+    var editor: String
+    var shown: Bool = false
+}
+
 struct NotesUiState: Equatable, Sendable {
     var workspace: Workspace = .chat
     var pages: [NotePageSummary] = [] {
@@ -122,7 +146,7 @@ struct NotesUiState: Equatable, Sendable {
     var collapsed: Set<String> = []
     /// 展开了哪些页面（子页面的树）。侧栏和首页共用，重开 App 后保留（网页 notefable:note-pages-expanded:v1）。
     var expanded: Set<String> = []
-    /// 折叠了哪些分区（笔记 / 幻灯片 / 白板），重开 App 后保留（网页 notefable:workspace-sections-collapsed:v1）。
+    /// 折叠了哪些分区（笔记 / 白板 / 幻灯片），重开 App 后保留（网页 notefable:workspace-sections-collapsed:v1）。
     var collapsedSections: Set<PageKind> = []
     /// 各类型能用的功能表（服务端的 kinds，[PageKindTable]）。分区和新建菜单按它画。
     var kindFeatures: [PageKind: PageKindFeatures] = PageKindTable.shared.snapshot
@@ -155,8 +179,24 @@ struct NotesUiState: Equatable, Sendable {
     var reorderError: ReorderFailure? = nil
     /// AI 生成幻灯片的向导；nil 是没开。
     var slidesWizard: SlidesWizardUi? = nil
+    /// 工作区统一「用 AI 生成」面板；nil 是没开。
+    var aiGenerate: AiGenerateUi? = nil
+    /// 复习和测验窗口；nil 是没开。
+    var reviewQuiz: ReviewQuizUi? = nil
+    /// 网页正在做幻灯片的笔记（slidesJobs 消息）：笔记"…"的「生成幻灯片」显示生成中。WebView 换掉后清空。
+    var generatingSlides: Set<String> = []
     /// 全屏向导里撞到使用次数上限（没有打开的编辑器时显示在向导上方）。
     var wizardUsageLimit: UsageLimitInfo? = nil
+    /// 全屏向导里逐页配图撞到文件存储空间上限（没有打开的编辑器时显示在向导上方）。
+    var wizardStorageLimit: StorageLimitInfo? = nil
+    /// 全屏统一 AI 生成面板里撞到使用次数上限。
+    var aiGenerateUsageLimit: UsageLimitInfo? = nil
+    /// 全屏统一 AI 生成面板里撞到文件存储空间上限。
+    var aiGenerateStorageLimit: StorageLimitInfo? = nil
+    /// PowerPoint（.pptx）导入窗口；nil 是没开。
+    var pptxImport: PptxImportUi? = nil
+    /// 全屏 PPTX 导入里撞到文件存储空间上限（没有打开的编辑器时显示在导入窗口上方）。
+    var pptxImportStorageLimit: StorageLimitInfo? = nil
 
     init(workspace: Workspace = .chat, collapsed: Set<String> = [], expanded: Set<String> = [], collapsedSections: Set<PageKind> = []) {
         self.workspace = workspace
@@ -179,7 +219,7 @@ struct NotesUiState: Equatable, Sendable {
     }
 
     /// 工作区的分区（网页 workspaceSections，Android `NotesUiState.sections`，#168）：不在项目里的最上层页面按类型分成
-    /// 笔记、幻灯片、白板（[kinds] 的顺序），子页面跟着父页面。[WorkspaceSection.count] 含子页面（首页小标题后的数字）。
+    /// 笔记、白板、幻灯片（[kinds] 的顺序），子页面跟着父页面。[WorkspaceSection.count] 含子页面（首页小标题后的数字）。
     var sections: [WorkspaceSection] {
         let loose = loosePages
         let types = kinds
@@ -188,6 +228,22 @@ struct NotesUiState: Equatable, Sendable {
             let members = loose.filter { (types.contains($0.kind) ? $0.kind : .note) == kind }
             return WorkspaceSection(kind: kind, roots: members, count: members.reduce(0) { $0 + size($1) })
         }
+    }
+
+    /// 首页按筛选标签显示的新建卡片类型（网页 workspaceCreateKinds，Android `createKindsFor`）：All 显示全部可建类型，选中单类型时仅显示该类型。
+    func createKinds(for activeFilter: PageKind?) -> [PageKind] {
+        activeFilter.map { [$0] } ?? kinds
+    }
+
+    /// 首页「导入 Markdown」仅对 All 和 Notes 显示（Markdown 仅建笔记，网页 showsImportMarkdownForFilter）。
+    func showsImportMarkdown(for activeFilter: PageKind?) -> Bool {
+        activeFilter == nil || activeFilter == .note
+    }
+
+    /// 首页「最近编辑」按筛选标签过滤后的列表，按更新时间倒序取前 [limit] 篇。
+    func recentPages(for activeFilter: PageKind? = nil, limit: Int = 8) -> [NotePageSummary] {
+        let filtered = activeFilter == nil ? pages : pages.filter { sectionKind(of: $0) == activeFilter }
+        return recentHomePages(filtered, limit: limit)
     }
 
     private func isLoose(_ page: NotePageSummary) -> Bool {

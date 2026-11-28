@@ -19,7 +19,7 @@ export type NativeMessage =
   | { type: "missing"; id?: string }
   | { type: "trashed" }
   // ノートの中のページのメンションを押した。アプリはそのページを開く（自分のページか、無いかはアプリ側で確かめる）。
-  | { type: "openPage"; id: string }
+  | { type: "openPage"; id: string; reveal?: string }
   // ノートの下のバックリンク（このページを使った会話）を押した。アプリはその会話を開き、messageId があればそこまで動かす。canOpenChat を持つアプリにだけ送る。
   | { type: "openChat"; id: string; messageId?: string }
   // ページを新しく作った（ノートの AI パネルの「画成図」、AI のスライド生成）。アプリは一覧を読み直す（知らない古いアプリは無視する）。
@@ -28,6 +28,9 @@ export type NativeMessage =
   // 戻る操作を slidesWizard({ action: "back" }) に渡す。busy はまだ生成中（WebView をしばらく残してほしい）。canShowSlidesWizard を持つアプリにだけ送る。
   | { type: "slidesWizard"; state: "open" }
   | { type: "slidesWizard"; state: "closed"; busy: boolean }
+  // いまスライドを作っているノート（入口がノートのもの）。アプリはそのノートの「…」の「Generate slides」を作成中の表示にする。
+  // 読み込んだとき（空でも）と変わるたびに送る。canShowSlidesWizard を持つアプリにだけ送り、知らない古いアプリは無視する。
+  | { type: "slidesJobs"; pageIds: string[] }
   // kept: 保存できなかったが、下書きはこの WebView の localStorage に残っていて後で送り直す（衝突ではない）。アプリはこのとき離れてよい。
   | { type: "flushed"; requestId: string; ok: boolean; kept?: boolean }
   // ファイル置き場の容量が足りず、画像・ファイル・カバーのアップロードが断られた（used / limit はバイト）。
@@ -49,7 +52,17 @@ export type NativeMessage =
   | { type: "fileAbort"; id: string }
   // ホワイトボードで描く道具（ペン・図形など）を使っているか。アプリはこの間、端の戻るジェスチャーを避ける（Android は端ごとに 200dp まで）。
   // 古いアプリは知らない種類として無視する。
-  | { type: "drawing"; active: boolean };
+  | { type: "drawing"; active: boolean }
+  // PowerPoint（.pptx）取り込みの窓が出た・消えた。open の間、アプリは上部バーを隠し、戻る操作を pptxImport({ action: "back" }) に渡す。
+  // canShowPptxImport を持つアプリにだけ送る。
+  | { type: "pptxImport"; state: "open" | "closed" }
+  // 復習・クイズの窓が出た・消えた。open の間、アプリは上部バーを隠し、戻る操作を quiz({ action: "back" }) に渡す。canShowQuiz を持つアプリにだけ送る。
+  | { type: "quiz"; state: "open" }
+  | { type: "quiz"; state: "closed" }
+  // 統合「AI で生成」パネル（ノート・ホワイトボード・スライド）が出た・消えた。open の間、アプリは上部バーを隠し、
+  // 戻る操作を aiGenerate({ action: "back" }) に渡す。busy は裏で生成が続いている状態。canShowAiGenerate を持つアプリにだけ送る。
+  | { type: "aiGenerate"; state: "open" }
+  | { type: "aiGenerate"; state: "closed"; busy: boolean };
 
 // appIcon はアプリの設定で選んだアイコン（絵文字 1 つか画像の data URL、既定のロゴは空文字）を返す。古いアプリにはない。
 // canOpenPage は openPage を処理できるアプリだけが持つ（古いアプリは持たない。そのときは送らずに元のリンクの動きにする）。
@@ -61,7 +74,7 @@ export type NativeMessage =
 // canOpenChat は openChat を処理できるアプリだけが持つ（古いアプリにはバックリンクの会話を出さない）。
 export type NativeHost = {
   postMessage: (json: string) => void; appIcon?: () => string; language?: () => string; theme?: () => string; canOpenPage?: () => boolean; canShowStorageLimit?: () => boolean;
-  canShowUsageLimit?: () => boolean; canPresent?: () => boolean; canSaveFile?: () => boolean; canShowSlidesWizard?: () => boolean; canOpenChat?: () => boolean;
+  canShowUsageLimit?: () => boolean; canPresent?: () => boolean; canSaveFile?: () => boolean; canShowSlidesWizard?: () => boolean; canOpenChat?: () => boolean; canShowPptxImport?: () => boolean; canShowQuiz?: () => boolean; canShowAiGenerate?: () => boolean;
 };
 // アプリ → web。アプリは evaluateJavascript で window.notefableEmbed.flush("<requestId>") などを呼ぶ。
 // pageUpdated はアプリのチャットで編集案を適用したときに、サーバーが返した新しいページ（JSON 文字列かオブジェクト）を渡す。
@@ -90,8 +103,14 @@ export type EmbedApi = {
   // { action: "back" } で一番上の面（ノートを選ぶ面、次に窓）を閉じる。何も開いていない・形が違うときは false。
   // アプリはこの関数があるかで、ウェブが対応しているかを見分ける。
   slidesWizard: (request: unknown) => boolean;
+  // 復習・クイズの窓（JSON 文字列でもよい）：{ action: "open", pageId, model?, reasoning? } で開き、{ action: "back" } で閉じる。
+  quiz: (request: unknown) => boolean;
   // アプリの画面（ドロワー・ゴミ箱）で、ページや会話の名前・アイコンを変えた、消した、元に戻したので、バックリンクを読み直させる。
   refreshBacklinks: () => boolean;
+  // PowerPoint（.pptx）取り込みの窓（JSON 文字列でもよい）：{ action: "open", groupId?, parentId? } または { action: "back" }。
+  pptxImport: (request: unknown) => boolean;
+  // 統合「AI で生成」パネル（JSON 文字列でもよい）：{ action: "open", kind?, groupId?, parentId?, prompt?, autoStart?, model?, reasoning? } または { action: "back" }。
+  aiGenerate: (request: unknown) => boolean;
 };
 
 type BridgeWindow = { NoteFableNative?: unknown; notefableEmbed?: EmbedApi };
@@ -180,6 +199,27 @@ export function nativeCanShowSlidesWizard(target: BridgeWindow | undefined = bro
   const native = host(target);
   if (!native || typeof native.canShowSlidesWizard !== "function") return false;
   try { return native.canShowSlidesWizard() === true; } catch { return false; }
+}
+
+// アプリが PowerPoint 取り込みの窓の出し入れ（pptxImport の消息）を受け持てるか。古いアプリや普通のブラウザでは false。
+export function nativeCanShowPptxImport(target: BridgeWindow | undefined = browserWindow()): boolean {
+  const native = host(target);
+  if (!native || typeof native.canShowPptxImport !== "function") return false;
+  try { return native.canShowPptxImport() === true; } catch { return false; }
+}
+
+// アプリが復習・クイズの窓の出し入れ（quiz の消息）を受け持てるか。古いアプリや普通のブラウザでは false。
+export function nativeCanShowQuiz(target: BridgeWindow | undefined = browserWindow()): boolean {
+  const native = host(target);
+  if (!native || typeof native.canShowQuiz !== "function") return false;
+  try { return native.canShowQuiz() === true; } catch { return false; }
+}
+
+// アプリが統合「AI で生成」パネルの出し入れ（aiGenerate の消息）を受け持てるか。古いアプリや普通のブラウザでは false。
+export function nativeCanShowAiGenerate(target: BridgeWindow | undefined = browserWindow()): boolean {
+  const native = host(target);
+  if (!native || typeof native.canShowAiGenerate !== "function") return false;
+  try { return native.canShowAiGenerate() === true; } catch { return false; }
 }
 
 // アプリの中（WebView）で開いているか。
@@ -374,7 +414,101 @@ export function parseSlidesWizardRequest(value: unknown): SlidesWizardCommand | 
   return open({ type: "new", groupId, parentId });
 }
 
-export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, theme = saveThemePreference, slides = dispatchSlidesCommand, openPage, close, pageTrashed = dispatchPagesTrashed, slidesWizard, refreshBacklinks = dispatchBacklinksStale, language, reveal = () => {}, post }: {
+export type PptxImportCommand =
+  | { action: "open"; groupId: string | null; parentId: string | null }
+  | { action: "back" };
+
+export function parsePptxImportRequest(value: unknown): PptxImportCommand | null {
+  let raw: unknown = value;
+  if (typeof raw === "string") {
+    try { raw = JSON.parse(raw); } catch { return null; }
+  }
+  if (!raw || typeof raw !== "object") return null;
+  const candidate = raw as { action?: unknown; groupId?: unknown; parentId?: unknown };
+  if (candidate.action === "back") return { action: "back" };
+  if (candidate.action !== "open") return null;
+  const id = (item: unknown): item is string => typeof item === "string" && REVEAL_TARGET.test(item);
+  const groupId = candidate.groupId ?? null;
+  const parentId = candidate.parentId ?? null;
+  if ((groupId !== null && !id(groupId)) || (parentId !== null && !id(parentId))) return null;
+  return { action: "open", groupId, parentId };
+}
+
+export type QuizCommand =
+  | { action: "open"; pageId: string; model: string | null; reasoning: string | null }
+  | { action: "back" };
+
+// アプリから渡された復習・クイズの窓の依頼を確かめる。知らない操作や不正な ID は捨てる。
+export function parseQuizRequest(value: unknown): QuizCommand | null {
+  let raw: unknown = value;
+  if (typeof raw === "string") {
+    try { raw = JSON.parse(raw); } catch { return null; }
+  }
+  if (!raw || typeof raw !== "object") return null;
+  const candidate = raw as { action?: unknown; pageId?: unknown; model?: unknown; reasoning?: unknown };
+  if (candidate.action === "back") return { action: "back" };
+  if (candidate.action !== "open") return null;
+  if (typeof candidate.pageId !== "string" || !REVEAL_TARGET.test(candidate.pageId)) return null;
+  const text = (item: unknown) => (typeof item === "string" && item.trim() ? item.trim() : null);
+  return { action: "open", pageId: candidate.pageId, model: text(candidate.model), reasoning: text(candidate.reasoning) };
+}
+
+export type AiGenerateCommand =
+  | {
+    action: "open";
+    kind: PageKind | null;
+    groupId: string | null;
+    parentId: string | null;
+    prompt: string | null;
+    autoStart: boolean;
+    model: string | null;
+    reasoning: string | null;
+  }
+  | { action: "back" };
+
+// アプリから渡された統合「AI で生成」パネルの依頼を確かめる。知らない操作や不正な ID は捨てる。
+export function parseAiGenerateRequest(value: unknown): AiGenerateCommand | null {
+  let raw: unknown = value;
+  if (typeof raw === "string") {
+    try { raw = JSON.parse(raw); } catch { return null; }
+  }
+  if (!raw || typeof raw !== "object") return null;
+  const candidate = raw as {
+    action?: unknown;
+    kind?: unknown;
+    groupId?: unknown;
+    parentId?: unknown;
+    prompt?: unknown;
+    autoStart?: unknown;
+    model?: unknown;
+    reasoning?: unknown;
+  };
+  if (candidate.action === "back") return { action: "back" };
+  if (candidate.action !== "open") return null;
+  const id = (item: unknown): item is string => typeof item === "string" && REVEAL_TARGET.test(item);
+  const text = (item: unknown) => (typeof item === "string" && item.trim() ? item.trim() : null);
+  const kindRaw = candidate.kind ?? null;
+  const kind: PageKind | null = kindRaw === null ? null
+    : kindRaw === "note" || kindRaw === "whiteboard" || kindRaw === "slides" ? kindRaw
+      : undefined as never;
+  if (kind === undefined) return null;
+  const groupId = candidate.groupId ?? null;
+  const parentId = candidate.parentId ?? null;
+  if ((groupId !== null && !id(groupId)) || (parentId !== null && !id(parentId))) return null;
+  const prompt = typeof candidate.prompt === "string" ? candidate.prompt.slice(0, 2000) : null;
+  return {
+    action: "open",
+    kind,
+    groupId,
+    parentId,
+    prompt: prompt && prompt.trim() ? prompt : null,
+    autoStart: candidate.autoStart === true,
+    model: text(candidate.model),
+    reasoning: text(candidate.reasoning),
+  };
+}
+
+export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, theme = saveThemePreference, slides = dispatchSlidesCommand, openPage, close, pageTrashed = dispatchPagesTrashed, slidesWizard, pptxImport, quiz, aiGenerate, refreshBacklinks = dispatchBacklinksStale, language, reveal = () => {}, post }: {
   flush: () => Promise<boolean>;
   reveal?: (target: string) => void;
   language?: (locale: Locale) => Promise<boolean>;
@@ -391,6 +525,9 @@ export function createEmbedApi({ flush, draftKept = () => false, openHistory, pa
   pageTrashed?: (ids: string[]) => void;
   // 開けた・閉じられたら true。
   slidesWizard?: (command: SlidesWizardCommand) => boolean;
+  pptxImport?: (command: PptxImportCommand) => boolean;
+  quiz?: (command: QuizCommand) => boolean;
+  aiGenerate?: (command: AiGenerateCommand) => boolean;
   refreshBacklinks?: () => void;
   post: (message: NativeMessage) => void;
 }): EmbedApi {
@@ -467,9 +604,24 @@ export function createEmbedApi({ flush, draftKept = () => false, openHistory, pa
       const command = parseSlidesWizardRequest(value);
       return command ? slidesWizard(command) : false;
     },
+    quiz(value) {
+      if (!quiz) return false;
+      const command = parseQuizRequest(value);
+      return command ? quiz(command) : false;
+    },
     refreshBacklinks() {
       refreshBacklinks();
       return true;
+    },
+    pptxImport(value) {
+      if (!pptxImport) return false;
+      const command = parsePptxImportRequest(value);
+      return command ? pptxImport(command) : false;
+    },
+    aiGenerate(value) {
+      if (!aiGenerate) return false;
+      const command = parseAiGenerateRequest(value);
+      return command ? aiGenerate(command) : false;
     },
   };
 }

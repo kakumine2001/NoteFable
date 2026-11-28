@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 // 回答下面的操作行（网页 answer-actions.tsx，Android `AssistantTurn.kt` 的 AnswerActions + `AnswerActions.kt`，手机 412 宽实测）：
 // 36×36 的按钮（圆角 4.8、图标 16、线宽 1.9、Muted 色、间距 2），整体往行首挪 10.4 让图标和正文的行首对齐，距正文 6.4。
 // 从行首起：版本切换「‹ 2/3 ›」（重新生成过的回答）、复制（复制后图标换成 ✓ 停 2 秒）、"…"（Ellipsis 18）。
-// "…"的菜单和侧栏菜单同一外观（`.actionsMenu`），行首对齐按钮、在按钮下 4，放不下就翻到上方：
+// "…"的菜单使用原生 `.nfPopover`（带加载状态与行内错误）：
 // 重新生成、在新聊天中分支（已经保存到服务端的回答才有；这个聊天在发送或生成时不能点）、存到笔记（保存中转圈、
 // 保存后变 ✓ 并多出"打开已保存的笔记"）、画成图（Workflow；已经保存到服务端的回答才有）、下载对话、报告回答。
 // 错误和网页一样只有一处：任何一个操作开始时清掉上一条；菜单开着时显示在菜单里，关着时显示在操作行下方。
@@ -27,6 +27,8 @@ struct AnswerActions: View {
     /// 每次复制加一，2 秒后归零；连续点时重新计时。
     @State private var copiedTick = 0
     @State private var menuOpen = false
+    /// Popover 是否仍处于呈现或收起动画中（点击外部关闭期间 `menuOpen` 可能先变 false）。
+    @State private var popoverActive = false
     @State private var downloading = false
     @State private var reporting = false
     @State private var menuError: AnswerMenuError? = nil
@@ -35,6 +37,8 @@ struct AnswerActions: View {
     @State private var exportDocument: MarkdownExportDocument? = nil
     @State private var exportName = ""
     @State private var exporting = false
+    /// `.popover` 收起完成后立刻拉起 `.fileExporter` 的待导出载荷。
+    @State private var pendingExport: (document: MarkdownExportDocument, name: String)? = nil
 
     var body: some View {
         let copied = copiedTick > 0
@@ -51,14 +55,31 @@ struct AnswerActions: View {
                 ) {
                     menuError = nil
                     UIPasteboard.general.string = message.content
+                    Haptics.light()
                     copiedTick += 1
                 }
                 if let sessionId {
                     NFIconButton(Lucide.ellipsis, label: L("answer_more_options"), size: 36, iconSize: 18, strokeWidth: 1.9) {
+                        popoverActive = true
                         menuOpen = true
                     }
-                    .actionsMenu(isPresented: $menuOpen, alignment: .leading, label: L("answer_options")) {
-                        menu(sessionId: sessionId)
+                    .nfPopover(
+                        isPresented: $menuOpen,
+                        width: 256,
+                        adaptCompactToSheet: false,
+                        onDismiss: {
+                            popoverActive = false
+                            guard let pending = pendingExport else { return }
+                            pendingExport = nil
+                            exportDocument = pending.document
+                            exportName = pending.name
+                            exporting = true
+                        }
+                    ) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            menu(sessionId: sessionId)
+                        }
+                        .onAppear { popoverActive = true }
                     }
                 }
             }
@@ -80,7 +101,11 @@ struct AnswerActions: View {
             if !Task.isCancelled { copiedTick = 0 }
         }
         // 读取对话时离开这条回答（滚出屏幕）就不再弹出保存位置的选择。
-        .onDisappear { downloadTask?.cancel() }
+        .onDisappear {
+            downloadTask?.cancel()
+            pendingExport = nil
+            popoverActive = false
+        }
         .reportDialog(.answer(messageId: message.id), isPresented: $reporting)
         .fileExporter(
             isPresented: $exporting,
@@ -223,10 +248,17 @@ struct AnswerActions: View {
                 // 不管点的是哪条回答，都读这个对话保存在服务端的全部记录。
                 let export = try await exports.exportConversation(sessionId: sessionId, date: answerLocalDate())
                 if !Task.isCancelled {
-                    menuOpen = false
-                    exportDocument = MarkdownExportDocument(text: export.markdown)
-                    exportName = MarkdownExportDocument.baseName(export.fileName)
-                    exporting = true
+                    let document = MarkdownExportDocument(text: export.markdown)
+                    let name = MarkdownExportDocument.baseName(export.fileName)
+                    if menuOpen || popoverActive {
+                        // 等 `.popover` 的 UIKit 收起完成回调再拉起 `.fileExporter`，即使下载途中用户点外部关闭也不冲突。
+                        pendingExport = (document, name)
+                        menuOpen = false
+                    } else {
+                        exportDocument = document
+                        exportName = name
+                        exporting = true
+                    }
                 }
             } catch is CancellationError {
                 // 离开了这条回答：不算失败。

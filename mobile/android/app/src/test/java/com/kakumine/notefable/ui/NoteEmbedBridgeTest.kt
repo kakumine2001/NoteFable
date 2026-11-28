@@ -2,6 +2,7 @@ package com.kakumine.notefable.ui
 
 import com.kakumine.notefable.data.EmbedMessage
 import com.kakumine.notefable.data.PageKind
+import com.kakumine.notefable.data.PptxImportTarget
 import com.kakumine.notefable.data.SlidesWizardSource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -119,20 +120,25 @@ class NoteEmbedBridgeTest {
         val closed = EmbedMessage.SlidesWizard(open = false, busy = true)
         val openPage = EmbedMessage.OpenPage("deck")
         val limit = EmbedMessage.UsageLimit("guest", "chat")
+        val storage = EmbedMessage.StorageLimit("member", 10L, 20L)
         for (editor in listOf(null, "p1", SLIDES_WIZARD_EDITOR)) {
             assertEquals(EmbedRoute.Wizard, embedRoute(closed, editor))
             assertEquals(EmbedRoute.PagesChanged, embedRoute(EmbedMessage.PagesChanged, editor))
+            assertEquals(EmbedRoute.SlidesJobs, embedRoute(EmbedMessage.SlidesJobs(setOf("p1")), editor))
         }
         // 全屏向导：打开幻灯片和上限交给向导，别的（上一个页面晚到的）丢掉。
         assertEquals(EmbedRoute.Wizard, embedRoute(openPage, SLIDES_WIZARD_EDITOR))
         assertEquals(EmbedRoute.Wizard, embedRoute(limit, SLIDES_WIZARD_EDITOR))
+        assertEquals(EmbedRoute.Wizard, embedRoute(storage, SLIDES_WIZARD_EDITOR))
         assertEquals(EmbedRoute.Drop, embedRoute(EmbedMessage.SaveState("saved"), SLIDES_WIZARD_EDITOR))
         assertEquals(EmbedRoute.Drop, embedRoute(EmbedMessage.Ready("p1", "T", null), SLIDES_WIZARD_EDITOR))
         // 盖在编辑器上时和编辑器的消息一样处理；停靠中的丢掉。
         assertEquals(EmbedRoute.Editor, embedRoute(openPage, "p1"))
         assertEquals(EmbedRoute.Editor, embedRoute(limit, "p1"))
+        assertEquals(EmbedRoute.Editor, embedRoute(storage, "p1"))
         assertEquals(EmbedRoute.Drop, embedRoute(openPage, null))
         assertEquals(EmbedRoute.Drop, embedRoute(limit, null))
+        assertEquals(EmbedRoute.Drop, embedRoute(storage, null))
     }
 
     @Test
@@ -140,5 +146,119 @@ class NoteEmbedBridgeTest {
         assertTrue(supportsPresentation(PageKind.Note))
         assertTrue(supportsPresentation(PageKind.Slides))
         assertFalse(supportsPresentation(PageKind.Whiteboard))
+    }
+
+    @Test
+    fun `pptx import parses messages, builds scripts, routes events and expands file chooser mime types`() {
+        assertEquals(EmbedMessage.PptxImport(open = true), EmbedMessage.parse("""{"type":"pptxImport","state":"open"}"""))
+        assertEquals(EmbedMessage.PptxImport(open = false), EmbedMessage.parse("""{"type":"pptxImport","state":"closed"}"""))
+        assertNull(EmbedMessage.parse("""{"type":"pptxImport","state":"other"}"""))
+
+        fun script(request: String) =
+            "(function(){var e=window.notefableEmbed;if(!e)return 'loading';if(typeof e.pptxImport!=='function')return 'unsupported';" +
+                "return e.pptxImport($request)===true?'open':'rejected'})()"
+        assertEquals(script("""{"action":"open"}"""), NoteEmbedBridge.pptxImportOpenScript())
+        assertEquals(script("""{"action":"open","groupId":"g_1"}"""), NoteEmbedBridge.pptxImportOpenScript(PptxImportTarget(groupId = "g_1")))
+        assertEquals(script("""{"action":"open","parentId":"p-2"}"""), NoteEmbedBridge.pptxImportOpenScript(PptxImportTarget(parentId = "p-2")))
+        assertNull(NoteEmbedBridge.pptxImportOpenScript(PptxImportTarget(groupId = "bad/id")))
+        assertNull(NoteEmbedBridge.pptxImportOpenScript(PptxImportTarget(parentId = "x'y")))
+        assertEquals(
+            "(function(){var e=window.notefableEmbed;if(e&&typeof e.pptxImport==='function')return e.pptxImport({\"action\":\"back\"})===true;return false})()",
+            NoteEmbedBridge.PPTX_IMPORT_BACK_SCRIPT,
+        )
+
+        val opened = EmbedMessage.PptxImport(open = true)
+        val openPage = EmbedMessage.OpenPage("deck_1")
+        val storage = EmbedMessage.StorageLimit("member", 10L, 20L)
+        for (editor in listOf(null, "p1", PPTX_IMPORT_EDITOR)) {
+            assertEquals(EmbedRoute.PptxImport, embedRoute(opened, editor))
+        }
+        assertEquals(EmbedRoute.PptxImport, embedRoute(openPage, PPTX_IMPORT_EDITOR))
+        assertEquals(EmbedRoute.PptxImport, embedRoute(storage, PPTX_IMPORT_EDITOR))
+        assertEquals(EmbedRoute.Drop, embedRoute(EmbedMessage.SaveState("saved"), PPTX_IMPORT_EDITOR))
+        assertEquals(EmbedRoute.Editor, embedRoute(openPage, "p1"))
+        assertEquals(EmbedRoute.Drop, embedRoute(openPage, null))
+
+        val pptxMimes = webFileChooserMimeTypes(arrayOf(".pptx,$PPTX_MIME_TYPE"))
+        assertTrue(PPTX_MIME_TYPE in pptxMimes)
+        assertTrue("application/octet-stream" in pptxMimes)
+        assertTrue("application/zip" in pptxMimes)
+        assertEquals(listOf("application/pdf"), webFileChooserMimeTypes(arrayOf(".pdf")))
+        assertEquals(emptyList<String>(), webFileChooserMimeTypes(arrayOf("*/*")))
+        assertEquals(emptyList<String>(), webFileChooserMimeTypes(emptyArray()))
+    }
+
+    @Test
+    fun `review quiz scripts validate ids and kinds and menu supports notes and slides only`() {
+        assertTrue(supportsReviewQuiz(PageKind.Note))
+        assertTrue(supportsReviewQuiz(PageKind.Slides))
+        assertFalse(supportsReviewQuiz(PageKind.Whiteboard))
+
+        val open = NoteEmbedBridge.quizOpenScript("p_1", " gpt-6-luna ", "high")
+        assertNotNull(open)
+        assertTrue(open!!.contains(""""action":"open""""))
+        assertTrue(open.contains(""""pageId":"p_1""""))
+        assertTrue(open.contains(""""model":"gpt-6-luna""""))
+        assertTrue(open.contains(""""reasoning":"high""""))
+        assertNull(NoteEmbedBridge.quizOpenScript("bad id"))
+        assertNull(NoteEmbedBridge.quizOpenScript(""))
+
+        assertEquals(true, NoteEmbedBridge.quizAnswer("\"open\""))
+        assertEquals(false, NoteEmbedBridge.quizAnswer("\"unsupported\""))
+        assertEquals(false, NoteEmbedBridge.quizAnswer("\"rejected\""))
+        assertNull(NoteEmbedBridge.quizAnswer("\"loading\""))
+        assertNull(NoteEmbedBridge.quizAnswer(null))
+        assertEquals(
+            "(function(){var e=window.notefableEmbed;if(e&&typeof e.quiz==='function')return e.quiz({\"action\":\"back\"})===true;return false})()",
+            NoteEmbedBridge.QUIZ_BACK_SCRIPT,
+        )
+        assertEquals(EmbedMessage.Quiz(open = true), EmbedMessage.parse("""{"type":"quiz","state":"open"}"""))
+        assertEquals(EmbedMessage.Quiz(open = false), EmbedMessage.parse("""{"type":"quiz","state":"closed"}"""))
+        assertNull(EmbedMessage.parse("""{"type":"quiz","state":"other"}"""))
+    }
+
+    @Test
+    fun `ai generate parses messages, builds scripts and routes events`() {
+        assertEquals(EmbedMessage.AiGenerate(open = true, busy = false), EmbedMessage.parse("""{"type":"aiGenerate","state":"open"}"""))
+        assertEquals(EmbedMessage.AiGenerate(open = false, busy = true), EmbedMessage.parse("""{"type":"aiGenerate","state":"closed","busy":true}"""))
+        assertEquals(EmbedMessage.AiGenerate(open = false, busy = false), EmbedMessage.parse("""{"type":"aiGenerate","state":"closed"}"""))
+        assertNull(EmbedMessage.parse("""{"type":"aiGenerate","state":"other"}"""))
+
+        val script = NoteEmbedBridge.aiGenerateOpenScript(
+            com.kakumine.notefable.data.AiGenerateTarget(
+                kind = PageKind.Whiteboard,
+                groupId = "g_1",
+                prompt = "System architecture",
+                autoStart = true,
+            ),
+            model = "gpt-6-luna",
+            reasoning = "high",
+        )
+        assertNotNull(script)
+        assertTrue(script!!.contains(""""action":"open""""))
+        assertTrue(script.contains(""""kind":"whiteboard""""))
+        assertTrue(script.contains(""""groupId":"g_1""""))
+        assertTrue(script.contains(""""prompt":"System architecture""""))
+        assertTrue(script.contains(""""autoStart":true"""))
+        assertTrue(script.contains(""""model":"gpt-6-luna""""))
+        assertTrue(script.contains(""""reasoning":"high""""))
+        assertNull(NoteEmbedBridge.aiGenerateOpenScript(com.kakumine.notefable.data.AiGenerateTarget(groupId = "bad/id")))
+        assertNull(NoteEmbedBridge.aiGenerateOpenScript(com.kakumine.notefable.data.AiGenerateTarget(parentId = "bad id")))
+        assertEquals(
+            "(function(){var e=window.notefableEmbed;if(e&&typeof e.aiGenerate==='function')return e.aiGenerate({\"action\":\"back\"})===true;return false})()",
+            NoteEmbedBridge.AI_GENERATE_BACK_SCRIPT,
+        )
+
+        val opened = EmbedMessage.AiGenerate(open = true)
+        val openPage = EmbedMessage.OpenPage("p_new")
+        val usage = EmbedMessage.UsageLimit("guest", "chat")
+        val storage = EmbedMessage.StorageLimit("member", 10L, 20L)
+        for (editor in listOf(null, "p1", AI_GENERATE_EDITOR)) {
+            assertEquals(EmbedRoute.AiGenerate, embedRoute(opened, editor))
+        }
+        assertEquals(EmbedRoute.AiGenerate, embedRoute(openPage, AI_GENERATE_EDITOR))
+        assertEquals(EmbedRoute.AiGenerate, embedRoute(usage, AI_GENERATE_EDITOR))
+        assertEquals(EmbedRoute.AiGenerate, embedRoute(storage, AI_GENERATE_EDITOR))
+        assertEquals(EmbedRoute.Drop, embedRoute(EmbedMessage.SaveState("saved"), AI_GENERATE_EDITOR))
     }
 }

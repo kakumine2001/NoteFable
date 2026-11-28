@@ -181,6 +181,6 @@ export function ChatSidebar({
 function projectHint(project: ChatProject, t: Translate) {
   const parts = [];
   if (project.hasInstructions) parts.push(t("instructions"));
-  if (project.noteCount) parts.push(project.noteCount === 1 ? t("1 reference note") : t("{count} reference notes", { count: project.noteCount }));
+  if (project.noteCount) parts.push(project.noteCount === 1 ? t("1 reference page") : t("{count} reference pages", { count: project.noteCount }));
   return parts.join(" + ");
 }

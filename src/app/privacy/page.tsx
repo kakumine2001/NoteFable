@@ -12,7 +12,7 @@ export default function PrivacyPage() {
     <LegalPage title="Privacy Policy">
       <LegalSection title="1. About NoteFable">
         <p>
-          NoteFable is a personal AI study assistant with chat and a Workspace for your notes, available at
+          NoteFable is a personal AI study assistant with chat and a Workspace for your notes, slide decks and whiteboards, available at
           {" "}<a href="https://notefable.com">notefable.com</a>. It is run by an individual developer.
           This policy explains what data NoteFable handles and why. Questions: <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a>.
         </p>
@@ -56,8 +56,8 @@ export default function PrivacyPage() {
           <li>
             <strong>Reports.</strong> If you report AI content, the reason you give, the reported content and your internal account ID are emailed to us so
             we can review it: for an answer, the answer and the message before it; for a proposed page change, the page title and the text before and after
-            the change; for a page the AI wrote, its title, its current text and the AI changes applied to it; for an AI-made slide image, the description it
-            was made from and where it is stored. We keep the email only as long as we need it for the review.
+            the change; for a page the AI wrote, its title, its current text and the AI changes applied to it; for an AI-made image in your Workspace (in a note, slide deck or whiteboard), the
+            description it was made from and where it is stored. We keep the email only as long as we need it for the review.
           </li>
           <li>
             <strong>The Android and iOS apps.</strong> The apps store the same cookies on your phone and send the same data as the website. They read only the photos
@@ -66,7 +66,7 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong>Content you create.</strong> The messages you send, the AI’s replies (with the short reasoning summary and web-search steps shown
-            alongside them), files and images you attach or generate, your Workspace content (notes, covers, images, files and groups), and any instructions you write for the AI (custom instructions in Settings and
+            alongside them), files and images you attach or generate, your Workspace content (notes, slide decks, whiteboards, covers, images, files and projects), and any instructions you write for the AI (custom instructions in Settings and
             project instructions), which are sent to the AI provider along with your messages.
             Attached documents such as PDFs and text files are kept as extracted text; images are kept as files. If you upload a profile photo, we keep
             the cropped photo (about 512×512) in file storage and delete the old file when you replace or remove it.
@@ -76,12 +76,16 @@ export default function PrivacyPage() {
             (it can include encrypted reasoning) and send it back to the same provider on later turns so long chats keep working. It is not shown in the app.
           </li>
           <li>
+            <strong>Usage limits.</strong> We count your messages, images and reports to apply the limits. For people who are not signed in, we also keep these
+            counts against a keyed hash of the network address (not the address itself).
+          </li>
+          <li>
             <strong>Usage and performance data.</strong> We use Vercel Web Analytics and Speed Insights to count page views and measure loading speed.
             This data is aggregated and does not use cookies.
           </li>
           <li>
-            <strong>Browser storage.</strong> Your browser keeps a few interface preferences (for example which note groups are collapsed) and
-            unsaved local drafts of notes so they can be restored.
+            <strong>Browser storage.</strong> Your browser keeps a few interface preferences (for example which Workspace sections and projects are
+            collapsed) and unsaved local drafts of your notes, slide decks and whiteboards so they can be restored.
           </li>
         </ul>
       </LegalSection>
@@ -103,9 +107,9 @@ export default function PrivacyPage() {
             {" "}<a href="https://openai.com/policies/privacy-policy">OpenAI</a>,{" "}
             <a href="https://www.anthropic.com/legal/privacy">Anthropic</a> or{" "}
             <a href="https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html">DeepSeek</a> (DeepSeek is operated from China).
-            When the assistant looks at your notes, the note text it reads goes to that same provider; if the reply uses web search, that search also runs at
+            When the assistant looks at your Workspace pages (notes, slide decks and whiteboards), the text it reads goes to that same provider; if the reply uses web search, that search also runs at
             that provider. Image generation and image editing always go to OpenAI, whichever chat model is selected.
-            To power meaning-based note search, note titles, note text and note search queries are also sent to OpenAI to create search vectors (stored in our database and deleted when you delete the note or your account), whichever chat model is selected.
+            To power meaning-based search, page titles, the text of your notes, slide decks and whiteboards, and search queries are also sent to OpenAI to create search vectors (stored in our database and deleted when the page is permanently deleted or you delete your account), whichever chat model is selected.
             For OpenAI chats we also send an internal account ID so OpenAI can apply its safety checks. Each provider handles the data under its own policy.
           </li>
           <li>
@@ -142,24 +146,25 @@ export default function PrivacyPage() {
 
       <LegalSection title="6. Retention and deletion">
         <p>
-          We keep your data until you delete it. You can delete a chat or a note in NoteFable. That removes it from your account in our database, including the
-          messages and note edit proposals tied to that chat. Copies of uploaded images, generated images, note files and cover images can remain in file storage
+          We keep your data until you delete it. You can delete a chat in NoteFable. That removes it from your account in our database, including the
+          messages and AI page proposals tied to that chat. A deleted page (a note, slide deck or whiteboard) first goes to Trash, where you can restore it. It is permanently removed,
+          with its history and search vectors, when you delete it from Trash, or after 30 days the next time Trash is opened or another page is deleted. Copies of uploaded images, generated images, page files and cover images can remain in file storage
           until we remove them. Signing out does not delete anything.
         </p>
         <p>
           <strong>Deleting your account.</strong> When signed in, open <em>Settings → Account → Delete account</em> on the website or in the Android or iOS app. This immediately and
-          permanently deletes your account and everything in it: chats, messages, notes, note history, projects, uploaded and generated images, files, your profile
+          permanently deletes your account and everything in it: chats, messages, notes, slide decks, whiteboards, page history, projects, uploaded and generated images, files, your profile
           and settings. It also ends a Pro subscription bought on the website immediately, deletes your customer record at Stripe, and stops a Google Play subscription from renewing. Apple subscriptions are managed in the App Store. We request revocation of Apple sign-in authorization during deletion. If Apple is unavailable, you can revoke access in your Apple Account settings. Payment providers retain payment records as the law requires. Database backups that may still contain it are overwritten within 30 days. To keep other signed-in devices from re-creating the account, we keep a one-way hash of linked sign-in identifiers (not the ID or address itself) for 400 days. If you cannot sign in, email
           {" "}<a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a> from the account’s address and we will delete it within 30 days.
-          Data you used without signing in is tied only to your browser or app: delete its chats and notes in NoteFable, or clear the app’s data. See
+          Data you used without signing in is tied only to your browser or app: delete its chats, projects and Workspace pages in NoteFable and empty the Trash (clearing cookies or the app’s data only removes your access; it does not delete the data on our servers). See
           {" "}<Link href="/delete-account">notefable.com/delete-account</Link>.
         </p>
       </LegalSection>
 
       <LegalSection title="7. Security">
         <p>
-          Data is sent over HTTPS, the device cookie is signed, and each private chat and note can be read only through the browser or signed-in account that created it.
-          If you explicitly publish a note to the web, anyone with its share link can read that note (and its sub-pages, when included) until you unpublish it, it expires, or you delete it.
+          Data is sent over HTTPS, the device cookie is signed, and each private chat and page can be read only through the browser or signed-in account that created it.
+          If you explicitly publish a note, slide deck or whiteboard to the web, anyone with its share link can view that page (and its sub-pages, when included) until you unpublish it, it expires, or you delete it.
           No online service is perfectly secure, and anyone who can use your browser can use your anonymous data, so avoid using NoteFable without signing in on shared devices.
         </p>
       </LegalSection>

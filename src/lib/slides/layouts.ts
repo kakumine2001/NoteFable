@@ -114,10 +114,11 @@ const FALLBACK_ROLES: Record<Role, Role[]> = {
   caption: ["caption", "subtitle", "attribution", "body"],
 };
 
-// 置き場所の要素に中身があるか（空の置き場所は版式を替えると消える）。
+// 置き場所の要素に中身があるか（空の置き場所は版式を替えると消える。図形・線・表は見た目自体が中身なので常に残す）。
 export function placeholderHasContent(element: SlideElement): boolean {
-  if (element.type === "text" || element.type === "shape") return !isRichDocEmpty(element.doc);
-  if (element.type === "image" || element.type === "whiteboard") return !!element.src;
+  if (element.type === "text") return !isRichDocEmpty(element.doc);
+  if (element.type === "image") return Boolean(element.src || element.pendingImagePrompt);
+  if (element.type === "whiteboard") return Boolean(element.src);
   return true;
 }
 

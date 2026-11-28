@@ -387,10 +387,42 @@ describe("cross-review fixes", () => {
   });
 
   it("keeps section names and private whiteboard ids out of the public deck", () => {
-    const board = { id: "w1", type: "whiteboard", x: 0, y: 0, w: 100, h: 100, rotation: 0, src: FILE, pageId: "privatePage", frameId: "frame-1", frameName: "Sketch" };
+    const board = { id: "w1", type: "whiteboard", x: 0, y: 0, w: 100, h: 100, rotation: 0, src: FILE, pageId: "privatePage", frameId: "frame-1", frameName: "Sketch", sourceVersion: 7 };
+    const normalized = normalizeDeck({ format: 1, theme: { id: "simple", mode: "light" }, slides: [{ id: "s1", layout: "blank", elements: [board] }] });
+    expect(normalized.slides[0].elements[0]).toMatchObject({ type: "whiteboard", sourceVersion: 7 });
+    const zeroVersion = normalizeDeck({ format: 1, theme: { id: "simple", mode: "light" }, slides: [{ id: "s1", layout: "blank", elements: [{ ...board, sourceVersion: 0 }] }] });
+    expect(zeroVersion.slides[0].elements[0]).toMatchObject({ type: "whiteboard", sourceVersion: 0 });
+    const badVersion = normalizeDeck({ format: 1, theme: { id: "simple", mode: "light" }, slides: [{ id: "s1", layout: "blank", elements: [{ ...board, sourceVersion: -1 }] }] });
+    expect("sourceVersion" in badVersion.slides[0].elements[0]).toBe(false);
+
     const result = publicDeck({ slides: [{ id: "s1", layout: "blank", section: "Secret plan", elements: [board] }] });
     expect(result.slides[0].section).toBeUndefined();
     expect(result.slides[0].elements[0]).toMatchObject({ type: "whiteboard", pageId: "", frameId: "", frameName: "Sketch" });
+    expect("sourceVersion" in result.slides[0].elements[0]).toBe(false);
+  });
+
+  it("normalizes pendingImagePrompt only on empty image slots and strictly strips it from publicDeck", () => {
+    const normalized = normalizeDeck({
+      format: 1,
+      theme: { id: "simple", mode: "light" },
+      slides: [{
+        id: "s1",
+        layout: "imageText",
+        elements: [
+          { id: "emptyImg", type: "image", role: "image", x: 0, y: 0, w: 400, h: 400, rotation: 0, src: "", fit: "cover", radius: 16, pendingImagePrompt: "  A quiet\u0000 mountain lake  " },
+          { id: "filledImg", type: "image", role: "image", x: 0, y: 0, w: 400, h: 400, rotation: 0, src: FILE, fit: "cover", radius: 16, pendingImagePrompt: "Should disappear", generated: { prompt: "Done prompt" } },
+        ],
+      }],
+    });
+    const [emptyImg, filledImg] = normalized.slides[0].elements;
+    expect(emptyImg.type === "image" ? emptyImg.pendingImagePrompt : null).toBe("A quiet mountain lake");
+    expect(filledImg.type === "image" ? filledImg.pendingImagePrompt : "x").toBeUndefined();
+    expect(filledImg.type === "image" ? filledImg.generated : null).toEqual({ prompt: "Done prompt" });
+
+    const pub = publicDeck(normalized);
+    expect(JSON.stringify(pub)).not.toContain("pendingImagePrompt");
+    expect(JSON.stringify(pub)).not.toContain("mountain lake");
+    expect(JSON.stringify(pub)).not.toContain("Done prompt");
   });
 
   it("normalizes slide transitions backward-compatibly, applies them via setTransition, and preserves them across clipboard & publicDeck", () => {

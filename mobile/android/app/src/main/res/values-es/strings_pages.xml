@@ -27,4 +27,5 @@
     <string name="pg_subpages_to_trash">Sus subpáginas se moverán a la papelera junto con ella.</string>
     <string name="pg_rename_page">Cambiar nombre de la página</string>
     <string name="pg_page_title">Título de la página</string>
+    <string name="pg_review_quiz">Repaso y cuestionario</string>
 </resources>

@@ -74,4 +74,38 @@ describe("page-images", () => {
 
     await expect(generatePageImage("lighthouse", "1024x1024")).rejects.toBeInstanceOf(StorageLimitError);
   });
+
+  it("sends multipart FormData with referenceImage when generating from a sketch", async () => {
+    const fetchSpy = vi.fn(async () => new Response(
+      JSON.stringify({
+        url: "/api/pages/files?key=note-files%2Fu1%2Fsketch-out.png&name=ai-image.png",
+        name: "ai-image.png",
+        mimeType: "image/png",
+        size: 4096,
+        prompt: "Clean diagram",
+        reportToken: "tok-1",
+      }),
+      { status: 201, headers: { "Content-Type": "application/json" } },
+    ));
+    globalThis.fetch = fetchSpy as unknown as typeof fetch;
+
+    const blob = new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], { type: "image/png" });
+    const result = await generatePageImage("", "1024x1024", { referenceImage: blob });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("/api/pages/images");
+    expect(init.body).toBeInstanceOf(FormData);
+    const form = init.body as FormData;
+    expect(form.get("size")).toBe("1024x1024");
+    expect(form.get("prompt")).toBeNull();
+    const ref = form.get("referenceImage") as File;
+    expect(ref.name).toBe("sketch.png");
+    expect(ref.type).toBe("image/png");
+    expect(result).toMatchObject({
+      url: "/api/pages/files?key=note-files%2Fu1%2Fsketch-out.png&name=ai-image.png",
+      prompt: "Clean diagram",
+      reportToken: "tok-1",
+    });
+  });
 });

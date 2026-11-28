@@ -34,6 +34,8 @@ struct ChatMessageList: View {
     @State private var scroll = ChatScrollController()
     @State private var atBottom = true
     @State private var flash: RevealFlash?
+    /// iOS 27 起哪些行放在懒加载栈里（`turns`）；跟着这个列表走，换对话时是新的列表（`ChatListRepair`）。
+    @State private var split = ChatTailSplit()
 
     var body: some View {
         let state = app.chat.state
@@ -42,28 +44,18 @@ struct ChatMessageList: View {
         let revealPending = state.reveal != nil && state.reveal?.sessionId == state.activeSessionId
         ScrollViewReader { proxy in
             ScrollView(.vertical) {
-                LazyVStack(alignment: .leading, spacing: ChatMetrics.turnGap) {
-                    ForEach(Array(messages.enumerated()), id: \.element.key) { index, message in
-                        row(
-                            message,
-                            reply: index + 1 < messages.count ? messages[index + 1] : nil,
-                            isLatest: index == messages.count - 1,
-                            sessionId: state.activeSessionId,
-                            rejectedEdit: state.rejectedEdit
-                        )
+                turns(state)
+                    .padding(.horizontal, ChatMetrics.pageGutter)
+                    .padding(.top, 4)
+                    .padding(.bottom, ChatMetrics.listBottomPadding)
+                    // 对照网页 .notion-page-column：常规上限 47.5rem，1440 起按 48vw 在 50–55rem 间变化。
+                    // 只收窄消息列；滚动视图仍铺满可用宽度，横向调整时也不会重建消息行。
+                    .containerRelativeFrame(.horizontal) { width, _ in
+                        let maxWidth: CGFloat = width < 1440 ? 760 : min(880, max(800, width * 0.48))
+                        return min(width, maxWidth)
                     }
-                }
-                .padding(.horizontal, ChatMetrics.pageGutter)
-                .padding(.top, 4)
-                .padding(.bottom, ChatMetrics.listBottomPadding)
-                // 对照网页 .notion-page-column：常规上限 47.5rem，1440 起按 48vw 在 50–55rem 间变化。
-                // 只收窄消息列；滚动视图仍铺满可用宽度，横向调整时也不会重建消息行。
-                .containerRelativeFrame(.horizontal) { width, _ in
-                    let maxWidth: CGFloat = width < 1440 ? 760 : min(880, max(800, width * 0.48))
-                    return min(width, maxWidth)
-                }
-                .frame(maxWidth: .infinity)
-                .background { ChatScrollProbe(controller: scroll) }
+                    .frame(maxWidth: .infinity)
+                    .background { ChatScrollProbe(controller: scroll) }
             }
             // 往下拖列表时键盘跟着手指收起。
             .scrollDismissesKeyboard(.interactively)
@@ -79,6 +71,7 @@ struct ChatMessageList: View {
         }
         .overlay(alignment: .bottom) {
             ChatScrollToBottomButton(visible: !atBottom) {
+                Haptics.light()
                 scroll.scrollToBottom(animated: !state.sending && !reduceMotion)
             }
         }
@@ -113,16 +106,58 @@ struct ChatMessageList: View {
     }
 
     /// CI 截图 chat-scrolled：离开底部，让消息在玻璃顶栏下面、"滚动到底部"按钮也显示出来。
+    /// 应用商店的回答、表格两张（store-answer / store-table）滚回最上面，提问也在画面里。
     private func runScrolledHook(hasMessages: Bool) async {
-        guard ScreenshotHooks.isActive, ScreenshotHooks.scene == .chatScrolled, hasMessages else { return }
+        guard ScreenshotHooks.isActive, hasMessages, let scene = ScreenshotHooks.scene,
+              scene == .chatScrolled || scene == .storeAnswer || scene == .storeTable
+        else { return }
         // 等打开会话时的贴底先做完。
         try? await Task.sleep(for: .milliseconds(250))
         if Task.isCancelled { return }
-        guard ScreenshotHooks.consume(.chatScrolled) else { return }
+        guard ScreenshotHooks.consume(scene) else { return }
         #if DEBUG
-        await scroll.fixtureScroll(distanceFromBottom: 360)
+        // 比内容还长的距离就是滚到最上面。
+        await scroll.fixtureScroll(distanceFromBottom: scene == .chatScrolled ? 360 : CGFloat.greatestFiniteMagnitude)
         #endif
-        ScreenshotHooks.markReady(.chatScrolled)
+        ScreenshotHooks.markReady(scene)
+    }
+
+    /// 所有消息。iOS 26 及更早是一个懒加载栈。iOS 27 起分成两段（`ChatTailSplit`）：历史仍然懒加载，最后一个回合和
+    /// 之后新来的行放在下面的普通栈里（超过上限时最早的几行归进历史），它们换掉、变短时懒加载栈里不会留下旧高度
+    /// （`ChatListRepair`）。
+    @ViewBuilder
+    private func turns(_ state: ChatUiState) -> some View {
+        let count = state.messages.count
+        if ChatListRepair.isNeeded {
+            let history = split.historyCount(state.messages)
+            VStack(alignment: .leading, spacing: 0) {
+                LazyVStack(alignment: .leading, spacing: ChatMetrics.turnGap) {
+                    rows(state, in: 0..<history)
+                }
+                VStack(alignment: .leading, spacing: ChatMetrics.turnGap) {
+                    rows(state, in: history..<count)
+                }
+                // 两段之间也是消息间距；有一段是空的时不留。
+                .padding(.top, history > 0 && history < count ? ChatMetrics.turnGap : 0)
+            }
+        } else {
+            LazyVStack(alignment: .leading, spacing: ChatMetrics.turnGap) {
+                rows(state, in: 0..<count)
+            }
+        }
+    }
+
+    private func rows(_ state: ChatUiState, in range: Range<Int>) -> some View {
+        let messages = state.messages
+        return ForEach(Array(messages.enumerated())[range], id: \.element.key) { index, message in
+            row(
+                message,
+                reply: index + 1 < messages.count ? messages[index + 1] : nil,
+                isLatest: index == messages.count - 1,
+                sessionId: state.activeSessionId,
+                rejectedEdit: state.rejectedEdit
+            )
+        }
     }
 
     @ViewBuilder

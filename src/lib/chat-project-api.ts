@@ -24,10 +24,10 @@ export function validProjectInstructions(value: unknown): string | null {
 // 参照ノートの ID 一覧（全置き換え）。重複と上限超えは受け付けない。存在と所有は呼び出し側が DB で確かめる。
 export function validProjectNoteIds(value: unknown): string[] {
   if (!Array.isArray(value)) throw new NoteValidationError("noteIds must be a list of note IDs.");
-  if (value.length > MAX_PROJECT_NOTES) throw new NoteValidationError(fmt("A project can have at most {max} reference notes.", { max: MAX_PROJECT_NOTES }));
+  if (value.length > MAX_PROJECT_NOTES) throw new NoteValidationError(fmt("A project can have at most {max} reference pages.", { max: MAX_PROJECT_NOTES }));
   const ids = value.map(id => typeof id === "string" ? id.trim() : "");
   if (ids.some(id => !id || id.length > 100)) throw new NoteValidationError("noteIds must be a list of note IDs.");
-  if (new Set(ids).size !== ids.length) throw new NoteValidationError(msg("Each note can be chosen only once."));
+  if (new Set(ids).size !== ids.length) throw new NoteValidationError(msg("Each page can be chosen only once."));
   return ids;
 }
 type ProjectDb = Pick<Prisma.TransactionClient, "chatProject">;

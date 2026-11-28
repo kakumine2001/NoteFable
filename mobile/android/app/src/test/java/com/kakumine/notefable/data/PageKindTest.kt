@@ -46,12 +46,12 @@ class PageKindTest {
             PageKindTable.update(kotlinx.serialization.json.Json.parseToJsonElement(
                 """{"note":{"editor":true,"markdownExport":true,"typography":true,"publicShare":true,"aiEdit":true},"whiteboard":{"editor":true,"publicShare":true,"future":1},"slides":{"editor":true},"mindmap":{"editor":true}}""",
             ))
-            assertEquals(listOf(Note, Slides, Whiteboard), PageKindTable.creatable)
+            assertEquals(listOf(Note, Whiteboard, Slides), PageKindTable.creatable)
             assertTrue(Whiteboard.features.publicShare)
             assertFalse(Slides.features.markdownExport)
             // 不是对象的表不动；表里缺了笔记也照样能用笔记。
             PageKindTable.update(kotlinx.serialization.json.JsonPrimitive("x"))
-            assertEquals(listOf(Note, Slides, Whiteboard), PageKindTable.creatable)
+            assertEquals(listOf(Note, Whiteboard, Slides), PageKindTable.creatable)
             PageKindTable.update(kotlinx.serialization.json.Json.parseToJsonElement("""{"slides":{"editor":true}}"""))
             assertEquals(listOf(Note, Slides), PageKindTable.creatable)
             assertTrue(Note.features.markdownExport)
@@ -65,11 +65,11 @@ class PageKindTest {
         val asset = java.io.File("src/main/assets/page-kinds.json").readText()
         try {
             PageKindTable.loadBundled(asset)
-            // 网页现在的表（白板、幻灯片的编辑器上线时这里跟着变）：能新建的类型按分区顺序；幻灯片有编辑器和公开的放映页（#149）。
+            // 网页现在的表（白板、幻灯片的编辑器、公开视图和 AI 编辑均已上线）。
             assertEquals(PageKindTable.parse(kotlinx.serialization.json.Json.parseToJsonElement(asset))?.filterValues { it.editor }?.keys?.let { keys -> PageKindTable.DisplayOrder.filter { it in keys } }, PageKindTable.creatable)
-            assertEquals(PageKindFeatures(editor = true, markdownExport = false, typography = false, publicShare = true, aiEdit = false), Slides.features)
-            // 白板（#152）：编辑器和公开的只读视图。
-            assertEquals(PageKindFeatures(editor = true, markdownExport = false, typography = false, publicShare = true, aiEdit = false), Whiteboard.features)
+            assertEquals(PageKindFeatures(editor = true, markdownExport = false, typography = false, publicShare = true, aiEdit = true), Slides.features)
+            // 白板（#152 / #153）：编辑器、公开只读视图和 AI 编辑。
+            assertEquals(PageKindFeatures(editor = true, markdownExport = false, typography = false, publicShare = true, aiEdit = true), Whiteboard.features)
         } finally {
             PageKindTable.reset()
         }

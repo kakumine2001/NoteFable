@@ -176,7 +176,7 @@ struct ProfileSettings: View {
     // MARK: 头像编辑区
 
     private func editorBox(_ state: SettingsDialogState) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 10)
+        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
         let account = app.account.state
         let photoError = account.photoError.map { photoErrorText($0, app.systemText) }
         return VStack(alignment: .leading, spacing: 0) {
@@ -203,7 +203,7 @@ struct ProfileSettings: View {
                     )
                 }
             } else {
-                // 高 min(320, 屏高 − 220)：iPhone 上总是 320。
+                // 高 min(320, 屏高 − 220)：iPhone 上总是 320，随当前外观切换浅深色。
                 EmojiPickerBody(
                     current: user.icon,
                     height: 320,
@@ -211,9 +211,6 @@ struct ProfileSettings: View {
                     onClose: { model.setEditor(.closed) },
                     onPick: { icon in app.account.setIcon(icon) }
                 )
-                // 网页的表情面板固定用浅色主题（Theme.LIGHT）：深色外观下也是白底的一块。
-                .background(Sm.surface)
-                .environment(\.colorScheme, .light)
             }
         }
         .frame(maxWidth: .infinity)

@@ -7,7 +7,9 @@ import { NotePageMenu } from "@/components/note-page-menu";
 import { NotesWorkspace } from "@/components/notes-workspace";
 import { localizeSystemText } from "@/lib/i18n/translate";
 import { drawNoteDiagram } from "@/lib/draw-diagram-jobs";
+import { openReviewQuiz } from "@/lib/quiz-session";
 import { openSlidesWizard } from "@/lib/slides-wizard-jobs";
+import { openPptxImport } from "@/lib/pptx-import-jobs";
 import { dispatchSlidesCommand } from "@/lib/native-bridge";
 import { recentPages } from "@/lib/notes-home-text";
 import type { useNotePages } from "@/lib/use-note-pages";
@@ -20,7 +22,7 @@ type SplitNotePaneProps = {
   notes: ReturnType<typeof useNotePages>;
   model: string;
   reasoning: string;
-  onSelectNote: (id: string) => void;
+  onSelectNote: (id: string, reveal?: string) => void;
   // バックリンクの会話を左のチャットで開く。
   onOpenChat: (id: string, messageId?: string) => void;
   onCreateNote: (parentId?: string) => void;
@@ -109,7 +111,7 @@ export function SplitNotePane({
             <ChevronDown size={14} className="shrink-0 text-[var(--notion-faint)]" aria-hidden="true" />
           </button>
           {pickerOpen && (
-            <div id={pickerId} className="workspace-split-picker" role="dialog" aria-label={t("Switch note")}>
+            <div id={pickerId} className="workspace-split-picker" role="dialog" aria-label={t("Switch page")}>
               <div className="workspace-split-picker-search">
                 <Search size={14} className="shrink-0 text-[var(--notion-faint)]" aria-hidden="true" />
                 <input
@@ -117,7 +119,7 @@ export function SplitNotePane({
                   type="text"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder={t("Filter notes…")}
+                  placeholder={t("Filter pages…")}
                   className="min-w-0 flex-1 bg-transparent text-sm text-[var(--notion-text)] outline-none placeholder:text-[var(--notion-faint)]"
                 />
               </div>
@@ -207,6 +209,8 @@ export function SplitNotePane({
               // サーバーは保存済みのノートを読むので、入力中の内容を先に保存してから始める（窓は page.tsx の DrawDiagramHost）。
               onDrawDiagram={() => void drawNoteDiagram(activeSummary.id, model, () => (notes.active?.page.id === activeSummary.id ? notes.active.flush() : Promise.resolve(true)))}
               onGenerateSlides={() => openSlidesWizard({ entry: { type: "note", pageId: activeSummary.id, title: activeSummary.title, icon: activeSummary.icon }, model })}
+              onImportPptx={() => openPptxImport({ groupId: activeSummary.groupId })}
+              onReviewQuiz={() => openReviewQuiz({ pageId: activeSummary.id, title: activeSummary.title, icon: activeSummary.icon, kind: activeSummary.kind === "slides" ? "slides" : "note", model })}
               onMove={() => onMoveNote(activeSummary.id)}
               onExport={() => onExportNote(activeSummary.id)}
               onTrash={() => onTrashNote(activeSummary.id)}
@@ -252,7 +256,7 @@ export function SplitNotePane({
         </div>
       ) : notes.loading ? (
         <div className="flex flex-1 items-center justify-center p-6">
-          <p className="notes-loading">{t("Loading note…")}</p>
+          <p className="notes-loading">{t("Loading page…")}</p>
         </div>
       ) : (
         <div className="workspace-split-empty">
@@ -261,7 +265,7 @@ export function SplitNotePane({
           {notes.actionError && <div className="notion-error mb-4" role="alert">{localizeSystemText(notes.actionError, t)}<button type="button" className="notion-button ml-3" onClick={notes.dismissActionError}>{t("Close")}</button></div>}
           <FileText size={26} strokeWidth={1.4} className="text-[var(--notion-faint)]" />
           <p className="mt-3 text-sm text-[var(--notion-muted)]">
-            {t("Open a note beside this chat to read and edit while talking with AI.")}
+            {t("Open a page beside this chat to read and edit while talking with AI.")}
           </p>
           <button type="button" className="notes-empty-new mt-4" disabled={notes.busy} onClick={() => onCreateNote()}>
             <Plus size={16} />{t("New note")}

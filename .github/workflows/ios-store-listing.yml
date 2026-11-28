@@ -1,0 +1,61 @@
+name: iOS App Store listing
+
+# 手动运行：把 docs/app-store/listing.md（名称和描述取自 docs/play-store/listing.md）和
+# mobile/ios/app-store/screenshots/ 以及 docs/app-store/review-info.md（年龄分级、审核备注、版权、订阅文字、
+# TestFlight 说明）写到 App Store Connect。默认 dry run 只读取并列出差异，勾选 apply 才写入；每次最后列出提交
+# 审核还缺什么；任何情况都不提交审核。仓库和日志是公开的，脚本不打印个人信息。说明见 docs/architecture/ios.md。
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "写入 App Store Connect（不勾选：dry run，只读取）"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  listing:
+    name: App Store listing
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: appstore-publish
+    concurrency:
+      group: ios-appstore-store-listing
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Check the listing documents
+        run: python3 scripts/release/ios-store-listing.py --check
+
+      - name: Compare with App Store Connect (and apply if requested)
+        shell: bash
+        env:
+          APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          APPSTORE_API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
+          APPSTORE_API_KEY_P8_B64: ${{ secrets.APPSTORE_API_KEY_P8_B64 }}
+          APPLY: ${{ inputs.apply }}
+        run: |
+          set -euo pipefail
+          report="$RUNNER_TEMP/app-store-listing.txt"
+          mode=()
+          title="App Store listing: dry run"
+          if [[ "$APPLY" == "true" ]]; then
+            mode=(--apply)
+            title="App Store listing: apply"
+          fi
+          status=0
+          python3 scripts/release/ios-store-listing.py "${mode[@]}" 2>&1 | tee "$report" || status=$?
+          # Four backticks so that nothing in the listing text can close the block; the summary limit is 1 MiB.
+          {
+            printf '## %s\n\n````text\n' "$title"
+            head -c 900000 "$report"
+            printf '\n````\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"

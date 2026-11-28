@@ -38,6 +38,7 @@ private struct NoteTrashSheetModifier: ViewModifier {
 @MainActor
 private struct NoteTrashSheetContent: View {
     @Environment(AppEnvironment.self) private var app
+    @Environment(\.nfChromePath) private var chromePath
 
     var body: some View {
         if let trash = app.notes.state.trash {
@@ -70,45 +71,50 @@ private struct NoteTrashSheetContent: View {
         return HStack(spacing: 8) {
             LucideIcon(Lucide.trash2, size: 16, color: Sm.muted)
             Text(L("trash"))
-                .font(.nf(16, weight: 600))
+                .font(.nf(17, weight: 650))
                 .foregroundStyle(Sm.text)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityAddTraits(.isHeader)
-            NotionButton(L("empty_trash"), kind: .danger, large: true) { notes.confirmEmptyTrash(true) }
+            NotionButton(L("empty_trash"), kind: .danger) { notes.confirmEmptyTrash(true) }
                 .disabled(trash.busy || (trash.items ?? []).isEmpty)
-            NFIconButton(Lucide.x, label: L("close_trash"), iconSize: 16) { notes.closeTrash() }
+            NFGlassContainer {
+                NFGlassIconButton(Lucide.x, label: L("close_trash"), size: 36, iconSize: 16) { notes.closeTrash() }
+            }
         }
         .padding(.leading, 16)
         .padding(.trailing, 12)
         .padding(.vertical, 12)
-        .overlay(alignment: .bottom) { NFDivider() }
+        .overlay(alignment: .bottom) {
+            if chromePath != .native { NFDivider() }
+        }
     }
 
-    /// `.note-th-confirm`：外边距 9.6 / 16 / 0、内边距 9.6×12、1px 浅红框、圆角 6、13 的字；按钮在下一行靠行尾。
+    /// `.note-th-confirm`：外边距 9.6 / 16 / 0、内边距 12×14、柔和危险底、圆角 16；按钮在下一行靠行尾。
     private func confirmAll(_ trash: TrashUiState) -> some View {
         let notes = app.notes
         let count = trash.items?.count ?? 0
-        return VStack(alignment: .leading, spacing: 8) {
+        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+        return VStack(alignment: .leading, spacing: 10) {
             Text(count == 1 ? L("empty_trash_one") : L("empty_trash_all", count))
-                .font(.nf(13))
-                .nfLineHeight(18.2, fontSize: 13)
+                .font(.nf(13.5))
+                .nfLineHeight(19, fontSize: 13.5)
                 .foregroundStyle(Sm.text)
                 .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 5.6) {
+            HStack(spacing: 8) {
                 Spacer(minLength: 0)
-                NotionButton(L("cancel"), large: true) { notes.confirmEmptyTrash(false) }
+                NotionButton(L("cancel")) { notes.confirmEmptyTrash(false) }
                     .disabled(trash.busy)
-                NotionButton(L("empty_trash"), kind: .danger, large: true) { notes.emptyTrash() }
+                NotionButton(L("empty_trash"), kind: .danger) { notes.emptyTrash() }
                     .disabled(trash.busy)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9.6)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Sm.danger.opacity(0.08), in: shape)
         .overlay {
-            RoundedRectangle(cornerRadius: 6)
-                .strokeBorder(Color(argb: 0x40B91C1C), lineWidth: 1)
+            shape.strokeBorder(Sm.danger.opacity(0.25), lineWidth: 1)
         }
         .padding(.horizontal, 16)
         .padding(.top, 9.6)

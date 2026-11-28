@@ -7,14 +7,16 @@ describe("parseSource", () => {
   it("accepts a one-line topic, up to five own note ids, or a chat", () => {
     expect(parseSource({ type: "topic", topic: "  光合作用\n 入门 " })).toEqual({ type: "topic", topic: "光合作用 入门" });
     expect(parseSource({ type: "notes", pageIds: [id(1), id(2)] })).toEqual({ type: "notes", pageIds: [id(1), id(2)] });
+    expect(parseSource({ type: "notes", pageIds: [id(1)], instructions: "  Focus on formulas  " })).toEqual({ type: "notes", pageIds: [id(1)], instructions: "Focus on formulas" });
     expect(parseSource({ type: "chat", sessionId: "cs1", extra: true })).toEqual({ type: "chat", sessionId: "cs1" });
-    expect(parseSource({ type: "topic", topic: "x".repeat(300) })).not.toBeNull();
+    expect(parseSource({ type: "topic", topic: "x".repeat(2000) })).not.toBeNull();
   });
 
   it("rejects missing, oversized and duplicate values", () => {
     for (const value of [
-      null, "topic", {}, { type: "answer" }, { type: "topic", topic: "  " }, { type: "topic", topic: "x".repeat(301) },
+      null, "topic", {}, { type: "answer" }, { type: "topic", topic: "  " }, { type: "topic", topic: "x".repeat(2001) },
       { type: "notes", pageIds: [] }, { type: "notes", pageIds: [1] }, { type: "notes", pageIds: [id(1), id(1)] },
+      { type: "notes", pageIds: [id(1)], instructions: "x".repeat(2001) },
       { type: "notes", pageIds: Array.from({ length: 6 }, (_, index) => id(index)) }, { type: "notes", pageIds: ["../x"] },
       { type: "chat", sessionId: "" },
     ]) expect(parseSource(value), JSON.stringify(value)).toBeNull();
@@ -25,14 +27,17 @@ describe("parseOptions", () => {
   it("fills in the defaults for missing fields", () => {
     expect(parseOptions(undefined)).toEqual(DEFAULT_SLIDES_OPTIONS);
     expect(parseOptions({})).toEqual(DEFAULT_SLIDES_OPTIONS);
+    expect(DEFAULT_SLIDES_OPTIONS.generateImages).toBe(false);
     expect(parseOptions({ pageCount: 30, tone: "academic", audience: " first-year\nstudents ", language: "zh-Hant", wording: "keep", theme: { mode: "dark" } }))
-      .toEqual({ pageCount: 30, tone: "academic", audience: "first-year students", language: "zh-Hant", wording: "keep", theme: { id: "simple", mode: "dark" } });
+      .toEqual({ pageCount: 30, tone: "academic", audience: "first-year students", language: "zh-Hant", wording: "keep", theme: { id: "simple", mode: "dark" }, generateImages: false });
+    expect(parseOptions({ generateImages: true })).toEqual({ ...DEFAULT_SLIDES_OPTIONS, generateImages: true });
   });
 
   it("rejects wrong values", () => {
     for (const value of [
       null, [], { pageCount: 2 }, { pageCount: 31 }, { pageCount: 4.5 }, { pageCount: "10" }, { tone: "funny" }, { audience: 3 },
       { audience: "x".repeat(201) }, { language: "pt" }, { wording: "long" }, { theme: "tech" }, { theme: { id: "neon" } }, { theme: { mode: "auto" } },
+      { generateImages: "yes" }, { generateImages: 1 },
     ]) expect(parseOptions(value), JSON.stringify(value)).toBeNull();
   });
 });

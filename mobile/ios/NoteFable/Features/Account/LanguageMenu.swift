@@ -1,38 +1,43 @@
 import SwiftUI
 
 // 语言菜单（网页 language-menu.tsx 的 .chat-actions-menu.language-menu，Android LanguageUi.kt 的 LanguageMenu）：
-// 宽 min(320, 屏宽 − 16)、最高 min(368, 屏高 − 16)，内边距 5.6、圆角 12、1px 细线、白底、阴影（`.actionsMenu` 的卡片）。
-// 开在按钮下方，放不下就上方（间距 4），行尾边和按钮对齐，离边至少 8。
-// 第一行是搜索框（按原生名 / 代码 / 标签找），下面是"自动" + 17 种语言，自己滚动。
-// 项是 .chat-menu-item（最小高 44、内边距 9.6×12、圆角 6.4、14 字）：打对勾的是保存的偏好（行尾 15 的蓝色 ✓、深一点的灰底），
-// 正在显示的语言下面有一行 12 灰字"当前语言"。
+// 使用原生自适应 `.nfPopover`（紧凑宽度自动适配系统 `.sheet`，宽窗口呈现宽 320 的 `.popover`）。
+// 第一行是胶囊搜索框（按原生名 / 代码 / 标签找），下面是"自动" + 17 种语言，自己滚动。
+// 选中的语言行有柔和底色与蓝色 ✓；正在显示的语言下面有一行 12 灰字"当前语言"。
 
 extension View {
-    /// 贴着这个视图弹出语言菜单。未登录时只改本机（`app.language.chooseOnDevice`，帮助菜单里用）；
-    /// 登录后存到账号（`LanguageSettingsRow.choose`，设置里用），界面跟着账号上的语言切换。选了就关。
-    /// 需要根上装了 `.nfOverlayHost()`。
-    ///
-    /// ```swift
-    /// Button { open = true } label: { … }
-    ///     .languageMenu(isPresented: $open)
-    /// ```
+    /// 贴着这个视图以原生自适应 Liquid Glass Popover / Sheet 弹出语言菜单。
     func languageMenu(isPresented: Binding<Bool>) -> some View {
-        // iOS 17 的 iPhone 最窄 375，min(320, 屏宽 − 16) 总是 320。
-        actionsMenu(isPresented: isPresented, width: 320, alignment: .trailing, placement: .below, label: L("language")) {
-            LanguageMenuContent(isPresented: isPresented)
-        }
+        modifier(LanguageMenuModifier(isPresented: isPresented))
+    }
+}
+
+/// 将搜索词保留在系统 `.popover` / `.sheet` 呈现边界之外，窗口跨 compact/regular 缩放或折叠时搜索输入不丢失。
+private struct LanguageMenuModifier: ViewModifier {
+    @Binding var isPresented: Bool
+    @State private var query = ""
+
+    func body(content: Content) -> some View {
+        content
+            .nfPopover(
+                isPresented: $isPresented,
+                width: 320,
+                adaptCompactToSheet: true,
+                contentInsets: EdgeInsets(top: 10, leading: 10, bottom: 10, trailing: 10),
+                onDismiss: { query = "" }
+            ) {
+                LanguageMenuContent(isPresented: $isPresented, query: $query)
+            }
     }
 }
 
 private struct LanguageMenuContent: View {
     @Binding var isPresented: Bool
+    @Binding var query: String
 
     @Environment(AppEnvironment.self) private var app
-    @State private var query = ""
+    @Environment(\.nfChromePath) private var chromePath
     @FocusState private var searching: Bool
-
-    /// 菜单最高 368：去掉上下内边距 11.2 和搜索框那一行（44）剩下的给列表。
-    private static let listMaxHeight: CGFloat = 368 - 11.2 - 44
 
     var body: some View {
         let account = app.account.state
@@ -42,10 +47,10 @@ private struct LanguageMenuContent: View {
         let checked: AppLanguage.Preference? = account.user == nil ? app.language.preference : row?.checked
         let options = AppLanguage.options(matching: query)
 
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 8) {
             searchField
-            FittingScrollView(maxHeight: Self.listMaxHeight) {
-                VStack(alignment: .leading, spacing: 0) {
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 2) {
                     ForEach(options, id: \.self) { option in
                         // Auto 行：「自动检测」下面用小字写「当前：○○」（Android LanguageMenu，不重复「自动检测」）。
                         let auto = option == .auto
@@ -69,31 +74,44 @@ private struct LanguageMenuContent: View {
                     }
                 }
             }
+            .scrollBounceBehavior(.basedOnSize)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    /// 搜索框：四周留 4，1px 细线、圆角 6.4、内边距 8、14 的字。
+    /// 胶囊搜索框：放大镜 + 输入框 + 清除键，在玻璃面板上铺柔和半透明底。
     private var searchField: some View {
-        let shape = RoundedRectangle(cornerRadius: 6.4)
-        return TextField("", text: $query, prompt: Text(L("language_search")).foregroundStyle(Sm.muted))
-            .textFieldStyle(.plain)
-            .font(.nf(14))
-            .foregroundStyle(Sm.text)
-            .tint(Sm.text)
-            .lineLimit(1)
-            .autocorrectionDisabled()
-            .textInputAutocapitalization(.never)
-            .submitLabel(.search)
-            .focused($searching)
-            .padding(8)
-            .frame(minHeight: 36)
-            // 菜单是玻璃的：输入框自己铺白底，不然看着像个透明的洞（网页是白底菜单上的白底框）。
-            .background(Sm.surface, in: shape)
-            .overlay { shape.strokeBorder(Sm.border, lineWidth: 1) }
-            .contentShape(shape)
-            .onTapGesture { searching = true }
-            .padding(4)
-            .accessibilityLabel(L("language_search"))
+        let shape = Capsule()
+        let fill = chromePath == .native ? Color.primary.opacity(0.065) : Sm.surface
+        let stroke = searching ? Sm.blue : (chromePath == .solid ? Sm.borderStrong : .clear)
+        return HStack(spacing: 8) {
+            LucideIcon(Lucide.search, size: 15, color: Sm.muted)
+                .allowsHitTesting(false)
+            TextField("", text: $query, prompt: Text(L("language_search")).foregroundStyle(Sm.muted))
+                .textFieldStyle(.plain)
+                .font(.nf(15))
+                .foregroundStyle(Sm.text)
+                .tint(Sm.text)
+                .lineLimit(1)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .submitLabel(.search)
+                .focused($searching)
+            if !query.isEmpty {
+                NFIconButton(Lucide.x, label: L("em_clear_search"), size: 28, iconSize: 14, color: Sm.muted, cornerRadius: 14) {
+                    query = ""
+                }
+            }
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 8)
+        .frame(minHeight: 40)
+        .background(fill, in: shape)
+        .overlay { shape.strokeBorder(stroke, lineWidth: searching ? 2 : 1) }
+        .contentShape(shape)
+        .onTapGesture { searching = true }
+        .padding(2)
+        .accessibilityLabel(L("language_search"))
     }
 
     private func choose(_ option: AppLanguage.Preference, row: LanguageSettingsRow?) {
@@ -117,14 +135,18 @@ private struct LanguageOptionRow: View {
     let selected: Bool
     let action: () -> Void
 
+    @Environment(\.nfChromePath) private var chromePath
+
     var body: some View {
+        let ink = chromePath == .native ? chromePath.primaryInk : Sm.text
+        let selectedBg = chromePath == .native ? Color.primary.opacity(0.08) : Sm.active
         Button(action: action) {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 0) {
                     Text(name)
-                        .font(.nf(14))
-                        .nfLineHeight(21, fontSize: 14)
-                        .foregroundStyle(Sm.text)
+                        .font(.nf(15, weight: selected ? 600 : 400))
+                        .nfLineHeight(21, fontSize: 15)
+                        .foregroundStyle(ink)
                         .lineLimit(3)
                         .fixedSize(horizontal: false, vertical: true)
                         .environment(\.locale, Locale(identifier: tag ?? "en"))
@@ -150,7 +172,7 @@ private struct LanguageOptionRow: View {
             .padding(.vertical, 9.6)
             .frame(minHeight: 44)
         }
-        .buttonStyle(.pressable(background: selected ? Sm.active : .clear, cornerRadius: 6.4))
+        .buttonStyle(.pressable(background: selected ? selectedBg : .clear, cornerRadius: 12))
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }

@@ -1,7 +1,7 @@
 import SwiftUI
 
 // 侧栏的笔记部分（网页 NotesSidebar，手机尺寸；Android ui/NotesUi.kt 的 NotesDrawerBody）。头部、Chat / Note 切换和底部的账号由 Root 放。
-// 从上到下：“新建”、Search 行、可滚动的列表（FAVORITES → PROJECTS 和各项目 → 分区：笔记 / 幻灯片 / 白板）、最下面的“导入 Markdown”和回收站两行。
+// 从上到下：“新建”、Search 行、可滚动的列表（FAVORITES → PROJECTS 和各项目 → 分区：笔记 / 白板 / 幻灯片）、最下面的“导入 Markdown”和回收站两行。
 // 笔记行长按标题后可以拖动排序（Features/Shared/ReorderDragUI.swift）：放到别的笔记前 / 后是排序，放到项目行上移进项目，
 // 放到分区标题上移出项目（只接受同一分区的页面，Core 的 noteDropRules）。
 
@@ -130,7 +130,8 @@ private struct NotesDrawerList: View {
             busy: busy,
             onToggle: { notes.toggleSection(section.kind) },
             onCreate: { router.createNote(kind: section.kind) },
-            onGenerateSlides: section.kind == .slides ? { router.openSlidesWizard(.new()) } : nil
+            onGenerate: { router.openAiGenerate(AiGenerateTarget(kind: section.kind)) },
+            onImportPptx: section.kind == .slides ? { router.openPptxImport() } : nil
         )
         .reorderDropZone(noteSectionZone(section.kind), in: reorder)
         if isOpen {
@@ -205,11 +206,14 @@ private struct NotesDrawerList: View {
                 onCreate: { kind in
                     router.createNote(kind: kind, groupId: group.id)
                 },
-                onGenerateSlides: {
-                    router.openSlidesWizard(.new(groupId: group.id))
+                onGenerate: {
+                    router.openAiGenerate(AiGenerateTarget(groupId: group.id))
+                },
+                onImportPptx: {
+                    router.openPptxImport(PptxImportTarget(groupId: group.id))
                 }
-            ) { open in
-                NoteRowAction(icon: Lucide.plus, iconSize: 14, label: newLabel, action: open)
+            ) {
+                NoteRowActionLabel(icon: Lucide.plus, iconSize: 14)
             }
             .disabled(busy)
             NoteRowAction(icon: Lucide.pencil, iconSize: 13, label: L("rename_name", group.name)) {
@@ -272,7 +276,6 @@ private struct NotesDrawerRow: View {
     let reorder: ReorderDragController
     @Binding var dialog: NotesDialogState?
     @State private var picking = false
-    @State private var menuOpen = false
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router
 
@@ -281,7 +284,7 @@ private struct NotesDrawerRow: View {
         let state = notes.state
         let active = state.open?.id == page.id
         let line = reorder.dropLine(page.id)
-        let shape = RoundedRectangle(cornerRadius: 8)
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
         let iconTint = pageKindColor(page.kind)
         HStack(spacing: 0) {
             toggle
@@ -305,23 +308,24 @@ private struct NotesDrawerRow: View {
                 onCreate: { kind in
                     router.createNote(parentId: page.id, kind: kind)
                 },
-                onGenerateSlides: {
-                    router.openSlidesWizard(.new(parentId: page.id))
+                onGenerate: {
+                    router.openAiGenerate(AiGenerateTarget(parentId: page.id))
+                },
+                onImportPptx: {
+                    router.openPptxImport(PptxImportTarget(parentId: page.id))
                 }
-            ) { open in
-                NoteRowAction(icon: Lucide.plus, iconSize: 14, label: L("pg_add_page_inside_title", page.title), action: open)
+            ) {
+                NoteRowActionLabel(icon: Lucide.plus, iconSize: 14)
             }
             .disabled(busy)
             let menuLabel = L("sb_actions_for_title", page.title)
-            NoteRowAction(icon: Lucide.ellipsis, iconSize: 14, label: menuLabel) {
-                menuOpen = true
+            Menu {
+                NoteRowMenuItems(page: page, dialog: $dialog)
+            } label: {
+                NoteRowActionLabel(icon: Lucide.ellipsis, iconSize: 14)
             }
             .disabled(busy)
-            .actionsMenu(isPresented: $menuOpen, label: menuLabel) {
-                NoteRowMenu(page: page, dialog: $dialog) {
-                    menuOpen = false
-                }
-            }
+            .accessibilityLabel(menuLabel)
         }
         .padding(.leading, 4)
         .frame(minHeight: 42)
@@ -333,7 +337,7 @@ private struct NotesDrawerRow: View {
             if line.after { ReorderDropLine() }
         }
         .clipShape(shape)
-        .sidebarActiveRow(active: active, accent: iconTint, cornerRadius: 8)
+        .sidebarActiveRow(active: active, accent: iconTint, cornerRadius: 12)
         .reorderRow(page.id, in: reorder, showsDropLine: false)
         .reorderError(errorText(state)) { notes.dismissReorderError() }
     }
@@ -405,39 +409,39 @@ private struct NotesDrawerRow: View {
 
 // MARK: - 收藏的行
 
-/// Favorites 的行：高 42；图标区 28（左距 4，语义色页面类型图标 15）；标题 14；
-/// 笔记行的“...”操作菜单（网页 NotesSidebar 的 AnswerMenu）：改名、收藏/取消收藏、移到项目、移到回收站。
+/// 笔记行的“...”操作菜单（系统原生 Liquid Glass 菜单）：改名、收藏/取消收藏、移到项目、移到回收站。
 @MainActor
-private struct NoteRowMenu: View {
+private struct NoteRowMenuItems: View {
     let page: NotePageSummary
     @Binding var dialog: NotesDialogState?
-    let onClose: () -> Void
     @Environment(AppEnvironment.self) private var app
 
     var body: some View {
         let fav = page.favoritedAt != nil
-        VStack(alignment: .leading, spacing: 0) {
-            if !page.locked {
-                ActionsMenuItem(L("sb_rename"), icon: Lucide.pencil) {
-                    onClose()
-                    dialog = .renamePage(page)
-                }
+        if !page.locked {
+            Button {
+                dialog = .renamePage(page)
+            } label: {
+                NFMenuLabel(title: L("sb_rename"), icon: Lucide.pencil)
             }
-            ActionsMenuItem(L(fav ? "pg_remove_from_favorites" : "pg_add_to_favorites"), icon: fav ? Lucide.starOff : Lucide.star) {
-                onClose()
-                let notes = app.notes
-                let id = page.id
-                Task { @MainActor in _ = await notes.setFavorite(id, !fav) }
-            }
-            ActionsMenuItem(L("pg_move_to"), icon: Lucide.folderInput) {
-                onClose()
-                dialog = .move(pageId: page.id)
-            }
-            ActionsMenuDivider()
-            ActionsMenuItem(L("move_to_trash"), icon: Lucide.trash2, role: .danger) {
-                onClose()
-                dialog = .trashNote(page)
-            }
+        }
+        Button {
+            let notes = app.notes
+            let id = page.id
+            Task { @MainActor in _ = await notes.setFavorite(id, !fav) }
+        } label: {
+            NFMenuLabel(title: L(fav ? "pg_remove_from_favorites" : "pg_add_to_favorites"), icon: fav ? Lucide.starOff : Lucide.star)
+        }
+        Button {
+            dialog = .move(pageId: page.id)
+        } label: {
+            NFMenuLabel(title: L("pg_move_to"), icon: Lucide.folderInput)
+        }
+        Divider()
+        Button(role: .destructive) {
+            dialog = .trashNote(page)
+        } label: {
+            NFMenuLabel(title: L("move_to_trash"), icon: Lucide.trash2)
         }
     }
 }
@@ -455,7 +459,7 @@ private struct NotesDrawerFavoriteRow: View {
         let notes = app.notes
         let active = notes.state.open?.id == page.id
         let pageId = page.id
-        let shape = RoundedRectangle(cornerRadius: 8)
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
         HStack(spacing: 0) {
             Button {
                 router.openNote(pageId, title: page.title, icon: page.icon, kind: page.kind)
@@ -490,6 +494,6 @@ private struct NotesDrawerFavoriteRow: View {
         .padding(.leading, 4)
         .frame(minHeight: 42)
         .clipShape(shape)
-        .sidebarActiveRow(active: active, accent: pageKindColor(page.kind), cornerRadius: 8)
+        .sidebarActiveRow(active: active, accent: pageKindColor(page.kind), cornerRadius: 12)
     }
 }

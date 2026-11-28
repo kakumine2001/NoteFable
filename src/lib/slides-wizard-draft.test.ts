@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DRAFT_MAX_AGE_MS, DRAFTS_PER_SCOPE, newSlidesDraft, readSlidesDraft, removeSlidesDraft, slidesEntryKey, writeSlidesDraft, type SlidesDraft,
 } from "./slides-wizard-draft";
+import { MAX_TOPIC_CHARS } from "./slides/ai-wizard";
 
 const NOTE = "cnote000000000000000000001";
 const OTHER = "cnote000000000000000000002";
@@ -75,7 +76,7 @@ describe("slides wizard draft", () => {
 
   it("drops broken, over-limit and old drafts", () => {
     const key = "notefable:slides-wizard:v1:u:new";
-    for (const value of ["not json", JSON.stringify({ v: 2 }), JSON.stringify({ ...filled("x".repeat(301)) }), JSON.stringify({ ...filled("a"), options: { tone: "loud" } })]) {
+    for (const value of ["not json", JSON.stringify({ v: 2 }), JSON.stringify({ ...filled("x".repeat(MAX_TOPIC_CHARS + 1)) }), JSON.stringify({ ...filled("a"), options: { tone: "loud" } })]) {
       storage.setItem(key, value);
       expect(readSlidesDraft("u", { type: "new" })).toBeNull();
       expect(storage.getItem(key)).toBeNull();

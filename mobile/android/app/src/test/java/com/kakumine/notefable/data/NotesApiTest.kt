@@ -273,6 +273,16 @@ class NotesApiTest {
     }
 
     @Test
+    fun `parses the notes whose slides are being generated`() {
+        assertEquals(EmbedMessage.SlidesJobs(setOf("p1", "p2")), EmbedMessage.parse("""{"type":"slidesJobs","pageIds":["p1","p2"]}"""))
+        assertEquals(EmbedMessage.SlidesJobs(emptySet()), EmbedMessage.parse("""{"type":"slidesJobs","pageIds":[]}"""))
+        // 不是字符串、空白的丢掉；pageIds 不是数组或缺了的整条丢掉。
+        assertEquals(EmbedMessage.SlidesJobs(setOf("p1")), EmbedMessage.parse("""{"type":"slidesJobs","pageIds":["p1",""," ",3,null]}"""))
+        assertNull(EmbedMessage.parse("""{"type":"slidesJobs","pageIds":"p1"}"""))
+        assertNull(EmbedMessage.parse("""{"type":"slidesJobs"}"""))
+    }
+
+    @Test
     fun `the slides wizard loads a warm editor without a page`() {
         val api = NoteFableApi("https://example.test", CookieJar.NO_COOKIES)
         assertEquals("https://example.test/note-embed?warm=1&lang=ja", api.slidesWizardUrl("ja"))

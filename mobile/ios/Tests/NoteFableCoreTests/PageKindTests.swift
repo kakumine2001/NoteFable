@@ -26,15 +26,15 @@ final class PageKindTests: XCTestCase {
             PageKind.note.features,
             PageKindFeatures(editor: true, markdownExport: true, typography: true, publicShare: true, aiEdit: true)
         )
-        // 网页 PAGE_KIND_FEATURES：白板（#152）有编辑器和公开的只读视图，Markdown 导出、排版、AI 编辑案仍只给笔记。
+        // 网页 PAGE_KIND_FEATURES：白板（#152 / #153）有编辑器、公开只读视图和 AI 编辑。
         XCTAssertEqual(
             PageKind.whiteboard.features,
-            PageKindFeatures(editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false)
+            PageKindFeatures(editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: true)
         )
-        // 幻灯片（#149）：有编辑器和公开的放映页。
+        // 幻灯片（#149 / #150）：有编辑器、公开的放映页和 AI 编辑。
         XCTAssertEqual(
             PageKind.slides.features,
-            PageKindFeatures(editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false)
+            PageKindFeatures(editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: true)
         )
     }
 

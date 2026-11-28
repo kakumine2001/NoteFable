@@ -1,0 +1,504 @@
+{
+  "kind": "slides",
+  "title": "Photosynthesis Review",
+  "icon": null,
+  "data": {
+    "format": 1,
+    "theme": {
+      "id": "grotesk",
+      "mode": "dark"
+    },
+    "slides": [
+      {
+        "id": "1r3b5c0h0d00511q",
+        "layout": "title",
+        "elements": [
+          {
+            "id": "594i6d1i3k0n5k6z",
+            "x": 160,
+            "y": 300,
+            "w": 1600,
+            "h": 280,
+            "rotation": 0,
+            "role": "title",
+            "type": "text",
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "align": null
+                  },
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Photosynthesis"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": {
+              "font": "heading",
+              "size": 120,
+              "color": "heading",
+              "align": "center",
+              "valign": "bottom",
+              "lineHeight": 1.1,
+              "bold": true,
+              "italic": false
+            },
+            "fill": null,
+            "autoHeight": false
+          },
+          {
+            "id": "0a3q06732u4x1m6v",
+            "x": 160,
+            "y": 620,
+            "w": 1600,
+            "h": 160,
+            "rotation": 0,
+            "role": "subtitle",
+            "type": "text",
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "align": null
+                  },
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "How plants turn light into food"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": {
+              "font": "body",
+              "size": 48,
+              "color": "muted",
+              "align": "center",
+              "valign": "top",
+              "lineHeight": 1.3,
+              "bold": false,
+              "italic": false
+            },
+            "fill": null,
+            "autoHeight": false
+          }
+        ]
+      },
+      {
+        "id": "1x4q17723v62632s",
+        "layout": "bullets",
+        "elements": [
+          {
+            "id": "524k690d4b0c6v4m",
+            "x": 120,
+            "y": 80,
+            "w": 1680,
+            "h": 170,
+            "rotation": 0,
+            "role": "title",
+            "type": "text",
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "align": null
+                  },
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Two stages"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": {
+              "font": "heading",
+              "size": 76,
+              "color": "heading",
+              "align": "left",
+              "valign": "bottom",
+              "lineHeight": 1.1,
+              "bold": true,
+              "italic": false
+            },
+            "fill": null,
+            "autoHeight": false
+          },
+          {
+            "id": "1l0n0x0r4g0e4z1g",
+            "x": 120,
+            "y": 290,
+            "w": 1680,
+            "h": 690,
+            "rotation": 0,
+            "role": "body",
+            "type": "text",
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "bullet_list",
+                  "content": [
+                    {
+                      "type": "list_item",
+                      "content": [
+                        {
+                          "type": "paragraph",
+                          "attrs": {
+                            "align": null
+                          },
+                          "content": [
+                            {
+                              "type": "text",
+                              "text": "Light reactions capture energy"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "list_item",
+                      "content": [
+                        {
+                          "type": "paragraph",
+                          "attrs": {
+                            "align": null
+                          },
+                          "content": [
+                            {
+                              "type": "text",
+                              "text": "The Calvin cycle builds sugar"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "list_item",
+                      "content": [
+                        {
+                          "type": "paragraph",
+                          "attrs": {
+                            "align": null
+                          },
+                          "content": [
+                            {
+                              "type": "text",
+                              "text": "Oxygen is released"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": {
+              "font": "body",
+              "size": 44,
+              "color": "text",
+              "align": "left",
+              "valign": "top",
+              "lineHeight": 1.3,
+              "bold": false,
+              "italic": false
+            },
+            "fill": null,
+            "autoHeight": false
+          }
+        ]
+      },
+      {
+        "id": "283d3u6914504u3o",
+        "layout": "twoColumn",
+        "elements": [
+          {
+            "id": "5k392h0v2o5b592f",
+            "x": 120,
+            "y": 80,
+            "w": 1680,
+            "h": 170,
+            "rotation": 0,
+            "role": "title",
+            "type": "text",
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "align": null
+                  },
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "In and out"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": {
+              "font": "heading",
+              "size": 76,
+              "color": "heading",
+              "align": "left",
+              "valign": "bottom",
+              "lineHeight": 1.1,
+              "bold": true,
+              "italic": false
+            },
+            "fill": null,
+            "autoHeight": false
+          },
+          {
+            "id": "720c4j6y70183c4h",
+            "x": 120,
+            "y": 290,
+            "w": 810,
+            "h": 690,
+            "rotation": 0,
+            "role": "body",
+            "type": "text",
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "bullet_list",
+                  "content": [
+                    {
+                      "type": "list_item",
+                      "content": [
+                        {
+                          "type": "paragraph",
+                          "attrs": {
+                            "align": null
+                          },
+                          "content": [
+                            {
+                              "type": "text",
+                              "text": "Sunlight"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "list_item",
+                      "content": [
+                        {
+                          "type": "paragraph",
+                          "attrs": {
+                            "align": null
+                          },
+                          "content": [
+                            {
+                              "type": "text",
+                              "text": "Water"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "list_item",
+                      "content": [
+                        {
+                          "type": "paragraph",
+                          "attrs": {
+                            "align": null
+                          },
+                          "content": [
+                            {
+                              "type": "text",
+                              "text": "Carbon dioxide"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": {
+              "font": "body",
+              "size": 40,
+              "color": "text",
+              "align": "left",
+              "valign": "top",
+              "lineHeight": 1.3,
+              "bold": false,
+              "italic": false
+            },
+            "fill": null,
+            "autoHeight": false
+          },
+          {
+            "id": "386d5a102z2t6k1f",
+            "x": 990,
+            "y": 290,
+            "w": 810,
+            "h": 690,
+            "rotation": 0,
+            "role": "body2",
+            "type": "text",
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "bullet_list",
+                  "content": [
+                    {
+                      "type": "list_item",
+                      "content": [
+                        {
+                          "type": "paragraph",
+                          "attrs": {
+                            "align": null
+                          },
+                          "content": [
+                            {
+                              "type": "text",
+                              "text": "Glucose"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "list_item",
+                      "content": [
+                        {
+                          "type": "paragraph",
+                          "attrs": {
+                            "align": null
+                          },
+                          "content": [
+                            {
+                              "type": "text",
+                              "text": "Oxygen"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": {
+              "font": "body",
+              "size": 40,
+              "color": "text",
+              "align": "left",
+              "valign": "top",
+              "lineHeight": 1.3,
+              "bold": false,
+              "italic": false
+            },
+            "fill": null,
+            "autoHeight": false
+          }
+        ]
+      },
+      {
+        "id": "332y722z2y5u2g2y",
+        "layout": "quote",
+        "elements": [
+          {
+            "id": "120t4q2o3v4c1k44",
+            "x": 200,
+            "y": 260,
+            "w": 1520,
+            "h": 440,
+            "rotation": 0,
+            "role": "quote",
+            "type": "text",
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "align": null
+                  },
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Light energy becomes chemical energy."
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": {
+              "font": "heading",
+              "size": 76,
+              "color": "heading",
+              "align": "center",
+              "valign": "middle",
+              "lineHeight": 1.2,
+              "bold": false,
+              "italic": true
+            },
+            "fill": null,
+            "autoHeight": false
+          },
+          {
+            "id": "041h2z3d3w5m5h0m",
+            "x": 200,
+            "y": 740,
+            "w": 1520,
+            "h": 90,
+            "rotation": 0,
+            "role": "attribution",
+            "type": "text",
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "align": null
+                  },
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Biology exam review"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": {
+              "font": "body",
+              "size": 36,
+              "color": "muted",
+              "align": "center",
+              "valign": "top",
+              "lineHeight": 1.3,
+              "bold": false,
+              "italic": false
+            },
+            "fill": null,
+            "autoHeight": false
+          }
+        ]
+      }
+    ]
+  }
+}

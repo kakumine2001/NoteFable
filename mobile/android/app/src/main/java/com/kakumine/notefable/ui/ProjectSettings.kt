@@ -1,9 +1,11 @@
 package com.kakumine.notefable.ui
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -47,11 +49,14 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -104,7 +109,7 @@ private val SettingsRing: Color get() = Sm.Ring
 /**
  * 项目设置（网页 ChatProjectSettings，dialog.chat-project-settings 的手机尺寸）：
  * 宽 374（412 屏宽时，左右各 19）、无内边距、圆角 8；头部 16/16/8（标题 16/600 + 项目名 13 灰）；正文左右 16、下 16、可滚动；
- * 底部上边 1px 线、内边距 12/16/16 + 安全区，取消 / 保存靠右。返回键和点遮罩关闭。
+ * 底部上边 1px 线、内边距 12/16/16 + 安全区，取消 / 保存靠右。返回键和点遮罩关闭；保存中不关，有没保存的改动时先确认。
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -117,6 +122,8 @@ fun ProjectSettingsDialog(project: ChatProjectSummary, sidebar: SidebarViewModel
     var filter by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<SidebarError?>(null) }
+    // 有没保存的改动时想关的次数；大于 0 且还有改动时，底栏换成“未保存的更改”（放弃 / 保存），每次想关晃一下（网页同）。
+    var attention by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
     val untitled = stringResource(R.string.sb_untitled)
 
@@ -128,6 +135,18 @@ fun ProjectSettingsDialog(project: ChatProjectSummary, sidebar: SidebarViewModel
                 selected = result.first.notes
             }
             .onFailure { loadError = sidebar.projectSettingsLoadError(it) }
+    }
+
+    val dirty = loaded?.let { projectSettingsChanges(it.first, instructions, selected) != null } ?: false
+    LaunchedEffect(dirty) { attention = projectSettingsAttention(attention, dirty) }
+    val confirming = attention > 0 && dirty
+    // 返回键、点遮罩、取消。保存中不关；有改动时先确认，不悄悄丢掉。
+    val dismiss: () -> Unit = {
+        when (projectSettingsDismissStep(busy, dirty)) {
+            ProjectSettingsDismiss.Close -> onClose()
+            ProjectSettingsDismiss.Confirm -> attention++
+            ProjectSettingsDismiss.Stay -> Unit
+        }
     }
 
     val save: () -> Unit = save@{
@@ -148,7 +167,7 @@ fun ProjectSettingsDialog(project: ChatProjectSummary, sidebar: SidebarViewModel
     }
 
     // 保存中不让关（网页保存时整个对话框锁住），否则请求结果到了也没人更新侧栏。
-    Dialog(onDismissRequest = { if (!busy) onClose() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(onDismissRequest = dismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         val window = (LocalView.current.parent as? DialogWindowProvider)?.window
         LaunchedEffect(window, Sm.isDark) { window?.setDimAmount(dialogDim()) }
         Column(
@@ -226,17 +245,51 @@ fun ProjectSettingsDialog(project: ChatProjectSummary, sidebar: SidebarViewModel
                 }
             }
             Box(Modifier.fillMaxWidth().heightIn(min = 1.dp).background(Sm.Border))
-            Row(
-                Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-            ) {
-                NotionButton(stringResource(R.string.cancel), onClick = onClose, enabled = !busy)
-                NotionButton(
-                    stringResource(if (busy) R.string.sb_saving else R.string.save), onClick = save,
-                    enabled = !busy && loaded != null, primary = true,
-                )
+            if (confirming) {
+                UnsavedFooter(attention, busy, onDiscard = onClose, onSave = save)
+            } else {
+                Row(
+                    Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                ) {
+                    NotionButton(stringResource(R.string.cancel), onClick = dismiss, enabled = !busy)
+                    NotionButton(
+                        stringResource(if (busy) R.string.sb_saving else R.string.save), onClick = save,
+                        enabled = !busy && loaded != null, primary = true,
+                    )
+                }
             }
         }
+    }
+}
+
+// .project-settings-footer.project-settings-unsaved：底栏换成“未保存的更改”14/500 + 放弃 / 保存（同一种按钮）；
+// [attention] 每变一次左右晃一下（360ms，±6），并让读屏念出来。
+@Composable
+private fun UnsavedFooter(attention: Int, busy: Boolean, onDiscard: () -> Unit, onSave: () -> Unit) {
+    val shake = remember { Animatable(0f) }
+    LaunchedEffect(attention) {
+        shake.snapTo(0f)
+        shake.animateTo(0f, keyframes {
+            durationMillis = 360
+            -6f at 72
+            6f at 144
+            -6f at 216
+            6f at 288
+        })
+    }
+    Row(
+        Modifier.fillMaxWidth().navigationBarsPadding().graphicsLayer { translationX = shake.value.dp.toPx() }
+            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            stringResource(R.string.settings_unsaved), color = Sm.Text, fontSize = 14.sp, fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Assertive },
+        )
+        NotionButton(stringResource(R.string.proposal_discard), onClick = onDiscard, enabled = !busy)
+        NotionButton(stringResource(if (busy) R.string.sb_saving else R.string.save), onClick = onSave, enabled = !busy, primary = true)
     }
 }
 

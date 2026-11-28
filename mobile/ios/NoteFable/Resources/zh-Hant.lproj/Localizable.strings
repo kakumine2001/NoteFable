@@ -9,7 +9,7 @@
 "chats_empty" = "最近的聊天會顯示在這裡。";
 "retry" = "重試";
 "messages_load_failed" = "載入聊天失敗。";
-"empty_hint" = "提出問題、整理筆記，或帶入一份檔案。";
+"empty_hint" = "提出問題、整理工作區裡的內容，或帶入一份檔案。";
 "message_hint" = "儘管提問…";
 "send" = "傳送訊息";
 "stop" = "停止生成";
@@ -80,10 +80,10 @@
 "new_note" = "新筆記";
 "projects" = "專案";
 "new_project" = "新專案";
-"no_notes_in_project" = "此專案中還沒有筆記。";
+"no_notes_in_project" = "此專案中還沒有頁面。";
 "notes_list_empty" = "你的筆記會顯示在這裡。";
 "trash" = "回收站";
-"trash_note_title" = "將筆記移到回收站？";
+"trash_note_title" = "將頁面移到回收站？";
 "trash_note_body" = "將把“%1$s”移到回收站，可在 %2$d 天內恢復。";
 "cancel" = "取消";
 "move_to_trash" = "移到回收站";
@@ -95,12 +95,11 @@
 "save" = "儲存";
 "delete_project_title" = "刪除專案？";
 "delete_project" = "刪除專案";
-"delete_project_body" = "將刪除“%1$s”。其中的筆記會保留，並移出此專案。";
+"delete_project_body" = "將刪除“%1$s”。其中的頁面會保留，並移出此專案。";
 "rename_name" = "重新命名 %1$s";
 "delete_project_name" = "刪除專案 %1$s";
 "project_name" = "專案名稱";
 "no_project" = "未分組";
-"move_note" = "移動筆記";
 "move_note_to" = "將“%1$s”移到";
 "project" = "專案";
 "new_project_name" = "新專案名稱";
@@ -109,9 +108,9 @@
 "close" = "關閉";
 "empty_trash" = "清空回收站";
 "close_trash" = "關閉回收站";
-"trash_hint" = "回收站中的筆記可在 %1$d 天內恢復，之後將永久刪除。";
-"empty_trash_one" = "永久刪除回收站中的這篇筆記？此操作無法撤銷。";
-"empty_trash_all" = "永久刪除回收站中的全部 %1$d 篇筆記？此操作無法撤銷。";
+"trash_hint" = "回收站中的頁面可在 %1$d 天內恢復，之後將永久刪除。";
+"empty_trash_one" = "永久刪除回收站中的這個頁面？此操作無法撤銷。";
+"empty_trash_all" = "永久刪除回收站中的全部 %1$d 個頁面？此操作無法撤銷。";
 "loading_trash" = "正在載入回收站…";
 "try_again" = "重試";
 "trash_is_empty" = "回收站是空的。";
@@ -126,26 +125,26 @@
 "removing_soon" = "即將刪除";
 "one_day_left" = "剩餘 1 天";
 "days_left" = "剩餘 %1$d 天";
-"loading_notes" = "正在載入筆記…";
-"notes_intro" = "用塊組織筆記，輸入 %1$s 即可新增標題、列表、待辦和程式碼。";
-"notes_storage_hint" = "筆記儲存在伺服器上，並與此裝置關聯。登入後，可在其他裝置開啟。如果在登入前清除應用或網站資料，將無法再開啟這些筆記。";
-"all_notes" = "全部筆記";
+"loading_notes" = "正在載入頁面…";
+"notes_intro" = "寫筆記、做投影片、在白板上自由畫。在筆記中輸入 %1$s 即可新增標題、列表、待辦和程式碼。";
+"notes_storage_hint" = "工作區儲存在伺服器上，並與此裝置關聯。登入後，可在其他裝置開啟。如果在登入前清除應用或網站資料，將無法再開啟其中的內容。";
+"all_notes" = "全部頁面";
 "version_history" = "版本歷史";
 "save_saved" = "已儲存";
 "save_saving" = "正在儲存…";
 "save_not_saved" = "未儲存";
 "save_conflict" = "儲存衝突";
-"err_trash_unsaved" = "請先處理未儲存的草稿，再將此筆記移到回收站。";
-"err_load_notes" = "載入筆記失敗。";
-"err_create_note" = "建立筆記失敗。";
-"err_trash_note" = "將筆記移到回收站失敗。";
+"err_trash_unsaved" = "請先處理未儲存的草稿，再將此頁面移到回收站。";
+"err_load_notes" = "載入頁面失敗。";
+"err_create_note" = "建立頁面失敗。";
+"err_trash_note" = "將頁面移到回收站失敗。";
 "err_group" = "無法修改專案。";
 "err_trash_request" = "回收站請求失敗，請重試。";
 "err_trash_load" = "無法載入回收站。";
 "err_save_draft" = "儲存失敗，草稿已保留。";
 "sign_in" = "登入";
 "signin_title" = "登入 NoteFable";
-"signin_subtitle" = "儲存你的聊天和筆記，換裝置也能開啟。";
+"signin_subtitle" = "儲存你的聊天和工作區，換裝置也能開啟。";
 "continue_google" = "使用 Google 繼續";
 "signin_or" = "或";
 "signin_email" = "郵箱地址";
@@ -197,10 +196,15 @@
 
 /* strings_account_delete.xml */
 "acct_delete_account" = "刪除賬號";
-"acct_delete_account_warning" = "永久刪除你的賬號和其中的全部內容：聊天、筆記、檔案和設定。刪除後無法恢復。";
+"acct_delete_account_warning" = "永久刪除你的賬號和其中的全部內容：聊天、筆記、投影片、白板、檔案和設定。刪除後無法恢復。";
 "acct_delete_permanently" = "永久刪除";
 "acct_deleting" = "正在刪除…";
 "acct_err_delete_account" = "無法刪除賬號，請重試。";
+
+/* strings_ai_generate.xml */
+"ai_gen_placeholder" = "讓 AI 生成筆記、白板或投影片…";
+"ai_gen_options" = "選項";
+"ai_gen_generate" = "生成";
 
 /* strings_answers.xml */
 "activity_thinking" = "正在思考";
@@ -209,21 +213,21 @@
 "activity_searching_query" = "正在搜尋“%1$s”";
 "activity_reading_host" = "正在讀取 %1$s";
 "activity_scanning_host" = "正在瀏覽 %1$s";
-"activity_searching_notes" = "正在搜尋筆記";
-"activity_reading_note" = "正在讀取筆記";
+"activity_searching_notes" = "正在搜尋頁面";
+"activity_reading_note" = "正在讀取頁面";
 "activity_one_search" = "搜尋了 1 次";
 "activity_searches" = "搜尋了 %1$s 次";
 "activity_one_source" = "1 個來源";
 "activity_sources" = "%1$s 個來源";
-"activity_one_note_lookup" = "查閱了 1 次筆記";
-"activity_note_lookups" = "查閱了 %1$s 次筆記";
-"activity_one_project_note" = "1 篇專案筆記";
-"activity_project_notes" = "%1$s 篇專案筆記";
+"activity_one_note_lookup" = "查閱了 1 次頁面";
+"activity_note_lookups" = "查閱了 %1$s 次頁面";
+"activity_one_project_note" = "1 個專案頁面";
+"activity_project_notes" = "%1$s 個專案頁面";
 "activity_project_instructions" = "專案指示";
 "activity_more" = "另有 %1$s 項";
 "activity_instructions" = "指示";
-"activity_one_reference_note" = "1 篇參考筆記";
-"activity_reference_notes" = "%1$s 篇參考筆記";
+"activity_one_reference_note" = "1 個參考頁面";
+"activity_reference_notes" = "%1$s 個參考頁面";
 "activity_used_project" = "已使用專案“%1$s”：%2$s";
 "activity_partial" = "部分內容";
 "activity_searching_web_running" = "正在搜尋網路…";
@@ -235,7 +239,7 @@
 "activity_thought_process" = "思考過程";
 "proposal_discarded" = "已放棄";
 "proposal_minimize" = "最小化";
-"proposal_expand" = "擴寫";
+"proposal_expand" = "展開";
 "proposal_open" = "開啟";
 "proposal_discard" = "放棄";
 "proposal_open_note" = "開啟筆記";
@@ -291,10 +295,11 @@
 "proposal_op_elements" = "%1$s · %2$s 個元素";
 "proposal_before" = "修改前";
 "proposal_after" = "修改後";
+"proposal_view_preview" = "檢視預覽";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "新增頁面";
-"attach_pages_desc" = "讓 AI 參考你的筆記";
+"attach_pages_desc" = "讓 AI 參考你的頁面";
 "attached_pages" = "已新增的頁面";
 "ask_notefable" = "問 NoteFable";
 "quote" = "引用";
@@ -428,6 +433,7 @@
 "pg_subpages_to_trash" = "其中的子頁面也會一起移入回收站。";
 "pg_rename_page" = "重新命名頁面";
 "pg_page_title" = "頁面標題";
+"pg_review_quiz" = "複習和測驗";
 
 /* strings_personal.xml */
 "appearance" = "外觀";
@@ -436,7 +442,7 @@
 "theme_dark" = "深色";
 "export_markdown" = "匯出 Markdown";
 "import_markdown" = "匯入 Markdown";
-"note_export_failed" = "無法匯出此頁面。";
+"note_export_failed" = "無法匯出頁面。";
 "note_export_unsaved" = "請先處理未儲存的草稿，再匯出此頁面。";
 "note_import_failed" = "無法匯入 Markdown 檔案。";
 "note_import_too_many" = "一次最多可匯入 %1$d 個檔案。";
@@ -496,14 +502,14 @@
 
 /* strings_search.xml */
 "search" = "搜尋";
-"search_chats_and_notes" = "搜尋聊天和筆記";
+"search_chats_and_notes" = "搜尋聊天和頁面";
 "search_close" = "關閉搜尋";
 "search_tab_all" = "全部";
 "search_tab_chats" = "聊天";
 "search_project" = "專案";
 "search_all_projects" = "全部專案";
-"search_idle_title" = "搜尋你的聊天和筆記";
-"search_idle_body" = "輸入的每個詞都需要出現在同一個聊天或筆記中，可以在標題、訊息或附件裡。";
+"search_idle_title" = "搜尋你的聊天和頁面";
+"search_idle_body" = "輸入的每個詞都需要出現在同一個聊天或頁面中，可以在標題、正文或附件裡。";
 "search_unavailable_title" = "搜尋不可用";
 "search_unavailable_body" = "請檢查網路連線後重試。";
 "search_try_again" = "重試";
@@ -521,7 +527,7 @@
 "share_publish" = "公開";
 "share_republish" = "重新公開";
 "share_unpublish" = "取消公開";
-"share_desc" = "公開這篇筆記後，擁有連結的人即可線上檢視。";
+"share_desc" = "公開這個頁面後，擁有連結的人即可線上檢視。";
 "share_expired" = "此分享連結已過期。";
 "share_public_link" = "公開連結";
 "share_copy_link" = "複製連結";
@@ -557,8 +563,8 @@
 "sb_all_chats_pinned" = "所有聊天均已置頂";
 "sb_no_chats" = "暫無聊天";
 "sb_hint_instructions" = "指示";
-"sb_one_reference_note" = "1 篇參考筆記";
-"sb_n_reference_notes" = "%1$d 篇參考筆記";
+"sb_one_reference_note" = "1 個參考頁面";
+"sb_n_reference_notes" = "%1$d 個參考頁面";
 "sb_project_settings" = "專案設定";
 "sb_new_project_plus" = "＋ 新建專案";
 "sb_delete_chat" = "刪除聊天";
@@ -576,19 +582,19 @@
 "sb_loading" = "正在載入…";
 "sb_instructions" = "指示";
 "sb_instructions_placeholder" = "例如：幫我寫日語商務郵件。保持禮貌，先給出一份簡短草稿。";
-"sb_reference_notes" = "參考筆記";
-"sb_selected_notes" = "已選筆記";
+"sb_reference_notes" = "參考頁面";
+"sb_selected_notes" = "已選頁面";
 "sb_remove_title" = "移除 %1$s";
-"sb_filter_notes" = "篩選筆記";
-"sb_your_notes" = "你的筆記";
+"sb_filter_notes" = "篩選頁面";
+"sb_your_notes" = "你的頁面";
 "sb_untitled" = "無標題";
-"sb_no_notes_match" = "沒有匹配的筆記。";
-"sb_no_notes_yet" = "你還沒有筆記。";
-"sb_showing_first_notes" = "顯示前 %1$d 篇筆記，輸入篩選詞可查詢其他筆記。";
-"sb_notes_limit" = "最多可選擇 %1$d 篇筆記，移除一篇後才能繼續新增。";
+"sb_no_notes_match" = "沒有匹配的頁面。";
+"sb_no_notes_yet" = "你還沒有頁面。";
+"sb_showing_first_notes" = "顯示前 %1$d 個頁面，輸入篩選詞可查詢其他頁面。";
+"sb_notes_limit" = "最多可選擇 %1$d 個頁面，移除一個後才能繼續新增。";
 "sb_saving" = "正在儲存…";
 "sb_err_load_project_settings" = "無法載入專案設定。";
-"sb_err_load_your_notes" = "無法載入筆記。";
+"sb_err_load_your_notes" = "無法載入頁面。";
 "sb_err_save_project_settings" = "無法儲存專案設定，請重試。";
 "sb_err_move_item" = "無法移動此項，請重試。";
 "sb_err_wait_move" = "請等待上一次移動完成。";
@@ -602,9 +608,11 @@
 "slides_export_png" = "匯出 PNG 圖片";
 "slides_export_pptx" = "匯出 PowerPoint（PPTX）";
 "slides_export_pptx_transition_note" = "匯出為 PPTX 時不包含投影片轉場效果。";
+"slides_import_pptx" = "匯入 PowerPoint";
 
 /* strings_slides_wizard.xml */
 "slides_generate" = "生成投影片";
+"slides_generating" = "正在生成投影片…";
 "slides_generate_from_chat" = "用這段聊天做一份投影片";
 "slides_generate_with_ai" = "用 AI 生成";
 

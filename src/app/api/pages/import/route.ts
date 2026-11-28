@@ -5,6 +5,7 @@ import { noteApiError } from "@/lib/note-api";
 import { NoteValidationError, readNoteRequest, validateNoteContent } from "@/lib/note-document";
 import { scheduleNoteEmbeddingSync } from "@/lib/note-embeddings";
 import { assertNoteFilesOwner } from "@/lib/note-files";
+import { assertNoteWhiteboardsOwner } from "@/lib/note-whiteboards";
 import { claimNoteFiles } from "@/lib/stored-files";
 import {
   isImportableMarkdownFile,
@@ -76,6 +77,7 @@ export async function POST(request: Request) {
       const created = [];
       for (const content of prepared) {
         await claimNoteFiles(tx, content.blocks, user.id);
+        await assertNoteWhiteboardsOwner(tx, content.blocks, user.id);
         created.push(
           await tx.notePage.create({
             data: {

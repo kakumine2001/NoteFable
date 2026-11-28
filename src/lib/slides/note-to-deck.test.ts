@@ -491,15 +491,17 @@ describe("noteToDeck", () => {
 
     const localized = noteToDeck({
       title: "Localized",
-      labels: { untitled: "无标题", file: "文件", image: "图片" },
+      labels: { untitled: "无标题", file: "文件", image: "图片", whiteboard: "白板" },
       blocks: [
         { type: "file", props: { name: "plan.pdf" }, children: [] },
+        { type: "whiteboard", props: { pageId: "wb1", frameId: "f1" }, children: [] },
         textBlock("bulletListItem", "Parent", {}, [{ type: "image", props: { url: VALID_IMG, caption: "图1" }, children: [] }]),
       ],
     });
     expectValidDeck(localized);
     const locText = localized.slides.flatMap(slideTexts).join("\n");
     expect(locText).toContain("[文件: plan.pdf]");
+    expect(locText).toContain("[白板]");
     expect(locText).toContain("[图片: 图1]");
   });
 });

@@ -7,21 +7,21 @@
     <string name="activity_searching_query">Mencari “%1$s”</string>
     <string name="activity_reading_host">Membaca %1$s</string>
     <string name="activity_scanning_host">Memindai %1$s</string>
-    <string name="activity_searching_notes">Mencari di catatan Anda</string>
-    <string name="activity_reading_note">Membaca catatan Anda</string>
+    <string name="activity_searching_notes">Mencari di halaman Anda</string>
+    <string name="activity_reading_note">Membaca halaman Anda</string>
     <string name="activity_one_search">1 pencarian</string>
     <string name="activity_searches">%1$s pencarian</string>
     <string name="activity_one_source">1 sumber</string>
     <string name="activity_sources">%1$s sumber</string>
-    <string name="activity_one_note_lookup">1 rujukan catatan</string>
-    <string name="activity_note_lookups">%1$s rujukan catatan</string>
-    <string name="activity_one_project_note">1 catatan proyek</string>
-    <string name="activity_project_notes">%1$s catatan proyek</string>
+    <string name="activity_one_note_lookup">1 rujukan halaman</string>
+    <string name="activity_note_lookups">%1$s rujukan halaman</string>
+    <string name="activity_one_project_note">1 halaman proyek</string>
+    <string name="activity_project_notes">%1$s halaman proyek</string>
     <string name="activity_project_instructions">instruksi proyek</string>
     <string name="activity_more">+%1$s lainnya</string>
     <string name="activity_instructions">instruksi</string>
-    <string name="activity_one_reference_note">1 catatan referensi</string>
-    <string name="activity_reference_notes">%1$s catatan referensi</string>
+    <string name="activity_one_reference_note">1 halaman referensi</string>
+    <string name="activity_reference_notes">%1$s halaman referensi</string>
     <string name="activity_used_project">Menggunakan proyek “%1$s”: %2$s</string>
     <string name="activity_partial">sebagian</string>
     <string name="activity_searching_web_running">Mencari di web…</string>
@@ -89,4 +89,5 @@
     <string name="proposal_op_elements">%1$s · %2$s elemen</string>
     <string name="proposal_before">Sebelum</string>
     <string name="proposal_after">Sesudah</string>
+    <string name="proposal_view_preview">Lihat pratinjau</string>
 </resources>

@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.stringResource
@@ -40,6 +41,8 @@ import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -52,6 +55,9 @@ import kotlin.math.roundToInt
 
 /** 笔记和幻灯片都支持在"…"菜单里放映（导出仅幻灯片可用）。 */
 internal fun supportsPresentation(kind: PageKind): Boolean = kind == PageKind.Note || kind == PageKind.Slides
+
+/** 笔记和幻灯片都支持在"…"菜单里打开复习和测验（白板不支持）。 */
+internal fun supportsReviewQuiz(kind: PageKind): Boolean = kind == PageKind.Note || kind == PageKind.Slides
 
 /** 笔记顶栏"…"菜单的操作（网页 note-page-menu.tsx）。 */
 class NotePageMenuActions(
@@ -73,17 +79,25 @@ class NotePageMenuActions(
     val drawingDiagram: Boolean = false,
     /** 「生成幻灯片」（#150）：只给笔记，用这一篇开向导。 */
     val onGenerateSlides: (() -> Unit)? = null,
+    /** 这篇的幻灯片正在生成（网页的菜单项显示转圈和"正在生成幻灯片…"）。 */
+    val generatingSlides: Boolean = false,
+    /** 「导入 PowerPoint」（#154）：只给幻灯片，打开 PPTX 导入窗口。 */
+    val onImportPptx: (() -> Unit)? = null,
+    /** 「复习和测验」（#154 PR 13）：给笔记和幻灯片，盖在编辑器上打开测验窗口。 */
+    val onReviewQuiz: (() -> Unit)? = null,
 ) {
     fun withSlides(handler: (String) -> Unit) = NotePageMenuActions(
         error, busy, onSettings, onFavorite, onDuplicate, onAddInside, onMove, onExport, onTrash, onSlides = handler,
-        onDrawDiagram = onDrawDiagram, drawingDiagram = drawingDiagram, onGenerateSlides = onGenerateSlides,
+        onDrawDiagram = onDrawDiagram, drawingDiagram = drawingDiagram, onGenerateSlides = onGenerateSlides, generatingSlides = generatingSlides,
+        onImportPptx = onImportPptx,
+        onReviewQuiz = onReviewQuiz,
     )
 }
 
 private val MenuDivider: Color get() = Sm.Border
 
 // 网页上部栏的"…"（.notes-page-menu = .chat-actions-menu 宽 248）：
-// "Style" 小标题（12/500 灰，内边距 5.6/12/2.4）；三个字体按钮（三等分、间距 4、外边距 4/8/5.6；每个上下 6.4、圆角 6.4；
+// "Style" 小标题（12/500 灰，内边距 5.6/12/2.4）；三个字体按钮（三等分、长单词放不下时换行、间距 4、外边距 4/8/5.6；每个上下 6.4、圆角 6.4；
 // "Ag" 22、标签 12 灰，选中的蓝色）；分隔线（上下 4.8、左右 8）；Small text / Full width / Lock page 三个开关（右侧 26×14 的开关）；
 // 分隔线；收藏、复制、添加子页面、画成图（Workflow 16，只有笔记）、生成幻灯片（Presentation 16，只有笔记）、移动到、导出 Markdown（Download 16）、报告 AI 内容（Flag 16）；
 // 分隔线；移到回收站（红字）。
@@ -113,7 +127,7 @@ fun NotePageMenuButton(page: NotePageSummary, actions: NotePageMenuActions) {
             if (features.typography) {
                 Text(stringResource(R.string.pg_style), color = Sm.Muted, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 5.6.dp, bottom = 2.4.dp))
-                Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 5.6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                FontChoices(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 5.6.dp)) {
                     listOf(
                         Triple("default", R.string.pg_font_default, FontFamily.Default),
                         Triple("serif", R.string.pg_font_serif, FontFamily.Serif),
@@ -122,12 +136,12 @@ fun NotePageMenuButton(page: NotePageSummary, actions: NotePageMenuActions) {
                         val checked = page.font == key
                         val color = if (checked) Sm.Blue else Sm.Muted
                         Column(
-                            Modifier.weight(1f).clip(RoundedCornerShape(6.4.dp)).clickable { actions.onSettings(NotePageSettings(font = key)) }
+                            Modifier.clip(RoundedCornerShape(6.4.dp)).clickable { actions.onSettings(NotePageSettings(font = key)) }
                                 .padding(vertical = 6.4.dp, horizontal = 4.dp).semantics { role = Role.RadioButton; selected = checked },
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
                             Text("Ag", color = if (checked) Sm.Blue else Sm.Text, fontSize = 22.sp, lineHeight = 26.4.sp, fontFamily = family)
-                            Text(stringResource(name), color = color, fontSize = 12.sp, lineHeight = 16.sp)
+                            Text(stringResource(name), color = color, fontSize = 12.sp, lineHeight = 16.sp, textAlign = TextAlign.Center)
                         }
                     }
                 }
@@ -169,7 +183,18 @@ fun NotePageMenuButton(page: NotePageSummary, actions: NotePageMenuActions) {
             }
             val generateSlides = actions.onGenerateSlides
             if (generateSlides != null && page.kind == PageKind.Note) {
-                MenuItem(stringResource(R.string.slides_generate), Lucide.Presentation, onClick = run(generateSlides))
+                MenuItem(
+                    stringResource(if (actions.generatingSlides) R.string.slides_generating else R.string.slides_generate),
+                    Lucide.Presentation, spinning = actions.generatingSlides, onClick = run(generateSlides),
+                )
+            }
+            val importPptx = actions.onImportPptx
+            if (importPptx != null && page.kind == PageKind.Slides) {
+                MenuItem(stringResource(R.string.slides_import_pptx), Lucide.Upload, onClick = run(importPptx))
+            }
+            val reviewQuiz = actions.onReviewQuiz
+            if (reviewQuiz != null && supportsReviewQuiz(page.kind)) {
+                MenuItem(stringResource(R.string.pg_review_quiz), Lucide.BookOpenCheck, onClick = run(reviewQuiz))
             }
             MenuItem(stringResource(R.string.pg_move_to), Lucide.FolderInput, onClick = run(actions.onMove))
             if (features.markdownExport) MenuItem(stringResource(R.string.export_markdown), Lucide.Download, onClick = run(actions.onExport))
@@ -184,6 +209,31 @@ fun NotePageMenuButton(page: NotePageSummary, actions: NotePageMenuActions) {
         }
     }
     if (reporting) ReportDialog(ReportTarget.Page(page.id), onClose = { reporting = false })
+}
+
+// 三个字体按钮：间距 4，按 [fontChoiceRows] 分行（长单词放不下时换行，不从单词中间断开）。
+// 同一行的按钮一样高（网页 flex 的 stretch），只有一个标签折行时其余按钮的点按区域不会变小。
+@Composable
+private fun FontChoices(modifier: Modifier, content: @Composable () -> Unit) {
+    Layout(content, modifier) { measurables, constraints ->
+        val gap = 4.dp.roundToPx()
+        val rows = fontChoiceRows(constraints.maxWidth, gap, measurables.map { it.minIntrinsicWidth(Constraints.Infinity) })
+        var next = 0
+        val placed = rows.map { widths ->
+            val row = widths.map { measurables[next++] to it }
+            val height = row.maxOf { (button, width) -> button.maxIntrinsicHeight(width) }
+            row.map { (button, width) -> button.measure(Constraints.fixed(width, height)) }
+        }
+        val heights = placed.map { row -> row.maxOf { it.height } }
+        layout(constraints.maxWidth, heights.sum() + gap * (heights.size - 1).coerceAtLeast(0)) {
+            var y = 0
+            placed.forEachIndexed { index, row ->
+                var x = 0
+                row.forEach { it.placeRelative(x, y); x += it.width + gap }
+                y += heights[index] + gap
+            }
+        }
+    }
 }
 
 @Composable

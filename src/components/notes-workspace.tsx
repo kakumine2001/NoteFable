@@ -15,8 +15,10 @@ import { PageAssistant } from "@/components/page-assistant";
 import { NoteFloatingToc } from "@/components/note-floating-toc";
 import { NotePageHeader } from "@/components/note-page-header";
 import { NewPageButtons, NotesHome } from "@/components/notes-home";
+import { WorkspaceAiEntry } from "@/components/ai-generate-panel";
+import type { AiGenerateKind } from "@/lib/ai-generate";
 import { WorkspaceSwitch, type WorkspaceView } from "@/components/workspace-nav";
-import type { useNotePages } from "@/lib/use-note-pages";
+import { applyCanvasEditorChange, type useNotePages } from "@/lib/use-note-pages";
 import { useI18n, useT } from "@/components/i18n-provider";
 import { localizeSystemText } from "@/lib/i18n/translate";
 import { StorageLimitPrompt } from "@/components/guest-limit-prompt";
@@ -126,7 +128,7 @@ function NoteSaveWarnings({ notes }: { notes: ReturnType<typeof useNotePages> })
       <p>{localizeSystemText(active.error, t)}</p>
       <div className="mt-3 flex flex-wrap gap-2">
         {active.status === "conflict" ? <>
-          <button type="button" className="notion-button" disabled={busy} onClick={() => void notes.create(true)}>{t("Save as new note")}</button>
+          <button type="button" className="notion-button" disabled={busy} onClick={() => void notes.create(true)}>{t("Save as new page")}</button>
           <button type="button" className="notion-button" onClick={() => { if (window.confirm(t("Discard this unsaved draft and load the latest version?"))) void notes.loadLatest(); }}>{t("Load latest")}</button>
         </> : <button type="button" className="notion-button inline-flex items-center gap-2" onClick={() => void active.flush()}><RefreshCw size={13} />{t("Retry save")}</button>}
       </div>
@@ -134,7 +136,7 @@ function NoteSaveWarnings({ notes }: { notes: ReturnType<typeof useNotePages> })
   </>;
 }
 
-export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChange, onReasoningChange, onOpen, onOpenChat, onCreate, onGenerateSlides, onImport, onWorkspaceChange, embedded = false, split = false, onAskSelectionInChat }: {
+export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChange, onReasoningChange, onOpen, onOpenChat, onCreate, onGenerate, onImportPptx, onImport, onWorkspaceChange, embedded = false, split = false, onAskSelectionInChat, onNativeOpenReveal }: {
   notes: ReturnType<typeof useNotePages>;
   listMode: boolean;
   // ノートの AI アシスタントが使うモデルと推論強度（チャットで選んでいるものと同じ）。
@@ -143,13 +145,14 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   // AI アシスタントの入力欄からモデルと推論強度を変える。/note-embed では渡さない（アプリ側で選ぶ）。
   onModelChange?: (model: string) => void;
   onReasoningChange?: (reasoning: string) => void;
-  onOpen: (id: string) => void;
+  onOpen: (id: string, reveal?: string) => void;
   // バックリンクの会話を開く（messageId はそのページを添付した発言）。/note-embed では渡さず、アプリに openChat を送る。
   onOpenChat?: (id: string, messageId?: string) => void;
   // 新しいページを作る（ホームと空状態の作成ボタン）。省略はプロジェクトなしのノート。
   onCreate: (request?: NewPageRequest) => void;
-  // ホームと空状態の「Generate with AI」（AI のスライド生成の窓）。
-  onGenerateSlides?: () => void;
+  // ホームと空状態の統合「AI で生成」・スライド専用の「Import PowerPoint」。
+  onGenerate?: (opts: { kind: AiGenerateKind; prompt?: string; autoStart?: boolean }) => void;
+  onImportPptx?: () => void;
   onImport?: (files: File[]) => void;
   onWorkspaceChange: (view: WorkspaceView) => void;
   // Android アプリの WebView に載せる 1 ページだけの画面（/note-embed）。ノートを開く前に Notes のホームを出さない。
@@ -158,6 +161,8 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   split?: boolean;
   // 分割表示中にエディターで「Ask AI」を押したとき、左のチャットへ選択内容（引用・要素 ID・選区画像）を渡す。
   onAskSelectionInChat?: (selection: PageSelection) => void;
+  // /note-embed で別ページの特定要素（ホワイトボードの枠など）へ飛ぶ時、アプリの openPage 応答をまたいで目標要素を覚える。
+  onNativeOpenReveal?: (id: string, reveal: string) => void;
 }) {
   const { t, locale } = useI18n();
   const { active, activeId, loading, listLoading, openingId, busy, error, actionError } = notes;
@@ -188,7 +193,14 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   const emptyPage = active?.content.title === "Untitled" && !active.content.blocks.length;
   // ページの表示設定（全幅・小さな文字・字体）とロック。一覧の 1 件が持つ（/note-embed では開いたページの 1 件だけ）。
   const activeSummary = activeId ? notes.pages.find((page) => page.id === activeId) : undefined;
+  const pagesRef = useRef(notes.pages);
+  useLayoutEffect(() => { pagesRef.current = notes.pages; }, [notes.pages]);
+  const isPageLocked = (id: string, fallback?: boolean) => {
+    const summary = pagesRef.current.find((page) => page.id === id);
+    return summary ? Boolean(summary.locked) : Boolean(fallback);
+  };
   const settings = pageSettingsOf(activeSummary);
+  const pageLocked = activeSummary ? settings.locked : Boolean(active?.page.locked);
   // ページの種類。一覧の 1 件（/note-embed では開いたページの 1 件だけ）か、読み込んだページの行が持つ。
   const activeKind = pageKindOf(activeSummary?.kind ? activeSummary : active?.page);
   // ホワイトボード・スライドのエディター（種類の表でエディターがあり、画面に登録があるときだけ）。
@@ -234,16 +246,16 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
     }}
     // 要素が消えて外れたフォーカス（relatedTarget なし）は覚えたままにして、上で付け直す。
     onBlur={(event) => { if (event.relatedTarget) switchFocused.current = null; }}>
-    {openingId && (listMode || active) && <div className="notes-switch-progress" role="progressbar" aria-label={t("Loading note…")} />}
+    {openingId && (listMode || active) && <div className="notes-switch-progress" role="progressbar" aria-label={t("Loading page…")} />}
     {listMode && !hasItems && <div className="notes-column"><div className="notion-home-switch lg:hidden"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div></div>}
     {error && <div className="notes-column pt-6"><div className="notion-error" role="alert">{localizeSystemText(error, t)}<button type="button" className="notion-button ml-3" onClick={() => void notes.load()}>{t("Retry")}</button></div></div>}
     <NoteStorageLimitNotice embedded={embedded} />
     {actionError && <div className="notes-action-error notes-column pt-6"><div className="notion-error" role="alert">{localizeSystemText(actionError, t)}<button type="button" className="notion-button ml-3" onClick={notes.dismissActionError}>{t("Close")}</button></div></div>}
     {listMode && (notes.pages.length > 0 || notes.groups.length > 0) ? (
       <NotesHome pages={notes.pages} groups={notes.groups} groupError={notes.groupError} busy={busy} onOpen={onOpen}
-        onPrefetch={notes.prefetch} onCancelPrefetch={notes.cancelPrefetch} onCreate={onCreate} onGenerateSlides={onGenerateSlides} onImport={onImport}
+        onPrefetch={notes.prefetch} onCancelPrefetch={notes.cancelPrefetch} onCreate={onCreate} onGenerate={onGenerate} onImportPptx={onImportPptx} onImport={onImport}
         onWorkspaceChange={onWorkspaceChange} onReorder={notes.reorder} onMoveNote={notes.moveNote} onCreateGroup={notes.createGroup} onMoveToPage={notes.moveToPage} />
-    ) : loading && (!listMode || !(notes.pages.length || notes.groups.length)) ? <div className="notes-column pt-24"><p className="notes-loading">{listMode ? t("Loading notes…") : t("Loading note…")}</p></div>
+    ) : loading && (!listMode || !(notes.pages.length || notes.groups.length)) ? <div className="notes-column pt-24"><p className="notes-loading">{listMode ? t("Loading pages…") : t("Loading page…")}</p></div>
     // ホワイトボード・スライドは種類ごとのエディター（canvas-editors.tsx）。エディターがまだ無い種類は読み取り専用の仮の画面
     // （ノートのエディター・AI ボタンは出さない。保存もしない）。
     : active && activeId && !listMode && isCanvasKind(activeKind) ? <>
@@ -253,12 +265,17 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
           data={canvasData!} version={active.version} generation={canvasGeneration} editable={editable} embedded={embedded} split={split} saveStatus={active.status}
           // 同じ内容の通知（作成・削除の途中で editable が替わったときなど）では、要らない保存を走らせない。
           // 中身をサーバーの版で置き換えた後（最新の版を読む・版の復元）は、置き換える前のエディターが閉じる時に渡す古い変更を捨てる。
-          onChange={(data) => { if (active.generation === canvasGeneration && data !== active.content.data) active.edit({ ...active.content, data }); }}
+          onChange={(change) => { applyCanvasEditorChange(active, canvasGeneration, isPageLocked(activeId, active.page.locked), change); }}
           onTitleChange={(title) => { if (title !== active.content.title) active.edit({ ...active.content, title }); }}
           onIconChange={(icon) => { if (icon !== active.content.icon) active.edit({ ...active.content, icon }); }}
           // 埋め込み（/note-embed）は一覧を持たない。リンク先を選ぶ時にエディターが自分で読む。
           pages={embedded || (listLoading && !notes.pages.length) ? undefined : notes.pages}
-          onOpenPage={(id) => { if (!embedded) { onOpen(id); return true; } return nativeCanOpenPage() && postToNative({ type: "openPage", id }); }}
+          onOpenPage={(id, reveal) => {
+            if (!embedded) { onOpen(id, reveal); return true; }
+            if (!nativeCanOpenPage()) return false;
+            if (reveal) onNativeOpenReveal?.(id, reveal);
+            return postToNative({ type: "openPage", id, ...(reveal ? { reveal } : {}) });
+          }}
           // 選んだ要素・スライドについて AI に聞く（AI パネルを開き、選んだものを文脈として渡す）。
           onAskAi={(selection) => {
             // 分割表示では AI パネルを出さないので、選んだ抜粋・要素 ID・選区画像コールバックを左のチャットへ渡す。
@@ -282,8 +299,8 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
       </>}
       {/* AI パネル（AI 操控底座）。エディターが選んだ要素・スライドを selection で渡す。AI が操作できない種類は読むだけ。
           送る前の flush は、ホワイトボードなどがまだ保存キューへ渡していない変更（描き終わり・文字の確定の直後）も先に渡してもらう（版の履歴と同じ）。 */}
-      <PageAssistant key={activeId} pageId={activeId} pageKind={activeKind} pageTitle={active.content.title} model={model} reasoning={reasoning}
-        onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={async () => { await flushCanvasEditors(); return active.flush(); }} embedded={embedded}
+      <PageAssistant key={activeId} pageId={activeId} pageKind={activeKind} pageTitle={active.content.title} pageLocked={pageLocked} model={model} reasoning={reasoning}
+        onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={async () => { if (!(await flushCanvasEditors(active.page.id))) return false; return active.flush(); }} embedded={embedded}
         selection={aiSelection} onClearSelection={(sent) => setAiAsk((current) => clearActiveSelection(current, activeId, sent))}
         openSignal={aiOpenSignal} hidden={split} anchor={CanvasEditor && !split ? aiAnchor : null}
         onGenerateImage={CanvasEditor && editable ? requestPageImageGeneration : undefined} />
@@ -308,7 +325,12 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
           // 一覧の読み込み中（まだ空）は「不明」として渡さない。空の一覧を渡すと、すべてのメンションが「開けない」表示になる。
           pages={embedded || (listLoading && !notes.pages.length) ? undefined : notes.pages} currentPageId={activeId} pageMentions={!embedded || nativeCanOpenPage()}
           // 埋め込みでは、openPage を処理できるアプリにだけ送る。古いアプリ・ブラウザでは false を返し、エディターは元どおりリンクを新しいウィンドウで開く。
-          onOpenPage={(id) => { if (!embedded) { onOpen(id); return true; } return nativeCanOpenPage() && postToNative({ type: "openPage", id }); }}
+          onOpenPage={(id, reveal) => {
+            if (!embedded) { onOpen(id, reveal); return true; }
+            if (!nativeCanOpenPage()) return false;
+            if (reveal) onNativeOpenReveal?.(id, reveal);
+            return postToNative({ type: "openPage", id, ...(reveal ? { reveal } : {}) });
+          }}
           editorRef={editorRef} onFocusTitle={() => {
             titleRef.current?.focus();
             const end = titleRef.current?.value.length ?? 0;
@@ -331,7 +353,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
             : nativeCanOpenChat() ? (id, messageId) => { postToNative(messageId ? { type: "openChat", id, messageId } : { type: "openChat", id }); } : undefined} />
       </div>
       {!embedded && !split && <NoteFloatingToc blocks={active.content.blocks} scrollRootRef={rootRef} activeId={activeId} />}
-      <PageAssistant key={activeId} pageId={activeId} pageTitle={active.content.title} model={model} reasoning={reasoning}
+      <PageAssistant key={activeId} pageId={activeId} pageTitle={active.content.title} pageLocked={pageLocked} model={model} reasoning={reasoning}
         onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={() => active.flush()} embedded={embedded}
         selection={aiSelection} onClearSelection={(sent) => setAiAsk((current) => clearActiveSelection(current, activeId, sent))} openSignal={aiOpenSignal} hidden={split}
         onGenerateImage={editable ? requestPageImageGeneration : undefined} />
@@ -345,24 +367,34 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
         embedded={embedded}
         onOpenSaved={(id) => { if (!embedded) onOpen(id); else void notes.select(id, "none"); }}
       />
-    </> : embedded ? !error && <div className="notes-column pt-24"><p className="notes-loading">{t("Loading note…")}</p></div>
+    </> : embedded ? !error && <div className="notes-column pt-24"><p className="notes-loading">{t("Loading page…")}</p></div>
     : !error && <>{!listMode && <div className="notes-column"><div className="notion-home-switch lg:hidden"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div></div>}<div className="notes-column notes-empty">
       <div className="notes-empty-emblem" aria-hidden="true"><LayoutGrid size={26} strokeWidth={1.6} /></div>
       <h1 className="notes-empty-title">{t("Workspace")}</h1>
-      <p className="notes-empty-subtitle">{t("Write notes with blocks — type {key} for headings, lists, to-dos and code.").split("{key}").flatMap((part, index) => index ? [<kbd key={index} className="notes-kbd">/</kbd>, part] : [part])}</p>
+      <p className="notes-empty-subtitle">{t("Write notes, build slide decks and sketch on whiteboards. In a note, type {key} for headings, lists, to-dos and code.").split("{key}").flatMap((part, index) => index ? [<kbd key={index} className="notes-kbd">/</kbd>, part] : [part])}</p>
       <div className="notes-empty-actions">
-        <NewPageButtons kinds={creatablePageKinds()} busy={busy} className="!mt-0" onCreate={(kind) => onCreate({ kind })} onGenerate={onGenerateSlides} />
-        {onImport && <>
-          <input ref={emptyImportRef} type="file" multiple accept=".md,.markdown,.txt,text/markdown,text/plain" className="sr-only"
-            onChange={(event) => {
-              const picked = Array.from(event.target.files ?? []);
-              event.target.value = "";
-              if (picked.length) onImport(picked);
-            }} />
-          <button type="button" disabled={busy} className="ws-util-pill notes-empty-import" onClick={() => emptyImportRef.current?.click()}><Upload size={14} aria-hidden="true" /><span>{t("Import Markdown")}</span></button>
-        </>}
+        {onGenerate && (
+          <WorkspaceAiEntry kinds={creatablePageKinds()} busy={busy} onOpen={onGenerate} />
+        )}
+        <NewPageButtons kinds={creatablePageKinds()} busy={busy} className="!mt-0" onCreate={(kind) => onCreate({ kind })} />
+        {(onImport || (onImportPptx && creatablePageKinds().includes("slides"))) && (
+          <div className="ws-create-actions">
+            {onImport && <>
+              <input ref={emptyImportRef} type="file" multiple accept=".md,.markdown,.txt,text/markdown,text/plain" className="sr-only"
+                onChange={(event) => {
+                  const picked = Array.from(event.target.files ?? []);
+                  event.target.value = "";
+                  if (picked.length) onImport(picked);
+                }} />
+              <button type="button" disabled={busy} className="ws-util-pill notes-empty-import" onClick={() => emptyImportRef.current?.click()}><Upload size={14} aria-hidden="true" /><span>{t("Import Markdown")}</span></button>
+            </>}
+            {onImportPptx && creatablePageKinds().includes("slides") && (
+              <button type="button" disabled={busy} className="ws-util-pill" aria-haspopup="dialog" onClick={onImportPptx}><Upload size={14} aria-hidden="true" /><span>{t("Import PowerPoint")}</span></button>
+            )}
+          </div>
+        )}
       </div>
-      <p className="notes-empty-footnote">{t("Notes are saved on the server and linked to this device. Sign in to open them on other devices. If you clear app or site data before signing in, you lose access to them.")}</p>
+      <p className="notes-empty-footnote">{t("Your Workspace is saved on the server and linked to this device. Sign in to open it on other devices. If you clear app or site data before signing in, you lose access to it.")}</p>
     </div></>}
   </div>;
 }

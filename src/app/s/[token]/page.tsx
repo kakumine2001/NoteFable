@@ -20,7 +20,7 @@ async function requestLocale() {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { token } = await params;
-  const resolved = await resolvePublicShare(token);
+  const resolved = await resolvePublicShare(token, undefined, undefined, { includeEmbeddedWhiteboards: false });
   const title = resolved ? `${resolved.page.title.trim() || "Untitled"} — NoteFable` : "NoteFable";
   return {
     title,
