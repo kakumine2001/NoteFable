@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ThreadLanding } from "@/components/thread-landing";
+import { StudioLanding } from "@/components/studio-landing";
 import { isLocale, LOCALE_TAGS, LOCALES, type Locale } from "@/lib/i18n/locale";
 import { landingTitle } from "@/lib/i18n/landing-meta";
 import { messagesFor } from "@/lib/i18n/messages";
@@ -29,5 +29,5 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 
 // 古い会話・ノートのリンク（/?chat=… など）のワークスペースへの転送は src/proxy.ts が行う（このページは言語ごとの静的なページ）。
 export default function Home() {
-  return <ThreadLanding />;
+  return <StudioLanding />;
 }

@@ -79,7 +79,7 @@ flowchart LR
 
 | 文件 | 作用 |
 | --- | --- |
-| `src/app/[locale]/page.tsx`、`src/components/thread-landing.tsx`、`src/app/[locale]/landing.css` | `/` 产品介绍主页（"一根线"滚动叙事）；旧的根路径会话与页面链接保留查询参数转到 `/app` |
+| `src/app/[locale]/page.tsx`、`src/components/studio-landing.tsx`、`src/components/landing-demos.tsx`、`src/app/[locale]/landing.css` | `/` 产品介绍主页（交互式分屏工作台、Bento 展板、AI 提案/多模型沙盒、闪卡与双模检索、7 个 AI 角色展示）；旧的根路径会话与页面链接保留查询参数转到 `/app` |
 | `src/app/[locale]/app/page.tsx` | `/app` 聊天与工作区（Workspace）、输入框、附件、发送、图片生成模式 |
 | `src/app/[locale]/note-embed/page.tsx`、`src/components/note-embed.tsx`、`src/lib/native-bridge.ts` | Android / iOS 内嵌编辑器页面（笔记 / 白板 / 幻灯片）与 JS 桥接约定 |
 | `src/lib/hosts.ts`、`src/proxy.ts`、`src/lib/i18n/routing.ts` | 介绍页（`notefable.com`）与工作区（`app.notefable.com`）分域：按主机分流、旧链接转发、共享提示 Cookie（[deployment.md](deployment.md)） |
