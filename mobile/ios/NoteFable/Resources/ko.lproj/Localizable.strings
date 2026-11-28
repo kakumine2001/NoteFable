@@ -201,6 +201,11 @@
 "acct_deleting" = "삭제 중…";
 "acct_err_delete_account" = "계정을 삭제하지 못했어요. 다시 시도해 주세요.";
 
+/* strings_ai_generate.xml */
+"ai_gen_placeholder" = "AI에게 노트, 화이트보드 또는 슬라이드 생성 요청하기…";
+"ai_gen_options" = "옵션";
+"ai_gen_generate" = "생성";
+
 /* strings_answers.xml */
 "activity_thinking" = "생각 중";
 "activity_using_project" = "“%1$s” 프로젝트 사용 중";

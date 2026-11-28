@@ -325,4 +325,8 @@ export const viServer: Record<string, string> = {
   "Could not save the review note. Try again.": "Không thể lưu ghi chú ôn tập. Hãy thử lại.",
   "There is nothing to make a quiz from yet.": "Chưa có nội dung để tạo bài kiểm tra.",
   "This note was moved to the trash.": "Ghi chú này đã được chuyển vào thùng rác.",
+  "Could not generate the note. Try again.": "Không thể tạo ghi chú. Hãy thử lại.",
+  "Could not generate the whiteboard. Try again.": "Không thể tạo bảng trắng. Hãy thử lại.",
+  "There is nothing to generate from yet.": "Chưa có nội dung để tạo từ đó.",
+  "This whiteboard was moved to the trash.": "Bảng trắng này đã được chuyển vào thùng rác.",
 };

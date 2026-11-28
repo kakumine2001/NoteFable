@@ -185,8 +185,8 @@ export function WorkspaceAiEntry({
   function launch(autoStart: boolean) {
     if (busy) return;
     const text = prompt.trim();
+    if (text) setPrompt("");
     if (autoStart && text) {
-      setPrompt("");
       onOpen({ kind: effectiveKind, prompt: text, autoStart: true });
       return;
     }
@@ -319,8 +319,7 @@ function screenOf(view: AiGenerateView) {
 }
 
 function mascotStateOf(view: AiGenerateView, screen: string): CharacterState {
-  if (view.phase === "failed") return "error";
-  if (view.phase === "loading") return "thinking";
+  if (view.phase !== "ready") return view.phase === "failed" ? "error" : "thinking";
   if (view.job.state === "working") return "thinking";
   if (view.job.state === "done") return "completed";
   if (view.job.state === "error") return "error";

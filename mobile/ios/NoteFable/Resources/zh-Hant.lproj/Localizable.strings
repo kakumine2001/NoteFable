@@ -201,6 +201,11 @@
 "acct_deleting" = "正在刪除…";
 "acct_err_delete_account" = "無法刪除賬號，請重試。";
 
+/* strings_ai_generate.xml */
+"ai_gen_placeholder" = "讓 AI 生成筆記、白板或投影片…";
+"ai_gen_options" = "選項";
+"ai_gen_generate" = "生成";
+
 /* strings_answers.xml */
 "activity_thinking" = "正在思考";
 "activity_using_project" = "正在使用專案“%1$s”";

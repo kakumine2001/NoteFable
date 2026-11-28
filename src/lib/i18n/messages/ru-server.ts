@@ -325,4 +325,8 @@ export const ruServer: Record<string, string> = {
   "Could not save the review note. Try again.": "Не удалось сохранить конспект для повторения. Попробуйте ещё раз.",
   "There is nothing to make a quiz from yet.": "Пока нет содержимого для создания теста.",
   "This note was moved to the trash.": "Эта заметка была перемещена в корзину.",
+  "Could not generate the note. Try again.": "Не удалось создать заметку. Попробуйте ещё раз.",
+  "Could not generate the whiteboard. Try again.": "Не удалось создать доску. Попробуйте ещё раз.",
+  "There is nothing to generate from yet.": "Пока нет содержимого для создания.",
+  "This whiteboard was moved to the trash.": "Эта доска была перемещена в корзину.",
 };

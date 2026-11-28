@@ -23,7 +23,6 @@ import {
   parseOutline,
   parseSource,
   type SlidesOptions,
-  type SlidesOutline,
   type SlidesSource,
 } from "@/lib/slides/ai-wizard";
 import {
@@ -114,18 +113,17 @@ export function isAiGenerateBusy(): boolean {
   return [...sessions.values()].some((session) => session.job.state === "working") || isAnySlideImageJobWorking();
 }
 
-function applyInitialToSession(session: Session, target: ShownState) {
+function applyInitialToSession(session: Session, target: ShownState, preserveRecoveredKind = false) {
   if (session.job.state === "working") return;
+  if (session.job.state === "done" && isSlideImageJobWorking(session.job.page.id)) return;
   let changed = false;
   if (session.job.state === "done" && (target.initialPrompt || target.initialKind)) {
     // 前の生成が完了したあと、新しい内容または別種別で開かれた場合は新しい下書きへ切り替える。
-    if (!isSlideImageJobWorking(session.job.page.id)) {
-      session.draft = newAiGenerateDraft(target.initialKind ?? session.draft.kind);
-      session.job = { state: "idle" };
-      changed = true;
-    }
+    session.draft = newAiGenerateDraft(target.initialKind ?? session.draft.kind);
+    session.job = { state: "idle" };
+    changed = true;
   }
-  if (target.initialKind && session.draft.kind !== target.initialKind) {
+  if (target.initialKind && !preserveRecoveredKind && session.draft.kind !== target.initialKind) {
     session.draft = { ...session.draft, kind: target.initialKind };
     if (session.job.state === "error") session.job = { state: "idle" };
     changed = true;
@@ -181,12 +179,13 @@ async function loadScope() {
   scope = next;
   let session = sessions.get(shown.key);
   if (!session) {
-    const recovered = restoreLimitDraft()
+    const limitDraft = restoreLimitDraft();
+    const recovered = limitDraft
       ?? readAiGenerateDraft(next, shown.key)
       ?? newAiGenerateDraft(shown.initialKind ?? "note");
     session = { placement: shown.placement, draft: recovered, job: { state: "idle" } };
     sessions.set(shown.key, session);
-    applyInitialToSession(session, shown);
+    applyInitialToSession(session, shown, Boolean(limitDraft && !shown.initialPrompt));
   }
   const shouldAutoStart = shown.autoStart;
   shown = { ...shown, initialKind: null, initialPrompt: null, autoStart: false };

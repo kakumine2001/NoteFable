@@ -186,6 +186,36 @@ describe("AiGenerateHost & ai-generate-jobs", () => {
     closeAiGenerate();
   });
 
+  it("preserves a rejected limit draft kind when reopened without a new prompt", async () => {
+    const session = new Map<string, string>();
+    const sessionStorageMock = {
+      getItem: (key: string) => session.get(key) ?? null,
+      setItem: (key: string, value: string) => { session.set(key, value); },
+      removeItem: (key: string) => { session.delete(key); },
+    };
+    vi.stubGlobal("sessionStorage", sessionStorageMock);
+    (window as unknown as Record<string, unknown>).sessionStorage = sessionStorageMock;
+    fetchMock.mockResolvedValueOnce(Response.json({ scope: "scope-1" }));
+    openAiGenerate({ kind: "whiteboard", prompt: "TCP handshake" });
+    await flushMicrotasks();
+
+    fetchMock.mockResolvedValueOnce(Response.json({ error: "Limit reached", code: "usage_limit", tier: "guest" }, { status: 429 }));
+    await submitAiGenerate();
+
+    // Simulate reload / post-sign-in reopen with default kind="note" and no new prompt.
+    resetAiGenerate();
+    fetchMock.mockResolvedValueOnce(Response.json({ scope: "scope-2" }));
+    openAiGenerate({ kind: "note" });
+    await flushMicrotasks();
+
+    const recovered = getAiGenerate();
+    expect(recovered?.phase).toBe("ready");
+    if (recovered?.phase === "ready") {
+      expect(recovered.draft.kind).toBe("whiteboard");
+      expect(recovered.draft.prompt).toBe("TCP handshake");
+    }
+  });
+
   it("renders WorkspaceAiEntry with Note -> Whiteboard -> Slides pills and zero Sparkles icons", () => {
     const onOpen = vi.fn();
     const tree = WorkspaceAiEntry({

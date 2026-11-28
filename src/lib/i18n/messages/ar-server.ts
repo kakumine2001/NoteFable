@@ -325,4 +325,8 @@ export const arServer: Record<string, string> = {
   "Could not save the review note. Try again.": "تعذّر حفظ ملاحظة المراجعة. حاول مرة أخرى.",
   "There is nothing to make a quiz from yet.": "لا يوجد محتوى لإنشاء اختبار بعد.",
   "This note was moved to the trash.": "نُقلت هذه الملاحظة إلى سلة المهملات.",
+  "Could not generate the note. Try again.": "تعذّر إنشاء الملاحظة. حاول مرة أخرى.",
+  "Could not generate the whiteboard. Try again.": "تعذّر إنشاء السبورة. حاول مرة أخرى.",
+  "There is nothing to generate from yet.": "لا يوجد محتوى للإنشاء منه بعد.",
+  "This whiteboard was moved to the trash.": "نُقلت هذه السبورة إلى سلة المهملات.",
 };

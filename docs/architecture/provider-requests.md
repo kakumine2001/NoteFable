@@ -196,9 +196,16 @@ Content-Type: application/json
 
 `POST /api/pages/slides/outline` 和 `/deck`（见 [slides.md](slides.md#ai-生成幻灯片)）和画成图一样经 `generateOneShotText` 各发 1 次非流式请求：所选聊天模型的默认推理强度，不带搜索、工具、压缩和 `cache_control`，240 秒超时；输出上限是模型 `tokenLimits.maxOutputTokens` 与大纲 16,000 / 整套 32,000 中较小的一个。指令、输入和解析都在 `src/lib/slides/ai-prompt.ts`。
 
-- `input` 是一条 user 消息：`<settings>`（页数、语言、语气、听众——引号里的一行、保留原文或精简；整套且开启 `generateImages` 时再加 `Slide images: enabled` 提示）、整套时再加用户确认的 `<outline>`、最后是 `<material>`（`<topic>`、笔记（每篇再用 `delimitPageContent` 包住）或 `<conversation>` 对话稿）。指令说明 `<material>` 是私有数据而非指令；材料是笔记或对话时不许编造事实。
+- `input` 是一条 user 消息：`<settings>`（页数、语言、语气、听众——引号里的一行、保留原文或精简；整套且开启 `generateImages` 时再加 `Slide images: enabled` 提示）、可选的 `<instructions>`（`notes` 来源附带额外说明时）、整套时再加用户确认的 `<outline>`、最后是 `<material>`（`<topic>`、笔记（每篇再用 `delimitPageContent` 包住）或 `<conversation>` 对话稿）。指令说明 `<material>` 是私有数据而非指令；材料是笔记或对话时不许编造事实。
 - 大纲回复格式：`# 标题`，每页 `## 页标题` 加若干 `- 要点`。解析时容忍外层代码围栏和多余文字，超限截断、只留前 29 页；没有任何页视为失败。
 - 整套回复格式：每页依次 `@@@SLIDE 标题`、`@@@BODY`、Markdown 正文、`@@@NOTES`、纯文本备注（开启 `generateImages` 且该页适合配图时，另附 `@@@IMAGE` 与一行不含文字的英文画面提示词，≤ 500 字符），全部结束后单独一行 `@@@END`。代码围栏里的标记行按普通文字处理。缺 `@@@END`、被输出上限截断或页数少于大纲视为失败；页数一致时标题用大纲里的；正文为空时用大纲要点；`generateImages` 关闭时忽略任何 `@@@IMAGE` 块。
+
+## 工作区统一 AI 生成的请求
+
+`POST /api/pages/generate`（`kind: "note" | "whiteboard"`，见 [notes-flow.md](notes-flow.md#工作区统一-ai-生成254)；幻灯片仍走 `/api/pages/slides/outline` 与 `/deck`）同样经 `generateOneShotText` 发非流式请求：所选聊天模型的默认推理强度，不带搜索、工具、压缩和 `cache_control`，240 秒超时；输出上限为模型 `tokenLimits.maxOutputTokens` 与 16,000 中较小值。所有参考笔记经 `readOneShotMaterial` 现读并用 `delimitPageContent` 包住放进 `<material>`，与 `<request>`（用户输入）严格隔离。扣 1 条聊天额度，任意上游错误、截断或校验失败均退还：
+
+- **笔记（`src/lib/note-ai-generate.ts`）**：`input` 包含 `<settings>`（风格 `auto` / `study_guide` / `outline` / `checklist` 与输出语言）、`<request>` 与可选 `<material>`；输出 `# 标题` + 干净 Markdown，经 `markdownToNoteContent` 与 `validateNoteContent` 校验后原子建页（`ai: true`）。
+- **白板（`src/lib/whiteboard/ai-generate.ts`）**：按所选结构（默认思维导图 `auto` / `mindmap`，或 `flowchart` / `sequence` / `board`）生成 Mermaid 代码块（走 `diagramToWhiteboard`，失败带报错信息重写一次）或结构化便签板 JSON（走 `buildWhiteboardFromSpec`），不输出像素坐标、不生成静态图片，经 `sceneToStored` + `validateCanvasPage("whiteboard", ...)` 校验后原子建页（`ai: true`）。
 
 ## 复习和测验的请求
 

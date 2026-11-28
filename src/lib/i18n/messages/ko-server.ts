@@ -325,4 +325,8 @@ export const koServer: Record<string, string> = {
   "Could not save the review note. Try again.": "복습 노트를 저장하지 못했습니다. 다시 시도해 주세요.",
   "There is nothing to make a quiz from yet.": "퀴즈를 만들 내용이 아직 없습니다.",
   "This note was moved to the trash.": "이 노트는 휴지통으로 이동되었습니다.",
+  "Could not generate the note. Try again.": "노트를 생성하지 못했습니다. 다시 시도하세요.",
+  "Could not generate the whiteboard. Try again.": "화이트보드를 생성하지 못했습니다. 다시 시도하세요.",
+  "There is nothing to generate from yet.": "아직 생성할 내용이 없습니다.",
+  "This whiteboard was moved to the trash.": "이 화이트보드는 휴지통으로 이동되었습니다.",
 };

@@ -201,6 +201,11 @@
 "acct_deleting" = "Wird gelöscht…";
 "acct_err_delete_account" = "Dein Konto konnte nicht gelöscht werden. Bitte versuche es erneut.";
 
+/* strings_ai_generate.xml */
+"ai_gen_placeholder" = "Bitte die KI, eine Notiz, ein Whiteboard oder Folien zu erstellen…";
+"ai_gen_options" = "Optionen";
+"ai_gen_generate" = "Generieren";
+
 /* strings_answers.xml */
 "activity_thinking" = "Denkt nach";
 "activity_using_project" = "Verwendet Projekt „%1$s“";

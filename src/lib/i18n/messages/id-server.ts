@@ -325,4 +325,8 @@ export const idServer: Record<string, string> = {
   "Could not save the review note. Try again.": "Tidak dapat menyimpan catatan ulasan. Coba lagi.",
   "There is nothing to make a quiz from yet.": "Belum ada konten untuk dibuat menjadi kuis.",
   "This note was moved to the trash.": "Catatan ini telah dipindahkan ke sampah.",
+  "Could not generate the note. Try again.": "Tidak dapat membuat catatan. Coba lagi.",
+  "Could not generate the whiteboard. Try again.": "Tidak dapat membuat papan tulis. Coba lagi.",
+  "There is nothing to generate from yet.": "Belum ada konten untuk dibuatkan hasil.",
+  "This whiteboard was moved to the trash.": "Papan tulis ini telah dipindahkan ke sampah.",
 };

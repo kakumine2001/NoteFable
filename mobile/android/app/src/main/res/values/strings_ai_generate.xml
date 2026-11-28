@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 统一 AI 生成入口（#254）：输入框占位、选项、生成按钮。原句与网页字典 src/lib/i18n/messages/{zh,ja}.ts 一致。 -->
 <resources>
     <string name="ai_gen_placeholder">Ask AI to create a note, whiteboard, or slide deck…</string>
     <string name="ai_gen_options">Options</string>

@@ -325,4 +325,8 @@ export const esServer: Record<string, string> = {
   "Could not save the review note. Try again.": "No se pudo guardar la nota de repaso. Inténtalo de nuevo.",
   "There is nothing to make a quiz from yet.": "Todavía no hay contenido para crear un cuestionario.",
   "This note was moved to the trash.": "Esta nota se movió a la papelera.",
+  "Could not generate the note. Try again.": "No se pudo generar la nota. Inténtalo de nuevo.",
+  "Could not generate the whiteboard. Try again.": "No se pudo generar la pizarra. Inténtalo de nuevo.",
+  "There is nothing to generate from yet.": "Todavía no hay contenido a partir del cual generar.",
+  "This whiteboard was moved to the trash.": "Esta pizarra se movió a la papelera.",
 };

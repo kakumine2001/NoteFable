@@ -1267,7 +1267,6 @@ private val AI_ENTRY_KIND_ORDER = listOf(PageKind.Note, PageKind.Whiteboard, Pag
  * 工作区统一「用 AI 生成」输入卡（网页 .ws-ai-studio，412x915 实测）：
  * 主输入区 + 角色 + 笔记 → 白板 → 幻灯片切换（与工作区筛选同步）+ 选项 / 生成。
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun WorkspaceAiEntryCard(
     kinds: List<PageKind>,
@@ -1296,8 +1295,8 @@ private fun WorkspaceAiEntryCard(
     val launch: (Boolean) -> Unit = { autoStart ->
         if (!busy) {
             val trimmed = prompt.trim()
+            if (trimmed.isNotEmpty()) prompt = ""
             if (autoStart && trimmed.isNotEmpty()) {
-                prompt = ""
                 onOpen(AiGenerateTarget(kind = effectiveKind, prompt = trimmed, autoStart = true))
             } else {
                 onOpen(AiGenerateTarget(kind = effectiveKind, prompt = trimmed.ifEmpty { null }, autoStart = false))
@@ -1377,9 +1376,8 @@ private fun WorkspaceAiEntryCard(
             )
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(Sm.Border))
-        FlowRow(
+        Column(
             Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             val pageTypeLabel = stringResource(R.string.ws_page_type)
@@ -1421,10 +1419,10 @@ private fun WorkspaceAiEntryCard(
                     }
                 }
             }
-            Spacer(Modifier.weight(1f, fill = false))
             Row(
+                Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.4.dp, Alignment.End),
             ) {
                 Row(
                     Modifier
@@ -1451,8 +1449,8 @@ private fun WorkspaceAiEntryCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(5.5.dp),
                 ) {
-                    LucideIcon(Lucide.ArrowUp, 14.dp, Sm.OnInk)
                     Text(stringResource(R.string.ai_gen_generate), color = Sm.OnInk, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    LucideIcon(Lucide.ArrowUp, 14.dp, Sm.OnInk)
                 }
             }
         }

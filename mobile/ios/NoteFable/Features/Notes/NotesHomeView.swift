@@ -537,8 +537,8 @@ private struct WorkspaceAiEntryView: View {
     private func launch(autoStart: Bool) {
         guard !busy else { return }
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { prompt = "" }
         if autoStart && !trimmed.isEmpty {
-            prompt = ""
             onOpen(AiGenerateTarget(kind: effectiveKind, prompt: trimmed, autoStart: true))
         } else {
             onOpen(AiGenerateTarget(kind: effectiveKind, prompt: trimmed.isEmpty ? nil : trimmed, autoStart: false))
@@ -687,11 +687,11 @@ private struct WorkspaceAiEntryView: View {
                 launch(autoStart: hasPrompt)
             } label: {
                 HStack(spacing: 5.5) {
-                    LucideIcon(Lucide.arrowUp, size: 14, color: Sm.onInk)
                     Text(L("ai_gen_generate"))
                         .font(.nf(13, weight: 600))
                         .foregroundStyle(Sm.onInk)
                         .lineLimit(1)
+                    LucideIcon(Lucide.arrowUp, size: 14, color: Sm.onInk)
                 }
                 .padding(.horizontal, 13.6)
                 .frame(height: 32)

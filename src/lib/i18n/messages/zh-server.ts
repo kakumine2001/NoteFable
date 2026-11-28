@@ -325,4 +325,8 @@ export const zhServer: Record<string, string> = {
   "Could not save the review note. Try again.": "无法保存复习笔记，请重试。",
   "There is nothing to make a quiz from yet.": "当前内容为空，暂时无法出题。",
   "This note was moved to the trash.": "这篇笔记已移入回收站。",
+  "Could not generate the note. Try again.": "没能生成笔记，请重试。",
+  "Could not generate the whiteboard. Try again.": "没能生成白板，请重试。",
+  "There is nothing to generate from yet.": "当前没有可供生成的内容。",
+  "This whiteboard was moved to the trash.": "这块白板已移入回收站。",
 };

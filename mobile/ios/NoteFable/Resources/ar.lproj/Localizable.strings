@@ -201,6 +201,11 @@
 "acct_deleting" = "جارٍ الحذف…";
 "acct_err_delete_account" = "تعذّر حذف حسابك. يرجى المحاولة مرة أخرى.";
 
+/* strings_ai_generate.xml */
+"ai_gen_placeholder" = "اطلب من الذكاء الاصطناعي إنشاء ملاحظة أو سبورة أو شرائح…";
+"ai_gen_options" = "خيارات";
+"ai_gen_generate" = "إنشاء";
+
 /* strings_answers.xml */
 "activity_thinking" = "جارٍ التفكير";
 "activity_using_project" = "جارٍ استخدام المشروع «%1$s»";

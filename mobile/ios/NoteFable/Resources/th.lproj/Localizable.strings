@@ -201,6 +201,11 @@
 "acct_deleting" = "กำลังลบ…";
 "acct_err_delete_account" = "ไม่สามารถลบบัญชีของคุณได้ กรุณาลองอีกครั้ง";
 
+/* strings_ai_generate.xml */
+"ai_gen_placeholder" = "ให้ AI สร้างโน้ต ไวท์บอร์ด หรือชุดสไลด์…";
+"ai_gen_options" = "ตัวเลือก";
+"ai_gen_generate" = "สร้าง";
+
 /* strings_answers.xml */
 "activity_thinking" = "กำลังคิด";
 "activity_using_project" = "กำลังใช้โปรเจกต์ “%1$s”";
