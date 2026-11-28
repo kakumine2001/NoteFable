@@ -325,4 +325,8 @@ export const itServer: Record<string, string> = {
   "Could not save the review note. Try again.": "Impossibile salvare la nota di ripasso. Riprova.",
   "There is nothing to make a quiz from yet.": "Non c’è ancora contenuto da cui creare un quiz.",
   "This note was moved to the trash.": "Questa nota è stata spostata nel cestino.",
+  "Could not generate the note. Try again.": "Impossibile generare la nota. Riprova.",
+  "Could not generate the whiteboard. Try again.": "Impossibile generare la lavagna. Riprova.",
+  "There is nothing to generate from yet.": "Non c'è ancora alcun contenuto da cui generare.",
+  "This whiteboard was moved to the trash.": "Questa lavagna è stata spostata nel cestino.",
 };

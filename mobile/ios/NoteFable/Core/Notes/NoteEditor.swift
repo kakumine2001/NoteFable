@@ -31,6 +31,8 @@ protocol NoteEditorBridge: AnyObject {
     func refreshBacklinks()
     /// AI 生成幻灯片向导开着时的「返回」：关闭向导最上面一层（先选笔记层，其次向导，草稿保留）；没有可关的返回 false。
     func slidesWizardBack() async -> Bool
+    /// 工作区统一「用 AI 生成」面板开着时的「返回」：关闭最上面一层（先选笔记层，其次面板，草稿保留）；没有可关的返回 false。
+    func aiGenerateBack() async -> Bool
     /// PowerPoint（.pptx）导入窗口开着时的「返回」：关闭窗口（导入中时取消并清理）；没有可关的返回 false。
     func pptxImportBack() async -> Bool
     /// 复习和测验开着时的「返回」：先关举报弹窗，再关测验窗口；没有可关的返回 false。
@@ -43,6 +45,7 @@ extension NoteEditorBridge {
     func pageTrashed(_ ids: [String]) {}
     func refreshBacklinks() {}
     func slidesWizardBack() async -> Bool { false }
+    func aiGenerateBack() async -> Bool { false }
     func pptxImportBack() async -> Bool { false }
     func quizBack() async -> Bool { false }
 }
@@ -211,6 +214,40 @@ enum NoteEmbedScripts {
     static let slidesWizardBack =
         "(function(){var e=window.notefableEmbed;if(e&&typeof e.slidesWizard==='function')return e.slidesWizard({\"action\":\"back\"})===true;return false})()"
 
+    /// 打开工作区统一「用 AI 生成」面板的脚本（`window.notefableEmbed.aiGenerate`）。id 不合法返回 nil。
+    static func aiGenerateOpen(target: AiGenerateTarget = AiGenerateTarget(), model: String? = nil, reasoning: String? = nil) -> String? {
+        var requestFields = ["\"action\":\"open\""]
+        if let kind = target.kind {
+            requestFields.append("\"kind\":\(quote(kind.wire))")
+        }
+        if let groupId = target.groupId {
+            guard isValidTargetId(groupId) else { return nil }
+            requestFields.append("\"groupId\":\(quote(groupId))")
+        }
+        if let parentId = target.parentId {
+            guard isValidTargetId(parentId) else { return nil }
+            requestFields.append("\"parentId\":\(quote(parentId))")
+        }
+        if let prompt = target.prompt?.trimmingCharacters(in: .whitespacesAndNewlines), !prompt.isEmpty {
+            requestFields.append("\"prompt\":\(quote(String(prompt.prefix(2000))))")
+        }
+        if target.autoStart {
+            requestFields.append("\"autoStart\":true")
+        }
+        if let model = model?.trimmingCharacters(in: .whitespacesAndNewlines), !model.isEmpty {
+            requestFields.append("\"model\":\(quote(model))")
+        }
+        if let reasoning = reasoning?.trimmingCharacters(in: .whitespacesAndNewlines), !reasoning.isEmpty {
+            requestFields.append("\"reasoning\":\(quote(reasoning))")
+        }
+        return "(function(){var e=window.notefableEmbed;if(!e)return 'loading';if(typeof e.aiGenerate!=='function')return 'unsupported';"
+            + "return e.aiGenerate({\(requestFields.joined(separator: ","))})===true?'open':'rejected'})()"
+    }
+
+    /// 统一 AI 生成面板开着时的「返回」：关闭最上面一层（草稿保留）；没有可关的返回 false。
+    static let aiGenerateBack =
+        "(function(){var e=window.notefableEmbed;if(e&&typeof e.aiGenerate==='function')return e.aiGenerate({\"action\":\"back\"})===true;return false})()"
+
     /// 打开 PowerPoint（.pptx）导入窗口的脚本（`window.notefableEmbed.pptxImport`）。结果同 [slidesWizardOpen]：
     /// `"open"` / `"loading"` / `"unsupported"` / `"rejected"`。[target] 里有网页不认的 id 时返回 nil。
     static func pptxImportOpen(target: PptxImportTarget = PptxImportTarget()) -> String? {
@@ -278,7 +315,7 @@ enum NoteEmbedScripts {
             "postMessage:function(json){window.webkit.messageHandlers[\(quote(handler))].postMessage(String(json))}," +
             "appIcon:function(){return icon},language:function(){return lang},canOpenPage:function(){return true}," +
             "canShowStorageLimit:function(){return true},canShowUsageLimit:function(){return true},canPresent:function(){return true},canSaveFile:function(){return true}," +
-            "canOpenChat:function(){return true},canShowSlidesWizard:function(){return true},canShowPptxImport:function(){return true},canShowQuiz:function(){return true}" +
+            "canOpenChat:function(){return true},canShowSlidesWizard:function(){return true},canShowAiGenerate:function(){return true},canShowPptxImport:function(){return true},canShowQuiz:function(){return true}" +
             (theme.map { ",theme:function(){return \(quote($0))}" } ?? "") +
             "}})()"
     }
@@ -439,6 +476,11 @@ final class NoteEmbedBridge {
     /// 向导开着时的「返回」：关最上面一层（草稿保留）；没有可关的返回 false。
     func slidesWizardBack() async -> Bool {
         await editor?.slidesWizardBack() ?? false
+    }
+
+    /// 统一 AI 生成面板开着时的「返回」：关最上面一层（草稿保留）；没有可关的返回 false。
+    func aiGenerateBack() async -> Bool {
+        await editor?.aiGenerateBack() ?? false
     }
 
     /// PowerPoint 导入窗口开着时的「返回」：关闭窗口；没有可关的返回 false。

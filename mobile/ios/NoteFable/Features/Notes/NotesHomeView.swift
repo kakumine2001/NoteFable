@@ -76,7 +76,7 @@ struct NotesHomeView: View {
                             kinds: kinds,
                             busy: busy,
                             onCreate: { notes.createNote(kind: $0) },
-                            onGenerateSlides: { router.openSlidesWizard(.new()) },
+                            onGenerate: { router.openAiGenerate($0) },
                             onImportPptx: { router.openPptxImport() },
                             onImport: { importing = true }
                         )
@@ -85,7 +85,7 @@ struct NotesHomeView: View {
                     NotesHomeList(
                         busy: busy,
                         reorder: reorder,
-                        onGenerateSlides: { router.openSlidesWizard(.new()) },
+                        onGenerate: { router.openAiGenerate($0) },
                         onImportPptx: { router.openPptxImport() },
                         onImport: { importing = true },
                         activeFilter: activeFilter,
@@ -168,7 +168,7 @@ private struct HomeSectionEntry: Identifiable {
 private struct NotesHomeList: View {
     let busy: Bool
     let reorder: ReorderDragController
-    let onGenerateSlides: () -> Void
+    let onGenerate: (AiGenerateTarget) -> Void
     let onImportPptx: () -> Void
     let onImport: () -> Void
     let activeFilter: PageKind?
@@ -211,7 +211,7 @@ private struct NotesHomeList: View {
         }()
         let filterEmpty = activeFilter != nil && visibleFavorites.isEmpty && visibleGroups.isEmpty && visibleSections.isEmpty
 
-        // Studio 头部：Workspace 标题（移出项目投放区）+ 胶囊按钮 New project / Import Markdown
+        // Studio 头部：Workspace 标题（移出项目投放区）+ 胶囊按钮 New project / Import Markdown / Import PowerPoint（仅幻灯片）
         VStack(alignment: .leading, spacing: 10) {
             Text(L("workspace"))
                 .font(.nf(30, weight: 750))
@@ -228,18 +228,20 @@ private struct NotesHomeList: View {
                 if state.showsImportMarkdown(for: activeFilter) {
                     NotesHomeUtilPill(icon: Lucide.upload, title: L("import_markdown"), busy: busy, action: onImport)
                 }
+                if kinds.contains(.slides) && (activeFilter == nil || activeFilter == .slides) {
+                    NotesHomeUtilPill(icon: Lucide.upload, title: L("slides_import_pptx"), busy: busy, action: onImportPptx)
+                }
             }
         }
         .padding(.top, 12)
         .padding(.bottom, 14)
 
-        // Studio Quick-Create Deck 卡片 + 下方的「用 AI 生成」与「导入 PowerPoint」胶囊（选中单类型时仅显示该类型）
-        CreateDeck(
-            kinds: state.createKinds(for: activeFilter), busy: busy, alignment: .trailing,
-            onCreate: { notes.createNote(kind: $0) },
-            onGenerateSlides: onGenerateSlides,
-            onImportPptx: onImportPptx
-        )
+        // 统一「用 AI 生成」输入卡（网页 WorkspaceAiEntry）：主输入区 + 角色 + 笔记 → 白板 → 幻灯片切换（与筛选同步）+ 选项 / 生成
+        WorkspaceAiEntryView(kinds: kinds, activeFilter: activeFilter, busy: busy, onOpen: onGenerate)
+            .padding(.bottom, 16)
+
+        // Studio Quick-Create Deck 卡片（All 显示全部类型，选中单类型时仅显示该类型）
+        CreateDeckCards(kinds: state.createKinds(for: activeFilter), busy: busy, onCreate: { notes.createNote(kind: $0) })
             .padding(.bottom, 18)
 
         // 最近编辑（网页 notes-recent-list）：仅显示当前筛选类型的页面，没有则隐藏。
@@ -500,43 +502,204 @@ extension NotesHomeUtilPill where Leading == LucideIcon {
     }
 }
 
-/// 新建卡片和它下面的「用 AI 生成」/「导入 PowerPoint」胶囊（网页 .ws-create-actions：间距 9.6，首页靠右、空状态居中）。能建幻灯片时才有胶囊。
-private struct CreateDeck: View {
+private let aiEntryKindOrder: [PageKind] = [.note, .whiteboard, .slides]
+
+/// 工作区统一「用 AI 生成」输入卡（网页 .ws-ai-studio，适配 iPhone / iPad / iPhone Duo、深色与 RTL）：
+/// 主输入区 + 角色 + 笔记 → 白板 → 幻灯片切换（与工作区筛选同步）+ 选项 / 生成。
+@MainActor
+private struct WorkspaceAiEntryView: View {
     let kinds: [PageKind]
+    let activeFilter: PageKind?
     let busy: Bool
-    let alignment: HorizontalAlignment
-    let onCreate: (PageKind) -> Void
-    let onGenerateSlides: () -> Void
-    let onImportPptx: () -> Void
+    let onOpen: (AiGenerateTarget) -> Void
+
     @Environment(AppEnvironment.self) private var app
+    @Environment(\.layoutDirection) private var layoutDirection
+    @State private var selectedKind: PageKind?
+    @State private var prompt = ""
+    @FocusState private var promptFocused: Bool
+
+    private var available: [PageKind] {
+        let filtered = aiEntryKindOrder.filter { kinds.contains($0) }
+        return filtered.isEmpty ? [.note] : filtered
+    }
+
+    private var effectiveKind: PageKind {
+        if let selectedKind, available.contains(selectedKind) { return selectedKind }
+        if let activeFilter, available.contains(activeFilter) { return activeFilter }
+        return available.first ?? .note
+    }
+
+    private var hasPrompt: Bool {
+        !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func launch(autoStart: Bool) {
+        guard !busy else { return }
+        let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { prompt = "" }
+        if autoStart && !trimmed.isEmpty {
+            onOpen(AiGenerateTarget(kind: effectiveKind, prompt: trimmed, autoStart: true))
+        } else {
+            onOpen(AiGenerateTarget(kind: effectiveKind, prompt: trimmed.isEmpty ? nil : trimmed, autoStart: false))
+        }
+    }
 
     var body: some View {
-        VStack(alignment: alignment, spacing: 9.6) {
-            CreateDeckCards(kinds: kinds, busy: busy, onCreate: onCreate)
-            if kinds.contains(.slides) {
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 8) {
-                        generatePill
-                        importPptxPill
+        let cardShape = RoundedRectangle(cornerRadius: 17.6, style: .continuous)
+        let mascotShape = RoundedRectangle(cornerRadius: 11, style: .continuous)
+        let trackShape = RoundedRectangle(cornerRadius: 10.4, style: .continuous)
+        let pillShape = RoundedRectangle(cornerRadius: 7.7, style: .continuous)
+        let currentKind = effectiveKind
+        let borderColor = promptFocused ? pageKindBorder(currentKind) : Sm.borderStrong
+        let tintCenter: UnitPoint = layoutDirection == .rightToLeft ? .topLeading : .topTrailing
+
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(alignment: .top, spacing: 11) {
+                AppIconView(icon: app.appIcon.icon, state: hasPrompt ? .typing : .idle, size: 28, animated: true)
+                    .frame(width: 36, height: 36)
+                    .background(Sm.hover, in: mascotShape)
+                    .overlay { mascotShape.strokeBorder(Sm.border, lineWidth: 1) }
+                    .padding(.top, 2)
+                    .accessibilityHidden(true)
+
+                TextField(L("ai_gen_placeholder"), text: $prompt, axis: .vertical)
+                    .font(.nf(15))
+                    .foregroundStyle(Sm.text)
+                    .lineLimit(2...4)
+                    .focused($promptFocused)
+                    .disabled(busy)
+                    .submitLabel(hasPrompt ? .send : .return)
+                    .onSubmit {
+                        if hasPrompt { launch(autoStart: true) }
                     }
-                    VStack(alignment: alignment, spacing: 8) {
-                        generatePill
-                        importPptxPill
+                    .onChange(of: prompt) { _, value in
+                        if value.count > 2000 { prompt = String(value.prefix(2000)) }
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 46, alignment: .topLeading)
+                    .padding(.vertical, 3)
+                    .accessibilityLabel(L("slides_generate_with_ai"))
+            }
+
+            NFDivider()
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    kindPills(trackShape: trackShape, pillShape: pillShape, currentKind: currentKind)
+                    Spacer(minLength: 4)
+                    actionButtons
+                }
+                VStack(alignment: .leading, spacing: 8) {
+                    ScrollView(.horizontal) {
+                        kindPills(trackShape: trackShape, pillShape: pillShape, currentKind: currentKind)
+                    }
+                    .scrollIndicators(.hidden)
+                    HStack {
+                        Spacer(minLength: 0)
+                        actionButtons
                     }
                 }
             }
         }
-        .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .center))
-    }
-
-    private var generatePill: some View {
-        NotesHomeUtilPill(title: L("slides_generate_with_ai"), busy: busy, action: onGenerateSlides) {
-            AppIconView(icon: app.appIcon.icon, size: 16)
+        .padding(.horizontal, 14)
+        .padding(.top, 13)
+        .padding(.bottom, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            ZStack {
+                cardShape.fill(Sm.surface)
+                cardShape.fill(
+                    RadialGradient(
+                        colors: [pageKindSoft(currentKind).opacity(0.72), .clear],
+                        center: tintCenter,
+                        startRadius: 4,
+                        endRadius: 240
+                    )
+                )
+            }
+        }
+        .overlay { cardShape.strokeBorder(borderColor, lineWidth: 1).allowsHitTesting(false) }
+        .clipShape(cardShape)
+        .shadow(color: Color(light: 0x120F172A, dark: 0x3D000000), radius: 6, x: 0, y: 2)
+        .onChange(of: activeFilter) { _, next in
+            if let next, available.contains(next) {
+                selectedKind = next
+            }
         }
     }
 
-    private var importPptxPill: some View {
-        NotesHomeUtilPill(icon: Lucide.upload, title: L("slides_import_pptx"), busy: busy, action: onImportPptx)
+    private func kindPills(trackShape: RoundedRectangle, pillShape: RoundedRectangle, currentKind: PageKind) -> some View {
+        HStack(spacing: 2) {
+            ForEach(available, id: \.self) { kind in
+                let active = currentKind == kind
+                Button {
+                    Haptics.selection()
+                    selectedKind = kind
+                } label: {
+                    HStack(spacing: 5.5) {
+                        LucideIcon(pageKindIcon(kind), size: 13.5, color: active ? pageKindColor(kind) : Sm.muted)
+                        Text(L(pageKindLabel(kind)))
+                            .font(.nf(13, weight: active ? 600 : 540))
+                            .foregroundStyle(active ? pageKindTextColor(kind) : Sm.muted)
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, 10)
+                    .frame(height: 29.6)
+                    .background {
+                        if active {
+                            pillShape.fill(Sm.surface)
+                                .overlay { pillShape.strokeBorder(pageKindBorder(kind), lineWidth: 1).allowsHitTesting(false) }
+                        }
+                    }
+                }
+                .buttonStyle(.pressable(pressedBackground: nil, cornerRadius: 7.7, scale: 0.98))
+                .disabled(busy)
+                .accessibilityAddTraits(active ? .isSelected : [])
+            }
+        }
+        .padding(2)
+        .background(Sm.hover, in: trackShape)
+        .overlay { trackShape.strokeBorder(Sm.border, lineWidth: 1).allowsHitTesting(false) }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(L("ws_page_type"))
+    }
+
+    private var actionButtons: some View {
+        HStack(spacing: 6.4) {
+            Button {
+                launch(autoStart: false)
+            } label: {
+                HStack(spacing: 5.5) {
+                    LucideIcon(Lucide.slidersHorizontal, size: 13.5, color: Sm.muted)
+                    Text(L("ai_gen_options"))
+                        .font(.nf(13, weight: 520))
+                        .foregroundStyle(Sm.muted)
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 10.4)
+                .frame(height: 32)
+            }
+            .buttonStyle(.pressable(background: Color.clear, cornerRadius: 16, scale: 0.97, disabledOpacity: 0.5))
+            .overlay { Capsule().strokeBorder(Sm.border, lineWidth: 1).allowsHitTesting(false) }
+            .disabled(busy)
+
+            Button {
+                launch(autoStart: hasPrompt)
+            } label: {
+                HStack(spacing: 5.5) {
+                    Text(L("ai_gen_generate"))
+                        .font(.nf(13, weight: 600))
+                        .foregroundStyle(Sm.onInk)
+                        .lineLimit(1)
+                    LucideIcon(Lucide.arrowUp, size: 14, color: Sm.onInk)
+                }
+                .padding(.horizontal, 13.6)
+                .frame(height: 32)
+            }
+            .buttonStyle(.pressable(background: Sm.ink, pressedBackground: Sm.inkHover, cornerRadius: 16, scale: 0.97, disabledOpacity: 0.5))
+            .disabled(busy)
+            .accessibilityLabel(L("slides_generate_with_ai"))
+        }
     }
 }
 
@@ -979,7 +1142,7 @@ private struct NotesEmptyView: View {
     let kinds: [PageKind]
     let busy: Bool
     let onCreate: (PageKind) -> Void
-    let onGenerateSlides: () -> Void
+    let onGenerate: (AiGenerateTarget) -> Void
     let onImportPptx: () -> Void
     let onImport: () -> Void
     @Environment(\.layoutDirection) private var layoutDirection
@@ -1005,10 +1168,18 @@ private struct NotesEmptyView: View {
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 8)
-            CreateDeck(kinds: kinds, busy: busy, alignment: .center, onCreate: onCreate, onGenerateSlides: onGenerateSlides, onImportPptx: onImportPptx)
+            WorkspaceAiEntryView(kinds: kinds, activeFilter: nil, busy: busy, onOpen: onGenerate)
+                .frame(maxWidth: 576)
                 .padding(.top, 24)
-            NotesHomeUtilPill(icon: Lucide.upload, title: L("import_markdown"), busy: busy, action: onImport)
+            CreateDeckCards(kinds: kinds, busy: busy, onCreate: onCreate)
                 .padding(.top, 14)
+            ChatFlowLayout(spacing: 8, lineSpacing: 8) {
+                NotesHomeUtilPill(icon: Lucide.upload, title: L("import_markdown"), busy: busy, action: onImport)
+                if kinds.contains(.slides) {
+                    NotesHomeUtilPill(icon: Lucide.upload, title: L("slides_import_pptx"), busy: busy, action: onImportPptx)
+                }
+            }
+            .padding(.top, 14)
             Text(L("notes_storage_hint"))
                 .font(.nf(12))
                 .nfLineHeight(19, fontSize: 12)

@@ -201,6 +201,11 @@
 "acct_deleting" = "削除中…";
 "acct_err_delete_account" = "アカウントを削除できませんでした。もう一度お試しください。";
 
+/* strings_ai_generate.xml */
+"ai_gen_placeholder" = "AI にノート・ホワイトボード・スライドを作成してもらう…";
+"ai_gen_options" = "オプション";
+"ai_gen_generate" = "生成";
+
 /* strings_answers.xml */
 "activity_thinking" = "考え中";
 "activity_using_project" = "プロジェクト「%1$s」を使用中";

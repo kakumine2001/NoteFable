@@ -80,7 +80,7 @@ export async function POST(request: Request) {
     const reply = await generateSlidesText({
       model,
       instructions: deckInstructions(source.type, generateImages),
-      input: deckInput(material.text, outline, options, source.type),
+      input: deckInput(material.text, outline, options, source.type, source.type === "notes" ? source.instructions : undefined),
       userId: user.id,
       request,
       maxOutputTokens: MAX_DECK_OUTPUT_TOKENS,

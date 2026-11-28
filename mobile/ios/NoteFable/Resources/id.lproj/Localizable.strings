@@ -201,6 +201,11 @@
 "acct_deleting" = "Menghapus…";
 "acct_err_delete_account" = "Tidak dapat menghapus akun Anda. Silakan coba lagi.";
 
+/* strings_ai_generate.xml */
+"ai_gen_placeholder" = "Minta AI membuat catatan, papan tulis, atau slide…";
+"ai_gen_options" = "Opsi";
+"ai_gen_generate" = "Buat";
+
 /* strings_answers.xml */
 "activity_thinking" = "Sedang berpikir";
 "activity_using_project" = "Menggunakan proyek “%1$s”";

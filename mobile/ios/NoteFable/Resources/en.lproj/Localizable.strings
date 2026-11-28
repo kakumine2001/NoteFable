@@ -201,6 +201,11 @@
 "acct_deleting" = "Deleting…";
 "acct_err_delete_account" = "Could not delete your account. Please try again.";
 
+/* strings_ai_generate.xml */
+"ai_gen_placeholder" = "Ask AI to create a note, whiteboard, or slide deck…";
+"ai_gen_options" = "Options";
+"ai_gen_generate" = "Generate";
+
 /* strings_answers.xml */
 "activity_thinking" = "Thinking";
 "activity_using_project" = "Using project “%1$s”";

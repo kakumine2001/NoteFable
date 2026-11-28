@@ -5,7 +5,7 @@ import { codeBlockOptions, syntaxHighlighter } from "@blocknote/code-block";
 import { BlockNoteView } from "@blocknote/ariakit";
 import { SideMenuExtension, SuggestionMenu, filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from "@blocknote/core/extensions";
 import { BasicTextStyleButton, BlockColorsItem, ColorStyleButton, CreateLinkButton, DragHandleButton, DragHandleMenu, FileCaptionButton, FileDeleteButton, FileDownloadButton, FilePanel, FilePanelController, FilePreviewButton, FileRenameButton, FormattingToolbar, FormattingToolbarController, SideMenu, SideMenuController, SuggestionMenuController, TableCellMergeButton, TableColumnHeaderItem, TableRowHeaderItem, getDefaultReactSlashMenuItems, useBlockNoteEditor, useComponentsContext, useCreateBlockNote, useDictionary, useEditorState, useExtensionState, usePortalElement, type DefaultReactSuggestionItem, type FilePanelProps, type SuggestionMenuProps } from "@blocknote/react";
-import { CalendarDays, Check, CheckSquare, ChevronRight, Code2, Columns2, Columns3, Columns4, Copy, GripVertical, Heading1, Lightbulb, ListTree, Loader2, Palette, Radical, Shapes, Sigma, Sparkles, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Table, Text, Type, Upload } from "lucide-react";
+import { CalendarDays, Check, CheckSquare, ChevronRight, Code2, Columns2, Columns3, Columns4, Copy, GripVertical, Heading1, ImagePlus, Lightbulb, ListTree, Loader2, Palette, Radical, Shapes, Sigma, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Table, Text, Type, Upload } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref, type RefObject } from "react";
 import "@blocknote/ariakit/style.css";
 import { AppIcon } from "@/components/app-icon";
@@ -433,8 +433,8 @@ function NoteUploadTab({ blockId, onUploaded }: FilePanelProps & { onUploaded?: 
             openImageGenForBlock(blockId);
           }}
         >
-          <Sparkles size={15} aria-hidden="true" />
-          <span>{t("Generate with AI")}</span>
+          <ImagePlus size={15} aria-hidden="true" />
+          <span>{t("Generate an image")}</span>
         </button>
       )}
       <p className={`note-upload-hint ${state.phase === "failed" ? "is-error" : ""}`} role={state.phase === "failed" ? "alert" : undefined}>
@@ -982,7 +982,7 @@ function NoteEditorBody({ blocks, onChange, editable, embedded = false, generate
           key: "generate_image",
           title: t("Generate an image"),
           group: imageGroup,
-          icon: <Sparkles size={18} />,
+          icon: <ImagePlus size={18} />,
           aliases: ["generate image", "ai image", "create image", "image generation", "draw", "picture", "生成图片", "ai图片", "ai生图", "画像生成", "ai画像", "이미지 생성"],
           onItemClick: () => {
             openImageGenerator(editor.getTextCursorPosition().block.id);

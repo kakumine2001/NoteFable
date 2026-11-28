@@ -20,6 +20,8 @@ import { cancelNativeExports } from "@/lib/export-file";
 import { closeDiagramDialog } from "@/lib/draw-diagram-jobs";
 import { SlidesWizardHost } from "@/components/slides-wizard";
 import { hideSlidesWizard, openSlidesWizard, slidesWizardBack } from "@/lib/slides-wizard-jobs";
+import { AiGenerateHost } from "@/components/ai-generate-panel";
+import { hideAiGenerate, openAiGenerate, aiGenerateBack } from "@/lib/ai-generate-jobs";
 import { PptxImportHost } from "@/components/pptx-import-dialog";
 import { hidePptxImport, openPptxImport, pptxImportBack } from "@/lib/pptx-import-jobs";
 import { ReviewQuizHost } from "@/components/review-quiz-dialog";
@@ -208,6 +210,7 @@ export function NoteEmbed() {
       // 「画成図」とスライド生成の窓は隠すだけ（要求と結果は残り、同じ入口でもう一度選ぶと開き直す）。
       closeDiagramDialog();
       hideSlidesWizard();
+      hideAiGenerate();
       hidePptxImport();
       closeReviewQuiz();
       sent.current = { readyId: "", meta: "", state: "", goneId: "" };
@@ -233,6 +236,7 @@ export function NoteEmbed() {
       setHistoryOpen(false);
       closeDiagramDialog();
       hideSlidesWizard();
+      hideAiGenerate();
       hidePptxImport();
       closeReviewQuiz();
       revealRef.current = null;
@@ -254,6 +258,19 @@ export function NoteEmbed() {
     pptxImport: (command) => {
       if (command.action === "back") return pptxImportBack();
       openPptxImport({ groupId: command.groupId, parentId: command.parentId });
+      return true;
+    },
+    aiGenerate: (command) => {
+      if (command.action === "back") return aiGenerateBack();
+      applyModel(command.model, command.reasoning);
+      openAiGenerate({
+        kind: command.kind,
+        groupId: command.groupId,
+        parentId: command.parentId,
+        prompt: command.prompt,
+        autoStart: command.autoStart,
+        model: modelRef.current,
+      });
       return true;
     },
     // 復習・クイズの窓（開いているノート・スライドの「…」メニューから）。
@@ -373,6 +390,7 @@ export function NoteEmbed() {
     {page}
     {/* ページの有無で作り直されないよう、いつも同じ位置に置く（窓の open / closed の知らせと入力中の内容を保つ）。 */}
     <SlidesWizardHost embedded flush={flushSlidesSource} />
+    <AiGenerateHost embedded flush={flushSlidesSource} />
     <PptxImportHost embedded />
     <ReviewQuizHost embedded flush={(id) => flushSlidesSource([id])} />
   </>;

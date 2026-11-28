@@ -432,6 +432,8 @@ sealed interface EmbedMessage {
     data class SlidesJobs(val pageIds: Set<String>) : EmbedMessage
     /** 复习和测验窗口（#154 PR 13，网页 ReviewQuizHost）出现（[open]）或消失。只有声明了 `canShowQuiz()` 的 App 才会收到。 */
     data class Quiz(val open: Boolean) : EmbedMessage
+    /** 统一「用 AI 生成」面板（笔记 / 白板 / 幻灯片，网页 AiGenerateHost）出现（[open]）或消失。[busy]：关闭时后台仍在生成。 */
+    data class AiGenerate(val open: Boolean, val busy: Boolean = false) : EmbedMessage
 
     // 网页导出的文件（白板的 PNG / SVG / PDF，幻灯片的 PDF / PNG / PPTX）分块交给 App 保存（src/lib/export-file.ts）：
     // fileStart → fileChunk（[FileChunk.data] 是 base64，原始字节最多 512 KiB，[FileChunk.index] 从 0 起按顺序）×n → fileEnd；
@@ -510,6 +512,11 @@ sealed interface EmbedMessage {
                     "closed" -> Quiz(open = false)
                     else -> null
                 }
+                "aiGenerate" -> when (obj.text("state")) {
+                    "open" -> AiGenerate(open = true)
+                    "closed" -> AiGenerate(open = false, busy = obj.flag("busy") == true)
+                    else -> null
+                }
                 "fileStart" -> FileStart(
                     obj.fileId() ?: return@runCatching null,
                     obj.text("name") ?: return@runCatching null,
@@ -546,6 +553,18 @@ sealed interface SlidesWizardSource {
  * （src/lib/native-bridge.ts 的 parsePptxImportRequest）。[groupId] 是项目，[parentId] 是父页面（均为 null 时建在幻灯片分区）。
  */
 data class PptxImportTarget(val groupId: String? = null, val parentId: String? = null)
+
+/**
+ * 统一「用 AI 生成」面板的参数，即 `window.notefableEmbed.aiGenerate({ action: "open", kind?, groupId?, parentId?, prompt?, autoStart? })`
+ * （src/lib/native-bridge.ts 的 parseAiGenerateRequest）。[kind] 预选页面类型，[prompt] 带入已输入的提示词，[autoStart] 为真时打开后立即开始生成。
+ */
+data class AiGenerateTarget(
+    val kind: PageKind? = null,
+    val groupId: String? = null,
+    val parentId: String? = null,
+    val prompt: String? = null,
+    val autoStart: Boolean = false,
+)
 
 /** 只需要知道成功与否的接口（`{ ok: true }` 之类），内容不用。 */
 @Serializable

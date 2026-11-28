@@ -201,6 +201,11 @@
 "acct_deleting" = "Đang xóa…";
 "acct_err_delete_account" = "Không thể xóa tài khoản của bạn. Vui lòng thử lại.";
 
+/* strings_ai_generate.xml */
+"ai_gen_placeholder" = "Nhờ AI tạo ghi chú, bảng trắng hoặc bản trình chiếu…";
+"ai_gen_options" = "Tùy chọn";
+"ai_gen_generate" = "Tạo";
+
 /* strings_answers.xml */
 "activity_thinking" = "Đang suy nghĩ";
 "activity_using_project" = "Đang dùng dự án “%1$s”";

@@ -40,7 +40,7 @@
 
 - **上传 / 粘贴**：和笔记一样传到 `POST /api/pages/files`（note-files，按套餐的存储上限），保存时由 `claimStoredFiles` 设为使用中。
 - **聊天里的图片**：`GET /api/pages/chat-images` 列出本人聊天里（当前显示的分支，`active: true`）的图片附件（发送的照片和 AI 生成的图，新的在前，最多 60 张），`POST /api/pages/chat-images { attachmentId }` 把那一张复制成 note-files 并返回 URL。预览走 `/api/attachments/:id/image`（检查所有者）。
-- **AI 生成**：`POST /api/pages/images { prompt, size }`（`1536x1024` / `1024x1024` / `1024x1536`），共用 `WorkspaceImageDialog`（与笔记、白板一致：生成后先展示预览，支持修改描述重新生成或点击插入/替换），和聊天的图片生成一样用 OpenAI `/images/generations`（共用 `src/lib/image-generation.ts`），计一次图片生成次数（失败退回）、先检查存储空间，结果存成 note-files（笔记文件经函数返回，Vercel 的响应上限是 4.5 MB，所以超过 4 MiB 的 PNG 转成 WebP、必要时缩小）。不留在聊天记录里。入口包括工具栏图片菜单、右侧图片检查器与页面 AI 面板的“＋”菜单。
+- **AI 生成**：`POST /api/pages/images { prompt, size }`（`1536x1024` / `1024x1024` / `1024x1536`），共用 `WorkspaceImageDialog`（与笔记、白板一致：生成后先展示预览，支持修改描述重新生成或点击插入/替换），和聊天的图片生成一样用 OpenAI `/images/generations`（共用 `src/lib/image-generation.ts`），计一次图片生成次数（失败退回）、先检查存储空间，结果存成 note-files（笔记文件经函数返回，Vercel 的响应上限是 4.5 MB，所以超过 4 MiB 的 PNG 转成 WebP、必要时缩小）。不留在聊天记录里。入口文案统一为“生成图片（Generate an image）”（与工作区统一 AI 生成页面区分），位于工具栏图片菜单、右侧图片检查器与页面 AI 面板的“＋”菜单。
 - **举报 AI 图片**：AI 生成的图片元素右键菜单有 “Report image”，发 `POST /api/reports { pageId, elementId, reason }`；服务端在本人未删除的幻灯片里找到这个带 `generated` 的元素，把说明（prompt）和文件路径发到开发者邮箱（`slideImageReportEmail`，`src/lib/answer-report.ts`），和回答的举报共用每日次数。
 
 ## 放映
@@ -98,7 +98,7 @@
 - **草稿**：`localStorage` 的 `notefable:slides-wizard:v1:<scope>:<入口>`（`scope` 来自 `GET /api/pages/slides/outline`；入口 = `new`、`new:g:<项目>`、`new:p:<页面>`、`note:<页面>`、`chat:<会话>`），存步骤、材料、设置、大纲和未拿到结果的请求；30 天过期，每个用户保留最新 10 份。关闭窗口不丢，整套建成后删除。读写失败（隐私模式等）时只是不跨刷新保存。
 - **请求**：每个入口一个状态（idle / working / done / error），关闭窗口请求继续，大纲写进草稿，整套建成派发 `notefable:page-created`（并发 `pagesChanged`）。同一内容（不含 `clientRequestId` 的请求体）还没成功时重试沿用同一个 `clientRequestId`（刷新或 WebView 重建后也是），不自动重发；404 后换新的。材料里有正开着的笔记时先保存，保存不了就不发（“Resolve the page's unsaved changes first, then ask again.”）。400 / 404 / 409 / 413 / 429 显示服务端原句，其余显示 “Could not generate slides. Try again.”。
 - **上限**：429 时网页显示 `GuestLimitPrompt` / `UpgradePrompt`（同画成图），413 时显示 `StorageLimitPrompt`；App 里发 `usageLimit`（大纲/整套 `kind: "chat"`，逐页配图 `kind: "image"`）与 `storageLimit`（不带 `pageId`）；草稿与已生成的配图均保留。
-- **网页入口**：聊天“＋”菜单 / 抽屉里 Create page 旁的 “Generate slides”（同样的显示和禁用条件）；笔记的 “…” 菜单（含分屏）和笔记 AI 面板常用按钮里 “Draw as diagram” 旁；侧栏“新建”、项目和页面行的“+”、幻灯片分区的“+”（菜单：New slide deck / Generate with AI）、首页和空状态新建卡片下的 “Generate with AI”。
+- **网页入口**：聊天“＋”菜单 / 抽屉里 Create page 旁的 “Generate slides”（同样的显示和禁用条件）；笔记的 “…” 菜单（含分屏）和笔记 AI 面板常用按钮里 “Draw as diagram” 旁。工作区首页、空状态以及侧栏“新建”、项目和页面行“+”、幻灯片分区“+”均接入统一的 AI 生成面板（`src/components/ai-generate-panel.tsx`，见 [notes-flow.md](notes-flow.md#工作区统一-ai-生成254)），选定幻灯片类型后无损保留输入文字并直接复用本向导的 `POST /api/pages/slides/outline` 与 `/deck`、可编辑大纲及逐页配图流程。
 
 ### 在 App 的 WebView 里
 
@@ -108,7 +108,7 @@
 
 
 - **形状与上限**（`src/lib/slides/ai-wizard.ts`，画面和服务端共用，不依赖 prisma / DOM）：
-  - 来源 `source`：`{ type: "topic", topic }`（1–300 字符，换行并成空格）、`{ type: "notes", pageIds }`（1–5 篇，`MAX_MESSAGE_NOTES`）、`{ type: "chat", sessionId }`。
+  - 来源 `source`：`{ type: "topic", topic }`（1–2,000 字符，`MAX_TOPIC_CHARS`，换行并成空格）、`{ type: "notes", pageIds, instructions? }`（1–5 篇，`MAX_MESSAGE_NOTES`；可选额外 `instructions` ≤ 2,000 字符，在提示词里置于 `<instructions>`，与 `<material>` 内的私有笔记严格隔离）、`{ type: "chat", sessionId }`。
   - 选项 `options`（省略的项取默认值，值不对返回 400）：`pageCount`（`"auto"` 或含封面的总页数 3–30）、`tone`（auto / professional / casual / academic / persuasive）、`audience`（一行，≤ 200）、`language`（`"auto"`＝跟随材料或主题，或 17 种界面语言代码）、`wording`（condense 精简 / keep 保留原文）、`theme`（8 个主题之一 + light / dark）、`generateImages`（布尔值，默认 `false`）。
   - 大纲 `outline`：`{ title, slides: [{ title, points }] }`，不含封面；1–29 页，标题 1–200，每页最多 12 条要点、每条 ≤ 500（空要点丢弃）。
 - **接口**（`runtime = "nodejs"`，`maxDuration = 300`，请求体 ≤ 1 MiB；`model` 经 `normalizeModel`）：
@@ -135,7 +135,7 @@
 - **明确兼容边界与逐页报告**：图表（`c:chart`）、SmartArt（`dgm:*`）、视频/音频、动画（`p:timing`）、不支持的转场（`fade` / `push` / `cover` / `uncover` 之外）、EMF/WMF/SVG 图片、外部链接图片、超限图片（单张超 32 MiB 或超像素上限时仅跳过该图而不中止整份导入）、嵌入式 OLE 对象以及单页超出 1,000 元素上限时被省略的额外元素（优先保留幻灯片正文元素而非母版/版式装饰，并裁剪被省略元素引用的图片）均不静默忽略，导入后在完成界面**按页列出**；若文件内含静态预览图（如 `<mc:Fallback><p:pic>`、视频封面或 OLE 预览图），自动按原框位置放入静态图片并注明“已放置静态预览图”。
 - **安全与硬上限**：文件大小上限 50 MB、页数上限 200 页；流式校验解压后总字节数不超过 160 MiB（防 ZIP 炸弹）；拒绝含 `<!DOCTYPE` / `<!ENTITY` 的 XML（防 XXE / 实体扩展）；忽略所有 `TargetMode="External"` 媒体/资源关系（仅允许安全协议超链接），绝不发起外部请求；按二进制魔数识别图片，仅接收 PNG / JPEG / GIF / WebP，解码前解析文件头拒绝超过 2500 万像素或单边超过 10,000 px 的超大图片；最终 `CanvasData` 序列化后不得超过 2 MiB。
 - **原子建页与清理**：所有图片先经 `POST /api/pages/files` 上传为当前用户的 `NOTE_FILE`（计入存储额度，单张超 4 MiB 时在客户端无损缩图/转码）并在全部转换成功后一次性 `POST /api/pages` 建页，不留半成品页面；用户取消、遇到 413 `storage_limit` 或任一步失败时调用 `DELETE /api/pages/files` 清理本次已上传但未被任何页面引用的文件（只删本人且未被引用的 `NOTE_FILE`）。
-- **入口**：网页、Android、iOS 所有“新建幻灯片”入口（侧栏新建、项目 `+`、页面 `+`、幻灯片分区 `+`、工作区首页与空状态新建卡片）以及幻灯片编辑器顶栏“…”菜单与工具栏均提供 **Import PowerPoint**；Android（`PptxImportScreen.kt` + `RememberWebFileChooser`）与 iOS（`PptxImportScreen.swift` + `NoteEditorWebView`）通过常驻 `/note-embed` 承载同一导入窗口。
+- **入口**：网页、Android、iOS 所有“新建幻灯片”入口（侧栏新建、项目 `+`、页面 `+`、幻灯片分区 `+`、工作区首页顶部工具区［仅 All 与 Slides 显示］与空状态）以及幻灯片编辑器顶栏“…”菜单与工具栏均提供 **Import PowerPoint**；Android（`PptxImportScreen.kt` + `RememberWebFileChooser`）与 iOS（`PptxImportScreen.swift` + `NoteEditorWebView`）通过常驻 `/note-embed` 承载同一导入窗口。
 
 ## 已知限制
 

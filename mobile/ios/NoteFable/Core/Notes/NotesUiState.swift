@@ -106,6 +106,14 @@ struct SlidesWizardUi: Equatable, Sendable {
     var shown: Bool = false
 }
 
+/// 开着的工作区统一「用 AI 生成」面板（#254；Android `AiGenerateUi`）。运行在常驻 `/note-embed` WKWebView 里的 `notefableEmbed.aiGenerate`。
+struct AiGenerateUi: Equatable, Sendable {
+    var target: AiGenerateTarget
+    var request: Int
+    var editor: String? = nil
+    var shown: Bool = false
+}
+
 /// 开着的 PowerPoint（.pptx）导入窗口（#154）。窗口本身是网页（常驻 `/note-embed` WKWebView 里的 `notefableEmbed.pptxImport`）。
 struct PptxImportUi: Equatable, Sendable {
     var target: PptxImportTarget
@@ -171,6 +179,8 @@ struct NotesUiState: Equatable, Sendable {
     var reorderError: ReorderFailure? = nil
     /// AI 生成幻灯片的向导；nil 是没开。
     var slidesWizard: SlidesWizardUi? = nil
+    /// 工作区统一「用 AI 生成」面板；nil 是没开。
+    var aiGenerate: AiGenerateUi? = nil
     /// 复习和测验窗口；nil 是没开。
     var reviewQuiz: ReviewQuizUi? = nil
     /// 网页正在做幻灯片的笔记（slidesJobs 消息）：笔记"…"的「生成幻灯片」显示生成中。WebView 换掉后清空。
@@ -179,6 +189,10 @@ struct NotesUiState: Equatable, Sendable {
     var wizardUsageLimit: UsageLimitInfo? = nil
     /// 全屏向导里逐页配图撞到文件存储空间上限（没有打开的编辑器时显示在向导上方）。
     var wizardStorageLimit: StorageLimitInfo? = nil
+    /// 全屏统一 AI 生成面板里撞到使用次数上限。
+    var aiGenerateUsageLimit: UsageLimitInfo? = nil
+    /// 全屏统一 AI 生成面板里撞到文件存储空间上限。
+    var aiGenerateStorageLimit: StorageLimitInfo? = nil
     /// PowerPoint（.pptx）导入窗口；nil 是没开。
     var pptxImport: PptxImportUi? = nil
     /// 全屏 PPTX 导入里撞到文件存储空间上限（没有打开的编辑器时显示在导入窗口上方）。

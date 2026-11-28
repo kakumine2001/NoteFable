@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.kakumine.notefable.NoteFableApp
+import com.kakumine.notefable.data.AiGenerateTarget
 import com.kakumine.notefable.data.ApiException
 import com.kakumine.notefable.data.ExportedNote
 import com.kakumine.notefable.data.ImportCandidate
@@ -91,6 +92,16 @@ data class SlidesWizardUi(
 )
 
 /**
+ * 开着的工作区统一「用 AI 生成」面板（笔记 / 白板 / 幻灯片，#254）。运行在常驻 /note-embed WebView 里的 `notefableEmbed.aiGenerate`。
+ */
+data class AiGenerateUi(
+    val target: AiGenerateTarget,
+    val request: Int,
+    val editor: String? = null,
+    val shown: Boolean = false,
+)
+
+/**
  * 开着的 PowerPoint（.pptx）导入窗口（#154）。窗口本身是网页（常驻 /note-embed WebView 里的 `notefableEmbed.pptxImport`）。
  */
 data class PptxImportUi(
@@ -146,6 +157,8 @@ data class NotesUiState(
     val importTarget: Boolean = false,
     /** AI 生成幻灯片的向导；null 是没开。 */
     val slidesWizard: SlidesWizardUi? = null,
+    /** 工作区统一「用 AI 生成」面板；null 是没开。 */
+    val aiGenerate: AiGenerateUi? = null,
     /** PowerPoint（.pptx）导入窗口；null 是没开。 */
     val pptxImport: PptxImportUi? = null,
     /** 复习和测验窗口；null 是没开。 */
@@ -925,7 +938,7 @@ class NotesViewModel(
     /** 从一个入口打开向导：画面上有编辑器时盖在它上面，否则开全屏向导画面。要读的笔记正开着时网页自己先保存。 */
     fun openSlidesWizard(source: SlidesWizardSource) {
         val request = ++slidesWizardRequests
-        _state.update { it.copy(slidesWizard = SlidesWizardUi(source, request, editor = it.visibleEditor), pptxImport = null) }
+        _state.update { it.copy(slidesWizard = SlidesWizardUi(source, request, editor = it.visibleEditor), aiGenerate = null, pptxImport = null, reviewQuiz = null) }
     }
 
     /** 打开的脚本说网页里出来了。 */
@@ -971,6 +984,40 @@ class NotesViewModel(
         if (it.slidesWizard != null && it.slidesWizard.editor != it.visibleEditor) it.copy(slidesWizard = null) else it
     }
 
+    // ---- 统一「用 AI 生成」（笔记 / 白板 / 幻灯片，#254） ----
+
+    private var aiGenerateRequests = 0
+
+    /** 从工作区或侧栏打开统一 AI 生成面板：画面上有编辑器时盖在它上面，否则开全屏画面。 */
+    fun openAiGenerate(target: AiGenerateTarget = AiGenerateTarget()) {
+        val request = ++aiGenerateRequests
+        _state.update { it.copy(aiGenerate = AiGenerateUi(target, request, editor = it.visibleEditor), slidesWizard = null, pptxImport = null, reviewQuiz = null) }
+    }
+
+    fun onAiGenerateShown(request: Int) = _state.update { state ->
+        val current = state.aiGenerate?.takeIf { it.request == request } ?: return@update state
+        state.copy(aiGenerate = current.copy(shown = true))
+    }
+
+    fun onAiGenerateOpened(editor: String?) {
+        val current = _state.value.aiGenerate ?: return
+        if (current.editor == editor) onAiGenerateShown(current.request)
+    }
+
+    fun onAiGenerateClosed() = _state.update { if (it.aiGenerate?.shown == true) it.copy(aiGenerate = null) else it }
+
+    fun dismissAiGenerate(request: Int? = null) = _state.update {
+        if (request == null || it.aiGenerate?.request == request) it.copy(aiGenerate = null) else it
+    }
+
+    fun dismissFullScreenAiGenerate() = _state.update {
+        if (it.aiGenerate != null && it.aiGenerate.editor == null) it.copy(aiGenerate = null) else it
+    }
+
+    fun dropStaleAiGenerate() = _state.update {
+        if (it.aiGenerate != null && it.aiGenerate.editor != it.visibleEditor) it.copy(aiGenerate = null) else it
+    }
+
     // ---- PowerPoint（.pptx）导入（#154 PR 12） ----
 
     private var pptxImportRequests = 0
@@ -978,7 +1025,7 @@ class NotesViewModel(
     /** 从一个入口打开 PPTX 导入窗口：画面上有编辑器时盖在它上面，否则开全屏导入画面。 */
     fun openPptxImport(target: PptxImportTarget = PptxImportTarget()) {
         val request = ++pptxImportRequests
-        _state.update { it.copy(pptxImport = PptxImportUi(target, request, editor = it.visibleEditor), slidesWizard = null, reviewQuiz = null) }
+        _state.update { it.copy(pptxImport = PptxImportUi(target, request, editor = it.visibleEditor), slidesWizard = null, aiGenerate = null, reviewQuiz = null) }
     }
 
     /** 打开的脚本说网页里出来了。 */
@@ -1030,7 +1077,7 @@ class NotesViewModel(
     fun openReviewQuiz(pageId: String) {
         val editor = _state.value.visibleEditor ?: return
         val request = ++reviewQuizRequests
-        _state.update { it.copy(reviewQuiz = ReviewQuizUi(pageId, request, editor), slidesWizard = null, pptxImport = null) }
+        _state.update { it.copy(reviewQuiz = ReviewQuizUi(pageId, request, editor), slidesWizard = null, aiGenerate = null, pptxImport = null) }
     }
 
     fun onReviewQuizShown(request: Int) = _state.update { state ->

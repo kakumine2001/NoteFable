@@ -201,6 +201,11 @@
 "acct_deleting" = "Excluindo…";
 "acct_err_delete_account" = "Não foi possível excluir sua conta. Tente novamente.";
 
+/* strings_ai_generate.xml */
+"ai_gen_placeholder" = "Peça à IA para criar uma nota, quadro branco ou apresentação…";
+"ai_gen_options" = "Opções";
+"ai_gen_generate" = "Gerar";
+
 /* strings_answers.xml */
 "activity_thinking" = "Pensando";
 "activity_using_project" = "Usando o projeto “%1$s”";

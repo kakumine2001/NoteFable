@@ -201,6 +201,11 @@
 "acct_deleting" = "Eliminazione…";
 "acct_err_delete_account" = "Impossibile eliminare il tuo account. Riprova.";
 
+/* strings_ai_generate.xml */
+"ai_gen_placeholder" = "Chiedi all'IA di creare una nota, una lavagna o delle diapositive…";
+"ai_gen_options" = "Opzioni";
+"ai_gen_generate" = "Genera";
+
 /* strings_answers.xml */
 "activity_thinking" = "Sta pensando";
 "activity_using_project" = "Uso del progetto “%1$s”";

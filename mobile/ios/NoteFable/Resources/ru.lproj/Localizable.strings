@@ -201,6 +201,11 @@
 "acct_deleting" = "Удаление…";
 "acct_err_delete_account" = "Не удалось удалить аккаунт. Пожалуйста, попробуйте ещё раз.";
 
+/* strings_ai_generate.xml */
+"ai_gen_placeholder" = "Попросите ИИ создать заметку, доску или презентацию…";
+"ai_gen_options" = "Параметры";
+"ai_gen_generate" = "Создать";
+
 /* strings_answers.xml */
 "activity_thinking" = "Размышляет";
 "activity_using_project" = "Используется проект «%1$s»";

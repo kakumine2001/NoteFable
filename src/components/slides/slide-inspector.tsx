@@ -288,7 +288,7 @@ export function SlideInspector({
 
     {single?.type === "image" && <Section title={t("Image")}>
       <button type="button" className="slides-wide-button" disabled={!editable} onClick={() => onReplaceImage(single.id)}><Upload size={16} aria-hidden="true" />{single.src ? t("Replace image") : t("Add an image")}</button>
-      <button type="button" className="slides-wide-button" disabled={!editable} onClick={() => onGenerateImage(single.id)}><ImagePlus size={16} aria-hidden="true" />{t("Generate with AI")}</button>
+      <button type="button" className="slides-wide-button" disabled={!editable} onClick={() => onGenerateImage(single.id)}><ImagePlus size={16} aria-hidden="true" />{t("Generate an image")}</button>
       <div className="slides-field">
         <span>{t("Fit")}</span>
         <select value={single.fit} onChange={(event) => update(ids, (element) => (element.type === "image" ? { ...element, fit: event.target.value as "cover" | "contain" } : element), "fit")}>

@@ -94,7 +94,9 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import com.kakumine.notefable.R
+import com.kakumine.notefable.data.AiGenerateTarget
 import com.kakumine.notefable.data.AppLanguage
+import com.kakumine.notefable.data.CharacterState
 import com.kakumine.notefable.data.NoteGroupSummary
 import com.kakumine.notefable.data.NoteImport
 import com.kakumine.notefable.data.NotePageSummary
@@ -266,8 +268,8 @@ private fun newPageLabel(kind: PageKind): Int = when (kind) {
 }
 
 /**
- * 新建按钮外面的一层（网页 NewPageButton）：[kinds] 只有一种时 [content] 的点击直接建它，两种以上时在按钮下方开类型菜单。
- * 能建幻灯片、给了 [onGenerate] 时菜单末尾还有「用 AI 生成」（只有幻灯片一种时也开菜单，项目名是「新建幻灯片」）。
+ * 新建按钮外面的一层（网页 NewPageButton）：[kinds] 只有一种且没有附加菜单项时直接建它，否则在按钮下方开菜单。
+ * 给了 [onGenerate] 时菜单末尾有「用 AI 生成」（适用于全部类型）；能建幻灯片且给了 [onImportPptx] 时还有「导入 PowerPoint」。
  * [label] 是菜单的读屏名字。
  */
 @Composable
@@ -277,7 +279,7 @@ private fun NewPageMenuAnchor(
     onImportPptx: (() -> Unit)? = null,
     content: @Composable (onClick: () -> Unit) -> Unit,
 ) {
-    val generate = onGenerate?.takeIf { PageKind.Slides in kinds }
+    val generate = onGenerate
     val importPptx = onImportPptx?.takeIf { PageKind.Slides in kinds }
     var anchor by remember { mutableStateOf<IntRect?>(null) }
     var open by remember { mutableStateOf(false) }
@@ -299,7 +301,7 @@ private fun NewPageMenuAnchor(
                 Box(Modifier.padding(horizontal = 8.dp, vertical = 4.8.dp).fillMaxWidth().height(1.dp).background(Sm.Border))
             }
             if (generate != null) {
-                MenuItem(stringResource(R.string.slides_generate_with_ai), Lucide.Presentation, leading = { AppIcon(16.dp) }) { close(); generate() }
+                MenuItem(stringResource(R.string.slides_generate_with_ai), Lucide.FileText, leading = { AppIcon(16.dp) }) { close(); generate() }
             }
             if (importPptx != null) {
                 MenuItem(stringResource(R.string.slides_import_pptx), Lucide.Upload) { close(); importPptx() }
@@ -339,8 +341,8 @@ fun NotesDrawerBody(
     onToggleFavorite: (NotePageSummary) -> Unit = {},
     /** 回收站上面的 "Import Markdown"（网页 notes-sidebar：打开文件选择器）。 */
     onImport: () -> Unit = {},
-    /** 新建处的「用 AI 生成」（幻灯片向导）：项目的"+"带 groupId，页面行的"+"带 parentId；null 是没有这个入口。 */
-    onGenerateSlides: ((groupId: String?, parentId: String?) -> Unit)? = null,
+    /** 新建处的统一「用 AI 生成」（笔记 / 白板 / 幻灯片）：分区"+"带 kind，项目"+"带 groupId，页面行"+"带 parentId；null 是没有这个入口。 */
+    onGenerate: ((AiGenerateTarget) -> Unit)? = null,
     /** 新建处的「导入 PowerPoint」（PPTX 导入）：项目的"+"带 groupId，页面行的"+"带 parentId；null 是没有这个入口。 */
     onImportPptx: ((groupId: String?, parentId: String?) -> Unit)? = null,
 ) {
@@ -348,7 +350,7 @@ fun NotesDrawerBody(
     val scroll = rememberScrollState()
     val drag = remember(scroll) { DragState(scroll) }
     val rowDrag = NoteRowDrag(drag, state, busy, reorder, NoteListSurface.Drawer)
-    val tree = NoteTreeActions(state, onOpen, onMove, onTrash, onChangeIcon, onToggleExpanded, onCreateInside, onRenamePage, onToggleFavorite, onGenerateSlides, onImportPptx)
+    val tree = NoteTreeActions(state, onOpen, onMove, onTrash, onChangeIcon, onToggleExpanded, onCreateInside, onRenamePage, onToggleFavorite, onGenerate, onImportPptx)
     val kinds = state.kinds
     val sections = state.sections
     // 分区里最上层的行只接受同一分区的页面放在前后（网页 data-drop-kind）；别处的行什么都接受。
@@ -366,7 +368,7 @@ fun NotesDrawerBody(
             // "新建"（.sidebar-primary-action，手机）：上距 10、高 42、圆角 9、墨色底，左对齐图标 16 + 间距 8 + 15/560 字；多种类型时右侧下拉箭头。
             NewPageMenuAnchor(kinds, stringResource(R.string.ws_new_page), { kind -> onCreate(kind, null) },
                 Modifier.padding(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 6.dp).fillMaxWidth(),
-                onGenerate = onGenerateSlides?.let { { it(null, null) } },
+                onGenerate = onGenerate?.let { { it(AiGenerateTarget()) } },
                 onImportPptx = onImportPptx?.let { { it(null, null) } }) { open ->
                 Row(
                     Modifier.fillMaxWidth().height(42.dp)
@@ -427,7 +429,7 @@ fun NotesDrawerBody(
                     group, state.memberCount(group.id), open, onToggle = { onToggleGroup(group.id) }, onRename = { onRenameGroup(group) }, onDelete = { onDeleteGroup(group) },
                     modifier = Modifier.dropZone(drag.target == DropTarget.Into(group.id)).onGloballyPositioned { drag.zones[group.id] = it.boundsInWindow() },
                     kinds = kinds, busy = busy, onCreate = { kind -> onCreate(kind, group.id) },
-                    onGenerate = onGenerateSlides?.let { { it(group.id, null) } },
+                    onGenerate = onGenerate?.let { { it(AiGenerateTarget(groupId = group.id)) } },
                     onImportPptx = onImportPptx?.let { { it(group.id, null) } },
                 )
                 if (open) {
@@ -467,7 +469,7 @@ fun NotesDrawerBody(
                     SectionHeading(
                         section.kind, section.count, open, busy, onToggle = { onToggleSection(section.kind) }, onCreate = { onCreate(section.kind, null) },
                         modifier = Modifier.dropZone(drag.targetZone == zone).onGloballyPositioned { drag.zones[zone] = it.boundsInWindow() },
-                        onGenerate = onGenerateSlides?.takeIf { section.kind == PageKind.Slides }?.let { { it(null, null) } },
+                        onGenerate = onGenerate?.let { { it(AiGenerateTarget(kind = section.kind)) } },
                         onImportPptx = onImportPptx?.takeIf { section.kind == PageKind.Slides }?.let { { it(null, null) } },
                     )
                 }
@@ -645,7 +647,7 @@ private class NoteTreeActions(
     val onCreateInside: (NotePageSummary, PageKind) -> Unit,
     val onRename: (NotePageSummary) -> Unit,
     val onToggleFavorite: (NotePageSummary) -> Unit,
-    val onGenerateSlides: ((groupId: String?, parentId: String?) -> Unit)? = null,
+    val onGenerate: ((AiGenerateTarget) -> Unit)? = null,
     val onImportPptx: ((groupId: String?, parentId: String?) -> Unit)? = null,
 ) {
     val openAncestors: Set<String> = state.open?.let { open -> state.ancestors(open.id).mapTo(HashSet()) { it.id } } ?: emptySet()
@@ -661,7 +663,7 @@ private fun NoteTree(page: NotePageSummary, busy: Boolean, rowDrag: NoteRowDrag,
     NoteRow(page, tree.state.open?.id == page.id, busy, rowDrag, tree.onOpen, tree.onMove, tree.onTrash, tree.onChangeIcon,
         open = open, onToggle = { tree.onToggle(page.id) }, onCreateInside = { kind -> tree.onCreateInside(page, kind) },
         onRename = tree.onRename, onToggleFavorite = tree.onToggleFavorite,
-        onGenerateInside = tree.onGenerateSlides?.let { { it(null, page.id) } },
+        onGenerateInside = tree.onGenerate?.let { { it(AiGenerateTarget(parentId = page.id)) } },
         onImportPptxInside = tree.onImportPptx?.let { { it(null, page.id) } })
     if (open) {
         Column(
@@ -921,9 +923,9 @@ fun NotesHome(
     onToggleExpanded: (String) -> Unit = {},
     /** "Import Markdown"（头部和空状态的按钮）：打开文件选择器。 */
     onImport: () -> Unit = {},
-    /** 新建卡片下面的「用 AI 生成」（能建幻灯片时）。 */
-    onGenerateSlides: (() -> Unit)? = null,
-    /** 新建卡片下面的「导入 PowerPoint」（能建幻灯片时）。 */
+    /** 统一「用 AI 生成」（笔记 / 白板 / 幻灯片）。 */
+    onGenerate: ((AiGenerateTarget) -> Unit)? = null,
+    /** 「导入 PowerPoint」（仅幻灯片可用时显示）。 */
     onImportPptx: (() -> Unit)? = null,
 ) {
     val busy = state.busy || state.loading
@@ -940,8 +942,8 @@ fun NotesHome(
             state.loading && state.pages.isEmpty() && state.groups.isEmpty() ->
                 Text(stringResource(R.string.loading_notes), color = Sm.Muted, fontSize = 14.sp,
                     modifier = Modifier.padding(top = 96.dp, bottom = 16.dp))
-            state.pages.isEmpty() && state.groups.isEmpty() -> if (state.error == null && state.loaded) NotesEmpty(state.kinds, busy, onCreate, onImport, onGenerateSlides, onImportPptx)
-            else -> NotesHomeList(state, busy, rowDrag, onOpen, onCreate, onMove, onNewGroup, onToggleExpanded, onImport, onGenerateSlides, onImportPptx)
+            state.pages.isEmpty() && state.groups.isEmpty() -> if (state.error == null && state.loaded) NotesEmpty(state.kinds, busy, onCreate, onImport, onGenerate, onImportPptx)
+            else -> NotesHomeList(state, busy, rowDrag, onOpen, onCreate, onMove, onNewGroup, onToggleExpanded, onImport, onGenerate, onImportPptx)
         }
     }
 }
@@ -958,7 +960,7 @@ private fun NotesHomeList(
     onNewGroup: () -> Unit,
     onToggleExpanded: (String) -> Unit,
     onImport: () -> Unit,
-    onGenerateSlides: (() -> Unit)?,
+    onGenerate: ((AiGenerateTarget) -> Unit)?,
     onImportPptx: (() -> Unit)?,
 ) {
     val drag = rowDrag.drag
@@ -1010,7 +1012,7 @@ private fun NotesHomeList(
     }
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
 
-    // Studio 头部：Workspace 标题 + New project / Import Markdown（仅 All / Notes 显示）胶囊按钮
+    // Studio 头部：Workspace 标题 + New project / Import Markdown（仅 All / Notes）/ Import PowerPoint（仅 All / Slides）胶囊按钮
     Column(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
             stringResource(R.string.workspace),
@@ -1022,16 +1024,30 @@ private fun NotesHomeList(
             if (state.showsImportMarkdownFor(activeFilter)) {
                 HomeUtilPill(Lucide.Upload, stringResource(R.string.import_markdown), enabled = !busy, onClick = onImport)
             }
+            if (PageKind.Slides in kinds && onImportPptx != null && (activeFilter == null || activeFilter == PageKind.Slides)) {
+                HomeUtilPill(Lucide.Upload, stringResource(R.string.slides_import_pptx), enabled = !busy, onClick = onImportPptx)
+            }
         }
     }
 
-    // 类型筛选栏（All | Notes | Whiteboards | Slides）：放在顶部，统一过滤下方新建卡片、最近编辑与列表。
+    // 类型筛选栏（All | Notes | Whiteboards | Slides）：放在顶部，统一过滤下方新建卡片、最近编辑与列表，并预选 AI 生成类型。
     if (multiKind) {
         KindFilterBar(kinds, activeFilter, onSelect = { kindFilter = it }, modifier = Modifier.padding(bottom = 14.dp))
     }
 
+    // 统一「用 AI 生成」输入卡（网页 WorkspaceAiEntry）：主输入区 + 角色 + 笔记 → 白板 → 幻灯片切换（与筛选同步）+ 选项 / 生成
+    if (onGenerate != null) {
+        WorkspaceAiEntryCard(
+            kinds = kinds,
+            activeFilter = activeFilter,
+            busy = busy,
+            onOpen = onGenerate,
+            modifier = Modifier.padding(bottom = 16.dp),
+        )
+    }
+
     // Studio Quick-Create Deck（移动端纵向堆叠卡片；All 显示全部类型，选中单类型时仅显示该类型）
-    CreateDeck(state.createKindsFor(activeFilter), busy, onCreate, onGenerateSlides, onImportPptx, Alignment.End, Modifier.padding(bottom = 18.dp))
+    CreateDeckCards(state.createKindsFor(activeFilter), busy, onCreate, Modifier.padding(bottom = 18.dp))
 
     // 最近编辑（网页 notes-recent-list）：仅显示当前筛选类型的页面，没有则隐藏。
     val recent = remember(state.pages, activeFilter, kinds) { state.recentPages(activeFilter) }
@@ -1245,25 +1261,196 @@ private fun HomeUtilPill(text: String, enabled: Boolean, onClick: () -> Unit, le
     }
 }
 
-// 新建卡片和它下面的「用 AI 生成」/「导入 PowerPoint」胶囊（网页 .ws-create-actions：间距 9.6，首页靠右、空状态居中）。能建幻灯片时才有胶囊。
-@OptIn(ExperimentalLayoutApi::class)
+private val AI_ENTRY_KIND_ORDER = listOf(PageKind.Note, PageKind.Whiteboard, PageKind.Slides)
+
+/**
+ * 工作区统一「用 AI 生成」输入卡（网页 .ws-ai-studio，412x915 实测）：
+ * 主输入区 + 角色 + 笔记 → 白板 → 幻灯片切换（与工作区筛选同步）+ 选项 / 生成。
+ */
 @Composable
-private fun CreateDeck(
-    kinds: List<PageKind>, busy: Boolean, onCreate: (PageKind) -> Unit, onGenerate: (() -> Unit)?, onImportPptx: (() -> Unit)?,
-    alignment: Alignment.Horizontal, modifier: Modifier = Modifier,
+private fun WorkspaceAiEntryCard(
+    kinds: List<PageKind>,
+    activeFilter: PageKind?,
+    busy: Boolean,
+    onOpen: (AiGenerateTarget) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(9.6.dp), horizontalAlignment = alignment) {
-        CreateDeckCards(kinds, busy, onCreate)
-        if (PageKind.Slides in kinds && (onGenerate != null || onImportPptx != null)) {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp, alignment),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+    val available = remember(kinds) {
+        AI_ENTRY_KIND_ORDER.filter { it in kinds }.ifEmpty { listOf(PageKind.Note) }
+    }
+    var selectedKind by remember {
+        mutableStateOf(activeFilter?.takeIf { it in available } ?: available.first())
+    }
+    var prompt by remember { mutableStateOf("") }
+    var focused by remember { mutableStateOf(false) }
+    LaunchedEffect(activeFilter, available) {
+        if (activeFilter != null && activeFilter in available) {
+            selectedKind = activeFilter
+        } else if (selectedKind !in available) {
+            selectedKind = available.first()
+        }
+    }
+    val effectiveKind = if (selectedKind in available) selectedKind else available.first()
+    val hasPrompt = prompt.trim().isNotEmpty()
+    val launch: (Boolean) -> Unit = { autoStart ->
+        if (!busy) {
+            val trimmed = prompt.trim()
+            if (trimmed.isNotEmpty()) prompt = ""
+            if (autoStart && trimmed.isNotEmpty()) {
+                onOpen(AiGenerateTarget(kind = effectiveKind, prompt = trimmed, autoStart = true))
+            } else {
+                onOpen(AiGenerateTarget(kind = effectiveKind, prompt = trimmed.ifEmpty { null }, autoStart = false))
+            }
+        }
+    }
+
+    val cardShape = RoundedCornerShape(17.6.dp)
+    val mascotShape = RoundedCornerShape(11.dp)
+    val trackShape = RoundedCornerShape(10.4.dp)
+    val pillShape = RoundedCornerShape(7.7.dp)
+    val borderColor = if (focused) pageKindBorder(effectiveKind) else Sm.BorderStrong
+    val cornerTint = pageKindSoft(effectiveKind)
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+
+    Column(
+        modifier
+            .fillMaxWidth()
+            .shadow(2.dp, cardShape, ambientColor = Sm.ComposerShadow, spotColor = Sm.ComposerShadow)
+            .clip(cardShape)
+            .background(Sm.Surface)
+            .drawBehind {
+                val center = Offset(if (rtl) size.width * 0.04f else size.width * 0.96f, 0f)
+                val radius = maxOf(size.width * 0.7f, size.height * 1.1f).coerceAtLeast(1f)
+                drawRect(
+                    Brush.radialGradient(
+                        colors = listOf(cornerTint.copy(alpha = cornerTint.alpha * 0.72f), Color.Transparent),
+                        center = center,
+                        radius = radius,
+                    ),
+                )
+            }
+            .border(1.dp, borderColor, cardShape)
+            .padding(start = 14.dp, end = 14.dp, top = 13.dp, bottom = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(9.dp),
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(11.dp),
+        ) {
+            Box(
+                Modifier.padding(top = 2.dp).size(36.dp).clip(mascotShape).background(Sm.Hover).border(1.dp, Sm.Border, mascotShape),
+                Alignment.Center,
             ) {
-                if (onGenerate != null) {
-                    HomeUtilPill(stringResource(R.string.slides_generate_with_ai), enabled = !busy, onClick = onGenerate) { AppIcon(16.dp) }
+                AppIcon(28.dp, state = if (hasPrompt) CharacterState.Typing else CharacterState.Idle, animated = true)
+            }
+            val genLabel = stringResource(R.string.slides_generate_with_ai)
+            BasicTextField(
+                value = prompt,
+                onValueChange = { if (it.length <= 2000) prompt = it },
+                enabled = !busy,
+                textStyle = TextStyle(color = Sm.Text, fontSize = 15.sp, lineHeight = 22.sp),
+                cursorBrush = SolidColor(Sm.Blue),
+                keyboardOptions = KeyboardOptions(imeAction = if (hasPrompt) ImeAction.Send else ImeAction.Default),
+                keyboardActions = KeyboardActions(onSend = { if (hasPrompt) launch(true) }),
+                maxLines = 4,
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 46.dp)
+                    .padding(vertical = 3.dp)
+                    .onFocusChanged { focused = it.isFocused }
+                    .semantics { contentDescription = genLabel },
+                decorationBox = { inner ->
+                    Box(contentAlignment = Alignment.TopStart) {
+                        if (prompt.isEmpty()) {
+                            Text(
+                                stringResource(R.string.ai_gen_placeholder),
+                                color = Sm.Faint,
+                                fontSize = 15.sp,
+                                lineHeight = 22.sp,
+                            )
+                        }
+                        inner()
+                    }
+                },
+            )
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Sm.Border))
+        Column(
+            Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            val pageTypeLabel = stringResource(R.string.ws_page_type)
+            Row(
+                Modifier
+                    .clip(trackShape)
+                    .background(Sm.Hover)
+                    .border(1.dp, Sm.Border, trackShape)
+                    .horizontalScroll(rememberScrollState())
+                    .padding(2.dp)
+                    .semantics { contentDescription = pageTypeLabel },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                available.forEach { kind ->
+                    val active = effectiveKind == kind
+                    Row(
+                        Modifier
+                            .height(29.6.dp)
+                            .clip(pillShape)
+                            .then(
+                                if (active) Modifier.background(Sm.Surface).border(1.dp, pageKindBorder(kind), pillShape)
+                                else Modifier,
+                            )
+                            .clickable(enabled = !busy, role = Role.RadioButton) { selectedKind = kind }
+                            .semantics { selected = active }
+                            .padding(horizontal = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.5.dp),
+                    ) {
+                        LucideIcon(pageKindIcon(kind), 13.5.dp, if (active) pageKindColor(kind) else Sm.Muted)
+                        Text(
+                            stringResource(pageKindLabel(kind)),
+                            color = if (active) pageKindTextColor(kind) else Sm.Muted,
+                            fontSize = 13.sp,
+                            fontWeight = if (active) FontWeight.SemiBold else FontWeight(540),
+                            maxLines = 1,
+                        )
+                    }
                 }
-                if (onImportPptx != null) {
-                    HomeUtilPill(Lucide.Upload, stringResource(R.string.slides_import_pptx), enabled = !busy, onClick = onImportPptx)
+            }
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.4.dp, Alignment.End),
+            ) {
+                Row(
+                    Modifier
+                        .height(32.dp)
+                        .clip(CircleShape)
+                        .border(1.dp, Sm.Border, CircleShape)
+                        .clickable(enabled = !busy, role = Role.Button) { launch(false) }
+                        .alpha(if (busy) 0.5f else 1f)
+                        .padding(horizontal = 10.4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.5.dp),
+                ) {
+                    LucideIcon(Lucide.SlidersHorizontal, 13.5.dp, Sm.Muted)
+                    Text(stringResource(R.string.ai_gen_options), color = Sm.Muted, fontSize = 13.sp, fontWeight = FontWeight(520), maxLines = 1)
+                }
+                Row(
+                    Modifier
+                        .height(32.dp)
+                        .clip(CircleShape)
+                        .background(Sm.Ink)
+                        .clickable(enabled = !busy, role = Role.Button) { launch(hasPrompt) }
+                        .alpha(if (busy) 0.5f else 1f)
+                        .padding(horizontal = 13.6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.5.dp),
+                ) {
+                    Text(stringResource(R.string.ai_gen_generate), color = Sm.OnInk, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    LucideIcon(Lucide.ArrowUp, 14.dp, Sm.OnInk)
                 }
             }
         }
@@ -1479,11 +1666,12 @@ private fun shortDate(iso: String): String {
     }
 }
 
-// 一篇笔记都没有（网页 NotesWorkspace 的空状态，手机）：居中 Studio 徽章（LayoutGrid）、标题、说明、Quick-Create Deck 卡片、Import 胶囊。
+// 一篇笔记都没有（网页 NotesWorkspace 的空状态，手机）：居中 Studio 徽章（LayoutGrid）、标题、说明、统一 AI 生成输入卡、Quick-Create Deck 卡片、Import 胶囊。
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun NotesEmpty(
     kinds: List<PageKind>, busy: Boolean, onCreate: (PageKind) -> Unit, onImport: () -> Unit,
-    onGenerateSlides: (() -> Unit)?, onImportPptx: (() -> Unit)?,
+    onGenerate: ((AiGenerateTarget) -> Unit)?, onImportPptx: (() -> Unit)?,
 ) {
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val emblemShape = RoundedCornerShape(16.dp)
@@ -1507,9 +1695,26 @@ private fun NotesEmpty(
             modifier = Modifier.padding(top = 8.dp), color = Sm.Muted, fontSize = 14.5.sp, lineHeight = 22.sp,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
-        CreateDeck(kinds, busy, onCreate, onGenerateSlides, onImportPptx, Alignment.CenterHorizontally, Modifier.padding(top = 24.dp))
+        if (onGenerate != null) {
+            WorkspaceAiEntryCard(
+                kinds = kinds,
+                activeFilter = null,
+                busy = busy,
+                onOpen = onGenerate,
+                modifier = Modifier.padding(top = 24.dp),
+            )
+        }
+        CreateDeckCards(kinds, busy, onCreate, Modifier.padding(top = if (onGenerate != null) 14.dp else 24.dp))
         Spacer(Modifier.height(14.dp))
-        HomeUtilPill(Lucide.Upload, stringResource(R.string.import_markdown), enabled = !busy, onClick = onImport)
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            HomeUtilPill(Lucide.Upload, stringResource(R.string.import_markdown), enabled = !busy, onClick = onImport)
+            if (PageKind.Slides in kinds && onImportPptx != null) {
+                HomeUtilPill(Lucide.Upload, stringResource(R.string.slides_import_pptx), enabled = !busy, onClick = onImportPptx)
+            }
+        }
         Text(stringResource(R.string.notes_storage_hint), modifier = Modifier.padding(top = 36.dp).widthIn(max = 384.dp),
             color = Faint, fontSize = 12.sp, lineHeight = 19.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     }

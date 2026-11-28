@@ -325,4 +325,8 @@ export const trServer: Record<string, string> = {
   "Could not save the review note. Try again.": "Tekrar notu kaydedilemedi. Tekrar deneyin.",
   "There is nothing to make a quiz from yet.": "Henüz test oluşturacak içerik yok.",
   "This note was moved to the trash.": "Bu not çöp kutusuna taşındı.",
+  "Could not generate the note. Try again.": "Not oluşturulamadı. Tekrar deneyin.",
+  "Could not generate the whiteboard. Try again.": "Beyaz tahta oluşturulamadı. Tekrar deneyin.",
+  "There is nothing to generate from yet.": "Henüz oluşturmak için içerik yok.",
+  "This whiteboard was moved to the trash.": "Bu beyaz tahta çöp kutusuna taşındı.",
 };

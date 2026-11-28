@@ -325,4 +325,8 @@ export const deServer: Record<string, string> = {
   "Could not save the review note. Try again.": "Lernnotiz konnte nicht gespeichert werden. Bitte versuche es erneut.",
   "There is nothing to make a quiz from yet.": "Es gibt noch keinen Inhalt, aus dem ein Quiz erstellt werden kann.",
   "This note was moved to the trash.": "Diese Notiz wurde in den Papierkorb verschoben.",
+  "Could not generate the note. Try again.": "Die Notiz konnte nicht erstellt werden. Versuche es erneut.",
+  "Could not generate the whiteboard. Try again.": "Das Whiteboard konnte nicht erstellt werden. Versuche es erneut.",
+  "There is nothing to generate from yet.": "Es gibt noch keinen Inhalt, aus dem etwas erstellt werden kann.",
+  "This whiteboard was moved to the trash.": "Dieses Whiteboard wurde in den Papierkorb verschoben.",
 };

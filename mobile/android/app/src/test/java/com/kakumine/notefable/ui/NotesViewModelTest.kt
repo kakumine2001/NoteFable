@@ -1539,4 +1539,37 @@ class NotesViewModelTest {
         advanceUntilIdle()
         assertNull(vm.state.value.reviewQuiz)
     }
+
+    @Test
+    fun `ai generate covers open editor or full screen, ignores stale close and clears on identity change`() = runTest(dispatcher) {
+        val vm = notesVm()
+        val target = com.kakumine.notefable.data.AiGenerateTarget(kind = PageKind.Whiteboard, prompt = "Map")
+        vm.openAiGenerate(target)
+        val first = vm.state.value.aiGenerate!!
+        assertNull(first.editor)
+        assertEquals(target, first.target)
+        assertFalse(first.shown)
+        // 还没 shown 之前，旧的 closed 不关掉新的面板。
+        vm.onAiGenerateClosed()
+        assertEquals(first.request, vm.state.value.aiGenerate?.request)
+
+        vm.onAiGenerateOpened(null)
+        assertTrue(vm.state.value.aiGenerate!!.shown)
+        vm.onAiGenerateClosed()
+        assertNull(vm.state.value.aiGenerate)
+
+        vm.openNote("a")
+        advanceUntilIdle()
+        vm.openAiGenerate(com.kakumine.notefable.data.AiGenerateTarget(kind = PageKind.Note))
+        assertEquals("a", vm.state.value.aiGenerate?.editor)
+        vm.closeNote()
+        advanceUntilIdle()
+        vm.dropStaleAiGenerate()
+        assertNull(vm.state.value.aiGenerate)
+
+        vm.openAiGenerate(target)
+        vm.onIdentityChanged()
+        advanceUntilIdle()
+        assertNull(vm.state.value.aiGenerate)
+    }
 }

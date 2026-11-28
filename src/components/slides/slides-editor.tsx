@@ -1108,7 +1108,7 @@ export default function SlidesEditor({ pageId, title, data, version, generation 
         {(close) => <>
           <MenuItem icon={<Upload size={16} />} label={t("Upload image")} onClick={() => { close(); requestImage(null); }} />
           <MenuItem icon={<MessageSquareText size={16} />} label={t("From chats")} onClick={() => { close(); setDialog({ kind: "chat", target: null }); }} />
-          <MenuItem icon={<ImagePlus size={16} />} label={t("Generate with AI")} onClick={() => { close(); setDialog({ kind: "generate", target: null }); }} />
+          <MenuItem icon={<ImagePlus size={16} />} label={t("Generate an image")} onClick={() => { close(); setDialog({ kind: "generate", target: null }); }} />
         </>}
       </MenuButton>
       <MenuButton label={t("Shape")} icon={<Shapes size={18} />} disabled={!current} menuClassName="slides-shape-menu">

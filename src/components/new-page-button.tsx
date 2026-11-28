@@ -8,10 +8,10 @@ import { useT } from "@/components/i18n-provider";
 import { PageKindIcon } from "@/components/page-kind-icon";
 import { PAGE_KIND_LABELS, PAGE_KIND_NEW_LABELS, type PageKind } from "@/lib/page-kinds";
 
-// 新しいページを作るボタン（#168）。作れる種類（kinds、creatablePageKinds）が 1 つなら、押すとすぐその種類を作る
-// （ノートしか作れない間は今までの「New note」と同じ 1 回の操作）。2 つ以上なら、押すと種類のメニュー（ノート・ホワイトボード・スライド）を開く。
-// サイドバーの「新建」、プロジェクトの「+」、ページ行の「+」と、スライドの分区の「+」が使う。ホームの作成ボタンは種類が決まっているので使わない。
-// スライドを作れる所で onGenerate / onImportPptx を渡すと、メニューの最後に「Generate with AI」「Import PowerPoint」を出す。
+// 新しいページを作るボタン（#168）。作れる種類（kinds、creatablePageKinds）が 1 つで追加メニューも無ければ押すとすぐ作成。
+// 2 つ以上、または onGenerate / onImportPptx があるときはメニューを開く。
+// サイドバーの「新建」、プロジェクトの「+」、ページ行の「+」、各分区（ノート・ホワイトボード・スライド）の「+」が使う。
+// onGenerate はすべての種類で「Generate with AI」を出し、onImportPptx はスライドを作れる所だけで「Import PowerPoint」を出す。
 export function NewPageButton({ kinds, busy, onCreate, onGenerate, onImportPptx, className, label, title = label, menuLabel, children }: {
   kinds: readonly PageKind[];
   busy: boolean;
@@ -29,10 +29,10 @@ export function NewPageButton({ kinds, busy, onCreate, onGenerate, onImportPptx,
   const t = useT();
   const id = useId();
   const [menu, setMenu] = useState<{ anchor: DOMRect; trigger: HTMLButtonElement; focusLast: boolean } | null>(null);
-  const generate = onGenerate && kinds.includes("slides") ? onGenerate : null;
+  const generate = onGenerate ?? null;
   const importPptx = onImportPptx && kinds.includes("slides") ? onImportPptx : null;
   const multiple = kinds.length > 1 || generate !== null || importPptx !== null;
-  // 種類が 1 つだけのメニュー（スライドの分区）は「New slide deck」と作る操作の名前にする。
+  // 種類が 1 つだけのメニュー（各分区）は「New note」「New whiteboard」「New slide deck」と作る操作の名前にする。
   const labels = kinds.length > 1 ? PAGE_KIND_LABELS : PAGE_KIND_NEW_LABELS;
   // AnswerMenu は onClose が変わると開き直すので、同じ関数を渡し続ける。
   const close = useCallback(() => setMenu(null), []);

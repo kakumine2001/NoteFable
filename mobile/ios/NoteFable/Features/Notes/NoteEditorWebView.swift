@@ -114,6 +114,16 @@ final class NoteEditorPool {
         if let controller, controller.isPptxImportActive, !controller.hasEverResponded { destroy() }
     }
 
+    /// 全屏统一 AI 生成打不开：丢掉这个 WebView，下次重新加载。
+    func discardAiGenerate() {
+        if controller?.isAiGenerateActive == true { destroy() }
+    }
+
+    /// 网页还没出现统一 AI 生成就被用户关闭：从未成功响应过时直接丢掉避免停靠坏页面。
+    func discardAiGenerateIfUnready() {
+        if let controller, controller.isAiGenerateActive, !controller.hasEverResponded { destroy() }
+    }
+
     /// 用 `NoteEmbedScripts.slidesWizardOpen` 打开向导：冷启动时 `.task` 可能先于 `makeUIView` 执行，
     /// 在池上一起等 `controller` 与 `webView` 就绪（每 250ms 轮询，最多 20 秒），避免 `controller == nil` 时提前退出一直停在加载中。
     func openSlidesWizard(script: String) async -> Bool {
@@ -136,6 +146,22 @@ final class NoteEditorPool {
         let deadline = ContinuousClock.now + NoteEditorController.wizardOpenTimeout
         while !Task.isCancelled && ContinuousClock.now < deadline {
             if let controller, let answer = await controller.tryOpenPptxImport(script: script) {
+                return answer
+            }
+            do {
+                try await Task.sleep(for: NoteEditorController.wizardPollInterval)
+            } catch {
+                return false
+            }
+        }
+        return false
+    }
+
+    /// 用 `NoteEmbedScripts.aiGenerateOpen` 打开工作区统一 AI 生成面板。
+    func openAiGenerate(script: String) async -> Bool {
+        let deadline = ContinuousClock.now + NoteEditorController.wizardOpenTimeout
+        while !Task.isCancelled && ContinuousClock.now < deadline {
+            if let controller, let answer = await controller.tryOpenAiGenerate(script: script) {
                 return answer
             }
             do {
@@ -170,7 +196,7 @@ final class NoteEditorPool {
 
     private func scheduleIdle() {
         idleTask?.cancel()
-        let timeout = (controller?.slidesWizardBusy == true) ? Self.busyIdleTimeout : Self.idleTimeout
+        let timeout = (controller?.anyAiBusy == true) ? Self.busyIdleTimeout : Self.idleTimeout
         idleTask = Task { @MainActor [weak self] in
             do {
                 try await Task.sleep(for: timeout)
@@ -178,8 +204,8 @@ final class NoteEditorPool {
                 return
             }
             guard let self, self.controller?.isParked == true else { return }
-            // 逐页配图等长时间后台任务仍在进行时续期，避免中途销毁 WebView 导致已扣费的图片丢失。
-            if self.controller?.slidesWizardBusy == true {
+            // 逐页配图或页面生成等长时间后台任务仍在进行时续期，避免中途销毁 WebView 导致已扣费的生成丢失。
+            if self.controller?.anyAiBusy == true {
                 self.scheduleIdle()
             } else {
                 self.destroy()
@@ -189,7 +215,7 @@ final class NoteEditorPool {
 
     /// 退到后台或收到内存警告时，如果当前没有打开笔记或向导（只留着热缓存），立刻释放 WKWebView。
     func destroyIfParked() {
-        if controller?.isParked == true, controller?.slidesWizardBusy != true { destroy() }
+        if controller?.isParked == true, controller?.anyAiBusy != true { destroy() }
     }
 
     /// 彻底销毁常驻 WKWebView（换身份、空闲超时、内存压力、后台释放、根视图销毁）。
@@ -268,6 +294,8 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
     private static let handlerName = "notefableNative"
     /// 全屏向导借用常驻 WebView 时的占位编辑器标识（没有打开任何页面）。
     static let slidesWizardEditorId = "__slides_wizard__"
+    /// 全屏统一 AI 生成借用常驻 WebView 时的占位编辑器标识（没有打开任何页面）。
+    static let aiGenerateEditorId = "__ai_generate__"
     /// 全屏 PowerPoint 导入借用常驻 WebView 时的占位编辑器标识（没有打开任何页面）。
     static let pptxImportEditorId = "__pptx_import__"
     static let wizardOpenTimeout: Duration = .seconds(20)
@@ -299,6 +327,10 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
     private(set) var slidesWizardVisible = false
     /// 关掉向导时还有 AI 生成在后台跑。
     private(set) var slidesWizardBusy = false
+    /// 网页里的工作区统一 AI 生成面板现在是否可见。
+    private(set) var aiGenerateVisible = false
+    /// 关掉统一 AI 生成面板时还有生成在后台跑。
+    private(set) var aiGenerateBusy = false
     /// 网页里的 PowerPoint 导入窗口现在是否可见。
     private(set) var pptxImportVisible = false
     /// 网页里的复习和测验窗口现在是否可见。
@@ -307,7 +339,9 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
     private(set) var hasEverResponded = false
     var isParked: Bool { activeEditor == nil }
     var isWizardActive: Bool { activeEditor == Self.slidesWizardEditorId }
+    var isAiGenerateActive: Bool { activeEditor == Self.aiGenerateEditorId }
     var isPptxImportActive: Bool { activeEditor == Self.pptxImportEditorId }
+    var anyAiBusy: Bool { slidesWizardBusy || aiGenerateBusy }
 
     /// 每开始一次加载（或销毁）加一：等 Cookie 期间又开始了新的加载时，旧的不再继续。
     private var loadRun = 0
@@ -368,10 +402,24 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
                 self.slidesWizardBusy = open ? false : busy
                 self.onWizardBusyChanged()
                 if open {
-                    let editorForOpen = (self.activeEditor == Self.slidesWizardEditorId || self.activeEditor == Self.pptxImportEditorId) ? nil : self.activeEditor
+                    let editorForOpen = (self.activeEditor == Self.slidesWizardEditorId || self.activeEditor == Self.aiGenerateEditorId || self.activeEditor == Self.pptxImportEditorId) ? nil : self.activeEditor
                     self.app.notes.onSlidesWizardOpened(editor: editorForOpen)
                 } else {
                     self.app.notes.onSlidesWizardClosed()
+                }
+                return
+            }
+            if case .aiGenerate(let open, let busy) = message {
+                guard self.webView != nil else { return }
+                self.hasEverResponded = true
+                self.aiGenerateVisible = open
+                self.aiGenerateBusy = open ? false : busy
+                self.onWizardBusyChanged()
+                if open {
+                    let editorForOpen = (self.activeEditor == Self.aiGenerateEditorId || self.activeEditor == Self.slidesWizardEditorId || self.activeEditor == Self.pptxImportEditorId) ? nil : self.activeEditor
+                    self.app.notes.onAiGenerateOpened(editor: editorForOpen)
+                } else {
+                    self.app.notes.onAiGenerateClosed()
                 }
                 return
             }
@@ -380,7 +428,7 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
                 self.hasEverResponded = true
                 self.pptxImportVisible = open
                 if open {
-                    let editorForOpen = (self.activeEditor == Self.pptxImportEditorId || self.activeEditor == Self.slidesWizardEditorId) ? nil : self.activeEditor
+                    let editorForOpen = (self.activeEditor == Self.pptxImportEditorId || self.activeEditor == Self.slidesWizardEditorId || self.activeEditor == Self.aiGenerateEditorId) ? nil : self.activeEditor
                     self.app.notes.onPptxImportOpened(editor: editorForOpen)
                 } else {
                     self.app.notes.onPptxImportClosed()
@@ -402,6 +450,21 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
                     self.app.notes.onWizardUsageLimit(tier: tier, kind: kind)
                 case .storageLimit(let tier, let used, let limit):
                     self.app.notes.onWizardStorageLimit(tier: tier, used: used, limit: limit)
+                default:
+                    break
+                }
+                return
+            }
+            if editor == Self.aiGenerateEditorId {
+                switch message {
+                case .openPage(let id):
+                    self.aiGenerateVisible = false
+                    self.app.notes.dismissAiGenerate()
+                    self.router.openNote(id)
+                case .usageLimit(let tier, let kind, _):
+                    self.app.notes.onAiGenerateUsageLimit(tier: tier, kind: kind)
+                case .storageLimit(let tier, let used, let limit):
+                    self.app.notes.onAiGenerateStorageLimit(tier: tier, used: used, limit: limit)
                 default:
                     break
                 }
@@ -479,6 +542,14 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         let webView = ensureWebView(edgeBack: true)
         webView.removeFromSuperview()
         showWizard(appIcon: appIcon, language: language, theme: theme)
+        return webView
+    }
+
+    /// 全屏统一 AI 生成挂上常驻 WKWebView（没有打开任何页面时）。
+    func attachAiGenerateView(appIcon: String?, language: String, theme: String) -> WKWebView {
+        let webView = ensureWebView(edgeBack: true)
+        webView.removeFromSuperview()
+        showAiGenerate(appIcon: appIcon, language: language, theme: theme)
         return webView
     }
 
@@ -591,6 +662,68 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         guard let answer = NoteEmbedScripts.slidesWizardAnswer(raw) else { return nil }
         if answer {
             slidesWizardVisible = true
+            hasEverResponded = true
+        }
+        return answer
+    }
+
+    func syncAiGenerate(appIcon: String?, language: String, theme: String) {
+        if activeEditor != Self.aiGenerateEditorId {
+            showAiGenerate(appIcon: appIcon, language: language, theme: theme)
+            return
+        }
+        if theme != pushedTheme {
+            pushedTheme = theme
+            bridge.pushTheme(theme)
+        }
+        if appIcon != pushedIcon {
+            pushedIcon = appIcon
+            bridge.pushAppIcon(appIcon)
+        }
+        if language != pushedLanguage {
+            pushedLanguage = language
+            bridge.pushLanguage(language)
+            edgePan?.edges = app.language.isRightToLeft ? .right : .left
+        }
+    }
+
+    private func showAiGenerate(appIcon: String?, language: String, theme: String) {
+        openTask?.cancel()
+        openTask = nil
+        showEpoch += 1
+        dismissOpenDialog()
+        quizVisible = false
+
+        crashedEditor = nil
+        activeEditor = Self.aiGenerateEditorId
+        currentPageId = nil
+        awaitingPageId = nil
+        pushedIcon = appIcon
+        pushedLanguage = language
+        pushedTheme = theme
+        edgePan?.isEnabled = true
+        edgePan?.edges = app.language.isRightToLeft ? .right : .left
+        bridge.pushTheme(theme)
+        if app.editorBridge === bridge { app.registerEditor(nil) }
+
+        if isLoaded, webView != nil {
+            bridge.pushLanguage(language)
+            bridge.pushAppIcon(appIcon)
+        } else {
+            loadAiGenerate()
+        }
+    }
+
+    func tryOpenAiGenerate(script: String) async -> Bool? {
+        guard let webView else { return nil }
+        let raw: String? = await withCheckedContinuation { (done: CheckedContinuation<String?, Never>) in
+            webView.evaluateJavaScript(script) { result, _ in
+                done.resume(returning: result as? String)
+            }
+        }
+        guard let answer = NoteEmbedScripts.slidesWizardAnswer(raw) else { return nil }
+        if answer {
+            aiGenerateVisible = true
             hasEverResponded = true
         }
         return answer
@@ -775,6 +908,8 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         isLoaded = false
         slidesWizardVisible = false
         slidesWizardBusy = false
+        aiGenerateVisible = false
+        aiGenerateBusy = false
         pptxImportVisible = false
         quizVisible = false
         app.notes.onSlidesJobs([])
@@ -855,6 +990,36 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
             let cookies = URL(string: self.app.config.baseURL).map { self.app.cookies(for: $0) } ?? []
             await NoteEditorController.replaceCookies(cookies)
             guard self.loadRun == current, self.app.identityGeneration == identity, self.activeEditor == Self.slidesWizardEditorId, let webView = self.webView else { return }
+            self.isLoaded = true
+            self.historyFloor = webView.backForwardList.currentItem == nil ? 0 : webView.backForwardList.backList.count + 1
+            webView.load(URLRequest(url: url))
+        }
+    }
+
+    private func loadAiGenerate() {
+        guard let webView, let url = wizardURL() else { return }
+        loadRun += 1
+        let current = loadRun
+
+        let content = webView.configuration.userContentController
+        content.removeAllUserScripts()
+        content.addUserScript(WKUserScript(
+            source: NoteEmbedScripts.bootstrap(
+                handler: Self.handlerName, appIcon: app.appIcon.icon, language: app.language.uiLocale,
+                theme: pushedTheme.isEmpty ? nil : pushedTheme
+            ),
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        ))
+
+        let previous = Self.cookieChain
+        Self.cookieChain = Task { @MainActor [weak self] in
+            await previous?.value
+            guard let self, self.loadRun == current, self.activeEditor == Self.aiGenerateEditorId, self.webView != nil else { return }
+            let identity = self.app.identityGeneration
+            let cookies = URL(string: self.app.config.baseURL).map { self.app.cookies(for: $0) } ?? []
+            await NoteEditorController.replaceCookies(cookies)
+            guard self.loadRun == current, self.app.identityGeneration == identity, self.activeEditor == Self.aiGenerateEditorId, let webView = self.webView else { return }
             self.isLoaded = true
             self.historyFloor = webView.backForwardList.currentItem == nil ? 0 : webView.backForwardList.backList.count + 1
             webView.load(URLRequest(url: url))
@@ -1094,6 +1259,15 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         }
     }
 
+    func aiGenerateBack() async -> Bool {
+        guard let webView else { return false }
+        return await withCheckedContinuation { (answer: CheckedContinuation<Bool, Never>) in
+            webView.evaluateJavaScript(NoteEmbedScripts.aiGenerateBack) { result, _ in
+                answer.resume(returning: (result as? Bool) == true)
+            }
+        }
+    }
+
     func pptxImportBack() async -> Bool {
         guard let webView else { return false }
         return await withCheckedContinuation { (answer: CheckedContinuation<Bool, Never>) in
@@ -1144,6 +1318,20 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
                 }
             } else if activeEditor == Self.slidesWizardEditorId {
                 notes.dismissSlidesWizard(wizard.request)
+            }
+            return
+        }
+        // 统一 AI 生成面板开着：优先关面板最上面一层（草稿保留），不离开笔记。
+        if let aiGen = notes.state.aiGenerate {
+            if aiGen.shown {
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    if !(await self.aiGenerateBack()) {
+                        self.app.notes.dismissAiGenerate(aiGen.request)
+                    }
+                }
+            } else if activeEditor == Self.aiGenerateEditorId {
+                notes.dismissAiGenerate(aiGen.request)
             }
             return
         }
@@ -1345,6 +1533,8 @@ extension NoteEditorController: WKNavigationDelegate {
         }
         slidesWizardVisible = false
         slidesWizardBusy = false
+        aiGenerateVisible = false
+        aiGenerateBusy = false
         pptxImportVisible = false
         quizVisible = false
         // 新的网页进程里没有在做的幻灯片（加载后也会发空的）。
@@ -1358,6 +1548,18 @@ extension NoteEditorController: WKNavigationDelegate {
             bridge.attach(self)
             openedPageIds = []
             loadWizard()
+            onProcessRestarted()
+            return
+        }
+        if editor == Self.aiGenerateEditorId {
+            isLoaded = false
+            showEpoch += 1
+            openTask?.cancel()
+            openTask = nil
+            bridge.release(self)
+            bridge.attach(self)
+            openedPageIds = []
+            loadAiGenerate()
             onProcessRestarted()
             return
         }

@@ -325,4 +325,8 @@ export const frServer: Record<string, string> = {
   "Could not save the review note. Try again.": "Impossible d’enregistrer la note de révision. Réessayez.",
   "There is nothing to make a quiz from yet.": "Il n’y a pas encore de contenu pour créer un quiz.",
   "This note was moved to the trash.": "Cette note a été déplacée dans la corbeille.",
+  "Could not generate the note. Try again.": "Impossible de générer la note. Réessayez.",
+  "Could not generate the whiteboard. Try again.": "Impossible de générer le tableau blanc. Réessayez.",
+  "There is nothing to generate from yet.": "Il n’y a encore rien à partir de quoi générer.",
+  "This whiteboard was moved to the trash.": "Ce tableau blanc a été déplacé dans la corbeille.",
 };

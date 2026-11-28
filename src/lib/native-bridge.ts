@@ -58,7 +58,11 @@ export type NativeMessage =
   | { type: "pptxImport"; state: "open" | "closed" }
   // 復習・クイズの窓が出た・消えた。open の間、アプリは上部バーを隠し、戻る操作を quiz({ action: "back" }) に渡す。canShowQuiz を持つアプリにだけ送る。
   | { type: "quiz"; state: "open" }
-  | { type: "quiz"; state: "closed" };
+  | { type: "quiz"; state: "closed" }
+  // 統合「AI で生成」パネル（ノート・ホワイトボード・スライド）が出た・消えた。open の間、アプリは上部バーを隠し、
+  // 戻る操作を aiGenerate({ action: "back" }) に渡す。busy は裏で生成が続いている状態。canShowAiGenerate を持つアプリにだけ送る。
+  | { type: "aiGenerate"; state: "open" }
+  | { type: "aiGenerate"; state: "closed"; busy: boolean };
 
 // appIcon はアプリの設定で選んだアイコン（絵文字 1 つか画像の data URL、既定のロゴは空文字）を返す。古いアプリにはない。
 // canOpenPage は openPage を処理できるアプリだけが持つ（古いアプリは持たない。そのときは送らずに元のリンクの動きにする）。
@@ -70,7 +74,7 @@ export type NativeMessage =
 // canOpenChat は openChat を処理できるアプリだけが持つ（古いアプリにはバックリンクの会話を出さない）。
 export type NativeHost = {
   postMessage: (json: string) => void; appIcon?: () => string; language?: () => string; theme?: () => string; canOpenPage?: () => boolean; canShowStorageLimit?: () => boolean;
-  canShowUsageLimit?: () => boolean; canPresent?: () => boolean; canSaveFile?: () => boolean; canShowSlidesWizard?: () => boolean; canOpenChat?: () => boolean; canShowPptxImport?: () => boolean; canShowQuiz?: () => boolean;
+  canShowUsageLimit?: () => boolean; canPresent?: () => boolean; canSaveFile?: () => boolean; canShowSlidesWizard?: () => boolean; canOpenChat?: () => boolean; canShowPptxImport?: () => boolean; canShowQuiz?: () => boolean; canShowAiGenerate?: () => boolean;
 };
 // アプリ → web。アプリは evaluateJavascript で window.notefableEmbed.flush("<requestId>") などを呼ぶ。
 // pageUpdated はアプリのチャットで編集案を適用したときに、サーバーが返した新しいページ（JSON 文字列かオブジェクト）を渡す。
@@ -105,6 +109,8 @@ export type EmbedApi = {
   refreshBacklinks: () => boolean;
   // PowerPoint（.pptx）取り込みの窓（JSON 文字列でもよい）：{ action: "open", groupId?, parentId? } または { action: "back" }。
   pptxImport: (request: unknown) => boolean;
+  // 統合「AI で生成」パネル（JSON 文字列でもよい）：{ action: "open", kind?, groupId?, parentId?, prompt?, autoStart?, model?, reasoning? } または { action: "back" }。
+  aiGenerate: (request: unknown) => boolean;
 };
 
 type BridgeWindow = { NoteFableNative?: unknown; notefableEmbed?: EmbedApi };
@@ -207,6 +213,13 @@ export function nativeCanShowQuiz(target: BridgeWindow | undefined = browserWind
   const native = host(target);
   if (!native || typeof native.canShowQuiz !== "function") return false;
   try { return native.canShowQuiz() === true; } catch { return false; }
+}
+
+// アプリが統合「AI で生成」パネルの出し入れ（aiGenerate の消息）を受け持てるか。古いアプリや普通のブラウザでは false。
+export function nativeCanShowAiGenerate(target: BridgeWindow | undefined = browserWindow()): boolean {
+  const native = host(target);
+  if (!native || typeof native.canShowAiGenerate !== "function") return false;
+  try { return native.canShowAiGenerate() === true; } catch { return false; }
 }
 
 // アプリの中（WebView）で開いているか。
@@ -440,7 +453,62 @@ export function parseQuizRequest(value: unknown): QuizCommand | null {
   return { action: "open", pageId: candidate.pageId, model: text(candidate.model), reasoning: text(candidate.reasoning) };
 }
 
-export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, theme = saveThemePreference, slides = dispatchSlidesCommand, openPage, close, pageTrashed = dispatchPagesTrashed, slidesWizard, pptxImport, quiz, refreshBacklinks = dispatchBacklinksStale, language, reveal = () => {}, post }: {
+export type AiGenerateCommand =
+  | {
+    action: "open";
+    kind: PageKind | null;
+    groupId: string | null;
+    parentId: string | null;
+    prompt: string | null;
+    autoStart: boolean;
+    model: string | null;
+    reasoning: string | null;
+  }
+  | { action: "back" };
+
+// アプリから渡された統合「AI で生成」パネルの依頼を確かめる。知らない操作や不正な ID は捨てる。
+export function parseAiGenerateRequest(value: unknown): AiGenerateCommand | null {
+  let raw: unknown = value;
+  if (typeof raw === "string") {
+    try { raw = JSON.parse(raw); } catch { return null; }
+  }
+  if (!raw || typeof raw !== "object") return null;
+  const candidate = raw as {
+    action?: unknown;
+    kind?: unknown;
+    groupId?: unknown;
+    parentId?: unknown;
+    prompt?: unknown;
+    autoStart?: unknown;
+    model?: unknown;
+    reasoning?: unknown;
+  };
+  if (candidate.action === "back") return { action: "back" };
+  if (candidate.action !== "open") return null;
+  const id = (item: unknown): item is string => typeof item === "string" && REVEAL_TARGET.test(item);
+  const text = (item: unknown) => (typeof item === "string" && item.trim() ? item.trim() : null);
+  const kindRaw = candidate.kind ?? null;
+  const kind: PageKind | null = kindRaw === null ? null
+    : kindRaw === "note" || kindRaw === "whiteboard" || kindRaw === "slides" ? kindRaw
+      : undefined as never;
+  if (kind === undefined) return null;
+  const groupId = candidate.groupId ?? null;
+  const parentId = candidate.parentId ?? null;
+  if ((groupId !== null && !id(groupId)) || (parentId !== null && !id(parentId))) return null;
+  const prompt = typeof candidate.prompt === "string" ? candidate.prompt.slice(0, 2000) : null;
+  return {
+    action: "open",
+    kind,
+    groupId,
+    parentId,
+    prompt: prompt && prompt.trim() ? prompt : null,
+    autoStart: candidate.autoStart === true,
+    model: text(candidate.model),
+    reasoning: text(candidate.reasoning),
+  };
+}
+
+export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, theme = saveThemePreference, slides = dispatchSlidesCommand, openPage, close, pageTrashed = dispatchPagesTrashed, slidesWizard, pptxImport, quiz, aiGenerate, refreshBacklinks = dispatchBacklinksStale, language, reveal = () => {}, post }: {
   flush: () => Promise<boolean>;
   reveal?: (target: string) => void;
   language?: (locale: Locale) => Promise<boolean>;
@@ -459,6 +527,7 @@ export function createEmbedApi({ flush, draftKept = () => false, openHistory, pa
   slidesWizard?: (command: SlidesWizardCommand) => boolean;
   pptxImport?: (command: PptxImportCommand) => boolean;
   quiz?: (command: QuizCommand) => boolean;
+  aiGenerate?: (command: AiGenerateCommand) => boolean;
   refreshBacklinks?: () => void;
   post: (message: NativeMessage) => void;
 }): EmbedApi {
@@ -548,6 +617,11 @@ export function createEmbedApi({ flush, draftKept = () => false, openHistory, pa
       if (!pptxImport) return false;
       const command = parsePptxImportRequest(value);
       return command ? pptxImport(command) : false;
+    },
+    aiGenerate(value) {
+      if (!aiGenerate) return false;
+      const command = parseAiGenerateRequest(value);
+      return command ? aiGenerate(command) : false;
     },
   };
 }

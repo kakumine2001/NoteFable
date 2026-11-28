@@ -201,6 +201,11 @@
 "acct_deleting" = "हटाया जा रहा है…";
 "acct_err_delete_account" = "आपका खाता हटाया नहीं जा सका। कृपया फिर से प्रयास करें।";
 
+/* strings_ai_generate.xml */
+"ai_gen_placeholder" = "AI से नोट, व्हाइटबोर्ड या स्लाइड डेक बनवाएं…";
+"ai_gen_options" = "विकल्प";
+"ai_gen_generate" = "बनाएं";
+
 /* strings_answers.xml */
 "activity_thinking" = "सोच रहा है";
 "activity_using_project" = "प्रोजेक्ट “%1$s” का उपयोग हो रहा है";

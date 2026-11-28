@@ -201,6 +201,11 @@
 "acct_deleting" = "Suppression…";
 "acct_err_delete_account" = "Impossible de supprimer votre compte. Veuillez réessayer.";
 
+/* strings_ai_generate.xml */
+"ai_gen_placeholder" = "Demandez à l’IA de créer une note, un tableau blanc ou des diapositives…";
+"ai_gen_options" = "Options";
+"ai_gen_generate" = "Générer";
+
 /* strings_answers.xml */
 "activity_thinking" = "Réflexion en cours";
 "activity_using_project" = "Utilisation du projet « %1$s »";

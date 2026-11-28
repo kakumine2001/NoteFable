@@ -325,4 +325,8 @@ export const thServer: Record<string, string> = {
   "Could not save the review note. Try again.": "ไม่สามารถบันทึกโน้ตทบทวนได้ โปรดลองอีกครั้ง",
   "There is nothing to make a quiz from yet.": "ยังไม่มีเนื้อหาสำหรับสร้างแบบทดสอบ",
   "This note was moved to the trash.": "โน้ตนี้ถูกย้ายไปที่ถังขยะแล้ว",
+  "Could not generate the note. Try again.": "สร้างโน้ตไม่สำเร็จ โปรดลองอีกครั้ง",
+  "Could not generate the whiteboard. Try again.": "สร้างไวท์บอร์ดไม่สำเร็จ โปรดลองอีกครั้ง",
+  "There is nothing to generate from yet.": "ยังไม่มีเนื้อหาสำหรับใช้สร้าง",
+  "This whiteboard was moved to the trash.": "ไวท์บอร์ดนี้ถูกย้ายไปที่ถังขยะแล้ว",
 };

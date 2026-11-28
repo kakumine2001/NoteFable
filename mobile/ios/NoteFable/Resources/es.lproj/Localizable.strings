@@ -201,6 +201,11 @@
 "acct_deleting" = "Eliminando…";
 "acct_err_delete_account" = "No se pudo eliminar tu cuenta. Inténtalo de nuevo.";
 
+/* strings_ai_generate.xml */
+"ai_gen_placeholder" = "Pide a la IA que cree una nota, pizarra o presentación…";
+"ai_gen_options" = "Opciones";
+"ai_gen_generate" = "Generar";
+
 /* strings_answers.xml */
 "activity_thinking" = "Pensando";
 "activity_using_project" = "Usando el proyecto “%1$s”";

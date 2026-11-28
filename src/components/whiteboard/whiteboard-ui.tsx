@@ -230,14 +230,14 @@ function WhiteboardToolbar({ ui, drawMode, compact, onSelectTool, onLink, onInse
           <Upload size={16} aria-hidden="true" /><span className="flex-1">{t("Upload image")}</span><kbd className="whiteboard-kbd">9</kbd>
         </button>
         <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onGenerateImage(); }}>
-          <ImagePlus size={16} aria-hidden="true" /><span className="flex-1">{t("Generate with AI")}</span>
+          <ImagePlus size={16} aria-hidden="true" /><span className="flex-1">{t("Generate an image")}</span>
         </button>
       </> : <>
         {extra.map((tool) => <button key={tool} type="button" role="menuitemradio" aria-checked={active === tool} className="chat-menu-item" onClick={() => pick(tool)}>
           {TOOL_ICONS[tool]}<span className="flex-1">{t(TOOL_LABELS[tool])}</span>{TOOL_KEYS[tool] && <kbd className="whiteboard-kbd">{TOOL_KEYS[tool]}</kbd>}
         </button>)}
         <hr className="chat-menu-divider" />
-        <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onGenerateImage(); }}><ImagePlus size={18} aria-hidden="true" /><span className="flex-1">{t("Generate with AI")}</span></button>
+        <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onGenerateImage(); }}><ImagePlus size={18} aria-hidden="true" /><span className="flex-1">{t("Generate an image")}</span></button>
         <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onInsertFormula(); }}><Sigma size={18} aria-hidden="true" /><span className="flex-1">{t("Equation")}</span></button>
         <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onInsertPageCard(); }}><PageKindIcon kind="note" size={18} /><span className="flex-1">{t("Link to a page")}</span></button>
         {ui.selectedCount > 0 && <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { close(); onLink(); }}><Link2 size={18} /><span className="flex-1">{t("Add link")}</span></button>}
@@ -289,7 +289,7 @@ function WhiteboardMenu({ ui, editable, embedded, onExport, onImportPdf, onGener
       <button type="button" role="menuitem" className="chat-menu-item" onClick={run(() => onExport("pdf"))}><FileDown size={16} aria-hidden="true" />{t("Export as PDF")}</button>
       {editable && <>
         <hr className="chat-menu-divider" />
-        <button type="button" role="menuitem" className="chat-menu-item" onClick={run(onGenerateImage)}><ImagePlus size={16} aria-hidden="true" />{t("Generate with AI")}</button>
+        <button type="button" role="menuitem" className="chat-menu-item" onClick={run(onGenerateImage)}><ImagePlus size={16} aria-hidden="true" />{t("Generate an image")}</button>
         <button type="button" role="menuitem" className="chat-menu-item" onClick={run(onImportPdf)}><FileUp size={16} aria-hidden="true" />{t("Import PDF")}</button>
         <hr className="chat-menu-divider" />
         <MenuToggle icon={<Grid3x3 size={16} aria-hidden="true" />} label={t("Show grid")} checked={ui.grid} onToggle={() => actions?.run("gridMode")} />

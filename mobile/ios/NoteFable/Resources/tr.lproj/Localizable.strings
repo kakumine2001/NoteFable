@@ -201,6 +201,11 @@
 "acct_deleting" = "Siliniyor…";
 "acct_err_delete_account" = "Hesabınız silinemedi. Lütfen tekrar deneyin.";
 
+/* strings_ai_generate.xml */
+"ai_gen_placeholder" = "Yapay zekâdan bir not, beyaz tahta veya slayt destesi oluşturmasını isteyin…";
+"ai_gen_options" = "Seçenekler";
+"ai_gen_generate" = "Oluştur";
+
 /* strings_answers.xml */
 "activity_thinking" = "Düşünüyor";
 "activity_using_project" = "“%1$s” projesi kullanılıyor";

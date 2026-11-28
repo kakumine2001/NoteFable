@@ -325,4 +325,8 @@ export const jaServer: Record<string, string> = {
   "Could not save the review note. Try again.": "復習ノートを保存できませんでした。もう一度お試しください。",
   "There is nothing to make a quiz from yet.": "クイズを作るための内容がまだありません。",
   "This note was moved to the trash.": "このノートはゴミ箱に移動されました。",
+  "Could not generate the note. Try again.": "ノートを生成できませんでした。もう一度お試しください。",
+  "Could not generate the whiteboard. Try again.": "ホワイトボードを生成できませんでした。もう一度お試しください。",
+  "There is nothing to generate from yet.": "生成元の内容がまだありません。",
+  "This whiteboard was moved to the trash.": "このホワイトボードはゴミ箱に移動されました。",
 };

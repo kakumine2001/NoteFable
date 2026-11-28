@@ -216,4 +216,49 @@ class NoteEmbedBridgeTest {
         assertEquals(EmbedMessage.Quiz(open = false), EmbedMessage.parse("""{"type":"quiz","state":"closed"}"""))
         assertNull(EmbedMessage.parse("""{"type":"quiz","state":"other"}"""))
     }
+
+    @Test
+    fun `ai generate parses messages, builds scripts and routes events`() {
+        assertEquals(EmbedMessage.AiGenerate(open = true, busy = false), EmbedMessage.parse("""{"type":"aiGenerate","state":"open"}"""))
+        assertEquals(EmbedMessage.AiGenerate(open = false, busy = true), EmbedMessage.parse("""{"type":"aiGenerate","state":"closed","busy":true}"""))
+        assertEquals(EmbedMessage.AiGenerate(open = false, busy = false), EmbedMessage.parse("""{"type":"aiGenerate","state":"closed"}"""))
+        assertNull(EmbedMessage.parse("""{"type":"aiGenerate","state":"other"}"""))
+
+        val script = NoteEmbedBridge.aiGenerateOpenScript(
+            com.kakumine.notefable.data.AiGenerateTarget(
+                kind = PageKind.Whiteboard,
+                groupId = "g_1",
+                prompt = "System architecture",
+                autoStart = true,
+            ),
+            model = "gpt-6-luna",
+            reasoning = "high",
+        )
+        assertNotNull(script)
+        assertTrue(script!!.contains(""""action":"open""""))
+        assertTrue(script.contains(""""kind":"whiteboard""""))
+        assertTrue(script.contains(""""groupId":"g_1""""))
+        assertTrue(script.contains(""""prompt":"System architecture""""))
+        assertTrue(script.contains(""""autoStart":true"""))
+        assertTrue(script.contains(""""model":"gpt-6-luna""""))
+        assertTrue(script.contains(""""reasoning":"high""""))
+        assertNull(NoteEmbedBridge.aiGenerateOpenScript(com.kakumine.notefable.data.AiGenerateTarget(groupId = "bad/id")))
+        assertNull(NoteEmbedBridge.aiGenerateOpenScript(com.kakumine.notefable.data.AiGenerateTarget(parentId = "bad id")))
+        assertEquals(
+            "(function(){var e=window.notefableEmbed;if(e&&typeof e.aiGenerate==='function')return e.aiGenerate({\"action\":\"back\"})===true;return false})()",
+            NoteEmbedBridge.AI_GENERATE_BACK_SCRIPT,
+        )
+
+        val opened = EmbedMessage.AiGenerate(open = true)
+        val openPage = EmbedMessage.OpenPage("p_new")
+        val usage = EmbedMessage.UsageLimit("guest", "chat")
+        val storage = EmbedMessage.StorageLimit("member", 10L, 20L)
+        for (editor in listOf(null, "p1", AI_GENERATE_EDITOR)) {
+            assertEquals(EmbedRoute.AiGenerate, embedRoute(opened, editor))
+        }
+        assertEquals(EmbedRoute.AiGenerate, embedRoute(openPage, AI_GENERATE_EDITOR))
+        assertEquals(EmbedRoute.AiGenerate, embedRoute(usage, AI_GENERATE_EDITOR))
+        assertEquals(EmbedRoute.AiGenerate, embedRoute(storage, AI_GENERATE_EDITOR))
+        assertEquals(EmbedRoute.Drop, embedRoute(EmbedMessage.SaveState("saved"), AI_GENERATE_EDITOR))
+    }
 }

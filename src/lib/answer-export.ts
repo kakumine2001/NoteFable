@@ -567,3 +567,28 @@ export function answerToNoteContent(markdown: string, source: AnswerSource): { t
   }
   return { title, blocks: build(low, true) };
 }
+
+// スタンドアロンの Markdown（AI 生成ノート等）を、題名と上限内（2000 ブロック・1 MiB・入れ子 7 段）のブロック配列に変換する。
+// 先頭の見出しを題名に採ったときは重複を避けて本文から外す。出典段落は付けない。
+export function markdownToNoteContent(markdown: string, fallbackTitle: string): { title: string; blocks: NoteBlockNode[]; truncated: boolean } {
+  const lines = normalizeNewlines(markdown).split("\n");
+  const found = analyze(lines);
+  const title = pickTitle(found, fallbackTitle);
+  if (found.heading?.leading && title === found.heading.text) lines.splice(found.heading.line, 1);
+  const body = clampDepth(markdownToBlocks(prepareMarkdown(lines.join("\n"))));
+
+  const fits = (blocks: NoteBlockNode[]) =>
+    countBlocks(blocks) <= MAX_BLOCKS
+    && new TextEncoder().encode(JSON.stringify({ title, icon: null, cover: null, coverPosition: null, blocks })).byteLength <= MAX_NOTE_BYTES - BYTE_MARGIN;
+
+  const total = countBlocks(body);
+  if (fits(body)) return { title, blocks: body, truncated: false };
+  let low = 0;
+  let high = total - 1;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (fits(takeBlocks(body, middle))) low = middle;
+    else high = middle - 1;
+  }
+  return { title, blocks: takeBlocks(body, low), truncated: true };
+}

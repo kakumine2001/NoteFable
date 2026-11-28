@@ -325,4 +325,8 @@ export const hiServer: Record<string, string> = {
   "Could not save the review note. Try again.": "रिव्यू नोट सहेजा नहीं जा सका। फिर से प्रयास करें।",
   "There is nothing to make a quiz from yet.": "क्विज़ बनाने के लिए अभी कोई सामग्री नहीं है।",
   "This note was moved to the trash.": "यह नोट ट्रैश में भेज दिया गया है।",
+  "Could not generate the note. Try again.": "नोट नहीं बनाया जा सका। फिर से कोशिश करें।",
+  "Could not generate the whiteboard. Try again.": "व्हाइटबोर्ड नहीं बनाया जा सका। फिर से कोशिश करें।",
+  "There is nothing to generate from yet.": "अभी बनाने के लिए कोई सामग्री नहीं है।",
+  "This whiteboard was moved to the trash.": "यह व्हाइटबोर्ड ट्रैश में भेज दिया गया है।",
 };

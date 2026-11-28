@@ -629,6 +629,9 @@ enum EmbedMessage: Equatable, Sendable {
     /// AI 生成幻灯片的向导（#150，网页 SlidesWizardHost）出现（[open]）或消失。[busy]：消失时还有生成没完成（WebView 多留一会儿）。
     /// 只有 bootstrap 里声明了 `canShowSlidesWizard()` 的 App 才会收到。
     case slidesWizard(open: Bool, busy: Bool = false)
+    /// 工作区统一「用 AI 生成」面板（#254，网页 AiGenerateHost）出现（[open]）或消失。[busy]：消失时还有生成没完成。
+    /// 只有 bootstrap 里声明了 `canShowAiGenerate()` 的 App 才会收到。
+    case aiGenerate(open: Bool, busy: Bool = false)
     /// PowerPoint（.pptx）导入窗口（#154，网页 PptxImportHost）出现（[open]）或消失。
     /// 只有 bootstrap 里声明了 `canShowPptxImport()` 的 App 才会收到。
     case pptxImport(open: Bool)
@@ -696,6 +699,15 @@ enum EmbedMessage: Equatable, Sendable {
                     return .slidesWizard(open: true, busy: false)
                 case "closed":
                     return .slidesWizard(open: false, busy: try flag(fields["busy"]))
+                default:
+                    return nil
+                }
+            case "aiGenerate":
+                switch try text(fields["state"]) {
+                case "open":
+                    return .aiGenerate(open: true, busy: false)
+                case "closed":
+                    return .aiGenerate(open: false, busy: try flag(fields["busy"]))
                 default:
                     return nil
                 }
@@ -807,4 +819,13 @@ enum SlidesWizardSource: Equatable, Sendable {
 struct PptxImportTarget: Equatable, Sendable {
     var groupId: String? = nil
     var parentId: String? = nil
+}
+
+/// 工作区统一「用 AI 生成」的目标和预填内容（`window.notefableEmbed.aiGenerate({ action: "open", ... })`；Android `AiGenerateTarget`）。
+struct AiGenerateTarget: Equatable, Sendable {
+    var kind: PageKind? = nil
+    var groupId: String? = nil
+    var parentId: String? = nil
+    var prompt: String? = nil
+    var autoStart: Bool = false
 }

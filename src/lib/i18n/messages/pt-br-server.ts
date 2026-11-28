@@ -325,4 +325,8 @@ export const ptBRServer: Record<string, string> = {
   "Could not save the review note. Try again.": "Não foi possível salvar a nota de revisão. Tente novamente.",
   "There is nothing to make a quiz from yet.": "Ainda não há conteúdo para criar um quiz.",
   "This note was moved to the trash.": "Esta nota foi movida para a lixeira.",
+  "Could not generate the note. Try again.": "Não foi possível gerar a nota. Tente novamente.",
+  "Could not generate the whiteboard. Try again.": "Não foi possível gerar o quadro branco. Tente novamente.",
+  "There is nothing to generate from yet.": "Ainda não há conteúdo para gerar a partir dele.",
+  "This whiteboard was moved to the trash.": "Este quadro branco foi movido para a lixeira.",
 };

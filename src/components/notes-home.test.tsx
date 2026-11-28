@@ -35,7 +35,7 @@ import type { NoteGroupSummary, NotePageSummary } from "@/types/notes";
 
 type AnyElement = ReactElement<Record<string, unknown>>;
 
-const INLINE = new Set(["NewPageButtons"]);
+const INLINE = new Set(["NewPageButtons", "WorkspaceAiEntry"]);
 
 function elements(node: ReactNode): AnyElement[] {
   const found: AnyElement[] = [];
@@ -117,7 +117,7 @@ function renderHome(kindFilter: PageKind | null, pages = PAGES, groups = GROUPS)
     busy: false,
     onOpen: vi.fn(),
     onCreate: vi.fn(),
-    onGenerateSlides: vi.fn(),
+    onGenerate: vi.fn(),
     onImportPptx: vi.fn(),
     onImport: vi.fn(),
     onWorkspaceChange: vi.fn(),
@@ -133,17 +133,16 @@ beforeEach(() => {
 });
 
 describe("NotesHome page-type order and exclusive filters", () => {
-  it("lists filter tabs, create cards, and sections in Notes → Whiteboards → Slides order under All", () => {
+  it("lists filter tabs, unified AI entry, create cards, and sections in Notes → Whiteboards → Slides order under All", () => {
     const tree = renderHome(null);
     expect(byClass(tree, "ws-filter-pill").map((el) => textOf(el).trim())).toEqual(["All", "Notes", "Whiteboards", "Slides"]);
+    expect(byClass(tree, "ws-ai-kind-pill").map((el) => textOf(el).trim())).toEqual(["Note", "Whiteboard", "Slides"]);
     expect(byClass(tree, "ws-create-card").map((el) => textOf(el).trim())).toEqual(["New note", "New whiteboard", "New slide deck"]);
-    expect(byClass(tree, "ws-create-actions").flatMap((el) => elements(el).filter((c) => c.type === "button").map((c) => textOf(c).trim()))).toEqual([
-      "Generate with AI",
-      "Import PowerPoint",
-    ]);
+    expect(byClass(tree, "ws-create-actions")).toHaveLength(0);
     expect(byClass(tree, "ws-home-utils").flatMap((el) => elements(el).filter((c) => c.type === "button").map((c) => textOf(c).trim()))).toEqual([
       "New project",
       "Import Markdown",
+      "Import PowerPoint",
     ]);
     expect(byClass(tree, "notes-recent-name").map((el) => textOf(el).trim())).toEqual([
       "Loose Board",
@@ -157,10 +156,12 @@ describe("NotesHome page-type order and exclusive filters", () => {
     expect(sectionTitles).toEqual(["Favorites 2", "Biology 2", "Empty Project 0", "Notes 1", "Whiteboards 1", "Slides 1"]);
   });
 
-  it("shows only Notes items (plus New project and Import Markdown) under the Notes tab", () => {
+  it("shows only Notes items (plus New project, Import Markdown, and Note preselected in AI entry) under the Notes tab", () => {
     const tree = renderHome("note");
     expect(byClass(tree, "ws-create-card").map((el) => textOf(el).trim())).toEqual(["New note"]);
     expect(byClass(tree, "ws-create-actions")).toHaveLength(0);
+    expect(byClass(tree, "ws-ai-kind-pill").find((el) => el.props["aria-checked"] === true)).toBeDefined();
+    expect(textOf(byClass(tree, "ws-ai-kind-pill").find((el) => el.props["aria-checked"] === true)).trim()).toBe("Note");
     expect(byClass(tree, "ws-home-utils").flatMap((el) => elements(el).filter((c) => c.type === "button").map((c) => textOf(c).trim()))).toEqual([
       "New project",
       "Import Markdown",
@@ -170,10 +171,11 @@ describe("NotesHome page-type order and exclusive filters", () => {
     expect(sectionTitles).toEqual(["Favorites 1", "Biology 1", "Notes 1"]);
   });
 
-  it("shows only Whiteboards items (New project kept, Import Markdown and slide helpers hidden) under Whiteboards", () => {
+  it("shows only Whiteboards items (Whiteboard preselected in AI entry, Import Markdown and Import PowerPoint hidden) under Whiteboards", () => {
     const tree = renderHome("whiteboard");
     expect(byClass(tree, "ws-create-card").map((el) => textOf(el).trim())).toEqual(["New whiteboard"]);
     expect(byClass(tree, "ws-create-actions")).toHaveLength(0);
+    expect(textOf(byClass(tree, "ws-ai-kind-pill").find((el) => el.props["aria-checked"] === true)).trim()).toBe("Whiteboard");
     expect(byClass(tree, "ws-home-utils").flatMap((el) => elements(el).filter((c) => c.type === "button").map((c) => textOf(c).trim()))).toEqual([
       "New project",
     ]);
@@ -182,15 +184,14 @@ describe("NotesHome page-type order and exclusive filters", () => {
     expect(sectionTitles).toEqual(["Favorites 1", "Biology 1", "Whiteboards 1"]);
   });
 
-  it("shows only Slides items plus slide helpers (Import Markdown hidden) under Slides", () => {
+  it("shows only Slides items plus Import PowerPoint (Slides preselected in AI entry, Import Markdown hidden) under Slides", () => {
     const tree = renderHome("slides");
     expect(byClass(tree, "ws-create-card").map((el) => textOf(el).trim())).toEqual(["New slide deck"]);
-    expect(byClass(tree, "ws-create-actions").flatMap((el) => elements(el).filter((c) => c.type === "button").map((c) => textOf(c).trim()))).toEqual([
-      "Generate with AI",
-      "Import PowerPoint",
-    ]);
+    expect(byClass(tree, "ws-create-actions")).toHaveLength(0);
+    expect(textOf(byClass(tree, "ws-ai-kind-pill").find((el) => el.props["aria-checked"] === true)).trim()).toBe("Slides");
     expect(byClass(tree, "ws-home-utils").flatMap((el) => elements(el).filter((c) => c.type === "button").map((c) => textOf(c).trim()))).toEqual([
       "New project",
+      "Import PowerPoint",
     ]);
     expect(byClass(tree, "notes-recent-name").map((el) => textOf(el).trim())).toEqual(["Review Deck"]);
     const sectionTitles = byClass(tree, "notes-home-group").map((el) => textOf(el).replace(/\s+/g, " ").trim());
@@ -201,7 +202,10 @@ describe("NotesHome page-type order and exclusive filters", () => {
     const onlyNotes = PAGES.filter((page) => page.kind === "note");
     const tree = renderHome("slides", onlyNotes, GROUPS);
     expect(byClass(tree, "ws-create-card").map((el) => textOf(el).trim())).toEqual(["New slide deck"]);
-    expect(byClass(tree, "ws-create-actions")).toHaveLength(1);
+    expect(byClass(tree, "ws-home-utils").flatMap((el) => elements(el).filter((c) => c.type === "button").map((c) => textOf(c).trim()))).toEqual([
+      "New project",
+      "Import PowerPoint",
+    ]);
     expect(byClass(tree, "notes-home-hero")).toHaveLength(0);
     expect(byClass(tree, "notes-recent-name")).toHaveLength(0);
     expect(textOf(tree)).toContain("No matching pages.");

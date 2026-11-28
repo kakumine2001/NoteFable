@@ -9,7 +9,7 @@ import { MAX_MESSAGE_NOTES } from "@/types/chat";
 
 export type SlidesSource =
   | { type: "topic"; topic: string }
-  | { type: "notes"; pageIds: string[] }
+  | { type: "notes"; pageIds: string[]; instructions?: string }
   | { type: "chat"; sessionId: string };
 
 export const SLIDES_TONES = ["auto", "professional", "casual", "academic", "persuasive"] as const;
@@ -35,7 +35,7 @@ export type SlidesWizardOptions = SlidesOptions;
 // 表紙は slides に含めない。
 export type SlidesOutline = { title: string; slides: { title: string; points: string[] }[] };
 
-export const MAX_TOPIC_CHARS = 300;
+export const MAX_TOPIC_CHARS = 2000;
 export const MAX_SLIDES_SOURCE_NOTES = MAX_MESSAGE_NOTES;
 export const MIN_PAGE_COUNT = 3;
 export const MAX_PAGE_COUNT = 30;
@@ -76,7 +76,14 @@ export function parseSource(value: unknown): SlidesSource | null {
     const ids = value.pageIds;
     if (!Array.isArray(ids) || !ids.length || ids.length > MAX_SLIDES_SOURCE_NOTES) return null;
     if (!ids.every(isRecordId) || new Set(ids).size !== ids.length) return null;
-    return { type: "notes", pageIds: [...ids] };
+    let instructions: string | undefined;
+    if (value.instructions !== undefined) {
+      if (typeof value.instructions !== "string") return null;
+      const cleaned = cleanText(value.instructions).replace(/\r\n?/g, "\n").trim();
+      if (cleaned.length > MAX_TOPIC_CHARS) return null;
+      if (cleaned) instructions = cleaned;
+    }
+    return instructions ? { type: "notes", pageIds: [...ids], instructions } : { type: "notes", pageIds: [...ids] };
   }
   if (value.type === "chat" && isRecordId(value.sessionId)) return { type: "chat", sessionId: value.sessionId };
   return null;
