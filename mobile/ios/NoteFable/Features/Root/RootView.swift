@@ -245,7 +245,7 @@ private struct DrawerPanel: View {
     }
 }
 
-/// 抽屉底部操作栏：左边账号胶囊（登录或设置），未登录时加小号设置齿轮，右边“＋”新建菜单（均为系统原生 iOS 26 菜单）。
+/// 抽屉底部操作栏：左边账号胶囊（登录或设置），未登录时加小号设置齿轮，右边“＋”按钮（点一下新建聊天，长按或右键打开系统原生新建菜单）。
 private struct DrawerFooter: View {
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router
@@ -328,8 +328,35 @@ private struct DrawerFooter: View {
             LucideIcon(Lucide.plus, size: 18, strokeWidth: 2.1, color: Sm.onInk)
                 .frame(width: 40, height: 40)
                 .background(Sm.ink, in: Circle())
+                .contentShape(Circle())
+                .contentShape(.contextMenuPreview, Circle())
+        } primaryAction: {
+            router.openNewChat()
         }
-        .accessibilityLabel(L("ws_new"))
+        .accessibilityLabel(L("new_chat"))
+        .accessibilityActions {
+            if !notesBusy {
+                ForEach(kinds, id: \.self) { kind in
+                    Button {
+                        router.createNote(kind: kind)
+                    } label: {
+                        Text(L(pageKindNewLabel(kind)))
+                    }
+                }
+                if kinds.contains(.slides) {
+                    Button {
+                        router.openSlidesWizard(.new())
+                    } label: {
+                        Text(L("slides_generate_with_ai"))
+                    }
+                    Button {
+                        router.openPptxImport()
+                    } label: {
+                        Text(L("slides_import_pptx"))
+                    }
+                }
+            }
+        }
     }
 }
 
