@@ -146,7 +146,7 @@ struct NotesUiState: Equatable, Sendable {
     var collapsed: Set<String> = []
     /// 展开了哪些页面（子页面的树）。侧栏和首页共用，重开 App 后保留（网页 notefable:note-pages-expanded:v1）。
     var expanded: Set<String> = []
-    /// 折叠了哪些分区（笔记 / 幻灯片 / 白板），重开 App 后保留（网页 notefable:workspace-sections-collapsed:v1）。
+    /// 折叠了哪些分区（笔记 / 白板 / 幻灯片），重开 App 后保留（网页 notefable:workspace-sections-collapsed:v1）。
     var collapsedSections: Set<PageKind> = []
     /// 各类型能用的功能表（服务端的 kinds，[PageKindTable]）。分区和新建菜单按它画。
     var kindFeatures: [PageKind: PageKindFeatures] = PageKindTable.shared.snapshot
@@ -219,7 +219,7 @@ struct NotesUiState: Equatable, Sendable {
     }
 
     /// 工作区的分区（网页 workspaceSections，Android `NotesUiState.sections`，#168）：不在项目里的最上层页面按类型分成
-    /// 笔记、幻灯片、白板（[kinds] 的顺序），子页面跟着父页面。[WorkspaceSection.count] 含子页面（首页小标题后的数字）。
+    /// 笔记、白板、幻灯片（[kinds] 的顺序），子页面跟着父页面。[WorkspaceSection.count] 含子页面（首页小标题后的数字）。
     var sections: [WorkspaceSection] {
         let loose = loosePages
         let types = kinds
@@ -228,6 +228,22 @@ struct NotesUiState: Equatable, Sendable {
             let members = loose.filter { (types.contains($0.kind) ? $0.kind : .note) == kind }
             return WorkspaceSection(kind: kind, roots: members, count: members.reduce(0) { $0 + size($1) })
         }
+    }
+
+    /// 首页按筛选标签显示的新建卡片类型（网页 workspaceCreateKinds，Android `createKindsFor`）：All 显示全部可建类型，选中单类型时仅显示该类型。
+    func createKinds(for activeFilter: PageKind?) -> [PageKind] {
+        activeFilter.map { [$0] } ?? kinds
+    }
+
+    /// 首页「导入 Markdown」仅对 All 和 Notes 显示（Markdown 仅建笔记，网页 showsImportMarkdownForFilter）。
+    func showsImportMarkdown(for activeFilter: PageKind?) -> Bool {
+        activeFilter == nil || activeFilter == .note
+    }
+
+    /// 首页「最近编辑」按筛选标签过滤后的列表，按更新时间倒序取前 [limit] 篇。
+    func recentPages(for activeFilter: PageKind? = nil, limit: Int = 8) -> [NotePageSummary] {
+        let filtered = activeFilter == nil ? pages : pages.filter { sectionKind(of: $0) == activeFilter }
+        return recentHomePages(filtered, limit: limit)
     }
 
     private func isLoose(_ page: NotePageSummary) -> Bool {

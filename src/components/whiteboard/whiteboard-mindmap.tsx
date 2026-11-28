@@ -3,14 +3,14 @@
 import { CaptureUpdateAction, convertToExcalidrawElements, newElementWith, restoreElements } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { Blend, CircleMinus, GitBranchPlus, ListPlus, Milestone, Network, NotebookPen, Table2, X } from "lucide-react";
+import { Blend, CircleMinus, GitBranchPlus, ListPlus, Milestone, Network, NotebookPen, Table2 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useT } from "@/components/i18n-provider";
 import { msg } from "@/lib/i18n/translate";
 import { composeMindmapScene, findMindmapNode, type CollapsedMindmapNode, type MindmapChange, type MindmapSceneTools, type MindmapSelection, type SceneElement } from "@/lib/whiteboard/mindmap/editing";
 import type { MindmapSkeleton } from "@/lib/whiteboard/mindmap/elements";
 import { mindmapNodeBox } from "@/lib/whiteboard/mindmap/layout";
-import { WHITEBOARD_TEMPLATES, type TemplateLabels, type WhiteboardTemplate } from "@/lib/whiteboard/templates";
+import { type TemplateLabels, type WhiteboardTemplate } from "@/lib/whiteboard/templates";
 
 // 白板の思考マップのモード（docs/architecture/whiteboard.md の「思考マップのモード」）と学習テンプレートの画面。
 // 木の操作そのもの（子・兄弟を足す、消す、親を替える、畳む・広げる、置き直す）は純粋な関数（src/lib/whiteboard/mindmap/editing.ts）。
@@ -165,18 +165,3 @@ export function templateLabels(template: WhiteboardTemplate, t: (text: string, v
   };
 }
 
-// 何も無い白板に出す「テンプレートから始める」。描き始めれば消える。閉じるとこの白板を開いている間は出さない。
-export function WhiteboardTemplateStart({ onPick, onClose }: { onPick: (template: WhiteboardTemplate) => void; onClose: () => void }) {
-  const t = useT();
-  return <div className="whiteboard-template-start" role="region" aria-label={t("Start with a template")}>
-    <div className="whiteboard-template-start-head">
-      <span>{t("Start with a template")}</span>
-      <button type="button" className="whiteboard-tool" aria-label={t("Close")} title={t("Close")} onClick={onClose}><X size={16} /></button>
-    </div>
-    <div className="whiteboard-template-start-grid">
-      {WHITEBOARD_TEMPLATES.map((template) => <button key={template} type="button" className="whiteboard-template-start-item" onClick={() => onPick(template)}>
-        {TEMPLATE_ICONS[template]}<span>{t(TEMPLATE_NAMES[template])}</span>
-      </button>)}
-    </div>
-  </div>;
-}

@@ -38,7 +38,6 @@ export type WhiteboardUiState = {
   toolLocked: boolean;
   selectedCount: number;
   // 白板に何も無い。
-  empty: boolean;
   selectedTypes: string[];
   groupSelected: boolean;
   allLocked: boolean;

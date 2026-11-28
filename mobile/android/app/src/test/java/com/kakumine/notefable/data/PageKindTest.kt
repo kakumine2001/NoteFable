@@ -46,12 +46,12 @@ class PageKindTest {
             PageKindTable.update(kotlinx.serialization.json.Json.parseToJsonElement(
                 """{"note":{"editor":true,"markdownExport":true,"typography":true,"publicShare":true,"aiEdit":true},"whiteboard":{"editor":true,"publicShare":true,"future":1},"slides":{"editor":true},"mindmap":{"editor":true}}""",
             ))
-            assertEquals(listOf(Note, Slides, Whiteboard), PageKindTable.creatable)
+            assertEquals(listOf(Note, Whiteboard, Slides), PageKindTable.creatable)
             assertTrue(Whiteboard.features.publicShare)
             assertFalse(Slides.features.markdownExport)
             // 不是对象的表不动；表里缺了笔记也照样能用笔记。
             PageKindTable.update(kotlinx.serialization.json.JsonPrimitive("x"))
-            assertEquals(listOf(Note, Slides, Whiteboard), PageKindTable.creatable)
+            assertEquals(listOf(Note, Whiteboard, Slides), PageKindTable.creatable)
             PageKindTable.update(kotlinx.serialization.json.Json.parseToJsonElement("""{"slides":{"editor":true}}"""))
             assertEquals(listOf(Note, Slides), PageKindTable.creatable)
             assertTrue(Note.features.markdownExport)

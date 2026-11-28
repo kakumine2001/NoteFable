@@ -136,7 +136,7 @@ data class NotesUiState(
     val collapsed: Set<String> = emptySet(),
     /** 展开了哪些页面（子页面的树）。侧栏和首页共用，重开 App 后保留（网页 notefable:note-pages-expanded:v1）。 */
     val expanded: Set<String> = emptySet(),
-    /** 折叠了哪些分区（笔记 / 幻灯片 / 白板），重开 App 后保留（网页 notefable:workspace-sections-collapsed:v1）。 */
+    /** 折叠了哪些分区（笔记 / 白板 / 幻灯片），重开 App 后保留（网页 notefable:workspace-sections-collapsed:v1）。 */
     val collapsedSections: Set<PageKind> = emptySet(),
     val open: OpenNote? = null,
     /** 网页编辑器报来的保存状态：saved / saving / unsaved / error / conflict。 */
@@ -178,7 +178,7 @@ data class NotesUiState(
     fun sectionKindOf(page: NotePageSummary): PageKind = if (page.kind in kinds) page.kind else PageKind.Note
 
     /**
-     * 工作区的分区（网页 workspaceSections，#168）：不在项目里的最上层页面按类型分成笔记、幻灯片、白板（[kinds] 的顺序），
+     * 工作区的分区（网页 workspaceSections，#168）：不在项目里的最上层页面按类型分成笔记、白板、幻灯片（[kinds] 的顺序），
      * 子页面跟着父页面。[WorkspaceSection.count] 含子页面（首页小标题后的数字）。
      */
     val sections: List<WorkspaceSection>
@@ -191,6 +191,18 @@ data class NotesUiState(
                 WorkspaceSection(kind, members, members.sumOf { size(it) })
             }
         }
+
+    /** 首页按筛选标签显示的新建卡片类型（网页 workspaceCreateKinds）：All 显示全部可建类型，选中单类型时只显示该类型。 */
+    fun createKindsFor(activeFilter: PageKind?): List<PageKind> = activeFilter?.let { listOf(it) } ?: kinds
+
+    /** 首页「导入 Markdown」只对 All 和 Notes 显示（Markdown 仅建笔记，网页 showsImportMarkdownForFilter）。 */
+    fun showsImportMarkdownFor(activeFilter: PageKind?): Boolean = activeFilter == null || activeFilter == PageKind.Note
+
+    /** 首页「最近编辑」按筛选标签过滤后的列表，按更新时间倒序取前 [limit] 篇。 */
+    fun recentPages(activeFilter: PageKind? = null, limit: Int = 8): List<NotePageSummary> =
+        pages.filter { activeFilter == null || sectionKindOf(it) == activeFilter }
+            .sortedByDescending { it.updatedAt }
+            .take(limit)
 
     /** 项目里最上层的页面（列表用）。 */
     fun members(groupId: String) = roots.filter { it.groupId == groupId }

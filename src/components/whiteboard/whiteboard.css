@@ -574,49 +574,6 @@ button.whiteboard-mindmap-badge { cursor: pointer; }
 button.whiteboard-mindmap-badge:hover { background: var(--notion-hover); color: var(--notion-text); }
 .whiteboard.is-compact .whiteboard-mindmap-badge { min-width: 32px; height: 28px; line-height: 26px; }
 
-/* ---- 何も無い白板：テンプレートから始める ---- */
-.whiteboard-template-start {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  z-index: 3;
-  width: min(440px, calc(100% - 32px));
-  padding: 12px;
-  transform: translate(-50%, -50%);
-  background: var(--wb-surface);
-  border-radius: var(--wb-radius);
-  box-shadow: var(--notion-shadow);
-}
-.whiteboard-template-start-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding-inline-start: 4px;
-  margin-bottom: 8px;
-  font-size: 14px;
-  font-weight: 600;
-}
-.whiteboard-template-start-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
-  gap: 6px;
-}
-.whiteboard-template-start-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 8px 10px;
-  border: 1px solid var(--notion-border);
-  border-radius: 10px;
-  color: var(--notion-text);
-  font-size: 13px;
-  text-align: start;
-}
-.whiteboard-template-start-item:hover { background: var(--notion-hover); }
-.whiteboard-template-start-item:focus-visible { outline: 2px solid var(--nf-accent-line); outline-offset: 1px; }
-.whiteboard-template-start-item svg { flex: none; color: var(--kind-whiteboard); }
 
 /* ---- 右下：AI ボタン（#153）用に空けておく場所 ---- */
 .whiteboard-ai-slot {

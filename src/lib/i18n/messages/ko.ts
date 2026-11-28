@@ -1179,7 +1179,6 @@ export const ko: Record<string, string> = {
   "Group & organize": "분류 및 정리",
   "Could not attach the selection screenshot this time.": "이번에는 선택 영역 스크린샷을 첨부하지 못했습니다.",
   "Templates": "템플릿",
-  "Start with a template": "템플릿으로 시작",
   "Mind map": "마인드맵",
   "Cornell notes": "코넬 노트",
   "Timeline": "타임라인",

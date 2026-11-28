@@ -1179,7 +1179,6 @@ export const ru: Record<string, string> = {
   "Group & organize": "Сгруппировать и упорядочить",
   "Could not attach the selection screenshot this time.": "В этот раз не удалось прикрепить снимок выделения.",
   "Templates": "Шаблоны",
-  "Start with a template": "Начать с шаблона",
   "Mind map": "Интеллект-карта",
   "Cornell notes": "Заметки Корнелла",
   "Timeline": "Хронология",

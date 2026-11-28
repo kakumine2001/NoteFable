@@ -57,8 +57,8 @@ export const PAGE_KIND_LABELS: Record<PageKind, string> = {
   slides: msg("Slides"),
 };
 
-// 画面に並べる順（ワークスペースの分区、新規作成のメニュー、検索の種類の絞り込み）：ノート、スライド、ホワイトボード。
-export const PAGE_KIND_ORDER: readonly PageKind[] = ["note", "slides", "whiteboard"];
+// 画面に並べる順（ワークスペースの分区・フィルタータブ・新規作成カード・メニュー・検索の種類の絞り込み）：ノート、ホワイトボード、スライド。
+export const PAGE_KIND_ORDER: readonly PageKind[] = ["note", "whiteboard", "slides"];
 
 // 新しく作れる種類（editor が true のもの）を PAGE_KIND_ORDER の順で。ノートはいつも作れる。
 export function creatablePageKinds(features: Record<PageKind, PageKindFeatures> = PAGE_KIND_FEATURES): PageKind[] {
@@ -68,15 +68,15 @@ export function creatablePageKinds(features: Record<PageKind, PageKindFeatures> 
 // 分区の見出し（サイドバー・ホーム）と、検索の種類の絞り込みの項目。
 export const PAGE_KIND_SECTION_LABELS: Record<PageKind, string> = {
   note: msg("Notes"),
-  slides: msg("Slides"),
   whiteboard: msg("Whiteboards"),
+  slides: msg("Slides"),
 };
 
 // その種類を 1 回で作るボタン（分区の「+」、ホームと空状態の作成ボタン）。
 export const PAGE_KIND_NEW_LABELS: Record<PageKind, string> = {
   note: msg("New note"),
-  slides: msg("New slide deck"),
   whiteboard: msg("New whiteboard"),
+  slides: msg("New slide deck"),
 };
 
 // 種類ごとの拒否の文（サーバーが返し、利用者の言語に訳す。src/lib/page-kind-errors.ts）。

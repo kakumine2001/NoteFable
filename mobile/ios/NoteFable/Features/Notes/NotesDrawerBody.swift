@@ -1,7 +1,7 @@
 import SwiftUI
 
 // 侧栏的笔记部分（网页 NotesSidebar，手机尺寸；Android ui/NotesUi.kt 的 NotesDrawerBody）。头部、Chat / Note 切换和底部的账号由 Root 放。
-// 从上到下：“新建”、Search 行、可滚动的列表（FAVORITES → PROJECTS 和各项目 → 分区：笔记 / 幻灯片 / 白板）、最下面的“导入 Markdown”和回收站两行。
+// 从上到下：“新建”、Search 行、可滚动的列表（FAVORITES → PROJECTS 和各项目 → 分区：笔记 / 白板 / 幻灯片）、最下面的“导入 Markdown”和回收站两行。
 // 笔记行长按标题后可以拖动排序（Features/Shared/ReorderDragUI.swift）：放到别的笔记前 / 后是排序，放到项目行上移进项目，
 // 放到分区标题上移出项目（只接受同一分区的页面，Core 的 noteDropRules）。
 

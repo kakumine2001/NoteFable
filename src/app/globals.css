@@ -3753,7 +3753,8 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 .ws-util-pill:focus-visible { outline: 2px solid var(--nf-accent-line); outline-offset: 2px; }
 .ws-util-pill:disabled { opacity: 0.5; }
 
-/* スタジオクイック作成デッキ（ノート・スライド・ホワイトボードの 3 カード）。幅に応じて 1〜3 列に折り返し、長いラベルはカード内で改行する。 */
+/* スタジオクイック作成デッキ（ノート・ホワイトボード・スライドの 3 カード）。幅に応じて 1〜3 列に折り返し、長いラベルはカード内で改行する。 */
+.ws-home-filter { margin-bottom: 1rem; }
 .ws-home-create { margin-bottom: 1.75rem; }
 .ws-create-deck {
   display: grid; width: 100%; grid-template-columns: repeat(auto-fit, minmax(13.5rem, 1fr)); gap: 0.75rem;
@@ -3852,13 +3853,14 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 .ws-filter-pill:focus-visible { outline: 2px solid var(--nf-accent-line); outline-offset: 1px; }
 
 @media (max-width: 639px) {
+  .ws-home-filter { margin-bottom: 0.85rem; }
   .ws-create-deck { grid-template-columns: 1fr; gap: 0.45rem; }
   .ws-create-card { min-height: 3.15rem; padding: 0.5rem 0.75rem; gap: 0.65rem; }
   .ws-create-icon { width: 2rem; height: 2rem; border-radius: 0.55rem; }
-  .ws-home-header { margin-bottom: 0.85rem; padding-top: 0.65rem; }
+  .ws-home-header { flex-direction: column; align-items: flex-start; margin-bottom: 0.85rem; padding-top: 0.65rem; }
   .ws-util-pill { height: 2.15rem; font-size: 0.8125rem; }
   .ws-recent-nav { display: none; }
-  .ws-library-bar { margin-top: 0.15rem; }
+  .ws-library-bar { display: none; }
   .ws-library-heading { display: none; }
   .ws-filter-bar { width: 100%; }
   .ws-filter-pill { height: 2rem; font-size: 0.8125rem; }

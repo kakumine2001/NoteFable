@@ -225,7 +225,9 @@ private struct NotesHomeList: View {
                 NotesHomeUtilPill(icon: Lucide.folderPlus, title: L("new_project"), busy: busy) {
                     dialog = .newGroup
                 }
-                NotesHomeUtilPill(icon: Lucide.upload, title: L("import_markdown"), busy: busy, action: onImport)
+                if state.showsImportMarkdown(for: activeFilter) {
+                    NotesHomeUtilPill(icon: Lucide.upload, title: L("import_markdown"), busy: busy, action: onImport)
+                }
                 if kinds.contains(.slides) && (activeFilter == nil || activeFilter == .slides) {
                     NotesHomeUtilPill(icon: Lucide.upload, title: L("slides_import_pptx"), busy: busy, action: onImportPptx)
                 }
@@ -234,16 +236,16 @@ private struct NotesHomeList: View {
         .padding(.top, 12)
         .padding(.bottom, 14)
 
-        // 统一「用 AI 生成」输入卡（网页 WorkspaceAiEntry）：主输入区 + 角色 + 笔记 → 白板 → 幻灯片切换 + 选项 / 生成
+        // 统一「用 AI 生成」输入卡（网页 WorkspaceAiEntry）：主输入区 + 角色 + 笔记 → 白板 → 幻灯片切换（与筛选同步）+ 选项 / 生成
         WorkspaceAiEntryView(kinds: kinds, activeFilter: activeFilter, busy: busy, onOpen: onGenerate)
             .padding(.bottom, 16)
 
-        // Studio Quick-Create Deck 卡片
-        CreateDeckCards(kinds: kinds, busy: busy, onCreate: { notes.createNote(kind: $0) })
+        // Studio Quick-Create Deck 卡片（All 显示全部类型，选中单类型时仅显示该类型）
+        CreateDeckCards(kinds: state.createKinds(for: activeFilter), busy: busy, onCreate: { notes.createNote(kind: $0) })
             .padding(.bottom, 18)
 
-        // 最近编辑（网页 notes-recent-list）：显示封面、图标、标题和日期
-        let recent = recentHomePages(state.pages)
+        // 最近编辑（网页 notes-recent-list）：仅显示当前筛选类型的页面，没有则隐藏。
+        let recent = state.recentPages(for: activeFilter)
         if !recent.isEmpty {
             RecentNotesCarousel(recent: recent, busy: busy, multiKind: multiKind) { notes.openNote($0) }
                 .padding(.bottom, 18)
@@ -280,7 +282,7 @@ private struct NotesHomeList: View {
             }
         }
 
-        // 不在项目里的页面分区（Notes / Slides / Whiteboards）
+        // 不在项目里的页面分区（Notes / Whiteboards / Slides）
         ForEach(visibleSections) { section in
             let hasHeading = multiKind || !state.groups.isEmpty
             let firstSection = visibleFavorites.isEmpty && visibleGroups.isEmpty && section.id == visibleSections.first?.id

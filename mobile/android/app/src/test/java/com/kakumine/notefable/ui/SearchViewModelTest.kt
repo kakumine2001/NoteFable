@@ -55,7 +55,7 @@ class SearchViewModelTest {
     fun `the Notes type filter is sent only when two or more kinds can be created, and a vanished kind searches again`() = runTest {
         val kinds = mutableListOf<String?>()
         val vm = SearchViewModel(backgroundScope, { q, _, _, k -> kinds += k; response(q) })
-        val all = listOf(PageKind.Note, PageKind.Slides, PageKind.Whiteboard)
+        val all = listOf(PageKind.Note, PageKind.Whiteboard, PageKind.Slides)
         vm.setKinds(all)
         vm.setScope(SearchScope.Notes)
         vm.setKind("slides")

@@ -1179,7 +1179,6 @@ export const tr: Record<string, string> = {
   "Group & organize": "Grupla ve düzenle",
   "Could not attach the selection screenshot this time.": "Bu sefer seçimin ekran görüntüsü eklenemedi.",
   "Templates": "Şablonlar",
-  "Start with a template": "Bir şablonla başla",
   "Mind map": "Zihin haritası",
   "Cornell notes": "Cornell notları",
   "Timeline": "Zaman çizelgesi",

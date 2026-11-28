@@ -1180,7 +1180,6 @@ export const ja: Record<string, string> = {
   "Group & organize": "分類・整理",
   "Could not attach the selection screenshot this time.": "今回は選択範囲のスクリーンショットを添付できませんでした。",
   "Templates": "テンプレート",
-  "Start with a template": "テンプレートから始める",
   "Mind map": "マインドマップ",
   "Cornell notes": "コーネルノート",
   "Timeline": "タイムライン",
