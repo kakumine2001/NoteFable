@@ -240,11 +240,38 @@ class NotesViewModelTest {
         assertEquals(listOf(listOf("b", "w", "s")), vm.state.value.sections.map { section -> section.roots.map { it.id } })
         enableCanvasKinds()
         val sections = vm.state.value.sections
-        assertEquals(listOf(PageKind.Note, PageKind.Slides, PageKind.Whiteboard), sections.map { it.kind })
+        assertEquals(listOf(PageKind.Note, PageKind.Whiteboard, PageKind.Slides), sections.map { it.kind })
         // 子页面跟着父页面（不在自己类型的分区里），数量含子页面；项目里的页面不在分区里。
-        assertEquals(listOf(listOf("b"), listOf("s"), listOf("w")), sections.map { section -> section.roots.map { it.id } })
+        assertEquals(listOf(listOf("b"), listOf("w"), listOf("s")), sections.map { section -> section.roots.map { it.id } })
         assertEquals(listOf(2, 1, 1), sections.map { it.count })
         assertEquals(PageKind.Whiteboard, vm.state.value.sectionKindOf(backend.pages.first { it.id == "child" }))
+    }
+
+    @Test
+    fun `home type filter narrows create cards, Import Markdown and recent pages to the selected kind`() = runTest(dispatcher) {
+        val backend = FakeNotes().apply {
+            pages.clear()
+            pages.add(NotePageSummary("n1", "Note 1", null, updatedAt = "2026-11-28T01:00:00Z", kind = PageKind.Note))
+            pages.add(NotePageSummary("w1", "Board 1", null, updatedAt = "2026-11-28T03:00:00Z", kind = PageKind.Whiteboard))
+            pages.add(NotePageSummary("n2", "Note 2", null, updatedAt = "2026-11-28T02:00:00Z", kind = PageKind.Note))
+        }
+        enableCanvasKinds()
+        val vm = notesVm(backend)
+        val state = vm.state.value
+        assertEquals(listOf(PageKind.Note, PageKind.Whiteboard, PageKind.Slides), state.createKindsFor(null))
+        assertEquals(listOf(PageKind.Note), state.createKindsFor(PageKind.Note))
+        assertEquals(listOf(PageKind.Whiteboard), state.createKindsFor(PageKind.Whiteboard))
+        assertEquals(listOf(PageKind.Slides), state.createKindsFor(PageKind.Slides))
+
+        assertTrue(state.showsImportMarkdownFor(null))
+        assertTrue(state.showsImportMarkdownFor(PageKind.Note))
+        assertFalse(state.showsImportMarkdownFor(PageKind.Whiteboard))
+        assertFalse(state.showsImportMarkdownFor(PageKind.Slides))
+
+        assertEquals(listOf("w1", "n2", "n1"), state.recentPages(null).map { it.id })
+        assertEquals(listOf("n2", "n1"), state.recentPages(PageKind.Note).map { it.id })
+        assertEquals(listOf("w1"), state.recentPages(PageKind.Whiteboard).map { it.id })
+        assertEquals(emptyList<String>(), state.recentPages(PageKind.Slides).map { it.id })
     }
 
     @Test

@@ -24,7 +24,7 @@ import { NoteIcon } from "@/components/note-icon";
 import { PageKindIcon } from "@/components/page-kind-icon";
 
 const COLLAPSED_KEY = "notefable:note-groups-collapsed:v1";
-// 分区（ノート・スライド・ホワイトボード）の折りたたみ。種類 → true。プロジェクトと同じく端末に覚えておく。
+// 分区（ノート・ホワイトボード・スライド）の折りたたみ。種類 → true。プロジェクトと同じく端末に覚えておく。
 const SECTIONS_COLLAPSED_KEY = "notefable:workspace-sections-collapsed:v1";
 
 function readCollapsed(key: string): Record<string, boolean> {
@@ -273,7 +273,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
           })}
         </div>
         {iconError && <p role="alert" className="px-2 text-xs text-[#b91c1c]">{t(iconError)}</p>}
-        {/* 分区（ノート・スライド・ホワイトボード）：プロジェクトに入っていない最上位のページを種類ごとに。見出しは押すと折りたたみ、
+        {/* 分区（ノート・ホワイトボード・スライド）：プロジェクトに入っていない最上位のページを種類ごとに。見出しは押すと折りたたみ、
             「+」はその種類を作る。見出しはプロジェクトから外す放し先で、同じ分区に並ぶページだけを受ける。 */}
         {sections.map((section) => {
           const label = t(PAGE_KIND_SECTION_LABELS[section.kind]);

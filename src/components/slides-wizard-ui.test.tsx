@@ -479,8 +479,8 @@ describe("Generate slides entries", () => {
       hooks.states = [{ anchor: {}, trigger: {}, focusLast: false }];
       return NewPageButton({ kinds, busy: false, onCreate, onGenerate: generate, className: "c", menuLabel: "New page", children: "+" });
     };
-    const all = render(["note", "slides", "whiteboard"], onGenerate);
-    expect(labels(all)).toEqual(["+", "Note", "Slides", "Whiteboard", "Generate with AI"]);
+    const all = render(["note", "whiteboard", "slides"], onGenerate);
+    expect(labels(all)).toEqual(["+", "Note", "Whiteboard", "Slides", "Generate with AI"]);
     click(byLabel(all, "Generate with AI"));
     expect(onGenerate).toHaveBeenCalledTimes(1);
     expect(onCreate).not.toHaveBeenCalled();
