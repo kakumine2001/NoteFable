@@ -1179,7 +1179,6 @@ export const fr: Record<string, string> = {
   "Group & organize": "Regrouper et organiser",
   "Could not attach the selection screenshot this time.": "Impossible de joindre la capture de la sélection cette fois.",
   "Templates": "Modèles",
-  "Start with a template": "Commencer avec un modèle",
   "Mind map": "Carte mentale",
   "Cornell notes": "Notes Cornell",
   "Timeline": "Frise chronologique",

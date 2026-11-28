@@ -1334,7 +1334,6 @@ export const zhHant: Record<string, string> = {
   "Start": "起點",
   "Start a new section here": "從這裡開始新章節",
   "Start over": "重新開始",
-  "Start with a template": "從模板開始",
   "Start with whatever you have.": "手邊有什麼，就從什麼開始。",
   "Start {days}-day free trial": "開始 {days} 天免費試用",
   "Static preview images were placed where available.": "帶有靜態預覽圖的專案已放置為圖片。",

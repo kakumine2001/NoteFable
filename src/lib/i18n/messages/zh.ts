@@ -1188,7 +1188,6 @@ export const zh: Record<string, string> = {
   "Group & organize": "归类整理",
   "Could not attach the selection screenshot this time.": "本次未能附上选区截图。",
   "Templates": "模板",
-  "Start with a template": "从模板开始",
   "Mind map": "思维导图",
   "Cornell notes": "康奈尔笔记",
   "Timeline": "时间线",

@@ -1179,7 +1179,6 @@ export const ar: Record<string, string> = {
   "Group & organize": "تجميع وتنظيم",
   "Could not attach the selection screenshot this time.": "تعذّر إرفاق لقطة التحديد هذه المرة.",
   "Templates": "القوالب",
-  "Start with a template": "ابدأ بقالب",
   "Mind map": "خريطة ذهنية",
   "Cornell notes": "ملاحظات كورنيل",
   "Timeline": "خط زمني",

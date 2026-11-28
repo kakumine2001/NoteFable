@@ -1179,7 +1179,6 @@ export const es: Record<string, string> = {
   "Group & organize": "Agrupar y organizar",
   "Could not attach the selection screenshot this time.": "No se pudo adjuntar la captura de la selección esta vez.",
   "Templates": "Plantillas",
-  "Start with a template": "Empieza con una plantilla",
   "Mind map": "Mapa mental",
   "Cornell notes": "Notas Cornell",
   "Timeline": "Línea de tiempo",
