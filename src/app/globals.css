@@ -18,7 +18,7 @@
   --notion-blue: #2563eb;
   --notion-blue-hover: #1d4ed8;
   --notion-shadow: 0 4px 16px rgba(15, 23, 42, 0.1), 0 0 0 1px rgba(15, 23, 42, 0.06);
-  /* ブランド色の唯一の定義。紹介ページ（landing.css の --tl-*）もここを参照する。
+  /* ブランド色の唯一の定義。紹介ページ（landing.css の --lp-*）もここを参照する。
      見出し・主ボタンは墨、選択中の目印は青、黄は強調だけに使う。 */
   --nf-ink: #0f172a;
   --nf-ink-hover: #1e293b;

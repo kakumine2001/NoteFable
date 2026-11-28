@@ -39,7 +39,7 @@ describe("RTL and multi-script presentation", () => {
   });
 
   it("pins the landing page title to the English hero headline", () => {
-    expect(landingTitle()).toBe("NoteFable — Ask it. Keep it. Find it again.");
+    expect(landingTitle()).toBe("NoteFable — Ask anything. Make it yours.");
   });
 
   it("formats login emails with dir=rtl for Arabic while keeping the 6-digit OTP code LTR", () => {
