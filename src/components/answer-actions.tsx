@@ -2,6 +2,7 @@
 
 import { ArrowUpRight, Check, Copy, Download, Ellipsis, FilePlus2, Flag, GitBranch, LoaderCircle, RefreshCw, Workflow } from "lucide-react";
 import { useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import "@/components/answer-actions.css";
 import { answerConversationUrl, answerFileName, answerToNoteContent, conversationToMarkdownFile, type AnswerSource, type ConversationMessage } from "@/lib/answer-export";
 import { writeClipboardText } from "@/lib/clipboard";
@@ -155,7 +156,9 @@ export function AnswerMenu({ id, anchor, trigger, focusLast, onClose, children, 
     items[next]?.focus();
   }
 
-  return <dialog ref={ref} id={id} aria-label={label ?? t("Answer options")} className={`chat-actions-menu answer-actions-menu ${className}`}
+  // .sidebar-row-actions 等の hover 表示コンテナ配下で showModal() すると、親が inert になって
+  // pointer-events: none / opacity: 0 を継承しメニューごと操作不能になるため、body 直下へポータルする。
+  const dialog = <dialog ref={ref} id={id} aria-label={label ?? t("Answer options")} className={`chat-actions-menu answer-actions-menu ${className}`}
     onCancel={event => { event.preventDefault(); onClose(); }}
     onClick={event => {
       if (event.target !== event.currentTarget) return;
@@ -164,6 +167,7 @@ export function AnswerMenu({ id, anchor, trigger, focusLast, onClose, children, 
     }}>
     <div role="menu" aria-label={label ?? t("Answer options")} onKeyDown={keyboard}>{children}</div>
   </dialog>;
+  return typeof document !== "undefined" ? createPortal(dialog, document.body) : dialog;
 }
 
 // 通報する AI の内容：チャットの回答、AI の提案カード（ページの編集・新規の案）、AI が書いたページ、復習・クイズの AI 問題。

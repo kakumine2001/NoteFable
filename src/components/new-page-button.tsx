@@ -1,7 +1,7 @@
 "use client";
 
 import { Upload } from "lucide-react";
-import { useCallback, useId, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { AnswerMenu } from "@/components/answer-actions";
 import { AppIcon } from "@/components/app-icon";
 import { useT } from "@/components/i18n-provider";
@@ -12,12 +12,14 @@ import { PAGE_KIND_LABELS, PAGE_KIND_NEW_LABELS, type PageKind } from "@/lib/pag
 // 2 つ以上、または onGenerate / onImportPptx があるときはメニューを開く。
 // サイドバーの「新建」、プロジェクトの「+」、ページ行の「+」、各分区（ノート・ホワイトボード・スライド）の「+」が使う。
 // onGenerate はすべての種類で「Generate with AI」を出し、onImportPptx はスライドを作れる所だけで「Import PowerPoint」を出す。
-export function NewPageButton({ kinds, busy, onCreate, onGenerate, onImportPptx, className, label, title = label, menuLabel, children }: {
+// onOpenChange はメニューの開閉を知らせる（行の「+」で開いている間、その行の操作ボタンを出したままにする）。
+export function NewPageButton({ kinds, busy, onCreate, onGenerate, onImportPptx, onOpenChange, className, label, title = label, menuLabel, children }: {
   kinds: readonly PageKind[];
   busy: boolean;
   onCreate: (kind: PageKind) => void;
   onGenerate?: () => void;
   onImportPptx?: () => void;
+  onOpenChange?: (open: boolean) => void;
   className: string;
   // ボタンの読み上げ名（中身がアイコンだけのとき）と、ツールチップ（省略は label）。
   label?: string;
@@ -29,6 +31,10 @@ export function NewPageButton({ kinds, busy, onCreate, onGenerate, onImportPptx,
   const t = useT();
   const id = useId();
   const [menu, setMenu] = useState<{ anchor: DOMRect; trigger: HTMLButtonElement; focusLast: boolean } | null>(null);
+  const onOpenChangeRef = useRef(onOpenChange);
+  useEffect(() => { onOpenChangeRef.current = onOpenChange; }, [onOpenChange]);
+  useEffect(() => { onOpenChangeRef.current?.(Boolean(menu)); }, [menu]);
+  useEffect(() => () => { onOpenChangeRef.current?.(false); }, []);
   const generate = onGenerate ?? null;
   const importPptx = onImportPptx && kinds.includes("slides") ? onImportPptx : null;
   const multiple = kinds.length > 1 || generate !== null || importPptx !== null;

@@ -578,16 +578,25 @@ export function useNotePages(
       data.pages=orderSync.current.reconcile(data.pages as NotePageSummary[],orderMark).sort(byPosition);
       loaded.current = true;
       const known = new Set<string>(data.pages.map((page: NotePageSummary) => page.id));
-      const extra = createdWhileLoading.current.filter((page) => !known.has(page.id));
+      const currentById = new Map(pagesRef.current.map((page) => [page.id, page]));
+      const extra = createdWhileLoading.current
+        .filter((page) => !known.has(page.id))
+        .map((page) => currentById.get(page.id) ?? page);
       createdWhileLoading.current = [];
-      setPages(extra.length ? [...extra, ...data.pages].sort(byPosition) : data.pages);
+      const merged = extra.length ? [...extra, ...data.pages].sort(byPosition) : data.pages;
+      setPages(merged);
       setGroups(data.groups ?? []);
       const url = new URL(window.location.href);
       const inPagesView = url.searchParams.get("view") === "pages";
       const requested = inPagesView ? url.searchParams.get("page") : null;
-      const id = data.pages.find((page: NotePageSummary) => page.id === requested)?.id;
-      if (id) await select(id, "replace");
-      else if (inPagesView) {
+      const displayedInMerged = Boolean(displayedId.current && merged.some((page: NotePageSummary) => page.id === displayedId.current));
+      const id = merged.find((page: NotePageSummary) => page.id === requested)?.id;
+      if (displayedInMerged) {
+        // すでに画面に表示している有効なページ（新規作成直後で URL 更新がシート後始末待ちのケースを含む）は、
+        // 古い URL の ?page= で上書きしない。
+      } else if (id) {
+        await select(id, "replace");
+      } else if (inPagesView) {
         displayedId.current = null; setActiveId(null); setActive(undefined);
         if (requested) {
           // 存在しない（削除済みなど）ノートを指す URL を開いた：指定を外して Notes のホームに戻す。
@@ -844,6 +853,7 @@ export function useNotePages(
         }
       }
       invalidatePageCache(page.id);
+      if (!loaded.current) createdWhileLoading.current.push(page);
       const queue = install(page);
       runTransition(() => upsertSummary(page), "list");
       ++navigation.current;
@@ -890,6 +900,7 @@ export function useNotePages(
       // 開いている別のページのバックリンクから、ゴミ箱へ移ったページ（とサブページ）を外す。
       dispatchBacklinksStale(id);
       const removed = new Set<string>([id, ...(Array.isArray(data.ids) ? data.ids as string[] : [])]);
+      createdWhileLoading.current = createdWhileLoading.current.filter((page) => !removed.has(page.id));
       for (const removedId of removed) {
         invalidatePageCache(removedId);
         const removedQueue = queues.current.get(removedId);
