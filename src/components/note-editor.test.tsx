@@ -36,7 +36,7 @@ vi.mock("@/lib/theme", () => ({
   useTheme: () => ({ preference: "light", resolved: "light", setPreference: vi.fn() }),
 }));
 
-import NoteEditor from "./note-editor";
+import NoteEditor, { scrollSelectedOptionIntoView } from "./note-editor";
 import { cachedBlockNoteDictionary, loadBlockNoteDictionary } from "@/lib/i18n/blocknote-locales";
 
 type ElementLike = { type?: unknown; props?: Record<string, unknown> };
@@ -107,5 +107,42 @@ describe("NoteEditor per-locale dictionary lazy loading and RTL side-menu placem
     }));
     const sideMenu = findElement(bodyTree, (el) => el.type === sideMenuControllerSpy);
     expect(sideMenu?.props?.floatingUIOptions).toEqual({ useFloatingOptions: { placement: "right-start" } });
+  });
+});
+
+describe("scrollSelectedOptionIntoView", () => {
+  function fakeList(listRect: { top: number; bottom: number }, itemRect: { top: number; bottom: number }, initialScrollTop = 40) {
+    const scrollIntoView = vi.fn();
+    const item = {
+      getBoundingClientRect: () => itemRect,
+      scrollIntoView,
+    };
+    const list = {
+      scrollTop: initialScrollTop,
+      getBoundingClientRect: () => listRect,
+      querySelector: () => item,
+    } as unknown as HTMLElement;
+    return { list, scrollIntoView };
+  }
+
+  it("scrolls only the menu container down when the selected option is below the visible area", () => {
+    const { list, scrollIntoView } = fakeList({ top: 100, bottom: 300 }, { top: 290, bottom: 330 }, 40);
+    scrollSelectedOptionIntoView(list);
+    expect(list.scrollTop).toBe(70);
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it("scrolls only the menu container up when the selected option is above the visible area", () => {
+    const { list, scrollIntoView } = fakeList({ top: 100, bottom: 300 }, { top: 75, bottom: 105 }, 40);
+    scrollSelectedOptionIntoView(list);
+    expect(list.scrollTop).toBe(15);
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it("leaves scrollTop unchanged when the selected option is already fully visible", () => {
+    const { list, scrollIntoView } = fakeList({ top: 100, bottom: 300 }, { top: 120, bottom: 150 }, 40);
+    scrollSelectedOptionIntoView(list);
+    expect(list.scrollTop).toBe(40);
+    expect(scrollIntoView).not.toHaveBeenCalled();
   });
 });
