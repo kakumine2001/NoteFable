@@ -55,8 +55,9 @@ describe("LandingPage hero English pinning", () => {
 
   it("shows every flow sample before scripts run, so the page reads without JavaScript", () => {
     const html = renderLanding("en");
-    expect(html.match(/class="lp-flow-panel[^"]*" data-live="true"/g)).toHaveLength(4);
+    expect(html.match(/class="lp-flow-panel[^"]*" data-on="true" data-live="true"/g)).toHaveLength(4);
     expect(html).not.toContain('data-live="false"');
+    expect(html).not.toContain('data-on="false"');
   });
 
   it("pins landing metadata <title> to English across all 17 locales while keeping meta description localized", async () => {

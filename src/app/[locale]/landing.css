@@ -16,6 +16,8 @@
   --lp-violet: var(--kind-whiteboard);
   --lp-amber: var(--kind-slides);
   --lp-green: #059669;
+  /* 緑の小さな文字は、淡い緑の地でも読める濃さにする。 */
+  --lp-green-text: #047857;
   --lp-green-soft: rgba(5, 150, 105, 0.1);
   --lp-spectrum: linear-gradient(100deg, #2563eb 0%, #7c3aed 42%, #e2557b 72%, #f59e0b 100%);
   --lp-shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 28px 64px -32px rgba(15, 23, 42, 0.38);
@@ -43,6 +45,7 @@
   --lp-line-strong: rgba(255, 255, 255, 0.17);
   --lp-blue-text: #93c5fd;
   --lp-green: #34d399;
+  --lp-green-text: #34d399;
   --lp-green-soft: rgba(52, 211, 153, 0.14);
   --lp-spectrum: linear-gradient(100deg, #60a5fa 0%, #a78bfa 42%, #f472b6 72%, #fbbf24 100%);
   --lp-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 32px 72px -32px rgba(0, 0, 0, 0.85);
@@ -113,7 +116,7 @@
 .lp-kind.is-note { background: var(--kind-note-soft); }
 .lp-kind.is-slides { background: var(--kind-slides-soft); color: var(--kind-slides-text); }
 .lp-kind.is-whiteboard { background: var(--kind-whiteboard-soft); color: var(--kind-whiteboard); }
-.lp-kind.is-quiz { background: var(--lp-green-soft); color: var(--lp-green); }
+.lp-kind.is-quiz { background: var(--lp-green-soft); color: var(--lp-green-text); }
 .lp-meta, .lp-s-meta { display: inline-flex; align-items: center; gap: 6px; color: var(--lp-muted); font-size: 12px; }
 .lp-bubble { align-self: flex-end; max-width: 88%; padding: 9px 14px; border-radius: 18px 18px 5px 18px; background: var(--lp-ink); color: var(--nf-on-ink); }
 [dir="rtl"] .lp-bubble { border-radius: 18px 18px 18px 5px; }
@@ -231,7 +234,7 @@
 .lp-proposal-op { color: var(--lp-blue-text); font-size: 12px; font-weight: 600; }
 /* 適用後の「適用済み・元に戻す」は、動きがあるときだけ出す（動かないときは提案カードを見せたままにする）。 */
 .lp-applied { display: none; }
-.lp-chips > .is-done { background: var(--lp-green-soft); color: var(--lp-green); font-weight: 600; }
+.lp-chips > .is-done { background: var(--lp-green-soft); color: var(--lp-green-text); font-weight: 600; }
 
 .lp-make { gap: 14px; background: var(--lp-soft); }
 .lp-deck { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.5fr); align-items: start; gap: 14px; }
@@ -249,10 +252,11 @@
 .lp-quiz li { display: flex; align-items: center; gap: 6px 10px; padding: 9px 12px; border: 1px solid var(--lp-line-strong); border-radius: 12px; }
 .lp-quiz li > i { display: grid; flex: none; width: 22px; height: 22px; place-items: center; border-radius: 50%; background: var(--lp-soft); color: var(--lp-muted); font-size: 12px; font-weight: 650; }
 .lp-quiz li.is-right { border-color: var(--lp-green); background: var(--lp-green-soft); color: var(--lp-ink); }
-.lp-quiz-ok { display: inline-flex; flex: none; align-items: center; gap: 4px; margin-inline-start: auto; color: var(--lp-green); font-size: 12px; font-weight: 650; }
+.lp-quiz-ok { display: inline-flex; flex: none; align-items: center; gap: 4px; margin-inline-start: auto; color: var(--lp-green-text); font-size: 12px; font-weight: 650; }
 .lp-flash { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; margin-top: auto; perspective: 900px; }
-.lp-flash-card { position: relative; min-height: 78px; transform-style: preserve-3d; }
-.lp-flash-face { position: absolute; display: grid; inset: 0; align-content: center; gap: 2px; padding: 10px 14px; border: 1px solid var(--lp-line-strong); border-radius: 14px; background: var(--lp-soft); -webkit-backface-visibility: hidden; backface-visibility: hidden; }
+/* 表と裏を同じマスに重ねる。カードの高さは長いほうの面に合う（訳文が長くても切れない）。 */
+.lp-flash-card { display: grid; min-height: 78px; transform-style: preserve-3d; }
+.lp-flash-face { display: grid; grid-area: 1 / 1; align-content: center; gap: 2px; padding: 10px 14px; border: 1px solid var(--lp-line-strong); border-radius: 14px; background: var(--lp-soft); -webkit-backface-visibility: hidden; backface-visibility: hidden; }
 .lp-flash-face small { color: var(--lp-muted); font-size: 11.5px; }
 .lp-flash-face b { color: var(--lp-ink); font-size: 14px; font-weight: 650; line-height: 1.3; }
 .lp-flash-face.is-back { border-color: var(--lp-green); background: var(--lp-green-soft); transform: rotateY(180deg); }
@@ -267,8 +271,9 @@
 .lp-cell::after { content: ""; position: absolute; inset: 0; background: radial-gradient(360px circle at var(--mx, -400px) var(--my, -400px), var(--nf-accent-soft), transparent 70%); opacity: 0; pointer-events: none; transition: opacity 320ms ease; }
 .lp-cell:hover::before, .lp-cell:hover::after { opacity: 1; }
 .lp-cell > * { position: relative; z-index: 1; }
-.lp-cell-art { display: grid; height: 216px; place-items: center; margin-inline: -24px; padding: 22px 24px 18px; }
-.lp-cell.is-wide .lp-cell-art { height: 262px; }
+/* 高さは下限。訳文が長い・画面が狭いときは見本に合わせて伸び、見出しに重ならない。 */
+.lp-cell-art { display: grid; min-height: 216px; place-items: center; margin-inline: -24px; padding: 22px 24px 18px; }
+.lp-cell.is-wide .lp-cell-art { min-height: 262px; }
 .lp-cell h3 { color: var(--lp-ink); font-size: 20px; font-weight: 660; line-height: 1.25; letter-spacing: -0.02em; text-wrap: balance; }
 .lp-cell > p { margin-top: 8px; color: var(--lp-muted); font-size: 15px; line-height: 1.6; text-wrap: pretty; }
 .lp-cell-art > * { width: 100%; }
@@ -293,7 +298,7 @@
 .lp-art-search p { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .lp-art-search mark { padding: 0 1px; border-radius: 2px; background: linear-gradient(var(--nf-marker), var(--nf-marker)) no-repeat 0 0 / 100% 100%; color: var(--lp-ink); }
 
-.lp-art-sketch { position: relative; display: grid; height: 100%; }
+.lp-art-sketch { position: relative; display: grid; height: 176px; }
 .lp-sketch { position: relative; overflow: hidden; height: 100%; border: 1px solid var(--lp-line); border-radius: 16px; background: var(--lp-surface) radial-gradient(var(--lp-line-strong) 1px, transparent 1.2px) 0 0 / 16px 16px; }
 .lp-sketch svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .lp-sketch-draft path { stroke: var(--lp-ink); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; opacity: 0.75; }
@@ -305,14 +310,15 @@
 .lp-chars li { display: grid; min-width: 46px; justify-items: center; gap: 2px; color: var(--lp-muted); font-size: 11.5px; transition: transform 260ms var(--lp-spring), color 200ms ease; }
 .lp-chars li:hover { color: var(--lp-ink); transform: translateY(-5px) scale(1.12); }
 
-.lp-art-assist { position: relative; display: grid; height: 100%; max-width: 300px; }
-.lp-assist-page { display: grid; align-content: start; gap: 9px; padding: 18px 16px; border: 1px solid var(--lp-line); border-radius: 16px; background: var(--lp-surface); }
+/* ページの骨組みは後ろに敷き、メニューが高さを決める（項目が長くて折り返しても、枠からはみ出さない）。 */
+.lp-art-assist { position: relative; display: grid; min-height: 176px; max-width: 300px; align-content: start; }
+.lp-assist-page { position: absolute; display: grid; inset: 0; align-content: start; gap: 9px; padding: 18px 16px; border: 1px solid var(--lp-line); border-radius: 16px; background: var(--lp-surface); }
 .lp-assist-page i { height: 8px; border-radius: 99px; background: var(--lp-line); }
 .lp-assist-page i:nth-child(1) { width: 46%; height: 12px; background: var(--lp-line-strong); }
 .lp-assist-page i:nth-child(2) { width: 92%; }
 .lp-assist-page i.is-picked { width: 78%; background: color-mix(in srgb, var(--lp-blue) 42%, transparent); }
 .lp-assist-page i:nth-child(4) { width: 64%; }
-.lp-art-assist ul { position: absolute; top: 40px; inset-inline-start: 34px; display: grid; width: max-content; max-width: calc(100% - 44px); padding: 5px; border: 1px solid var(--lp-line-strong); border-radius: 12px; background: var(--lp-surface); box-shadow: 0 14px 30px -14px rgba(15, 23, 42, 0.5); font-size: 12.5px; }
+.lp-art-assist ul { position: relative; display: grid; width: max-content; max-width: calc(100% - 44px); margin-block: 40px 12px; margin-inline-start: 34px; padding: 5px; border: 1px solid var(--lp-line-strong); border-radius: 12px; background: var(--lp-surface); box-shadow: 0 14px 30px -14px rgba(15, 23, 42, 0.5); font-size: 12.5px; }
 .lp-art-assist li { display: flex; align-items: center; gap: 7px; padding: 4px 10px; border-radius: 8px; color: var(--lp-text); }
 .lp-art-assist li:first-child { background: var(--nf-accent-soft); color: var(--lp-blue-text); font-weight: 600; }
 .lp-assist-fab { position: absolute; bottom: 4px; inset-inline-end: 6px; display: grid; width: 46px !important; height: 46px; place-items: center; border: 1px solid var(--lp-line); border-radius: 50%; background: var(--lp-surface); box-shadow: 0 10px 24px -10px rgba(15, 23, 42, 0.55); }
@@ -455,7 +461,7 @@
   .lp-js .lp-flow-copy[data-on="true"] { opacity: 1; }
   /* 高さは 500px から。訳文が長い言語では中身に合わせて伸びる（切らない）。上端はナビの下に潜らせない。 */
   .lp-js .lp-flow-panel { position: sticky; top: max(84px, calc(50vh - 250px)); align-self: start; min-height: 500px; grid-row: 1 / span 4; grid-column: 2; opacity: 0; pointer-events: none; transform: translateY(30px) scale(0.965); filter: blur(10px); transition: opacity 460ms ease, transform 560ms var(--lp-ease), filter 460ms ease; }
-  .lp-js .lp-flow-panel[data-live="true"] { opacity: 1; transform: none; filter: none; transition-delay: 120ms; }
+  .lp-js .lp-flow-panel[data-on="true"] { opacity: 1; transform: none; filter: none; transition-delay: 120ms; }
 }
 @media (max-width: 1020px) {
   .lp-cell.is-third { grid-column: span 3; }
@@ -495,5 +501,9 @@
 @media (prefers-reduced-motion: reduce) {
   .lp-page { scroll-behavior: auto; }
   .lp-page *, .lp-page *::before, .lp-page *::after { animation: none !important; transition: none !important; }
+  /* ホバーで動く・浮く演出も止める（色と影の変化は残す）。矢印の左右反転（.rtl-mirror）は globals.css のまま。 */
+  .lp-page :is(.lp-btn, .lp-nav-cta, .lp-chars li):hover { transform: none; }
+  [dir="ltr"] .lp-page :is(.lp-btn, .lp-nav-cta):hover svg { transform: none; }
+  [dir="rtl"] .lp-page :is(.lp-nav-cta, .lp-btn):hover svg.rtl-mirror { transform: scaleX(-1); }
 }
 :lang(ar) :is(.lp-brand, .lp-kicker, .lp-step-no, .lp-head h2, .lp-flow-copy h3, .lp-cell h3, .lp-finale h2, .lp-quiz-q, .lp-note h4, .lp-s-note h3, .lp-slide b) { letter-spacing: 0; }

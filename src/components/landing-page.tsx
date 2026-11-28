@@ -141,7 +141,7 @@ function HeroStage({ t, modelLabel }: { t: T; modelLabel: string }) {
 
 // 回答の横のキャラクター。入力待ち → 考える → 答える → 完了、と実物と同じ状態を順に見せる。
 // 親が key を変えて作り直すので、状態は初期値から始まる（effect で戻さない）。
-// scripted が false（JS が動く前）のときは、回答が全部出ているので「完了」のままにする。
+// scripted が false（JS が動く前、または動きを減らす設定）のときは、回答が全部出ているので「完了」のままにする。
 function AnswerMascot({ live, scripted }: { live: boolean; scripted: boolean }) {
   const [state, setState] = useState<CharacterState>(!scripted ? "completed" : live ? "thinking" : "idle");
   useEffect(() => {
@@ -152,7 +152,7 @@ function AnswerMascot({ live, scripted }: { live: boolean; scripted: boolean }) 
   return <CharacterGraphic characterId={DEFAULT_CHARACTER_ID} size={30} state={state} animated />;
 }
 
-// panel(live, scripted): live はその段の見本が動いているか、scripted は JS が動き出したあとか。
+// panel(live, scripted): live はその段の見本が動いているか、scripted は JS が動き出し、動きを減らす設定でもないか。
 type Step = { id: string; label: string; title: string; body: string; panel: (live: boolean, scripted: boolean) => ReactNode };
 
 function useSteps(t: T): Step[] {
@@ -173,7 +173,7 @@ function useSteps(t: T): Step[] {
           <div className="lp-win-body lp-chat">
             <p className="lp-bubble lp-seq" style={order(0)}>{t("Why is the sunset red if the sky is blue?")}</p>
             <span className="lp-file lp-seq" style={order(1)}><Paperclip size={13} aria-hidden="true" />{FILE_NAME}</span>
-            <div className="lp-answer">
+            <div className="lp-answer lp-seq" style={order(3)}>
               <span className="lp-answer-face" aria-hidden="true"><AnswerMascot key={`${live}-${scripted}`} live={live} scripted={scripted} /></span>
               <div>
                 <span className="lp-meta lp-seq" style={order(3)}><Globe size={13} aria-hidden="true" />{t("Searched the web · 3 sources")}</span>
@@ -322,7 +322,7 @@ function Characters() {
   return (
     <ul className="lp-chars" aria-hidden="true" onPointerLeave={() => setHot(null)}>
       {CHARACTER_IDS.map((id, index) => (
-        <li key={id} style={order(index)} onPointerEnter={() => setHot(id)}>
+        <li key={id} style={order(index)} onPointerEnter={() => { if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) setHot(id); }}>
           <CharacterGraphic characterId={id} size={46} animated state={hot === id ? "responding" : "idle"} />
           <span>{getCharacterDefinition(id).name}</span>
         </li>
@@ -513,8 +513,9 @@ export function LandingPage() {
   const steps = useSteps(t);
   const features = useFeatures(t);
   const pageRef = useRef<HTMLDivElement>(null);
-  // どの段の見本が動いているか。null は JS が動く前（全部を出したままにする）。
-  const [live, setLive] = useState<boolean[] | null>(null);
+  // 流れの見本の状態。null は JS が動く前（全部を出したままにする）。
+  // active：広い画面でいま見せている段（狭い画面は -1 で、全部を見せる）。live：中身の動きを始めた段。motion：動きを減らす設定でないか。
+  const [flowState, setFlowState] = useState<{ active: number; live: boolean[]; motion: boolean } | null>(null);
 
   useEffect(() => {
     const page = pageRef.current;
@@ -533,32 +534,46 @@ export function LandingPage() {
 
     let frame = 0;
     // null は「まだ一度も決めていない」。最初の 1 回は必ず状態に入れる（全部が画面の外でも、見本を待機に戻すため）。
-    let current: boolean[] | null = null;
+    let current: { active: number; live: boolean[] } | null = null;
+    let stuck: boolean | null = null;
+    let lift = "";
+    let fill = "";
     const update = () => {
       frame = 0;
+      // 先に位置をすべて読み、あとでまとめて書く（読み書きを交互にすると、毎フレーム配置を計算し直させてしまう）。
       const height = window.innerHeight;
-      nav?.toggleAttribute("data-stuck", page.scrollTop > 16);
-      // 舞台はスクロールにつれて起き上がり、平らになる。
-      if (stage && hero && !still) stage.style.setProperty("--sp", clamp(page.scrollTop / (hero.offsetHeight * 0.55)).toFixed(3));
-
-      let next: boolean[];
+      const top = page.scrollTop;
+      const heroHeight = hero?.offsetHeight ?? 0;
+      let active = -1;
+      let live: boolean[];
+      let nextFill = fill;
       if (wide.matches) {
-        // 広い画面：画面の中ほどに一番近い段だけを動かす（右の見本は一つの枠で入れ替わる）。
+        // 広い画面：画面の中ほどに一番近い段を見せる（右の見本は一つの枠で入れ替わる）。
         const centres = copies.map((copy) => { const rect = copy.getBoundingClientRect(); return rect.top + rect.height / 2; });
         const focus = height * 0.5;
-        const active = centres.reduce((best, centre, index) => Math.abs(centre - focus) < Math.abs(centres[best] - focus) ? index : best, 0);
-        // 流れの区画が画面に入るまでは、どの見本も動かさない（先に動き終わってしまうため）。
+        active = centres.reduce((best, centre, index) => Math.abs(centre - focus) < Math.abs(centres[best] - focus) ? index : best, 0);
+        // 中身の動きは、流れの区画が画面に入ってから始める（画面の外で先に動き終わらないように）。見せる段の選択とは別に決める。
         const area = flow?.getBoundingClientRect();
-        const inView = !area || (area.top < height * 0.62 && area.bottom > height * 0.3);
-        next = copies.map((_, index) => inView && index === active);
-        flow?.style.setProperty("--fp", clamp((focus - centres[0]) / Math.max(1, centres[centres.length - 1] - centres[0])).toFixed(3));
+        const inView = still || !area || (area.top < height * 0.62 && area.bottom > height * 0.3);
+        const before = current;
+        live = copies.map((_, index) => index === active && (inView || Boolean(before?.active === active && before.live[index])));
+        nextFill = clamp((focus - centres[0]) / Math.max(1, centres[centres.length - 1] - centres[0])).toFixed(3);
       } else {
         // 狭い画面：見本は縦に並ぶ。一度見えた見本は動かしたままにする。
         const before = current;
-        next = panels.map((panel, index) => Boolean(before?.[index]) || panel.getBoundingClientRect().top < height * 0.78);
+        live = panels.map((panel, index) => Boolean(before?.live[index]) || panel.getBoundingClientRect().top < height * 0.78);
       }
+
+      if (stuck !== top > 16) { stuck = top > 16; nav?.toggleAttribute("data-stuck", stuck); }
+      // 舞台はスクロールにつれて起き上がり、平らになる。
+      const nextLift = clamp(top / Math.max(1, heroHeight * 0.55)).toFixed(3);
+      if (stage && !still && nextLift !== lift) { lift = nextLift; stage.style.setProperty("--sp", lift); }
+      if (nextFill !== fill) { fill = nextFill; flow?.style.setProperty("--fp", fill); }
       const previous = current;
-      if (!previous || next.some((value, index) => value !== previous[index])) { current = next; setLive(next); }
+      if (!previous || previous.active !== active || live.some((value, index) => value !== previous.live[index])) {
+        current = { active, live };
+        setFlowState({ active, live, motion: !still });
+      }
     };
     const schedule = () => { if (!frame) frame = requestAnimationFrame(update); };
 
@@ -575,18 +590,34 @@ export function LandingPage() {
 
     // ポインターに合わせて舞台が少し傾き、カードの縁が光る。
     const fine = !still && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+    // ポインターの動きは 1 フレームに 1 回だけ反映する。
+    let pointerFrame = 0;
+    let heroPoint: { x: number; y: number } | null = null;
+    let glowPoint: { x: number; y: number; card: HTMLElement } | null = null;
+    const applyPointer = () => {
+      pointerFrame = 0;
+      if (heroPoint && stage && hero) {
+        const rect = hero.getBoundingClientRect();
+        stage.style.setProperty("--px", ((heroPoint.x - rect.left) / Math.max(1, rect.width) - 0.5).toFixed(3));
+        stage.style.setProperty("--py", ((heroPoint.y - rect.top) / Math.max(1, rect.height) - 0.5).toFixed(3));
+      }
+      if (glowPoint) {
+        const rect = glowPoint.card.getBoundingClientRect();
+        glowPoint.card.style.setProperty("--mx", `${glowPoint.x - rect.left}px`);
+        glowPoint.card.style.setProperty("--my", `${glowPoint.y - rect.top}px`);
+      }
+      heroPoint = null;
+      glowPoint = null;
+    };
     const onHeroMove = (event: PointerEvent) => {
-      if (!stage || !hero) return;
-      const rect = hero.getBoundingClientRect();
-      stage.style.setProperty("--px", ((event.clientX - rect.left) / rect.width - 0.5).toFixed(3));
-      stage.style.setProperty("--py", ((event.clientY - rect.top) / rect.height - 0.5).toFixed(3));
+      heroPoint = { x: event.clientX, y: event.clientY };
+      if (!pointerFrame) pointerFrame = requestAnimationFrame(applyPointer);
     };
     const onGlow = (event: PointerEvent) => {
       const card = (event.target as HTMLElement).closest<HTMLElement>(".lp-cell");
       if (!card) return;
-      const rect = card.getBoundingClientRect();
-      card.style.setProperty("--mx", `${event.clientX - rect.left}px`);
-      card.style.setProperty("--my", `${event.clientY - rect.top}px`);
+      glowPoint = { x: event.clientX, y: event.clientY, card };
+      if (!pointerFrame) pointerFrame = requestAnimationFrame(applyPointer);
     };
     const bento = page.querySelector<HTMLElement>(".lp-bento");
     if (fine) {
@@ -600,6 +631,7 @@ export function LandingPage() {
     wide.addEventListener("change", schedule);
     return () => {
       cancelAnimationFrame(frame);
+      cancelAnimationFrame(pointerFrame);
       seen?.disconnect();
       page.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", schedule);
@@ -661,7 +693,9 @@ export function LandingPage() {
           <div className="lp-flow-grid">
             <div className="lp-flow-rail" aria-hidden="true"><i /></div>
             {steps.map((step, index) => {
-              const on = live ? live[index] : true;
+              // on：この段を見せるか（広い画面で一つを選ぶ）。live：中身の動きを始めたか。JS が動く前はどちらも true。
+              const on = !flowState || flowState.active < 0 || flowState.active === index;
+              const live = flowState ? flowState.live[index] : true;
               return (
                 <div className="lp-flow-step" key={step.id} style={order(index)}>
                   <div className="lp-flow-copy" data-on={on}>
@@ -670,8 +704,8 @@ export function LandingPage() {
                     <p>{step.body}</p>
                   </div>
                   {/* 広い画面では 4 つの見本が同じ枠に重なり、いまの段のものだけが見える。飾りの見本なので読み上げは本文に任せる。 */}
-                  <div className={`lp-flow-panel is-${step.id}`} data-live={on} aria-hidden="true">
-                    <div className="lp-win">{step.panel(on, live !== null)}</div>
+                  <div className={`lp-flow-panel is-${step.id}`} data-on={on} data-live={live} aria-hidden="true">
+                    <div className="lp-win">{step.panel(live, Boolean(flowState?.motion))}</div>
                   </div>
                 </div>
               );
