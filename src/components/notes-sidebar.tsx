@@ -148,7 +148,9 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
     </div>;
   };
   const row = (page: NotePageSummary, open = false) => {
-    const menuOpen = rowMenu?.page.id === page.id || addMenuTarget === `page:${page.id}`;
+    // 「…」メニューと「+」メニューのどちらかが開いている間は、行の操作ボタンを出したままにする。aria は「…」自身の開閉だけを示す。
+    const rowMenuOpen = rowMenu?.page.id === page.id;
+    const menuOpen = rowMenuOpen || addMenuTarget === `page:${page.id}`;
     return (
     // data-page-kind はこのページが並ぶ分区（拖動したときに放せる分区）、data-drop-kind は分区の最上位の行（同じ分区のページだけを前後に放せる）。
     <div key={page.id} className={`notion-session-row vt-row group${activeId === page.id ? " is-active" : ""}${menuOpen ? " is-menu-open" : ""}`} style={rowName(`nrow-${page.id}`)} data-order-id={page.id} data-order-scope="note"
@@ -180,7 +182,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
       <span className="sidebar-row-actions">
         <button type="button" disabled={busy} className="notion-row-action"
           aria-label={t("Actions for {title}", { title: page.title })} title={t("Page options")}
-          aria-haspopup="menu" aria-expanded={menuOpen} aria-controls={menuOpen ? rowMenuId : undefined}
+          aria-haspopup="menu" aria-expanded={rowMenuOpen} aria-controls={rowMenuOpen ? rowMenuId : undefined}
           onClick={(event) => setRowMenu({ page, anchor: event.currentTarget.getBoundingClientRect(), trigger: event.currentTarget, focusLast: false })}
           onKeyDown={(event) => {
             if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;

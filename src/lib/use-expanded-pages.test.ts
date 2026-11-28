@@ -53,4 +53,21 @@ describe("useExpandedPages and revealAncestorsOnce", () => {
     mod.revealAncestorsOnce("p3", ["p1", "p2"], true);
     expect(mod.useExpandedPages()[0]).toEqual({ p1: true, p2: true });
   });
+
+  it("still expands ancestors that arrive after the active page, and after the active page moves under another parent", async () => {
+    const mod = await import("./use-expanded-pages");
+
+    // The opened page's own fetch lands before the list: no ancestors known yet.
+    mod.revealAncestorsOnce("child", [], true);
+    expect(mod.useExpandedPages()[0]).toEqual({});
+    // The list arrives with the parent.
+    mod.revealAncestorsOnce("child", ["parent"], true);
+    expect(mod.useExpandedPages()[0]).toEqual({ parent: true });
+
+    // The active page is moved under a collapsed page.
+    const [, toggle] = mod.useExpandedPages();
+    toggle("parent", false);
+    mod.revealAncestorsOnce("child", ["other"], true);
+    expect(mod.useExpandedPages()[0]).toEqual({ other: true });
+  });
 });

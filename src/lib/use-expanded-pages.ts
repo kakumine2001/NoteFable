@@ -9,9 +9,9 @@ const EMPTY: Record<string, boolean> = {};
 
 let current: Record<string, boolean> | null = null;
 const listeners = new Set<() => void>();
-// 最後に祖先を自動展開したアクティブページ ID。同じページを見ている間にユーザーが親を折りたたんだあと、
-// 自動保存やサイドバーの再マウントで勝手に開き直さないように保つ。
-let revealedActiveId: string | null = null;
+// 最後に祖先を自動展開したアクティブページとその祖先の並び。同じページ・同じ祖先のままユーザーが親を折りたたんだあと、
+// 自動保存やサイドバーの再マウントで勝手に開き直さないように保つ。祖先が後から読み込まれた・ページを別の親へ移したときは、もう一度展開する。
+let revealedKey: string | null = null;
 
 function read(): Record<string, boolean> {
   if (current) return current;
@@ -33,11 +33,12 @@ function subscribe(listener: () => void) {
 // 開いているページへ切り替わったタイミングでだけ祖先を展開し、その後にユーザーが手動で折りたためるようにする。
 export function revealAncestorsOnce(activeId: string | null, ancestorIds: readonly string[], activeLoaded: boolean) {
   if (!activeId) {
-    revealedActiveId = null;
+    revealedKey = null;
     return;
   }
-  if (!activeLoaded || revealedActiveId === activeId) return;
-  revealedActiveId = activeId;
+  const key = [activeId, ...ancestorIds].join("\0");
+  if (!activeLoaded || revealedKey === key) return;
+  revealedKey = key;
   if (!ancestorIds.length) return;
   const base = read();
   if (ancestorIds.every((id) => base[id])) return;
