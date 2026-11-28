@@ -244,7 +244,7 @@ private class NoteRowDrag(val drag: DragState, val state: NotesUiState, val busy
 
 // ---------------------------------------------------------------------------------------------
 // 工作区的分区与新建（网页 notes-sidebar / notes-home / new-page-button，#168）。能新建的类型（[NotesUiState.kinds]）只有笔记时，
-// 新建按钮和"+"和以前一样一点就建笔记；两种以上时点了开类型菜单（笔记 / 幻灯片 / 白板，与聊天的"…"菜单同一外框 [ActionsMenu]）。
+// 新建按钮和"+"和以前一样一点就建笔记；两种以上时点了开类型菜单（笔记 / 白板 / 幻灯片，与聊天的"…"菜单同一外框 [ActionsMenu]）。
 
 /** 分区的投放区的键（[DragState.zoneContainers] 里登记为无项目，[DragState.zoneAccepts] 只接受同一分区的页面）。 */
 private fun sectionZone(kind: PageKind) = "section:" + kind.wire
@@ -253,16 +253,16 @@ private fun sectionZone(kind: PageKind) = "section:" + kind.wire
 @StringRes
 private fun sectionLabel(kind: PageKind): Int = when (kind) {
     PageKind.Note -> R.string.notes
-    PageKind.Slides -> R.string.page_kind_slides
     PageKind.Whiteboard -> R.string.ws_section_whiteboards
+    PageKind.Slides -> R.string.page_kind_slides
 }
 
 /** 一次建这个类型的按钮（网页 PAGE_KIND_NEW_LABELS）：分区的"+"、首页和空状态的新建按钮。 */
 @StringRes
 private fun newPageLabel(kind: PageKind): Int = when (kind) {
     PageKind.Note -> R.string.new_note
-    PageKind.Slides -> R.string.ws_new_slides
     PageKind.Whiteboard -> R.string.ws_new_whiteboard
+    PageKind.Slides -> R.string.ws_new_slides
 }
 
 /**
@@ -329,7 +329,7 @@ fun NotesDrawerBody(
     /** 子页面的树：展开 / 收起、在这一篇里新建（网页 notes-sidebar 的箭头和"+"，能建几种类型时先选类型）。 */
     onToggleExpanded: (String) -> Unit = {},
     onCreateInside: (NotePageSummary, PageKind) -> Unit = { _, _ -> },
-    /** 折叠 / 展开分区（笔记 / 幻灯片 / 白板）。 */
+    /** 折叠 / 展开分区（笔记 / 白板 / 幻灯片）。 */
     onToggleSection: (PageKind) -> Unit = {},
     /** Favorites 行右侧的"从收藏中移除"。 */
     onUnfavorite: (NotePageSummary) -> Unit = {},
@@ -905,7 +905,7 @@ fun pageKindLabel(kind: PageKind): Int = when (kind) {
 // ---------------------------------------------------------------------------------------------
 // 工作区首页（网页 NotesHome，手机）：左右 20、下 96；顶部切换（上距 4）；
 // Studio 头部（"Workspace" 30/750 + 胶囊操作键 New project / Import Markdown）→ Studio Quick-Create Deck 卡片 →
-// 类型筛选栏（All | Notes | Slides | Whiteboards）→ 圆角卡片分组列表（带语义色图标块、Favorites 类型标签）。
+// 类型筛选栏（All | Notes | Whiteboards | Slides）→ Studio Quick-Create Deck → 最近编辑 → 圆角卡片分组列表（带语义色图标块、Favorites 类型标签）。
 
 @Composable
 fun NotesHome(
@@ -965,7 +965,7 @@ private fun NotesHomeList(
     val kinds = state.kinds
     val multiKind = kinds.size > 1
     var kindFilter by remember { mutableStateOf<PageKind?>(null) }
-    val activeFilter = if (multiKind) kindFilter else null
+    val activeFilter = kindFilter?.takeIf { multiKind && it in kinds }
     val groupIds = remember(state.groups) { state.groups.mapTo(HashSet()) { it.id } }
     fun matchesFilter(page: NotePageSummary): Boolean = activeFilter == null || state.sectionKindOf(page) == activeFilter
 
@@ -1010,7 +1010,7 @@ private fun NotesHomeList(
     }
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
 
-    // Studio 头部：Workspace 标题 + New project / Import Markdown 胶囊按钮
+    // Studio 头部：Workspace 标题 + New project / Import Markdown（仅 All / Notes 显示）胶囊按钮
     Column(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
             stringResource(R.string.workspace),
@@ -1019,22 +1019,24 @@ private fun NotesHomeList(
         )
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             HomeUtilPill(Lucide.FolderPlus, stringResource(R.string.new_project), enabled = !busy, onClick = onNewGroup)
-            HomeUtilPill(Lucide.Upload, stringResource(R.string.import_markdown), enabled = !busy, onClick = onImport)
+            if (state.showsImportMarkdownFor(activeFilter)) {
+                HomeUtilPill(Lucide.Upload, stringResource(R.string.import_markdown), enabled = !busy, onClick = onImport)
+            }
         }
     }
 
-    // Studio Quick-Create Deck（移动端纵向堆叠卡片，每种页面类型一张）
-    CreateDeck(kinds, busy, onCreate, onGenerateSlides, onImportPptx, Alignment.End, Modifier.padding(bottom = 18.dp))
-
-    // 最近编辑（网页 notes-recent-list）：显示封面、图标、标题和日期
-    val recent = remember(state.pages) { state.pages.sortedByDescending { it.updatedAt }.take(8) }
-    if (recent.isNotEmpty()) {
-        RecentNotesCarousel(recent, busy, multiKind, onOpen, Modifier.padding(bottom = 18.dp))
-    }
-
-    // 类型筛选栏（All | Notes | Slides | Whiteboards）
+    // 类型筛选栏（All | Notes | Whiteboards | Slides）：放在顶部，统一过滤下方新建卡片、最近编辑与列表。
     if (multiKind) {
         KindFilterBar(kinds, activeFilter, onSelect = { kindFilter = it }, modifier = Modifier.padding(bottom = 14.dp))
+    }
+
+    // Studio Quick-Create Deck（移动端纵向堆叠卡片；All 显示全部类型，选中单类型时仅显示该类型）
+    CreateDeck(state.createKindsFor(activeFilter), busy, onCreate, onGenerateSlides, onImportPptx, Alignment.End, Modifier.padding(bottom = 18.dp))
+
+    // 最近编辑（网页 notes-recent-list）：仅显示当前筛选类型的页面，没有则隐藏。
+    val recent = remember(state.pages, activeFilter, kinds) { state.recentPages(activeFilter) }
+    if (recent.isNotEmpty()) {
+        RecentNotesCarousel(recent, busy, multiKind, onOpen, Modifier.padding(bottom = 18.dp))
     }
 
     // Favorites（圆角卡片 + 类型胶囊标签）
@@ -1073,7 +1075,7 @@ private fun NotesHomeList(
         }
     }
 
-    // 不在项目里的页面分区（Notes / Slides / Whiteboards）
+    // 不在项目里的页面分区（Notes / Whiteboards / Slides）
     val ungroupedFiltered = if (activeFilter != null) {
         state.pages.filter { (it.groupId == null || it.groupId !in groupIds) && matchesFilter(it) }
     } else emptyList()

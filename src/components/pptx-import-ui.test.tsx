@@ -159,10 +159,10 @@ describe("PptxImportHost dialog & entries", () => {
     const onImportPptx = vi.fn();
     hooks.states = [{ anchor: {}, trigger: {}, focusLast: false }];
     const all = NewPageButton({
-      kinds: ["note", "slides", "whiteboard"], busy: false, onCreate: vi.fn(), onGenerate: vi.fn(), onImportPptx,
+      kinds: ["note", "whiteboard", "slides"], busy: false, onCreate: vi.fn(), onGenerate: vi.fn(), onImportPptx,
       className: "c", menuLabel: "New page", children: "+",
     });
-    expect(labels(all)).toEqual(["+", "Note", "Slides", "Whiteboard", "Generate with AI", "Import PowerPoint"]);
+    expect(labels(all)).toEqual(["+", "Note", "Whiteboard", "Slides", "Generate with AI", "Import PowerPoint"]);
     click(byLabel(all, "Import PowerPoint"));
     expect(onImportPptx).toHaveBeenCalledTimes(1);
 

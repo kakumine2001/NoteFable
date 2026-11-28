@@ -98,7 +98,7 @@ struct NotesCountPill: View {
 
 /// 行右侧的小按钮（网页 .chat-row-action）：25.6 见方、圆角 4、灰色图标，右距 3.2。触屏上常显。
 /// 新建按钮外面的一层（网页 NewPageButton，Android `NewPageMenuAnchor`，#168）：能新建的类型（[kinds]）只有一种时
-/// 点击直接建它，两种以上时使用系统原生 Liquid Glass 菜单（笔记 / 幻灯片 / 白板 / 用 AI 生成）。
+/// 点击直接建它，两种以上时使用系统原生 Liquid Glass 菜单（笔记 / 白板 / 幻灯片 / 用 AI 生成）。
 @MainActor
 struct NewPageMenuAnchor<LabelContent: View>: View {
     private let kinds: [PageKind]

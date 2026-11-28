@@ -52,8 +52,8 @@ object PageKindTable {
     private val NoteFeatures = PageKindFeatures(editor = true, markdownExport = true, typography = true, publicShare = true, aiEdit = true)
     private val Fallback: Map<PageKind, PageKindFeatures> = mapOf(PageKind.Note to NoteFeatures)
 
-    /** 画面上的顺序（网页 PAGE_KIND_ORDER）：笔记、幻灯片、白板。分区、新建菜单、检索的类型筛选都按它排。 */
-    val DisplayOrder: List<PageKind> = listOf(PageKind.Note, PageKind.Slides, PageKind.Whiteboard)
+    /** 画面上的顺序（网页 PAGE_KIND_ORDER）：笔记、白板、幻灯片。分区、筛选栏、新建卡片和菜单、检索的类型筛选都按它排。 */
+    val DisplayOrder: List<PageKind> = listOf(PageKind.Note, PageKind.Whiteboard, PageKind.Slides)
 
     private var table by mutableStateOf(Fallback)
 

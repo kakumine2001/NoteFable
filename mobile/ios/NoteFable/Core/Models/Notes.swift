@@ -45,8 +45,8 @@ struct PageKindFeatures: Equatable, Sendable {
 final class PageKindTable: @unchecked Sendable {
     static let shared = PageKindTable()
 
-    /// 画面上的顺序（网页 PAGE_KIND_ORDER）：笔记、幻灯片、白板。
-    static let displayOrder: [PageKind] = [.note, .slides, .whiteboard]
+    /// 画面上的顺序（网页 PAGE_KIND_ORDER）：笔记、白板、幻灯片。
+    static let displayOrder: [PageKind] = [.note, .whiteboard, .slides]
     static let fallback: [PageKind: PageKindFeatures] = [.note: .note]
 
     private let lock = NSLock()
@@ -149,8 +149,8 @@ func pageKindLabel(_ kind: PageKind) -> String {
 func pageKindSectionLabel(_ kind: PageKind) -> String {
     switch kind {
     case .note: return "notes"
-    case .slides: return "page_kind_slides"
     case .whiteboard: return "ws_section_whiteboards"
+    case .slides: return "page_kind_slides"
     }
 }
 
@@ -158,8 +158,8 @@ func pageKindSectionLabel(_ kind: PageKind) -> String {
 func pageKindNewLabel(_ kind: PageKind) -> String {
     switch kind {
     case .note: return "new_note"
-    case .slides: return "ws_new_slides"
     case .whiteboard: return "ws_new_whiteboard"
+    case .slides: return "ws_new_slides"
     }
 }
 

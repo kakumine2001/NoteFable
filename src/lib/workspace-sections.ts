@@ -3,7 +3,7 @@ import { pageKindOf, type PageKind } from "@/lib/page-kinds";
 
 // ワークスペースのサイドバーとホームの並び（#168、docs/architecture/notes-flow.md の「分区」）。
 // 最上位のページのうち、プロジェクトに入っているものはプロジェクトごとに種類を混ぜて並べ、入っていないものは種類ごとの分区
-// （ノート・スライド・ホワイトボード）に分ける。サブページは種類にかかわらず親の下に出る（自分の種類の分区には出ない）。
+// （ノート・ホワイトボード・スライド）に分ける。サブページは種類にかかわらず親の下に出る（自分の種類の分区には出ない）。
 // Android（NotesUiState.sections）と iOS（NotesUiState.sections）も同じ規則。
 
 type SectionItem = { id: string; parentId?: string | null; position?: number; createdAt: string; groupId: string | null; kind?: unknown };
@@ -45,4 +45,14 @@ export function workspaceSections<T extends SectionItem>(pages: T[], groups: rea
 // 種類は作った後に変えられないので、別の種類の分区へは動かせない。
 export function canDropIn(dragKind: string | undefined, dropKind: string | undefined) {
   return !dropKind || dropKind === dragKind;
+}
+
+// ホームの種別フィルターで出す新規作成カードの種類。All（null）のときは作れる全種類、特定の種類を選んでいるときはその種類だけ。
+export function workspaceCreateKinds(kinds: readonly PageKind[], activeFilter: PageKind | null): PageKind[] {
+  return activeFilter ? [activeFilter] : [...kinds];
+}
+
+// Markdown 取り込みはノート専用のため、All（null）と Notes のときだけ出す。
+export function showsImportMarkdownForFilter(activeFilter: PageKind | null): boolean {
+  return activeFilter === null || activeFilter === "note";
 }

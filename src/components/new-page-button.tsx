@@ -9,7 +9,7 @@ import { PageKindIcon } from "@/components/page-kind-icon";
 import { PAGE_KIND_LABELS, PAGE_KIND_NEW_LABELS, type PageKind } from "@/lib/page-kinds";
 
 // 新しいページを作るボタン（#168）。作れる種類（kinds、creatablePageKinds）が 1 つなら、押すとすぐその種類を作る
-// （ノートしか作れない間は今までの「New note」と同じ 1 回の操作）。2 つ以上なら、押すと種類のメニュー（ノート・スライド・ホワイトボード）を開く。
+// （ノートしか作れない間は今までの「New note」と同じ 1 回の操作）。2 つ以上なら、押すと種類のメニュー（ノート・ホワイトボード・スライド）を開く。
 // サイドバーの「新建」、プロジェクトの「+」、ページ行の「+」と、スライドの分区の「+」が使う。ホームの作成ボタンは種類が決まっているので使わない。
 // スライドを作れる所で onGenerate / onImportPptx を渡すと、メニューの最後に「Generate with AI」「Import PowerPoint」を出す。
 export function NewPageButton({ kinds, busy, onCreate, onGenerate, onImportPptx, className, label, title = label, menuLabel, children }: {
