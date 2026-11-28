@@ -1,4 +1,4 @@
-Embed whiteboards in notes and slides.
-Whiteboard page cards stay up to date; add formula labels.
-Import PowerPoint files as slide decks.
-Review and quiz yourself from notes and slides.
+Ask AI to create a note, whiteboard or slide deck from the Workspace.
+Page types are now ordered Notes, Whiteboards, Slides; each tab shows only its own type.
+Empty whiteboards open empty; templates are in More tools.
+Fixes and polish.
