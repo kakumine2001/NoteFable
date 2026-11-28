@@ -267,7 +267,7 @@ export function StudioLanding() {
             <article className="lp-card lp-bento-half" data-reveal="" onPointerMove={handleCardSpotlight}>
               <div className="lp-card-head">
                 <h3>{t("Everything stays connected.")}</h3>
-                <p>{t("Embed live whiteboards inside notes and slides, link pages with @, share read-only links, and recover edits from version history or 30-day Trash.")}</p>
+                <p>{t("Embed live whiteboards in notes, insert refreshable whiteboard frames into slides, link pages with @, share read-only links, and recover edits from version history or 30-day Trash.")}</p>
               </div>
               <ConnectedWorkspaceVisual />
             </article>
@@ -294,7 +294,7 @@ export function StudioLanding() {
             <article className="lp-card" data-reveal="" onPointerMove={handleCardSpotlight}>
               <div className="lp-card-head">
                 <h3>{t("Multiple models, adjustable thinking")}</h3>
-                <p>{t("Pick the right model for the task and dial reasoning depth up or down. Automatic web search, vision and long-context compaction included.")}</p>
+                <p>{t("Pick the right model for the task and dial reasoning depth up or down—with web search, vision and long-context compaction on supported models.")}</p>
               </div>
               <ModelReasoningEngine />
             </article>
@@ -310,7 +310,7 @@ export function StudioLanding() {
           <div className="lp-section-head" data-reveal="">
             <span className="lp-kicker">{t("Study & Recall")}</span>
             <h2 id="lp-study-title">{t("Turn notes into active recall. Find anything instantly.")}</h2>
-            <p>{t("Generate practice quizzes and flashcards directly from your notes and slides, and search everything by keyword or meaning.")}</p>
+            <p>{t("Generate practice quizzes and flashcards directly from your notes and slides, and search chats and pages by keyword—plus Workspace pages by meaning.")}</p>
           </div>
 
           <div className="lp-two-col">
@@ -348,7 +348,7 @@ export function StudioLanding() {
             <div className="lp-pillar">
               <span className="lp-pillar-icon" aria-hidden="true"><Smartphone size={18} /></span>
               <h3>{t("Native Web, Android & iOS")}</h3>
-              <p>{t("Built natively for every screen with real-time sync via Google, email code or Apple.")}</p>
+              <p>{t("Built natively for every screen. Sync across web, Android and iOS with Google or email code (plus Apple sign-in on iOS).")}</p>
             </div>
             <div className="lp-pillar">
               <span className="lp-pillar-icon" aria-hidden="true"><Globe size={18} /></span>

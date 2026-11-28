@@ -99,17 +99,18 @@ export function HeroStudioStage() {
   const [canvas, setCanvas] = useState<CanvasKind>("notes");
   const [autoPlay, setAutoPlay] = useState(true);
   const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
   const [heroProposalApplied, setHeroProposalApplied] = useState(false);
 
   useEffect(() => {
-    if (!autoPlay || hovered) return;
+    if (!autoPlay || hovered || focused) return;
     if (typeof window === "undefined" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const order: CanvasKind[] = ["notes", "whiteboards", "slides"];
     const timer = window.setInterval(() => {
       setCanvas((prev) => order[(order.indexOf(prev) + 1) % order.length]);
     }, 6800);
     return () => window.clearInterval(timer);
-  }, [autoPlay, hovered]);
+  }, [autoPlay, hovered, focused]);
 
   const selectCanvas = (next: CanvasKind) => {
     setAutoPlay(false);
@@ -134,6 +135,10 @@ export function HeroStudioStage() {
       data-canvas={canvas}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false);
+      }}
       aria-label={t("Interactive studio preview")}
     >
       <div className="lp-studio-halo" aria-hidden="true" />
@@ -147,7 +152,7 @@ export function HeroStudioStage() {
 
           <div
             className="lp-canvas-tabs"
-            role="tablist"
+            role="group"
             aria-label={t("Choose a Workspace canvas")}
             style={{ "--tab-index": activeIndex } as CSSProperties}
           >
@@ -159,8 +164,7 @@ export function HeroStudioStage() {
                 <button
                   key={tab.id}
                   type="button"
-                  role="tab"
-                  aria-selected={active}
+                  aria-pressed={active}
                   data-kind={tab.id}
                   className="lp-canvas-tab"
                   onClick={() => selectCanvas(tab.id)}
@@ -479,21 +483,28 @@ export function BentoWhiteboardPreview() {
   );
 }
 
+type ProposalDemoState = "idle" | "applied" | "undone";
+
 export function ProposalSandbox() {
   const t = useT();
   const [target, setTarget] = useState<CanvasKind>("notes");
-  const [applied, setApplied] = useState<Record<CanvasKind, boolean>>({
-    notes: false,
-    whiteboards: false,
-    slides: false,
+  const [states, setStates] = useState<Record<CanvasKind, ProposalDemoState>>({
+    notes: "idle",
+    whiteboards: "idle",
+    slides: "idle",
   });
 
-  const isApplied = applied[target];
-  const toggleApply = () => setApplied((prev) => ({ ...prev, [target]: !prev[target] }));
+  const status = states[target];
+  const isApplied = status === "applied";
+  const toggleApply = () =>
+    setStates((prev) => ({
+      ...prev,
+      [target]: prev[target] === "applied" ? "undone" : "applied",
+    }));
 
   return (
     <div className="lp-proposal-sandbox">
-      <div className="lp-pill-switch" role="tablist" aria-label={t("Choose a Workspace canvas")}>
+      <div className="lp-pill-switch" role="group" aria-label={t("Choose a Workspace canvas")}>
         {(
           [
             { id: "notes", label: t("Notes"), icon: BookOpen },
@@ -504,8 +515,7 @@ export function ProposalSandbox() {
           <button
             key={id}
             type="button"
-            role="tab"
-            aria-selected={target === id}
+            aria-pressed={target === id}
             data-kind={id}
             onClick={() => setTarget(id)}
           >
@@ -552,7 +562,7 @@ export function ProposalSandbox() {
             )}
           </button>
           <span className="lp-proposal-status" aria-live="polite">
-            {isApplied ? t("Applied") : t("Discard")}
+            {status === "applied" ? t("Applied") : status === "undone" ? t("Undone") : ""}
           </span>
         </div>
       </div>
@@ -575,15 +585,14 @@ export function ModelReasoningEngine() {
 
   return (
     <div className="lp-model-engine">
-      <div className="lp-model-list" role="radiogroup" aria-label={t("Available models")}>
+      <div className="lp-model-list" role="group" aria-label={t("Available models")}>
         {modelOptions.map((model) => {
           const active = model.id === selectedModel?.id;
           return (
             <button
               key={model.id}
               type="button"
-              role="radio"
-              aria-checked={active}
+              aria-pressed={active}
               className="lp-model-pill"
               data-provider={model.provider}
               onClick={() => {
@@ -604,13 +613,12 @@ export function ModelReasoningEngine() {
           <strong>{t(EFFORT_LABELS[activeEffort])}</strong>
         </div>
 
-        <div className="lp-reasoning-track" role="radiogroup" aria-label={t("Reasoning depth")}>
+        <div className="lp-reasoning-track" role="group" aria-label={t("Reasoning depth")}>
           {efforts.map((level) => (
             <button
               key={level}
               type="button"
-              role="radio"
-              aria-checked={level === activeEffort}
+              aria-pressed={level === activeEffort}
               className="lp-effort-step"
               data-provider={selectedModel?.provider}
               onClick={() => setEffort(level)}
@@ -627,10 +635,11 @@ export function ModelReasoningEngine() {
       </div>
 
       <div className="lp-chip-row">
-        <span><Globe size={12} aria-hidden="true" /> {t("Web search")}</span>
+        {selectedModel?.supportsWebSearch && (
+          <span><Globe size={12} aria-hidden="true" /> {t("Web search")}</span>
+        )}
         <span><ImageIcon size={12} aria-hidden="true" /> {t("Create an image")}</span>
         <span><Sparkles size={12} aria-hidden="true" /> {t("Generate with AI")}</span>
-        <span><Layers size={12} aria-hidden="true" /> {t("Long-context compaction")}</span>
       </div>
     </div>
   );
@@ -639,6 +648,7 @@ export function ModelReasoningEngine() {
 export function ReviewQuizWidget() {
   const t = useT();
   const [flipped, setFlipped] = useState(false);
+  const answerText = t("Sunlight travels through far more atmosphere at sunset; short blue wavelengths scatter away first (∝ 1/λ⁴), leaving longer red wavelengths.");
 
   return (
     <div className="lp-quiz-widget">
@@ -649,22 +659,23 @@ export function ReviewQuizWidget() {
         onClick={() => setFlipped((v) => !v)}
       >
         <div className="lp-flashcard" data-flipped={flipped || undefined}>
-          <div className="lp-flashcard-face lp-flashcard-front">
+          <div className="lp-flashcard-face lp-flashcard-front" aria-hidden={flipped || undefined}>
             <span className="lp-flashcard-tag">{t("Question")}</span>
             <p>{t("Why does red light survive at sunset while blue disappears?")}</p>
             <span className="lp-flashcard-hint">
               <RotateCcw size={12} aria-hidden="true" /> {t("Tap card to flip")}
             </span>
           </div>
-          <div className="lp-flashcard-face lp-flashcard-back">
+          <div className="lp-flashcard-face lp-flashcard-back" aria-hidden={!flipped || undefined}>
             <span className="lp-flashcard-tag">{t("Answer")}</span>
-            <p>{t("Sunlight travels through far more atmosphere at sunset; short blue wavelengths scatter away first (∝ 1/λ⁴), leaving longer red wavelengths.")}</p>
+            <p>{answerText}</p>
             <span className="lp-flashcard-hint">
               <Check size={12} aria-hidden="true" /> {t("Save review note")}
             </span>
           </div>
         </div>
       </button>
+      <span className="lp-sr" aria-live="polite">{flipped ? `${t("Answer")}: ${answerText}` : ""}</span>
 
       <div className="lp-chip-row">
         <span><Sparkles size={12} aria-hidden="true" /> {t("Quiz me")}</span>
@@ -681,11 +692,11 @@ export function HybridSearchDemo() {
 
   return (
     <div className="lp-search-demo">
-      <div className="lp-pill-switch" role="tablist" aria-label={t("Search")}>
-        <button type="button" role="tab" aria-selected={mode === "folded"} onClick={() => setMode("folded")}>
+      <div className="lp-pill-switch" role="group" aria-label={t("Search")}>
+        <button type="button" aria-pressed={mode === "folded"} onClick={() => setMode("folded")}>
           {t("Spelling-folded")}
         </button>
-        <button type="button" role="tab" aria-selected={mode === "semantic"} onClick={() => setMode("semantic")}>
+        <button type="button" aria-pressed={mode === "semantic"} onClick={() => setMode("semantic")}>
           {t("Semantic match")}
         </button>
       </div>
@@ -711,23 +722,29 @@ export function HybridSearchDemo() {
               </p>
             </div>
           </li>
-          <li>
-            <MessageSquareText size={14} aria-hidden="true" />
-            <div>
-              <strong>{t("Sunset colours")}</strong>
-              <p>
-                {mode === "folded"
-                  ? renderHighlighted(t("Both come from {term} scattering. Air scatters…"), "Rayleigh", true)
-                  : t("In short: at sunset the light crosses more air, the blue is scattered away, and red is left.")}
-              </p>
-            </div>
-          </li>
-          {mode === "folded" && (
+          {mode === "folded" ? (
+            <>
+              <li>
+                <MessageSquareText size={14} aria-hidden="true" />
+                <div>
+                  <strong>{t("Sunset colours")}</strong>
+                  <p>{renderHighlighted(t("Both come from {term} scattering. Air scatters…"), "Rayleigh", true)}</p>
+                </div>
+              </li>
+              <li>
+                <FileText size={14} aria-hidden="true" />
+                <div>
+                  <strong dir="ltr">optics-ch3.pdf</strong>
+                  <p>{renderHighlighted(t("3.2 {term} SCATTERING AND THE COLOUR OF…"), "RAYLEIGH", true)}</p>
+                </div>
+              </li>
+            </>
+          ) : (
             <li>
-              <FileText size={14} aria-hidden="true" />
+              <BookOpen size={14} aria-hidden="true" />
               <div>
-                <strong dir="ltr">optics-ch3.pdf</strong>
-                <p>{renderHighlighted(t("3.2 {term} SCATTERING AND THE COLOUR OF…"), "RAYLEIGH", true)}</p>
+                <strong>{t("Lens formula cheatsheet")}</strong>
+                <p>{t("In short: at sunset the light crosses more air, the blue is scattered away, and red is left.")}</p>
               </div>
             </li>
           )}
@@ -760,15 +777,14 @@ export function CompanionsShowcase() {
       </div>
 
       <div className="lp-companion-controls">
-        <div className="lp-companion-dock" role="radiogroup" aria-label={t("Choose a companion")}>
+        <div className="lp-companion-dock" role="group" aria-label={t("Choose a companion")}>
           {CHARACTER_DEFINITIONS.map((character) => {
             const active = character.id === selected;
             return (
               <button
                 key={character.id}
                 type="button"
-                role="radio"
-                aria-checked={active}
+                aria-pressed={active}
                 className="lp-companion-tile"
                 onClick={() => setSelected(character.id)}
               >
@@ -779,13 +795,12 @@ export function CompanionsShowcase() {
           })}
         </div>
 
-        <div className="lp-state-pills" role="radiogroup" aria-label={current.name}>
+        <div className="lp-state-pills" role="group" aria-label={current.name}>
           {SHOWCASE_STATES.map((item) => (
             <button
               key={item.id}
               type="button"
-              role="radio"
-              aria-checked={state === item.id}
+              aria-pressed={state === item.id}
               className="lp-state-pill"
               onClick={() => setState(item.id)}
             >

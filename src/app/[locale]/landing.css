@@ -72,6 +72,14 @@
   overflow-wrap: anywhere;
 }
 
+.lp-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 .lp-skip {
   position: absolute;
   z-index: 40;
@@ -450,7 +458,7 @@ a.lp-brand { min-height: 44px; }
   white-space: nowrap;
   transition: color 180ms ease;
 }
-.lp-canvas-tab[aria-selected="true"] { color: var(--stage-accent); font-weight: 640; }
+.lp-canvas-tab[aria-pressed="true"] { color: var(--stage-accent); font-weight: 640; }
 .lp-chrome-badge {
   display: inline-flex;
   align-items: center;
@@ -1350,7 +1358,7 @@ a.lp-brand { min-height: 44px; }
   font-weight: 560;
   transition: background-color 160ms ease, color 160ms ease;
 }
-.lp-pill-switch button[aria-selected="true"] {
+.lp-pill-switch button[aria-pressed="true"] {
   background: var(--lp-surface);
   color: var(--lp-ink);
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
@@ -1478,7 +1486,7 @@ a.lp-brand { min-height: 44px; }
 }
 .lp-model-pill[data-provider="anthropic"] .lp-provider-dot { background: #e8612c; }
 .lp-model-pill[data-provider="deepseek"] .lp-provider-dot { background: var(--lp-board); }
-.lp-model-pill[aria-checked="true"] {
+.lp-model-pill[aria-pressed="true"] {
   border-color: var(--lp-ink);
   background: var(--lp-surface);
   color: var(--lp-ink);
@@ -1516,13 +1524,13 @@ a.lp-brand { min-height: 44px; }
   font-weight: 560;
   transition: all 160ms ease;
 }
-.lp-effort-step[aria-checked="true"] {
+.lp-effort-step[aria-pressed="true"] {
   border-color: var(--lp-accent);
   background: var(--lp-note-soft);
   color: var(--lp-accent-deep);
   font-weight: 660;
 }
-.lp-effort-step[data-provider="anthropic"][aria-checked="true"] {
+.lp-effort-step[data-provider="anthropic"][aria-pressed="true"] {
   border-color: #e8612c;
   background: rgba(232, 97, 44, 0.13);
   color: #e8612c;
@@ -1815,7 +1823,7 @@ a.lp-brand { min-height: 44px; }
   transition: transform 180ms var(--lp-ease), border-color 180ms ease, background-color 180ms ease, color 180ms ease;
 }
 .lp-companion-tile:hover { transform: translateY(-2px); color: var(--lp-ink); }
-.lp-companion-tile[aria-checked="true"] {
+.lp-companion-tile[aria-pressed="true"] {
   border-color: var(--lp-accent);
   background: var(--lp-note-soft);
   color: var(--lp-ink);
@@ -1837,7 +1845,7 @@ a.lp-brand { min-height: 44px; }
   font-weight: 560;
   transition: all 160ms ease;
 }
-.lp-state-pill[aria-checked="true"] {
+.lp-state-pill[aria-pressed="true"] {
   border-color: var(--lp-ink);
   background: var(--lp-ink);
   color: var(--lp-on-ink);
