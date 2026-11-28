@@ -39,7 +39,7 @@ import { fitWhiteboardImageSize, type GenerateImageSize, type PageImage } from "
 import { excalidrawLang, useKeepDocumentLanguage } from "@/components/whiteboard/excalidraw-locale";
 import { WhiteboardMinimap } from "@/components/whiteboard/whiteboard-minimap";
 import type { MentionPage } from "@/components/note-mention";
-import { applyMindmapChange, fitMindmapNodeToText, MindmapOverlay, templateLabels, WhiteboardTemplateStart, type MindmapOverlayModel } from "@/components/whiteboard/whiteboard-mindmap";
+import { applyMindmapChange, fitMindmapNodeToText, MindmapOverlay, templateLabels, type MindmapOverlayModel } from "@/components/whiteboard/whiteboard-mindmap";
 import {
   addMindmapChild, addMindmapSibling, collapsedMindmapNodes, collapseMindmapNode, deleteMindmapNodes, exceedsWhiteboardLimit, expandMindmapNode, expandWithFrameChildren,
   findMindmapNode, includesMindmapNode, liveMindmapNodeIds, mindmapCutExtras, mindmapDropTarget, mindmapFinder, mindmapRemovalCleanup, mindmapRootsOf, mindmapSelection,
@@ -285,7 +285,6 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   const [gestureActive, setGestureActive] = useState(false);
   // 終わったときにすること（エディターの API がそろってから入れる）。
   const mindmapEvents = useRef<{ gestureEnd: (ids: string[], dragged: boolean) => void; textEnd: (textId: string) => void }>({ gestureEnd: () => {}, textEnd: () => {} });
-  const [templateStartClosed, setTemplateStartClosed] = useState(false);
 
   const signatureOf = useCallback((elements: readonly ExcalidrawElement[], appState: AppState) => {
     const persisted = [appState.viewBackgroundColor, appState.gridModeEnabled, appState.gridSize, appState.gridStep, appState.objectsSnapModeEnabled];
@@ -1648,7 +1647,6 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
       {api && <MindmapOverlay api={api} model={mindmap} editable={editable} hidden={gestureActive || Boolean(ui?.editingText)}
         onAddChild={mindmapAddChild} onAddSibling={mindmapAddSibling} onToggle={mindmapToggle} />}
       {api && <PageCardOverlay api={api} previews={cardPreviews} sceneVersion={sceneVersion} hidden={gestureActive || Boolean(ui?.editingText)} />}
-      {ui && api && editable && ui.empty && !templateStartClosed && !busy && <WhiteboardTemplateStart onPick={insertTemplate} onClose={() => setTemplateStartClosed(true)} />}
       {ui && api && <WhiteboardChrome ui={ui} drawMode={drawMode} editable={editable} embedded={embedded} compact={compact} theme={theme} actions={panelActions}
         title={props.title} icon={props.icon} onTitleChange={props.onTitleChange} onIconChange={props.onIconChange}
         onSelectTool={selectTool} onLink={openLinkDialog} onOpenLink={openLink} onUnlock={unlockTarget} onInsertPageCard={() => setLinkDialog({ mode: "card" })}
@@ -1766,8 +1764,6 @@ function deriveUiState(selected: readonly NonDeletedExcalidrawElement[], appStat
     tool: appState.activeTool.type,
     toolLocked: appState.activeTool.locked,
     selectedCount: selected.length,
-    // 白板に何も無い（「テンプレートから始める」を出す）。
-    empty: !elements.some((element) => !element.isDeleted),
     selectedTypes: [...new Set(selected.map((element) => element.type))].sort(),
     groupSelected: Object.keys(appState.selectedGroupIds ?? {}).some((id) => appState.selectedGroupIds[id]),
     allLocked: selected.length > 0 && selected.every((element) => element.locked),

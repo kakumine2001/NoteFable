@@ -1179,7 +1179,6 @@ export const ptBR: Record<string, string> = {
   "Group & organize": "Agrupar e organizar",
   "Could not attach the selection screenshot this time.": "Não foi possível anexar a captura da seleção desta vez.",
   "Templates": "Modelos",
-  "Start with a template": "Começar com um modelo",
   "Mind map": "Mapa mental",
   "Cornell notes": "Notas Cornell",
   "Timeline": "Linha do tempo",

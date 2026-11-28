@@ -1179,7 +1179,6 @@ export const vi: Record<string, string> = {
   "Group & organize": "Phân nhóm & sắp xếp",
   "Could not attach the selection screenshot this time.": "Lần này không thể đính kèm ảnh chụp vùng chọn.",
   "Templates": "Mẫu",
-  "Start with a template": "Bắt đầu từ một mẫu",
   "Mind map": "Sơ đồ tư duy",
   "Cornell notes": "Ghi chú Cornell",
   "Timeline": "Dòng thời gian",

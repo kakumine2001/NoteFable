@@ -1179,7 +1179,6 @@ export const id: Record<string, string> = {
   "Group & organize": "Kelompokkan & rapikan",
   "Could not attach the selection screenshot this time.": "Tangkapan layar pilihan tidak dapat dilampirkan kali ini.",
   "Templates": "Template",
-  "Start with a template": "Mulai dengan template",
   "Mind map": "Peta pikiran",
   "Cornell notes": "Catatan Cornell",
   "Timeline": "Linimasa",

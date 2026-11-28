@@ -1179,7 +1179,6 @@ export const hi: Record<string, string> = {
   "Group & organize": "समूह बनाएं और व्यवस्थित करें",
   "Could not attach the selection screenshot this time.": "इस बार चयन का स्क्रीनशॉट संलग्न नहीं किया जा सका।",
   "Templates": "टेम्पलेट",
-  "Start with a template": "टेम्पलेट से शुरू करें",
   "Mind map": "माइंड मैप",
   "Cornell notes": "कॉर्नेल नोट्स",
   "Timeline": "टाइमलाइन",

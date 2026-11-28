@@ -1179,7 +1179,6 @@ export const th: Record<string, string> = {
   "Group & organize": "จัดกลุ่มและจัดระเบียบ",
   "Could not attach the selection screenshot this time.": "ไม่สามารถแนบภาพหน้าจอส่วนที่เลือกได้ในครั้งนี้",
   "Templates": "เทมเพลต",
-  "Start with a template": "เริ่มจากเทมเพลต",
   "Mind map": "แผนผังความคิด",
   "Cornell notes": "บันทึกแบบคอร์เนลล์",
   "Timeline": "ไทม์ไลน์",
